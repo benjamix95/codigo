@@ -6,12 +6,26 @@ public struct CodexUsage: Sendable {
     public let weeklyPct: Double?
     public let resetFiveH: String?
     public let resetWeekly: String?
+    public let creditsBalance: Double?
+    public let creditsCurrency: String?
+    public let creditsSource: String?
 
-    public init(fiveHourPct: Double? = nil, weeklyPct: Double? = nil, resetFiveH: String? = nil, resetWeekly: String? = nil) {
+    public init(
+        fiveHourPct: Double? = nil,
+        weeklyPct: Double? = nil,
+        resetFiveH: String? = nil,
+        resetWeekly: String? = nil,
+        creditsBalance: Double? = nil,
+        creditsCurrency: String? = nil,
+        creditsSource: String? = nil
+    ) {
         self.fiveHourPct = fiveHourPct
         self.weeklyPct = weeklyPct
         self.resetFiveH = resetFiveH
         self.resetWeekly = resetWeekly
+        self.creditsBalance = creditsBalance
+        self.creditsCurrency = creditsCurrency
+        self.creditsSource = creditsSource
     }
 }
 
@@ -108,11 +122,15 @@ public enum CodexUsageFetcher {
         let snapshot = extractSnapshot(result)
         let primary = parseRateWindow(from: snapshot["primary"] as? [String: Any])
         let secondary = parseRateWindow(from: snapshot["secondary"] as? [String: Any])
+        let credits = parseCredits(result: result, snapshot: snapshot)
         return CodexUsage(
             fiveHourPct: primary.usedPercent,
             weeklyPct: secondary.usedPercent,
             resetFiveH: primary.resetLabel,
-            resetWeekly: secondary.resetLabel
+            resetWeekly: secondary.resetLabel,
+            creditsBalance: credits.balance,
+            creditsCurrency: credits.currency,
+            creditsSource: credits.source
         )
     }
 
@@ -201,6 +219,49 @@ public enum CodexUsageFetcher {
         }
         if fivePct == nil, weekPct == nil, let pct = extractPercent(from: text) { fivePct = pct }
         return CodexUsage(fiveHourPct: fivePct, weeklyPct: weekPct, resetFiveH: reset5, resetWeekly: resetWeek)
+    }
+
+    private static func parseCredits(result: [String: Any], snapshot: [String: Any]) -> (balance: Double?, currency: String?, source: String?) {
+        let candidateDicts: [[String: Any]] = [
+            result,
+            snapshot,
+            result["account"] as? [String: Any],
+            result["billing"] as? [String: Any],
+            result["credits"] as? [String: Any]
+        ].compactMap { $0 }
+
+        let balanceKeys = ["creditsBalance", "creditBalance", "balance", "remainingCredits", "remaining_balance", "remaining"]
+        let currencyKeys = ["creditsCurrency", "currency", "balanceCurrency"]
+
+        for dict in candidateDicts {
+            let balance = number(forKeys: balanceKeys, in: dict)
+            if let balance {
+                let currency = string(forKeys: currencyKeys, in: dict) ?? "USD"
+                return (balance, currency, "app-server")
+            }
+        }
+        return (nil, nil, nil)
+    }
+
+    private static func number(forKeys keys: [String], in dict: [String: Any]) -> Double? {
+        for key in keys {
+            if let n = (dict[key] as? NSNumber)?.doubleValue {
+                return n
+            }
+            if let s = dict[key] as? String, let n = Double(s.replacingOccurrences(of: ",", with: ".")) {
+                return n
+            }
+        }
+        return nil
+    }
+
+    private static func string(forKeys keys: [String], in dict: [String: Any]) -> String? {
+        for key in keys {
+            if let v = dict[key] as? String, !v.isEmpty {
+                return v
+            }
+        }
+        return nil
     }
 
     private static func extractPercentFromJsonLine(_ line: String) -> Double? {

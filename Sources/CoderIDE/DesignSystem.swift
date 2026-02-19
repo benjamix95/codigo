@@ -198,6 +198,16 @@ struct DesignSystem {
         static let round: CGFloat = 9999
     }
 
+    struct Sidebar {
+        static let cardRadius: CGFloat = 12
+        static let rowRadius: CGFloat = 8
+        static let sectionSpacing: CGFloat = 10
+        static let insetXS: CGFloat = 6
+        static let insetSM: CGFloat = 8
+        static let insetMD: CGFloat = 10
+        static let insetLG: CGFloat = 12
+    }
+
     struct Blur {
         static let light: CGFloat = 8
         static let medium: CGFloat = 16

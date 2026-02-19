@@ -57,7 +57,7 @@ struct PlanStep: Identifiable, Codable, Equatable {
     var status: PlanStepStatus
 }
 
-struct PlanBoard: Codable {
+struct PlanBoard: Codable, Equatable {
     var goal: String
     var options: [PlanOption]
     var chosenPath: String?

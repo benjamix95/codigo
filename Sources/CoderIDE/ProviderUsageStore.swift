@@ -3,6 +3,7 @@ import CoderEngine
 
 @MainActor
 final class ProviderUsageStore: ObservableObject {
+    static let shared = ProviderUsageStore()
     @Published var codexUsage: CodexUsage?
     @Published var codexUsageMessage: String?
     @Published var claudeUsage: ClaudeUsage?

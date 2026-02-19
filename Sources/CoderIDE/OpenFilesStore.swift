@@ -1,6 +1,11 @@
 import Foundation
 import CoderEngine
 
+enum EditorViewMode: Equatable {
+    case plain
+    case diffInline
+}
+
 /// Store per i file aperti nell'editor, condiviso tra Sidebar, Editor e Chat context.
 @MainActor
 final class OpenFilesStore: ObservableObject {
@@ -9,6 +14,8 @@ final class OpenFilesStore: ObservableObject {
     @Published private(set) var loadErrors: [String: String] = [:]
     @Published private(set) var dirtyPaths: Set<String> = []
     @Published private(set) var pinnedPaths: Set<String> = []
+    @Published private(set) var viewModeByPath: [String: EditorViewMode] = [:]
+    @Published private(set) var diffByPath: [String: GitFileDiff] = [:]
 
     private var fileContents: [String: String] = [:]
     private var diskSnapshot: [String: String] = [:]
@@ -19,12 +26,17 @@ final class OpenFilesStore: ObservableObject {
             openPaths.append(path)
         }
         openFilePath = path
+        if viewModeByPath[path] == nil {
+            viewModeByPath[path] = .plain
+        }
         ensureLoaded(path)
     }
 
     func closeFile(_ path: String) {
         if pinnedPaths.contains(path) { return }
         openPaths.removeAll { $0 == path }
+        viewModeByPath.removeValue(forKey: path)
+        diffByPath.removeValue(forKey: path)
         if openFilePath == path {
             openFilePath = openPaths.last
         }
@@ -64,6 +76,8 @@ final class OpenFilesStore: ObservableObject {
     func closeAllFiles() {
         openPaths.removeAll()
         openFilePath = nil
+        viewModeByPath.removeAll()
+        diffByPath.removeAll()
     }
 
     func ensureLoaded(_ path: String?) {
@@ -123,6 +137,37 @@ final class OpenFilesStore: ObservableObject {
             diskSnapshot[path] = ""
             dirtyPaths.remove(path)
             loadErrors[path] = "Impossibile aprire il file: \(error.localizedDescription)"
+        }
+    }
+
+    func viewMode(for path: String) -> EditorViewMode {
+        viewModeByPath[path] ?? .plain
+    }
+
+    func diff(for path: String) -> GitFileDiff? {
+        diffByPath[path]
+    }
+
+    func setViewMode(_ mode: EditorViewMode, for path: String) {
+        viewModeByPath[path] = mode
+    }
+
+    func setPlainMode(path: String) {
+        viewModeByPath[path] = .plain
+    }
+
+    func openFileWithDiff(_ absolutePath: String, gitRoot: String, gitService: GitService) {
+        openFile(absolutePath)
+        let rootURL = URL(fileURLWithPath: gitRoot)
+        let fileURL = URL(fileURLWithPath: absolutePath)
+        let relative = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+        do {
+            let patch = try gitService.fileDiff(gitRoot: gitRoot, path: relative)
+            diffByPath[absolutePath] = patch
+            viewModeByPath[absolutePath] = .diffInline
+        } catch {
+            loadErrors[absolutePath] = error.localizedDescription
+            viewModeByPath[absolutePath] = .plain
         }
     }
 

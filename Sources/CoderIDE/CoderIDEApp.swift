@@ -8,14 +8,17 @@ struct CodigoApp: App {
     @StateObject private var providerRegistry = ProviderRegistry()
     @StateObject private var chatStore = ChatStore()
     @StateObject private var workspaceStore = WorkspaceStore()
+    @StateObject private var projectContextStore = ProjectContextStore()
     @StateObject private var openFilesStore = OpenFilesStore()
     @StateObject private var taskActivityStore = TaskActivityStore()
     @StateObject private var todoStore = TodoStore()
     @StateObject private var swarmProgressStore = SwarmProgressStore()
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var executionController = ExecutionController()
-    @StateObject private var providerUsageStore = ProviderUsageStore()
+    @StateObject private var providerUsageStore = ProviderUsageStore.shared
     @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
+    @StateObject private var changedFilesStore = ChangedFilesStore()
+    @StateObject private var accountUsageDashboardStore = AccountUsageDashboardStore.shared
     @AppStorage("openai_api_key") private var apiKey = ""
     @AppStorage("openai_model") private var model = "gpt-4o-mini"
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
@@ -47,6 +50,7 @@ struct CodigoApp: App {
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
     @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
+    @AppStorage("gemini_cli_path") private var geminiCliPath = ""
 
     private var colorScheme: ColorScheme? {
         switch appearance {
@@ -63,6 +67,7 @@ struct CodigoApp: App {
                 .environmentObject(providerRegistry)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
+                .environmentObject(projectContextStore)
                 .environmentObject(openFilesStore)
                 .environmentObject(taskActivityStore)
                 .environmentObject(todoStore)
@@ -71,10 +76,18 @@ struct CodigoApp: App {
                 .environmentObject(executionController)
                 .environmentObject(providerUsageStore)
                 .environmentObject(flowDiagnosticsStore)
+                .environmentObject(changedFilesStore)
+                .environmentObject(accountUsageDashboardStore)
                 .onAppear {
+                    projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+                    chatStore.migrateLegacyContextsIfNeeded(contextStore: projectContextStore, workspaceStore: workspaceStore)
                     registerProviders()
                     configureWindow()
                 }
+        }
+        MenuBarExtra("Codigo • Usage", systemImage: "chart.bar.fill") {
+            UsageMenuBarView()
+                .environmentObject(accountUsageDashboardStore)
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -83,13 +96,17 @@ struct CodigoApp: App {
     }
 
     private func configureWindow() {
-        guard let window = NSApplication.shared.windows.first else { return }
-        window.minSize = NSSize(width: 1000, height: 600)
-        window.backgroundColor = DesignSystem.AppKit.windowBackground
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.title = ""
-        window.isMovableByWindowBackground = true
+        let candidates = NSApplication.shared.windows.filter { $0.canBecomeMain }
+        for window in candidates {
+            window.minSize = NSSize(width: 1000, height: 600)
+            window.backgroundColor = DesignSystem.AppKit.windowBackground
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.title = ""
+            window.styleMask.insert(.fullSizeContentView)
+            // Evita che la top area (dove vivono i tab) venga interpretata come drag-region.
+            window.isMovableByWindowBackground = false
+        }
     }
 
     private func registerProviders() {
@@ -117,6 +134,9 @@ struct CodigoApp: App {
         }
         if providerRegistry.provider(for: "claude-cli") == nil {
             providerRegistry.register(ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+        }
+        if providerRegistry.provider(for: "gemini-cli") == nil {
+            providerRegistry.register(ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
         }
         registerMiniMax()
         registerOpenRouter()
@@ -206,7 +226,8 @@ struct CodigoApp: App {
             codeReviewAnalysisBackend: codeReviewAnalysisBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
-            claudeAllowedTools: tools
+            claudeAllowedTools: tools,
+            geminiCliPath: geminiCliPath
         )
     }
 }

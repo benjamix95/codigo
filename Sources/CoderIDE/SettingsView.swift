@@ -54,6 +54,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case openrouter = "OpenRouter"
     case codex = "Codex CLI"
     case claudeCli = "Claude Code"
+    case geminiCli = "Gemini CLI"
     case swarm = "Agent Swarm"
     case codeReview = "Code Review"
     case terminal = "Terminale"
@@ -72,6 +73,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .openrouter: return "arrow.triangle.branch"
         case .codex: return "terminal"
         case .claudeCli: return "sparkles"
+        case .geminiCli: return "globe"
         case .swarm: return "ant.fill"
         case .codeReview: return "doc.text.magnifyingglass"
         case .terminal: return "terminal.fill"
@@ -82,7 +84,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     }
 
     static var providers: [SettingsSection] { [.openai, .anthropic, .google, .minimax, .openrouter] }
-    static var tools: [SettingsSection] { [.codex, .claudeCli, .swarm, .codeReview] }
+    static var tools: [SettingsSection] { [.codex, .claudeCli, .geminiCli, .swarm, .codeReview] }
     static var general: [SettingsSection] { [.terminal, .behavior, .appearance, .mcp] }
 }
 
@@ -92,6 +94,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var executionController: ExecutionController
+    @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @State private var selectedSection: SettingsSection = .openai
 
     // OpenAI
@@ -137,6 +140,7 @@ struct SettingsView: View {
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
+    @AppStorage("gemini_cli_path") private var geminiCliPath = ""
 
     // Swarm
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
@@ -163,10 +167,20 @@ struct SettingsView: View {
     @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
 
     @StateObject private var codexState = CodexStateStore()
+    @StateObject private var cliAccountsStore = CLIAccountsStore.shared
+    @StateObject private var cliUsageLedger = CLIAccountUsageLedgerStore.shared
+    @StateObject private var accountLoginCoordinator = CLIAccountLoginCoordinator()
     @State private var showCodexLogin = false
     @State private var showOpenRouterLogin = false
     @State private var codexAgentsMd = ""
     @State private var claudeMdContent = ""
+    @State private var newAccountLabelByProvider: [CLIProviderKind: String] = [:]
+    @State private var newAccountKeyByProvider: [CLIProviderKind: String] = [:]
+    @State private var newDailyLimitByProvider: [CLIProviderKind: String] = [:]
+    @State private var newWeeklyLimitByProvider: [CLIProviderKind: String] = [:]
+    @State private var newMonthlyLimitByProvider: [CLIProviderKind: String] = [:]
+    @State private var accountTestResultById: [UUID: String] = [:]
+    @State private var loginMethodByAccount: [UUID: CLIAccountLoginCoordinator.LoginMethod] = [:]
 
     var body: some View {
         NavigationSplitView {
@@ -211,6 +225,7 @@ struct SettingsView: View {
         .onAppear {
             codexState.refresh()
             syncProviders()
+            Task { await refreshUsageSnapshotsForSettings() }
         }
         .sheet(isPresented: $showCodexLogin) {
             if let path = codexState.status.path ?? CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) {
@@ -233,6 +248,7 @@ struct SettingsView: View {
         .onChange(of: claudePath) { _, _ in syncClaude() }
         .onChange(of: claudeModel) { _, _ in syncClaude() }
         .onChange(of: claudeAllowedTools) { _, _ in syncClaude() }
+        .onChange(of: geminiCliPath) { _, _ in syncGemini() }
     }
 
     // MARK: - Detail Router
@@ -247,6 +263,7 @@ struct SettingsView: View {
         case .openrouter: openRouterSection
         case .codex: codexSection
         case .claudeCli: claudeSection
+        case .geminiCli: geminiSection
         case .swarm: swarmSection
         case .codeReview: codeReviewSection
         case .terminal: terminalSection
@@ -625,6 +642,8 @@ struct SettingsView: View {
                 }
                 .padding(4)
             }
+
+            multiAccountProviderSection(.codex)
         }
         .onAppear { loadCodexAdvanced() }
     }
@@ -691,9 +710,31 @@ struct SettingsView: View {
                 }
                 .padding(4)
             }
+
+            multiAccountProviderSection(.claude)
         }
         .onAppear {
             claudeMdContent = ClaudeConfigLoader.loadClaudeMd()
+        }
+    }
+
+    // MARK: - Gemini CLI
+
+    private var geminiSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            sectionHeader(title: "Gemini CLI", subtitle: "Provider CLI Google Gemini locale", icon: "globe")
+
+            GroupBox("Connessione") {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Path (vuoto per auto-detect)")
+                    TextField("/usr/local/bin/gemini", text: $geminiCliPath)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: geminiCliPath) { _, _ in syncGemini() }
+                }
+                .padding(4)
+            }
+
+            multiAccountProviderSection(.gemini)
         }
     }
 
@@ -974,7 +1015,320 @@ struct SettingsView: View {
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    @ViewBuilder
+    private func multiAccountProviderSection(_ provider: CLIProviderKind) -> some View {
+        GroupBox("Multi-account \(provider.displayName)") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Abilita multi-account CLI", isOn: $cliAccountsStore.multiAccountEnabled)
+                Text("Auto-switch su quota/rate limit e limiti locali giornalieri/settimanali/mensili.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                let providerAccounts = cliAccountsStore.accounts(for: provider)
+                if providerAccounts.isEmpty {
+                    Text("Nessun account configurato per \(provider.displayName).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(providerAccounts) { account in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                TextField("Label", text: Binding(
+                                    get: { account.label },
+                                    set: { newValue in
+                                        var updated = account
+                                        updated.label = newValue
+                                        cliAccountsStore.update(updated)
+                                    }
+                                ))
+                                Toggle("Attivo", isOn: Binding(
+                                    get: { account.isEnabled },
+                                    set: { newValue in
+                                        var updated = account
+                                        updated.isEnabled = newValue
+                                        cliAccountsStore.update(updated)
+                                    }
+                                ))
+                                .toggleStyle(.checkbox)
+                                Stepper("Priorità \(account.priority)", value: Binding(
+                                    get: { account.priority },
+                                    set: { newValue in
+                                        var updated = account
+                                        updated.priority = max(0, newValue)
+                                        cliAccountsStore.update(updated)
+                                    }
+                                ), in: 0...99)
+                            }
+
+                            HStack(spacing: 10) {
+                                statusBadge(
+                                    connected: accountAuthStatus(account).isLoggedIn,
+                                    label: accountStatusLabel(account)
+                                )
+                                let day = cliUsageLedger.totals(accountId: account.id, period: .day)
+                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
+                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                                Text("Oggi $\(day.cost, specifier: "%.2f")")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("W $\(week.cost, specifier: "%.2f")")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text("M $\(month.cost, specifier: "%.2f")")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            HStack(spacing: 10) {
+                                let day = cliUsageLedger.totals(accountId: account.id, period: .day)
+                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
+                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                                Text("Tok D \(day.tokens)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                Text("W \(week.tokens)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                Text("M \(month.tokens)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                if provider == .codex {
+                                    Text(codexCreditsLabel())
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            HStack(spacing: 8) {
+                                Picker(
+                                    "",
+                                    selection: Binding(
+                                        get: { loginMethodByAccount[account.id] ?? .browserOAuth },
+                                        set: { loginMethodByAccount[account.id] = $0 }
+                                    )
+                                ) {
+                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) { method in
+                                        Text(method.title).tag(method)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 160)
+                                Button("Connetti account") {
+                                    connectAccount(account)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(accountLoginCoordinator.isRunningByAccount[account.id] == true)
+                                Button("Disconnetti account") {
+                                    disconnectAccount(account)
+                                }
+                                .buttonStyle(.bordered)
+                                Button("Test account") {
+                                    testAccount(account)
+                                }
+                                .buttonStyle(.bordered)
+                                Button("Elimina", role: .destructive) {
+                                    cliAccountsStore.delete(accountId: account.id)
+                                }
+                                .buttonStyle(.bordered)
+                                if let result = accountTestResultById[account.id] {
+                                    Text(result)
+                                        .font(.caption)
+                                        .foregroundStyle(result.contains("OK") ? .green : .red)
+                                }
+                                if let status = accountLoginCoordinator.statusByAccount[account.id], !status.isEmpty {
+                                    Text(status)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+
+                Divider()
+                fieldLabel("Aggiungi account")
+                HStack(spacing: 8) {
+                    TextField("Label", text: Binding(
+                        get: { newAccountLabelByProvider[provider, default: ""] },
+                        set: { newAccountLabelByProvider[provider] = $0 }
+                    ))
+                    SecureField("API key (opzionale)", text: Binding(
+                        get: { newAccountKeyByProvider[provider, default: ""] },
+                        set: { newAccountKeyByProvider[provider] = $0 }
+                    ))
+                }
+                HStack(spacing: 8) {
+                    TextField("Limit giornaliero $", text: Binding(
+                        get: { newDailyLimitByProvider[provider, default: ""] },
+                        set: { newDailyLimitByProvider[provider] = $0 }
+                    ))
+                    TextField("Limit settimanale $", text: Binding(
+                        get: { newWeeklyLimitByProvider[provider, default: ""] },
+                        set: { newWeeklyLimitByProvider[provider] = $0 }
+                    ))
+                    TextField("Limit mensile $", text: Binding(
+                        get: { newMonthlyLimitByProvider[provider, default: ""] },
+                        set: { newMonthlyLimitByProvider[provider] = $0 }
+                    ))
+                }
+                HStack(spacing: 8) {
+                    Button("Aggiungi account") {
+                        addAccount(provider)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Reset stato limiti/salute") {
+                        cliAccountsStore.resetHealth(provider: provider)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(4)
+        }
+    }
+
     // MARK: - Actions
+
+    private func accountStatusLabel(_ account: CLIAccount) -> String {
+        let auth = accountAuthStatus(account)
+        if account.health.isExhaustedLocally {
+            return "Exhausted (limite locale)"
+        }
+        if let until = account.health.cooldownUntil, until > Date() {
+            return "Cooldown fino alle \(until.formatted(date: .omitted, time: .shortened))"
+        }
+        switch auth {
+        case .loggedIn(let method):
+            return "Connesso (\(method.rawValue))"
+        case .notLoggedIn:
+            return "Non connesso"
+        case .notInstalled:
+            return "CLI non installato"
+        case .error(let message):
+            return "Errore auth: \(message)"
+        }
+    }
+
+    private func codexCreditsLabel() -> String {
+        guard let usage = providerUsageStore.codexUsage,
+              let balance = usage.creditsBalance else {
+            return "Crediti: N/D"
+        }
+        let currency = usage.creditsCurrency ?? "USD"
+        return String(format: "Crediti: %.2f %@", balance, currency)
+    }
+
+    private func addAccount(_ provider: CLIProviderKind) {
+        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+        let quota = CLIAccountQuotaPolicy(
+            dailyLimitUSD: Double(newDailyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            weeklyLimitUSD: Double(newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            monthlyLimitUSD: Double(newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            dailyTokenLimit: nil,
+            weeklyTokenLimit: nil,
+            monthlyTokenLimit: nil
+        )
+        cliAccountsStore.addAccount(
+            provider: provider,
+            label: label,
+            apiKey: secret.isEmpty ? nil : secret,
+            quota: quota
+        )
+        newAccountLabelByProvider[provider] = ""
+        newAccountKeyByProvider[provider] = ""
+        newDailyLimitByProvider[provider] = ""
+        newWeeklyLimitByProvider[provider] = ""
+        newMonthlyLimitByProvider[provider] = ""
+    }
+
+    private func testAccount(_ account: CLIAccount) {
+        let secret = cliAccountsStore.secret(for: account.id)
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: account.provider,
+            profilePath: account.profilePath,
+            secret: secret
+        )
+
+        let executable: String
+        let args: [String]
+        switch account.provider {
+        case .codex:
+            executable = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex") : codexPath
+            args = ["--version"]
+        case .claude:
+            executable = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
+            args = ["--version"]
+        case .gemini:
+            executable = geminiCliPath.isEmpty ? (PathFinder.find(executable: "gemini") ?? "/opt/homebrew/bin/gemini") : geminiCliPath
+            args = ["--version"]
+        }
+
+        Task.detached {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = args
+            var shell = CodexDetector.shellEnvironment()
+            shell.merge(env) { _, new in new }
+            process.environment = shell
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let ok = process.terminationStatus == 0
+                await MainActor.run {
+                    accountTestResultById[account.id] = ok ? "OK" : "Errore exit \(process.terminationStatus)"
+                }
+            } catch {
+                await MainActor.run {
+                    accountTestResultById[account.id] = "Errore: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func connectAccount(_ account: CLIAccount) {
+        let method = loginMethodByAccount[account.id] ?? .browserOAuth
+        let providerPath = providerPath(for: account.provider)
+        let apiKey = cliAccountsStore.secret(for: account.id)
+        accountLoginCoordinator.startLogin(
+            account: account,
+            providerPath: providerPath,
+            method: method,
+            apiKey: apiKey
+        )
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            let status = accountAuthStatus(account)
+            await MainActor.run {
+                cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
+            }
+        }
+    }
+
+    private func disconnectAccount(_ account: CLIAccount) {
+        accountLoginCoordinator.disconnect(account: account)
+        let status = accountAuthStatus(account)
+        cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
+    }
+
+    private func accountAuthStatus(_ account: CLIAccount) -> CLIAccountAuthStatus {
+        CLIAccountAuthDetector.detect(
+            account: account,
+            providerPath: providerPath(for: account.provider)
+        )
+    }
+
+    private func providerPath(for provider: CLIProviderKind) -> String? {
+        switch provider {
+        case .codex:
+            return codexPath
+        case .claude:
+            return claudePath
+        case .gemini:
+            return geminiCliPath
+        }
+    }
 
     private func connectToCodex() {
         if codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil {
@@ -986,6 +1340,15 @@ struct SettingsView: View {
         }
     }
 
+    private func refreshUsageSnapshotsForSettings() async {
+        let codexBin = codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
+        let claudeBin = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
+        let geminiBin = geminiCliPath.isEmpty ? (PathFinder.find(executable: "gemini") ?? "") : geminiCliPath
+        await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
+        await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
+        await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
+    }
+
     private func syncProviders() {
         syncOpenAI()
         syncAnthropic()
@@ -994,6 +1357,7 @@ struct SettingsView: View {
         syncOpenRouter()
         syncCodex()
         syncClaude()
+        syncGemini()
         syncSwarm()
         syncCodeReview()
         syncPlanProvider()
@@ -1072,6 +1436,11 @@ struct SettingsView: View {
         providerRegistry.register(ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
         syncSwarm()
         syncPlanProvider()
+    }
+
+    private func syncGemini() {
+        providerRegistry.unregister(id: "gemini-cli")
+        providerRegistry.register(ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncSwarm() {
@@ -1182,7 +1551,8 @@ struct SettingsView: View {
             codeReviewAnalysisBackend: codeReviewAnalysisBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
-            claudeAllowedTools: parseClaudeAllowedTools()
+            claudeAllowedTools: parseClaudeAllowedTools(),
+            geminiCliPath: geminiCliPath
         )
     }
 }

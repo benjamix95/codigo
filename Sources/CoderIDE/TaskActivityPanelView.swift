@@ -229,11 +229,14 @@ struct TaskActivityRow: View {
     private var typeIcon: String {
         switch activity.type {
         case "edit", "file_change": return "doc.text.fill"
+        case "read_batch_started", "read_batch_completed": return "doc.on.doc"
         case "bash", "command_execution": return "terminal.fill"
-        case "search", "web_search", "instant_grep": return "magnifyingglass"
+        case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
         case "todo_write", "todo_read": return "checklist"
         case "plan_step_update": return "list.bullet.rectangle"
         case "mcp_tool_call": return "wrench.and.screwdriver.fill"
+        case "process_paused": return "pause.circle.fill"
+        case "process_resumed": return "play.circle.fill"
         case "agent": return "ant.fill"
         default: return "circle.fill"
         }
@@ -242,11 +245,14 @@ struct TaskActivityRow: View {
     private var typeColor: Color {
         switch activity.type {
         case "edit", "file_change": return DesignSystem.Colors.agentColor
+        case "read_batch_started", "read_batch_completed": return DesignSystem.Colors.agentColor
         case "bash", "command_execution": return DesignSystem.Colors.warning
-        case "search", "web_search", "instant_grep": return DesignSystem.Colors.info
+        case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return DesignSystem.Colors.info
         case "todo_write", "todo_read": return .green
         case "plan_step_update": return DesignSystem.Colors.planColor
         case "mcp_tool_call": return DesignSystem.Colors.ideColor
+        case "process_paused": return DesignSystem.Colors.warning
+        case "process_resumed": return DesignSystem.Colors.success
         case "agent": return DesignSystem.Colors.swarmColor
         default: return .secondary
         }

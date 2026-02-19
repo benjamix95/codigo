@@ -17,6 +17,11 @@ let package = Package(
             name: "CoderIDE",
             dependencies: ["CoderEngine", "SwiftTerm"],
             path: "Sources/CoderIDE"
+        ),
+        .testTarget(
+            name: "CoderIDETests",
+            dependencies: ["CoderIDE"],
+            path: "Tests/CoderIDETests"
         )
     ]
 )

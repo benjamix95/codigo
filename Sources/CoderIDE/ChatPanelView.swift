@@ -17,6 +17,11 @@ enum PlanningState: Equatable {
     case awaitingChoice(planContent: String, options: [PlanOption])
 }
 
+private struct InlinePlanSummary: Equatable {
+    let title: String
+    let body: String
+}
+
 struct ChatPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
@@ -27,6 +32,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @EnvironmentObject var flowDiagnosticsStore: FlowDiagnosticsStore
+    @EnvironmentObject var changedFilesStore: ChangedFilesStore
     @Binding var selectedConversationId: UUID?
     let effectiveContext: EffectiveContext
 
@@ -59,9 +65,13 @@ struct ChatPanelView: View {
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
+    @AppStorage("gemini_cli_path") private var geminiCliPath = ""
+    @AppStorage("multi_cli_account_enabled") private var multiCLIAccountEnabled = false
     @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
+    @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
+    @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
     @State private var planningState: PlanningState = .idle
     @State private var isProviderReady = false
     @State private var attachedImageURLs: [URL] = []
@@ -70,18 +80,51 @@ struct ChatPanelView: View {
     @State private var isConvertingHeic = false
     @State private var pasteMonitor: Any?
     @State private var isSummarizing = false
+    @State private var isRewinding = false
+    @State private var isPlanSummaryCollapsed = false
+    @State private var isPlanTabHovered = false
+    @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
+    @State private var hasJustCompletedTask = false
+    @State private var isFollowingLive = true
+    @State private var newEventsWhileDetached = 0
+    @State private var userModeOverrideUntilConversationChange = false
+    @State private var ignoreNextConversationChangeReset = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
     @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
+    private let checkpointGitStore = ConversationCheckpointGitStore()
+    private let cliAccountsStore = CLIAccountsStore.shared
+    private let cliAccountRouter = CLIAccountRouter.shared
 
     private static let imagePastedNotification = Notification.Name("CoderIDE.ImagePasted")
+    private static let threadSearchAskAINotification = Notification.Name("CoderIDE.ThreadSearchAskAI")
+    private let topInteractiveInset: CGFloat = 22
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
 
     var body: some View {
         VStack(spacing: 0) {
+            // Keep tabs out of macOS titlebar hit-test zone while still using full-height content.
+            Color.clear
+                .frame(height: topInteractiveInset)
+                .allowsHitTesting(false)
             modeTabBar
             separator
+            chatHeader
+            if changedFilesStore.isVisiblePanel {
+                ChangedFilesPanelView(
+                    onOpenFile: { path in
+                        openChangedFile(path)
+                    },
+                    onClose: {
+                        changedFilesStore.isVisiblePanel = false
+                    }
+                )
+                .environmentObject(changedFilesStore)
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 6)
+            }
 
             if coderMode == .agentSwarm && !swarmProgressStore.steps.isEmpty {
                 SwarmProgressView(store: swarmProgressStore)
@@ -92,12 +135,34 @@ struct ChatPanelView: View {
             composerArea
         }
         .onChange(of: providerRegistry.selectedProviderId) { _, newId in syncCoderModeToProvider(newId); checkProviderAuth() }
-        .onChange(of: selectedConversationId) { _, _ in syncProviderFromConversation() }
+        .onChange(of: selectedConversationId) { _, _ in
+            if ignoreNextConversationChangeReset {
+                ignoreNextConversationChangeReset = false
+            } else {
+                userModeOverrideUntilConversationChange = false
+            }
+            syncProviderFromConversation()
+        }
         .onAppear {
             syncProviderFromConversation()
             codexModels = CodexModelsCache.loadModels()
             syncSwarmProvider(); syncMultiSwarmReviewProvider(); syncPlanProvider()
             checkProviderAuth()
+            changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+        }
+        .onChange(of: effectiveContext.primaryPath) { _, newPath in
+            changedFilesStore.refresh(workingDirectory: newPath)
+        }
+        .onChange(of: selectedConversationId) { _, _ in
+            changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+        }
+        .onChange(of: chatStore.isLoading) { oldValue, newValue in
+            if oldValue && !newValue {
+                hasJustCompletedTask = true
+                changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                isFollowingLive = true
+                newEventsWhileDetached = 0
+            }
         }
         .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
         .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
@@ -122,6 +187,14 @@ struct ChatPanelView: View {
                 attachedImageURLs.append(url)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: Self.threadSearchAskAINotification)) { notification in
+            guard let prompt = notification.userInfo?["prompt"] as? String else { return }
+            if selectedConversationId == nil {
+                selectedConversationId = chatStore.createConversation(contextId: nil, contextFolderPath: nil, mode: coderMode)
+            }
+            inputText = prompt
+            sendMessage()
+        }
     }
 
     private func handleImageSelection(result: Result<[URL], Error>) {
@@ -145,6 +218,10 @@ struct ChatPanelView: View {
 
     private func installPasteMonitor() {
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if isShiftTab(event), !isInputFocused {
+                planToggleEnabled.toggle()
+                return nil
+            }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v" else {
                 return event
             }
@@ -156,6 +233,17 @@ struct ChatPanelView: View {
             }
             return event
         }
+    }
+
+    private func isShiftTab(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let isBacktabChar = event.charactersIgnoringModifiers == "\u{19}"
+        let isTabKeycode = event.keyCode == 48
+        return (isBacktabChar || isTabKeycode)
+            && flags.contains(.shift)
+            && !flags.contains(.command)
+            && !flags.contains(.option)
+            && !flags.contains(.control)
     }
 
     private func removePasteMonitor() {
@@ -171,6 +259,35 @@ struct ChatPanelView: View {
             .frame(height: 0.5)
     }
 
+    private var chatHeader: some View {
+        HStack(spacing: 8) {
+            Text(chatStore.conversation(for: conversationId)?.title ?? "Nuova conversazione")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Spacer()
+            Button {
+                rewindConversation()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 12, weight: .semibold))
+                    if isRewinding {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .foregroundStyle((chatStore.canRewind(conversationId: conversationId) && !chatStore.isLoading && !isRewinding) ? .primary : .tertiary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!chatStore.canRewind(conversationId: conversationId) || chatStore.isLoading || isRewinding)
+            .help("Torna al checkpoint precedente (ripristina chat e file)")
+            .accessibilityLabel("Rewind checkpoint chat")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
     // MARK: - Mode Tab Bar
     private var modeTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -178,19 +295,63 @@ struct ChatPanelView: View {
                 ForEach(CoderMode.allCases, id: \.self) { mode in
                     modeTabButton(for: mode)
                 }
+                changedFilesButton
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
     }
 
+    private var changedFilesButton: some View {
+        Button {
+            changedFilesStore.isVisiblePanel = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.badge.gearshape")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Changed files")
+                    .font(.system(size: 11.5, weight: .medium))
+                Text("\(changedFilesStore.files.count)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.08), in: Capsule())
+            }
+            .foregroundStyle(changedFilesStore.gitRoot == nil ? .tertiary : .secondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5.5)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.6)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(changedFilesStore.gitRoot == nil)
+        .help(changedFilesStore.gitRoot == nil ? "Nessuna repository Git nel contesto attivo" : "Apri elenco completo file modificati")
+    }
+
     @ViewBuilder
     private func modeTabButton(for mode: CoderMode) -> some View {
         let isSelected = coderMode == mode
+        let isPlanMode = mode == .plan
+        let isPlanActive = isPlanMode && planToggleEnabled
         let color = modeColor(for: mode)
         let gradient = modeGradient(for: mode)
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                if isPlanMode {
+                    planToggleEnabled.toggle()
+                    if planToggleEnabled {
+                        self.selectMode(.plan)
+                    } else if coderMode == .plan {
+                        self.selectMode(.agent)
+                    }
+                    return
+                }
                 self.selectMode(mode)
             }
         } label: {
@@ -199,20 +360,34 @@ struct ChatPanelView: View {
                     .font(.system(size: 10, weight: .semibold))
                 Text(mode.rawValue)
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
+                if isPlanMode && isPlanTabHovered {
+                    Text("Shift+Tab")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7), in: Capsule())
+                }
             }
-            .foregroundStyle(isSelected ? .white : .secondary)
+            .foregroundStyle((isSelected || isPlanActive) ? .white : .secondary)
             .padding(.horizontal, 11)
             .padding(.vertical, 5.5)
             .background {
-                if isSelected {
+                if isSelected || isPlanActive {
                     Capsule()
-                        .fill(gradient)
+                        .fill(isPlanMode && isPlanActive && !isSelected ? DesignSystem.Colors.planGradient : gradient)
                         .shadow(color: color.opacity(0.35), radius: 8, y: 2)
                 }
             }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            if isPlanMode {
+                isPlanTabHovered = hovering
+            }
+        }
+        .help(isPlanMode ? "Toggle Plan (Shift+Tab)" : "")
     }
 
     // MARK: - Messages Area
@@ -224,11 +399,30 @@ struct ChatPanelView: View {
                         ForEach(conv.messages) { message in
                             MessageRow(
                                 message: message,
-                                workspacePath: effectiveContext.primaryPath ?? "",
+                                context: effectiveContext.context,
                                 modeColor: activeModeColor,
+                                streamingStatusText: streamingStatusText(for: message),
+                                streamingDetailText: streamingDetailText(for: message),
                                 onFileClicked: { openFilesStore.openFile($0) }
                             )
                             .id(message.id)
+                        }
+                        if coderMode == .agent,
+                           planToggleEnabled,
+                           let cid = conversationId,
+                           let summary = inlinePlanSummaries[cid] {
+                            PlanSummaryCardView(
+                                title: summary.title,
+                                summaryMarkdown: summary.body,
+                                isCollapsed: isPlanSummaryCollapsed,
+                                onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
+                                onExpandPlan: {
+                                    selectMode(.plan)
+                                }
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                            .id("plan-summary-card")
                         }
                         if let board = chatStore.planBoard(for: conversationId) {
                             PlanBoardView(
@@ -258,12 +452,17 @@ struct ChatPanelView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
                         }
+                        if hasJustCompletedTask, !changedFilesStore.files.isEmpty {
+                            changedFilesSummaryCard
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 8)
+                        }
                     }
                 }
                 .padding(.top, 8).padding(.bottom, 16)
             }
             .onChange(of: chatStore.conversation(for: conversationId)?.messages.last?.content ?? "") { _, _ in
-                if let last = chatStore.conversation(for: conversationId)?.messages.last {
+                if let last = chatStore.conversation(for: conversationId)?.messages.last, isFollowingLive {
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
@@ -276,10 +475,102 @@ struct ChatPanelView: View {
                 if loading { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("chat-task-status", anchor: .bottom) } }
             }
             .onChange(of: taskActivityStore.activities.count) { _, _ in
-                if chatStore.isLoading { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("chat-task-status", anchor: .bottom) } }
+                if chatStore.isLoading {
+                    if isFollowingLive {
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("chat-task-status", anchor: .bottom) }
+                    } else {
+                        newEventsWhileDetached += 1
+                    }
+                }
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 3).onChanged { _ in
+                    if chatStore.isLoading {
+                        isFollowingLive = false
+                    }
+                }
+            )
+            .overlay(alignment: .bottomTrailing) {
+                if !isFollowingLive && chatStore.isLoading {
+                    Button {
+                        isFollowingLive = true
+                        newEventsWhileDetached = 0
+                        if let last = chatStore.conversation(for: conversationId)?.messages.last {
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(last.id, anchor: .bottom) }
+                        } else {
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("chat-task-status", anchor: .bottom) }
+                        }
+                        taskActivityStore.markLiveEventsSeen()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Torna al live")
+                                .font(.system(size: 11, weight: .semibold))
+                            if newEventsWhileDetached > 0 {
+                                Text("\(newEventsWhileDetached)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.22), in: Capsule())
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 10)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var changedFilesSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("\(changedFilesStore.files.count) files changed")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("+\(changedFilesStore.totalAdded)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("-\(changedFilesStore.totalRemoved)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.error)
+                Spacer()
+                Button("Undo") {
+                    changedFilesStore.undoAll()
+                }
+                .buttonStyle(.plain)
+                .disabled(changedFilesStore.files.isEmpty)
+            }
+
+            ForEach(changedFilesStore.files.prefix(8)) { file in
+                HStack(spacing: 8) {
+                    Button {
+                        openChangedFile(file.path)
+                    } label: {
+                        Text(file.path)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    Text("+\(file.added)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.success)
+                    Text("-\(file.removed)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.error)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.6))
     }
 
     @ViewBuilder
@@ -296,7 +587,69 @@ struct ChatPanelView: View {
                         Text(formatElapsed(elapsed))
                             .font(.system(size: 11, weight: .semibold, design: .monospaced))
                             .foregroundStyle(DesignSystem.Colors.warning)
+                        if taskActivityStore.activeOperationsCount > 0 {
+                            Text("• \(taskActivityStore.activeOperationsCount) op attive")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                        }
                         Spacer()
+                        if executionController.runState == .paused {
+                            Button {
+                                let scope: ExecutionScope = {
+                                    switch coderMode {
+                                    case .agentSwarm: return .swarm
+                                    case .codeReviewMultiSwarm: return .review
+                                    case .plan: return .plan
+                                    default: return .agent
+                                    }
+                                }()
+                                executionController.resume(scope: scope)
+                                taskActivityStore.markResumed()
+                                taskActivityStore.addActivity(
+                                    TaskActivity(
+                                        type: "process_resumed",
+                                        title: "Processo ripreso",
+                                        detail: "Esecuzione ripresa dall'utente",
+                                        payload: [:],
+                                        phase: .executing,
+                                        isRunning: true
+                                    )
+                                )
+                            } label: {
+                                Text("Riprendi")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        } else {
+                            Button {
+                                let scope: ExecutionScope = {
+                                    switch coderMode {
+                                    case .agentSwarm: return .swarm
+                                    case .codeReviewMultiSwarm: return .review
+                                    case .plan: return .plan
+                                    default: return .agent
+                                    }
+                                }()
+                                executionController.pause(scope: scope)
+                                taskActivityStore.markPaused()
+                                taskActivityStore.addActivity(
+                                    TaskActivity(
+                                        type: "process_paused",
+                                        title: "Processo in pausa",
+                                        detail: "Esecuzione sospesa dall'utente",
+                                        payload: [:],
+                                        phase: .thinking,
+                                        isRunning: false
+                                    )
+                                )
+                            } label: {
+                                Text("Pausa")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
                         Button {
                             switch coderMode {
                             case .agentSwarm:
@@ -337,8 +690,18 @@ struct ChatPanelView: View {
                 .padding(.horizontal, 12).padding(.vertical, 6)
                 .background(DesignSystem.Colors.info.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
             }
-            if taskPanelEnabled && !taskActivityStore.activities.isEmpty {
+            if chatStore.isLoading {
+                TodoLiveInlineCard(store: todoStore, onOpenFile: { path in
+                    openFilesStore.openFile(path)
+                })
+            }
+            if (chatStore.isLoading || taskPanelEnabled) && !taskActivityStore.activities.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
+                    LiveActivityTimelineView(
+                        activities: taskActivityStore.activities,
+                        maxVisible: 20
+                    )
+                    WebSearchLiveView(activities: taskActivityStore.activities)
                     ChatTerminalSessionsView(activities: taskActivityStore.activities)
                     InstantGrepCardsView(results: taskActivityStore.instantGreps) { match in
                         let fullPath: String
@@ -386,12 +749,19 @@ struct ChatPanelView: View {
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
-                let shouldAutoShow = activity.type == "command_execution" || activity.type == "bash"
+                let shouldAutoShow = activity.type == "command_execution" || activity.type == "bash" ||
+                    activity.type == "web_search_started" || activity.type == "web_search_completed" || activity.type == "web_search_failed"
                 if shouldAutoShow {
                     taskPanelEnabled = true
                 }
                 if taskPanelEnabled || shouldAutoShow {
-                    taskActivityStore.addActivity(activity)
+                    if activity.type == "read_batch_started" || activity.type == "read_batch_completed" ||
+                        activity.type == "web_search_started" || activity.type == "web_search_completed" ||
+                        activity.type == "web_search_failed" {
+                        taskActivityStore.appendOrMergeBatchEvent(activity)
+                    } else {
+                        taskActivityStore.addActivity(activity)
+                    }
                 }
             case .instantGrep(let grep):
                 taskPanelEnabled = true
@@ -492,6 +862,7 @@ struct ChatPanelView: View {
         case "google-api": return "API Key Google Gemini mancante. Configurala nelle Impostazioni."
         case "codex-cli": return "Codex CLI non connesso. Configuralo nelle Impostazioni → Codex CLI."
         case "claude-cli": return "Claude Code non trovato. Configuralo nelle Impostazioni → Claude Code."
+        case "gemini-cli": return "Gemini CLI non trovato/non autenticato. Configuralo nelle Impostazioni."
         case "agent-swarm": return "Agent Swarm non configurato. Verifica provider nelle Impostazioni."
         case "plan-mode": return "Backend Plan Mode non disponibile. Verifica Codex o Claude nelle Impostazioni."
         case "multi-swarm-review": return "Code Review non configurato. Verifica Codex nelle Impostazioni."
@@ -626,24 +997,41 @@ struct ChatPanelView: View {
         .animation(.easeOut(duration: 0.15), value: canSend)
     }
 
-    /// Provider effettivo (Codex CLI o Claude CLI) usato dall’agent in base a plan-mode, agent-swarm, multi-swarm-review
-    private var effectiveAgentProviderLabel: String? {
-        guard [.agent, .agentSwarm, .codeReviewMultiSwarm, .plan].contains(coderMode) else { return nil }
+    /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
+    private var effectiveModeProviderLabel: String? {
         switch providerRegistry.selectedProviderId {
-        case "codex-cli": return "Codex CLI"
-        case "claude-cli": return "Claude CLI"
-        case "plan-mode": return planModeBackend == "claude" ? "Claude CLI" : "Codex CLI"
-        case "agent-swarm": return swarmWorkerBackend == "claude" ? "Claude CLI" : "Codex CLI"
-        case "multi-swarm-review": return codeReviewAnalysisBackend == "claude" ? "Claude CLI" : "Codex CLI"
-        default: return nil
+        case "plan-mode":
+            return "Plan → " + (planModeBackend == "claude" ? "Claude CLI" : "Codex CLI")
+        case "agent-swarm":
+            return "Swarm → " + (swarmWorkerBackend == "claude" ? "Claude CLI" : "Codex CLI")
+        case "multi-swarm-review":
+            return "Review → " + (codeReviewAnalysisBackend == "claude" ? "Claude CLI" : "Codex CLI")
+        default:
+            if coderMode == .ide {
+                guard let selected = providerRegistry.selectedProviderId,
+                      ProviderSupport.isIDEProvider(id: selected),
+                      let provider = providerRegistry.provider(for: selected) else {
+                    return "IDE → Auto"
+                }
+                return "IDE → \(provider.displayName)"
+            }
+            if coderMode == .agent || coderMode == .agentSwarm || coderMode == .codeReviewMultiSwarm || coderMode == .plan {
+                if let selected = providerRegistry.selectedProviderId, selected == "codex-cli" {
+                    return "Codex CLI"
+                }
+                if let selected = providerRegistry.selectedProviderId, selected == "claude-cli" {
+                    return "Claude CLI"
+                }
+            }
+            return nil
         }
     }
 
     private var controlsBar: some View {
         HStack(spacing: 6) {
             providerPicker
-            if let agentLabel = effectiveAgentProviderLabel {
-                Text(agentLabel)
+            if let modeLabel = effectiveModeProviderLabel {
+                Text(modeLabel)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -821,11 +1209,13 @@ struct ChatPanelView: View {
         switch s { case "read-only": return "Read Only"; case "danger-full-access": return "Full Access"; default: return "Default" }
     }
     private func selectMode(_ mode: CoderMode) {
+        userModeOverrideUntilConversationChange = true
         let currentConv = chatStore.conversation(for: selectedConversationId)
-        let workspaceId = currentConv?.workspaceId
-        let adHocPaths = currentConv?.adHocFolderPaths ?? []
+        let contextId = currentConv?.contextId
+        let contextFolderPath = currentConv?.contextFolderPath
 
-        let newConvId = chatStore.getOrCreateConversationForMode(workspaceId: workspaceId, mode: mode, adHocFolderPaths: adHocPaths)
+        let newConvId = chatStore.getOrCreateConversationForMode(contextId: contextId, contextFolderPath: contextFolderPath, mode: mode)
+        ignoreNextConversationChangeReset = true
         selectedConversationId = newConvId
 
         switch mode {
@@ -833,7 +1223,7 @@ struct ChatPanelView: View {
         case .agent: providerRegistry.selectedProviderId = "codex-cli"
         case .agentSwarm: providerRegistry.selectedProviderId = "agent-swarm"
         case .codeReviewMultiSwarm: providerRegistry.selectedProviderId = "multi-swarm-review"
-        case .plan: providerRegistry.selectedProviderId = "plan-mode"; planningState = .idle
+        case .plan: providerRegistry.selectedProviderId = "plan-mode"; planningState = .idle; planToggleEnabled = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         coderMode = mode
@@ -864,6 +1254,22 @@ struct ChatPanelView: View {
     // MARK: - Provider Sync
 
     private func checkProviderAuth() {
+        if coderMode == .ide {
+            let preferred = ProviderSupport.preferredIDEProvider(in: providerRegistry)
+            if providerRegistry.selectedProviderId != preferred {
+                providerRegistry.selectedProviderId = preferred
+            }
+        }
+        let selectedProviderId = providerRegistry.selectedProviderId
+        if multiCLIAccountEnabled,
+           let selectedProviderId,
+           let kind = CLIProviderKind.fromProviderId(selectedProviderId) {
+            Task { @MainActor in
+                let hasAvailable = cliAccountRouter.currentAvailability(provider: kind) == .available
+                isProviderReady = hasAvailable
+            }
+            return
+        }
         let provider = providerRegistry.selectedProvider
         Task.detached {
             let ready = provider?.isAuthenticated() ?? false
@@ -918,6 +1324,9 @@ struct ChatPanelView: View {
     }
 
     private func syncCoderModeToProvider(_ pid: String?) {
+        if userModeOverrideUntilConversationChange {
+            return
+        }
         guard let id = pid else { return }
         if ProviderSupport.isIDEProvider(id: id) {
             coderMode = .ide
@@ -928,7 +1337,7 @@ struct ChatPanelView: View {
         case "agent-swarm": coderMode = .agentSwarm; planningState = .idle
         case "multi-swarm-review": coderMode = .codeReviewMultiSwarm; planningState = .idle
         case "plan-mode": coderMode = .plan
-        case "codex-cli", "claude-cli": coderMode = .agent; planningState = .idle
+        case "codex-cli", "claude-cli", "gemini-cli": coderMode = .agent; planningState = .idle
         default: break
         }
     }
@@ -972,7 +1381,8 @@ struct ChatPanelView: View {
             codeReviewAnalysisBackend: codeReviewAnalysisBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
-            claudeAllowedTools: ["Read", "Edit", "Bash", "Write", "Search"]
+            claudeAllowedTools: ["Read", "Edit", "Bash", "Write", "Search"],
+            geminiCliPath: geminiCliPath
         )
     }
 
@@ -1018,9 +1428,9 @@ struct ChatPanelView: View {
         guard let agentProvider else { return }
 
         let currentConv = chatStore.conversation(for: conversationId)
-        let workspaceId = currentConv?.workspaceId
-        let adHocPaths = currentConv?.adHocFolderPaths ?? []
-        let agentConvId = chatStore.getOrCreateConversationForMode(workspaceId: workspaceId, mode: .agent, adHocFolderPaths: adHocPaths)
+        let contextId = currentConv?.contextId
+        let contextFolderPath = currentConv?.contextFolderPath
+        let agentConvId = chatStore.getOrCreateConversationForMode(contextId: contextId, contextFolderPath: contextFolderPath, mode: .agent)
 
         selectedConversationId = agentConvId
         providerRegistry.selectedProviderId = agentProvider.id
@@ -1038,13 +1448,28 @@ struct ChatPanelView: View {
         if useClaude { guard let c = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider else { return }; provider = c }
         else { guard let c = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }; provider = c }
 
+        let currentConv = chatStore.conversation(for: conversationId)
+        let contextId = currentConv?.contextId
+        let contextFolderPath = currentConv?.contextFolderPath
+        let agentConvId = chatStore.getOrCreateConversationForMode(contextId: contextId, contextFolderPath: contextFolderPath, mode: .agent)
+        let ctx = effectiveContext.toWorkspaceContext(
+            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+            activeSelection: nil,
+            activeFilePath: openFilesStore.openFilePath,
+            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+        )
+
+        do {
+            try createCheckpointBeforeTurn(conversationId: agentConvId, workspaceContext: ctx)
+        } catch {
+            appendTechnicalErrorMessage("[Errore checkpoint: \(error.localizedDescription)]", in: conversationId)
+            flowDiagnosticsStore.setError(error.localizedDescription)
+            return
+        }
+
         planningState = .idle
         chatStore.choosePlanPath(choice, for: conversationId)
         chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: conversationId)
-        let currentConv = chatStore.conversation(for: conversationId)
-        let workspaceId = currentConv?.workspaceId
-        let adHocPaths = currentConv?.adHocFolderPaths ?? []
-        let agentConvId = chatStore.getOrCreateConversationForMode(workspaceId: workspaceId, mode: .agent, adHocFolderPaths: adHocPaths)
         selectedConversationId = agentConvId
         providerRegistry.selectedProviderId = planModeBackend == "claude" ? "claude-cli" : "codex-cli"
         coderMode = .agent
@@ -1054,11 +1479,6 @@ struct ChatPanelView: View {
         chatStore.beginTask(); if taskPanelEnabled { taskActivityStore.clear() }
 
         let prompt = "L'utente ha scelto il seguente approccio dal piano precedentemente proposto. Implementalo.\n\nPiano di riferimento:\n\(planContent)\n\nScelta dell'utente:\n\(choice)"
-        let ctx = effectiveContext.toWorkspaceContext(
-            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
-            activeSelection: nil,
-            activeFilePath: openFilesStore.openFilePath
-        )
 
         Task {
             do {
@@ -1095,7 +1515,66 @@ struct ChatPanelView: View {
     // MARK: - Send Message
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty || !attachedImageURLs.isEmpty, let provider = providerRegistry.selectedProvider, provider.isAuthenticated() else { return }
+        guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
+        guard let selectedProvider = providerRegistry.selectedProvider else { return }
+        hasJustCompletedTask = false
+        let shouldRunPlanInline = coderMode == .agent && planToggleEnabled
+        let runtimeProvider: any LLMProvider = {
+            if shouldRunPlanInline,
+               let p = providerRegistry.provider(for: "plan-mode"),
+               p.isAuthenticated() {
+                return p
+            }
+            if multiCLIAccountEnabled,
+               let selectedProviderId = providerRegistry.selectedProviderId,
+               let kind = CLIProviderKind.fromProviderId(selectedProviderId) {
+                let availability = cliAccountRouter.currentAvailability(provider: kind)
+                if case .allExhausted = availability {
+                    return selectedProvider
+                }
+                return CLIMultiAccountProviderAdapter(
+                    providerKind: kind,
+                    id: selectedProviderId,
+                    displayName: selectedProvider.displayName,
+                    router: cliAccountRouter,
+                    accountsStore: cliAccountsStore,
+                    makeProvider: { _, env in
+                        let cfg = providerFactoryConfig()
+                        switch kind {
+                        case .codex:
+                            return ProviderFactory.codexProvider(config: cfg, executionController: executionController, environmentOverride: env)
+                        case .claude:
+                            return ProviderFactory.claudeProvider(config: cfg, executionController: executionController, environmentOverride: env)
+                        case .gemini:
+                            return ProviderFactory.geminiProvider(config: cfg, executionController: executionController, environmentOverride: env)
+                        }
+                    }
+                )
+            }
+            return selectedProvider
+        }()
+        if multiCLIAccountEnabled,
+           let selectedProviderId = providerRegistry.selectedProviderId,
+           let kind = CLIProviderKind.fromProviderId(selectedProviderId),
+           case .allExhausted(let reason) = cliAccountRouter.currentAvailability(provider: kind) {
+            appendTechnicalErrorMessage("[Multi-account \(kind.displayName): \(reason). Configura account o resetta i limiti nelle Impostazioni.]", in: conversationId)
+            flowDiagnosticsStore.setError("Multi-account \(kind.rawValue): \(reason)")
+            return
+        }
+        guard runtimeProvider.isAuthenticated() else { return }
+        let ctx = effectiveContext.toWorkspaceContext(
+            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+            activeSelection: nil,
+            activeFilePath: openFilesStore.openFilePath,
+            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+        )
+        do {
+            try createCheckpointBeforeTurn(conversationId: conversationId, workspaceContext: ctx)
+        } catch {
+            appendTechnicalErrorMessage("[Errore checkpoint: \(error.localizedDescription)]", in: conversationId)
+            flowDiagnosticsStore.setError(error.localizedDescription)
+            return
+        }
         let imagePathsToStore = attachedImageURLs.map { $0.path }
         inputText = ""
         let contentToStore = text.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Immagine allegata]") : text
@@ -1104,11 +1583,6 @@ struct ChatPanelView: View {
         chatStore.beginTask(); if taskPanelEnabled { taskActivityStore.clear() }
         if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }
 
-        let ctx = effectiveContext.toWorkspaceContext(
-            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
-            activeSelection: nil,
-            activeFilePath: openFilesStore.openFilePath
-        )
         let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
         attachedImageURLs = []
 
@@ -1124,6 +1598,10 @@ struct ChatPanelView: View {
             \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
             Se fai ricerche codice con rg, puoi emettere marker con risultati:
             \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:linea]
+            Leggi i file in batch paralleli (max 8 per batch) quando serve contesto ampio. Per tracciare il batch puoi emettere:
+            \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
+            Per ricerche web concorrenti (max 4 query in parallelo), emetti marker stato:
+            \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
             """
             if agentAutoDelegateSwarm {
                 let swarmInstructions = "Per task complessi che richiedono planner, coder, reviewer, ecc., delega allo swarm scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
@@ -1134,10 +1612,10 @@ struct ChatPanelView: View {
         }
 
         Task {
-            await MainActor.run { flowDiagnosticsStore.selectedProviderId = provider.id }
+            await MainActor.run { flowDiagnosticsStore.selectedProviderId = runtimeProvider.id }
             do {
                 let streamResult = try await flowCoordinator.runStream(
-                    provider: provider,
+                    provider: runtimeProvider,
                     prompt: prompt,
                     context: ctx,
                     imageURLs: imageURLsToSend,
@@ -1169,27 +1647,38 @@ struct ChatPanelView: View {
                 let pendingSwarmTask = streamResult.pendingSwarmTask
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
                 await trySummarizeIfNeeded(ctx: ctx)
-                if coderMode == .plan { let opts = PlanOptionsParser.parse(from: full); if !opts.isEmpty { await MainActor.run { planningState = .awaitingChoice(planContent: full, options: opts) } } }
-                if coderMode == .plan {
+                if coderMode == .plan || shouldRunPlanInline {
                     let opts = PlanOptionsParser.parse(from: full)
                     if !opts.isEmpty {
                         await MainActor.run {
+                            if coderMode == .plan {
+                                planningState = .awaitingChoice(planContent: full, options: opts)
+                            }
                             let board = PlanBoard.build(from: full, options: opts)
                             chatStore.setPlanBoard(board, for: conversationId)
+                            if shouldRunPlanInline, let cid = conversationId {
+                                inlinePlanSummaries[cid] = {
+                                    let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
+                                    return InlinePlanSummary(title: parsed.title, body: parsed.body)
+                                }()
+                                isPlanSummaryCollapsed = false
+                                let currentConv = chatStore.conversation(for: cid)
+                                let contextId = currentConv?.contextId
+                                let contextFolderPath = currentConv?.contextFolderPath
+                                let planConvId = chatStore.getOrCreateConversationForMode(contextId: contextId, contextFolderPath: contextFolderPath, mode: .plan)
+                                chatStore.setPlanBoard(board, for: planConvId)
+                            }
                         }
                     }
                 }
-                else if let task = pendingSwarmTask, let swarm = providerRegistry.provider(for: "agent-swarm"), swarm.isAuthenticated() {
+                if let task = pendingSwarmTask, let swarm = providerRegistry.provider(for: "agent-swarm"), swarm.isAuthenticated() {
                     let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
-                    await MainActor.run { providerRegistry.selectedProviderId = "agent-swarm"; coderMode = .agentSwarm }
                     chatStore.addMessage(ChatMessage(role: .user, content: "[Delegato allo swarm] \(task)", isStreaming: false), to: conversationId)
                     chatStore.addMessage(ChatMessage(role: .assistant, content: "", isStreaming: true), to: conversationId)
                     chatStore.beginTask(); if taskPanelEnabled { taskActivityStore.clear() }; swarmProgressStore.clear()
                     let followUpProvider: (any LLMProvider)? = {
                         guard let agentId = agentProviderIdBeforeSwarm, (agentId == "codex-cli" || agentId == "claude-cli"),
                               let agentProvider = providerRegistry.provider(for: agentId), agentProvider.isAuthenticated() else { return nil }
-                        providerRegistry.selectedProviderId = agentId
-                        coderMode = .agent
                         chatStore.addMessage(ChatMessage(role: .user, content: "[Seguito agent dopo swarm]", isStreaming: false), to: conversationId)
                         chatStore.addMessage(ChatMessage(role: .assistant, content: "", isStreaming: true), to: conversationId)
                         return agentProvider
@@ -1238,6 +1727,99 @@ struct ChatPanelView: View {
         }
     }
 
+    private func createCheckpointBeforeTurn(conversationId: UUID?, workspaceContext: WorkspaceContext) throws {
+        guard let conversationId else { return }
+        let pathStrings = workspaceContext.workspacePaths.map(\.path)
+        do {
+            let states = try checkpointGitStore.captureSnapshots(conversationId: conversationId, workspacePaths: pathStrings)
+            chatStore.createCheckpoint(for: conversationId, gitStates: states)
+        } catch {
+            // Fallback cursor-style: checkpoint chat valido anche fuori da repository Git.
+            if let gitError = error as? ConversationCheckpointGitStore.GitStoreError {
+                switch gitError {
+                case .notGitRepository:
+                    chatStore.createCheckpoint(for: conversationId, gitStates: [])
+                    return
+                default:
+                    throw error
+                }
+            }
+            throw error
+        }
+    }
+
+    private func appendTechnicalErrorMessage(_ message: String, in conversationId: UUID?) {
+        chatStore.addMessage(ChatMessage(role: .assistant, content: message, isStreaming: false), to: conversationId)
+    }
+
+    private func rewindConversation() {
+        guard !isRewinding else { return }
+        guard let convId = conversationId,
+              let conv = chatStore.conversation(for: convId),
+              let lastUserIndex = conv.messages.lastIndex(where: { $0.role == .user }) else { return }
+        let lastUserMessage = conv.messages[lastUserIndex]
+        let checkpoint = chatStore.previousCheckpoint(conversationId: convId)
+        isRewinding = true
+
+        Task {
+            await MainActor.run {
+                if chatStore.isLoading {
+                    switch coderMode {
+                    case .agentSwarm:
+                        executionController.terminate(scope: .swarm)
+                    case .codeReviewMultiSwarm:
+                        executionController.terminate(scope: .review)
+                    case .plan:
+                        executionController.terminate(scope: .plan)
+                    default:
+                        executionController.terminate(scope: .agent)
+                    }
+                    flowCoordinator.interrupt()
+                    chatStore.endTask()
+                }
+            }
+
+            // Prova restore file solo se abbiamo snapshot git; in caso di errore continua
+            // comunque con rewind chat-only (comportamento sempre disponibile).
+            if let checkpoint {
+                for state in checkpoint.gitStates {
+                    do {
+                        try checkpointGitStore.restoreSnapshot(ref: state.gitSnapshotRef, gitRoot: state.gitRootPath)
+                    } catch {
+                        await MainActor.run {
+                            flowDiagnosticsStore.setError("Rewind file parziale: \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+
+            await MainActor.run {
+                let rewound: Bool
+                if let checkpoint {
+                    rewound = chatStore.rewindConversationState(to: checkpoint.id, conversationId: convId)
+                } else {
+                    // Fallback senza checkpoint: rimuove ultimo turno utente+risposta.
+                    rewound = chatStore.rewindConversationToMessageCount(lastUserIndex, conversationId: convId)
+                }
+                guard rewound else {
+                    appendTechnicalErrorMessage("[Errore rewind: impossibile ripristinare lo stato chat.]", in: convId)
+                    isRewinding = false
+                    return
+                }
+
+                // Cursor-style: riporta l'ultimo prompt utente nel composer in modifica.
+                let placeholderImageOnly = "[Immagine allegata]"
+                inputText = (lastUserMessage.content == placeholderImageOnly) ? "" : lastUserMessage.content
+                attachedImageURLs = (lastUserMessage.imagePaths ?? []).map { URL(fileURLWithPath: $0) }
+                isInputFocused = true
+                planningState = .idle
+                taskActivityStore.clear()
+                swarmProgressStore.clear()
+                isRewinding = false
+            }
+        }
+    }
+
     private func linkedContextPaths() -> [String] {
         var ordered: [String] = []
         ordered.append(contentsOf: todoStore.todos.flatMap(\.linkedFiles))
@@ -1245,7 +1827,54 @@ struct ChatPanelView: View {
             ordered.append(contentsOf: board.steps.compactMap(\.targetFile))
         }
         var seen = Set<String>()
-        return ordered.filter { seen.insert($0).inserted }
+        let deduped = ordered.filter { seen.insert($0).inserted }
+        guard let context = effectiveContext.context else { return deduped }
+        return deduped.compactMap { ref in
+            switch ContextPathResolver.resolve(reference: ref, context: context) {
+            case .resolved(let path):
+                return path
+            case .ambiguous(let matches):
+                return matches.first
+            case .notFound:
+                return nil
+            }
+        }
+    }
+
+    private func openChangedFile(_ repoRelativePath: String) {
+        guard let gitRoot = changedFilesStore.gitRoot else { return }
+        let absolutePath = URL(fileURLWithPath: gitRoot).appendingPathComponent(repoRelativePath).path
+        let gitService = GitService()
+        openFilesStore.openFileWithDiff(absolutePath, gitRoot: gitRoot, gitService: gitService)
+        selectMode(.ide)
+    }
+
+    private func streamingStatusText(for message: ChatMessage) -> String {
+        guard message.isStreaming, message.role == .assistant else { return "Sto scrivendo..." }
+        if executionController.runState == .paused {
+            return "In pausa..."
+        }
+        guard let last = taskActivityStore.activities.last else { return "Sto pensando..." }
+        switch last.phase {
+        case .executing:
+            return "Sto eseguendo..."
+        case .editing:
+            return "Sto scrivendo..."
+        case .searching:
+            return "Ricerca web in corso..."
+        case .planning, .thinking:
+            return "Sto pensando..."
+        }
+    }
+
+    private func streamingDetailText(for message: ChatMessage) -> String? {
+        guard message.isStreaming, message.role == .assistant else { return nil }
+        guard let last = taskActivityStore.activities.last else { return nil }
+        let op = taskActivityStore.activeOperationsCount
+        if op > 0 {
+            return "\(last.title) • \(op) operazioni attive"
+        }
+        return last.title
     }
 }
 
@@ -1253,8 +1882,10 @@ struct ChatPanelView: View {
 
 struct MessageRow: View {
     let message: ChatMessage
-    let workspacePath: String
+    let context: ProjectContext?
     let modeColor: Color
+    let streamingStatusText: String
+    let streamingDetailText: String?
     let onFileClicked: (String) -> Void
     @State private var isHovered = false
 
@@ -1277,7 +1908,7 @@ struct MessageRow: View {
                 if let paths = message.imagePaths, !paths.isEmpty {
                     userMessageImagesRow(paths: paths)
                 }
-                ClickableMessageContent(content: message.content, workspacePath: workspacePath, onFileClicked: onFileClicked)
+                ClickableMessageContent(content: message.content, context: context, onFileClicked: onFileClicked)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if message.isStreaming { streamingBar }
             }
@@ -1314,12 +1945,21 @@ struct MessageRow: View {
     }
 
     private var streamingBar: some View {
-        HStack(spacing: 6) {
-            StreamingDots(color: modeColor)
-            Text("Sto scrivendo...")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-        }.padding(.top, 2)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                StreamingDots(color: modeColor)
+                Text(streamingStatusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            if let detail = streamingDetailText, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.top, 2)
     }
 
     @ViewBuilder

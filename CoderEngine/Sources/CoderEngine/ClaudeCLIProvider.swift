@@ -10,13 +10,15 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     private let allowedTools: [String]
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
+    private let environmentOverride: [String: String]?
 
     public init(
         claudePath: String? = nil,
         model: String? = nil,
         allowedTools: [String] = ["Read", "Edit", "Bash"],
         executionController: ExecutionController? = nil,
-        executionScope: ExecutionScope = .agent
+        executionScope: ExecutionScope = .agent,
+        environmentOverride: [String: String]? = nil
     ) {
         self.claudePath = claudePath ?? PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude"
         let normalizedModel = model?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,6 +26,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         self.allowedTools = Self.normalizeTools(allowedTools)
         self.executionController = executionController
         self.executionScope = executionScope
+        self.environmentOverride = environmentOverride
     }
     
     public func isAuthenticated() -> Bool {
@@ -32,7 +35,11 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         process.arguments = ["--version"]
         process.standardOutput = nil
         process.standardError = nil
-        process.environment = CodexDetector.shellEnvironment()
+        var env = CodexDetector.shellEnvironment()
+        if let override = environmentOverride {
+            env.merge(override) { _, new in new }
+        }
+        process.environment = env
         do {
             try process.run()
             process.waitUntilExit()
@@ -73,11 +80,15 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                         args += ["--allowedTools", allowedTools.joined(separator: ",")]
                     }
                     
+                    var env = CodexDetector.shellEnvironment()
+                    if let override = environmentOverride {
+                        env.merge(override) { _, new in new }
+                    }
                     let stream = try await ProcessRunner.run(
                         executable: path,
                         arguments: args,
                         workingDirectory: workspacePath,
-                        environment: CodexDetector.shellEnvironment(),
+                        environment: env,
                         executionController: executionController,
                         scope: executionScope
                     )
@@ -273,6 +284,8 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
         return events
     }
 

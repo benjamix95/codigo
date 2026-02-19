@@ -30,6 +30,9 @@ public struct WorkspaceContext: Sendable {
     
     /// Path del file attivo
     public let activeFilePath: String?
+
+    /// Root attiva in workspace multi-cartella (preferenza risoluzione file)
+    public let activeRootPath: String?
     
     public init(
         workspacePaths: [URL],
@@ -39,7 +42,8 @@ public struct WorkspaceContext: Sendable {
         includedPaths: [String]? = nil,
         openFiles: [OpenFile] = [],
         activeSelection: String? = nil,
-        activeFilePath: String? = nil
+        activeFilePath: String? = nil,
+        activeRootPath: String? = nil
     ) {
         self.workspacePaths = workspacePaths.isEmpty ? [URL(fileURLWithPath: "/tmp")] : workspacePaths
         self.isNamedWorkspace = isNamedWorkspace
@@ -49,6 +53,7 @@ public struct WorkspaceContext: Sendable {
         self.openFiles = openFiles
         self.activeSelection = activeSelection
         self.activeFilePath = activeFilePath
+        self.activeRootPath = activeRootPath
     }
     
     /// Inizializzatore legacy (singolo path)
@@ -58,7 +63,8 @@ public struct WorkspaceContext: Sendable {
         includedPaths: [String]? = nil,
         openFiles: [OpenFile] = [],
         activeSelection: String? = nil,
-        activeFilePath: String? = nil
+        activeFilePath: String? = nil,
+        activeRootPath: String? = nil
     ) {
         self.workspacePaths = [workspacePath]
         self.isNamedWorkspace = false
@@ -68,6 +74,7 @@ public struct WorkspaceContext: Sendable {
         self.openFiles = openFiles
         self.activeSelection = activeSelection
         self.activeFilePath = activeFilePath
+        self.activeRootPath = activeRootPath
     }
 
     
@@ -98,6 +105,9 @@ public struct WorkspaceContext: Sendable {
         
         if let activePath = activeFilePath {
             parts.append("\n**File attivo:** \(activePath)")
+        }
+        if let activeRootPath {
+            parts.append("\n**Root attiva:** \(activeRootPath)")
         }
         
         let filesToShow: [OpenFile]

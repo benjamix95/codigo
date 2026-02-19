@@ -1,23 +1,44 @@
 import SwiftUI
 import CoderEngine
 
-/// Contesto effettivo per la conversazione selezionata (workspace o ad-hoc)
+enum ContextScopeMode: String, CaseIterable {
+    case auto
+    case activeFolder
+    case workspaceAll
+
+    var label: String {
+        switch self {
+        case .auto: return "Auto (smart)"
+        case .activeFolder: return "Cartella"
+        case .workspaceAll: return "Workspace"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .auto:
+            return "Usa la cartella attiva; se il contesto aperto indica dipendenze fuori scope, allarga automaticamente a tutto il workspace."
+        case .activeFolder:
+            return "Limita il contesto agente alla sola cartella attiva."
+        case .workspaceAll:
+            return "Fornisce all'agente tutte le cartelle del workspace."
+        }
+    }
+}
+
 struct EffectiveContext {
+    let contextId: UUID?
     let folderPaths: [String]
     let isWorkspace: Bool
-    let workspace: Workspace?
-    
-    var hasContext: Bool {
-        !folderPaths.isEmpty
-    }
-    
-    var primaryPath: String? {
-        folderPaths.first
-    }
-    
+    let context: ProjectContext?
+
+    var hasContext: Bool { !folderPaths.isEmpty }
+    var primaryPath: String? { folderPaths.first }
+    var activeRootPath: String? { context?.activeFolderPath ?? folderPaths.first }
+
     var displayLabel: String {
-        if let ws = workspace {
-            return ws.name
+        if let context {
+            return context.name
         }
         if folderPaths.count == 1 {
             return (folderPaths[0] as NSString).lastPathComponent
@@ -27,54 +48,83 @@ struct EffectiveContext {
         }
         return "Nessun progetto"
     }
-    
-    /// Costruisce WorkspaceContext per i provider
-    func toWorkspaceContext(openFiles: [OpenFile] = [], activeSelection: String? = nil, activeFilePath: String? = nil) -> WorkspaceContext {
-        let urls = folderPaths.map { URL(fileURLWithPath: $0) }
-        let excluded = workspace?.excludedPaths ?? []
+
+    func toWorkspaceContext(
+        openFiles: [OpenFile] = [],
+        activeSelection: String? = nil,
+        activeFilePath: String? = nil,
+        scopeMode: ContextScopeMode = .auto
+    ) -> WorkspaceContext {
+        let scopedPaths: [String]
+
+        switch scopeMode {
+        case .workspaceAll:
+            scopedPaths = folderPaths
+        case .activeFolder:
+            if let activeRootPath, !activeRootPath.isEmpty {
+                scopedPaths = [activeRootPath]
+            } else {
+                scopedPaths = folderPaths
+            }
+        case .auto:
+            if shouldUseWorkspaceWideScope(openFiles: openFiles, activeFilePath: activeFilePath) {
+                scopedPaths = folderPaths
+            } else if let activeRootPath, !activeRootPath.isEmpty {
+                scopedPaths = [activeRootPath]
+            } else {
+                scopedPaths = folderPaths
+            }
+        }
+
+        let urls = scopedPaths.map { URL(fileURLWithPath: $0) }
+        let excluded = context?.excludedPaths ?? []
         return WorkspaceContext(
             workspacePaths: urls.isEmpty ? [URL(fileURLWithPath: "/tmp")] : urls,
             isNamedWorkspace: isWorkspace,
-            workspaceName: workspace?.name,
+            workspaceName: context?.name,
             excludedPaths: excluded,
             openFiles: openFiles,
             activeSelection: activeSelection,
-            activeFilePath: activeFilePath
+            activeFilePath: activeFilePath,
+            activeRootPath: activeRootPath
         )
     }
-    
+
+    private func shouldUseWorkspaceWideScope(openFiles: [OpenFile], activeFilePath: String?) -> Bool {
+        guard let activeRoot = activeRootPath, folderPaths.count > 1 else { return false }
+
+        if let activeFilePath, !activeFilePath.isEmpty, !activeFilePath.hasPrefix(activeRoot + "/"), activeFilePath != activeRoot {
+            return true
+        }
+        if openFiles.contains(where: { !$0.path.hasPrefix(activeRoot + "/") && $0.path != activeRoot }) {
+            return true
+        }
+        return false
+    }
+
     static func empty() -> EffectiveContext {
-        EffectiveContext(folderPaths: [], isWorkspace: false, workspace: nil)
+        EffectiveContext(contextId: nil, folderPaths: [], isWorkspace: false, context: nil)
     }
 }
 
-/// Helper per calcolare EffectiveContext da conversation + workspaceStore
 @MainActor
 func effectiveContext(
     for conversationId: UUID?,
     chatStore: ChatStore,
-    workspaceStore: WorkspaceStore
+    projectContextStore: ProjectContextStore
 ) -> EffectiveContext {
     guard let conv = chatStore.conversation(for: conversationId) else {
         return .empty()
     }
-    
-    if let wsId = conv.workspaceId,
-       let ws = workspaceStore.workspaces.first(where: { $0.id == wsId }) {
+
+    if let context = projectContextStore.context(id: conv.contextId) {
         return EffectiveContext(
-            folderPaths: ws.folderPaths,
-            isWorkspace: true,
-            workspace: ws
+            contextId: context.id,
+            folderPaths: context.folderPaths,
+            isWorkspace: context.kind == .workspace,
+            context: context
         )
     }
-    
-    if !conv.adHocFolderPaths.isEmpty {
-        return EffectiveContext(
-            folderPaths: conv.adHocFolderPaths,
-            isWorkspace: false,
-            workspace: nil
-        )
-    }
-    
+
     return .empty()
 }

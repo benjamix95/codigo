@@ -6,8 +6,10 @@ struct ContentView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
+    @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var executionController: ExecutionController
+    @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -17,10 +19,12 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(selectedConversationId: $selectedConversationId, showSettings: $showSettings)
+                .environmentObject(providerRegistry)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
+                .environmentObject(projectContextStore)
                 .environmentObject(openFilesStore)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
+                .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 360)
         } detail: {
             HStack(spacing: 6) {
                 if showEditorPanel {
@@ -36,13 +40,21 @@ struct ContentView: View {
             .ignoresSafeArea(.container, edges: .top)
         }
         .onAppear {
-            if providerRegistry.selectedProviderId == nil { providerRegistry.selectedProviderId = "codex-cli" }
-            if selectedConversationId == nil, let first = chatStore.conversations.first { selectedConversationId = first.id }
+            let defaultContextId = workspaceStore.activeWorkspaceId
+            let agentConversationId = chatStore.getOrCreateConversationForMode(contextId: defaultContextId, mode: .agent)
+            selectedConversationId = agentConversationId
+            providerRegistry.selectedProviderId = "codex-cli"
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(providerRegistry)
                 .environmentObject(executionController)
+                .environmentObject(providerUsageStore)
+        }
+        .toolbar(.hidden, for: .windowToolbar)
+        .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
+            showSettings = true
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
@@ -53,10 +65,14 @@ struct ContentView: View {
     // MARK: - IDE Panel
     private var idePanel: some View {
         VStack(spacing: 0) {
+            // Allinea la barra editor alla stessa quota interattiva del pannello chat.
+            Color.clear
+                .frame(height: 22)
+                .allowsHitTesting(false)
             ideHeader
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
 
-            let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
+            let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
             EditorPlaceholderView(folderPaths: ctx.folderPaths)
                 .environmentObject(openFilesStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -109,7 +125,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var contextBadge: some View {
-        let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
+        let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
         if ctx.hasContext {
             HStack(spacing: 4) {
                 Image(systemName: ctx.isWorkspace ? "folder.fill" : "folder")
@@ -130,7 +146,7 @@ struct ContentView: View {
     private var chatPanel: some View {
         ChatPanelView(
             selectedConversationId: $selectedConversationId,
-            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
+            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)

@@ -16,6 +16,8 @@ public enum CoderIDEMarkers {
     public static let todoRead = "[CODERIDE:todo_read]"
     public static let instantGrepPrefix = "[CODERIDE:instant_grep|"
     public static let planStepPrefix = "[CODERIDE:plan_step|"
+    public static let readBatchPrefix = "[CODERIDE:read_batch|"
+    public static let webSearchPrefix = "[CODERIDE:web_search|"
 }
 
 /// Provider che usa Codex CLI (`codex exec`)
@@ -31,8 +33,9 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private let askForApproval: String
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
+    private let environmentOverride: [String: String]?
 
-    public init(codexPath: String? = nil, sandboxMode: CodexSandboxMode = .workspaceWrite, modelOverride: String? = nil, modelReasoningEffort: String? = nil, yoloMode: Bool = false, askForApproval: String? = nil, executionController: ExecutionController? = nil, executionScope: ExecutionScope = .agent) {
+    public init(codexPath: String? = nil, sandboxMode: CodexSandboxMode = .workspaceWrite, modelOverride: String? = nil, modelReasoningEffort: String? = nil, yoloMode: Bool = false, askForApproval: String? = nil, executionController: ExecutionController? = nil, executionScope: ExecutionScope = .agent, environmentOverride: [String: String]? = nil) {
         self.codexPath = codexPath ?? PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
         self.sandboxMode = sandboxMode
         self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
@@ -41,6 +44,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         self.askForApproval = Self.normalizeAskForApproval(askForApproval)
         self.executionController = executionController
         self.executionScope = executionScope
+        self.environmentOverride = environmentOverride
     }
 
     public static func normalizeAskForApproval(_ raw: String?) -> String {
@@ -66,7 +70,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         process.arguments = ["login", "status"]
         process.standardOutput = nil
         process.standardError = nil
-        process.environment = CodexDetector.shellEnvironment()
+        var env = CodexDetector.shellEnvironment()
+        if let override = environmentOverride {
+            env.merge(override) { _, new in new }
+        }
+        process.environment = env
         do {
             try process.run()
             process.waitUntilExit()
@@ -101,7 +109,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     args += [
                         "--json",
                         "--full-auto",
-                        "--ask-for-approval", askForApproval,
                         "--sandbox", sandboxMode.rawValue,
                         "--cd", workspacePath.path,
                         fullPrompt
@@ -116,11 +123,15 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                         args.insert(contentsOf: ["-c", "model_reasoning_effort=\(effort)"], at: args.count - 1)
                     }
                     
+                    var env = CodexDetector.shellEnvironment()
+                    if let override = environmentOverride {
+                        env.merge(override) { _, new in new }
+                    }
                     let stream = try await ProcessRunner.run(
                         executable: execPath,
                         arguments: args,
                         workingDirectory: workspacePath,
-                        environment: CodexDetector.shellEnvironment(),
+                        environment: env,
                         executionController: executionController,
                         scope: executionScope
                     )
@@ -216,7 +227,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
         let item = (json["item"] as? [String: Any]) ?? json
         guard let type = (item["type"] as? String) ?? (json["type"] as? String) else { return nil }
-        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update"]
+        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed"]
         guard activityTypes.contains(type) else { return nil }
         
         var payload: [String: String] = ["title": titleForType(type, item: item), "detail": detailForType(type, item: item)]
@@ -236,6 +247,10 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let removed = item["deletions"] as? Int { payload["linesRemoved"] = "\(removed)" }
         if let removed = item["lines_removed"] as? Int { payload["linesRemoved"] = "\(removed)" }
         if let query = item["query"] as? String { payload["query"] = query }
+        if let qid = item["query_id"] as? String ?? item["id"] as? String { payload["queryId"] = qid }
+        if let status = item["status"] as? String { payload["status"] = status }
+        if let count = item["result_count"] as? Int { payload["resultCount"] = "\(count)" }
+        if let duration = item["duration_ms"] as? Int { payload["duration_ms"] = "\(duration)" }
         if let edits = item["edit_count"] as? Int { payload["editCount"] = "\(edits)" }
         
         return (type, payload)
@@ -265,6 +280,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
         events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
 
         return events
     }

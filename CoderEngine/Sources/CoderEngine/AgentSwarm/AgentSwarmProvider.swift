@@ -68,6 +68,14 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                 do {
                     execController?.beginScope(.swarm)
                     execController?.clearSwarmStopRequested()
+                    execController?.clearSwarmPauseRequested()
+
+                    func waitWhilePausedIfNeeded() async {
+                        while execController?.swarmPauseRequested == true {
+                            if execController?.swarmStopRequested == true { break }
+                            try? await Task.sleep(nanoseconds: 120_000_000)
+                        }
+                    }
                     let orchestrator = SwarmOrchestrator(
                         config: config,
                         openAIClient: openAIClient,
@@ -110,6 +118,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                     let stream = runner.run(tasks: tasks, context: context, imageURLs: imageURLs)
 
                     for try await event in stream {
+                        await waitWhilePausedIfNeeded()
                         continuation.yield(event)
                     }
 
@@ -120,6 +129,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                         var allPassed = false
 
                         while attempt <= maxRetries {
+                            await waitWhilePausedIfNeeded()
                             if execController?.swarmStopRequested == true { break }
                             continuation.yield(.textDelta("\n\n## Esecuzione test\(attempt > 0 ? " (tentativo \(attempt + 1)/\(maxRetries + 1))" : "")\n\n"))
                             do {
@@ -163,6 +173,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                                 )
                                 let debugStream = runner.run(tasks: [debugTask], context: context)
                                 for try await event in debugStream {
+                                    await waitWhilePausedIfNeeded()
                                     continuation.yield(event)
                                 }
                                 attempt += 1
@@ -179,6 +190,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                     if config.enabledRoles.contains(.reviewer), config.maxReviewLoops > 0, tasks.contains(where: { $0.role == .coder }) {
                         var reviewLoop = 0
                         while reviewLoop < config.maxReviewLoops {
+                            await waitWhilePausedIfNeeded()
                             if execController?.swarmStopRequested == true { break }
                             reviewLoop += 1
                             continuation.yield(.textDelta("\n\n## Review loop \(reviewLoop)/\(config.maxReviewLoops): Verifica qualità\n\n"))
@@ -190,6 +202,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                             var reviewOutput = ""
                             let reviewStream = runner.run(tasks: [reviewTask], context: context)
                             for try await event in reviewStream {
+                                await waitWhilePausedIfNeeded()
                                 continuation.yield(event)
                                 if case .textDelta(let d) = event { reviewOutput += d }
                             }
@@ -204,6 +217,7 @@ public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
                                 order: 1
                             )
                             for try await event in runner.run(tasks: [fixTask], context: context) {
+                                await waitWhilePausedIfNeeded()
                                 continuation.yield(event)
                             }
                         }

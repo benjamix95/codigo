@@ -37,6 +37,7 @@ struct ProviderFactoryConfig {
     var claudePath: String
     var claudeModel: String
     var claudeAllowedTools: [String]
+    var geminiCliPath: String
 }
 
 enum ProviderFactory {
@@ -59,7 +60,7 @@ enum ProviderFactory {
         )
     }
 
-    static func codexProvider(config: ProviderFactoryConfig, executionController: ExecutionController?) -> CodexCLIProvider {
+    static func codexProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> CodexCLIProvider {
         CodexCLIProvider(
             codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
             sandboxMode: sandbox(from: config),
@@ -67,16 +68,26 @@ enum ProviderFactory {
             modelReasoningEffort: config.codexReasoningEffort.isEmpty ? nil : config.codexReasoningEffort,
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),
-            executionController: executionController
+            executionController: executionController,
+            environmentOverride: environmentOverride
         )
     }
 
-    static func claudeProvider(config: ProviderFactoryConfig, executionController: ExecutionController?) -> ClaudeCLIProvider {
+    static func claudeProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> ClaudeCLIProvider {
         ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
             model: config.claudeModel,
             allowedTools: config.claudeAllowedTools,
-            executionController: executionController
+            executionController: executionController,
+            environmentOverride: environmentOverride
+        )
+    }
+
+    static func geminiProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> GeminiCLIProvider {
+        GeminiCLIProvider(
+            geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
+            executionController: executionController,
+            environmentOverride: environmentOverride
         )
     }
 

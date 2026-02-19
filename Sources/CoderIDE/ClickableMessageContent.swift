@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ClickableMessageContent: View {
     let content: String
-    let workspacePath: String
+    let context: ProjectContext?
     let onFileClicked: (String) -> Void
 
     var body: some View {
@@ -51,7 +51,16 @@ struct ClickableMessageContent: View {
             return raw
         }()
         if (t as NSString).isAbsolutePath { return t }
-        if !workspacePath.isEmpty { return (workspacePath as NSString).appendingPathComponent(t) }
+        if let context {
+            switch ContextPathResolver.resolve(reference: t, context: context) {
+            case .resolved(let path):
+                return path
+            case .ambiguous(let matches):
+                return matches.first ?? t
+            case .notFound:
+                break
+            }
+        }
         return t
     }
 }

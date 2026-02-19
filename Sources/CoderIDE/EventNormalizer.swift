@@ -50,7 +50,7 @@ enum EventNormalizer {
         switch type {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit": kind = .fileUpdate
-        case "instant_grep", "search", "web_search": kind = .instantGrep
+        case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step_update": kind = .planStepUpdate
         case "swarm_steps", "agent": kind = .swarmProgress
@@ -89,7 +89,15 @@ enum EventNormalizer {
 
         if type == "instant_grep", let grep = parseInstantGrep(payload: payload, timestamp: timestamp) {
             events.append(.instantGrep(grep))
-            events.append(.taskActivity(TaskActivity(type: type, title: "Instant Grep • \(grep.query)", detail: "\(grep.matchesCount) risultati", payload: payload, timestamp: timestamp)))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: "Instant Grep • \(grep.query)",
+                detail: "\(grep.matchesCount) risultati",
+                payload: payload,
+                timestamp: timestamp,
+                phase: .searching,
+                isRunning: false
+            )))
             return events
         }
 
@@ -97,8 +105,81 @@ enum EventNormalizer {
             events.append(.instantGrep(grep))
         }
 
-        events.append(.taskActivity(TaskActivity(type: type, title: payload["title"] ?? type, detail: payload["detail"], payload: payload, timestamp: timestamp)))
+        let normalizedType = normalizeSpecialType(type, payload: payload)
+        let phase = phaseForType(normalizedType)
+        let running = runningStateForType(normalizedType)
+        let title = payload["title"] ?? defaultTitle(for: normalizedType)
+        events.append(.taskActivity(TaskActivity(
+            type: normalizedType,
+            title: title,
+            detail: payload["detail"],
+            payload: payload,
+            timestamp: timestamp,
+            phase: phase,
+            isRunning: running,
+            groupId: payload["group_id"] ?? payload["queryId"]
+        )))
         return events
+    }
+
+    private static func normalizeSpecialType(_ type: String, payload: [String: String]) -> String {
+        if type == "web_search",
+           let status = payload["status"]?.lowercased() {
+            switch status {
+            case "started": return "web_search_started"
+            case "completed": return "web_search_completed"
+            case "failed": return "web_search_failed"
+            default: break
+            }
+        }
+        return type
+    }
+
+    private static func phaseForType(_ type: String) -> ActivityPhase {
+        switch type {
+        case "command_execution", "bash":
+            return .executing
+        case "file_change", "edit", "read_batch_started", "read_batch_completed":
+            return .editing
+        case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed":
+            return .searching
+        case "plan_step_update":
+            return .planning
+        default:
+            return .thinking
+        }
+    }
+
+    private static func runningStateForType(_ type: String) -> Bool {
+        switch type {
+        case "web_search_started", "read_batch_started", "process_resumed":
+            return true
+        case "web_search_completed", "web_search_failed", "read_batch_completed", "process_paused":
+            return false
+        default:
+            return false
+        }
+    }
+
+    private static func defaultTitle(for type: String) -> String {
+        switch type {
+        case "process_paused":
+            return "Processo in pausa"
+        case "process_resumed":
+            return "Processo ripreso"
+        case "read_batch_started":
+            return "Lettura file in batch avviata"
+        case "read_batch_completed":
+            return "Lettura file in batch completata"
+        case "web_search_started":
+            return "Ricerca web avviata"
+        case "web_search_completed":
+            return "Ricerca web completata"
+        case "web_search_failed":
+            return "Ricerca web fallita"
+        default:
+            return type
+        }
     }
 
     private static func parseTodoWrite(payload: [String: String]) -> TodoWritePayload? {

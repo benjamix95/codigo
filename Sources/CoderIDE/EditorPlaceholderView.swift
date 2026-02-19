@@ -45,6 +45,15 @@ struct EditorPlaceholderView: View {
                 }
                 Spacer()
 
+                if openFilesStore.diff(for: path) != nil {
+                    Picker("", selection: viewModeBinding(path: path)) {
+                        Text("File").tag(EditorViewMode.plain)
+                        Text("Diff").tag(EditorViewMode.diffInline)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 120)
+                }
+
                 Button {
                     openFilesStore.reload(path: path)
                     saveFeedback = "Ricaricato da disco"
@@ -80,11 +89,15 @@ struct EditorPlaceholderView: View {
             if let error = openFilesStore.error(for: path) {
                 Text(error).font(.caption).foregroundStyle(DesignSystem.Colors.error).padding(12)
             } else {
-                TextEditor(text: fileBinding(path: path))
-                    .font(.system(size: 12, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
-                    .background(DesignSystem.Colors.backgroundPrimary)
+                if openFilesStore.viewMode(for: path) == .diffInline {
+                    diffInlineView(path: path)
+                } else {
+                    TextEditor(text: fileBinding(path: path))
+                        .font(.system(size: 12, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(DesignSystem.Colors.backgroundPrimary)
+                }
             }
 
             if let feedback = saveFeedback {
@@ -238,5 +251,79 @@ struct EditorPlaceholderView: View {
                 saveFeedbackIsError = false
             }
         )
+    }
+
+    private func viewModeBinding(path: String) -> Binding<EditorViewMode> {
+        Binding(
+            get: { openFilesStore.viewMode(for: path) },
+            set: { newMode in
+                openFilesStore.setViewMode(newMode, for: path)
+            }
+        )
+    }
+
+    private func diffInlineView(path: String) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                if let diff = openFilesStore.diff(for: path) {
+                    if diff.isBinary {
+                        Text("Binary file changed")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                    } else if diff.chunks.isEmpty {
+                        Text("Nessuna diff disponibile per questo file")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                    } else {
+                        ForEach(Array(diff.chunks.enumerated()), id: \.offset) { _, chunk in
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(chunk.header)
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(Color.accentColor.opacity(0.9))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.accentColor.opacity(0.08))
+                                ForEach(Array(chunk.lines.prefix(3000).enumerated()), id: \.offset) { _, line in
+                                    diffLineView(line)
+                                }
+                            }
+                            .background(DesignSystem.Colors.backgroundSecondary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5))
+                        }
+                    }
+                } else {
+                    Text("Diff non caricata")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(12)
+                }
+            }
+            .padding(8)
+        }
+        .background(DesignSystem.Colors.backgroundPrimary)
+    }
+
+    private func diffLineView(_ line: String) -> some View {
+        let prefix = line.first ?? " "
+        let bg: Color = {
+            switch prefix {
+            case "+":
+                return DesignSystem.Colors.success.opacity(0.12)
+            case "-":
+                return DesignSystem.Colors.error.opacity(0.12)
+            default:
+                return .clear
+            }
+        }()
+        return Text(line.isEmpty ? " " : line)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(bg)
     }
 }

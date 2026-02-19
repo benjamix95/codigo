@@ -90,4 +90,20 @@ enum PlanOptionsParser {
         // Ultimo fallback: intero testo come unica opzione
         return [PlanOption(id: 1, title: "Piano completo", fullText: trimmed)]
     }
+
+    static func extractDisplaySummary(from fullPlan: String) -> (title: String, body: String) {
+        let lines = fullPlan
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else {
+            return ("Piano", "")
+        }
+
+        let titleLine = lines.first(where: { $0.hasPrefix("#") }) ?? lines[0]
+        let title = titleLine.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let bodyLines = Array(lines.dropFirst().prefix(20))
+        let body = bodyLines.joined(separator: "\n")
+        return (title.isEmpty ? "Piano" : title, body)
+    }
 }

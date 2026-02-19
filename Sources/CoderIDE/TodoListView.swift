@@ -1,64 +1,150 @@
 import SwiftUI
 
+private enum SidebarTodoFilter: String, CaseIterable {
+    case all = "All"
+    case open = "Open"
+    case doing = "Doing"
+    case done = "Done"
+}
+
 struct TodoListView: View {
     @ObservedObject var store: TodoStore
     @State private var newTodoText = ""
-    @FocusState private var isNewTodoFocused: Bool
+    @State private var selectedFilter: SidebarTodoFilter = .open
+    @State private var expandedTaskId: UUID?
+
+    private var filteredTodos: [TodoItem] {
+        let base: [TodoItem]
+        switch selectedFilter {
+        case .all: base = store.todos
+        case .open: base = store.todos.filter { $0.status == .pending || $0.status == .blocked }
+        case .doing: base = store.todos.filter { $0.status == .inProgress }
+        case .done: base = store.todos.filter { $0.status == .done }
+        }
+        return base.sorted {
+            if $0.status.rank != $1.status.rank { return $0.status.rank < $1.status.rank }
+            if $0.priority.rank != $1.priority.rank { return $0.priority.rank < $1.priority.rank }
+            return $0.updatedAt > $1.updatedAt
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            addTodoRow
-            filterRow
-
-            ForEach(store.visibleTodos) { todo in
-                TodoRowView(
-                    todo: todo,
-                    onOpenFile: nil,
-                    onStart: { store.setStatus(id: todo.id, status: .inProgress) },
-                    onDone: { store.setStatus(id: todo.id, status: .done) },
-                    onBlock: { store.setStatus(id: todo.id, status: .blocked) },
-                    onDelete: { store.remove(id: todo.id) }
-                )
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                TextField("Aggiungi task...", text: $newTodoText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                Button {
+                    submitNewTodo()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .buttonStyle(.plain)
+                .disabled(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
 
-            if store.visibleTodos.isEmpty {
-                Text("Nessun to-do")
-                    .font(.caption)
+            HStack(spacing: 8) {
+                ForEach(SidebarTodoFilter.allCases, id: \.self) { filter in
+                    Button(filter.rawValue) { selectedFilter = filter }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: selectedFilter == filter ? .semibold : .regular))
+                        .foregroundStyle(selectedFilter == filter ? Color.accentColor : .secondary)
+                }
+            }
+            .padding(.horizontal, 6)
+
+            if filteredTodos.isEmpty {
+                Text("Nessun task")
+                    .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 4)
+            } else {
+                ForEach(filteredTodos.prefix(4)) { todo in
+                    row(todo)
+                    if expandedTaskId == todo.id {
+                        drawer(todo)
+                    }
+                }
             }
         }
     }
 
-    private var addTodoRow: some View {
-        HStack(spacing: 6) {
-            TextField("Aggiungi to-do...", text: $newTodoText)
-                .textFieldStyle(.roundedBorder)
-                .font(.subheadline)
-                .focused($isNewTodoFocused)
-                .onSubmit { submitNewTodo() }
-
+    private func row(_ todo: TodoItem) -> some View {
+        let expanded = expandedTaskId == todo.id
+        return HStack(spacing: 7) {
             Button {
-                submitNewTodo()
+                toggleStatus(todo)
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : .accentColor)
+                Image(systemName: statusIcon(todo.status))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(statusColor(todo.status))
             }
             .buttonStyle(.plain)
-            .disabled(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            Circle().fill(priorityColor(todo.priority)).frame(width: 5, height: 5)
+
+            Text(todo.title)
+                .font(.system(size: 11))
+                .strikethrough(todo.status == .done)
+                .foregroundStyle(todo.status == .done ? .secondary : .primary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button {
+                expandedTaskId = expanded ? nil : todo.id
+            } label: {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(expanded ? Color.accentColor.opacity(0.10) : Color.clear)
     }
 
-    private var filterRow: some View {
-        Picker("Filtro", selection: $store.filter) {
-            ForEach(TodoFilter.allCases, id: \.self) { f in
-                Text(f.rawValue).tag(f)
+    private func drawer(_ todo: TodoItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !todo.notes.isEmpty {
+                Text(todo.notes)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
+
+            if !todo.linkedFiles.isEmpty {
+                ForEach(todo.linkedFiles.prefix(3), id: \.self) { file in
+                    Text((file as NSString).lastPathComponent)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Open") { store.setStatus(id: todo.id, status: .pending) }
+                Button("Doing") { store.setStatus(id: todo.id, status: .inProgress) }
+                Button("Done") { store.setStatus(id: todo.id, status: .done) }
+                Spacer()
+                Button(role: .destructive) {
+                    store.remove(id: todo.id)
+                    if expandedTaskId == todo.id { expandedTaskId = nil }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 4)
     }
 
     private func submitNewTodo() {
@@ -67,62 +153,17 @@ struct TodoListView: View {
         store.add(title: trimmed)
         newTodoText = ""
     }
-}
 
-struct TodoLiveInlineCard: View {
-    @ObservedObject var store: TodoStore
-    let onOpenFile: (String) -> Void
-
-    var body: some View {
-        let items = store.todos
-            .filter { $0.status != .done }
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(4)
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Todo Live")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(Int(store.completionRatio * 100))%")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                ProgressView(value: store.completionRatio)
-                    .progressViewStyle(.linear)
-
-                ForEach(Array(items)) { todo in
-                    TodoRowView(
-                        todo: todo,
-                        onOpenFile: { onOpenFile($0) },
-                        onStart: { store.setStatus(id: todo.id, status: .inProgress) },
-                        onDone: { store.setStatus(id: todo.id, status: .done) },
-                        onBlock: { store.setStatus(id: todo.id, status: .blocked) },
-                        onDelete: { store.remove(id: todo.id) }
-                    )
-                }
-            }
-            .padding(10)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 9))
-            .overlay(
-                RoundedRectangle(cornerRadius: 9)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.8), lineWidth: 0.6)
-            )
+    private func toggleStatus(_ todo: TodoItem) {
+        switch todo.status {
+        case .pending, .blocked: store.setStatus(id: todo.id, status: .inProgress)
+        case .inProgress: store.setStatus(id: todo.id, status: .done)
+        case .done: store.setStatus(id: todo.id, status: .pending)
         }
     }
-}
 
-struct TodoRowView: View {
-    let todo: TodoItem
-    let onOpenFile: ((String) -> Void)?
-    let onStart: () -> Void
-    let onDone: () -> Void
-    let onBlock: () -> Void
-    let onDelete: () -> Void
-
-    private var statusIcon: String {
-        switch todo.status {
+    private func statusIcon(_ status: TodoStatus) -> String {
+        switch status {
         case .pending: return "circle"
         case .inProgress: return "play.circle.fill"
         case .blocked: return "exclamationmark.triangle.fill"
@@ -130,8 +171,8 @@ struct TodoRowView: View {
         }
     }
 
-    private var statusColor: Color {
-        switch todo.status {
+    private func statusColor(_ status: TodoStatus) -> Color {
+        switch status {
         case .pending: return .secondary
         case .inProgress: return .orange
         case .blocked: return .red
@@ -139,83 +180,33 @@ struct TodoRowView: View {
         }
     }
 
-    private var priorityColor: Color {
-        switch todo.priority {
+    private func priorityColor(_ priority: TodoPriority) -> Color {
+        switch priority {
         case .low: return .secondary
         case .medium: return .blue
         case .high: return .pink
         }
     }
+}
+
+struct TodoLiveInlineCard: View {
+    @ObservedObject var store: TodoStore
+    let onOpenFile: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .center, spacing: 6) {
-                Image(systemName: statusIcon)
-                    .font(.subheadline)
-                    .foregroundStyle(statusColor)
-
-                Text(todo.title)
-                    .font(.subheadline.weight(todo.status == .inProgress ? .semibold : .regular))
-                    .foregroundStyle(todo.status == .done ? .secondary : .primary)
-                    .strikethrough(todo.status == .done)
-                    .opacity(todo.status == .done ? 0.7 : 1)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(todo.priority.rawValue.uppercased())
-                    .font(.system(size: 9, weight: .bold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(priorityColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(priorityColor)
-            }
-
-            if !todo.notes.isEmpty {
-                Text(todo.notes)
-                    .font(.caption)
+        let items = store.todos.filter { $0.status != .done }.prefix(3)
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Todo Live")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            if !todo.linkedFiles.isEmpty {
-                HStack(spacing: 4) {
-                    ForEach(todo.linkedFiles.prefix(2), id: \.self) { file in
-                        Button {
-                            onOpenFile?(file)
-                        } label: {
-                            Text((file as NSString).lastPathComponent)
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
-                    }
+                ForEach(Array(items)) { todo in
+                    Text("• \(todo.title)")
+                        .font(.system(size: 11))
+                        .lineLimit(1)
                 }
             }
-
-            HStack(spacing: 8) {
-                Button("Start", action: onStart)
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                Button("Done", action: onDone)
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                Button("Block", action: onBlock)
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                Spacer()
-                Button {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
+            .padding(.vertical, 4)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
     }
 }
