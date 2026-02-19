@@ -4,31 +4,26 @@ struct SwarmProgressView: View {
     @ObservedObject var store: SwarmProgressStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            HStack(spacing: DesignSystem.Spacing.xs) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
                 Image(systemName: "checklist")
-                    .font(DesignSystem.Typography.caption2)
-                    .foregroundStyle(DesignSystem.Colors.primary.opacity(0.8))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Text("Swarm \(store.steps.count)")
-                    .font(DesignSystem.Typography.captionMedium)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.8)
             }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
 
             ForEach(store.steps) { step in
                 SwarmStepRow(step: step)
             }
         }
-        .padding(DesignSystem.Spacing.sm)
+        .padding(8)
         .frame(maxHeight: 140)
-        .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium, tint: DesignSystem.Colors.swarmColor, borderOpacity: 0.08)
-        .overlay {
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundStyle(DesignSystem.Colors.divider)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-        }
+        .background(Color(nsColor: .controlBackgroundColor))
     }
 }
 
@@ -45,28 +40,27 @@ private struct SwarmStepRow: View {
 
     private var statusColor: Color {
         switch step.status {
-        case .completed: return DesignSystem.Colors.textTertiary
-        case .inProgress: return DesignSystem.Colors.textSecondary
-        case .pending: return DesignSystem.Colors.textTertiary
+        case .completed: return .green
+        case .inProgress: return .orange
+        case .pending: return .secondary
         }
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+        HStack(alignment: .center, spacing: 6) {
             Image(systemName: statusIcon)
-                .font(DesignSystem.Typography.subheadline)
+                .font(.subheadline)
                 .foregroundStyle(statusColor)
 
             Text(step.name)
-                .font(step.status == .inProgress ? DesignSystem.Typography.subheadlineMedium : DesignSystem.Typography.subheadline)
-                .foregroundStyle(step.status == .completed ? DesignSystem.Colors.textTertiary : DesignSystem.Colors.textPrimary)
+                .font(step.status == .inProgress ? .subheadline.weight(.medium) : .subheadline)
+                .foregroundStyle(step.status == .completed ? .secondary : .primary)
                 .strikethrough(step.status == .completed)
-                .opacity(step.status == .completed ? 0.7 : 1)
+                .opacity(step.status == .completed ? 0.6 : 1)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.leading, DesignSystem.Spacing.md)
-        .padding(.horizontal, DesignSystem.Spacing.sm)
-        .padding(.vertical, DesignSystem.Spacing.xs)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
     }
 }

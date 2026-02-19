@@ -16,43 +16,30 @@ struct SidebarView: View {
     @State private var pendingAddFolderWorkspaceId: UUID?
     @State private var showCreateWorkspace = false
     @State private var newWorkspaceName = ""
-    @State private var hoveredConversationId: UUID?
     @State private var expandedFolders: Set<String> = []
     @State private var workspaceToRename: Workspace?
     @State private var isSelectingAdHocFolders = false
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            sidebarHeader
-            
-            ScrollView {
-                LazyVStack(spacing: DesignSystem.Spacing.md) {
-                    // File section (menu con Apri progetto e altre azioni)
-                    fileMenuSection
-                    
-                    // Workspace section with file browser
-                    workspaceSection
-                    
-                    // File browser (when c'è contesto: workspace o ad-hoc)
-                    if effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore).hasContext {
-                        fileBrowserSection
-                    }
-                    
-                    // To-do section
-                    todoSection
-                    
-                    // Codex Tasks section
-                    if codexState.status.isInstalled && codexState.status.isLoggedIn {
-                        codexTasksSection
-                    }
-                    
-                    // Conversations section
-                    conversationsSection
-                }
-                .padding(DesignSystem.Spacing.sm)
+        List {
+            fileMenuSection
+
+            workspaceSection
+
+            if effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore).hasContext {
+                fileBrowserSection
             }
+
+            todoSection
+
+            if codexState.status.isInstalled && codexState.status.isLoggedIn {
+                codexTasksSection
+            }
+
+            conversationsSection
         }
+        .listStyle(.sidebar)
+        .navigationTitle("Codigo")
         .sheet(isPresented: $showCreateWorkspace) {
             CreateWorkspaceSheetView(
                 workspaceStore: workspaceStore,
@@ -84,7 +71,7 @@ struct SidebarView: View {
             handleAdHocFolderSelection(result: result)
         }
         .sheet(item: $workspaceToRename) { ws in
-            renameWorkspaceSheet(ws)
+            RenameWorkspaceSheet(workspace: ws, onDismiss: { workspaceToRename = nil })
                 .environmentObject(workspaceStore)
         }
         .onChange(of: selectedConversationId) { _, _ in
@@ -96,395 +83,184 @@ struct SidebarView: View {
             }
         }
     }
-    
-    // MARK: - Sidebar Header
-    private var sidebarHeader: some View {
-        HStack {
-            Text("Codigo")
-                .font(DesignSystem.Typography.title3)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-            
-            Spacer()
-        }
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.vertical, DesignSystem.Spacing.sm)
-        .overlay {
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundStyle(DesignSystem.Colors.divider)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-        }
-    }
-    
-    // MARK: - Workspace Section
-    private var activeWorkspaceForConversation: Workspace? {
-        guard let conv = chatStore.conversation(for: selectedConversationId),
-              let wsId = conv.workspaceId else { return nil }
-        return workspaceStore.workspaces.first { $0.id == wsId }
-    }
-    
-    private var workspaceSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("Workspace", icon: "folder.fill") {
-                Button {
-                    showCreateWorkspace = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                }
-                .buttonStyle(.plain)
-                .hoverEffect(scale: 1.1)
-            }
-            
-            if let ws = activeWorkspaceForConversation {
-                workspaceMenu(ws, isActiveForConversation: true)
-                
-                if !ws.folderPaths.isEmpty {
-                    workspaceFoldersList(ws)
-                }
-                
-                if workspaceStore.workspaces.count > 1 {
-                    otherWorkspacesList(current: ws)
-                }
-            } else if !workspaceStore.workspaces.isEmpty {
-                ForEach(workspaceStore.workspaces) { ws in
-                    workspaceRowClickable(ws)
-                }
-            } else {
-                createWorkspaceButton
-            }
-        }
-    }
-    
-    private func workspaceRowClickable(_ ws: Workspace) -> some View {
-        HStack(spacing: 0) {
-            Button {
-                handleWorkspaceSelected(ws)
-            } label: {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                            .fill(DesignSystem.Colors.textTertiary.opacity(0.1))
-                            .frame(width: 24, height: 24)
-                        
-                        Image(systemName: "folder")
-                            .font(DesignSystem.Typography.caption2)
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    }
-                    
-                    Text(ws.name)
-                        .font(DesignSystem.Typography.subheadline)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-                .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium)
-            }
-            .buttonStyle(.plain)
-            .hoverEffect(scale: 1.01)
 
-            Button {
-                pendingAddFolderWorkspaceId = ws.id
-                isSelectingAddFolder = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.body)
-                    .foregroundStyle(DesignSystem.Colors.primary)
-            }
-            .buttonStyle(.plain)
-            .hoverEffect(scale: 1.1)
-        }
-    }
-    
-    private func handleWorkspaceSelected(_ ws: Workspace) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            workspaceStore.activeWorkspaceId = ws.id
-            if let convId = selectedConversationId {
-                chatStore.setWorkspace(conversationId: convId, workspaceId: ws.id)
-            } else {
-                let newId = chatStore.createConversation(workspaceId: ws.id)
-                selectedConversationId = newId
-            }
-        }
-    }
-    
-    private func workspaceMenu(_ ws: Workspace, isActiveForConversation: Bool) -> some View {
-        let isHighlighted = chatStore.conversation(for: selectedConversationId)?.workspaceId == ws.id
-        return HStack(spacing: 0) {
-            Menu {
-                Button {
-                    workspaceToRename = ws
-                } label: {
-                    Label("Rinomina workspace...", systemImage: "pencil")
-                }
-                Button {
-                    showCreateWorkspace = true
-                } label: {
-                    Label("Crea nuovo workspace...", systemImage: "plus")
-                }
-            } label: {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                            .fill(DesignSystem.Colors.primary.opacity(0.15))
-                            .frame(width: 24, height: 24)
-                        
-                        Image(systemName: "folder.fill")
-                            .font(DesignSystem.Typography.caption2)
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                    }
-                    
-                    Text(ws.name)
-                        .font(DesignSystem.Typography.subheadlineMedium)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.down")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                }
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-                .liquidGlass(
-                    cornerRadius: DesignSystem.CornerRadius.medium,
-                    tint: DesignSystem.Colors.primary
-                )
-                .overlay {
-                    if isHighlighted {
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
-                            .stroke(DesignSystem.Colors.primary, lineWidth: 1.5)
-                    }
-                }
-            }
-            .menuStyle(.borderlessButton)
-
-            Button {
-                pendingAddFolderWorkspaceId = ws.id
-                isSelectingAddFolder = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.body)
-                    .foregroundStyle(DesignSystem.Colors.primary)
-            }
-            .buttonStyle(.plain)
-            .hoverEffect(scale: 1.1)
-        }
-    }
-    
-    private func workspaceFoldersList(_ ws: Workspace) -> some View {
-        VStack(spacing: DesignSystem.Spacing.xs) {
-            ForEach(ws.folderPaths, id: \.self) { path in
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    Image(systemName: "folder")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    
-                    Text((path as NSString).lastPathComponent)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .lineLimit(1)
-                    
-                    Spacer()
-                    
-                    Button {
-                        workspaceStore.removeFolder(from: ws.id, path: path)
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.error.opacity(0.8))
-                    }
-                    .buttonStyle(.plain)
-                    .hoverEffect(scale: 1.1)
-                }
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.xs)
-            }
-        }
-        .padding(.top, DesignSystem.Spacing.xs)
-    }
-    
-    private func otherWorkspacesList(current: Workspace) -> some View {
-        VStack(spacing: DesignSystem.Spacing.xs) {
-            ForEach(workspaceStore.workspaces) { ws in
-                if ws.id != current.id {
-                    otherWorkspaceRow(ws)
-                }
-            }
-        }
-        .padding(.top, DesignSystem.Spacing.xs)
-    }
-    
-    private func otherWorkspaceRow(_ ws: Workspace) -> some View {
-        let isHighlighted = chatStore.conversation(for: selectedConversationId)?.workspaceId == ws.id
-        return Button {
-            handleWorkspaceSelected(ws)
-        } label: {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                        .fill(DesignSystem.Colors.textTertiary.opacity(0.1))
-                        .frame(width: 24, height: 24)
-                    
-                    Image(systemName: "folder")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                }
-                
-                Text(ws.name)
-                    .font(DesignSystem.Typography.subheadline)
-                    .foregroundStyle(isHighlighted ? DesignSystem.Colors.primary : DesignSystem.Colors.textSecondary)
-                    .lineLimit(1)
-                
-                Spacer()
-            }
-            .padding(.horizontal, DesignSystem.Spacing.sm)
-            .padding(.vertical, DesignSystem.Spacing.xs)
-            .background {
-                if isHighlighted {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                        .fill(DesignSystem.Colors.primary.opacity(0.1))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(scale: 1.01)
-    }
-    
-    // MARK: - File Menu Section (fuori dal Workspace)
+    // MARK: - File Menu Section
     private var fileMenuSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("File", icon: "doc.text.fill")
-            
+        Section("File") {
             Menu {
                 Button {
                     isSelectingAdHocFolders = true
                 } label: {
                     Label("Apri progetto...", systemImage: "folder.badge.plus")
                 }
-                .help("Apri una o più cartelle senza creare un workspace")
-                
                 Button {
                     showCreateWorkspace = true
                 } label: {
                     Label("Nuovo workspace...", systemImage: "folder.badge.gearshape")
                 }
-                .help("Crea un workspace nominato per raggruppare cartelle")
-                
                 Divider()
-                
                 Button {
                     clearConversationContext()
                 } label: {
                     Label("Chiudi contesto", systemImage: "xmark.circle")
                 }
-                .help("Rimuove workspace o progetto dalla conversazione corrente")
                 .disabled(!effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore).hasContext)
             } label: {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                            .fill(DesignSystem.Colors.primary.opacity(0.15))
-                            .frame(width: 24, height: 24)
-                        
-                        Image(systemName: "doc.text.fill")
-                            .font(DesignSystem.Typography.caption2)
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                    }
-                    
-                    Text("Progetto e file")
-                        .font(DesignSystem.Typography.subheadlineMedium)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.down")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                }
-                .padding(.horizontal, DesignSystem.Spacing.sm)
-                .padding(.vertical, DesignSystem.Spacing.sm)
-                .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium, tint: DesignSystem.Colors.primary)
+                Label("Progetto e file", systemImage: "doc.text.fill")
             }
-            .menuStyle(.borderlessButton)
         }
     }
-    
+
+    // MARK: - Workspace Section
+    private var activeWorkspaceForConversation: Workspace? {
+        guard let conv = chatStore.conversation(for: selectedConversationId),
+              let wsId = conv.workspaceId else { return nil }
+        return workspaceStore.workspaces.first { $0.id == wsId }
+    }
+
+    private var workspaceSection: some View {
+        Section {
+            if let ws = activeWorkspaceForConversation {
+                activeWorkspaceRow(ws)
+                ForEach(ws.folderPaths, id: \.self) { path in
+                    folderPathRow(path: path, workspaceId: ws.id)
+                }
+                if workspaceStore.workspaces.count > 1 {
+                    ForEach(workspaceStore.workspaces.filter { $0.id != ws.id }) { other in
+                        otherWorkspaceRow(other)
+                    }
+                }
+            } else if !workspaceStore.workspaces.isEmpty {
+                ForEach(workspaceStore.workspaces) { ws in
+                    Button {
+                        handleWorkspaceSelected(ws)
+                    } label: {
+                        Label(ws.name, systemImage: "folder")
+                    }
+                }
+            } else {
+                Button {
+                    showCreateWorkspace = true
+                } label: {
+                    Label("Apri cartella", systemImage: "folder.badge.plus")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            HStack {
+                Text("Workspace")
+                Spacer()
+                Button {
+                    showCreateWorkspace = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func activeWorkspaceRow(_ ws: Workspace) -> some View {
+        HStack {
+            Menu {
+                Button { workspaceToRename = ws } label: {
+                    Label("Rinomina workspace...", systemImage: "pencil")
+                }
+                Button { showCreateWorkspace = true } label: {
+                    Label("Crea nuovo workspace...", systemImage: "plus")
+                }
+            } label: {
+                Label(ws.name, systemImage: "folder.fill")
+                    .font(.subheadline.weight(.medium))
+            }
+            .menuStyle(.borderlessButton)
+            Spacer()
+            Button {
+                pendingAddFolderWorkspaceId = ws.id
+                isSelectingAddFolder = true
+            } label: {
+                Image(systemName: "plus.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func folderPathRow(path: String, workspaceId: UUID) -> some View {
+        HStack {
+            Label((path as NSString).lastPathComponent, systemImage: "folder")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                workspaceStore.removeFolder(from: workspaceId, path: path)
+            } label: {
+                Image(systemName: "minus.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.red.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 8)
+    }
+
+    private func otherWorkspaceRow(_ ws: Workspace) -> some View {
+        Button {
+            handleWorkspaceSelected(ws)
+        } label: {
+            Label(ws.name, systemImage: "folder")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func handleWorkspaceSelected(_ ws: Workspace) {
+        workspaceStore.activeWorkspaceId = ws.id
+        if let convId = selectedConversationId {
+            chatStore.setWorkspace(conversationId: convId, workspaceId: ws.id)
+        } else {
+            let newId = chatStore.createConversation(workspaceId: ws.id)
+            selectedConversationId = newId
+        }
+    }
+
     private func clearConversationContext() {
         guard let convId = selectedConversationId else { return }
         chatStore.setWorkspace(conversationId: convId, workspaceId: nil)
         chatStore.setAdHocPaths(conversationId: convId, paths: [])
         workspaceStore.activeWorkspaceId = nil
     }
-    
-    private var createWorkspaceButton: some View {
-        Button {
-            showCreateWorkspace = true
-        } label: {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                        .fill(DesignSystem.Colors.textTertiary.opacity(0.1))
-                        .frame(width: 24, height: 24)
-                    
-                    Image(systemName: "folder.badge.plus")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                }
-                
-                Text("Apri cartella")
-                    .font(DesignSystem.Typography.subheadlineMedium)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                
-                Spacer()
-            }
-            .padding(.horizontal, DesignSystem.Spacing.sm)
-            .padding(.vertical, DesignSystem.Spacing.sm)
-            .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(scale: 1.01)
-    }
-    
+
     // MARK: - File Browser Section
     private var fileBrowserSection: some View {
         let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
-        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("Files", icon: "doc.text.fill")
-            
+        return Section("Files") {
             ForEach(ctx.folderPaths, id: \.self) { path in
                 fileBrowser(for: path)
             }
         }
     }
-    
+
     private func fileBrowser(for path: String) -> some View {
-        VStack(spacing: 1) {
+        Group {
             if let contents = try? FileManager.default.contentsOfDirectory(atPath: path) {
                 ForEach(contents.sorted(), id: \.self) { item in
                     let itemPath = (path as NSString).appendingPathComponent(item)
                     let isDirectory = (try? FileManager.default.attributesOfItem(atPath: itemPath)[.type] as? FileAttributeType == .typeDirectory) ?? false
-                    
                     fileRow(name: item, path: itemPath, isDirectory: isDirectory, depth: 0)
                 }
             }
         }
-        .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium)
     }
-    
+
     private func fileRow(name: String, path: String, isDirectory: Bool, depth: Int) -> AnyView {
         let isExpanded = expandedFolders.contains(path)
-        
         return AnyView(
             VStack(spacing: 0) {
                 Button {
                     if isDirectory {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
                             if expandedFolders.contains(path) {
                                 expandedFolders.remove(path)
                             } else {
@@ -495,70 +271,47 @@ struct SidebarView: View {
                         openFilesStore.openFile(path)
                     }
                 } label: {
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        // Indentation
+                    HStack(spacing: 4) {
                         if depth > 0 {
-                            ForEach(0..<depth, id: \.self) { _ in
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: DesignSystem.Spacing.md)
-                            }
+                            Spacer()
+                                .frame(width: CGFloat(depth) * 12)
                         }
-                        
-                        // Icon
                         Image(systemName: fileIcon(for: name, isDirectory: isDirectory, isExpanded: isExpanded))
-                            .font(DesignSystem.Typography.caption2)
+                            .font(.caption2)
                             .foregroundStyle(fileIconColor(for: name, isDirectory: isDirectory))
                             .frame(width: 16)
-                        
-                        // Name
                         Text(name)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(openFilesStore.openFilePath == path ? DesignSystem.Colors.primary : DesignSystem.Colors.textPrimary)
+                            .font(.caption)
+                            .foregroundStyle(openFilesStore.openFilePath == path ? Color.accentColor : .primary)
                             .lineLimit(1)
-                        
                         Spacer()
                     }
-                    .padding(.horizontal, DesignSystem.Spacing.sm)
-                    .padding(.vertical, DesignSystem.Spacing.xs)
-                    .background {
-                        if openFilesStore.openFilePath == path {
-                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                                .fill(DesignSystem.Colors.primary.opacity(0.1))
-                        }
-                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                
-                // Expanded contents
+
                 if isDirectory && isExpanded {
                     fileContents(for: path, depth: depth + 1)
                 }
             }
         )
     }
-    
+
     private func fileContents(for path: String, depth: Int) -> AnyView {
         guard let contents = try? FileManager.default.contentsOfDirectory(atPath: path) else {
             return AnyView(EmptyView())
         }
-        
         return AnyView(
             ForEach(contents.sorted(), id: \.self) { item in
                 let itemPath = (path as NSString).appendingPathComponent(item)
                 let isSubDirectory = (try? FileManager.default.attributesOfItem(atPath: itemPath)[.type] as? FileAttributeType == .typeDirectory) ?? false
-                
                 fileRow(name: item, path: itemPath, isDirectory: isSubDirectory, depth: depth)
             }
         )
     }
-    
+
     private func fileIcon(for name: String, isDirectory: Bool, isExpanded: Bool) -> String {
-        if isDirectory {
-            return isExpanded ? "chevron.down" : "chevron.right"
-        }
-        
-        // File type icons
+        if isDirectory { return isExpanded ? "chevron.down" : "chevron.right" }
         let ext = (name as NSString).pathExtension.lowercased()
         switch ext {
         case "swift": return "swift"
@@ -571,229 +324,131 @@ struct SidebarView: View {
         default: return "doc"
         }
     }
-    
+
     private func fileIconColor(for name: String, isDirectory: Bool) -> Color {
-        if isDirectory {
-            return DesignSystem.Colors.primary
-        }
-        
+        if isDirectory { return .accentColor }
         let ext = (name as NSString).pathExtension.lowercased()
         switch ext {
-        case "swift": return DesignSystem.Colors.ideColor
-        case "js", "ts", "jsx", "tsx": return DesignSystem.Colors.warning
-        case "py": return DesignSystem.Colors.agentColor
-        case "json": return DesignSystem.Colors.textTertiary
-        default: return DesignSystem.Colors.textSecondary
+        case "swift": return .orange
+        case "js", "ts", "jsx", "tsx": return .yellow
+        case "py": return .green
+        case "json": return .secondary
+        default: return .secondary
         }
     }
-    
+
     // MARK: - To-do Section
     private var todoSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("To-do", icon: "checklist")
-            
+        Section("To-do") {
             TodoListView(store: todoStore)
         }
     }
-    
+
     // MARK: - Codex Tasks Section
     private var codexTasksSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("Task Cloud", icon: "cloud.fill")
-            
+        Section {
             if isLoadingTasks {
-                HStack(spacing: DesignSystem.Spacing.sm) {
+                HStack(spacing: 6) {
                     ProgressView()
-                        .scaleEffect(0.6)
+                        .controlSize(.small)
                     Text("Caricamento...")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(DesignSystem.Spacing.sm)
             } else if codexTasks.isEmpty {
                 Button {
                     loadCodexTasks()
                 } label: {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(DesignSystem.Typography.caption2)
-                        Text("Aggiorna")
-                            .font(DesignSystem.Typography.captionMedium)
-                    }
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .padding(.horizontal, DesignSystem.Spacing.sm)
-                    .padding(.vertical, DesignSystem.Spacing.xs)
-                    .liquidGlass(cornerRadius: DesignSystem.CornerRadius.small)
+                    Label("Aggiorna", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
             } else {
                 ForEach(codexTasks, id: \.id) { task in
                     codexTaskRow(task)
                 }
-                
                 Button {
                     loadCodexTasks()
                 } label: {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(DesignSystem.Typography.caption2)
-                        Text("Aggiorna")
-                            .font(DesignSystem.Typography.captionMedium)
-                    }
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .padding(.horizontal, DesignSystem.Spacing.sm)
-                    .padding(.vertical, DesignSystem.Spacing.xs)
-                    .liquidGlass(cornerRadius: DesignSystem.CornerRadius.small)
+                    Label("Aggiorna", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
             }
+        } header: {
+            Text("Task Cloud")
         }
     }
-    
+
     private func codexTaskRow(_ task: CodexCloudTask) -> some View {
-        Button {
-            // TODO: open task
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.title ?? task.id)
-                    .font(DesignSystem.Typography.subheadlineMedium)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .lineLimit(1)
-                
-                if let status = task.status {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Circle()
-                            .fill(taskStatusColor(status))
-                            .frame(width: 5, height: 5)
-                        
-                        Text(status)
-                            .font(DesignSystem.Typography.caption2)
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    }
+        VStack(alignment: .leading, spacing: 2) {
+            Text(task.title ?? task.id)
+                .font(.subheadline)
+                .lineLimit(1)
+            if let status = task.status {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(taskStatusColor(status))
+                        .frame(width: 6, height: 6)
+                    Text(status)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(DesignSystem.Spacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium)
         }
-        .buttonStyle(.plain)
-        .hoverEffect(scale: 1.01)
     }
-    
+
     private func taskStatusColor(_ status: String) -> Color {
         switch status.lowercased() {
-        case "completed", "success": return DesignSystem.Colors.success
-        case "running", "in_progress": return DesignSystem.Colors.warning
-        case "failed", "error": return DesignSystem.Colors.error
-        default: return DesignSystem.Colors.textTertiary
+        case "completed", "success": return .green
+        case "running", "in_progress": return .orange
+        case "failed", "error": return .red
+        default: return .secondary
         }
     }
-    
+
     // MARK: - Conversations Section
     private var conversationsSection: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            sectionHeader("Conversazioni", icon: "bubble.left.and.bubble.right.fill") {
+        Section {
+            ForEach(chatStore.conversations) { conv in
+                conversationRow(conv)
+            }
+        } header: {
+            HStack {
+                Text("Conversazioni")
+                Spacer()
                 Button {
                     let newId = chatStore.createConversation()
                     selectedConversationId = newId
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(DesignSystem.Colors.primary)
+                    Image(systemName: "plus")
+                        .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .hoverEffect(scale: 1.1)
-            }
-            
-            ForEach(chatStore.conversations) { conv in
-                conversationRow(conv)
             }
         }
     }
-    
+
     private func conversationRow(_ conv: Conversation) -> some View {
         let isSelected = selectedConversationId == conv.id
-        let isHovered = hoveredConversationId == conv.id
-        
         return Button {
             selectedConversationId = conv.id
         } label: {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                        .fill(isSelected
-                              ? DesignSystem.Colors.primary.opacity(0.2)
-                              : DesignSystem.Colors.textTertiary.opacity(0.1))
-                        .frame(width: 24, height: 24)
-                    
-                    Image(systemName: isSelected ? "bubble.left.fill" : "bubble.left")
-                        .font(DesignSystem.Typography.caption2)
-                        .foregroundStyle(isSelected
-                                         ? DesignSystem.Colors.primary
-                                         : DesignSystem.Colors.textTertiary)
-                }
-                
+            Label {
                 Text(conv.title)
-                    .font(DesignSystem.Typography.subheadlineMedium)
-                    .foregroundStyle(isSelected
-                                     ? DesignSystem.Colors.textPrimary
-                                     : DesignSystem.Colors.textSecondary)
+                    .font(.subheadline)
                     .lineLimit(1)
-                
-                Spacer()
-            }
-            .padding(.horizontal, DesignSystem.Spacing.sm)
-            .padding(.vertical, DesignSystem.Spacing.sm)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
-                        .fill(DesignSystem.Colors.primary.opacity(0.1))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
-                                .stroke(DesignSystem.Colors.primary.opacity(0.3), lineWidth: 0.5)
-                        }
-                } else if isHovered {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
-                        .fill(Color.white.opacity(0.03))
-                }
+            } icon: {
+                Image(systemName: isSelected ? "bubble.left.fill" : "bubble.left")
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
             }
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
-                hoveredConversationId = hovering ? conv.id : nil
-            }
-        }
+        .listRowBackground(
+            isSelected ? Color.accentColor.opacity(0.12) : Color.clear
+        )
     }
-    
-    // MARK: - Section Header
-    private func sectionHeader(_ title: String, icon: String) -> some View {
-        sectionHeader(title, icon: icon) { EmptyView() }
-    }
-    
-    private func sectionHeader<Trailing: View>(_ title: String, icon: String, @ViewBuilder trailing: () -> Trailing) -> some View {
-        HStack(spacing: DesignSystem.Spacing.xs) {
-            Image(systemName: icon)
-                .font(DesignSystem.Typography.caption2)
-                .foregroundStyle(DesignSystem.Colors.primary.opacity(0.8))
-            
-            Text(title)
-                .font(DesignSystem.Typography.captionMedium)
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-                .textCase(.uppercase)
-                .tracking(0.8)
-            
-            Spacer()
-            
-            trailing()
-        }
-    }
-    
-    
-    private func renameWorkspaceSheet(_ ws: Workspace) -> some View {
-        RenameWorkspaceSheet(workspace: ws, onDismiss: { workspaceToRename = nil })
-    }
-    
+
     // MARK: - Actions
     private func loadCodexTasks() {
         guard let path = codexState.status.path else { return }
@@ -806,20 +461,18 @@ struct SidebarView: View {
             }
         }
     }
-    
+
     private func handleAddFolderSelection(result: Result<[URL], Error>) {
         guard let workspaceId = pendingAddFolderWorkspaceId else { return }
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            let path = url.path(percentEncoded: false)
-            workspaceStore.addFolder(to: workspaceId, path: path)
-        case .failure:
-            break
+            workspaceStore.addFolder(to: workspaceId, path: url.path(percentEncoded: false))
+        case .failure: break
         }
         pendingAddFolderWorkspaceId = nil
     }
-    
+
     private func handleAdHocFolderSelection(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -833,8 +486,7 @@ struct SidebarView: View {
                 selectedConversationId = newConvId
                 workspaceStore.activeWorkspaceId = nil
             }
-        case .failure:
-            break
+        case .failure: break
         }
     }
 }
@@ -845,43 +497,35 @@ private struct RenameWorkspaceSheet: View {
     let onDismiss: () -> Void
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @State private var newName: String
-    
+
     init(workspace: Workspace, onDismiss: @escaping () -> Void) {
         self.workspace = workspace
         self.onDismiss = onDismiss
         _newName = State(initialValue: workspace.name)
     }
-    
+
     var body: some View {
-        VStack(spacing: DesignSystem.Spacing.xl) {
+        VStack(spacing: 16) {
             Text("Rinomina Workspace")
-                .font(DesignSystem.Typography.title2)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-            
+                .font(.title3)
+
             TextField("Nome", text: $newName)
-                .textFieldStyle(.plain)
-                .font(DesignSystem.Typography.body)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .padding(DesignSystem.Spacing.sm)
-                .liquidGlass(cornerRadius: DesignSystem.CornerRadius.medium, tint: DesignSystem.Colors.primary)
-            
-            HStack(spacing: DesignSystem.Spacing.md) {
+                .textFieldStyle(.roundedBorder)
+
+            HStack(spacing: 12) {
                 Button("Annulla", role: .cancel, action: onDismiss)
-                    .buttonStyle(SecondaryButtonStyle())
-                
                 Button("Salva") {
                     var updated = workspace
                     updated.name = newName.trimmingCharacters(in: .whitespaces)
                     workspaceStore.update(updated)
                     onDismiss()
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
                 .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(DesignSystem.Spacing.xl)
+        .padding(24)
         .frame(width: 320)
-        .liquidGlass(cornerRadius: DesignSystem.CornerRadius.xl)
     }
 }
 
@@ -891,47 +535,29 @@ private struct CreateWorkspaceSheetView: View {
     @Binding var newWorkspaceName: String
     @Binding var showCreateWorkspace: Bool
     let onCreated: (UUID) -> Void
-    
+
     var body: some View {
-        VStack(spacing: DesignSystem.Spacing.xl) {
-            ZStack {
-                Circle()
-                    .fill(DesignSystem.Colors.primaryGradient)
-                    .frame(width: 56, height: 56)
-                    .shadow(color: DesignSystem.Colors.primary.opacity(0.3), radius: 10, x: 0, y: 4)
-                
-                Image(systemName: "folder.badge.plus")
-                    .font(.title2)
-                    .foregroundStyle(.white)
-            }
-            
+        VStack(spacing: 20) {
+            Image(systemName: "folder.badge.plus")
+                .font(.largeTitle)
+                .foregroundStyle(Color.accentColor)
+
             Text("Nuovo Workspace")
-                .font(DesignSystem.Typography.title2)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-            
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                .font(.title3)
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Nome")
-                    .font(DesignSystem.Typography.captionMedium)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 TextField("Nome del workspace", text: $newWorkspaceName)
-                    .textFieldStyle(.plain)
-                    .font(DesignSystem.Typography.body)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .padding(DesignSystem.Spacing.sm)
-                    .liquidGlass(
-                        cornerRadius: DesignSystem.CornerRadius.medium,
-                        tint: DesignSystem.Colors.primary
-                    )
+                    .textFieldStyle(.roundedBorder)
             }
-            
-            HStack(spacing: DesignSystem.Spacing.md) {
+
+            HStack(spacing: 12) {
                 Button("Annulla", role: .cancel) {
                     newWorkspaceName = ""
                     showCreateWorkspace = false
                 }
-                .buttonStyle(SecondaryButtonStyle())
-                
                 Button("Crea") {
                     workspaceStore.createEmpty(name: newWorkspaceName)
                     if let ws = workspaceStore.workspaces.last {
@@ -940,12 +566,11 @@ private struct CreateWorkspaceSheetView: View {
                     newWorkspaceName = ""
                     showCreateWorkspace = false
                 }
-                .buttonStyle(PrimaryButtonStyle())
+                .buttonStyle(.borderedProminent)
                 .disabled(newWorkspaceName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(DesignSystem.Spacing.xl)
+        .padding(24)
         .frame(width: 360)
-        .liquidGlass(cornerRadius: DesignSystem.CornerRadius.xl)
     }
 }

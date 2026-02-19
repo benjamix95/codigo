@@ -27,7 +27,7 @@ struct CodigoApp: App {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("appearance") private var appearance = "system"
-    
+
     private var colorScheme: ColorScheme? {
         switch appearance {
         case "light": return .light
@@ -35,21 +35,11 @@ struct CodigoApp: App {
         default: return nil
         }
     }
-    
-    init() {
-        // Configure window appearance for liquid glass effect
-        if let window = NSApplication.shared.windows.first {
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.styleMask.insert(.fullSizeContentView)
-            window.backgroundColor = .clear
-        }
-    }
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(colorScheme ?? .dark)
+                .preferredColorScheme(colorScheme)
                 .environmentObject(providerRegistry)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
@@ -67,9 +57,8 @@ struct CodigoApp: App {
                         Button {
                             showSettings = true
                         } label: {
-                            Image(systemName: "gearshape.fill")
+                            Image(systemName: "gearshape")
                         }
-                        .buttonStyle(ToolbarIconButtonStyle())
                     }
                 }
                 .sheet(isPresented: $showSettings) {
@@ -77,8 +66,7 @@ struct CodigoApp: App {
                         .environmentObject(providerRegistry)
                 }
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {}
             CommandGroup(after: .appSettings) {
@@ -89,32 +77,12 @@ struct CodigoApp: App {
             }
         }
     }
-    
+
     private func configureWindow() {
         guard let window = NSApplication.shared.windows.first else { return }
-        
-        // Configure for liquid glass aesthetic
-        window.titlebarAppearsTransparent = true
-        window.styleMask.insert(.fullSizeContentView)
-        
-        // Set minimum size
         window.minSize = NSSize(width: 1000, height: 600)
-        
-        // Configure background
-        window.backgroundColor = NSColor(DesignSystem.Colors.backgroundDeep)
-        
-        // Make content view background transparent
-        window.contentView?.wantsLayer = true
-        window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
-        
-        // Configure vibrancy
-        if let visualEffectView = window.contentView?.superview?.subviews.first(where: { $0 is NSVisualEffectView }) as? NSVisualEffectView {
-            visualEffectView.blendingMode = .behindWindow
-            visualEffectView.material = .hudWindow
-            visualEffectView.state = .active
-        }
     }
-    
+
     private func registerProviders() {
         if providerRegistry.provider(for: "openai-api") == nil {
             providerRegistry.register(OpenAIAPIProvider(apiKey: apiKey, model: model))

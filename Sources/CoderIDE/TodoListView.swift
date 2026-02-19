@@ -6,7 +6,7 @@ struct TodoListView: View {
     @FocusState private var isNewTodoFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+        VStack(alignment: .leading, spacing: 4) {
             addTodoRow
 
             ForEach(store.todos) { todo in
@@ -20,45 +20,32 @@ struct TodoListView: View {
 
             if store.todos.isEmpty {
                 Text("Nessun to-do")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.vertical, DesignSystem.Spacing.sm)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
             }
         }
     }
 
     private var addTodoRow: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
+        HStack(spacing: 6) {
             TextField("Aggiungi to-do...", text: $newTodoText)
-                .textFieldStyle(.plain)
-                .font(DesignSystem.Typography.subheadline)
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .textFieldStyle(.roundedBorder)
+                .font(.subheadline)
                 .focused($isNewTodoFocused)
-                .onSubmit {
-                    submitNewTodo()
-                }
-                .padding(DesignSystem.Spacing.sm)
-                .background {
-                    RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.small)
-                        .fill(Color.white.opacity(0.04))
-                }
+                .onSubmit { submitNewTodo() }
 
             Button {
                 submitNewTodo()
             } label: {
                 Image(systemName: "plus.circle.fill")
-                    .font(.body)
-                    .foregroundStyle(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? DesignSystem.Colors.textTertiary
-                        : DesignSystem.Colors.primary)
+                    .foregroundStyle(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : .accentColor)
             }
             .buttonStyle(.plain)
-            .hoverEffect(scale: 1.1)
             .disabled(newTodoText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-        .padding(.horizontal, DesignSystem.Spacing.sm)
-        .padding(.vertical, DesignSystem.Spacing.xs)
+        .padding(.horizontal, 4)
     }
 
     private func submitNewTodo() {
@@ -82,46 +69,35 @@ private struct TodoRowView: View {
     }
 
     private var statusColor: Color {
-        if todo.completed { return DesignSystem.Colors.textTertiary }
-        if isInProgress { return DesignSystem.Colors.textSecondary }
-        return DesignSystem.Colors.textTertiary
+        if todo.completed { return .green }
+        if isInProgress { return .orange }
+        return .secondary
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+        HStack(alignment: .center, spacing: 6) {
             Image(systemName: statusIcon)
-                .font(DesignSystem.Typography.subheadline)
+                .font(.subheadline)
                 .foregroundStyle(statusColor)
 
             Text(todo.title)
-                .font(isInProgress ? DesignSystem.Typography.subheadlineMedium : DesignSystem.Typography.subheadline)
-                .foregroundStyle(todo.completed ? DesignSystem.Colors.textTertiary : DesignSystem.Colors.textPrimary)
+                .font(isInProgress ? .subheadline.weight(.medium) : .subheadline)
+                .foregroundStyle(todo.completed ? .secondary : .primary)
                 .strikethrough(todo.completed)
-                .opacity(todo.completed ? 0.7 : 1)
+                .opacity(todo.completed ? 0.6 : 1)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, DesignSystem.Spacing.xs)
 
-            Button {
-                onDelete()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.7))
+            Button { onDelete() } label: {
+                Image(systemName: "xmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
-            .hoverEffect(scale: 1.1)
         }
-        .padding(.leading, DesignSystem.Spacing.md)
-        .padding(.horizontal, DesignSystem.Spacing.sm)
-        .padding(.vertical, DesignSystem.Spacing.sm)
-        .background {
-            RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.medium)
-                .fill(Color.white.opacity(0.03))
-        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
+        .onTapGesture { onTap() }
     }
 }
