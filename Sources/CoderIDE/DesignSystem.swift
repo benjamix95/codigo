@@ -1,7 +1,20 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Codigo Design System
+// MARK: - Adaptive Color Helpers
+
+func codigoAdaptiveNS(_ light: NSColor, _ dark: NSColor) -> NSColor {
+    NSColor(name: nil, dynamicProvider: { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+    })
+}
+
+func codigoAdaptive(_ light: NSColor, _ dark: NSColor) -> Color {
+    Color(nsColor: codigoAdaptiveNS(light, dark))
+}
+
+// MARK: - Design System
+
 struct DesignSystem {
 
     // MARK: - Colors
@@ -20,79 +33,131 @@ struct DesignSystem {
         static let secondaryDark = Color(nsColor: .tertiaryLabelColor)
         static let secondaryLight = Color.secondary
 
-        // Semantic
-        static let success = Color(red: 0.2, green: 0.78, blue: 0.45)
-        static let successLight = Color(red: 0.2, green: 0.78, blue: 0.45).opacity(0.8)
-        static let warning = Color(red: 0.96, green: 0.68, blue: 0.22)
-        static let warningLight = Color(red: 0.96, green: 0.68, blue: 0.22).opacity(0.8)
-        static let error = Color(red: 0.94, green: 0.32, blue: 0.32)
-        static let errorLight = Color(red: 0.94, green: 0.32, blue: 0.32).opacity(0.8)
-        static let info = Color(red: 0.3, green: 0.56, blue: 0.98)
+        // Semantic — Tailwind-inspired
+        static let success = Color(red: 0.13, green: 0.77, blue: 0.37)
+        static let successLight = success.opacity(0.8)
+        static let warning = Color(red: 0.98, green: 0.57, blue: 0.24)
+        static let warningLight = warning.opacity(0.8)
+        static let error = Color(red: 0.94, green: 0.27, blue: 0.27)
+        static let errorLight = error.opacity(0.8)
+        static let info = Color(red: 0.23, green: 0.51, blue: 0.96)
 
-        // Mode colors — vivid but not garish
-        static let agentColor = Color(red: 0.22, green: 0.78, blue: 0.46)
-        static let agentColorLight = Color(red: 0.22, green: 0.78, blue: 0.46).opacity(0.8)
-        static let ideColor = Color(red: 0.58, green: 0.42, blue: 0.92)
-        static let ideColorLight = Color(red: 0.58, green: 0.42, blue: 0.92).opacity(0.8)
-        static let mcpColor = Color(red: 0.96, green: 0.58, blue: 0.22)
-        static let mcpColorLight = Color(red: 0.96, green: 0.58, blue: 0.22).opacity(0.8)
-        static let swarmColor = Color(red: 0.22, green: 0.68, blue: 0.92)
-        static let swarmColorLight = Color(red: 0.22, green: 0.68, blue: 0.92).opacity(0.8)
-        static let reviewColor = Color(red: 0.18, green: 0.74, blue: 0.72)
-        static let reviewColorLight = Color(red: 0.18, green: 0.74, blue: 0.72).opacity(0.8)
-        static let planColor = Color(red: 0.32, green: 0.52, blue: 0.96)
-        static let planColorLight = Color(red: 0.32, green: 0.52, blue: 0.96).opacity(0.8)
+        // Mode colors — vibrant, curated
+        static let agentColor = Color(red: 0.13, green: 0.77, blue: 0.37)
+        static let agentColorLight = agentColor.opacity(0.8)
+        static let ideColor = Color(red: 0.65, green: 0.55, blue: 0.98)
+        static let ideColorLight = ideColor.opacity(0.8)
+        static let mcpColor = Color(red: 0.98, green: 0.57, blue: 0.24)
+        static let mcpColorLight = mcpColor.opacity(0.8)
+        static let swarmColor = Color(red: 0.22, green: 0.74, blue: 0.97)
+        static let swarmColorLight = swarmColor.opacity(0.8)
+        static let reviewColor = Color(red: 0.18, green: 0.83, blue: 0.75)
+        static let reviewColorLight = reviewColor.opacity(0.8)
+        static let planColor = Color(red: 0.39, green: 0.40, blue: 0.95)
+        static let planColorLight = planColor.opacity(0.8)
 
-        // Backgrounds
-        static let backgroundDeep = Color(nsColor: .windowBackgroundColor)
-        static let backgroundPrimary = Color(nsColor: .windowBackgroundColor)
-        static let backgroundSecondary = Color(nsColor: .controlBackgroundColor)
-        static let backgroundTertiary = Color(nsColor: .textBackgroundColor)
-        static let backgroundElevated = Color(nsColor: .controlBackgroundColor)
+        // Background layers — rich blue-black in dark, system in light
+        static let backgroundDeep = codigoAdaptive(
+            .windowBackgroundColor,
+            NSColor(red: 0.050, green: 0.050, blue: 0.075, alpha: 1)
+        )
+        static let backgroundPrimary = codigoAdaptive(
+            .windowBackgroundColor,
+            NSColor(red: 0.063, green: 0.063, blue: 0.098, alpha: 1)
+        )
+        static let backgroundSecondary = codigoAdaptive(
+            .controlBackgroundColor,
+            NSColor(red: 0.082, green: 0.082, blue: 0.133, alpha: 1)
+        )
+        static let backgroundTertiary = codigoAdaptive(
+            .textBackgroundColor,
+            NSColor(red: 0.098, green: 0.098, blue: 0.157, alpha: 1)
+        )
+        static let backgroundElevated = codigoAdaptive(
+            .controlBackgroundColor,
+            NSColor(red: 0.114, green: 0.114, blue: 0.188, alpha: 1)
+        )
 
-        // Surfaces — for cards and elevated areas
-        static let surface = Color(nsColor: .controlBackgroundColor)
-        static let surfaceElevated = Color(nsColor: .controlBackgroundColor)
-        static let surfaceGlass = Color(nsColor: .controlBackgroundColor)
+        // Surfaces
+        static let surface = backgroundSecondary
+        static let surfaceElevated = backgroundElevated
+        static let surfaceGlass = backgroundSecondary
 
         // Chat
-        static let userBubble = Color.accentColor.opacity(0.08)
-        static let assistantBubble = Color(nsColor: .controlBackgroundColor)
+        static let userBubble = codigoAdaptive(
+            NSColor.controlAccentColor.withAlphaComponent(0.06),
+            NSColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 0.08)
+        )
+        static let assistantBubble = backgroundSecondary
 
-        // Dividers
-        static let divider = Color(nsColor: .separatorColor)
-        static let dividerStrong = Color(nsColor: .separatorColor)
-        static let border = Color(nsColor: .separatorColor)
-        static let borderSubtle = Color(nsColor: .separatorColor).opacity(0.5)
+        // Borders
+        static let divider = codigoAdaptive(
+            .separatorColor,
+            NSColor(red: 0.150, green: 0.150, blue: 0.243, alpha: 1)
+        )
+        static let dividerStrong = codigoAdaptive(
+            .separatorColor,
+            NSColor(red: 0.196, green: 0.196, blue: 0.314, alpha: 1)
+        )
+        static let border = divider
+        static let borderSubtle = codigoAdaptive(
+            NSColor.separatorColor.withAlphaComponent(0.5),
+            NSColor(red: 0.125, green: 0.125, blue: 0.204, alpha: 1)
+        )
+        static let borderAccent = codigoAdaptive(
+            NSColor.separatorColor,
+            NSColor(red: 0.220, green: 0.220, blue: 0.365, alpha: 1)
+        )
 
-        // Backward-compat stubs
+        // Glass stubs
         static let glassTint = Color.clear
         static let glassTintLight = Color.clear
         static let glassTintDark = Color.clear
-        static let glassBorder = Color(nsColor: .separatorColor)
-        static let glassBorderLight = Color(nsColor: .separatorColor)
+        static let glassBorder = border
+        static let glassBorderLight = borderSubtle
         static let glassHighlight = Color.clear
 
-        // Gradients
-        static let primaryGradient = LinearGradient(colors: [Color.accentColor], startPoint: .leading, endPoint: .trailing)
+        // Mode gradients — 2-stop subtle shifts
+        static let primaryGradient = LinearGradient(
+            colors: [planColor, Color(red: 0.51, green: 0.55, blue: 0.98)],
+            startPoint: .leading, endPoint: .trailing
+        )
+        static let agentGradient = LinearGradient(
+            colors: [agentColor, Color(red: 0.20, green: 0.85, blue: 0.52)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let ideGradient = LinearGradient(
+            colors: [ideColor, Color(red: 0.75, green: 0.62, blue: 0.99)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let mcpGradient = LinearGradient(
+            colors: [mcpColor, Color(red: 0.99, green: 0.70, blue: 0.38)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let swarmGradient = LinearGradient(
+            colors: [swarmColor, Color(red: 0.38, green: 0.82, blue: 0.99)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let reviewGradient = LinearGradient(
+            colors: [reviewColor, Color(red: 0.30, green: 0.90, blue: 0.84)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let planGradient = LinearGradient(
+            colors: [planColor, Color(red: 0.53, green: 0.56, blue: 0.98)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
         static let glassGradient = LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
-        static let agentGradient = LinearGradient(colors: [agentColor], startPoint: .leading, endPoint: .trailing)
-        static let ideGradient = LinearGradient(colors: [ideColor], startPoint: .leading, endPoint: .trailing)
-        static let mcpGradient = LinearGradient(colors: [mcpColor], startPoint: .leading, endPoint: .trailing)
-        static let swarmGradient = LinearGradient(colors: [swarmColor], startPoint: .leading, endPoint: .trailing)
-        static let reviewGradient = LinearGradient(colors: [reviewColor], startPoint: .leading, endPoint: .trailing)
-        static let planGradient = LinearGradient(colors: [planColor], startPoint: .leading, endPoint: .trailing)
         static let shimmerGradient = LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
     }
 
     // MARK: - Typography
     struct Typography {
-        static let display = Font.system(size: 34, weight: .bold)
-        static let displayMedium = Font.system(size: 28, weight: .semibold)
-        static let largeTitle = Font.largeTitle
-        static let title = Font.title
-        static let title2 = Font.title2
-        static let title3 = Font.title3
+        static let display = Font.system(size: 34, weight: .bold, design: .rounded)
+        static let displayMedium = Font.system(size: 28, weight: .semibold, design: .rounded)
+        static let largeTitle = Font.system(.largeTitle, design: .rounded)
+        static let title = Font.system(.title, design: .rounded)
+        static let title2 = Font.system(.title2, design: .rounded)
+        static let title3 = Font.system(.title3, design: .rounded)
         static let headline = Font.headline
         static let body = Font.body
         static let bodyMedium = Font.body.weight(.medium)
@@ -112,7 +177,6 @@ struct DesignSystem {
         static func bold(_ font: Font) -> Font { font.weight(.bold) }
     }
 
-    // MARK: - Spacing
     struct Spacing {
         static let xxs: CGFloat = 2
         static let xs: CGFloat = 4
@@ -142,19 +206,28 @@ struct DesignSystem {
     }
 
     struct Shadows {
-        static let small = Color.black.opacity(0.1)
-        static let medium = Color.black.opacity(0.15)
-        static let large = Color.black.opacity(0.2)
+        static let small = Color.black.opacity(0.15)
+        static let medium = Color.black.opacity(0.22)
+        static let large = Color.black.opacity(0.30)
         static let glow = Color.clear
         static func primaryGlow(radius: CGFloat = 0) -> some View { Color.clear }
         static func coloredGlow(_ color: Color, radius: CGFloat = 0) -> some View { Color.clear }
     }
+
+    // MARK: - AppKit Helpers
+    struct AppKit {
+        static let windowBackground = codigoAdaptiveNS(
+            .windowBackgroundColor,
+            NSColor(red: 0.050, green: 0.050, blue: 0.075, alpha: 1)
+        )
+    }
 }
 
-// MARK: - Hover Effect (real but subtle)
+// MARK: - View Extensions
+
 struct HoverHighlight: ViewModifier {
     @State private var isHovered = false
-    var activeColor: Color = Color.primary.opacity(0.06)
+    var activeColor: Color
 
     func body(content: Content) -> some View {
         content
@@ -164,9 +237,51 @@ struct HoverHighlight: ViewModifier {
     }
 }
 
+struct SidebarMaterialBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+    }
+}
+
 extension View {
     func hoverHighlight(_ color: Color = Color.primary.opacity(0.06)) -> some View {
         modifier(HoverHighlight(activeColor: color))
+    }
+
+    func sidebarPanel(cornerRadius: CGFloat = 10) -> some View {
+        self
+            .background(SidebarMaterialBackground())
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
+            )
+    }
+
+    func panelBackground(cornerRadius: CGFloat = 0) -> some View {
+        self
+            .background(DesignSystem.Colors.backgroundSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }
+
+    func panelBorder(cornerRadius: CGFloat = 0) -> some View {
+        self
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5)
+            )
     }
 
     func liquidGlass(
@@ -176,13 +291,13 @@ extension View {
         borderOpacity: CGFloat = 0
     ) -> some View {
         self
-            .background(RoundedRectangle(cornerRadius: cornerRadius).fill(Color(nsColor: .controlBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: cornerRadius).fill(DesignSystem.Colors.backgroundSecondary))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
     func glassBackground(cornerRadius: CGFloat = DesignSystem.CornerRadius.large, tint: Color = .clear) -> some View {
         self
-            .background(RoundedRectangle(cornerRadius: cornerRadius).fill(Color(nsColor: .controlBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: cornerRadius).fill(DesignSystem.Colors.backgroundSecondary))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
@@ -201,15 +316,14 @@ struct GlassCard<Content: View>: View {
     }
     var body: some View {
         content.padding(padding)
-            .background(RoundedRectangle(cornerRadius: cornerRadius).fill(Color(nsColor: .controlBackgroundColor)))
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .background(DesignSystem.Colors.backgroundSecondary, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5))
     }
 }
 
 // MARK: - Mode Badge
 struct ModeBadge: View {
-    let mode: CoderMode
-    let isActive: Bool
+    let mode: CoderMode; let isActive: Bool
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: iconName).font(.caption2)
@@ -221,22 +335,15 @@ struct ModeBadge: View {
     }
     private var iconName: String {
         switch mode {
-        case .agent: return "brain.head.profile"
-        case .ide: return "sparkles"
-        case .mcpServer: return "server.rack"
-        case .agentSwarm: return "ant.fill"
-        case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
-        case .plan: return "list.bullet.rectangle"
+        case .agent: return "brain.head.profile"; case .ide: return "sparkles"; case .mcpServer: return "server.rack"
+        case .agentSwarm: return "ant.fill"; case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"; case .plan: return "list.bullet.rectangle"
         }
     }
     private var modeColor: Color {
         switch mode {
-        case .agent: return DesignSystem.Colors.agentColor
-        case .ide: return DesignSystem.Colors.ideColor
-        case .mcpServer: return DesignSystem.Colors.mcpColor
-        case .agentSwarm: return DesignSystem.Colors.swarmColor
-        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
-        case .plan: return DesignSystem.Colors.planColor
+        case .agent: return DesignSystem.Colors.agentColor; case .ide: return DesignSystem.Colors.ideColor
+        case .mcpServer: return DesignSystem.Colors.mcpColor; case .agentSwarm: return DesignSystem.Colors.swarmColor
+        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor; case .plan: return DesignSystem.Colors.planColor
         }
     }
 }
@@ -258,8 +365,18 @@ struct SectionHeader: View {
 struct StatusIndicator: View {
     enum Status {
         case online, offline, loading, error
-        var color: Color { switch self { case .online: return .green; case .offline: return .secondary; case .loading: return .orange; case .error: return .red } }
-        var icon: String { switch self { case .online: return "checkmark.circle.fill"; case .offline: return "circle"; case .loading: return "arrow.triangle.2.circlepath"; case .error: return "exclamationmark.circle.fill" } }
+        var color: Color {
+            switch self {
+            case .online: return DesignSystem.Colors.success; case .offline: return .secondary
+            case .loading: return DesignSystem.Colors.warning; case .error: return DesignSystem.Colors.error
+            }
+        }
+        var icon: String {
+            switch self {
+            case .online: return "checkmark.circle.fill"; case .offline: return "circle"
+            case .loading: return "arrow.triangle.2.circlepath"; case .error: return "exclamationmark.circle.fill"
+            }
+        }
     }
     let status: Status; let text: String
     var body: some View {
@@ -268,23 +385,27 @@ struct StatusIndicator: View {
 }
 
 // MARK: - Button Styles
+
 struct GlassButtonStyle: ButtonStyle {
     var tint: Color = .accentColor; var isDestructive: Bool = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.subheadline.weight(.medium))
-            .foregroundStyle(isDestructive ? .red : tint)
+            .foregroundStyle(isDestructive ? DesignSystem.Colors.error : tint)
             .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 6).fill((isDestructive ? Color.red : tint).opacity(0.1)))
+            .background(RoundedRectangle(cornerRadius: 6).fill((isDestructive ? DesignSystem.Colors.error : tint).opacity(0.12)))
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder((isDestructive ? DesignSystem.Colors.error : tint).opacity(0.15), lineWidth: 0.5))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.subheadline.weight(.medium)).foregroundStyle(.white)
+        configuration.label.font(.subheadline.weight(.semibold)).foregroundStyle(.white)
             .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 6))
-            .opacity(configuration.isPressed ? 0.8 : 1)
+            .background(DesignSystem.Colors.primaryGradient, in: RoundedRectangle(cornerRadius: 8))
+            .shadow(color: DesignSystem.Colors.planColor.opacity(0.25), radius: 6, y: 2)
+            .opacity(configuration.isPressed ? 0.85 : 1).scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -292,8 +413,8 @@ struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.font(.subheadline.weight(.medium)).foregroundStyle(.secondary)
             .padding(.horizontal, 16).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            .background(DesignSystem.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5))
             .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
@@ -320,6 +441,7 @@ struct ToolbarIconButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Backward compat stubs
 struct AnimatedGradientBackground: View { var body: some View { Color.clear } }
 struct FloatingOrb: View {
     let color: Color; let size: CGFloat

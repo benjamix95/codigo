@@ -5,7 +5,7 @@ struct TaskActivityPanelView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
-            LazyVStack(alignment: .leading, spacing: 4) {
+            LazyVStack(alignment: .leading, spacing: 3) {
                 ForEach(store.activities) { activity in
                     TaskActivityRow(activity: activity)
                 }
@@ -13,7 +13,10 @@ struct TaskActivityPanelView: View {
             .padding(8)
         }
         .frame(maxHeight: 120)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(DesignSystem.Colors.border).frame(height: 0.5)
+        }
     }
 }
 
@@ -33,47 +36,43 @@ private struct TaskActivityRow: View {
 
     private var typeColor: Color {
         switch activity.type {
-        case "edit", "file_change": return .green
-        case "bash", "command_execution": return .orange
-        case "search", "web_search": return .blue
-        case "mcp_tool_call": return .purple
-        case "agent": return .cyan
+        case "edit", "file_change": return DesignSystem.Colors.agentColor
+        case "bash", "command_execution": return DesignSystem.Colors.warning
+        case "search", "web_search": return DesignSystem.Colors.info
+        case "mcp_tool_call": return DesignSystem.Colors.ideColor
+        case "agent": return DesignSystem.Colors.swarmColor
         default: return .secondary
         }
     }
 
     private var timeString: String {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f.string(from: activity.timestamp)
+        let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f.string(from: activity.timestamp)
     }
 
     var body: some View {
         HStack(alignment: .center, spacing: 6) {
             Image(systemName: typeIcon)
-                .font(.caption)
+                .font(.system(size: 10))
                 .foregroundStyle(typeColor)
-                .frame(width: 18, alignment: .center)
+                .frame(width: 16, alignment: .center)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(activity.title)
-                    .font(.caption.weight(.medium))
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                 if let detail = activity.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(timeString)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.quaternary)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 6).padding(.vertical, 2)
     }
 }

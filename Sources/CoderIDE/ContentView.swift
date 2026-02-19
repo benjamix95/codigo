@@ -2,26 +2,15 @@ import SwiftUI
 import AppKit
 import CoderEngine
 
-enum ContentTab: String, CaseIterable {
-    case editor = "Editor"
-    case terminal = "Terminale"
-
-    var icon: String {
-        switch self {
-        case .editor: return "doc.text.fill"
-        case .terminal: return "terminal.fill"
-        }
-    }
-}
-
 struct ContentView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @State private var selectedConversationId: UUID?
-    @State private var contentTab: ContentTab = .editor
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var showTerminal = false
+    @State private var terminalHeight: CGFloat = 200
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -31,29 +20,20 @@ struct ContentView: View {
                 .environmentObject(openFilesStore)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
         } detail: {
-            HSplitView {
+            HStack(spacing: 5) {
                 if showEditorPanel {
-                    editorPanel
+                    idePanel
                         .frame(minWidth: 350, idealWidth: 450)
                 }
-
-                ChatPanelView(
-                    conversationId: selectedConversationId,
-                    effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
-                )
-                .environmentObject(providerRegistry)
-                .environmentObject(chatStore)
-                .environmentObject(openFilesStore)
-                .frame(minWidth: 380, idealWidth: 500)
+                chatPanel
+                    .frame(minWidth: 380, idealWidth: 500)
             }
+            .padding(5)
+            .background(DesignSystem.Colors.backgroundDeep)
         }
         .onAppear {
-            if providerRegistry.selectedProviderId == nil {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
-            if selectedConversationId == nil, let first = chatStore.conversations.first {
-                selectedConversationId = first.id
-            }
+            if providerRegistry.selectedProviderId == nil { providerRegistry.selectedProviderId = "codex-cli" }
+            if selectedConversationId == nil, let first = chatStore.conversations.first { selectedConversationId = first.id }
         }
     }
 
@@ -63,75 +43,90 @@ struct ContentView: View {
         isIDEMode || effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore).hasContext
     }
 
-    // MARK: - Editor Panel
-    private var editorPanel: some View {
+    // MARK: - IDE Panel
+    private var idePanel: some View {
         VStack(spacing: 0) {
-            editorTabBar
-            Divider()
-            Group {
-                let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
-                switch contentTab {
-                case .editor:
-                    EditorPlaceholderView(folderPaths: ctx.folderPaths, openFilePath: openFilesStore.openFilePath)
-                case .terminal:
-                    TerminalPanelView(workingDirectory: ctx.primaryPath)
-                }
+            ideHeader
+            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
+
+            let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
+            EditorPlaceholderView(folderPaths: ctx.folderPaths, openFilePath: openFilesStore.openFilePath)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if showTerminal {
+                Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
+                TerminalPanelView(workingDirectory: ctx.primaryPath)
+                    .frame(height: terminalHeight)
             }
         }
+        .sidebarPanel()
     }
 
-    private var editorTabBar: some View {
-        HStack(spacing: 2) {
-            ForEach(ContentTab.allCases, id: \.self) { tab in
-                editorTabButton(for: tab)
+    private var ideHeader: some View {
+        HStack(spacing: 8) {
+            if let path = openFilesStore.openFilePath, !path.isEmpty {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.accentColor.opacity(0.7))
+                Text((path as NSString).lastPathComponent)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Image(systemName: "rectangle.split.2x1")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                Text("Editor")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
+
             Spacer()
-            contextIndicatorView
+
+            contextBadge
+
+            Button { withAnimation(.easeOut(duration: 0.2)) { showTerminal.toggle() } } label: {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(showTerminal ? DesignSystem.Colors.agentColor : Color(nsColor: .tertiaryLabelColor))
+                    .padding(4)
+                    .background(showTerminal ? DesignSystem.Colors.agentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            .help("Mostra/nascondi terminale")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
     }
 
     @ViewBuilder
-    private var contextIndicatorView: some View {
+    private var contextBadge: some View {
         let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
         if ctx.hasContext {
             HStack(spacing: 4) {
                 Image(systemName: ctx.isWorkspace ? "folder.fill" : "folder")
                     .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.accentColor.opacity(0.7))
                 Text(ctx.displayLabel)
-                    .font(.system(size: 11))
+                    .font(.system(size: 10, weight: .medium))
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.accentColor.opacity(0.06), in: Capsule())
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.08), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.12), lineWidth: 0.5))
         }
     }
 
-    private func editorTabButton(for tab: ContentTab) -> some View {
-        let selected = contentTab == tab
-        return Button { contentTab = tab } label: {
-            HStack(spacing: 4) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 10))
-                Text(tab.rawValue)
-                    .font(.system(size: 12, weight: selected ? .medium : .regular))
-            }
-            .foregroundStyle(selected ? Color.accentColor : .secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(
-                selected ? Color.accentColor.opacity(0.1) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 5)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 5))
-        }
-        .buttonStyle(.plain)
-        .hoverHighlight(Color.accentColor.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 5))
+    // MARK: - Chat Panel
+    private var chatPanel: some View {
+        ChatPanelView(
+            conversationId: selectedConversationId,
+            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
+        )
+        .environmentObject(providerRegistry)
+        .environmentObject(chatStore)
+        .environmentObject(openFilesStore)
+        .sidebarPanel()
     }
 }

@@ -81,6 +81,9 @@ struct CodigoApp: App {
     private func configureWindow() {
         guard let window = NSApplication.shared.windows.first else { return }
         window.minSize = NSSize(width: 1000, height: 600)
+        window.backgroundColor = DesignSystem.AppKit.windowBackground
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
     }
 
     private func registerProviders() {

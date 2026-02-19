@@ -120,99 +120,61 @@ struct SidebarView: View {
 
     private var workspaceSection: some View {
         Section {
-            if let ws = activeWorkspaceForConversation {
-                activeWorkspaceRow(ws)
-                ForEach(ws.folderPaths, id: \.self) { path in
-                    folderPathRow(path: path, workspaceId: ws.id)
-                }
-                if workspaceStore.workspaces.count > 1 {
-                    ForEach(workspaceStore.workspaces.filter { $0.id != ws.id }) { other in
-                        otherWorkspaceRow(other)
-                    }
-                }
-            } else if !workspaceStore.workspaces.isEmpty {
-                ForEach(workspaceStore.workspaces) { ws in
-                    Button {
-                        handleWorkspaceSelected(ws)
-                    } label: {
-                        Label(ws.name, systemImage: "folder")
-                    }
-                }
-            } else {
-                Button {
-                    showCreateWorkspace = true
-                } label: {
+            if workspaceStore.workspaces.isEmpty {
+                Button { showCreateWorkspace = true } label: {
                     Label("Apri cartella", systemImage: "folder.badge.plus")
                         .foregroundStyle(.secondary)
+                }
+            } else {
+                ForEach(workspaceStore.workspaces) { ws in
+                    workspaceRow(ws)
                 }
             }
         } header: {
             HStack {
                 Text("Workspace")
                 Spacer()
-                Button {
-                    showCreateWorkspace = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func activeWorkspaceRow(_ ws: Workspace) -> some View {
-        HStack {
-            Menu {
-                Button { workspaceToRename = ws } label: {
-                    Label("Rinomina workspace...", systemImage: "pencil")
-                }
                 Button { showCreateWorkspace = true } label: {
-                    Label("Crea nuovo workspace...", systemImage: "plus")
+                    Image(systemName: "plus").font(.caption)
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func workspaceRow(_ ws: Workspace) -> some View {
+        let isActive = activeWorkspaceForConversation?.id == ws.id
+        return Button { handleWorkspaceSelected(ws) } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isActive ? "folder.fill" : "folder")
+                    .font(.system(size: 12))
+                    .foregroundStyle(isActive ? Color.accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(ws.name)
+                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                        .foregroundStyle(isActive ? .primary : .secondary)
+                        .lineLimit(1)
+                    if isActive && !ws.folderPaths.isEmpty {
+                        Text(ws.folderPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", "))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
                 }
-            } label: {
-                Label(ws.name, systemImage: "folder.fill")
-                    .font(.subheadline.weight(.medium))
             }
-            .menuStyle(.borderlessButton)
-            Spacer()
-            Button {
-                pendingAddFolderWorkspaceId = ws.id
-                isSelectingAddFolder = true
-            } label: {
-                Image(systemName: "plus.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
+        .contextMenu {
+            Button { workspaceToRename = ws } label: { Label("Rinomina...", systemImage: "pencil") }
+            Button { pendingAddFolderWorkspaceId = ws.id; isSelectingAddFolder = true } label: { Label("Aggiungi cartella...", systemImage: "folder.badge.plus") }
+            Divider()
+            Button(role: .destructive) { deleteWorkspace(ws) } label: { Label("Elimina workspace", systemImage: "trash") }
         }
     }
 
-    private func folderPathRow(path: String, workspaceId: UUID) -> some View {
-        HStack {
-            Label((path as NSString).lastPathComponent, systemImage: "folder")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button {
-                workspaceStore.removeFolder(from: workspaceId, path: path)
-            } label: {
-                Image(systemName: "minus.circle")
-                    .font(.caption2)
-                    .foregroundStyle(.red.opacity(0.7))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.leading, 8)
-    }
-
-    private func otherWorkspaceRow(_ ws: Workspace) -> some View {
-        Button {
-            handleWorkspaceSelected(ws)
-        } label: {
-            Label(ws.name, systemImage: "folder")
-                .foregroundStyle(.secondary)
-        }
+    private func deleteWorkspace(_ ws: Workspace) {
+        chatStore.clearWorkspaceReferences(workspaceId: ws.id)
+        workspaceStore.delete(id: ws.id)
     }
 
     private func handleWorkspaceSelected(_ ws: Workspace) {
@@ -413,27 +375,26 @@ struct SidebarView: View {
             ForEach(chatStore.conversations) { conv in
                 conversationRow(conv)
             }
+            .onDelete { offsets in
+                for idx in offsets {
+                    let conv = chatStore.conversations[idx]
+                    deleteConversation(conv)
+                }
+            }
         } header: {
             HStack {
                 Text("Conversazioni")
                 Spacer()
-                Button {
-                    let newId = chatStore.createConversation()
-                    selectedConversationId = newId
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
+                Button { createNewConversation() } label: {
+                    Image(systemName: "plus").font(.caption)
+                }.buttonStyle(.plain)
             }
         }
     }
 
     private func conversationRow(_ conv: Conversation) -> some View {
         let isSelected = selectedConversationId == conv.id
-        return Button {
-            selectedConversationId = conv.id
-        } label: {
+        return Button { selectedConversationId = conv.id } label: {
             Label {
                 Text(conv.title)
                     .font(.subheadline)
@@ -444,9 +405,26 @@ struct SidebarView: View {
             }
         }
         .buttonStyle(.plain)
-        .listRowBackground(
-            isSelected ? Color.accentColor.opacity(0.12) : Color.clear
-        )
+        .listRowBackground(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+        .contextMenu {
+            Button { createNewConversation() } label: { Label("Nuova conversazione", systemImage: "plus.bubble") }
+            Divider()
+            Button(role: .destructive) { deleteConversation(conv) } label: { Label("Elimina", systemImage: "trash") }
+        }
+    }
+
+    private func createNewConversation() {
+        let wsId = activeWorkspaceForConversation?.id
+        let newId = chatStore.createConversation(workspaceId: wsId)
+        selectedConversationId = newId
+    }
+
+    private func deleteConversation(_ conv: Conversation) {
+        let wasSelected = selectedConversationId == conv.id
+        chatStore.deleteConversation(id: conv.id)
+        if wasSelected {
+            selectedConversationId = chatStore.conversations.first?.id
+        }
     }
 
     // MARK: - Actions

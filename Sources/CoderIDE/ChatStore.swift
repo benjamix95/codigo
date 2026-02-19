@@ -88,6 +88,19 @@ final class ChatStore: ObservableObject {
         return conv.id
     }
     
+    func deleteConversation(id: UUID) {
+        conversations.removeAll { $0.id == id }
+        if conversations.isEmpty { createConversation() }
+        saveConversations()
+    }
+
+    func clearWorkspaceReferences(workspaceId: UUID) {
+        for i in conversations.indices where conversations[i].workspaceId == workspaceId {
+            conversations[i].workspaceId = nil
+        }
+        saveConversations()
+    }
+
     func setWorkspace(conversationId: UUID?, workspaceId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         conversations[idx].workspaceId = workspaceId
