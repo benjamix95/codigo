@@ -13,20 +13,40 @@ struct CodigoApp: App {
     @StateObject private var todoStore = TodoStore()
     @StateObject private var swarmProgressStore = SwarmProgressStore()
     @StateObject private var codexState = CodexStateStore()
-    @State private var showSettings = false
+    @StateObject private var executionController = ExecutionController()
+    @StateObject private var providerUsageStore = ProviderUsageStore()
+    @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
     @AppStorage("openai_api_key") private var apiKey = ""
     @AppStorage("openai_model") private var model = "gpt-4o-mini"
+    @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
+    @AppStorage("anthropic_model") private var anthropicModel = "claude-sonnet-4-6"
+    @AppStorage("google_api_key") private var googleApiKey = ""
+    @AppStorage("google_model") private var googleModel = "gemini-2.5-pro"
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
+    @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "xhigh"
+    @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
+    @AppStorage("claude_path") private var claudePath = ""
+    @AppStorage("claude_model") private var claudeModel = "sonnet"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
+    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
-    @AppStorage("code_review_yolo") private var codeReviewYolo = false
+    @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
+    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
+    @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
+    @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("minimax_api_key") private var minimaxApiKey = ""
+    @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
+    @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
 
     private var colorScheme: ColorScheme? {
         switch appearance {
@@ -48,33 +68,17 @@ struct CodigoApp: App {
                 .environmentObject(todoStore)
                 .environmentObject(swarmProgressStore)
                 .environmentObject(codexState)
+                .environmentObject(executionController)
+                .environmentObject(providerUsageStore)
+                .environmentObject(flowDiagnosticsStore)
                 .onAppear {
                     registerProviders()
                     configureWindow()
                 }
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                    }
-                }
-                .sheet(isPresented: $showSettings) {
-                    SettingsView()
-                        .environmentObject(providerRegistry)
-                }
         }
-        .windowToolbarStyle(.unified)
+        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}
-            CommandGroup(after: .appSettings) {
-                Button("Impostazioni Codigo...") {
-                    showSettings = true
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
         }
     }
 
@@ -83,6 +87,8 @@ struct CodigoApp: App {
         window.minSize = NSSize(width: 1000, height: 600)
         window.backgroundColor = DesignSystem.AppKit.windowBackground
         window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.title = ""
         window.isMovableByWindowBackground = true
     }
 
@@ -90,66 +96,117 @@ struct CodigoApp: App {
         if providerRegistry.provider(for: "openai-api") == nil {
             providerRegistry.register(OpenAIAPIProvider(apiKey: apiKey, model: model))
         }
-        if providerRegistry.provider(for: "codex-cli") == nil {
-            let effective = codexSandbox.isEmpty ? CodexConfigLoader.load().sandboxMode ?? "workspace-write" : codexSandbox
-            let sandbox: CodexSandboxMode = CodexSandboxMode(rawValue: effective) ?? .workspaceWrite
-            providerRegistry.register(CodexCLIProvider(
-                codexPath: codexPath.isEmpty ? nil : codexPath,
-                sandboxMode: sandbox,
-                modelOverride: codexModelOverride.isEmpty ? nil : codexModelOverride,
-                modelReasoningEffort: codexReasoningEffort.isEmpty ? nil : codexReasoningEffort
+        if providerRegistry.provider(for: "anthropic-api") == nil {
+            providerRegistry.register(AnthropicAPIProvider(
+                apiKey: anthropicApiKey,
+                model: anthropicModel,
+                displayName: "Anthropic"
             ))
         }
-        if providerRegistry.provider(for: "claude-cli") == nil {
-            providerRegistry.register(ClaudeCLIProvider())
+        if providerRegistry.provider(for: "google-api") == nil {
+            providerRegistry.register(OpenAIAPIProvider(
+                apiKey: googleApiKey,
+                model: googleModel,
+                id: "google-api",
+                displayName: "Google Gemini",
+                baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            ))
         }
+        if providerRegistry.provider(for: "codex-cli") == nil {
+            providerRegistry.register(ProviderFactory.codexProvider(config: providerFactoryConfig(), executionController: executionController))
+        }
+        if providerRegistry.provider(for: "claude-cli") == nil {
+            providerRegistry.register(ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+        }
+        registerMiniMax()
+        registerOpenRouter()
         registerPlanProvider()
         registerSwarmProvider()
         registerMultiSwarmReviewProvider()
+    }
+
+    private func registerMiniMax() {
+        providerRegistry.unregister(id: "minimax-api")
+        providerRegistry.register(OpenAIAPIProvider(
+            apiKey: minimaxApiKey,
+            model: minimaxModel,
+            id: "minimax-api",
+            displayName: "MiniMax",
+            baseURL: "https://api.minimax.io/v1/chat/completions"
+        ))
+    }
+
+    private func registerOpenRouter() {
+        providerRegistry.unregister(id: "openrouter-api")
+        providerRegistry.register(OpenAIAPIProvider(
+            apiKey: openrouterApiKey,
+            model: openrouterModel,
+            id: "openrouter-api",
+            displayName: "OpenRouter",
+            baseURL: "https://openrouter.ai/api/v1/chat/completions",
+            extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
+        ))
     }
 
     private func registerPlanProvider() {
         let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         guard codex != nil || claude != nil else { return }
-        let planProvider = PlanModeProvider(codexProvider: codex, claudeProvider: claude)
         providerRegistry.unregister(id: "plan-mode")
-        providerRegistry.register(planProvider)
+        providerRegistry.register(ProviderFactory.planProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController))
     }
 
     private func registerMultiSwarmReviewProvider() {
         guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
-        let effective = codexSandbox.isEmpty ? CodexConfigLoader.load().sandboxMode ?? "workspace-write" : codexSandbox
-        let sandbox: CodexSandboxMode = CodexSandboxMode(rawValue: effective) ?? .workspaceWrite
-        let config = MultiSwarmReviewConfig(
-            partitionCount: codeReviewPartitions,
-            yoloMode: codeReviewYolo,
-            enabledPhases: codeReviewAnalysisOnly ? ReviewPhase.analysisOnly : ReviewPhase.analysisAndExecution
-        )
-        let codexParams = CodexCreateParams(
-            codexPath: codexPath.isEmpty ? nil : codexPath,
-            sandboxMode: sandbox,
-            modelOverride: codexModelOverride.isEmpty ? nil : codexModelOverride,
-            modelReasoningEffort: codexReasoningEffort.isEmpty ? nil : codexReasoningEffort
-        )
-        let provider = MultiSwarmReviewProvider(config: config, codexProvider: codex, codexParams: codexParams)
+        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
+        let provider = ProviderFactory.codeReviewProvider(config: providerFactoryConfig(), codex: codex, claude: claude)
         providerRegistry.unregister(id: "multi-swarm-review")
         providerRegistry.register(provider)
     }
 
     private func registerSwarmProvider() {
         guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
-        let backend: OrchestratorBackend = swarmOrchestrator == "codex" ? .codex : .openai
-        let openAIClient: OpenAICompletionsClient? = backend == .openai && !apiKey.isEmpty
-            ? OpenAICompletionsClient(apiKey: apiKey, model: model)
-            : nil
-        let config = SwarmConfig(
-            orchestratorBackend: backend,
-            autoPostCodePipeline: swarmAutoPostCodePipeline,
-            maxPostCodeRetries: swarmMaxPostCodeRetries
-        )
-        let swarm = AgentSwarmProvider(config: config, openAIClient: openAIClient, codexProvider: codex)
+        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
+        let swarm = ProviderFactory.swarmProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController)
         providerRegistry.unregister(id: "agent-swarm")
         providerRegistry.register(swarm)
+    }
+
+    private func providerFactoryConfig() -> ProviderFactoryConfig {
+        let effectiveSandbox = codexSandbox.isEmpty ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
+        let tools = claudeAllowedTools.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return ProviderFactoryConfig(
+            openaiApiKey: apiKey,
+            openaiModel: model,
+            anthropicApiKey: anthropicApiKey,
+            anthropicModel: anthropicModel,
+            googleApiKey: googleApiKey,
+            googleModel: googleModel,
+            minimaxApiKey: minimaxApiKey,
+            minimaxModel: minimaxModel,
+            openrouterApiKey: openrouterApiKey,
+            openrouterModel: openrouterModel,
+            codexPath: codexPath,
+            codexSandbox: effectiveSandbox,
+            codexSessionFullAccess: false,
+            codexAskForApproval: codexAskForApproval,
+            codexModelOverride: codexModelOverride,
+            codexReasoningEffort: codexReasoningEffort,
+            planModeBackend: planModeBackend,
+            swarmOrchestrator: swarmOrchestrator,
+            swarmWorkerBackend: swarmWorkerBackend,
+            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
+            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
+            swarmMaxReviewLoops: swarmMaxReviewLoops,
+            swarmEnabledRoles: swarmEnabledRoles,
+            globalYolo: globalYolo,
+            codeReviewPartitions: codeReviewPartitions,
+            codeReviewAnalysisOnly: codeReviewAnalysisOnly,
+            codeReviewMaxRounds: codeReviewMaxRounds,
+            codeReviewAnalysisBackend: codeReviewAnalysisBackend,
+            claudePath: claudePath,
+            claudeModel: claudeModel,
+            claudeAllowedTools: tools
+        )
     }
 }

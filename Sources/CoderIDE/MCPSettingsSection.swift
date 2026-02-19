@@ -99,7 +99,7 @@ struct MCPSettingsSection: View {
     }
 
     private func loadAll() {
-        detectedServers = MCPConfigLoader.loadFromCodexConfig()
+        detectedServers = MCPConfigLoader.loadDetectedServers()
         manualServers = MCPConfigLoader.loadManualServers()
     }
 

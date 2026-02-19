@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import CoderEngine
 
 struct CodexLoginView: View {
@@ -131,38 +132,45 @@ struct CodexLoginView: View {
     }
 
     // MARK: - Login Actions
+
     private func loginWithBrowser() {
         isPolling = true
         loginMessage = "Aprendo il browser..."
-        Task { runLogin(args: []) }
+        runLogin(args: [])
     }
 
     private func loginWithDeviceCode() {
         isPolling = true
         loginMessage = "Mostra il codice nel terminale..."
-        Task { runLogin(args: ["--device-auth"]) }
+        runLogin(args: ["--device-auth"])
     }
 
     private func loginWithAPIKey() {
         guard !apiKey.isEmpty else { return }
         isPolling = true
         loginMessage = "Autenticazione in corso..."
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: codexPath)
         process.arguments = ["login", "--with-api-key"]
-        process.standardInput = Pipe()
+        let inputPipe = Pipe()
+        process.standardInput = inputPipe
         process.standardOutput = nil
         process.standardError = nil
+        process.environment = CodexDetector.shellEnvironment()
+
         do {
             try process.run()
-            if let pipe = process.standardInput as? Pipe {
-                pipe.fileHandleForWriting.write(apiKey.data(using: .utf8) ?? Data())
-                try pipe.fileHandleForWriting.close()
-            }
-            process.waitUntilExit()
-            pollForLogin()
+            inputPipe.fileHandleForWriting.write(apiKey.data(using: .utf8) ?? Data())
+            try inputPipe.fileHandleForWriting.close()
         } catch {
             isPolling = false
+            return
+        }
+
+        let capturedPath = codexPath
+        process.terminationHandler = { _ in
+            DispatchQueue.main.async { startPolling(codexPath: capturedPath) }
         }
     }
 
@@ -170,35 +178,53 @@ struct CodexLoginView: View {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: codexPath)
         process.arguments = ["login"] + args
-        process.standardOutput = nil
-        process.standardError = nil
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = outPipe
+        process.environment = CodexDetector.shellEnvironment()
+
         do {
             try process.run()
-            process.waitUntilExit()
-            pollForLogin()
         } catch {
             isPolling = false
+            return
+        }
+
+        // Read output asynchronously — open login URLs in the system browser
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
+            if let regex = try? NSRegularExpression(pattern: "https?://[^\\s\"'<>]+"),
+               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let range = Range(match.range, in: text),
+               let url = URL(string: String(text[range])) {
+                DispatchQueue.main.async { NSWorkspace.shared.open(url) }
+            }
+        }
+
+        let capturedPath = codexPath
+        process.terminationHandler = { _ in
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            DispatchQueue.main.async { startPolling(codexPath: capturedPath) }
         }
     }
 
-    private func pollForLogin() {
+    private func startPolling(codexPath: String) {
         Task {
             for _ in 0..<30 {
                 try? await Task.sleep(for: .seconds(2))
-                let newStatus = CodexDetector.detect(customPath: codexPath)
-                if newStatus.isLoggedIn {
-                    await MainActor.run {
-                        isPolling = false
-                        dismiss()
-                        onDismiss()
-                    }
+                let ready = await Task.detached {
+                    CodexDetector.detect(customPath: codexPath).isLoggedIn
+                }.value
+                if ready {
+                    isPolling = false
+                    dismiss()
+                    onDismiss()
                     return
                 }
             }
-            await MainActor.run {
-                isPolling = false
-                loginMessage = "Timeout. Riprova."
-            }
+            isPolling = false
+            loginMessage = "Timeout. Riprova."
         }
     }
 }

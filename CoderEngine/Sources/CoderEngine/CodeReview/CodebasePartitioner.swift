@@ -1,5 +1,11 @@
 import Foundation
 
+/// Scope dei file da partizionare per code review
+public enum FileScope: Sendable {
+    case all
+    case uncommitted
+}
+
 /// Partizione del codebase assegnata a uno swarm
 public struct CodebasePartition: Sendable {
     public let id: String
@@ -26,9 +32,16 @@ public enum CodebasePartitioner: Sendable {
         workspacePath: URL,
         count: Int,
         strategy: PartitionStrategy = .directory,
-        excludedPaths: [String] = []
+        excludedPaths: [String] = [],
+        scope: FileScope = .all
     ) -> [CodebasePartition] {
-        let files = WorkspaceScanner.listSourceFiles(workspacePath: workspacePath, excludedPaths: excludedPaths)
+        let files: [String]
+        switch scope {
+        case .uncommitted:
+            files = WorkspaceScanner.listUncommittedSourceFiles(workspacePath: workspacePath, excludedPaths: excludedPaths)
+        case .all:
+            files = WorkspaceScanner.listSourceFiles(workspacePath: workspacePath, excludedPaths: excludedPaths)
+        }
         guard !files.isEmpty else {
             return [CodebasePartition(id: "p0", paths: [])]
         }

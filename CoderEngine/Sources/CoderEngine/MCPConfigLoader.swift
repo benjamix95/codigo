@@ -1,14 +1,47 @@
 import Foundation
 
-/// Carica configurazioni MCP da ~/.codex/config.toml e da JSON locale
+/// Carica configurazioni MCP da Codex, Cursor, Claude Desktop, XDG e JSON locale
 public enum MCPConfigLoader {
+    static let home = FileManager.default.homeDirectoryForCurrentUser
+
     /// Path config Codex
     public static var codexConfigPath: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex")
-            .appendingPathComponent("config.toml")
+        home.appendingPathComponent(".codex").appendingPathComponent("config.toml")
     }
-    
+
+    /// Path config Cursor globale (~/.cursor/mcp.json)
+    public static var cursorMCPConfigPath: URL {
+        home.appendingPathComponent(".cursor").appendingPathComponent("mcp.json")
+    }
+
+    /// Path config Claude Desktop (macOS)
+    public static var claudeDesktopConfigPath: URL {
+        home.appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Claude")
+            .appendingPathComponent("claude_desktop_config.json")
+    }
+
+    /// Path config XDG / sistema (~/.config/mcp.json)
+    public static var xdgConfigPath: URL {
+        home.appendingPathComponent(".config").appendingPathComponent("mcp.json")
+    }
+
+    /// Path config sistema /etc (solo lettura)
+    public static var systemConfigPath: URL {
+        URL(fileURLWithPath: "/etc/mcp.json")
+    }
+
+    /// Sorgenti JSON mcpServers da controllare (path, sourceLabel)
+    private static var jsonConfigSources: [(URL, String)] {
+        [
+            (cursorMCPConfigPath, "Cursor"),
+            (claudeDesktopConfigPath, "Claude Desktop"),
+            (xdgConfigPath, "Sistema (~/.config)"),
+            (systemConfigPath, "Sistema (/etc)")
+        ]
+    }
+
     /// Path JSON server manuali CoderIDE
     public static var localMCPConfigPath: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
@@ -44,6 +77,59 @@ public enum MCPConfigLoader {
             return []
         }
         return parseCodexMCPConfig(content)
+    }
+
+    /// Carica server da file JSON con formato mcpServers (Cursor, Claude Desktop, ~/.config, /etc)
+    private static func loadFromJsonMCPFile(path: URL, sourceId: String, sourceLabel: String) -> [DetectedServer] {
+        guard FileManager.default.fileExists(atPath: path.path),
+              let data = try? Data(contentsOf: path),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let mcpServers = json["mcpServers"] as? [String: [String: Any]] else {
+            return []
+        }
+        var servers: [DetectedServer] = []
+        for (name, cfg) in mcpServers {
+            guard let command = cfg["command"] as? String, !command.isEmpty else { continue }
+            let args: [String]
+            if let a = cfg["args"] as? [String] { args = a }
+            else if let a = cfg["args"] as? [Any] { args = a.compactMap { $0 as? String } }
+            else { args = [] }
+            var env: [String: String] = [:]
+            if let e = cfg["env"] as? [String: String] { env = e }
+            else if let e = cfg["env"] as? [String: Any] { env = e.compactMapValues { $0 as? String } }
+            servers.append(DetectedServer(
+                id: "\(sourceId)-\(name)",
+                name: cfg["name"] as? String ?? name,
+                command: command,
+                args: args,
+                env: env,
+                source: sourceLabel
+            ))
+        }
+        return servers
+    }
+
+    /// Carica tutti i server da sorgenti JSON (Cursor, Claude Desktop, XDG, /etc)
+    private static func loadFromAllJsonSources() -> [DetectedServer] {
+        var result: [DetectedServer] = []
+        result += loadFromJsonMCPFile(path: cursorMCPConfigPath, sourceId: "cursor", sourceLabel: "Cursor")
+        result += loadFromJsonMCPFile(path: claudeDesktopConfigPath, sourceId: "claude", sourceLabel: "Claude Desktop")
+        result += loadFromJsonMCPFile(path: xdgConfigPath, sourceId: "xdg", sourceLabel: "Sistema (~/.config)")
+        result += loadFromJsonMCPFile(path: systemConfigPath, sourceId: "etc", sourceLabel: "Sistema (/etc)")
+        return result
+    }
+
+    /// Carica tutti i server rilevati (Codex + Cursor + Claude + XDG + /etc), evitando duplicati per nome
+    public static func loadDetectedServers() -> [DetectedServer] {
+        var seen = Set<String>()
+        var result: [DetectedServer] = []
+        for s in loadFromCodexConfig() + loadFromAllJsonSources() {
+            if !seen.contains(s.name) {
+                seen.insert(s.name)
+                result.append(s)
+            }
+        }
+        return result
     }
     
     /// Parser minimale per [mcp_servers.xxx] in TOML

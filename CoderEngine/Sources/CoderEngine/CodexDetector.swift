@@ -25,6 +25,24 @@ public enum CodexDetector {
         "\(codexHome)/auth.json"
     }
 
+    /// Builds an environment dict that includes common binary paths and
+    /// OPENAI_API_KEY from shell config files (GUI apps don't inherit shell env).
+    public static func shellEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+
+        var path = env["PATH"] ?? ""
+        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
+            if !path.contains(dir) { path += ":\(dir)" }
+        }
+        env["PATH"] = path
+
+        if env["OPENAI_API_KEY"] == nil, let key = loadAPIKeyFromShellConfig() {
+            env["OPENAI_API_KEY"] = key
+        }
+
+        return env
+    }
+
     /// Rileva path di Codex CLI
     public static func findCodexPath(customPath: String? = nil) -> String? {
         if let custom = customPath, !custom.isEmpty, FileManager.default.isExecutableFile(atPath: custom) {
@@ -40,7 +58,10 @@ public enum CodexDetector {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return false
         }
-        return json["access_token"] != nil || json["token"] != nil
+        if json["access_token"] != nil || json["token"] != nil { return true }
+        if let tokens = json["tokens"] as? [String: Any],
+           tokens["access_token"] != nil || tokens["id_token"] != nil { return true }
+        return false
     }
 
     /// Esegue `codex login status` e ritorna true se loggato
@@ -50,6 +71,7 @@ public enum CodexDetector {
         process.arguments = ["login", "status"]
         process.standardOutput = nil
         process.standardError = nil
+        process.environment = shellEnvironment()
         do {
             try process.run()
             process.waitUntilExit()
@@ -66,8 +88,44 @@ public enum CodexDetector {
         }
         let hasAuth = hasAuthFile()
         let loginOk = checkLoginStatus(codexPath: path)
-        let loggedIn = hasAuth || loginOk
-        let authMethod = loggedIn ? (hasAuth ? "file" : "keyring") : nil
+        let hasEnvKey = shellEnvironment()["OPENAI_API_KEY"] != nil
+        let loggedIn = hasAuth || loginOk || hasEnvKey
+
+        let authMethod: String?
+        if loggedIn {
+            if hasAuth { authMethod = "file" }
+            else if loginOk { authMethod = "keyring" }
+            else { authMethod = "env" }
+        } else {
+            authMethod = nil
+        }
         return CodexStatus(isInstalled: true, path: path, isLoggedIn: loggedIn, authMethod: authMethod)
+    }
+
+    // MARK: - Private
+
+    private static func loadAPIKeyFromShellConfig() -> String? {
+        let home = NSHomeDirectory()
+        let files = [
+            "\(home)/.zshenv", "\(home)/.zshrc",
+            "\(home)/.bash_profile", "\(home)/.bashrc", "\(home)/.profile"
+        ]
+        for file in files {
+            guard let content = try? String(contentsOfFile: file, encoding: .utf8) else { continue }
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("#") { continue }
+                for prefix in ["export OPENAI_API_KEY=", "OPENAI_API_KEY="] {
+                    guard trimmed.hasPrefix(prefix) else { continue }
+                    var value = String(trimmed.dropFirst(prefix.count))
+                    if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+                       (value.hasPrefix("'") && value.hasSuffix("'")) {
+                        value = String(value.dropFirst().dropLast())
+                    }
+                    if !value.isEmpty && !value.hasPrefix("$") { return value }
+                }
+            }
+        }
+        return nil
     }
 }

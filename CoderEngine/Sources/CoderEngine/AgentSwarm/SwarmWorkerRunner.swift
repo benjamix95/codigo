@@ -27,17 +27,20 @@ private func systemPrompt(for role: AgentRole) -> String {
     }
 }
 
-/// Esegue i worker Codex per ogni task del piano
+/// Esegue i worker per ogni task del piano, usando qualsiasi LLMProvider
 public struct SwarmWorkerRunner: Sendable {
-    private let codexProvider: CodexCLIProvider
+    private let provider: any LLMProvider
+    private let isCancelled: (@Sendable () -> Bool)?
 
-    public init(codexProvider: CodexCLIProvider) {
-        self.codexProvider = codexProvider
+    public init(provider: any LLMProvider, isCancelled: (@Sendable () -> Bool)? = nil) {
+        self.provider = provider
+        self.isCancelled = isCancelled
     }
 
-    /// Esegue i task in sequenza e streama l'output aggregato
-    public func run(tasks: [AgentTask], context: WorkspaceContext) -> AsyncThrowingStream<StreamEvent, Error> {
-        AsyncThrowingStream { continuation in
+    /// Esegue i task; task con stesso order vengono eseguiti in parallelo
+    public func run(tasks: [AgentTask], context: WorkspaceContext, imageURLs: [URL]? = nil) -> AsyncThrowingStream<StreamEvent, Error> {
+        let checkCancelled = isCancelled
+        return AsyncThrowingStream { continuation in
             Task {
                 do {
                     continuation.yield(.started)
@@ -46,32 +49,63 @@ public struct SwarmWorkerRunner: Sendable {
                     continuation.yield(.raw(type: "swarm_steps", payload: ["steps": stepNames]))
                     var accumulatedOutput = ""
 
-                    for task in sortedTasks {
-                        let header = "\n## \(task.role.displayName)\n\n"
-                        continuation.yield(.textDelta(header))
-                        continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "started"]))
+                    let orderGroups = Dictionary(grouping: sortedTasks, by: { $0.order }).sorted(by: { $0.key < $1.key })
+                    var isFirstTask = true
 
-                        let prompt = buildPrompt(for: task, previousOutputs: accumulatedOutput)
-                        let stream = try await codexProvider.send(prompt: prompt, context: context)
-
-                        var taskOutput = header
-                        for try await event in stream {
-                            switch event {
-                            case .textDelta(let delta):
-                                continuation.yield(.textDelta(delta))
-                                taskOutput += delta
-                            case .completed, .started:
-                                break
-                            case .error(let err):
-                                let errMsg = "\n[Errore \(task.role.displayName): \(err)]\n"
-                                continuation.yield(.textDelta(errMsg))
-                                taskOutput += errMsg
-                            case .raw(let type, let payload):
-                                continuation.yield(.raw(type: type, payload: payload))
-                            }
+                    for (_, groupTasks) in orderGroups {
+                        if checkCancelled?() == true {
+                            continuation.yield(.textDelta("\n\n[Swarm interrotto dall'utente.]\n"))
+                            break
                         }
-                        continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "completed"]))
-                        accumulatedOutput += taskOutput + "\n"
+                        if groupTasks.count == 1 {
+                            let task = groupTasks[0]
+                            let header = "\n## \(task.role.displayName)\n\n"
+                            continuation.yield(.textDelta(header))
+                            continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "started"]))
+                            let taskImageURLs = isFirstTask && !(imageURLs?.isEmpty ?? true) ? imageURLs : nil
+                            let output = try await runSingleTask(task, context: context, imageURLs: taskImageURLs, previousOutputs: accumulatedOutput, provider: provider, continuation: continuation)
+                            continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "completed"]))
+                            accumulatedOutput += output + "\n"
+                        } else {
+                            continuation.yield(.textDelta("\n## Parallelo: \(groupTasks.map { $0.role.displayName }.joined(separator: ", "))\n\n"))
+                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: ["title": t.role.displayName, "detail": "started"])) }
+                            var groupOutputs: [(String, String)] = []
+                            await withTaskGroup(of: (String, String).self) { g in
+                                for (idx, task) in groupTasks.enumerated() {
+                                    g.addTask {
+                                        if checkCancelled?() == true {
+                                            return (task.role.rawValue, "\n### \(task.role.displayName)\n\n[Interrotto dall'utente]\n")
+                                        }
+                                        let header = "\n### \(task.role.displayName)\n\n"
+                                        let prompt = self.buildPrompt(for: task, previousOutputs: accumulatedOutput)
+                                        let taskImageURLs = (isFirstTask && idx == 0 && !(imageURLs?.isEmpty ?? true)) ? imageURLs : nil
+                                        var out = header
+                                        var err: String?
+                                        do {
+                                            let stream = try await self.provider.send(prompt: prompt, context: context, imageURLs: taskImageURLs)
+                                            for try await event in stream {
+                                                if case .textDelta(let d) = event { out += d }
+                                                if case .error(let e) = event { err = "\n[Errore \(task.role.displayName): \(e)]\n"; out += err! }
+                                            }
+                                        } catch {
+                                            err = "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
+                                            out += err!
+                                        }
+                                        return (task.role.rawValue, out)
+                                    }
+                                }
+                                for await res in g { groupOutputs.append(res) }
+                            }
+                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: ["title": t.role.displayName, "detail": "completed"])) }
+                            let merged = groupOutputs.sorted(by: { $0.0 < $1.0 }).map(\.1).joined(separator: "\n")
+                            continuation.yield(.textDelta(merged))
+                            accumulatedOutput += merged + "\n"
+                        }
+                        if checkCancelled?() == true {
+                            continuation.yield(.textDelta("\n\n[Swarm interrotto durante esecuzione parallela.]\n"))
+                            break
+                        }
+                        isFirstTask = false
                     }
 
                     continuation.yield(.completed)
@@ -84,6 +118,28 @@ public struct SwarmWorkerRunner: Sendable {
         }
     }
 
+    private func runSingleTask(_ task: AgentTask, context: WorkspaceContext, imageURLs: [URL]?, previousOutputs: String, provider: any LLMProvider, continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation) async throws -> String {
+        let header = "\n## \(task.role.displayName)\n\n"
+        let prompt = buildPrompt(for: task, previousOutputs: previousOutputs)
+        var taskOutput = header
+        let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
+        for try await event in stream {
+            switch event {
+            case .textDelta(let delta):
+                continuation.yield(.textDelta(delta))
+                taskOutput += delta
+            case .error(let err):
+                let e = "\n[Errore \(task.role.displayName): \(err)]\n"
+                continuation.yield(.textDelta(e))
+                taskOutput += e
+            case .raw(let type, let payload):
+                continuation.yield(.raw(type: type, payload: payload))
+            default: break
+            }
+        }
+        return taskOutput
+    }
+
     private func buildPrompt(for task: AgentTask, previousOutputs: String) -> String {
         var parts: [String] = []
         parts.append(systemPrompt(for: task.role))
@@ -93,6 +149,13 @@ public struct SwarmWorkerRunner: Sendable {
         }
         parts.append("\nEsegui il task. Rispondi e agisci nel workspace.")
         parts.append("\nSe vuoi mostrare all'utente il pannello delle attività in corso, includi nella risposta: \(CoderIDEMarkers.showTaskPanel)")
+
+        parts.append("""
+
+        **Multi-agent:** Se il task è complesso, usa i tuoi strumenti multi-agent interni \
+        (subagent, Task tool, parallel execution) per scomporlo e risolverlo in parallelo. \
+        Rispetta le istruzioni in AGENTS.md / CLAUDE.md se presenti nel workspace.
+        """)
         return parts.joined()
     }
 }

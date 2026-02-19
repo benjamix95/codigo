@@ -1,7 +1,7 @@
 import Foundation
 
 /// Opzione estratta da un piano AI
-struct PlanOption: Identifiable, Equatable {
+struct PlanOption: Identifiable, Equatable, Codable {
     let id: Int
     let title: String
     let fullText: String

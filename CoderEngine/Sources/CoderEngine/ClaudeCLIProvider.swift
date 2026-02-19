@@ -6,9 +6,24 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     public let displayName = "Claude Code CLI"
     
     private let claudePath: String
-    
-    public init(claudePath: String? = nil) {
+    private let model: String?
+    private let allowedTools: [String]
+    private let executionController: ExecutionController?
+    private let executionScope: ExecutionScope
+
+    public init(
+        claudePath: String? = nil,
+        model: String? = nil,
+        allowedTools: [String] = ["Read", "Edit", "Bash"],
+        executionController: ExecutionController? = nil,
+        executionScope: ExecutionScope = .agent
+    ) {
         self.claudePath = claudePath ?? PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude"
+        let normalizedModel = model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.model = (normalizedModel?.isEmpty == false) ? normalizedModel : nil
+        self.allowedTools = Self.normalizeTools(allowedTools)
+        self.executionController = executionController
+        self.executionScope = executionScope
     }
     
     public func isAuthenticated() -> Bool {
@@ -17,6 +32,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         process.arguments = ["--version"]
         process.standardOutput = nil
         process.standardError = nil
+        process.environment = CodexDetector.shellEnvironment()
         do {
             try process.run()
             process.waitUntilExit()
@@ -26,10 +42,16 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
     
-    public func send(prompt: String, context: WorkspaceContext) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let fullPrompt = prompt + context.contextPrompt()
+    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        var fullPrompt = prompt + context.contextPrompt()
+        if let urls = imageURLs, !urls.isEmpty {
+            let refs = urls.map { "[Immagine: \($0.path)]" }.joined(separator: "\n")
+            fullPrompt = refs + "\n\n" + fullPrompt
+        }
         let path = claudePath
         let workspacePath = context.workspacePath
+        let model = self.model
+        let allowedTools = self.allowedTools
         
         return AsyncThrowingStream { continuation in
             Task {
@@ -40,22 +62,31 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                         return
                     }
                     
-                    let args = [
+                    var args = [
                         "-p", fullPrompt,
-                        "--output-format", "stream-json",
-                        "--allowedTools", "Read,Edit,Bash"
+                        "--output-format", "stream-json"
                     ]
+                    if let model {
+                        args += ["--model", model]
+                    }
+                    if !allowedTools.isEmpty {
+                        args += ["--allowedTools", allowedTools.joined(separator: ",")]
+                    }
                     
                     let stream = try await ProcessRunner.run(
                         executable: path,
                         arguments: args,
-                        workingDirectory: workspacePath
+                        workingDirectory: workspacePath,
+                        environment: CodexDetector.shellEnvironment(),
+                        executionController: executionController,
+                        scope: executionScope
                     )
                     
                     continuation.yield(.started)
                     var fullContent = ""
                     var didEmitShowTaskPanel = false
                     var didEmitInvokeSwarm = false
+                    var emittedMarkers = Set<String>()
 
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
@@ -83,6 +114,12 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                 let task = String(fullContent[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
                                 if !task.isEmpty {
                                     continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
+                                }
+                            }
+                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: text) {
+                                let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
+                                if emittedMarkers.insert(key).inserted {
+                                    continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
                                 }
                             }
                         }
@@ -113,6 +150,12 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                             continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                         }
                                     }
+                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: text) {
+                                        let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
+                                        if emittedMarkers.insert(key).inserted {
+                                            continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -138,6 +181,15 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                     continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                 }
                             }
+                            let suffix = resultText.count > fullContent.count
+                                ? String(resultText.dropFirst(fullContent.count))
+                                : resultText
+                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: suffix) {
+                                let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
+                                if emittedMarkers.insert(key).inserted {
+                                    continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
+                                }
+                            }
                         }
                     }
                     
@@ -160,11 +212,21 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         case "Bash":
             let cmd = input["command"] as? String ?? input["command_line"] as? String ?? ""
             let title = "Bash • \(String(cmd.prefix(50)))\(cmd.count > 50 ? "..." : "")"
-            return ("command_execution", [
+            var payload: [String: String] = [
                 "title": title,
                 "detail": cmd,
                 "command": String(cmd.prefix(80))
-            ])
+            ]
+            if let cwd = input["cwd"] as? String ?? input["working_directory"] as? String {
+                payload["cwd"] = cwd
+            }
+            if let output = input["output"] as? String ?? input["result"] as? String ?? input["stdout"] as? String {
+                payload["output"] = String(output.prefix(6_000))
+            }
+            if let stderr = input["stderr"] as? String, !stderr.isEmpty {
+                payload["stderr"] = String(stderr.prefix(3_000))
+            }
+            return ("command_execution", payload)
         case "Edit", "Write":
             let path = input["file_path"] as? String ?? input["path"] as? String ?? "file"
             let base = (path as NSString).lastPathComponent
@@ -188,5 +250,87 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             let detail = (input["query"] as? String) ?? (input["command"] as? String) ?? ""
             return ("mcp_tool_call", ["title": title, "detail": detail, "tool": name])
         }
+    }
+
+    private static func normalizeTools(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for raw in values {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if seen.insert(trimmed).inserted {
+                result.append(trimmed)
+            }
+        }
+        return result.isEmpty ? ["Read", "Edit", "Bash"] : result
+    }
+
+    private static func parseCoderIDEMarkerEvents(in text: String) -> [(type: String, payload: [String: String])] {
+        var events: [(type: String, payload: [String: String])] = []
+        if text.contains(CoderIDEMarkers.todoRead) {
+            events.append((type: "todo_read", payload: [:]))
+        }
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
+        return events
+    }
+
+    private static func parseMarkerList(text: String, prefix: String, mappedType: String) -> [(type: String, payload: [String: String])] {
+        var events: [(type: String, payload: [String: String])] = []
+        var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
+
+        while let range = text.range(of: prefix, options: [], range: searchRange) {
+            let payloadStart = range.upperBound
+            guard let closing = text[payloadStart...].firstIndex(of: "]") else { break }
+            let payloadString = String(text[payloadStart..<closing])
+            let payload = parseMarkerPayload(payloadString)
+            events.append((mappedType, payload))
+            searchRange = closing..<text.endIndex
+        }
+        return events
+    }
+
+    private static func parseMarkerPayload(_ payload: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for item in splitEscaped(payload, separator: "|") {
+            let pair = splitEscaped(item, separator: "=")
+            guard pair.count == 2 else { continue }
+            result[unescapeMarker(pair[0]).trimmingCharacters(in: .whitespaces)] = unescapeMarker(pair[1]).trimmingCharacters(in: .whitespaces)
+        }
+        return result
+    }
+
+    private static func splitEscaped(_ input: String, separator: String) -> [String] {
+        guard let separatorChar = separator.first else { return [input] }
+        var parts: [String] = []
+        var current = ""
+        var escaped = false
+        for ch in input {
+            if escaped {
+                current.append(ch)
+                escaped = false
+                continue
+            }
+            if ch == "\\" {
+                escaped = true
+                continue
+            }
+            if ch == separatorChar {
+                parts.append(current)
+                current.removeAll(keepingCapacity: true)
+                continue
+            }
+            current.append(ch)
+        }
+        parts.append(current)
+        return parts
+    }
+
+    private static func unescapeMarker(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\\\", with: "\\")
+            .replacingOccurrences(of: "\\|", with: "|")
+            .replacingOccurrences(of: "\\]", with: "]")
     }
 }

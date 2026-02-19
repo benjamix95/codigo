@@ -10,6 +10,7 @@ struct SidebarView: View {
     @EnvironmentObject var codexState: CodexStateStore
     @EnvironmentObject var todoStore: TodoStore
     @Binding var selectedConversationId: UUID?
+    @Binding var showSettings: Bool
     @State private var isSelectingAddFolder = false
     @State private var codexTasks: [CodexCloudTask] = []
     @State private var isLoadingTasks = false
@@ -39,7 +40,9 @@ struct SidebarView: View {
             conversationsSection
         }
         .listStyle(.sidebar)
-        .navigationTitle("Codigo")
+        .safeAreaInset(edge: .bottom) {
+            sidebarFooter
+        }
         .sheet(isPresented: $showCreateWorkspace) {
             CreateWorkspaceSheetView(
                 workspaceStore: workspaceStore,
@@ -81,6 +84,31 @@ struct SidebarView: View {
             } else if chatStore.conversation(for: selectedConversationId) != nil {
                 workspaceStore.activeWorkspaceId = nil
             }
+        }
+    }
+
+    private var sidebarFooter: some View {
+        HStack(spacing: 8) {
+            Label("Codigo", systemImage: "command")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .help("Impostazioni")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(DesignSystem.Colors.border)
+                .frame(height: 0.5)
         }
     }
 

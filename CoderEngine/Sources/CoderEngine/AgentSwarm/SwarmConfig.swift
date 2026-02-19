@@ -1,39 +1,43 @@
 import Foundation
 
-/// Backend dell'orchestratore: OpenAI (leggero) o Codex (pesante)
+/// Backend dell'orchestratore
 public enum OrchestratorBackend: String, CaseIterable, Codable, Sendable {
     case openai
     case codex
+    case claude
+}
+
+/// Backend dei worker
+public enum WorkerBackend: String, CaseIterable, Codable, Sendable {
+    case codex
+    case claude
 }
 
 /// Configurazione del swarm di agenti
 public struct SwarmConfig: Sendable {
-    /// Provider dell'orchestratore
     public let orchestratorBackend: OrchestratorBackend
-
-    /// Ruoli attivi (default: tutti)
+    public let workerBackend: WorkerBackend
     public let enabledRoles: Set<AgentRole>
-
-    /// Massimo numero di round (iterazioni supervisor), default 1
     public let maxRounds: Int
-
-    /// Se true, dopo Coder vengono aggiunti automaticamente Reviewer e TestWriter
     public let autoPostCodePipeline: Bool
-
-    /// Ripete Debugger + test finché non passano (test OK, no errori, no warning)
     public let maxPostCodeRetries: Int
+    public let maxReviewLoops: Int
 
     public init(
         orchestratorBackend: OrchestratorBackend = .openai,
+        workerBackend: WorkerBackend = .codex,
         enabledRoles: Set<AgentRole>? = nil,
         maxRounds: Int = 1,
         autoPostCodePipeline: Bool = true,
-        maxPostCodeRetries: Int = 10
+        maxPostCodeRetries: Int = 10,
+        maxReviewLoops: Int = 2
     ) {
         self.orchestratorBackend = orchestratorBackend
+        self.workerBackend = workerBackend
         self.enabledRoles = enabledRoles ?? Set(AgentRole.allCases)
         self.maxRounds = maxRounds
         self.autoPostCodePipeline = autoPostCodePipeline
         self.maxPostCodeRetries = maxPostCodeRetries
+        self.maxReviewLoops = min(5, max(0, maxReviewLoops))
     }
 }

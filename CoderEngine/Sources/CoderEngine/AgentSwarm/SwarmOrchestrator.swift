@@ -5,15 +5,18 @@ public actor SwarmOrchestrator {
     private let config: SwarmConfig
     private let openAIClient: OpenAICompletionsClient?
     private let codexProvider: CodexCLIProvider?
+    private let claudeProvider: ClaudeCLIProvider?
 
     public init(
         config: SwarmConfig,
         openAIClient: OpenAICompletionsClient?,
-        codexProvider: CodexCLIProvider?
+        codexProvider: CodexCLIProvider?,
+        claudeProvider: ClaudeCLIProvider? = nil
     ) {
         self.config = config
         self.openAIClient = openAIClient
         self.codexProvider = codexProvider
+        self.claudeProvider = claudeProvider
     }
 
     /// Prompt di sistema per l'orchestratore
@@ -58,15 +61,21 @@ public actor SwarmOrchestrator {
                 throw CoderEngineError.apiError("Codex provider non configurato per orchestratore")
             }
             let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectCodexOutput(provider: provider, prompt: fullPrompt, context: context)
+            rawOutput = try await collectProviderOutput(provider: provider, prompt: fullPrompt, context: context)
+        case .claude:
+            guard let provider = claudeProvider else {
+                throw CoderEngineError.apiError("Claude provider non configurato per orchestratore")
+            }
+            let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
+            rawOutput = try await collectProviderOutput(provider: provider, prompt: fullPrompt, context: context)
         }
 
         return try parseTasks(from: rawOutput)
     }
 
-    /// Raccolta output completo da Codex
-    private func collectCodexOutput(provider: CodexCLIProvider, prompt: String, context: WorkspaceContext) async throws -> String {
-        let stream = try await provider.send(prompt: prompt, context: context)
+    /// Raccolta output completo da un LLMProvider
+    private func collectProviderOutput(provider: any LLMProvider, prompt: String, context: WorkspaceContext) async throws -> String {
+        let stream = try await provider.send(prompt: prompt, context: context, imageURLs: nil)
         var full = ""
         for try await event in stream {
             if case .textDelta(let delta) = event {
@@ -89,8 +98,8 @@ public actor SwarmOrchestrator {
             trimmed = String(trimmed[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
-        guard let data = trimmed.data(using: .utf8) else {
-            throw CoderEngineError.apiError("Orchestrator: output non valido")
+        guard !trimmed.isEmpty else {
+            return fallbackTasks()
         }
 
         struct RawTask: Codable {
@@ -99,19 +108,47 @@ public actor SwarmOrchestrator {
             let order: Int
         }
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let rawTasks: [RawTask]
-        do {
-            rawTasks = try decoder.decode([RawTask].self, from: data)
-        } catch {
-            throw CoderEngineError.apiError("Orchestrator: JSON non valido - \(error.localizedDescription)")
+        func decodeTasks(from text: String) -> [RawTask]? {
+            guard let data = text.data(using: .utf8) else { return nil }
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try? decoder.decode([RawTask].self, from: data)
         }
 
-        return rawTasks.compactMap { raw -> AgentTask? in
+        let rawTasks: [RawTask]
+        if let parsed = decodeTasks(from: trimmed) {
+            rawTasks = parsed
+        } else if let start = trimmed.firstIndex(of: "["),
+                  let end = trimmed.lastIndex(of: "]"),
+                  start < end {
+            let candidate = String(trimmed[start...end])
+            if let parsed = decodeTasks(from: candidate) {
+                rawTasks = parsed
+            } else {
+                return fallbackTasks()
+            }
+        } else {
+            return fallbackTasks()
+        }
+
+        let mapped = rawTasks.compactMap { raw -> AgentTask? in
             guard let role = AgentRole(rawValue: raw.role),
                   config.enabledRoles.contains(role) else { return nil }
             return AgentTask(role: role, taskDescription: raw.taskDescription, order: raw.order)
         }.sorted { $0.order < $1.order }
+        return mapped.isEmpty ? fallbackTasks() : mapped
+    }
+
+    private func fallbackTasks() -> [AgentTask] {
+        var tasks: [AgentTask] = []
+        if config.enabledRoles.contains(.planner) {
+            tasks.append(AgentTask(role: .planner, taskDescription: "Scomponi la richiesta in passi implementabili e dipendenze.", order: 1))
+        }
+        if config.enabledRoles.contains(.coder) {
+            tasks.append(AgentTask(role: .coder, taskDescription: "Implementa la richiesta utente in modo completo e verificabile.", order: tasks.isEmpty ? 1 : 2))
+        } else if config.enabledRoles.contains(.debugger) {
+            tasks.append(AgentTask(role: .debugger, taskDescription: "Analizza e correggi i problemi principali segnalati dalla richiesta.", order: tasks.isEmpty ? 1 : 2))
+        }
+        return tasks
     }
 }

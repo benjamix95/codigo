@@ -1,16 +1,22 @@
 import Foundation
 
-private let planModeBackendKey = "plan_mode_backend"
+/// Tools ridotti per planning: solo lettura codebase (Read, Glob, Grep)
+private let planModeClaudeTools = ["Read", "Glob", "Grep"]
 
 /// Provider che esegue la fase planning: analizza il codebase e propone opzioni numerate.
+/// Usa provider con restrizioni: Codex read-only, Claude solo Read/Glob/Grep.
 /// La fase execute viene delegata a Codex/Claude dalla ChatPanelView.
-/// Il backend (codex | claude) è letto da plan_mode_backend in UserDefaults.
 public final class PlanModeProvider: LLMProvider, @unchecked Sendable {
     public let id = "plan-mode"
     public let displayName = "Plan"
 
     private let codexProvider: CodexCLIProvider?
     private let claudeProvider: ClaudeCLIProvider?
+    private let codexParams: CodexCreateParams?
+    private let backend: String
+    private let claudePath: String?
+    private let claudeModel: String?
+    private let executionController: ExecutionController?
 
     private static let planningPromptPrefix = """
     Sei in modalità planning. Analizza il codebase e il contesto forniti, poi proponi un piano di implementazione.
@@ -25,16 +31,26 @@ public final class PlanModeProvider: LLMProvider, @unchecked Sendable {
 
     """
 
-    public init(codexProvider: CodexCLIProvider?, claudeProvider: ClaudeCLIProvider?) {
+    public init(
+        codexProvider: CodexCLIProvider?,
+        claudeProvider: ClaudeCLIProvider?,
+        codexParams: CodexCreateParams? = nil,
+        backend: String = "codex",
+        claudePath: String? = nil,
+        claudeModel: String? = nil,
+        executionController: ExecutionController? = nil
+    ) {
         self.codexProvider = codexProvider
         self.claudeProvider = claudeProvider
+        self.codexParams = codexParams
+        self.backend = backend
+        self.claudePath = claudePath
+        self.claudeModel = claudeModel
+        self.executionController = executionController
     }
 
     private var activeProvider: (any LLMProvider)? {
-        let backend = UserDefaults.standard.string(forKey: planModeBackendKey) ?? "codex"
-        if backend == "claude", let claude = claudeProvider {
-            return claude
-        }
+        if backend == "claude", let _ = claudeProvider { return claudeProvider }
         return codexProvider
     }
 
@@ -42,11 +58,38 @@ public final class PlanModeProvider: LLMProvider, @unchecked Sendable {
         activeProvider?.isAuthenticated() ?? false
     }
 
-    public func send(prompt: String, context: WorkspaceContext) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        guard let provider = activeProvider else {
+    /// Crea provider con restrizioni per planning: Codex read-only, Claude solo Read/Glob/Grep.
+    private func planningProvider() -> (any LLMProvider)? {
+        if backend == "codex", let cp = codexParams {
+            return CodexCLIProvider(
+                codexPath: cp.codexPath,
+                sandboxMode: .readOnly,
+                modelOverride: cp.modelOverride,
+                modelReasoningEffort: cp.modelReasoningEffort,
+                askForApproval: cp.askForApproval,
+                executionController: executionController,
+                executionScope: .plan
+            )
+        }
+        if backend == "claude" {
+            let path = claudePath?.isEmpty == false ? claudePath : nil
+            let model = claudeModel?.trimmingCharacters(in: .whitespaces).isEmpty == false ? claudeModel : nil
+            return ClaudeCLIProvider(
+                claudePath: path,
+                model: model,
+                allowedTools: planModeClaudeTools,
+                executionController: executionController,
+                executionScope: .plan
+            )
+        }
+        return nil
+    }
+
+    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        guard let provider = planningProvider() else {
             throw CoderEngineError.cliNotFound("Plan mode richiede Codex o Claude CLI")
         }
         let planningPrompt = Self.planningPromptPrefix + prompt
-        return try await provider.send(prompt: planningPrompt, context: context)
+        return try await provider.send(prompt: planningPrompt, context: context, imageURLs: imageURLs)
     }
 }

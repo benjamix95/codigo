@@ -18,7 +18,7 @@ struct ClickableMessageContent: View {
 
     private func buildAttributedString() -> AttributedString {
         var result = AttributedString()
-        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings))\b"#
+        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return AttributedString(content) }
         let nsContent = content as NSString
         let fullRange = NSRange(location: 0, length: nsContent.length)
@@ -42,7 +42,14 @@ struct ClickableMessageContent: View {
     }
 
     private func resolvePath(_ ref: String) -> String {
-        let t = ref.trimmingCharacters(in: .whitespaces)
+        let raw = ref.trimmingCharacters(in: .whitespaces)
+        let t: String = {
+            let parts = raw.split(separator: ":")
+            if parts.count >= 2, Int(parts.last ?? "") != nil {
+                return parts.dropLast().joined(separator: ":")
+            }
+            return raw
+        }()
         if (t as NSString).isAbsolutePath { return t }
         if !workspacePath.isEmpty { return (workspacePath as NSString).appendingPathComponent(t) }
         return t

@@ -36,6 +36,62 @@ public enum WorkspaceScanner {
     /// Estensioni file sorgente per code review
     private static let sourceExtensions = ["swift", "ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "rb", "php", "c", "cpp", "h", "hpp", "m", "mm"]
 
+    /// Elenco file sorgente non committati (git status --porcelain: modified, added, untracked)
+    public static func listUncommittedSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["status", "--porcelain", "-u"]
+        process.currentDirectoryURL = workspacePath
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = nil
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
+        }
+        guard process.terminationStatus == 0 else { return [] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else { return [] }
+        var result: [String] = []
+        for line in output.components(separatedBy: .newlines) {
+            guard line.count >= 3 else { continue }
+            let chars = Array(line)
+            let x = chars[0]
+            let y = chars[1]
+            let status = String([x, y])
+            let startIndex = line.index(line.startIndex, offsetBy: 3)
+            var path = String(line[startIndex...])
+            if path.contains(" -> ") {
+                path = String(path.components(separatedBy: " -> ").last ?? path)
+            }
+            if path.hasPrefix("\"") && path.hasSuffix("\"") {
+                path = unquoteGitPath(path)
+            }
+            path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !path.isEmpty else { continue }
+            let relevant = x == "M" || x == "A" || x == "R" || x == "C" || y == "M" || y == "A" || status == "??"
+            let deleted = x == "D" || y == "D"
+            guard !deleted else { continue }
+            guard relevant else { continue }
+            let ext = (path as NSString).pathExtension.lowercased()
+            guard sourceExtensions.contains(ext) else { continue }
+            let fullPath = workspacePath.appendingPathComponent(path).path
+            if isExcluded(path: fullPath, basePath: workspacePath, excludedPaths: excludedPaths) { continue }
+            if !result.contains(path) { result.append(path) }
+        }
+        return result
+    }
+
+    private static func unquoteGitPath(_ raw: String) -> String {
+        guard raw.hasPrefix("\""), raw.hasSuffix("\""), raw.count >= 2 else { return raw }
+        let inner = String(raw.dropFirst().dropLast())
+        return inner
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\\\", with: "\\")
+    }
+
     /// Elenco ricorsivo di file sorgente nel workspace
     public static func listSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
         let defaultExcluded = ["node_modules", ".git", ".build", "build", "DerivedData", "dist", "out"]

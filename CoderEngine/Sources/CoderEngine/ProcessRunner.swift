@@ -2,11 +2,22 @@ import Foundation
 
 /// Esegue un comando in subprocess e restituisce l'output line-by-line
 struct ProcessRunner {
+    private struct ProcessRunnerError: LocalizedError {
+        let exitCode: Int32
+        let message: String
+
+        var errorDescription: String? {
+            "Processo terminato con exit code \(exitCode): \(message)"
+        }
+    }
+
     static func run(
         executable: String,
         arguments: [String],
         workingDirectory: URL? = nil,
-        environment: [String: String]? = nil
+        environment: [String: String]? = nil,
+        executionController: ExecutionController? = nil,
+        scope: ExecutionScope = .agent
     ) async throws -> AsyncThrowingStream<String, Error> {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -25,28 +36,71 @@ struct ProcessRunner {
         process.standardInput = nil
         
         try process.run()
+        executionController?.beginScope(scope)
+        executionController?.setCurrentProcess(process)
         
         return AsyncThrowingStream { continuation in
             Task {
+                defer { executionController?.clearCurrentProcess() }
+                let stderrTask = Task { () -> String in
+                    var stderrBuffer = [UInt8]()
+                    var stderrLines: [String] = []
+                    do {
+                        for try await byte in stderrPipe.fileHandleForReading.bytes {
+                            stderrBuffer.append(byte)
+                            if byte == 10 {
+                                let line = String(bytes: stderrBuffer, encoding: .utf8)?
+                                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                                stderrBuffer.removeAll()
+                                if !line.isEmpty { stderrLines.append(line) }
+                            }
+                        }
+                    } catch {
+                        // In caso di stream interrotto, usa comunque quanto raccolto.
+                    }
+                    if !stderrBuffer.isEmpty,
+                       let line = String(bytes: stderrBuffer, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                       !line.isEmpty {
+                        stderrLines.append(line)
+                    }
+                    return stderrLines.suffix(10).joined(separator: "\n")
+                }
+
                 var buffer = [UInt8]()
                 do {
                     for try await byte in stdoutPipe.fileHandleForReading.bytes {
                         buffer.append(byte)
                         if byte == 10 {
-                            let line = String(bytes: buffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                            let line = String(bytes: buffer, encoding: .utf8)?
+                                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                             buffer.removeAll()
-                            if !line.isEmpty {
-                                continuation.yield(line)
-                            }
+                            if !line.isEmpty { continuation.yield(line) }
                         }
                     }
                 } catch {
-                    if !buffer.isEmpty, let line = String(bytes: buffer, encoding: .utf8), !line.isEmpty {
+                    if !buffer.isEmpty,
+                       let line = String(bytes: buffer, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                       !line.isEmpty {
                         continuation.yield(line)
                     }
                 }
+                if !buffer.isEmpty,
+                   let line = String(bytes: buffer, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                   !line.isEmpty {
+                    continuation.yield(line)
+                }
+
                 process.waitUntilExit()
-                continuation.finish()
+                let stderrTail = await stderrTask.value
+                if process.terminationStatus == 0 {
+                    continuation.finish()
+                    return
+                }
+                let message = stderrTail.isEmpty ? "nessun output stderr disponibile" : stderrTail
+                continuation.finish(throwing: ProcessRunnerError(exitCode: process.terminationStatus, message: message))
             }
         }
     }
@@ -86,4 +140,3 @@ struct ProcessRunner {
         return (lines, process.terminationStatus)
     }
 }
-

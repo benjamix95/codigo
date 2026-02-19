@@ -7,20 +7,22 @@ struct ContentView: View {
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
+    @EnvironmentObject var executionController: ExecutionController
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
     @State private var terminalHeight: CGFloat = 200
+    @State private var showSettings = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selectedConversationId: $selectedConversationId)
+            SidebarView(selectedConversationId: $selectedConversationId, showSettings: $showSettings)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
                 .environmentObject(openFilesStore)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
         } detail: {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 if showEditorPanel {
                     idePanel
                         .frame(minWidth: 350, idealWidth: 450)
@@ -28,19 +30,24 @@ struct ContentView: View {
                 chatPanel
                     .frame(minWidth: 380, idealWidth: 500)
             }
-            .padding(5)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
             .background(DesignSystem.Colors.backgroundDeep)
+            .ignoresSafeArea(.container, edges: .top)
         }
         .onAppear {
             if providerRegistry.selectedProviderId == nil { providerRegistry.selectedProviderId = "codex-cli" }
             if selectedConversationId == nil, let first = chatStore.conversations.first { selectedConversationId = first.id }
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environmentObject(providerRegistry)
+                .environmentObject(executionController)
+        }
     }
 
-    private var isIDEMode: Bool { providerRegistry.selectedProviderId == "openai-api" }
-
     private var showEditorPanel: Bool {
-        isIDEMode || effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore).hasContext
+        ProviderSupport.isIDEProvider(id: providerRegistry.selectedProviderId)
     }
 
     // MARK: - IDE Panel
@@ -50,7 +57,8 @@ struct ContentView: View {
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
 
             let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
-            EditorPlaceholderView(folderPaths: ctx.folderPaths, openFilePath: openFilesStore.openFilePath)
+            EditorPlaceholderView(folderPaths: ctx.folderPaths)
+                .environmentObject(openFilesStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if showTerminal {
@@ -59,7 +67,7 @@ struct ContentView: View {
                     .frame(height: terminalHeight)
             }
         }
-        .sidebarPanel()
+        .sidebarPanel(cornerRadius: 14)
     }
 
     private var ideHeader: some View {
@@ -121,12 +129,12 @@ struct ContentView: View {
     // MARK: - Chat Panel
     private var chatPanel: some View {
         ChatPanelView(
-            conversationId: selectedConversationId,
+            selectedConversationId: $selectedConversationId,
             effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, workspaceStore: workspaceStore)
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)
         .environmentObject(openFilesStore)
-        .sidebarPanel()
+        .sidebarPanel(cornerRadius: 14)
     }
 }
