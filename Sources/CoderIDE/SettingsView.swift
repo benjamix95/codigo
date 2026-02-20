@@ -22,7 +22,7 @@ let googleModels = [
 ]
 
 let openRouterPopularModels = [
-    "anthropic/claude-opus-4.5", "anthropic/claude-sonnet-4.5",
+    "anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6",
     "google/gemini-3-pro", "google/gemini-2.5-pro",
     "minimax/minimax-m2.5",
     "z-ai/glm-5",
@@ -119,7 +119,7 @@ struct SettingsView: View {
 
     // OpenRouter
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
-    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4.5"
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
 
     // Codex
     @AppStorage("codex_path") private var codexPath = ""
@@ -963,14 +963,14 @@ struct SettingsView: View {
 
                     if !geminiState.status.isInstalled {
                         Label(
-                            "Non installato — npm i -g @google/gemini-cli oppure imposta il path",
+                            "Non installato — brew install gemini-cli",
                             systemImage: "exclamationmark.circle.fill"
                         )
                         .font(.caption).foregroundStyle(.red)
                     }
 
                     fieldLabel("Path (vuoto per auto-detect)")
-                    TextField("Path: /opt/homebrew/bin/gemini o npm global", text: $geminiCliPath)
+                    TextField("/opt/homebrew/bin/gemini", text: $geminiCliPath)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: geminiCliPath) { _, _ in
                             geminiState.refresh()
@@ -1012,11 +1012,16 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Backend che genera il piano di task")
                     Picker("", selection: $swarmOrchestrator) {
-                        Text("OpenAI (leggero)").tag("openai")
+                        Text("OpenAI API").tag("openai")
+                        Text("Anthropic API").tag("anthropic-api")
+                        Text("Google API").tag("google-api")
+                        Text("OpenRouter").tag("openrouter-api")
+                        Text("MiniMax API").tag("minimax-api")
+                        Divider()
                         Text("Codex CLI").tag("codex")
                         Text("Claude Code").tag("claude")
+                        Text("Gemini CLI").tag("gemini")
                     }
-                    .pickerStyle(.segmented)
                     .labelsHidden()
                     .onChange(of: swarmOrchestrator) { _, _ in syncSwarm() }
                 }
@@ -1029,13 +1034,19 @@ struct SettingsView: View {
                     Picker("", selection: $swarmWorkerBackend) {
                         Text("Codex CLI").tag("codex")
                         Text("Claude Code").tag("claude")
+                        Text("Gemini CLI").tag("gemini")
+                        Divider()
+                        Text("OpenAI API").tag("openai-api")
+                        Text("Anthropic API").tag("anthropic-api")
+                        Text("Google API").tag("google-api")
+                        Text("OpenRouter").tag("openrouter-api")
+                        Text("MiniMax API").tag("minimax-api")
                     }
-                    .pickerStyle(.segmented)
                     .labelsHidden()
                     .onChange(of: swarmWorkerBackend) { _, _ in syncSwarm() }
 
                     hintBox(
-                        "I worker usano internamente i propri subagent nativi (multi-agent Codex / Claude) per task complessi."
+                        "I worker usano internamente i propri subagent nativi (multi-agent Codex / Claude) per task complessi. I provider API usano tool calling integrato CoderIDE."
                     )
                 }
                 .padding(4)
@@ -1824,15 +1835,13 @@ struct SettingsView: View {
     }
 
     private func syncSwarm() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         providerRegistry.unregister(id: "agent-swarm")
-        providerRegistry.register(
-            ProviderFactory.swarmProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude,
-                executionController: executionController))
+        if let swarm = ProviderFactory.swarmProvider(
+            config: providerFactoryConfig(),
+            executionController: executionController)
+        {
+            providerRegistry.register(swarm)
+        }
     }
 
     private func loadCodexAdvanced() {
@@ -1933,8 +1942,6 @@ struct SettingsView: View {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
-            swarmWorkerBackendOverrides: UserDefaults.standard.string(
-                forKey: "swarm_worker_backend_overrides") ?? "",
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
             swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
             swarmMaxReviewLoops: swarmMaxReviewLoops,

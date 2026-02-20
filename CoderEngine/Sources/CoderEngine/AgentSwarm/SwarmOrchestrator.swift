@@ -3,90 +3,46 @@ import Foundation
 /// Orchestratore che produce un piano di task per il swarm
 public actor SwarmOrchestrator {
     private let config: SwarmConfig
-    private let openAIClient: OpenAICompletionsClient?
-    private let codexProvider: CodexCLIProvider?
-    private let claudeProvider: ClaudeCLIProvider?
-    private let geminiProvider: GeminiCLIProvider?
+    private let provider: any LLMProvider
 
     public init(
         config: SwarmConfig,
-        openAIClient: OpenAICompletionsClient?,
-        codexProvider: CodexCLIProvider?,
-        claudeProvider: ClaudeCLIProvider? = nil,
-        geminiProvider: GeminiCLIProvider? = nil
+        provider: any LLMProvider
     ) {
         self.config = config
-        self.openAIClient = openAIClient
-        self.codexProvider = codexProvider
-        self.claudeProvider = claudeProvider
-        self.geminiProvider = geminiProvider
+        self.provider = provider
     }
 
-    /// System prompt for the orchestrator – language-neutral, concise, structured.
+    /// Prompt di sistema per l'orchestratore
     private static let systemPrompt = """
-        You are an orchestrator for a multi-agent coding system. Available specialist roles:
-        - planner: breaks down the task into clear implementation steps (no code)
-        - coder: writes or modifies code according to the plan
-        - debugger: identifies bugs, analyzes stack traces, fixes issues
-        - reviewer: reviews code for style, best practices, suggests optimizations
-        - docWriter: writes documentation (README, comments, docstrings)
-        - securityAuditor: analyzes code for vulnerabilities and insecure dependencies
-        - testWriter: writes unit, integration, and smoke tests
+        Sei un orchestratore per un sistema di agenti specializzati. Ruoli disponibili:
+        - planner: scompone il compito in passi chiari
+        - coder: scrive o modifica codice
+        - debugger: identifica e risolve bug
+        - reviewer: revisiona codice e suggerisce miglioramenti
+        - docWriter: scrive documentazione
+        - securityAuditor: analisi sicurezza e vulnerabilità
+        - testWriter: scrive test
 
-        Produce EXACTLY ONE JSON block: an array of task objects.
-        Format: [{"role":"<role>","taskDescription":"<description>","order":<int>}]
-
-        Rules:
-        1. Use only the roles that are strictly necessary for the request.
-        2. Order tasks by dependency (e.g. planner before coder, coder before testWriter).
-        3. Tasks with the same "order" value run in parallel.
-        4. Output ONLY the JSON array – no commentary, no markdown fences, no extra text.
+        Produci UN SOLO blocco JSON: un array di task. Formato: [{"role":"planner","taskDescription":"...","order":1}, ...]
+        Usa solo i ruoli necessari per la richiesta. Ordina per dipendenze (es. planner prima di coder).
+        Non includere testo fuori dal JSON. Solo l'array JSON.
         """
 
     /// Produce un piano di task per la richiesta dell'utente
     public func plan(userPrompt: String, context: WorkspaceContext) async throws -> [AgentTask] {
         let enabledRolesList = config.enabledRoles.map { $0.rawValue }.joined(separator: ", ")
         let userMessage = """
-            User request: \(userPrompt)
+            Richiesta utente: \(userPrompt)
             \(context.contextPrompt())
 
-            Enabled roles: \(enabledRolesList)
-            Produce the JSON array of tasks.
+            Ruoli abilitati: \(enabledRolesList)
+            Produci l'array JSON di task.
             """
 
-        let rawOutput: String
-        switch config.orchestratorBackend {
-        case .openai:
-            guard let client = openAIClient else {
-                throw CoderEngineError.apiError("OpenAI client not configured for orchestrator")
-            }
-            rawOutput = try await client.complete(messages: [
-                .system(Self.systemPrompt),
-                .user(userMessage),
-            ])
-        case .codex:
-            guard let provider = codexProvider else {
-                throw CoderEngineError.apiError("Codex provider not configured for orchestrator")
-            }
-            let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectProviderOutput(
-                provider: provider, prompt: fullPrompt, context: context)
-        case .claude:
-            guard let provider = claudeProvider else {
-                throw CoderEngineError.apiError("Claude provider not configured for orchestrator")
-            }
-            let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectProviderOutput(
-                provider: provider, prompt: fullPrompt, context: context)
-        case .gemini:
-            guard let provider = geminiProvider else {
-                throw CoderEngineError.apiError(
-                    "Gemini CLI provider not configured for orchestrator")
-            }
-            let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectProviderOutput(
-                provider: provider, prompt: fullPrompt, context: context)
-        }
+        let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
+        let rawOutput = try await collectProviderOutput(
+            provider: provider, prompt: fullPrompt, context: context)
 
         return try parseTasks(from: rawOutput)
     }
@@ -109,7 +65,7 @@ public actor SwarmOrchestrator {
     private func parseTasks(from raw: String) throws -> [AgentTask] {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Extract from ```json ... ``` if present
+        // Estrai da ```json ... ``` se presente
         if let start = trimmed.range(of: "```json"),
             let end = trimmed.range(of: "```", range: start.upperBound..<trimmed.endIndex)
         {
@@ -171,21 +127,22 @@ public actor SwarmOrchestrator {
             tasks.append(
                 AgentTask(
                     role: .planner,
-                    taskDescription:
-                        "Break down the request into clear, implementable steps and identify dependencies.",
+                    taskDescription: "Scomponi la richiesta in passi implementabili e dipendenze.",
                     order: 1))
         }
         if config.enabledRoles.contains(.coder) {
             tasks.append(
                 AgentTask(
                     role: .coder,
-                    taskDescription: "Implement the user request completely and verifiably.",
+                    taskDescription:
+                        "Implementa la richiesta utente in modo completo e verificabile.",
                     order: tasks.isEmpty ? 1 : 2))
         } else if config.enabledRoles.contains(.debugger) {
             tasks.append(
                 AgentTask(
                     role: .debugger,
-                    taskDescription: "Analyze and fix the main issues described in the request.",
+                    taskDescription:
+                        "Analizza e correggi i problemi principali segnalati dalla richiesta.",
                     order: tasks.isEmpty ? 1 : 2))
         }
         return tasks

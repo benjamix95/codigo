@@ -1,22 +1,60 @@
 import SwiftUI
 
 struct TerminalActivitySession: Identifiable {
-    let id: UUID
+    let id: String
     let title: String
     let command: String
     let cwd: String?
     let output: String?
     let stderr: String?
     let timestamp: Date
+    let isRunning: Bool
+    let sourceActivityId: UUID
+    let groupId: String?
+    let toolCallId: String?
+    let status: String?
+
+    init(
+        id: String,
+        title: String,
+        command: String,
+        cwd: String?,
+        output: String?,
+        stderr: String?,
+        timestamp: Date,
+        isRunning: Bool,
+        sourceActivityId: UUID,
+        groupId: String?,
+        toolCallId: String?,
+        status: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.command = command
+        self.cwd = cwd
+        self.output = output
+        self.stderr = stderr
+        self.timestamp = timestamp
+        self.isRunning = isRunning
+        self.sourceActivityId = sourceActivityId
+        self.groupId = groupId
+        self.toolCallId = toolCallId
+        self.status = status
+    }
 
     init(from activity: TaskActivity) {
-        id = activity.id
+        sourceActivityId = activity.id
+        toolCallId = activity.payload["tool_call_id"]
+        groupId = activity.groupId ?? activity.payload["group_id"]
+        id = toolCallId ?? groupId ?? activity.id.uuidString
         title = activity.title
         command = activity.payload["command"] ?? activity.detail ?? activity.title
         cwd = activity.payload["cwd"]
         output = activity.payload["output"]
         stderr = activity.payload["stderr"]
         timestamp = activity.timestamp
+        isRunning = activity.isRunning
+        status = activity.payload["status"]?.lowercased()
     }
 }
 
@@ -50,13 +88,28 @@ private enum TimeFormatters {
 
 struct ChatTerminalSessionsView: View {
     let activities: [TaskActivity]
-    @State private var expandedSessions: Set<UUID> = []
+    @State private var expandedSessions: Set<String> = []
 
     private var sessions: [TerminalActivitySession] {
-        activities
-            .filter { $0.type == "command_execution" || $0.type == "bash" }
-            .map(TerminalActivitySession.init(from:))
-            .sorted { $0.timestamp > $1.timestamp }
+        var byKey: [String: TerminalActivitySession] = [:]
+        for activity in activities {
+            let isTerminal =
+                activity.type == "command_execution" ||
+                activity.type == "bash" ||
+                (activity.type == "mcp_tool_call" && (activity.payload["tool"] == "bash" || activity.payload["command"] != nil))
+            guard isTerminal else { continue }
+            let session = TerminalActivitySession(from: activity)
+            if let existing = byKey[session.id] {
+                byKey[session.id] = merged(existing: existing, incoming: session)
+            } else {
+                byKey[session.id] = session
+            }
+        }
+        return byKey.values.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private var runningSession: TerminalActivitySession? {
+        sessions.first(where: { $0.isRunning || $0.status == "started" || $0.status == "running" || $0.status == "in_progress" })
     }
 
     var body: some View {
@@ -65,6 +118,21 @@ struct ChatTerminalSessionsView: View {
                 Text("Terminale in chat")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                if let running = runningSession {
+                    TimelineView(.periodic(from: running.timestamp, by: 1.0)) { context in
+                        let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Running command for \(elapsed)s")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(DesignSystem.Colors.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
                 ForEach(sessions.prefix(6)) { session in
                     terminalSessionCard(session)
                 }
@@ -85,6 +153,10 @@ struct ChatTerminalSessionsView: View {
                 Text("bash")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
+                if session.isRunning {
+                    ProgressView()
+                        .controlSize(.mini)
+                }
                 Text(timeString)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.tertiary)
@@ -134,7 +206,7 @@ struct ChatTerminalSessionsView: View {
                         .textSelection(.enabled)
                 }
                 if !hasOutput {
-                    Text("Output non disponibile (il provider non ha restituito stdout/stderr per questo comando).")
+                    Text(session.isRunning ? "Comando in esecuzione…" : "Output non disponibile (il provider non ha restituito stdout/stderr per questo comando).")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -146,6 +218,29 @@ struct ChatTerminalSessionsView: View {
             RoundedRectangle(cornerRadius: 9)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.8), lineWidth: 0.6)
         )
+    }
+
+    private func merged(existing: TerminalActivitySession, incoming: TerminalActivitySession) -> TerminalActivitySession {
+        TerminalActivitySession(
+            id: existing.id,
+            title: incoming.title.isEmpty ? existing.title : incoming.title,
+            command: incoming.command.isEmpty ? existing.command : incoming.command,
+            cwd: incoming.cwd ?? existing.cwd,
+            output: preferLonger(existing.output, incoming.output),
+            stderr: preferLonger(existing.stderr, incoming.stderr),
+            timestamp: max(existing.timestamp, incoming.timestamp),
+            isRunning: incoming.isRunning || (incoming.status == "started" || incoming.status == "running" || incoming.status == "in_progress"),
+            sourceActivityId: incoming.sourceActivityId,
+            groupId: incoming.groupId ?? existing.groupId,
+            toolCallId: incoming.toolCallId ?? existing.toolCallId,
+            status: incoming.status ?? existing.status
+        )
+    }
+
+    private func preferLonger(_ lhs: String?, _ rhs: String?) -> String? {
+        let l = lhs ?? ""
+        let r = rhs ?? ""
+        return r.count >= l.count ? (r.isEmpty ? lhs : r) : lhs
     }
 }
 

@@ -193,16 +193,22 @@ struct TodoLiveInlineCard: View {
     @ObservedObject var store: TodoStore
     let onOpenFile: (String) -> Void
 
+    private var displayedTodos: [TodoItem] {
+        Array(store.todos.sorted { $0.status.rank < $1.status.rank }.prefix(6))
+    }
+
     var body: some View {
-        let items = store.todos.filter { $0.status != .done }.prefix(3)
+        let items = displayedTodos
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Todo Live")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                ForEach(Array(items)) { todo in
+                ForEach(items) { todo in
                     Text("• \(todo.title)")
                         .font(.system(size: 11))
+                        .strikethrough(todo.status == .done)
+                        .foregroundStyle(todo.status == .done ? .secondary : .primary)
                         .lineLimit(1)
                 }
             }

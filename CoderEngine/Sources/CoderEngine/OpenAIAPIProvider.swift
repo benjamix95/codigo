@@ -51,28 +51,58 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         return (input, output)
     }
 
-    private static func decodeAPIError(data: Data, statusCode: Int) -> String {
-        guard !data.isEmpty else { return "HTTP \(statusCode)" }
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let error = json["error"] as? [String: Any] {
-                if let message = error["message"] as? String, !message.isEmpty {
-                    let code = (error["code"] as? String).map { " (\($0))" } ?? ""
-                    return "HTTP \(statusCode)\(code): \(message)"
-                }
+    /// Check if an error response body indicates tools/function-calling is not supported.
+    private static func isToolUnsupportedError(_ body: String) -> Bool {
+        let lower = body.lowercased()
+        let toolKeywords = [
+            "tool", "function", "tools", "function_call", "tool_choice",
+            "not support", "unsupported", "not available", "does not support",
+            "invalid parameter", "unrecognized request argument",
+            "additional properties are not allowed",
+        ]
+        return toolKeywords.contains(where: { lower.contains($0) })
+    }
+
+    /// Read the full error body from a failed HTTP response.
+    private static func readErrorBody(from bytes: URLSession.AsyncBytes) async -> String {
+        var buffer = [UInt8]()
+        // Read up to 8KB of error body
+        do {
+            for try await byte in bytes {
+                buffer.append(byte)
+                if buffer.count > 8192 { break }
             }
-            if let message = json["message"] as? String, !message.isEmpty {
-                return "HTTP \(statusCode): \(message)"
-            }
-            if let detail = json["detail"] as? String, !detail.isEmpty {
-                return "HTTP \(statusCode): \(detail)"
-            }
+        } catch {
+            // Ignore read errors for error body
         }
-        if let text = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+        return String(bytes: buffer, encoding: .utf8) ?? ""
+    }
+
+    /// Extract a human-readable error message from an API error JSON body.
+    private static func extractErrorMessage(from body: String, statusCode: Int) -> String {
+        guard let data = body.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            let snippet = body.prefix(300)
+            return "HTTP \(statusCode): \(snippet.isEmpty ? "empty response" : String(snippet))"
+        }
+
+        // OpenAI / OpenRouter format: { "error": { "message": "..." } }
+        if let error = json["error"] as? [String: Any],
+            let message = error["message"] as? String
         {
-            return "HTTP \(statusCode): \(String(text.prefix(400)))"
+            let errorType = (error["type"] as? String) ?? (error["code"] as? String) ?? ""
+            let prefix = errorType.isEmpty ? "" : "[\(errorType)] "
+            return "HTTP \(statusCode): \(prefix)\(message)"
         }
-        return "HTTP \(statusCode)"
+
+        // Alternative format: { "message": "..." }
+        if let message = json["message"] as? String {
+            return "HTTP \(statusCode): \(message)"
+        }
+
+        // Fallback
+        return "HTTP \(statusCode): \(String(body.prefix(300)))"
     }
 
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil)
@@ -83,20 +113,12 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         let model = self.model
         let baseURL = self.baseURL
         let extraHeaders = self.extraHeaders
+        let reasoningEffort = self.reasoningEffort
 
         return AsyncThrowingStream { continuation in
             Task {
                 do {
-                    let url = URL(string: baseURL)!
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "POST"
-                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-                    for (key, value) in extraHeaders {
-                        request.setValue(value, forHTTPHeaderField: key)
-                    }
-
+                    // Build the content (text or multimodal with images)
                     var content: Any
                     if let urls = imageURLs, !urls.isEmpty {
                         var items: [[String: Any]] = []
@@ -123,154 +145,258 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         content = fullPrompt
                     }
 
-                    var body: [String: Any] = [
-                        "model": model,
-                        "messages": [
-                            ["role": "user", "content": content]
-                        ],
-                        "stream": true,
-                    ]
-                    body["tools"] = Self.toolDefinitions
-                    body["tool_choice"] = "auto"
-                    if Self.supportsStreamUsage(baseURL: baseURL) {
-                        body["stream_options"] = ["include_usage": true]
-                    }
-                    if Self.isReasoningModel(model), let effort = reasoningEffort {
-                        body["reasoning"] = ["effort": effort]
-                    }
-                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    let resolvedContent: Any = content
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        continuation.finish(
-                            throwing: CoderEngineError.apiError("Risposta HTTP non valida"))
-                        return
-                    }
-                    guard (200...299).contains(httpResponse.statusCode) else {
-                        var errorBytes = Data()
-                        do {
-                            for try await byte in bytes.prefix(32_768) {
-                                errorBytes.append(byte)
-                            }
-                        } catch {
-                            // Se il body non è leggibile manteniamo almeno status code.
+                    /// Attempt the streaming request. If `includeTools` is true,
+                    /// native function-calling tools are sent in the body.
+                    /// Returns nil if the stream was consumed successfully via
+                    /// the continuation; returns an error message if we should retry without tools.
+                    @Sendable
+                    func attemptStream(includeTools: Bool) async throws -> String? {
+                        guard let url = URL(string: baseURL) else {
+                            throw CoderEngineError.apiError("URL non valida: \(baseURL)")
                         }
-                        let message = Self.decodeAPIError(
-                            data: errorBytes,
-                            statusCode: httpResponse.statusCode
-                        )
-                        continuation.finish(throwing: CoderEngineError.apiError(message))
-                        return
-                    }
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "POST"
+                        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                        for (key, value) in extraHeaders {
+                            request.setValue(value, forHTTPHeaderField: key)
+                        }
 
-                    continuation.yield(.started)
+                        var body: [String: Any] = [
+                            "model": model,
+                            "messages": [
+                                ["role": "user", "content": resolvedContent]
+                            ],
+                            "stream": true,
+                        ]
+                        if includeTools {
+                            body["tools"] = Self.toolDefinitions
+                            body["tool_choice"] = "auto"
+                        }
+                        if Self.supportsStreamUsage(baseURL: baseURL) {
+                            body["stream_options"] = ["include_usage": true]
+                        }
+                        if Self.isReasoningModel(model), let effort = reasoningEffort {
+                            body["reasoning"] = ["effort": effort]
+                        }
+                        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-                    var buffer = [UInt8]()
-                    var didEmitUsage = false
-                    var toolArgsById: [String: String] = [:]
-                    var toolNameById: [String: String] = [:]
-                    for try await byte in bytes {
-                        buffer.append(byte)
-                        if byte == 10 {  // newline
-                            let line =
-                                String(bytes: buffer, encoding: .utf8)?.trimmingCharacters(
-                                    in: .whitespacesAndNewlines) ?? ""
-                            buffer.removeAll()
-                            if line.hasPrefix(":") { continue }  // commento SSE keep-alive
-                            guard line.hasPrefix("data:") else { continue }
-                            let jsonStr = line.dropFirst(5).trimmingCharacters(
-                                in: .whitespaces)
-                            if jsonStr == "[DONE]" {
-                                if !didEmitUsage {
+                        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+
+                        guard let httpResponse = response as? HTTPURLResponse else {
+                            throw CoderEngineError.apiError("Risposta non HTTP dal server")
+                        }
+
+                        // Handle non-2xx responses with proper error body reading
+                        guard (200...299).contains(httpResponse.statusCode) else {
+                            let errorBody = await Self.readErrorBody(from: bytes)
+                            let statusCode = httpResponse.statusCode
+
+                            // If tools were included and the error is about tool incompatibility,
+                            // signal that we should retry without tools.
+                            if includeTools && Self.isToolUnsupportedError(errorBody) {
+                                return errorBody  // Signal: retry without tools
+                            }
+
+                            // For auth errors, throw specific error
+                            if statusCode == 401 || statusCode == 403 {
+                                let msg = Self.extractErrorMessage(
+                                    from: errorBody, statusCode: statusCode)
+                                throw CoderEngineError.apiError("Autenticazione fallita — \(msg)")
+                            }
+
+                            // For rate limiting
+                            if statusCode == 429 {
+                                let msg = Self.extractErrorMessage(
+                                    from: errorBody, statusCode: statusCode)
+                                throw CoderEngineError.apiError("Rate limit superato — \(msg)")
+                            }
+
+                            // For other 4xx errors when tools are included, also try without tools
+                            // (some providers return 400 or 422 for unsupported parameters)
+                            if includeTools && (statusCode == 400 || statusCode == 422) {
+                                return errorBody  // Signal: retry without tools
+                            }
+
+                            let msg = Self.extractErrorMessage(
+                                from: errorBody, statusCode: statusCode)
+                            throw CoderEngineError.apiError(msg)
+                        }
+
+                        // Successfully got a streaming response — consume it
+                        continuation.yield(.started)
+
+                        var buffer = [UInt8]()
+                        var didEmitUsage = false
+                        var toolArgsById: [String: String] = [:]
+                        var toolNameById: [String: String] = [:]
+                        var accumulatedReasoning = ""
+
+                        for try await byte in bytes {
+                            buffer.append(byte)
+                            if byte == 10 {  // newline
+                                let line =
+                                    String(bytes: buffer, encoding: .utf8)?
+                                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                                buffer.removeAll()
+                                guard line.hasPrefix("data: ") else { continue }
+                                let jsonStr = String(line.dropFirst(6))
+                                if jsonStr == "[DONE]" {
+                                    if !didEmitUsage {
+                                        continuation.yield(
+                                            .raw(
+                                                type: "usage",
+                                                payload: [
+                                                    "input_tokens": "-1",
+                                                    "output_tokens": "-1",
+                                                    "model": model,
+                                                ]))
+                                    }
+                                    continuation.yield(.completed)
+                                    continuation.finish()
+                                    return nil  // Success — fully consumed
+                                }
+                                guard let lineData = jsonStr.data(using: .utf8),
+                                    let json = try? JSONSerialization.jsonObject(with: lineData)
+                                        as? [String: Any]
+                                else {
+                                    // Some providers send SSE comments or non-JSON lines; skip them
+                                    continue
+                                }
+
+                                // Check for inline error events (OpenRouter sends these sometimes)
+                                if let error = json["error"] as? [String: Any],
+                                    let errorMessage = error["message"] as? String
+                                {
+                                    continuation.yield(.error("API error: \(errorMessage)"))
+                                    continue
+                                }
+
+                                if let (inp, out) = Self.extractUsage(from: json) {
                                     continuation.yield(
                                         .raw(
                                             type: "usage",
                                             payload: [
-                                                "input_tokens": "-1",
-                                                "output_tokens": "-1",
+                                                "input_tokens": "\(inp)",
+                                                "output_tokens": "\(out)",
                                                 "model": model,
                                             ]))
+                                    didEmitUsage = true
                                 }
-                                continuation.yield(.completed)
-                                continuation.finish()
-                                return
-                            }
-                            guard let lineData = jsonStr.data(using: .utf8),
-                                let json = try? JSONSerialization.jsonObject(with: lineData)
-                                    as? [String: Any]
-                            else {
-                                continue
-                            }
-                            if let (inp, out) = Self.extractUsage(from: json) {
-                                continuation.yield(
-                                    .raw(
-                                        type: "usage",
-                                        payload: [
-                                            "input_tokens": "\(inp)",
-                                            "output_tokens": "\(out)",
-                                            "model": model,
-                                        ]))
-                                didEmitUsage = true
-                            }
-                            guard let choices = json["choices"] as? [[String: Any]],
-                                let first = choices.first
-                            else {
-                                continue
-                            }
-                            if let delta = first["delta"] as? [String: Any] {
-                                if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
-                                    for toolCall in toolCalls {
-                                        let id =
-                                            (toolCall["id"] as? String)
-                                            ?? "idx-\((toolCall["index"] as? Int).map(String.init) ?? "0")"
-                                        if let function = toolCall["function"] as? [String: Any] {
-                                            if let name = function["name"] as? String, !name.isEmpty
+                                guard let choices = json["choices"] as? [[String: Any]],
+                                    let first = choices.first
+                                else {
+                                    continue
+                                }
+                                if let delta = first["delta"] as? [String: Any] {
+                                    // Reasoning content (o1, o3, o4-mini, DeepSeek R1, etc.)
+                                    if let reasoningChunk = delta["reasoning_content"] as? String,
+                                        !reasoningChunk.isEmpty
+                                    {
+                                        accumulatedReasoning += reasoningChunk
+                                        let text = String(accumulatedReasoning.prefix(6_000))
+                                        continuation.yield(
+                                            .raw(
+                                                type: "reasoning",
+                                                payload: [
+                                                    "output": text,
+                                                    "title": "Ragionamento",
+                                                    "group_id": "reasoning-stream",
+                                                ]))
+                                    }
+                                    // Tool calls (function calling)
+                                    if let toolCalls = delta["tool_calls"] as? [[String: Any]] {
+                                        for toolCall in toolCalls {
+                                            let tcId =
+                                                (toolCall["id"] as? String)
+                                                ?? "idx-\((toolCall["index"] as? Int).map(String.init) ?? "0")"
+                                            if let function = toolCall["function"] as? [String: Any]
                                             {
-                                                toolNameById[id] = name
-                                            }
-                                            if let argsFragment = function["arguments"] as? String,
-                                                !argsFragment.isEmpty
-                                            {
-                                                toolArgsById[id, default: ""] += argsFragment
-                                                continuation.yield(
-                                                    .raw(
-                                                        type: "tool_call_suggested",
-                                                        payload: [
-                                                            "id": id,
-                                                            "name": toolNameById[id] ?? "",
-                                                            "args_fragment": argsFragment,
-                                                            "args": toolArgsById[id] ?? "",
-                                                            "is_partial": "true",
-                                                        ]))
+                                                if let name = function["name"] as? String,
+                                                    !name.isEmpty
+                                                {
+                                                    toolNameById[tcId] = name
+                                                }
+                                                if let argsFragment = function["arguments"]
+                                                    as? String,
+                                                    !argsFragment.isEmpty
+                                                {
+                                                    toolArgsById[tcId, default: ""] += argsFragment
+                                                    continuation.yield(
+                                                        .raw(
+                                                            type: "tool_call_suggested",
+                                                            payload: [
+                                                                "id": tcId,
+                                                                "name": toolNameById[tcId] ?? "",
+                                                                "args_fragment": argsFragment,
+                                                                "args": toolArgsById[tcId] ?? "",
+                                                                "is_partial": "true",
+                                                            ]))
+                                                }
                                             }
                                         }
                                     }
+                                    // Text content
+                                    if let textContent = delta["content"] as? String,
+                                        !textContent.isEmpty
+                                    {
+                                        continuation.yield(.textDelta(textContent))
+                                    }
                                 }
-                                if let content = delta["content"] as? String, !content.isEmpty {
-                                    continuation.yield(.textDelta(content))
-                                }
-                            }
-                            if let finishReason = first["finish_reason"] as? String,
-                                finishReason == "tool_calls"
-                            {
-                                for (id, args) in toolArgsById {
-                                    continuation.yield(
-                                        .raw(
-                                            type: "tool_call_suggested",
-                                            payload: [
-                                                "id": id,
-                                                "name": toolNameById[id] ?? "",
-                                                "args": args,
-                                                "is_partial": "false",
-                                            ]))
+                                if let finishReason = first["finish_reason"] as? String,
+                                    finishReason == "tool_calls"
+                                {
+                                    for (tcId, args) in toolArgsById {
+                                        continuation.yield(
+                                            .raw(
+                                                type: "tool_call_suggested",
+                                                payload: [
+                                                    "id": tcId,
+                                                    "name": toolNameById[tcId] ?? "",
+                                                    "args": args,
+                                                    "is_partial": "false",
+                                                ]))
+                                    }
                                 }
                             }
                         }
+
+                        // Stream ended without [DONE] — still emit completion
+                        if !didEmitUsage {
+                            continuation.yield(
+                                .raw(
+                                    type: "usage",
+                                    payload: [
+                                        "input_tokens": "-1",
+                                        "output_tokens": "-1",
+                                        "model": model,
+                                    ]))
+                        }
+                        continuation.yield(.completed)
+                        continuation.finish()
+                        return nil  // Success
                     }
 
-                    continuation.yield(.completed)
-                    continuation.finish()
+                    // --- Main execution: try with tools first, retry without if needed ---
+                    let retrySignal = try await attemptStream(includeTools: true)
+
+                    if let errorBody = retrySignal {
+                        // First attempt failed due to tool incompatibility.
+                        // Retry without tools — the ToolEnabledLLMProvider's text-based
+                        // marker protocol will still work as a fallback.
+                        let _ = try await attemptStream(includeTools: false)
+
+                        // If we got here, the retry succeeded. The stream already
+                        // completed via the continuation inside attemptStream.
+                        // Swallow the original errorBody — it was a transient tool error.
+                        _ = errorBody
+                    }
+                    // If attemptStream returned nil, the stream was fully consumed
+                    // and continuation.finish() was already called.
+
                 } catch {
                     continuation.yield(.error(error.localizedDescription))
                     continuation.finish(throwing: error)
@@ -279,107 +405,56 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
+    // MARK: - Tool Definitions
+
     private static var toolDefinitions: [[String: Any]] {
         [
             functionTool(
-                name: "read",
-                description:
-                    "Read the content of a file. Always read a file before modifying it so you know its current state.",
+                name: "read", description: "Read file content from workspace",
                 properties: [
                     "path": [
-                        "type": "string",
-                        "description":
-                            "File path, absolute or workspace-relative (e.g. 'src/main.swift')",
+                        "type": "string", "description": "File path absolute or workspace-relative",
                     ]
                 ], required: ["path"]),
             functionTool(
-                name: "ls",
-                description:
-                    "List the contents of a directory. Returns file and folder names (folders have a trailing /). Use this to explore project structure before reading files.",
+                name: "glob", description: "Find files by glob-like pattern",
                 properties: [
-                    "path": [
-                        "type": "string",
-                        "description":
-                            "Directory path to list, absolute or workspace-relative. Defaults to '.' (workspace root).",
-                    ]
-                ], required: ["path"]),
-            functionTool(
-                name: "glob",
-                description:
-                    "Find files matching a glob pattern recursively. Useful for discovering files by extension or name pattern.",
-                properties: [
-                    "pattern": [
-                        "type": "string",
-                        "description": "Glob pattern to match, e.g. '*.swift', '*.ts', 'Package.*'",
-                    ]
+                    "pattern": ["type": "string", "description": "Pattern to match, e.g. *.swift"]
                 ], required: ["pattern"]),
             functionTool(
-                name: "grep",
-                description:
-                    "Search for text or regex patterns across files. Returns matching lines with file path, line number, and content. Uses ripgrep (rg) when available.",
+                name: "grep", description: "Search text in files",
                 properties: [
-                    "query": [
-                        "type": "string", "description": "Text or regex pattern to search for",
-                    ],
-                    "pathScope": [
-                        "type": "string",
-                        "description":
-                            "Optional folder or file scope to narrow the search (e.g. 'Sources', 'src/components')",
-                    ],
+                    "query": ["type": "string", "description": "Text/regex query"],
+                    "pathScope": ["type": "string", "description": "Optional folder/file scope"],
                 ], required: ["query"]),
             functionTool(
-                name: "patch",
-                description:
-                    "Surgically edit a file by finding an exact text match and replacing it. PREFERRED over 'edit' for modifying existing files because it preserves all unchanged content. You MUST read the file first to get the exact text to search for.",
+                name: "edit", description: "Overwrite file with new content",
                 properties: [
                     "path": ["type": "string", "description": "Target file path"],
-                    "search": [
-                        "type": "string",
-                        "description":
-                            "The exact text to find in the file (must match exactly, including whitespace and indentation)",
-                    ],
-                    "replace": ["type": "string", "description": "The replacement text"],
-                ], required: ["path", "search", "replace"]),
-            functionTool(
-                name: "edit",
-                description:
-                    "Write the FULL content to a file, replacing everything. Creates parent directories if needed. Best for creating NEW files or complete rewrites. For modifying existing files, prefer 'patch' instead.",
-                properties: [
-                    "path": ["type": "string", "description": "Target file path"],
-                    "content": [
-                        "type": "string", "description": "The complete file content to write",
-                    ],
+                    "content": ["type": "string", "description": "Full file content to write"],
                 ], required: ["path", "content"]),
             functionTool(
-                name: "bash",
-                description:
-                    "Run a shell command in the workspace directory. Use for builds, tests, git operations, installing packages, etc. Commands run in zsh with a 60-second timeout.",
+                name: "write", description: "Alias of edit",
                 properties: [
-                    "command": [
-                        "type": "string",
-                        "description":
-                            "Shell command to execute (e.g. 'swift build 2>&1', 'npm test', 'git diff')",
-                    ]
+                    "path": ["type": "string", "description": "Target file path"],
+                    "content": ["type": "string", "description": "Full file content to write"],
+                ], required: ["path", "content"]),
+            functionTool(
+                name: "bash", description: "Run shell command in workspace",
+                properties: [
+                    "command": ["type": "string", "description": "Shell command"]
                 ], required: ["command"]),
             functionTool(
-                name: "mkdir",
-                description: "Create a directory and all necessary parent directories.",
+                name: "mcp", description: "Invoke MCP tool",
                 properties: [
-                    "path": ["type": "string", "description": "Directory path to create"]
-                ], required: ["path"]),
+                    "tool": ["type": "string", "description": "MCP tool name"],
+                    "args": ["type": "string", "description": "JSON string args"],
+                ], required: ["tool"]),
             functionTool(
-                name: "web_search",
-                description:
-                    "Search the web for information. Use when you need current documentation, API references, or solutions not in your training data.",
+                name: "web_search", description: "Search web",
                 properties: [
                     "query": ["type": "string", "description": "Search query"]
                 ], required: ["query"]),
-            functionTool(
-                name: "mcp", description: "Invoke an MCP (Model Context Protocol) tool by name.",
-                properties: [
-                    "tool": ["type": "string", "description": "MCP tool name"],
-                    "args": ["type": "string", "description": "JSON string of tool arguments"],
-                ], required: ["tool"]),
         ]
     }
 

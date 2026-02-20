@@ -40,7 +40,7 @@ struct ChatPanelView: View {
     private var conversationId: UUID? { selectedConversationId }
     @State private var coderMode: CoderMode = .agent
     @State private var inputText = ""
-    @FocusState private var isInputFocused: Bool
+    @State private var isInputFocused: Bool = false
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
@@ -60,7 +60,6 @@ struct ChatPanelView: View {
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
     @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
-    @AppStorage("default_agent_provider_id") private var defaultAgentProviderId = "codex-cli"
     @AppStorage("openai_api_key") private var openaiApiKey = ""
     @AppStorage("openai_model") private var openaiModel = "gpt-4o-mini"
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
@@ -68,7 +67,7 @@ struct ChatPanelView: View {
     @AppStorage("google_api_key") private var googleApiKey = ""
     @AppStorage("google_model") private var googleModel = "gemini-2.5-pro"
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
-    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4.5"
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
     @State private var codexModels: [CodexModel] = []
     @State private var geminiModels: [GeminiModel] = []
     @State private var showSwarmHelp = false
@@ -97,8 +96,11 @@ struct ChatPanelView: View {
     @State private var isPlanTabHovered = false
     @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State private var hasJustCompletedTask = false
+    @State private var showRateLimitAlert = false
+    @State private var rateLimitAlertText = ""
     @State private var isFollowingLive = true
     @State private var newEventsWhileDetached = 0
+
     @State private var isAnyAgentProviderReady = false
     @State private var userModeOverrideUntilConversationChange = false
     @State private var ignoreNextConversationChangeReset = false
@@ -152,6 +154,19 @@ struct ChatPanelView: View {
             }
 
             messagesArea
+
+            // Task control bar — FIXED above composer (not in scroll)
+            if chatStore.isLoading || isSummarizing {
+                TaskControlBar(
+                    chatStore: chatStore,
+                    taskActivityStore: taskActivityStore,
+                    executionController: executionController,
+                    coderMode: coderMode,
+                    isSummarizing: isSummarizing,
+                    activeModeColor: activeModeColor,
+                    onInterrupt: { interruptTask() }
+                )
+            }
 
             composerArea
         }
@@ -448,17 +463,23 @@ struct ChatPanelView: View {
     private var messagesArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 24) {
                     if let conv = chatStore.conversation(for: conversationId) {
                         ForEach(conv.messages) { message in
-                            MessageRow(
-                                message: message,
-                                context: effectiveContext.context,
-                                modeColor: activeModeColor,
-                                streamingStatusText: streamingStatusText(for: message),
-                                streamingDetailText: streamingDetailText(for: message),
-                                onFileClicked: { openFilesStore.openFile($0) }
-                            )
+                            HStack(alignment: .top, spacing: 0) {
+                                if message.role == .user { Spacer(minLength: 0) }
+                                MessageRow(
+                                    message: message,
+                                    context: effectiveContext.context,
+                                    modeColor: activeModeColor,
+                                    isActuallyLoading: chatStore.isLoading,
+                                    streamingStatusText: streamingStatusText(for: message),
+                                    streamingDetailText: streamingDetailText(for: message),
+                                    streamingReasoningText: streamingReasoningText(for: message),
+                                    onFileClicked: { openFilesStore.openFile($0) }
+                                )
+                                if message.role == .assistant { Spacer(minLength: 0) }
+                            }
                             .id(message.id)
                         }
                         if coderMode == .agent,
@@ -497,22 +518,35 @@ struct ChatPanelView: View {
                             )
                             .id("plan-options")
                         }
-                        // Attività e timer in chat (solo quando c'è un task e pannello attivo)
+                        // Activity panel (expandable sections in scroll)
                         if chatStore.isLoading
                             || (!taskActivityStore.activities.isEmpty && taskPanelEnabled)
                         {
-                            chatInlineTaskStatus
-                                .id("chat-task-status")
+                            TaskActivityPanel(
+                                chatStore: chatStore,
+                                taskActivityStore: taskActivityStore,
+                                todoStore: todoStore,
+                                coderMode: coderMode,
+                                onOpenFile: { openFilesStore.openFile($0) },
+                                effectivePrimaryPath: effectiveContext.primaryPath
+                            )
+                            .id("chat-task-status")
                         }
                         if flowDiagnosticsEnabled {
                             flowDiagnosticsCard
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
                         }
+                        // Changed files card with chevron
                         if hasJustCompletedTask, !changedFilesStore.files.isEmpty {
-                            changedFilesSummaryCard
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 8)
+                            ChangedFilesSummaryCard(
+                                changedFilesStore: changedFilesStore,
+                                onOpenFile: { openChangedFile($0) },
+                                onUndoAll: { changedFilesStore.undoAll() }
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 8)
+                            .id("changed-files-card")
                         }
                     }
                 }
@@ -603,312 +637,29 @@ struct ChatPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var changedFilesSummaryCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("\(changedFilesStore.files.count) files changed")
-                    .font(.system(size: 14, weight: .semibold))
-                Text("+\(changedFilesStore.totalAdded)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.success)
-                Text("-\(changedFilesStore.totalRemoved)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.error)
-                Spacer()
-                Button("Undo") {
-                    changedFilesStore.undoAll()
-                }
-                .buttonStyle(.plain)
-                .disabled(changedFilesStore.files.isEmpty)
+    private func interruptTask() {
+        let scope: ExecutionScope = {
+            switch coderMode {
+            case .agentSwarm: return .swarm
+            case .codeReviewMultiSwarm: return .review
+            case .plan: return .plan
+            default: return .agent
             }
-
-            ForEach(changedFilesStore.files.prefix(8)) { file in
-                HStack(spacing: 8) {
-                    Button {
-                        openChangedFile(file.path)
-                    } label: {
-                        Text(file.path)
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    Text("+\(file.added)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.success)
-                    Text("-\(file.removed)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.error)
-                }
-                .padding(.vertical, 2)
-            }
+        }()
+        executionController.terminate(scope: scope)
+        flowCoordinator.interrupt()
+        if let cid = conversationId {
+            let cur =
+                chatStore.conversation(for: cid)?.messages.last(where: {
+                    $0.role == .assistant
+                })?.content ?? ""
+            chatStore.updateLastAssistantMessage(
+                content: cur.isEmpty
+                    ? "[Interrotto dall'utente]"
+                    : cur + "\n\n[Interrotto dall'utente]", in: cid)
+            chatStore.setLastAssistantStreaming(false, in: cid)
         }
-        .padding(12)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.55),
-            in: RoundedRectangle(cornerRadius: 12)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12).strokeBorder(
-                DesignSystem.Colors.border, lineWidth: 0.6))
-    }
-
-    @ViewBuilder
-    private var chatInlineTaskStatus: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Execution control bar
-            if chatStore.isLoading, let startDate = chatStore.taskStartDate {
-                TimelineView(.periodic(from: startDate, by: 1.0)) { context in
-                    let elapsed = Int(context.date.timeIntervalSince(startDate))
-                    executionControlBar(elapsed: elapsed)
-                }
-            }
-
-            // Summarizing indicator
-            if isSummarizing {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Compressing context...")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(DesignSystem.Colors.info.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(DesignSystem.Colors.info.opacity(0.1), lineWidth: 0.5)
-                )
-            }
-
-            // Todo inline card
-            if chatStore.isLoading {
-                TodoLiveInlineCard(
-                    store: todoStore,
-                    onOpenFile: { path in
-                        openFilesStore.openFile(path)
-                    })
-            }
-
-            // Activity panels
-            if !taskActivityStore.activities.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    if coderMode == .agentSwarm {
-                        SwarmLiveBoardView(
-                            activities: taskActivityStore.activities,
-                            isTaskRunning: chatStore.isLoading)
-                    } else {
-                        // Plan trace
-                        if coderMode == .plan {
-                            PlanLiveTraceView(
-                                activities: taskActivityStore.planRelevantRecentActivities(
-                                    limit: 60))
-                        }
-
-                        // Reasoning timeline
-                        LiveActivityTimelineView(
-                            activities: taskActivityStore.activities,
-                            maxVisible: 20
-                        )
-
-                        // Web search results
-                        WebSearchLiveView(activities: taskActivityStore.activities)
-
-                        // Terminal sessions
-                        ChatTerminalSessionsView(activities: taskActivityStore.activities)
-
-                        // Grep results
-                        InstantGrepCardsView(results: taskActivityStore.instantGreps) { match in
-                            let fullPath: String
-                            if (match.file as NSString).isAbsolutePath {
-                                fullPath = match.file
-                            } else {
-                                let basePath = effectiveContext.primaryPath ?? ""
-                                fullPath = (basePath as NSString).appendingPathComponent(match.file)
-                            }
-                            openFilesStore.openFile(fullPath)
-                        }
-
-                        // Todo
-                        TodoLiveInlineCard(
-                            store: todoStore,
-                            onOpenFile: { path in
-                                openFilesStore.openFile(path)
-                            })
-
-                        // Recent activity rows (compact)
-                        let recentOther = taskActivityStore.activities
-                            .filter { $0.type != "command_execution" && $0.type != "bash" }
-                            .suffix(6)
-                        if !recentOther.isEmpty {
-                            VStack(alignment: .leading, spacing: 2) {
-                                ForEach(recentOther) { activity in
-                                    TaskActivityRow(activity: activity)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.3), lineWidth: 0.5)
-                )
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 8)
-    }
-
-    // MARK: - Execution Control Bar
-
-    private func executionControlBar(elapsed: Int) -> some View {
-        HStack(spacing: 10) {
-            // Status indicator
-            HStack(spacing: 6) {
-                if executionController.runState == .paused {
-                    Image(systemName: "pause.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.orange)
-                } else {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-
-                Text(executionController.runState == .paused ? "Paused" : "Running")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            // Timer
-            Text(formatElapsed(elapsed))
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(DesignSystem.Colors.warning)
-
-            // Active ops count
-            if taskActivityStore.activeOperationsCount > 0 {
-                Text("\(taskActivityStore.activeOperationsCount) ops")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.04), in: Capsule())
-            }
-
-            Spacer()
-
-            // Pause / Resume
-            if executionController.runState == .paused {
-                Button {
-                    let scope = executionScope(for: coderMode)
-                    executionController.resume(scope: scope)
-                    taskActivityStore.markResumed()
-                    taskActivityStore.addActivity(
-                        TaskActivity(
-                            type: "process_resumed",
-                            title: "Process resumed",
-                            detail: "Resumed by user",
-                            payload: [:],
-                            phase: .executing,
-                            isRunning: true
-                        )
-                    )
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 9, weight: .bold))
-                        Text("Resume")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            } else {
-                Button {
-                    let scope = executionScope(for: coderMode)
-                    executionController.pause(scope: scope)
-                    taskActivityStore.markPaused()
-                    taskActivityStore.addActivity(
-                        TaskActivity(
-                            type: "process_paused",
-                            title: "Process paused",
-                            detail: "Paused by user",
-                            payload: [:],
-                            phase: .thinking,
-                            isRunning: false
-                        )
-                    )
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pause.fill")
-                            .font(.system(size: 9, weight: .bold))
-                        Text("Pause")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            // Stop
-            Button {
-                let scope = executionScope(for: coderMode)
-                executionController.terminate(scope: scope)
-                flowCoordinator.interrupt()
-                if let cid = conversationId {
-                    let cur =
-                        chatStore.conversation(for: cid)?.messages.last(where: {
-                            $0.role == .assistant
-                        })?.content ?? ""
-                    chatStore.updateLastAssistantMessage(
-                        content: cur.isEmpty
-                            ? "[Stopped by user]"
-                            : cur + "\n\n[Stopped by user]", in: cid)
-                    chatStore.setLastAssistantStreaming(false, in: cid)
-                }
-                chatStore.endTask()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 9, weight: .bold))
-                    Text("Stop")
-                        .font(.system(size: 11, weight: .medium))
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .controlSize(.small)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.warning.opacity(0.15), lineWidth: 0.5)
-        )
-    }
-
-    private func executionScope(for mode: CoderMode) -> ExecutionScope {
-        switch mode {
-        case .agentSwarm: return .swarm
-        case .codeReviewMultiSwarm: return .review
-        case .plan: return .plan
-        default: return .agent
-        }
-    }
-
-    private func formatElapsed(_ s: Int) -> String {
-        let m = s / 60
-        let sec = s % 60
-        return String(format: "%d:%02d", m, sec)
+        chatStore.endTask()
     }
 
     @MainActor
@@ -937,7 +688,9 @@ struct ChatPanelView: View {
                 if activity.type == "read_batch_started" || activity.type == "read_batch_completed"
                     || activity.type == "web_search_started"
                     || activity.type == "web_search_completed"
-                    || activity.type == "web_search_failed"
+                    || activity.type == "web_search_failed" || activity.type == "command_execution"
+                    || activity.type == "bash" || activity.type == "mcp_tool_call"
+                    || activity.type == "reasoning"
                 {
                     taskActivityStore.appendOrMergeBatchEvent(activity)
                 } else {
@@ -997,17 +750,59 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Composer
+    @ViewBuilder
     private var composerArea: some View {
         VStack(spacing: 0) {
-            separator
-            if !isProviderReady {
-                providerNotReadyBanner
+            ChatComposerView(
+                inputText: $inputText,
+                attachedImageURLs: $attachedImageURLs,
+                isSelectingImage: $isSelectingImage,
+                isComposerDropTargeted: $isComposerDropTargeted,
+                isConvertingHeic: $isConvertingHeic,
+                isInputFocused: $isInputFocused,
+                isProviderReady: isProviderReady,
+                isLoading: chatStore.isLoading,
+                planningState: planningState,
+                activeModeColor: activeModeColor,
+                activeModeGradient: activeModeGradient,
+                inputHint: inputHint,
+                providerNotReadyMessage: providerNotReadyMessage,
+                onSend: sendMessage
+            )
+            ModeControlsBarView(
+                providerRegistry: providerRegistry,
+                chatStore: chatStore,
+                coderMode: coderMode,
+                conversationId: conversationId,
+                isAnyAgentProviderReady: isAnyAgentProviderReady,
+                codexModelOverride: $codexModelOverride,
+                codexReasoningEffort: $codexReasoningEffort,
+                codexSandbox: $codexSandbox,
+                geminiModelOverride: $geminiModelOverride,
+                swarmOrchestrator: $swarmOrchestrator,
+                taskPanelEnabled: $taskPanelEnabled,
+                showSwarmHelp: $showSwarmHelp,
+                inputText: $inputText,
+                planModeBackend: $planModeBackend,
+                swarmWorkerBackend: $swarmWorkerBackend,
+                openaiModel: $openaiModel,
+                claudeModel: $claudeModel,
+                codexModels: codexModels,
+                geminiModels: geminiModels,
+                effectiveModeProviderLabel: effectiveModeProviderLabel,
+                onSyncCodexProvider: syncCodexProvider,
+                onSyncGeminiProvider: syncGeminiProvider,
+                onSyncSwarmProvider: syncSwarmProvider,
+                onDelegateToAgent: delegateToAgent,
+                attachedImageURLs: attachedImageURLs
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+            .alert("Rate Limit Raggiunto", isPresented: $showRateLimitAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(rateLimitAlertText)
             }
-            VStack(spacing: 8) {
-                composerBox
-                controlsBar
-            }
-            .padding(12)
             UsageFooterView(
                 selectedConversationId: $selectedConversationId,
                 effectiveContext: effectiveContext,
@@ -1017,21 +812,6 @@ struct ChatPanelView: View {
                 claudeModel: claudeModel
             )
         }
-    }
-
-    private var providerNotReadyBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.orange)
-            Text(providerNotReadyMessage)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.08))
     }
 
     private var providerNotReadyMessage: String {
@@ -1061,149 +841,26 @@ struct ChatPanelView: View {
         }
     }
 
-    private var composerBox: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 5) {
-                    Circle().fill(activeModeGradient).frame(width: 6, height: 6)
-                    Text(inputHint)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(activeModeColor.opacity(0.6))
-                }
-                if !attachedImageURLs.isEmpty {
-                    attachedImagesRow
-                }
-                TextField("Scrivi un messaggio...", text: $inputText, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .lineLimit(1...8)
-                    .focused($isInputFocused)
-                    .onSubmit { sendMessage() }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 8) {
-                imageAttachButton
-                sendButton
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(DesignSystem.Colors.backgroundTertiary)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(
-                    isComposerDropTargeted
-                        ? activeModeColor.opacity(0.6)
-                        : (isInputFocused
-                            ? activeModeColor.opacity(0.4) : DesignSystem.Colors.border),
-                    lineWidth: isComposerDropTargeted ? 2 : (isInputFocused ? 1.2 : 0.5)
-                )
-        )
-        .shadow(color: isInputFocused ? activeModeColor.opacity(0.1) : .clear, radius: 12, y: 2)
-        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
-        .animation(.easeOut(duration: 0.2), value: isInputFocused)
-        .onDrop(of: [.image, .fileURL, .png, .jpeg, .gif], isTargeted: $isComposerDropTargeted) {
-            providers in
-            Task {
-                for provider in providers {
-                    if let url = await ImageAttachmentHelper.imageURLFromDropProvider(provider) {
-                        await MainActor.run { attachedImageURLs.append(url) }
-                    }
-                }
-            }
-            return true
-        }
-        .overlay {
-            if isConvertingHeic {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        VStack(spacing: 8) {
-                            ProgressView().controlSize(.regular)
-                            Text("Conversione HEIC in corso…")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-            }
-        }
-    }
-
-    private var attachedImagesRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(Array(attachedImageURLs.enumerated()), id: \.offset) { index, url in
-                    ZStack(alignment: .topTrailing) {
-                        if let nsImage = NSImage(contentsOf: url) {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 44, height: 44)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        Button {
-                            attachedImageURLs.remove(at: index)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.5), radius: 1)
-                        }
-                        .buttonStyle(.plain)
-                        .offset(x: 4, y: -4)
-                    }
-                }
-            }
-        }
-    }
-
-    private var imageAttachButton: some View {
-        Button {
-            isSelectingImage = true
-        } label: {
-            Image(systemName: "photo.badge.plus")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Allega immagine (⌘V per incollare)")
-    }
-
-    private var sendButton: some View {
-        let awaitingChoice = if case .awaitingChoice = planningState { true } else { false }
-        let canSend =
-            (!inputText.isEmpty || !attachedImageURLs.isEmpty) && !chatStore.isLoading
-            && !awaitingChoice && isProviderReady
-        return Button(action: sendMessage) {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
-                .background {
-                    Circle().fill(
-                        canSend
-                            ? activeModeGradient
-                            : LinearGradient(
-                                colors: [DesignSystem.Colors.borderAccent], startPoint: .top,
-                                endPoint: .bottom))
-                }
-                .shadow(color: canSend ? activeModeColor.opacity(0.3) : .clear, radius: 6, y: 2)
-        }
-        .buttonStyle(.plain).disabled(!canSend)
-        .animation(.easeOut(duration: 0.15), value: canSend)
-    }
-
     /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
     private var effectiveModeProviderLabel: String? {
         switch providerRegistry.selectedProviderId {
         case "plan-mode":
             return "Plan → " + (planModeBackend == "claude" ? "Claude CLI" : "Codex CLI")
         case "agent-swarm":
-            return "Swarm → " + (swarmWorkerBackend == "claude" ? "Claude CLI" : "Codex CLI")
+            let workerLabel: String = {
+                switch swarmWorkerBackend {
+                case "codex": return "Codex CLI"
+                case "claude": return "Claude Code"
+                case "gemini": return "Gemini CLI"
+                case "openai", "openai-api": return "OpenAI API"
+                case "anthropic-api": return "Anthropic API"
+                case "google-api": return "Google API"
+                case "openrouter-api", "openrouter": return "OpenRouter"
+                case "minimax-api": return "MiniMax"
+                default: return swarmWorkerBackend
+                }
+            }()
+            return "Swarm → \(workerLabel)"
         case "multi-swarm-review":
             let execLabel: String = {
                 switch codeReviewExecutionBackend {
@@ -1229,87 +886,15 @@ struct ChatPanelView: View {
             if coderMode == .agent || coderMode == .agentSwarm || coderMode == .codeReviewMultiSwarm
                 || coderMode == .plan
             {
-                if let selected = providerRegistry.selectedProviderId, selected == "codex-cli" {
-                    return "Codex CLI"
-                }
-                if let selected = providerRegistry.selectedProviderId, selected == "claude-cli" {
-                    return "Claude CLI"
+                if let selected = providerRegistry.selectedProviderId,
+                   let provider = providerRegistry.provider(for: selected),
+                   ProviderSupport.isAgentCompatibleProvider(id: selected)
+                {
+                    return provider.displayName
                 }
             }
             return nil
         }
-    }
-
-    private var controlsBar: some View {
-        HStack(spacing: 6) {
-            providerPicker
-            if let modeLabel = effectiveModeProviderLabel {
-                Text(modeLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.06))
-                    .clipShape(Capsule())
-            }
-            if providerRegistry.selectedProviderId == "codex-cli" {
-                codexModelPicker
-                codexReasoningPicker
-                accessLevelMenu
-                if coderMode == .agent || coderMode == .agentSwarm { formicaButton }
-            } else if providerRegistry.selectedProviderId == "gemini-cli" {
-                geminiModelPicker
-                if coderMode == .agent || coderMode == .agentSwarm { formicaButton }
-            } else if providerRegistry.selectedProviderId == "claude-cli" {
-                if coderMode == .agent || coderMode == .agentSwarm { formicaButton }
-            } else if providerRegistry.selectedProviderId == "agent-swarm" {
-                swarmOrchestratorPicker
-                swarmWorkerPicker
-                Button {
-                    showSwarmHelp = true
-                } label: {
-                    Image(systemName: "questionmark.circle").font(.caption).foregroundStyle(
-                        DesignSystem.Colors.swarmColor)
-                }.buttonStyle(.plain)
-                if coderMode == .agent || coderMode == .agentSwarm { formicaButton }
-            } else if providerRegistry.selectedProviderId == "plan-mode" {
-                Spacer()
-                if coderMode == .plan { formicaButton }
-            } else if [.agent, .agentSwarm, .plan].contains(coderMode) {
-                Spacer()
-                formicaButton
-            } else if coderMode == .ide {
-                Spacer()
-                delegaAdAgentButton
-            } else {
-                Spacer()
-            }
-        }
-    }
-
-    private var delegaAdAgentButton: some View {
-        let msg = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lastUser =
-            chatStore.conversation(for: conversationId)?.messages.last(where: { $0.role == .user })?
-            .content ?? ""
-        let canDelegate =
-            (!msg.isEmpty || !lastUser.isEmpty || !attachedImageURLs.isEmpty)
-            && !chatStore.isLoading
-        let agentOk = isAnyAgentProviderReady
-        return Button {
-            delegateToAgent()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.right.circle")
-                    .font(.system(size: 12))
-                Text("Delega ad Agent")
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .foregroundStyle((canDelegate && agentOk) ? DesignSystem.Colors.agentColor : .secondary)
-        }
-        .buttonStyle(.plain)
-        .disabled(!canDelegate || !agentOk)
-        .help("Passa ad Agent e invia il messaggio (modifica file, comandi)")
     }
 
     private var inputHint: String {
@@ -1325,306 +910,11 @@ struct ChatPanelView: View {
         }
     }
 
-    // MARK: - Pickers
-
-    private var providerPicker: some View {
-        Menu {
-            ForEach(providerRegistry.providers, id: \.id) { provider in
-                Button {
-                    providerRegistry.selectedProviderId = provider.id
-                    chatStore.updatePreferredProvider(
-                        conversationId: conversationId, providerId: provider.id)
-                    if coderMode == .agent && ProviderSupport.isAgentProvider(id: provider.id) {
-                        defaultAgentProviderId = provider.id
-                    }
-                } label: {
-                    HStack {
-                        Text(provider.displayName)
-                        if providerRegistry.selectedProviderId == provider.id {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu").font(.caption2)
-                Text(providerLabel).font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var providerLabel: String {
-        if let id = providerRegistry.selectedProviderId,
-            let p = providerRegistry.providers.first(where: { $0.id == id })
-        {
-            return p.displayName
-        }
-        return "Seleziona provider"
-    }
-
-    private var codexModelPicker: some View {
-        Menu {
-            Button {
-                codexModelOverride = ""
-                syncCodexProvider()
-            } label: {
-                HStack {
-                    Text("Default (da config)")
-                    if codexModelOverride.isEmpty { Image(systemName: "checkmark") }
-                }
-            }
-            if !codexModels.isEmpty {
-                Divider()
-                ForEach(codexModels, id: \.slug) { m in
-                    Button {
-                        codexModelOverride = m.slug
-                        syncCodexProvider()
-                    } label: {
-                        HStack {
-                            Text(m.displayName)
-                            if codexModelOverride == m.slug { Image(systemName: "checkmark") }
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(codexModelLabel).font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var codexModelLabel: String {
-        codexModelOverride.isEmpty
-            ? "Default"
-            : (codexModels.first(where: { $0.slug == codexModelOverride })?.displayName
-                ?? codexModelOverride)
-    }
-
-    private var geminiModelPicker: some View {
-        Menu {
-            Button {
-                geminiModelOverride = ""
-                syncGeminiProvider()
-            } label: {
-                HStack {
-                    Text("Default (auto)")
-                    if geminiModelOverride.isEmpty { Image(systemName: "checkmark") }
-                }
-            }
-            if !geminiModels.isEmpty {
-                Divider()
-                ForEach(geminiModels, id: \.slug) { m in
-                    Button {
-                        geminiModelOverride = m.slug
-                        syncGeminiProvider()
-                    } label: {
-                        HStack {
-                            Text(m.displayName)
-                            if geminiModelOverride == m.slug { Image(systemName: "checkmark") }
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(geminiModelLabel).font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var geminiModelLabel: String {
-        geminiModelOverride.isEmpty
-            ? "Default"
-            : (geminiModels.first(where: { $0.slug == geminiModelOverride })?.displayName
-                ?? geminiModelOverride)
-    }
-
-    private var codexReasoningPicker: some View {
-        Menu {
-            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { e in
-                Button {
-                    codexReasoningEffort = e
-                    syncCodexProvider()
-                } label: {
-                    HStack {
-                        Text(reasoningEffortDisplay(e))
-                        if codexReasoningEffort == e { Image(systemName: "checkmark") }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(reasoningEffortDisplay(codexReasoningEffort)).font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private func reasoningEffortDisplay(_ e: String) -> String {
-        switch e.lowercased() {
-        case "low": return "Low"
-        case "medium": return "Medium"
-        case "high": return "High"
-        case "xhigh": return "XHigh"
-        default: return e
-        }
-    }
-
     private var effectiveSandbox: String {
         codexSandbox.isEmpty
             ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
     }
 
-    private var accessLevelMenu: some View {
-        let cfg = CodexConfigLoader.load()
-        return Menu {
-            Button {
-                codexSandbox = ""
-                syncCodexProvider()
-            } label: {
-                HStack {
-                    Label("Default (da config)", systemImage: "doc.badge.gearshape")
-                    if codexSandbox.isEmpty { Image(systemName: "checkmark") }
-                }
-            }
-            if cfg.sandboxMode != nil {
-                Text("Config: \(accessLevelLabel(for: cfg.sandboxMode ?? ""))").font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Divider()
-            Button {
-                codexSandbox = "read-only"
-                syncCodexProvider()
-            } label: {
-                Label("Read Only", systemImage: "lock.shield")
-            }
-            Button {
-                codexSandbox = "workspace-write"
-                syncCodexProvider()
-            } label: {
-                Label("Default", systemImage: "shield")
-            }
-            Button {
-                codexSandbox = "danger-full-access"
-                syncCodexProvider()
-            } label: {
-                Label("Full Access", systemImage: "exclamationmark.shield.fill")
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: accessLevelIcon(for: effectiveSandbox)).font(.caption)
-                Text(accessLevelLabel(for: effectiveSandbox)).font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(
-                effectiveSandbox == "danger-full-access" ? DesignSystem.Colors.error : .secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var swarmOrchestratorPicker: some View {
-        Menu {
-            Button {
-                swarmOrchestrator = "openai"
-                syncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("OpenAI")
-                    if swarmOrchestrator == "openai" { Image(systemName: "checkmark") }
-                }
-            }
-            Button {
-                swarmOrchestrator = "codex"
-                syncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Codex")
-                    if swarmOrchestrator == "codex" { Image(systemName: "checkmark") }
-                }
-            }
-            Button {
-                swarmOrchestrator = "claude"
-                syncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Claude")
-                    if swarmOrchestrator == "claude" { Image(systemName: "checkmark") }
-                }
-            }
-            Button {
-                swarmOrchestrator = "gemini"
-                syncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Gemini")
-                    if swarmOrchestrator == "gemini" { Image(systemName: "checkmark") }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "ant.fill").font(.caption2)
-                let orchLabel: String = {
-                    switch swarmOrchestrator {
-                    case "codex": return "Codex"
-                    case "claude": return "Claude"
-                    case "gemini": return "Gemini"
-                    default: return "OpenAI"
-                    }
-                }()
-                Text("Orchestrator: \(orchLabel)").font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var swarmWorkerPicker: some View {
-        Menu {
-            ForEach(["codex", "claude", "gemini"], id: \.self) { backend in
-                Button {
-                    swarmWorkerBackend = backend
-                    syncSwarmProvider()
-                } label: {
-                    HStack {
-                        Text(backend.capitalized)
-                        if swarmWorkerBackend == backend { Image(systemName: "checkmark") }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu").font(.caption2)
-                Text("Worker: \(swarmWorkerBackend.capitalized)").font(.caption)
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
-            }.foregroundStyle(.secondary)
-        }.menuStyle(.borderlessButton).fixedSize()
-    }
-
-    private var formicaButton: some View {
-        Button {
-            taskPanelEnabled.toggle()
-        } label: {
-            Image(systemName: "ant.fill").font(.caption)
-                .foregroundStyle(taskPanelEnabled ? DesignSystem.Colors.swarmColor : .secondary)
-        }.buttonStyle(.plain).help("Task Activity Panel")
-    }
-
-    private func accessLevelIcon(for s: String) -> String {
-        switch s {
-        case "read-only": return "lock.shield"
-        case "danger-full-access": return "exclamationmark.shield.fill"
-        default: return "shield"
-        }
-    }
-    private func accessLevelLabel(for s: String) -> String {
-        switch s {
-        case "read-only": return "Read Only"
-        case "danger-full-access": return "Full Access"
-        default: return "Default"
-        }
-    }
     private func selectMode(_ mode: CoderMode) {
         userModeOverrideUntilConversationChange = true
         let currentConv = chatStore.conversation(for: selectedConversationId)
@@ -1650,16 +940,12 @@ struct ChatPanelView: View {
             }
         case .agent:
             if let preferred = newConv?.preferredProviderId,
-                ProviderSupport.isAgentProvider(id: preferred),
+                ProviderSupport.isAgentCompatibleProvider(id: preferred),
                 providerRegistry.provider(for: preferred) != nil
             {
                 providerRegistry.selectedProviderId = preferred
-            } else if ProviderSupport.isAgentProvider(id: defaultAgentProviderId),
-                providerRegistry.provider(for: defaultAgentProviderId) != nil
-            {
-                providerRegistry.selectedProviderId = defaultAgentProviderId
             } else if let current = providerRegistry.selectedProviderId,
-                ProviderSupport.isAgentProvider(id: current)
+                ProviderSupport.isAgentCompatibleProvider(id: current)
             {
                 // Mantieni provider attuale se già valido per Agent
             } else {
@@ -1776,16 +1062,13 @@ struct ChatPanelView: View {
         CodexConfigLoader.save(cfg)
     }
     private func syncSwarmProvider() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        let gemini = providerRegistry.provider(for: "gemini-cli") as? GeminiCLIProvider
         providerRegistry.unregister(id: "agent-swarm")
-        providerRegistry.register(
-            ProviderFactory.swarmProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude,
-                gemini: gemini, executionController: executionController))
+        if let swarm = ProviderFactory.swarmProvider(
+            config: providerFactoryConfig(),
+            executionController: executionController)
+        {
+            providerRegistry.register(swarm)
+        }
         checkProviderAuth()
     }
     private func syncMultiSwarmReviewProvider() {
@@ -1820,16 +1103,12 @@ struct ChatPanelView: View {
             }
         case .agent:
             if let preferred = conv.preferredProviderId,
-                ProviderSupport.isAgentProvider(id: preferred),
+                ProviderSupport.isAgentCompatibleProvider(id: preferred),
                 providerRegistry.provider(for: preferred) != nil
             {
                 providerRegistry.selectedProviderId = preferred
-            } else if ProviderSupport.isAgentProvider(id: defaultAgentProviderId),
-                providerRegistry.provider(for: defaultAgentProviderId) != nil
-            {
-                providerRegistry.selectedProviderId = defaultAgentProviderId
             } else if let current = providerRegistry.selectedProviderId,
-                ProviderSupport.isAgentProvider(id: current)
+                ProviderSupport.isAgentCompatibleProvider(id: current)
             {
                 // Mantieni provider attuale se già valido per Agent
             } else {
@@ -1848,6 +1127,11 @@ struct ChatPanelView: View {
             return
         }
         guard let id = pid else { return }
+        if ProviderSupport.isAgentCompatibleProvider(id: id) {
+            coderMode = .agent
+            planningState = .idle
+            return
+        }
         if ProviderSupport.isIDEProvider(id: id) {
             coderMode = .ide
             planningState = .idle
@@ -1899,8 +1183,6 @@ struct ChatPanelView: View {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
-            swarmWorkerBackendOverrides: UserDefaults.standard.string(
-                forKey: "swarm_worker_backend_overrides") ?? "",
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
             swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
             swarmMaxReviewLoops: swarmMaxReviewLoops,
@@ -2074,66 +1356,35 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Send Message
+    // MARK: - Send Message (orchestrator)
+
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
         guard let selectedProvider = providerRegistry.selectedProvider else { return }
         hasJustCompletedTask = false
-        let shouldRunPlanInline = coderMode == .agent && planToggleEnabled
-        let runtimeProvider: any LLMProvider = {
-            if shouldRunPlanInline,
-                let p = providerRegistry.provider(for: "plan-mode"),
-                p.isAuthenticated()
-            {
-                return p
-            }
-            if multiCLIAccountEnabled,
-                let selectedProviderId = providerRegistry.selectedProviderId,
-                let kind = CLIProviderKind.fromProviderId(selectedProviderId)
-            {
-                let availability = cliAccountRouter.currentAvailability(provider: kind)
-                if case .allExhausted = availability {
-                    return selectedProvider
-                }
-                return CLIMultiAccountProviderAdapter(
-                    providerKind: kind,
-                    id: selectedProviderId,
-                    displayName: selectedProvider.displayName,
-                    router: cliAccountRouter,
-                    accountsStore: cliAccountsStore,
-                    makeProvider: { _, env in
-                        let cfg = providerFactoryConfig()
-                        switch kind {
-                        case .codex:
-                            return ProviderFactory.codexProvider(
-                                config: cfg, executionController: executionController,
-                                environmentOverride: env)
-                        case .claude:
-                            return ProviderFactory.claudeProvider(
-                                config: cfg, executionController: executionController,
-                                environmentOverride: env)
-                        case .gemini:
-                            return ProviderFactory.geminiProvider(
-                                config: cfg, executionController: executionController,
-                                environmentOverride: env)
-                        }
-                    }
-                )
-            }
-            return selectedProvider
-        }()
-        if multiCLIAccountEnabled,
-            let selectedProviderId = providerRegistry.selectedProviderId,
-            let kind = CLIProviderKind.fromProviderId(selectedProviderId),
-            case .allExhausted(let reason) = cliAccountRouter.currentAvailability(provider: kind)
+
+        // Check rate limit before proceeding — show alert popup if at 100%
+        if let rateLimitMsg = providerUsageStore.rateLimitAlertMessage(
+            for: providerRegistry.selectedProviderId)
         {
-            appendTechnicalErrorMessage(
-                "[Multi-account \(kind.displayName): \(reason). Configura account o resetta i limiti nelle Impostazioni.]",
-                in: conversationId)
-            flowDiagnosticsStore.setError("Multi-account \(kind.rawValue): \(reason)")
+            rateLimitAlertText = rateLimitMsg
+            showRateLimitAlert = true
             return
         }
+
+        let shouldRunPlanInline = coderMode == .agent && planToggleEnabled
+
+        // 1. Resolve the runtime provider (plan-mode, multi-account, or default)
+        guard
+            let runtimeProvider = resolveRuntimeProvider(
+                selectedProvider: selectedProvider, shouldRunPlanInline: shouldRunPlanInline
+            )
+        else { return }
+
         guard runtimeProvider.isAuthenticated() else { return }
+
+        // 2. Build workspace context & checkpoint
         let ctx = effectiveContext.toWorkspaceContext(
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,
@@ -2148,6 +1399,8 @@ struct ChatPanelView: View {
             flowDiagnosticsStore.setError(error.localizedDescription)
             return
         }
+
+        // 3. Prepare messages in chat store
         let imagePathsToStore = attachedImageURLs.map { $0.path }
         inputText = ""
         let contentToStore =
@@ -2155,7 +1408,8 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: contentToStore, isStreaming: false,
-                imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore), to: conversationId
+                imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore),
+            to: conversationId
         )
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: conversationId)
@@ -2165,13 +1419,116 @@ struct ChatPanelView: View {
         }
         chatStore.beginTask()
         taskActivityStore.clear()
+        todoStore.clear()
         if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }
 
         let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
         attachedImageURLs = []
 
+        // 4. Build the prompt with mode-specific instructions
+        let prompt = buildPrompt(userText: text)
+
+        // 5. Execute async stream
+        Task {
+            await MainActor.run { flowDiagnosticsStore.selectedProviderId = runtimeProvider.id }
+            do {
+                let streamResult = try await flowCoordinator.runStream(
+                    provider: runtimeProvider,
+                    prompt: prompt,
+                    context: ctx,
+                    imageURLs: imageURLsToSend,
+                    onText: { content in
+                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                    },
+                    onRaw: { t, p, pid in
+                        handleRawStreamEvent(type: t, payload: p, providerId: pid)
+                    },
+                    onError: { content in
+                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                    }
+                )
+
+                // 6. Handle stream completion (plan options, swarm delegation)
+                await handleStreamResult(
+                    streamResult, shouldRunPlanInline: shouldRunPlanInline,
+                    ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+                )
+            } catch {
+                chatStore.updateLastAssistantMessage(
+                    content: "[Errore: \(error.localizedDescription)]", in: conversationId)
+                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                await MainActor.run {
+                    flowDiagnosticsStore.setError(error.localizedDescription)
+                    flowCoordinator.fail()
+                }
+            }
+            chatStore.endTask()
+        }
+    }
+
+    // MARK: - Resolve Runtime Provider
+
+    private func resolveRuntimeProvider(
+        selectedProvider: any LLMProvider, shouldRunPlanInline: Bool
+    ) -> (any LLMProvider)? {
+        if shouldRunPlanInline,
+            let p = providerRegistry.provider(for: "plan-mode"),
+            p.isAuthenticated()
+        {
+            return p
+        }
+        if multiCLIAccountEnabled,
+            let selectedProviderId = providerRegistry.selectedProviderId,
+            let kind = CLIProviderKind.fromProviderId(selectedProviderId)
+        {
+            // Check if all accounts are exhausted
+            if case .allExhausted(let reason) = cliAccountRouter.currentAvailability(
+                provider: kind)
+            {
+                appendTechnicalErrorMessage(
+                    "[Multi-account \(kind.displayName): \(reason). Configura account o resetta i limiti nelle Impostazioni.]",
+                    in: conversationId)
+                flowDiagnosticsStore.setError("Multi-account \(kind.rawValue): \(reason)")
+                return nil
+            }
+            let availability = cliAccountRouter.currentAvailability(provider: kind)
+            if case .allExhausted = availability {
+                return selectedProvider
+            }
+            return CLIMultiAccountProviderAdapter(
+                providerKind: kind,
+                id: selectedProviderId,
+                displayName: selectedProvider.displayName,
+                router: cliAccountRouter,
+                accountsStore: cliAccountsStore,
+                makeProvider: { _, env in
+                    let cfg = providerFactoryConfig()
+                    switch kind {
+                    case .codex:
+                        return ProviderFactory.codexProvider(
+                            config: cfg, executionController: executionController,
+                            environmentOverride: env)
+                    case .claude:
+                        return ProviderFactory.claudeProvider(
+                            config: cfg, executionController: executionController,
+                            environmentOverride: env)
+                    case .gemini:
+                        return ProviderFactory.geminiProvider(
+                            config: cfg, executionController: executionController,
+                            environmentOverride: env)
+                    }
+                }
+            )
+        }
+        return selectedProvider
+    }
+
+    // MARK: - Build Prompt
+
+    private func buildPrompt(userText: String) -> String {
         var prompt =
-            text.isEmpty ? "[L'utente ha allegato un'immagine. Analizzala e rispondi.]" : text
+            userText.isEmpty
+            ? "[L'utente ha allegato un'immagine. Analizzala e rispondi.]" : userText
         if coderMode == .ide {
             prompt =
                 "Rispondi solo con testo. Non modificare file né eseguire comandi.\n\n" + prompt
@@ -2179,12 +1536,16 @@ struct ChatPanelView: View {
         if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
         if providerRegistry.selectedProviderId == "codex-cli"
             || providerRegistry.selectedProviderId == "claude-cli"
-            || providerRegistry.selectedProviderId == "gemini-cli"
         {
             let baseInstructions = """
-                Se vuoi mostrare all'utente il pannello delle attività in corso (modifiche file, comandi, tool MCP), includi: \(CoderIDEMarkers.showTaskPanel)
-                Per aggiornare la todo list in modo strutturato usa marker:
-                \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift,file2.swift]
+                **Workflow Todo (obbligatorio):** All'inizio di ogni task:
+                1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
+                2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con tutti i task necessari usando marker:
+                \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
+                (usa un marker per ogni task; puoi includere id=uuid per aggiornamenti successivi)
+                3. Durante l'esecuzione, aggiorna lo status: in_progress quando lavori su un task, done quando è completato.
+                4. Verifica che tutti i todo siano done prima di concludere la risposta.
+                Se devi sapere lo stato attuale dei todo, emetti \(CoderIDEMarkers.todoRead) — il contesto include la lista sotto.
                 Per aggiornare step del piano usa marker:
                 \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
                 Se fai ricerche codice con rg, puoi emettere marker con risultati:
@@ -2201,160 +1562,165 @@ struct ChatPanelView: View {
             } else {
                 prompt = baseInstructions + "\n" + prompt
             }
+            if !todoStore.todos.isEmpty {
+                let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
+                    .map { t -> String in
+                        let check = t.status == .done ? "x" : " "
+                        return "- [\(check)] \(t.title) (\(t.status.rawValue))"
+                    }
+                    .joined(separator: "\n")
+                prompt += "\n\n## Todo correnti\n\(todoSection)"
+            }
         }
+        return prompt
+    }
 
-        Task {
-            await MainActor.run { flowDiagnosticsStore.selectedProviderId = runtimeProvider.id }
-            do {
-                let streamResult = try await flowCoordinator.runStream(
-                    provider: runtimeProvider,
-                    prompt: prompt,
-                    context: ctx,
-                    imageURLs: imageURLsToSend,
-                    onText: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
-                    },
-                    onRaw: { t, p, pid in
-                        if t == "coderide_show_task_panel" { taskPanelEnabled = true }
-                        if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
-                            let n = s.split(separator: ",").map {
-                                String($0).trimmingCharacters(in: .whitespaces)
-                            }
-                            swarmProgressStore.setSteps(n)
-                        }
-                        if t == "agent", let title = p["title"], let detail = p["detail"] {
-                            if detail == "started" {
-                                swarmProgressStore.markStarted(name: title)
-                            } else if detail == "completed" {
-                                swarmProgressStore.markCompleted(name: title)
-                            }
-                        }
-                        if t == "usage", let selectedId = providerRegistry.selectedProviderId,
-                            selectedId.hasSuffix("-api"),
-                            let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
-                            let inp = Int(inpStr), let out = Int(outStr)
-                        {
-                            providerUsageStore.addApiUsage(
-                                inputTokens: inp, outputTokens: out,
-                                model: p["model"] ?? "gpt-4o-mini")
-                        }
-                        recordTaskActivity(type: t, payload: p, providerId: pid)
-                    },
-                    onError: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
-                    }
-                )
-                let full = streamResult.fullText
-                let pendingSwarmTask = streamResult.pendingSwarmTask
-                chatStore.setLastAssistantStreaming(false, in: conversationId)
-                await trySummarizeIfNeeded(ctx: ctx)
-                if coderMode == .plan || shouldRunPlanInline {
-                    let opts = PlanOptionsParser.parse(from: full)
-                    if !opts.isEmpty {
-                        await MainActor.run {
-                            if coderMode == .plan {
-                                planningState = .awaitingChoice(planContent: full, options: opts)
-                            }
-                            let board = PlanBoard.build(from: full, options: opts)
-                            chatStore.setPlanBoard(board, for: conversationId)
-                            if shouldRunPlanInline, let cid = conversationId {
-                                inlinePlanSummaries[cid] = {
-                                    let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
-                                    return InlinePlanSummary(title: parsed.title, body: parsed.body)
-                                }()
-                                isPlanSummaryCollapsed = false
-                                let currentConv = chatStore.conversation(for: cid)
-                                let contextId = currentConv?.contextId
-                                let contextFolderPath = currentConv?.contextFolderPath
-                                let planConvId = chatStore.getOrCreateConversationForMode(
-                                    contextId: contextId, contextFolderPath: contextFolderPath,
-                                    mode: .plan)
-                                chatStore.setPlanBoard(board, for: planConvId)
-                            }
-                        }
-                    }
-                }
-                if let task = pendingSwarmTask,
-                    let swarm = providerRegistry.provider(for: "agent-swarm"),
-                    swarm.isAuthenticated()
-                {
-                    let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
-                    chatStore.addMessage(
-                        ChatMessage(
-                            role: .user, content: "[Delegato allo swarm] \(task)",
-                            isStreaming: false), to: conversationId)
-                    chatStore.addMessage(
-                        ChatMessage(role: .assistant, content: "", isStreaming: true),
-                        to: conversationId)
-                    chatStore.beginTask()
-                    taskActivityStore.clear()
-                    swarmProgressStore.clear()
-                    let followUpProvider: (any LLMProvider)? = {
-                        guard let agentId = agentProviderIdBeforeSwarm,
-                            agentId == "codex-cli" || agentId == "claude-cli",
-                            let agentProvider = providerRegistry.provider(for: agentId),
-                            agentProvider.isAuthenticated()
-                        else { return nil }
-                        chatStore.addMessage(
-                            ChatMessage(
-                                role: .user, content: "[Seguito agent dopo swarm]",
-                                isStreaming: false), to: conversationId)
-                        chatStore.addMessage(
-                            ChatMessage(role: .assistant, content: "", isStreaming: true),
-                            to: conversationId)
-                        return agentProvider
-                    }()
-                    await flowCoordinator.runDelegatedSwarm(
-                        task: task,
-                        swarmProvider: swarm,
-                        context: ctx,
-                        imageURLs: imageURLsToSend,
-                        agentFollowUpProvider: followUpProvider,
-                        originalPrompt: prompt,
-                        onSwarmText: { content in
-                            chatStore.updateLastAssistantMessage(
-                                content: content, in: conversationId)
-                        },
-                        onRaw: { t, p, pid in
-                            if t == "coderide_show_task_panel" { taskPanelEnabled = true }
-                            if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
-                                let n = s.split(separator: ",").map {
-                                    String($0).trimmingCharacters(in: .whitespaces)
-                                }
-                                swarmProgressStore.setSteps(n)
-                            }
-                            if t == "agent", let ti = p["title"], let de = p["detail"] {
-                                if de == "started" {
-                                    swarmProgressStore.markStarted(name: ti)
-                                } else if de == "completed" {
-                                    swarmProgressStore.markCompleted(name: ti)
-                                }
-                            }
-                            recordTaskActivity(type: t, payload: p, providerId: pid)
-                        },
-                        onFollowUpText: { content in
-                            chatStore.updateLastAssistantMessage(
-                                content: content, in: conversationId)
-                        },
-                        onError: { content in
-                            chatStore.updateLastAssistantMessage(
-                                content: content, in: conversationId)
-                        }
-                    )
-                    chatStore.endTask()
-                    await trySummarizeIfNeeded(ctx: ctx)
-                }
-            } catch {
-                chatStore.updateLastAssistantMessage(
-                    content: "[Errore: \(error.localizedDescription)]", in: conversationId)
-                chatStore.setLastAssistantStreaming(false, in: conversationId)
+    // MARK: - Handle Raw Stream Events
+
+    private func handleRawStreamEvent(
+        type t: String, payload p: [String: String], providerId pid: String
+    ) {
+        if t == "coderide_show_task_panel" { taskPanelEnabled = true }
+        if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
+            let n = s.split(separator: ",").map {
+                String($0).trimmingCharacters(in: .whitespaces)
+            }
+            swarmProgressStore.setSteps(n)
+        }
+        if t == "agent", let title = p["title"], let detail = p["detail"] {
+            if detail == "started" {
+                swarmProgressStore.markStarted(name: title)
+            } else if detail == "completed" {
+                swarmProgressStore.markCompleted(name: title)
+            }
+        }
+        if t == "usage", let selectedId = providerRegistry.selectedProviderId,
+            selectedId.hasSuffix("-api"),
+            let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
+            let inp = Int(inpStr), let out = Int(outStr)
+        {
+            providerUsageStore.addApiUsage(
+                inputTokens: inp, outputTokens: out,
+                model: p["model"] ?? "gpt-4o-mini")
+        }
+        recordTaskActivity(type: t, payload: p, providerId: pid)
+    }
+
+    // MARK: - Handle Stream Result (plan options + swarm delegation)
+
+    private func handleStreamResult(
+        _ streamResult: (fullText: String, pendingSwarmTask: String?),
+        shouldRunPlanInline: Bool,
+        ctx: WorkspaceContext,
+        imageURLsToSend: [URL]?,
+        prompt: String
+    ) async {
+        let full = streamResult.fullText
+        let pendingSwarmTask = streamResult.pendingSwarmTask
+        chatStore.setLastAssistantStreaming(false, in: conversationId)
+        await trySummarizeIfNeeded(ctx: ctx)
+
+        // Handle plan options parsing
+        if coderMode == .plan || shouldRunPlanInline {
+            let opts = PlanOptionsParser.parse(from: full)
+            if !opts.isEmpty {
                 await MainActor.run {
-                    flowDiagnosticsStore.setError(error.localizedDescription)
-                    flowCoordinator.fail()
+                    if coderMode == .plan {
+                        planningState = .awaitingChoice(planContent: full, options: opts)
+                    }
+                    let board = PlanBoard.build(from: full, options: opts)
+                    chatStore.setPlanBoard(board, for: conversationId)
+                    if shouldRunPlanInline, let cid = conversationId {
+                        inlinePlanSummaries[cid] = {
+                            let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
+                            return InlinePlanSummary(title: parsed.title, body: parsed.body)
+                        }()
+                        isPlanSummaryCollapsed = false
+                        let currentConv = chatStore.conversation(for: cid)
+                        let contextId = currentConv?.contextId
+                        let contextFolderPath = currentConv?.contextFolderPath
+                        let planConvId = chatStore.getOrCreateConversationForMode(
+                            contextId: contextId, contextFolderPath: contextFolderPath,
+                            mode: .plan)
+                        chatStore.setPlanBoard(board, for: planConvId)
+                    }
                 }
             }
-            chatStore.endTask()
         }
+
+        // Handle delegated swarm if pending
+        if let task = pendingSwarmTask {
+            await handleDelegatedSwarm(
+                task: task, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+            )
+        }
+    }
+
+    // MARK: - Delegated Swarm Handling
+
+    private func handleDelegatedSwarm(
+        task: String,
+        ctx: WorkspaceContext,
+        imageURLsToSend: [URL]?,
+        prompt: String
+    ) async {
+        guard let swarm = providerRegistry.provider(for: "agent-swarm"),
+            swarm.isAuthenticated()
+        else { return }
+
+        let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
+        chatStore.addMessage(
+            ChatMessage(
+                role: .user, content: "[Delegato allo swarm] \(task)",
+                isStreaming: false), to: conversationId)
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId)
+        chatStore.beginTask()
+        taskActivityStore.clear()
+        swarmProgressStore.clear()
+
+        let followUpProvider: (any LLMProvider)? = {
+            guard let agentId = agentProviderIdBeforeSwarm,
+                agentId == "codex-cli" || agentId == "claude-cli",
+                let agentProvider = providerRegistry.provider(for: agentId),
+                agentProvider.isAuthenticated()
+            else { return nil }
+            chatStore.addMessage(
+                ChatMessage(
+                    role: .user, content: "[Seguito agent dopo swarm]",
+                    isStreaming: false), to: conversationId)
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: conversationId)
+            return agentProvider
+        }()
+
+        await flowCoordinator.runDelegatedSwarm(
+            task: task,
+            swarmProvider: swarm,
+            context: ctx,
+            imageURLs: imageURLsToSend,
+            agentFollowUpProvider: followUpProvider,
+            originalPrompt: prompt,
+            onSwarmText: { content in
+                chatStore.updateLastAssistantMessage(
+                    content: content, in: conversationId)
+            },
+            onRaw: { t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid)
+            },
+            onFollowUpText: { content in
+                chatStore.updateLastAssistantMessage(
+                    content: content, in: conversationId)
+            },
+            onError: { content in
+                chatStore.updateLastAssistantMessage(
+                    content: content, in: conversationId)
+            }
+        )
+        chatStore.endTask()
+        await trySummarizeIfNeeded(ctx: ctx)
     }
 
     private func createCheckpointBeforeTurn(
@@ -2494,22 +1860,20 @@ struct ChatPanelView: View {
     }
 
     private func streamingStatusText(for message: ChatMessage) -> String {
-        guard message.isStreaming, message.role == .assistant else { return "Writing..." }
+        guard message.isStreaming, message.role == .assistant else { return "Sto scrivendo..." }
         if executionController.runState == .paused {
-            return "Paused"
+            return "In pausa..."
         }
-        guard let last = taskActivityStore.activities.last else { return "Thinking..." }
+        guard let last = taskActivityStore.activities.last else { return "Sto pensando..." }
         switch last.phase {
         case .executing:
-            return "Executing..."
+            return "Sto eseguendo..."
         case .editing:
-            return "Editing files..."
+            return "Sto scrivendo..."
         case .searching:
-            return "Searching..."
-        case .planning:
-            return "Planning..."
-        case .thinking:
-            return "Thinking..."
+            return "Ricerca web in corso..."
+        case .planning, .thinking:
+            return "Sto pensando..."
         }
     }
 
@@ -2518,301 +1882,23 @@ struct ChatPanelView: View {
         guard let last = taskActivityStore.activities.last else { return nil }
         let op = taskActivityStore.activeOperationsCount
         if op > 0 {
-            return "\(last.title) · \(op) active ops"
+            return "\(last.title) • \(op) operazioni attive"
         }
         return last.title
     }
-}
 
-// MARK: - Message Row (Cursor-style)
-
-struct MessageRow: View {
-    let message: ChatMessage
-    let context: ProjectContext?
-    let modeColor: Color
-    let streamingStatusText: String
-    let streamingDetailText: String?
-    let onFileClicked: (String) -> Void
-    @State private var isHovered = false
-    @State private var showCopyButton = false
-
-    private var isUser: Bool { message.role == .user }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Role header
-            HStack(spacing: 8) {
-                avatar
-
-                Text(isUser ? "You" : assistantLabel)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isUser ? .primary : modeColor)
-
-                if !isUser && message.isStreaming {
-                    StreamingPulse(color: modeColor)
-                }
-
-                Spacer()
-
-                if isHovered && !message.content.isEmpty && !message.isStreaming {
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(message.content, forType: .string)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .buttonStyle(.plain)
-                    .transition(.opacity)
-                }
+    private func streamingReasoningText(for message: ChatMessage) -> String? {
+        guard message.isStreaming, message.role == .assistant else { return nil }
+        let raw = taskActivityStore.activities
+            .reversed()
+            .first {
+                $0.phase == .thinking
+                    && !(($0.payload["output"] ?? $0.payload["text"] ?? "").trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty)
             }
-            .padding(.bottom, 8)
-
-            // Attached images (user messages)
-            if let paths = message.imagePaths, !paths.isEmpty {
-                userMessageImagesRow(paths: paths)
-                    .padding(.bottom, 8)
-            }
-
-            // Message content
-            if !message.content.isEmpty {
-                if isUser {
-                    // User messages: clean plain text, slightly different styling
-                    Text(message.content)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    // Assistant messages: full rich markdown rendering
-                    ClickableMessageContent(
-                        content: message.content,
-                        context: context,
-                        onFileClicked: onFileClicked
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            // Streaming indicator
-            if message.isStreaming {
-                streamingBar
-                    .padding(.top, 8)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(messageBackground)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovered = hovering
-            }
-        }
-    }
-
-    private var assistantLabel: String {
-        "Assistant"
-    }
-
-    @ViewBuilder
-    private var messageBackground: some View {
-        if isUser {
-            // User messages: subtle tinted background
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(DesignSystem.Colors.userBubble.opacity(0.55))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.accentColor.opacity(0.08), lineWidth: 0.5)
-                )
-        } else if isHovered {
-            // Hovered assistant: very subtle highlight
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.02))
-        } else {
-            Color.clear
-        }
-    }
-
-    // MARK: - Avatar
-
-    private var avatar: some View {
-        Group {
-            if isUser {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.12))
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.accentColor.opacity(0.7))
-                }
-                .frame(width: 24, height: 24)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(modeColor.opacity(0.12))
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(modeColor)
-                }
-                .frame(width: 24, height: 24)
-            }
-        }
-    }
-
-    // MARK: - Streaming Bar
-
-    private var streamingBar: some View {
-        HStack(spacing: 10) {
-            // Animated thinking indicator
-            HStack(spacing: 6) {
-                StreamingDots(color: modeColor)
-                Text(streamingStatusText)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            if let detail = streamingDetailText, !detail.isEmpty {
-                Text("·")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.quaternary)
-
-                Text(detail)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(modeColor.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(modeColor.opacity(0.08), lineWidth: 0.5)
-        )
-    }
-
-    // MARK: - Image Attachments
-
-    @ViewBuilder
-    private func userMessageImagesRow(paths: [String]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(paths, id: \.self) { path in
-                    Group {
-                        if FileManager.default.fileExists(atPath: path),
-                            let nsImage = NSImage(contentsOf: URL(fileURLWithPath: path))
-                        {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
-                            Image(systemName: "photo")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.quaternary)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                    .frame(width: 72, height: 72)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Streaming Dots (refined)
-
-struct StreamingDots: View {
-    let color: Color
-    @State private var phase: Int = 0
-    @State private var timer: Timer?
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .fill(color)
-                    .frame(width: 4, height: 4)
-                    .opacity(dotOpacity(for: i))
-                    .scaleEffect(dotScale(for: i))
-            }
-        }
-        .onAppear {
-            timer?.invalidate()
-            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    phase = (phase + 1) % 3
-                }
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
-    }
-
-    private func dotOpacity(for index: Int) -> Double {
-        phase == index ? 1.0 : 0.2
-    }
-
-    private func dotScale(for index: Int) -> CGFloat {
-        phase == index ? 1.15 : 0.85
-    }
-}
-
-// MARK: - Streaming Pulse (header indicator)
-
-struct StreamingPulse: View {
-    let color: Color
-    @State private var isAnimating = false
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 6, height: 6)
-            .opacity(isAnimating ? 1.0 : 0.25)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                    isAnimating = true
-                }
-            }
-    }
-}
-
-// MARK: - Backward compat aliases
-typealias MessageBubbleView = MessageRow
-
-struct TypingIndicator: View {
-    @State private var dot = 0
-    @State private var timer: Timer?
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle().fill(Color.secondary).frame(width: 4, height: 4).opacity(
-                    dot == i ? 1 : 0.3)
-            }
-        }
-        .onAppear {
-            timer?.invalidate()
-            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-                withAnimation { dot = (dot + 1) % 3 }
-            }
-        }
-        .onDisappear {
-            timer?.invalidate()
-            timer = nil
-        }
+            .flatMap { $0.payload["output"] ?? $0.payload["text"] }
+        let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? nil : text
     }
 }

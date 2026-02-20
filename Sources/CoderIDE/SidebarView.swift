@@ -31,7 +31,11 @@ struct SidebarView: View {
     private let checkpointGitStore = ConversationCheckpointGitStore()
 
     private var selectedConversation: Conversation? { chatStore.conversation(for: selectedConversationId) }
-    private var isIDEMode: Bool { selectedConversation?.mode == .ide || ProviderSupport.isIDEProvider(id: providerRegistry.selectedProviderId) }
+    private var isIDEMode: Bool {
+        if let mode = selectedConversation?.mode { return mode == .ide }
+        let pid = providerRegistry.selectedProviderId
+        return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
+    }
     private var currentContext: ProjectContext? { projectContextStore.context(id: selectedConversation?.contextId) }
 
     private var orderedContexts: [ProjectContext] {

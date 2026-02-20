@@ -52,7 +52,7 @@ struct CodigoApp: App {
     @AppStorage("minimax_api_key") private var minimaxApiKey = ""
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
-    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4.5"
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
 
@@ -181,15 +181,13 @@ struct CodigoApp: App {
     }
 
     private func registerSwarmProvider() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        let swarm = ProviderFactory.swarmProvider(
-            config: providerFactoryConfig(), codex: codex, claude: claude,
-            executionController: executionController)
         providerRegistry.unregister(id: "agent-swarm")
-        providerRegistry.register(swarm)
+        if let swarm = ProviderFactory.swarmProvider(
+            config: providerFactoryConfig(),
+            executionController: executionController)
+        {
+            providerRegistry.register(swarm)
+        }
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {
@@ -219,8 +217,6 @@ struct CodigoApp: App {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
-            swarmWorkerBackendOverrides: UserDefaults.standard.string(
-                forKey: "swarm_worker_backend_overrides") ?? "",
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
             swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
             swarmMaxReviewLoops: swarmMaxReviewLoops,

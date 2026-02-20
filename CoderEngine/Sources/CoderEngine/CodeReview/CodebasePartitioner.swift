@@ -82,6 +82,9 @@ public enum CodebasePartitioner: Sendable {
 
     /// Distribuisce file in modo bilanciato
     private static func partitionBalanced(files: [String], count: Int) -> [CodebasePartition] {
+        guard count > 0 else {
+            return [CodebasePartition(id: "p0", paths: files)]
+        }
         let n = min(count, files.count)
         let chunkSize = (files.count + n - 1) / n
         var result: [CodebasePartition] = []

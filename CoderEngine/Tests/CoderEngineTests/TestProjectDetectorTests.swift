@@ -65,8 +65,11 @@ final class TestProjectDetectorTests: XCTestCase {
         try "".write(to: tempDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
 
         let cmd = TestProjectDetector.testCommand(workspacePath: tempDir)
-        XCTAssertNotNil(cmd)
-        XCTAssertTrue(cmd!.arguments.contains("test"))
+        guard let cmd else {
+            XCTFail("Atteso comando di test Swift non nil")
+            return
+        }
+        XCTAssertTrue(cmd.arguments.contains("test"))
     }
 
     func testTestCommandUnknownReturnsNil() {

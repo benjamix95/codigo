@@ -1,5 +1,28 @@
 import Foundation
 
+// #region agent log
+private func _dbgLog(_ msg: String, _ data: [String: Any] = [:]) {
+    var payload: [String: Any] = [
+        "sessionId": "63fcab",
+        "location": "ToolEnabledLLMProvider",
+        "message": msg,
+        "timestamp": Int(Date().timeIntervalSince1970 * 1000)
+    ]
+    data.forEach { payload[$0.key] = $0.value }
+    guard let json = try? JSONSerialization.data(withJSONObject: payload),
+          let line = String(data: json, encoding: .utf8) else { return }
+    let path = "/Users/benjaminstoica/codigo/.cursor/debug-63fcab.log"
+    if !FileManager.default.fileExists(atPath: path) {
+        FileManager.default.createFile(atPath: path, contents: nil)
+    }
+    if let fh = try? FileHandle(forUpdating: URL(fileURLWithPath: path)) {
+        defer { try? fh.close() }
+        fh.seekToEndOfFile()
+        fh.write((line + "\n").data(using: .utf8) ?? Data())
+    }
+}
+// #endregion
+
 public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
@@ -15,7 +38,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         runtime: UnifiedToolRuntime = UnifiedToolRuntime(),
         policy: ToolRuntimePolicy = ToolRuntimePolicy(),
         executionScope: ExecutionScope = .agent,
-        maxToolRounds: Int = 8
+        maxToolRounds: Int = 20
     ) {
         self.base = base
         self.id = base.id
@@ -30,14 +53,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         base.isAuthenticated()
     }
 
-    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil)
-        async throws -> AsyncThrowingStream<StreamEvent, Error>
-    {
+    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let initialPrompt = """
-            \(toolProtocolPrompt)
+        \(toolProtocolPrompt)
 
-            \(prompt)
-            """
+        \(prompt)
+        """
 
         return AsyncThrowingStream { continuation in
             Task {
@@ -48,9 +69,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     var isFirstRound = true
 
                     for _ in 0..<maxToolRounds {
-                        let stream = try await base.send(
-                            prompt: currentPrompt, context: context,
-                            imageURLs: isFirstRound ? imageURLs : nil)
+                        let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
                         var roundText = ""
                         var roundToolResults: [[String: String]] = []
 
@@ -61,21 +80,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 continuation.yield(.textDelta(delta))
                                 let markers = CoderIDEMarkerParser.parse(from: roundText)
                                 for marker in markers {
-                                    let dedupeId =
-                                        marker.payload["id"]
-                                        ?? "\(marker.kind)|\(marker.payload.description)"
+                                    let dedupeId = marker.payload["id"] ?? "\(marker.kind)|\(marker.payload.description)"
                                     if emittedMarkerIds.contains(dedupeId) { continue }
                                     emittedMarkerIds.insert(dedupeId)
+                                    _dbgLog("marker_parsed", ["hypothesisId": "H1", "kind": marker.kind, "payloadKeys": Array(marker.payload.keys).joined(separator: ","), "runId": "post-fix"])
 
                                     let produced = await events(for: marker, context: context)
+                                    _dbgLog("events_returned", ["hypothesisId": "H1", "kind": marker.kind, "producedCount": produced.count, "runId": "post-fix"])
                                     for e in produced {
                                         continuation.yield(e)
                                     }
-                                    if marker.kind == "tool_call",
-                                        let summary = summarizeToolResultEvents(
-                                            produced, marker: marker)
-                                    {
+                                    if marker.kind == "tool_call" || ["glob", "read", "grep"].contains(marker.kind),
+                                       let summary = summarizeToolResultEvents(produced, marker: marker) {
                                         roundToolResults.append(summary)
+                                    } else if marker.kind == "read_batch",
+                                       let summary = summarizeReadBatchEvents(produced, marker: marker) {
+                                        roundToolResults.append(summary)
+                                    } else if marker.kind == "todo_write" || marker.kind == "plan_step" {
+                                        roundToolResults.append(summarizeAckMarker(marker))
                                     }
                                 }
                             case .started:
@@ -86,17 +108,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 break
                             case .raw(let type, let payload):
                                 if type == "tool_call_suggested" {
-                                    let isPartial =
-                                        (payload["is_partial"] ?? "").lowercased() == "true"
+                                    let isPartial = (payload["is_partial"] ?? "").lowercased() == "true"
                                     if isPartial { continue }
-                                    let name =
-                                        payload["name"]?.trimmingCharacters(
-                                            in: .whitespacesAndNewlines) ?? ""
+                                    let name = payload["name"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                                     if name.isEmpty { continue }
                                     var args: [String: String] = [:]
-                                    if let argsJson = payload["args"],
-                                        let parsed = parseArgsJSON(argsJson)
-                                    {
+                                    if let argsJson = payload["args"], let parsed = parseArgsJSON(argsJson) {
                                         args = parsed
                                     }
                                     args["id"] = payload["id"] ?? UUID().uuidString
@@ -106,9 +123,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     for e in produced {
                                         continuation.yield(e)
                                     }
-                                    if let summary = summarizeToolResultEvents(
-                                        produced, marker: marker)
-                                    {
+                                    if let summary = summarizeToolResultEvents(produced, marker: marker) {
                                         roundToolResults.append(summary)
                                     }
                                 } else {
@@ -120,9 +135,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         }
 
                         conversationTranscript += "\n[assistant]\n\(roundText)\n"
-                        if roundToolResults.isEmpty {
-                            break
-                        }
+                        _dbgLog("round_end", ["hypothesisId": "H2", "roundToolResultsCount": roundToolResults.count, "willBreak": false, "runId": "post-fix"])
                         currentPrompt = buildFollowUpPrompt(
                             originalPrompt: prompt,
                             transcript: conversationTranscript,
@@ -140,12 +153,111 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private func summarizeToolResultEvents(_ events: [StreamEvent], marker: CoderIDEMarker)
-        -> [String: String]?
-    {
+    private func executeReadBatch(marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
+        let filesStr = marker.payload["files"] ?? ""
+        let groupId = marker.payload["group_id"] ?? UUID().uuidString
+        let workspacePath = context.workspacePath.path
+        func resolvePath(_ raw: String) -> String {
+            let t = raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            guard !t.isEmpty else { return "" }
+            if (t as NSString).isAbsolutePath { return t }
+            return (workspacePath as NSString).appendingPathComponent(t)
+        }
+        let filePaths = filesStr
+            .components(separatedBy: ",")
+            .map { resolvePath($0) }
+            .filter { !$0.isEmpty }
+        guard !filePaths.isEmpty else {
+            return [
+                .raw(type: "read_batch_started", payload: marker.payload),
+                .raw(type: "read_batch_completed", payload: [
+                    "title": "Read batch",
+                    "detail": "Nessun file specificato",
+                    "status": "failed",
+                    "group_id": groupId
+                ])
+            ]
+        }
+        var result: [StreamEvent] = [.raw(type: "read_batch_started", payload: marker.payload)]
+        var combinedOutput: [String] = []
+        let execContext = ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope)
+        for path in filePaths {
+            let call = ToolCall(
+                id: UUID().uuidString,
+                name: "read",
+                args: ["path": path],
+                sourceProvider: id,
+                swarmId: marker.payload["swarm_id"],
+                scope: executionScope
+            )
+            let events = await runtime.execute(call, context: execContext)
+            for event in events {
+                result.append(event)
+                if case .raw(let type, let payload) = event,
+                   (type == "read_batch_completed" || payload["status"] == "completed"),
+                   let out = payload["output"], !out.isEmpty {
+                    combinedOutput.append("--- \(path) ---\n\(out)")
+                }
+            }
+        }
+        let output = combinedOutput.joined(separator: "\n\n")
+        result.append(.raw(type: "read_batch_completed", payload: [
+            "title": "Read batch (\(filePaths.count) file)",
+            "detail": filePaths.joined(separator: ", "),
+            "path": filePaths.first ?? "",
+            "files": filePaths.joined(separator: ","),
+            "output": String(output.prefix(12_000)),
+            "status": "completed",
+            "group_id": groupId
+        ]))
+        return result
+    }
+
+    private func summarizeAckMarker(_ marker: CoderIDEMarker) -> [String: String] {
+        let id = marker.payload["id"] ?? marker.payload["group_id"] ?? marker.payload["step_id"] ?? UUID().uuidString
+        let detail = marker.payload["title"] ?? marker.payload["status"] ?? "ok"
+        return [
+            "id": id,
+            "name": marker.kind,
+            "status": "acked",
+            "detail": detail
+        ]
+    }
+
+    private func summarizeReadBatchEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
+        var lastCompleted: [String: String]?
+        for event in events {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "read_batch_completed", payload["status"] == "completed" {
+                var summary: [String: String] = [
+                    "id": marker.payload["group_id"] ?? UUID().uuidString,
+                    "name": "read_batch",
+                    "status": "completed",
+                    "detail": payload["detail"] ?? payload["title"] ?? "ok"
+                ]
+                if let output = payload["output"], !output.isEmpty {
+                    summary["output"] = String(output.prefix(6000))
+                }
+                if let path = payload["path"] ?? payload["files"], !path.isEmpty {
+                    summary["path"] = path
+                }
+                lastCompleted = summary
+            } else if payload["status"] == "failed" {
+                return [
+                    "id": marker.payload["group_id"] ?? UUID().uuidString,
+                    "name": "read_batch",
+                    "status": "failed",
+                    "detail": payload["detail"] ?? payload["stderr"] ?? "read_batch failed"
+                ]
+            }
+        }
+        return lastCompleted
+    }
+
+    private func summarizeToolResultEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
         var summary: [String: String] = [
             "id": marker.payload["id"] ?? UUID().uuidString,
-            "name": marker.payload["name"] ?? "",
+            "name": marker.payload["name"] ?? ""
         ]
         var foundCompletion = false
         for event in events {
@@ -169,48 +281,51 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return foundCompletion ? summary : nil
     }
 
-    private func buildFollowUpPrompt(
-        originalPrompt: String, transcript: String, toolResults: [[String: String]]
-    ) -> String {
-        let formattedResults = toolResults.map { result in
-            let id = result["id"] ?? "-"
-            let name = result["name"] ?? "-"
-            let status = result["status"] ?? "unknown"
-            let detail = result["detail"] ?? ""
-            let path = result["path"].map { "\npath: \($0)" } ?? ""
-            let output = result["output"].map { "\noutput (truncated):\n\($0)" } ?? ""
-            return
-                "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
-        }.joined(separator: "\n")
+    private func buildFollowUpPrompt(originalPrompt: String, transcript: String, toolResults: [[String: String]]) -> String {
+        let resultsSection: String
+        if toolResults.isEmpty {
+            resultsSection = """
+            (Nessun tool usato nel round precedente.)
+
+            Continua il task. Se servono altri tool emetti [CODERIDE:read|...], [CODERIDE:glob|...], [CODERIDE:grep|...], [CODERIDE:tool_call|...].
+            Se hai finito: OBBLIGATORIO fornire un riepilogo finale all'utente: cosa hai fatto, quali file/comandi hai usato, esito. Non concludere mai senza questo riepilogo.
+            """
+        } else {
+            let formatted = toolResults.map { result in
+                let id = result["id"] ?? "-"
+                let name = result["name"] ?? "-"
+                let status = result["status"] ?? "unknown"
+                let detail = result["detail"] ?? ""
+                let path = result["path"].map { "\npath: \($0)" } ?? ""
+                let output = result["output"].map { "\noutput:\n\($0)" } ?? ""
+                return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
+            }.joined(separator: "\n")
+            resultsSection = """
+            Risultati tool appena eseguiti:
+            \(formatted)
+
+            Continua usando questi risultati. Se servono altri tool emetti nuovi marker [CODERIDE:tool_call|...].
+            Quando hai finito: OBBLIGATORIO fornire un riepilogo finale all'utente (cosa fatto, file usati, esito). Non concludere senza riepilogo.
+            """
+        }
 
         return """
-            \(toolProtocolPrompt)
+        \(toolProtocolPrompt)
 
-            ## Context
+        Prompt utente iniziale:
+        \(originalPrompt)
 
-            **Original user request:**
-            \(originalPrompt)
+        Transcript parziale:
+        \(transcript)
 
-            **Conversation so far:**
-            \(transcript)
-
-            **Tool results just executed:**
-            \(formattedResults)
-
-            ## Instructions
-
-            Continue working on the user's request using the tool results above.
-            - If you need more information, call additional tools using [CODERIDE:tool_call|...] markers.
-            - If you have enough information, provide your final answer to the user.
-            - Do NOT repeat tool calls that already succeeded.
-            """
+        \(resultsSection)
+        """
     }
 
     private func parseArgsJSON(_ raw: String) -> [String: String]? {
         guard let data = raw.data(using: .utf8),
-            let obj = try? JSONSerialization.jsonObject(with: data),
-            let dict = obj as? [String: Any]
-        else {
+              let obj = try? JSONSerialization.jsonObject(with: data),
+              let dict = obj as? [String: Any] else {
             return nil
         }
         var out: [String: String] = [:]
@@ -228,9 +343,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return out
     }
 
-    private func events(for marker: CoderIDEMarker, context: WorkspaceContext) async
-        -> [StreamEvent]
-    {
+    private func events(for marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
         switch marker.kind {
         case "todo_read":
             return [.raw(type: "todo_read", payload: [:])]
@@ -241,22 +354,34 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "plan_step":
             return [.raw(type: "plan_step_update", payload: marker.payload)]
         case "read_batch":
-            return [.raw(type: "read_batch_started", payload: marker.payload)]
+            return await executeReadBatch(marker: marker, context: context)
         case "web_search":
             return [.raw(type: "web_search_started", payload: marker.payload)]
+        case "glob", "read", "grep":
+            var args = marker.payload
+            args["name"] = marker.kind
+            args["id"] = args["id"] ?? UUID().uuidString
+            if marker.kind == "glob", var pat = args["pattern"], !pat.isEmpty {
+                if pat.contains("**/") { pat = pat.replacingOccurrences(of: "**/", with: "") }
+                args["pattern"] = pat
+            }
+            let call = ToolCall(
+                id: args["id"] ?? UUID().uuidString,
+                name: marker.kind,
+                args: args,
+                sourceProvider: id,
+                swarmId: marker.payload["swarm_id"],
+                scope: executionScope
+            )
+            return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
         case "tool_call":
-            let toolName =
-                marker.payload["name"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let toolName = marker.payload["name"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !toolName.isEmpty else {
-                return [
-                    .raw(
-                        type: "tool_validation_error",
-                        payload: [
-                            "title": "Tool call invalida",
-                            "detail": "Campo name mancante in marker tool_call",
-                            "status": "failed",
-                        ])
-                ]
+                return [.raw(type: "tool_validation_error", payload: [
+                    "title": "Tool call invalida",
+                    "detail": "Campo name mancante in marker tool_call",
+                    "status": "failed"
+                ])]
             }
             let call = ToolCall(
                 id: marker.payload["id"] ?? UUID().uuidString,
@@ -266,58 +391,20 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 swarmId: marker.payload["swarm_id"],
                 scope: executionScope
             )
-            return await runtime.execute(
-                call,
-                context: ToolExecutionContext(
-                    workspaceContext: context, policy: policy, executionScope: executionScope))
+            return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
         default:
+            _dbgLog("events_default", ["hypothesisId": "H1", "kind": marker.kind, "unhandled": true, "runId": "post-fix"])
             return []
         }
     }
 
     private var toolProtocolPrompt: String {
         """
-        You have access to workspace tools via structured markers. To use a tool, emit it **exactly** in this format (one marker per tool call):
-
-        [CODERIDE:tool_call|id=<unique-id>|name=<TOOL_NAME>|<arg1>=<value1>|<arg2>=<value2>]
-
-        ### Available tools
-
-        | Tool | Required args | Description |
-        |------|--------------|-------------|
-        | `read` | path | Read a file's content. Use this before editing to see current state. |
-        | `ls` | path | List directory contents. Use to explore project structure. |
-        | `glob` | pattern | Find files matching a pattern (e.g. `*.swift`, `**/*.ts`). |
-        | `grep` | query, pathScope (optional) | Search text/regex in files. Returns matching lines with file:line:content. |
-        | `edit` | path, content | Write full content to a file (creates parent dirs if needed). Best for new files or complete rewrites. |
-        | `patch` | path, search, replace | Surgical edit: find exact `search` text in file and replace with `replace`. Best for modifying existing files. |
-        | `bash` | command | Run a shell command in the workspace directory. |
-        | `mkdir` | path | Create a directory (with parents). |
-        | `web_search` | query | Search the web for information. |
-
-        ### Important rules
-        - Always `read` a file before `patch`-ing it so you know the exact text to search for.
-        - Use `patch` (not `edit`) for modifying existing files — it's safer and preserves unchanged content.
-        - Use `edit` only for creating new files or when you need to rewrite the entire file.
-        - For `patch`, the `search` value must be an **exact** substring of the file content (including whitespace/indentation).
-        - Each marker must have a unique `id` (use any short string like `t1`, `t2`, etc.).
-        - Escape `|` as `\\|`, `]` as `\\]`, and `\\` as `\\\\` inside argument values.
-
-        ### Example usage
-
-        Read a file:
-        [CODERIDE:tool_call|id=t1|name=read|path=src/main.swift]
-
-        Search for a pattern:
-        [CODERIDE:tool_call|id=t2|name=grep|query=func handleError|pathScope=Sources]
-
-        Patch a file (surgical edit):
-        [CODERIDE:tool_call|id=t3|name=patch|path=src/main.swift|search=let x = 5|replace=let x = 10]
-
-        Run a command:
-        [CODERIDE:tool_call|id=t4|name=bash|command=swift build 2>&1]
-
-        ### Additional markers (for IDE integration)
+        Se devi usare strumenti, emetti marker strutturati CoderIDE.
+        Quando concludi un task, OBBLIGATORIO fornisci un riepilogo finale all'utente: cosa hai fatto, file/comandi usati, esito. Mai concludere senza questo riepilogo.
+        Formato:
+        [CODERIDE:tool_call|id=<uuid>|name=<read|glob|grep|edit|write|bash|mcp|web_search>|path=...|query=...|command=...|content=...|swarm_id=...]
+        Marker supportati anche:
         [CODERIDE:todo_write|title=...|status=pending|priority=medium|notes=...|files=a.swift,b.swift]
         [CODERIDE:todo_read]
         [CODERIDE:instant_grep|query=...|pathScope=...|matchesCount=...|previewLines=...]

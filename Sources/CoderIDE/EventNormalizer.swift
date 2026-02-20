@@ -50,6 +50,7 @@ enum EventNormalizer {
         switch type {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit": kind = .fileUpdate
+        case "reasoning": kind = .generic
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step_update": kind = .planStepUpdate
@@ -106,8 +107,8 @@ enum EventNormalizer {
         }
 
         let normalizedType = normalizeSpecialType(type, payload: payload)
-        let phase = phaseForType(normalizedType)
-        let running = runningStateForType(normalizedType)
+        let phase = phaseForType(normalizedType, payload: payload)
+        let running = runningStateForType(normalizedType, payload: payload)
         let baseTitle = payload["title"] ?? defaultTitle(for: normalizedType)
         let title = withSwarmPrefix(baseTitle, payload: payload)
         events.append(.taskActivity(TaskActivity(
@@ -118,7 +119,7 @@ enum EventNormalizer {
             timestamp: timestamp,
             phase: phase,
             isRunning: running,
-            groupId: payload["group_id"] ?? payload["queryId"]
+            groupId: payload["group_id"] ?? payload["queryId"] ?? payload["tool_call_id"]
         )))
         return events
     }
@@ -136,10 +137,12 @@ enum EventNormalizer {
         return type
     }
 
-    private static func phaseForType(_ type: String) -> ActivityPhase {
+    private static func phaseForType(_ type: String, payload: [String: String]) -> ActivityPhase {
         switch type {
         case "command_execution", "bash":
             return .executing
+        case "mcp_tool_call":
+            return (payload["tool"] == "bash" || payload["command"] != nil) ? .executing : .thinking
         case "file_change", "edit", "read_batch_started", "read_batch_completed":
             return .editing
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed":
@@ -151,8 +154,16 @@ enum EventNormalizer {
         }
     }
 
-    private static func runningStateForType(_ type: String) -> Bool {
+    private static func runningStateForType(_ type: String, payload: [String: String]) -> Bool {
+        let status = payload["status"]?.lowercased()
         switch type {
+        case "command_execution", "bash":
+            return status == "started" || status == "running" || status == "in_progress"
+        case "mcp_tool_call":
+            return status == "started" || status == "running" || status == "in_progress"
+        case "agent":
+            let detail = payload["detail"]?.lowercased()
+            return detail == "started" || status == "started" || status == "running"
         case "web_search_started", "read_batch_started", "process_resumed":
             return true
         case "web_search_completed", "web_search_failed", "read_batch_completed", "process_paused":
@@ -172,6 +183,8 @@ enum EventNormalizer {
             return "Lettura file in batch avviata"
         case "read_batch_completed":
             return "Lettura file in batch completata"
+        case "reasoning":
+            return "Ragionamento"
         case "web_search_started":
             return "Ricerca web avviata"
         case "web_search_completed":

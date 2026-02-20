@@ -40,21 +40,28 @@ public actor FileLockCoordinator {
     /// Pianifica l'ordine di esecuzione risolvendo conflitti su file condivisi
     public func planExecution(swarmFileClaims: [(swarmId: String, files: Set<String>)]) -> [ExecutionStep] {
         var steps: [ExecutionStep] = []
-        var assigned: Set<String> = []
         var remaining = swarmFileClaims
 
         while !remaining.isEmpty {
-            let available = remaining.filter { claim in
-                claim.files.intersection(assigned).isEmpty
+            var roundLockedFiles = Set<String>()
+            var roundIndices: [Int] = []
+
+            for (index, claim) in remaining.enumerated() {
+                if claim.files.intersection(roundLockedFiles).isEmpty {
+                    roundIndices.append(index)
+                    roundLockedFiles.formUnion(claim.files)
+                }
             }
-            if let pick = available.first {
-                steps.append(ExecutionStep(swarmId: pick.swarmId, files: pick.files))
-                assigned.formUnion(pick.files)
-                remaining.removeAll { $0.swarmId == pick.swarmId }
-            } else {
+
+            if roundIndices.isEmpty {
                 let pick = remaining.removeFirst()
                 steps.append(ExecutionStep(swarmId: pick.swarmId, files: pick.files))
-                assigned.formUnion(pick.files)
+                continue
+            }
+
+            for index in roundIndices.reversed() {
+                let pick = remaining.remove(at: index)
+                steps.append(ExecutionStep(swarmId: pick.swarmId, files: pick.files))
             }
         }
         return steps

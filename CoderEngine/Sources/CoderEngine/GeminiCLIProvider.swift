@@ -1,14 +1,12 @@
 import Foundation
 
-/// Provider che usa Gemini CLI (`gemini`) con output `stream-json` per streaming reale.
+/// Provider che usa Gemini CLI (`gemini -p`)
 public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "gemini-cli"
     public let displayName = "Gemini CLI"
 
     private let geminiPath: String
     private let modelOverride: String?
-    private let yoloMode: Bool
-    private let approvalMode: String?
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
     private let environmentOverride: [String: String]?
@@ -16,18 +14,12 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     public init(
         geminiPath: String? = nil,
         modelOverride: String? = nil,
-        yoloMode: Bool = false,
-        approvalMode: String? = nil,
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
     ) {
-        self.geminiPath =
-            geminiPath ?? GeminiDetector.findGeminiPath(customPath: nil)
-            ?? "/opt/homebrew/bin/gemini"
+        self.geminiPath = geminiPath ?? GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini"
         self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
-        self.yoloMode = yoloMode
-        self.approvalMode = approvalMode
         self.executionController = executionController
         self.executionScope = executionScope
         self.environmentOverride = environmentOverride
@@ -46,11 +38,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         return env
     }
 
-    // MARK: - send
-
-    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil)
-        async throws -> AsyncThrowingStream<StreamEvent, Error>
-    {
+    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let fullPrompt = prompt + context.contextPrompt()
         let path = geminiPath
         let workspacePath = context.workspacePath
@@ -59,36 +47,18 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             Task {
                 do {
                     guard FileManager.default.fileExists(atPath: path) else {
-                        continuation.yield(
-                            .error(
-                                "Gemini CLI non trovato a \(path). Installa con: npm install -g @anthropic-ai/gemini-cli"
-                            ))
+                        continuation.yield(.error("Gemini CLI non trovato a \(path)."))
                         continuation.finish(throwing: CoderEngineError.cliNotFound("gemini"))
                         return
                     }
 
-                    let env = self.shellEnvironment()
-                    var args: [String] = []
+                    let env = shellEnvironment()
 
-                    // Model
-                    if let model = self.modelOverride, !model.isEmpty {
-                        args += ["-m", model]
-                    }
-
-                    // Prompt (non-interactive headless mode)
-                    args += ["-p", fullPrompt]
-
-                    // Always use stream-json for real streaming
-                    args += ["--output-format", "stream-json"]
-
-                    // Approval / yolo mode
-                    if self.yoloMode {
-                        args += ["--yolo"]
-                    } else if let approval = self.approvalMode, !approval.isEmpty {
-                        args += ["--approval-mode", approval]
+                    var args: [String]
+                    if let model = modelOverride, !model.isEmpty {
+                        args = ["-m", model, "-p", fullPrompt, "--output-format", "json"]
                     } else {
-                        // Default: auto_edit (auto-approve edits, ask for dangerous commands)
-                        args += ["--approval-mode", "auto_edit"]
+                        args = ["-p", fullPrompt, "--output-format", "json"]
                     }
 
                     let stream = try await ProcessRunner.run(
@@ -96,185 +66,60 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                         arguments: args,
                         workingDirectory: workspacePath,
                         environment: env,
-                        executionController: self.executionController,
-                        scope: self.executionScope
+                        executionController: executionController,
+                        scope: executionScope
                     )
 
                     continuation.yield(.started)
-                    var accumulatedText = ""
+                    var fullText = ""
                     var didEmitShowTaskPanel = false
                     var didEmitInvokeSwarm = false
                     var emittedMarkers = Set<String>()
-                    // Track active tool calls for pairing tool_use → tool_result
-                    var activeToolCalls: [String: [String: Any]] = [:]
-
                     for try await line in stream {
-                        guard let data = line.data(using: .utf8),
-                            let json = try? JSONSerialization.jsonObject(with: data)
-                                as? [String: Any]
-                        else {
-                            // Skip non-JSON lines (progress spinners, debug output, etc.)
-                            continue
-                        }
-
-                        let eventType = json["type"] as? String ?? ""
-
-                        switch eventType {
-
-                        // ── init ──────────────────────────────────────────────
-                        case "init":
-                            // Session started – nothing to emit to UI
-                            continue
-
-                        // ── user message echo ─────────────────────────────────
-                        case "message" where (json["role"] as? String) == "user":
-                            continue
-
-                        // ── assistant text delta ──────────────────────────────
-                        case "message" where (json["role"] as? String) == "assistant":
-                            if let content = json["content"] as? String, !content.isEmpty {
-                                let isDelta = (json["delta"] as? Bool) == true
-                                let textDelta: String
-                                if isDelta {
-                                    // stream-json sends incremental deltas
-                                    textDelta = content
-                                    accumulatedText += content
-                                } else {
-                                    // Fallback: full text (compute delta)
-                                    if content.hasPrefix(accumulatedText) {
-                                        textDelta = String(content.dropFirst(accumulatedText.count))
-                                    } else {
-                                        textDelta = content
-                                    }
-                                    accumulatedText = content
-                                }
-
-                                if !textDelta.isEmpty {
-                                    continuation.yield(.textDelta(textDelta))
-
-                                    // Check CoderIDE markers in accumulated text
-                                    if !didEmitShowTaskPanel,
-                                        accumulatedText.contains(CoderIDEMarkers.showTaskPanel)
-                                    {
-                                        didEmitShowTaskPanel = true
-                                        continuation.yield(
-                                            .raw(type: "coderide_show_task_panel", payload: [:]))
-                                    }
-                                    if !didEmitInvokeSwarm,
-                                        accumulatedText.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                                        let start = accumulatedText.range(
-                                            of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                                        let endRange = accumulatedText[start...].range(
-                                            of: CoderIDEMarkers.invokeSwarmSuffix)
-                                    {
-                                        didEmitInvokeSwarm = true
-                                        let task = String(
-                                            accumulatedText[start..<endRange.lowerBound]
-                                        ).trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if !task.isEmpty {
-                                            continuation.yield(
-                                                .raw(
-                                                    type: "coderide_invoke_swarm",
-                                                    payload: ["task": task]))
-                                        }
-                                    }
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: textDelta)
-                                    {
-                                        let key =
-                                            "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                        if emittedMarkers.insert(key).inserted {
-                                            continuation.yield(
-                                                .raw(
-                                                    type: markerEvent.type,
-                                                    payload: markerEvent.payload))
-                                        }
-                                    }
-                                }
+                        if let data = line.data(using: .utf8),
+                           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            if let rawEvent = Self.parseRawEvent(from: json) {
+                                continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
                             }
-
-                        // ── tool_use: Gemini is invoking a tool ───────────────
-                        case "tool_use":
-                            let toolName = json["tool_name"] as? String ?? ""
-                            let toolId = json["tool_id"] as? String ?? UUID().uuidString
-                            let params = json["parameters"] as? [String: Any] ?? [:]
-                            activeToolCalls[toolId] = json
-
-                            let rawEvent = Self.buildToolUseEvent(
-                                toolName: toolName, toolId: toolId, params: params)
-                            continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
-
-                        // ── tool_result: tool finished ────────────────────────
-                        case "tool_result":
-                            let toolId = json["tool_id"] as? String ?? ""
-                            let status = json["status"] as? String ?? "unknown"
-                            let output = json["output"] as? String ?? ""
-                            let useEvent = activeToolCalls.removeValue(forKey: toolId)
-
-                            let rawEvent = Self.buildToolResultEvent(
-                                toolId: toolId,
-                                status: status,
-                                output: output,
-                                originalUse: useEvent
-                            )
-                            continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
-
-                        // ── result: final stats ───────────────────────────────
-                        case "result":
-                            if let stats = json["stats"] as? [String: Any] {
-                                let input =
-                                    (stats["input_tokens"] as? Int) ?? (stats["input"] as? Int)
-                                    ?? -1
-                                let output =
-                                    (stats["output_tokens"] as? Int)
-                                    ?? (stats["candidates"] as? Int) ?? -1
-                                let total = (stats["total_tokens"] as? Int) ?? -1
-                                let cached = (stats["cached"] as? Int) ?? 0
-                                var usagePayload: [String: String] = [
+                            if let usage = json["usage"] as? [String: Any] {
+                                let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int) ?? -1
+                                let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int) ?? -1
+                                continuation.yield(.raw(type: "usage", payload: [
                                     "input_tokens": "\(input)",
                                     "output_tokens": "\(output)",
-                                    "model": "gemini-cli",
-                                ]
-                                if total > 0 { usagePayload["total_tokens"] = "\(total)" }
-                                if cached > 0 { usagePayload["cached_tokens"] = "\(cached)" }
-                                if let toolCalls = stats["tool_calls"] as? Int {
-                                    usagePayload["tool_calls"] = "\(toolCalls)"
-                                }
-                                continuation.yield(.raw(type: "usage", payload: usagePayload))
+                                    "model": "gemini-cli"
+                                ]))
                             }
-
-                        // ── error event ───────────────────────────────────────
-                        case "error":
-                            let message =
-                                (json["message"] as? String) ?? (json["error"] as? String)
-                                ?? "Errore sconosciuto da Gemini CLI"
-                            continuation.yield(.error(message))
-
-                        // ── thinking/planning events ──────────────────────────
-                        case "thinking", "planning":
-                            // These are internal model events, skip
-                            continue
-
-                        // ── unknown event types: try to extract text ──────────
-                        default:
-                            // For any unrecognized event type, try extracting text
-                            if let content = Self.extractTextFromAnyEvent(json), !content.isEmpty {
-                                let delta: String
-                                if content.hasPrefix(accumulatedText) {
-                                    delta = String(content.dropFirst(accumulatedText.count))
-                                    accumulatedText = content
-                                } else if !accumulatedText.contains(content) {
-                                    delta = content
-                                    accumulatedText += content
-                                } else {
-                                    delta = ""
-                                }
+                            if let text = Self.extractText(from: json), !text.isEmpty {
+                                let delta = text.hasPrefix(fullText) ? String(text.dropFirst(fullText.count)) : text
+                                fullText = text
                                 if !delta.isEmpty {
                                     continuation.yield(.textDelta(delta))
+                                    if !didEmitShowTaskPanel, fullText.contains(CoderIDEMarkers.showTaskPanel) {
+                                        didEmitShowTaskPanel = true
+                                        continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
+                                    }
+                                    if !didEmitInvokeSwarm, fullText.contains(CoderIDEMarkers.invokeSwarmPrefix),
+                                       let start = fullText.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
+                                       let endRange = fullText[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
+                                        didEmitInvokeSwarm = true
+                                        let task = String(fullText[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !task.isEmpty {
+                                            continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
+                                        }
+                                    }
+                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta) {
+                                        let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
+                                        if emittedMarkers.insert(key).inserted {
+                                            continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
+                                        }
+                                    }
                                 }
+                                continue
                             }
                         }
+                        continuation.yield(.textDelta(line + "\n"))
                     }
-
                     continuation.yield(.completed)
                     continuation.finish()
                 } catch {
@@ -285,231 +130,110 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    // MARK: - Tool Event Builders
+    private static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
+        let item = (json["item"] as? [String: Any]) ?? json
+        let type = firstString(in: item, keys: ["type", "event_type"])?.lowercased() ?? ""
 
-    /// Build a .raw event when Gemini begins using a tool
-    private static func buildToolUseEvent(toolName: String, toolId: String, params: [String: Any])
-        -> (type: String, payload: [String: String])
-    {
-        let normalizedName = toolName.lowercased()
-
-        // Shell / bash commands
-        if normalizedName.contains("shell") || normalizedName.contains("bash")
-            || normalizedName.contains("command") || normalizedName.contains("terminal")
-        {
-            let command = stringParam(params, keys: ["command", "cmd", "command_line"]) ?? ""
-            let description = stringParam(params, keys: ["description", "desc"]) ?? ""
-            return (
-                "command_execution",
-                [
-                    "title": "Bash",
-                    "detail": description.isEmpty ? command : description,
-                    "command": command,
-                    "tool_id": toolId,
-                    "status": "started",
-                ]
-            )
-        }
-
-        // File read
-        if normalizedName.contains("read") && normalizedName.contains("file") {
-            let path = stringParam(params, keys: ["path", "file_path", "file"]) ?? ""
-            return (
-                "read_batch_completed",
-                [
-                    "title": "Read • \((path as NSString).lastPathComponent)",
-                    "detail": path,
-                    "path": path,
-                    "file": path,
-                    "files": path,
-                    "count": "1",
-                    "tool_id": toolId,
-                    "status": "started",
-                ]
-            )
-        }
-
-        // File write/edit
-        if normalizedName.contains("write") || normalizedName.contains("edit")
-            || normalizedName.contains("create") || normalizedName.contains("replace")
-            || normalizedName.contains("patch") || normalizedName.contains("update_file")
-        {
-            let path =
-                stringParam(params, keys: ["path", "file_path", "file", "target_path"]) ?? "file"
-            return (
-                "file_change",
-                [
-                    "title": "Edit • \((path as NSString).lastPathComponent)",
-                    "detail": path,
-                    "path": path,
-                    "file": path,
-                    "tool_id": toolId,
-                    "status": "started",
-                ]
-            )
-        }
-
-        // List / glob / search files
-        if normalizedName.contains("list") || normalizedName.contains("glob")
-            || normalizedName.contains("find") || normalizedName.contains("search")
-        {
-            let query =
-                stringParam(
-                    params, keys: ["pattern", "query", "path", "directory", "glob", "regex"]) ?? ""
-            return (
-                "read_batch_completed",
-                [
-                    "title": "Search • \(query)",
-                    "detail": query,
-                    "query": query,
-                    "tool_id": toolId,
-                    "status": "started",
-                ]
-            )
-        }
-
-        // Generic / unknown tool
-        return (
-            "mcp_tool_call",
-            [
-                "title": toolName,
-                "detail": stringParam(params, keys: ["description", "desc"]) ?? toolName,
-                "tool": toolName,
-                "tool_id": toolId,
-                "status": "started",
+        if type.contains("command") || type.contains("bash") || firstString(in: item, keys: ["command", "command_line", "cmd"]) != nil {
+            var payload: [String: String] = [
+                "title": "Bash",
+                "detail": firstString(in: item, keys: ["command", "command_line", "cmd"]) ?? ""
             ]
-        )
+            if let command = firstString(in: item, keys: ["command", "command_line", "cmd"]) { payload["command"] = command }
+            if let cwd = firstString(in: item, keys: ["cwd", "working_directory", "workdir"]) { payload["cwd"] = cwd }
+            if let output = firstString(in: item, keys: ["output", "result", "stdout"]) { payload["output"] = String(output.prefix(6_000)) }
+            if let stderr = firstString(in: item, keys: ["stderr", "error", "error_message"]), !stderr.isEmpty {
+                payload["stderr"] = String(stderr.prefix(3_000))
+            }
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
+            return ("command_execution", payload)
+        }
+
+        if type.contains("edit") || type.contains("write") || type.contains("file_change") {
+            let path = firstString(in: item, keys: ["path", "file_path", "file", "target_path"]) ?? "file"
+            var payload: [String: String] = [
+                "title": "Edit • \((path as NSString).lastPathComponent)",
+                "detail": path,
+                "path": path,
+                "file": path
+            ]
+            if let out = firstString(in: item, keys: ["diff", "diff_preview", "patch"]), !out.isEmpty {
+                payload["diffPreview"] = String(out.prefix(6_000))
+            }
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
+            return ("file_change", payload)
+        }
+
+        if type == "reasoning" || type == "thinking" {
+            let text = firstString(in: item, keys: ["text", "output", "content", "result", "message"]) ?? ""
+            guard !text.isEmpty else { return nil }
+            var payload: [String: String] = [
+                "title": "Ragionamento",
+                "detail": String(text.prefix(200)) + (text.count > 200 ? "…" : ""),
+                "output": String(text.prefix(6_000)),
+                "group_id": "reasoning-stream"
+            ]
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId }
+            return ("reasoning", payload)
+        }
+
+        if type.contains("read") {
+            let path = firstString(in: item, keys: ["path", "file_path", "file"]) ?? ""
+            guard !path.isEmpty else { return nil }
+            var payload: [String: String] = [
+                "title": "Read • \((path as NSString).lastPathComponent)",
+                "detail": path,
+                "path": path,
+                "file": path,
+                "count": "1",
+                "files": path
+            ]
+            if let output = firstString(in: item, keys: ["output", "result", "content"]) { payload["output"] = String(output.prefix(6_000)) }
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
+            return ("read_batch_completed", payload)
+        }
+
+        return nil
     }
 
-    /// Build a .raw event when a tool returns
-    private static func buildToolResultEvent(
-        toolId: String, status: String, output: String, originalUse: [String: Any]?
-    ) -> (type: String, payload: [String: String]) {
-        let toolName = (originalUse?["tool_name"] as? String) ?? ""
-        let normalizedName = toolName.lowercased()
-        let isSuccess = status == "success"
-        let truncatedOutput = String(output.prefix(6_000))
-
-        // Re-derive event type from original tool name
-        if normalizedName.contains("shell") || normalizedName.contains("bash")
-            || normalizedName.contains("command") || normalizedName.contains("terminal")
-        {
-            let params = originalUse?["parameters"] as? [String: Any] ?? [:]
-            let command = stringParam(params, keys: ["command", "cmd", "command_line"]) ?? ""
-            return (
-                isSuccess ? "command_execution" : "tool_execution_error",
-                [
-                    "title": "Bash",
-                    "detail": command,
-                    "command": command,
-                    "output": truncatedOutput,
-                    "tool_id": toolId,
-                    "status": isSuccess ? "completed" : "failed",
-                ]
-            )
-        }
-
-        if normalizedName.contains("read") && normalizedName.contains("file") {
-            let params = originalUse?["parameters"] as? [String: Any] ?? [:]
-            let path = stringParam(params, keys: ["path", "file_path", "file"]) ?? ""
-            return (
-                isSuccess ? "read_batch_completed" : "tool_execution_error",
-                [
-                    "title": "Read • \((path as NSString).lastPathComponent)",
-                    "detail": path,
-                    "path": path,
-                    "file": path,
-                    "output": truncatedOutput,
-                    "tool_id": toolId,
-                    "status": isSuccess ? "completed" : "failed",
-                ]
-            )
-        }
-
-        if normalizedName.contains("write") || normalizedName.contains("edit")
-            || normalizedName.contains("create") || normalizedName.contains("replace")
-            || normalizedName.contains("patch") || normalizedName.contains("update_file")
-        {
-            let params = originalUse?["parameters"] as? [String: Any] ?? [:]
-            let path =
-                stringParam(params, keys: ["path", "file_path", "file", "target_path"]) ?? "file"
-            return (
-                isSuccess ? "file_change" : "tool_execution_error",
-                [
-                    "title": "Edit • \((path as NSString).lastPathComponent)",
-                    "detail": path,
-                    "path": path,
-                    "file": path,
-                    "output": truncatedOutput,
-                    "tool_id": toolId,
-                    "status": isSuccess ? "completed" : "failed",
-                ]
-            )
-        }
-
-        return (
-            isSuccess ? "mcp_tool_call" : "tool_execution_error",
-            [
-                "title": toolName.isEmpty ? "Tool" : toolName,
-                "detail": truncatedOutput,
-                "tool": toolName,
-                "output": truncatedOutput,
-                "tool_id": toolId,
-                "status": isSuccess ? "completed" : "failed",
-            ]
-        )
-    }
-
-    // MARK: - Text Extraction (fallback for unknown event types)
-
-    private static func extractTextFromAnyEvent(_ json: [String: Any]) -> String? {
-        // Try common text-bearing keys at top level
-        for key in ["text", "content", "response", "result", "message", "output"] {
-            if let value = json[key] as? String, !value.isEmpty {
-                return value
+    private static func extractText(from obj: Any) -> String? {
+        if let dict = obj as? [String: Any] {
+            for key in ["text", "result", "content", "message"] {
+                if let value = dict[key], let txt = stringify(value), !txt.isEmpty {
+                    return txt
+                }
             }
-        }
-        // Try nested dicts
-        for (key, value) in json {
-            if key == "stats" || key == "parameters" || key == "type" || key == "timestamp" {
-                continue
+            for (_, value) in dict {
+                if let nested = extractText(from: value), !nested.isEmpty {
+                    return nested
+                }
             }
-            if let dict = value as? [String: Any] {
-                if let found = extractTextFromAnyEvent(dict) { return found }
+        } else if let arr = obj as? [Any] {
+            var chunks: [String] = []
+            for value in arr {
+                if let nested = extractText(from: value), !nested.isEmpty {
+                    chunks.append(nested)
+                }
             }
-            if let arr = value as? [[String: Any]] {
-                let chunks = arr.compactMap { extractTextFromAnyEvent($0) }.filter { !$0.isEmpty }
-                if !chunks.isEmpty { return chunks.joined(separator: "\n") }
-            }
+            if !chunks.isEmpty { return chunks.joined(separator: "\n") }
         }
         return nil
     }
 
-    // MARK: - CoderIDE Marker Parsing
-
-    private static func parseCoderIDEMarkerEvents(in text: String) -> [(
-        type: String, payload: [String: String]
-    )] {
+    private static func parseCoderIDEMarkerEvents(in text: String) -> [(type: String, payload: [String: String])] {
         var events: [(type: String, payload: [String: String])] = []
         if text.contains(CoderIDEMarkers.todoRead) {
             events.append((type: "todo_read", payload: [:]))
         }
-        events += parseMarkerList(
-            text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
-        events += parseMarkerList(
-            text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
-        events += parseMarkerList(
-            text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
-        events += parseMarkerList(
-            text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
-        events += parseMarkerList(
-            text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
+        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
         return events
     }
 
-    private static func parseMarkerList(text: String, prefix: String, mappedType: String) -> [(
-        type: String, payload: [String: String]
-    )] {
+    private static func parseMarkerList(text: String, prefix: String, mappedType: String) -> [(type: String, payload: [String: String])] {
         var events: [(type: String, payload: [String: String])] = []
         var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
         while let range = text.range(of: prefix, options: [], range: searchRange) {
@@ -528,9 +252,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         for item in splitEscaped(payload, separator: "|") {
             let pair = splitEscaped(item, separator: "=")
             guard pair.count == 2 else { continue }
-            result[unescapeMarker(pair[0]).trimmingCharacters(in: .whitespaces)] = unescapeMarker(
-                pair[1]
-            ).trimmingCharacters(in: .whitespaces)
+            result[unescapeMarker(pair[0]).trimmingCharacters(in: .whitespaces)] = unescapeMarker(pair[1]).trimmingCharacters(in: .whitespaces)
         }
         return result
     }
@@ -568,11 +290,45 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             .replacingOccurrences(of: "\\]", with: "]")
     }
 
-    // MARK: - Helpers
-
-    private static func stringParam(_ params: [String: Any], keys: [String]) -> String? {
+    private static func firstString(in input: [String: Any], keys: [String]) -> String? {
         for key in keys {
-            if let s = params[key] as? String, !s.isEmpty { return s }
+            if let value = input[key], let stringValue = stringify(value), !stringValue.isEmpty {
+                return stringValue
+            }
+        }
+        for (_, value) in input {
+            if let nested = value as? [String: Any], let found = firstString(in: nested, keys: keys) {
+                return found
+            }
+            if let list = value as? [Any] {
+                for item in list {
+                    if let nested = item as? [String: Any], let found = firstString(in: nested, keys: keys) {
+                        return found
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func stringify(_ value: Any) -> String? {
+        if let s = value as? String { return s }
+        if let n = value as? NSNumber { return n.stringValue }
+        if let arr = value as? [String] { return arr.joined(separator: "\n") }
+        if let arr = value as? [[String: Any]] {
+            let chunks = arr.compactMap { dict -> String? in
+                if let t = dict["text"] as? String { return t }
+                if let o = dict["output"] as? String { return o }
+                if let c = dict["content"] as? String { return c }
+                return nil
+            }
+            if !chunks.isEmpty { return chunks.joined(separator: "\n") }
+        }
+        if let dict = value as? [String: Any] {
+            if let t = dict["text"] as? String { return t }
+            if let o = dict["output"] as? String { return o }
+            if let c = dict["content"] as? String { return c }
+            if let e = dict["error"] as? String { return e }
         }
         return nil
     }

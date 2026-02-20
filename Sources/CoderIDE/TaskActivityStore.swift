@@ -159,6 +159,23 @@ final class TaskActivityStore: ObservableObject {
         recentActivities(limit: max(limit, 1)).filter { $0.payload["swarm_id"] == swarmId }
     }
 
+    func activitiesForSwarmLane(_ swarmId: String, limit: Int = 120) -> [TaskActivity] {
+        let maxLimit = max(limit, 1)
+        let sorted = activities.sorted { $0.timestamp < $1.timestamp }
+        let direct = sorted.filter {
+            $0.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) == swarmId
+        }
+        let correlated = sorted.filter {
+            guard let groupId = $0.payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                return false
+            }
+            return groupId == "swarm-\(swarmId)"
+        }
+        var seen = Set<UUID>()
+        let merged = (direct + correlated).filter { seen.insert($0.id).inserted }
+        return Array(merged.suffix(maxLimit))
+    }
+
     static func activitiesGroupedBySwarm(
         from activities: [TaskActivity],
         limitPerLane: Int = 120,

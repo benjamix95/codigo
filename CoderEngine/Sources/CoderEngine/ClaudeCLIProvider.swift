@@ -95,6 +95,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                     
                     continuation.yield(.started)
                     var fullContent = ""
+                    var accumulatedThinking = ""
                     var didEmitShowTaskPanel = false
                     var didEmitInvokeSwarm = false
                     var emittedMarkers = Set<String>()
@@ -109,9 +110,19 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
 
                         if eventType == "stream_event",
                            let event = json["event"] as? [String: Any],
-                           let delta = event["delta"] as? [String: Any],
-                           (delta["type"] as? String) == "text_delta",
-                           let text = delta["text"] as? String {
+                           let delta = event["delta"] as? [String: Any] {
+                            if (delta["type"] as? String) == "thinking_delta",
+                               let thinkingChunk = delta["thinking"] as? String, !thinkingChunk.isEmpty {
+                                accumulatedThinking += thinkingChunk
+                                let text = String(accumulatedThinking.prefix(6_000))
+                                continuation.yield(.raw(type: "reasoning", payload: [
+                                    "output": text,
+                                    "title": "Ragionamento",
+                                    "group_id": "reasoning-stream"
+                                ]))
+                            }
+                            if (delta["type"] as? String) == "text_delta",
+                               let text = delta["text"] as? String {
                             fullContent += text
                             continuation.yield(.textDelta(text))
                             if !didEmitShowTaskPanel, fullContent.contains(CoderIDEMarkers.showTaskPanel) {
@@ -133,6 +144,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                     continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
                                 }
                             }
+                            }
                         }
 
                         if eventType == "assistant", let message = json["message"] as? [String: Any],
@@ -140,6 +152,14 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                             for block in content {
                                 if let rawEvent = Self.parseToolUse(from: block) {
                                     continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
+                                }
+                                if (block["type"] as? String) == "thinking",
+                                   let thinkingText = (block["thinking"] as? String) ?? (block["text"] as? String), !thinkingText.isEmpty {
+                                    continuation.yield(.raw(type: "reasoning", payload: [
+                                        "output": String(thinkingText.prefix(6_000)),
+                                        "title": "Ragionamento",
+                                        "group_id": "reasoning-stream"
+                                    ]))
                                 }
                                 if (block["type"] as? String) == "text", let text = block["text"] as? String, !text.isEmpty {
                                     if !fullContent.hasSuffix(text) {

@@ -10,7 +10,6 @@ struct ContentView: View {
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
-    @AppStorage("default_agent_provider_id") private var defaultAgentProviderId = "codex-cli"
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -51,12 +50,9 @@ struct ContentView: View {
             selectedConversationId = agentConversationId
             let agentConv = chatStore.conversation(for: agentConversationId)
             if let preferred = agentConv?.preferredProviderId,
-               ProviderSupport.isAgentProvider(id: preferred),
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
                providerRegistry.provider(for: preferred) != nil {
                 providerRegistry.selectedProviderId = preferred
-            } else if ProviderSupport.isAgentProvider(id: defaultAgentProviderId),
-                      providerRegistry.provider(for: defaultAgentProviderId) != nil {
-                providerRegistry.selectedProviderId = defaultAgentProviderId
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
@@ -90,7 +86,10 @@ struct ContentView: View {
     }
 
     private var showEditorPanel: Bool {
-        ProviderSupport.isIDEProvider(id: providerRegistry.selectedProviderId)
+        let conv = chatStore.conversation(for: selectedConversationId)
+        if conv?.mode == .ide { return true }
+        let pid = providerRegistry.selectedProviderId
+        return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
     }
 
     // MARK: - IDE Panel

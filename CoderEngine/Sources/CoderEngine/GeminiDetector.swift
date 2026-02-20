@@ -17,36 +17,9 @@ public struct GeminiStatus: Sendable {
 
 /// Rileva installazione e stato auth di Gemini CLI
 public enum GeminiDetector {
-    /// Builds an environment dict that includes PATH (con percorsi npm/nvm/fnm/volta) e GEMINI/GOOGLE API keys
+    /// Builds an environment dict that includes PATH and GEMINI/GOOGLE API keys from shell config
     public static func shellEnvironment() -> [String: String] {
         var env = CodexDetector.shellEnvironment()
-        let home = NSHomeDirectory()
-        var extraPath: [String] = []
-        extraPath.append("\(home)/.npm/bin")
-        extraPath.append("\(home)/.npm-global/bin")
-        extraPath.append("\(home)/.local/bin")
-        extraPath.append("\(home)/.volta/bin")
-        extraPath.append("/usr/local/lib/node_modules/.bin")
-        if let nvmDir = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.nvm/versions/node") {
-            for verDir in nvmDir.sorted().reversed() {
-                extraPath.append("\(home)/.nvm/versions/node/\(verDir)/bin")
-            }
-        }
-        if let fnmDir = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.fnm/node-versions") {
-            for verDir in fnmDir.sorted().reversed() {
-                extraPath.append("\(home)/.fnm/node-versions/\(verDir)/installation/bin")
-            }
-        }
-        if let fnmLocal = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.local/share/fnm/node-versions") {
-            for verDir in fnmLocal.sorted().reversed() {
-                extraPath.append("\(home)/.local/share/fnm/node-versions/\(verDir)/installation/bin")
-            }
-        }
-        let path = env["PATH"] ?? ""
-        let added = extraPath.filter { !path.contains($0) }.joined(separator: ":")
-        if !added.isEmpty {
-            env["PATH"] = "\(added):\(path)"
-        }
         if env["GEMINI_API_KEY"] == nil, env["GOOGLE_API_KEY"] == nil,
            let key = loadGeminiApiKeyFromShellConfig() {
             env["GEMINI_API_KEY"] = key
@@ -54,7 +27,7 @@ public enum GeminiDetector {
         return env
     }
 
-    /// Rileva path di Gemini CLI (Homebrew, npm global, nvm, fnm, volta, PATH)
+    /// Rileva path di Gemini CLI
     public static func findGeminiPath(customPath: String? = nil) -> String? {
         if let custom = customPath, !custom.isEmpty, FileManager.default.isExecutableFile(atPath: custom) {
             return custom
@@ -72,52 +45,6 @@ public enum GeminiDetector {
             if FileManager.default.isExecutableFile(atPath: defaultPath) {
                 return defaultPath
             }
-        }
-        // Percorsi tipici quando installato con npm install -g gemini-cli
-        let home = NSHomeDirectory()
-        let npmPaths = [
-            "\(home)/.npm/bin",
-            "\(home)/.npm-global/bin",
-            "\(home)/.local/bin",
-            "/usr/local/lib/node_modules/.bin",
-        ]
-        for dir in npmPaths {
-            let fullPath = "\(dir)/gemini"
-            if FileManager.default.isExecutableFile(atPath: fullPath) {
-                return fullPath
-            }
-        }
-        // nvm: ~/.nvm/versions/node/*/bin
-        if let nvmDir = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.nvm/versions/node") {
-            for verDir in nvmDir.sorted().reversed() {
-                let binPath = "\(home)/.nvm/versions/node/\(verDir)/bin/gemini"
-                if FileManager.default.isExecutableFile(atPath: binPath) {
-                    return binPath
-                }
-            }
-        }
-        // fnm: ~/.local/share/fnm/node-versions/*/installation/bin
-        if let fnmDir = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.local/share/fnm/node-versions") {
-            for verDir in fnmDir.sorted().reversed() {
-                let binPath = "\(home)/.local/share/fnm/node-versions/\(verDir)/installation/bin/gemini"
-                if FileManager.default.isExecutableFile(atPath: binPath) {
-                    return binPath
-                }
-            }
-        }
-        // fnm su macOS: ~/.fnm/node-versions
-        if let fnmDir = try? FileManager.default.contentsOfDirectory(atPath: "\(home)/.fnm/node-versions") {
-            for verDir in fnmDir.sorted().reversed() {
-                let binPath = "\(home)/.fnm/node-versions/\(verDir)/installation/bin/gemini"
-                if FileManager.default.isExecutableFile(atPath: binPath) {
-                    return binPath
-                }
-            }
-        }
-        // Volta: ~/.volta/bin
-        let voltaPath = "\(home)/.volta/bin/gemini"
-        if FileManager.default.isExecutableFile(atPath: voltaPath) {
-            return voltaPath
         }
         return nil
     }

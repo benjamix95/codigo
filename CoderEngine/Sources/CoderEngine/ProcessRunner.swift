@@ -9,25 +9,8 @@ struct ProcessRunner {
         let message: String
         let stdoutTail: String?
 
-        /// Exit 15 = SIGTERM: processo interrotto (es. pulsante Ferma o cambio tab)
-        private static func interpretExit(_ code: Int32) -> String {
-            switch code {
-            case 15: return "Processo interrotto (SIGTERM)."
-            case 143: return "Processo interrotto (SIGTERM)."
-            case 130: return "Processo interrotto (Ctrl+C)."
-            default: return "Processo terminato con exit code \(code)."
-            }
-        }
-
         var errorDescription: String? {
-            let reason = Self.interpretExit(exitCode)
-            var desc = "Errore: \(reason)"
-            let detail = message
-            if !detail.isEmpty && detail != "nessun output stderr disponibile" {
-                desc += " Ultimo output: \(detail)"
-            } else if detail == "nessun output stderr disponibile" {
-                desc += " \(detail)"
-            }
+            var desc = "Processo terminato con exit code \(exitCode): \(message)"
             if let tail = stdoutTail, !tail.isEmpty {
                 desc += "\n\nUltime righe stdout:\n\(tail)"
             }
@@ -175,7 +158,10 @@ struct ProcessRunner {
                 if !line.isEmpty { lines.append(line) }
             }
         }
-        if !buffer.isEmpty, let line = String(bytes: buffer, encoding: .utf8), !line.isEmpty {
+        if !buffer.isEmpty,
+           let line = String(bytes: buffer, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !line.isEmpty {
             lines.append(line)
         }
         process.waitUntilExit()

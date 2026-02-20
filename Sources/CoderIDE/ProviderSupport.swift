@@ -3,9 +3,23 @@ import CoderEngine
 enum ProviderSupport {
     static let agentProviderIds = ["codex-cli", "claude-cli", "gemini-cli"]
 
+    /// API providers that support Agent mode (tools, multi-turn, read_batch).
+    static let agentApiProviderIds = [
+        "openai-api",
+        "anthropic-api",
+        "google-api",
+        "openrouter-api",
+        "minimax-api"
+    ]
+
     static func isAgentProvider(id: String?) -> Bool {
         guard let id else { return false }
         return agentProviderIds.contains(id)
+    }
+
+    static func isAgentCompatibleProvider(id: String?) -> Bool {
+        guard let id else { return false }
+        return agentProviderIds.contains(id) || agentApiProviderIds.contains(id)
     }
 
     static let preferredIDEProviderIds = [

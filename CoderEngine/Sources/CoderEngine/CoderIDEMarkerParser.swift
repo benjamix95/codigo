@@ -26,7 +26,8 @@ enum CoderIDEMarkerParser {
                 payload[unescape(pair[0]).trimmingCharacters(in: .whitespaces)] =
                     unescape(pair[1]).trimmingCharacters(in: .whitespaces)
             }
-            markers.append(CoderIDEMarker(kind: head.trimmingCharacters(in: .whitespaces), payload: payload))
+            let kind = head.trimmingCharacters(in: .whitespaces)
+            markers.append(CoderIDEMarker(kind: kind, payload: payload))
             searchRange = end..<text.endIndex
         }
         return markers

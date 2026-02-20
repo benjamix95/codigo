@@ -1,5 +1,5 @@
-import SwiftUI
 import CoderEngine
+import SwiftUI
 
 @MainActor
 final class ProviderUsageStore: ObservableObject {
@@ -19,6 +19,46 @@ final class ProviderUsageStore: ObservableObject {
     private let minRefreshInterval: TimeInterval = 1.0
     private var lastFetchAtByProvider: [String: Date] = [:]
 
+    // MARK: - Rate Limit Detection
+
+    /// True when Codex 5h or weekly usage is at 100%.
+    var isCodexRateLimited: Bool {
+        guard let u = codexUsage else { return false }
+        return (u.fiveHourPct ?? 0) >= 100.0 || (u.weeklyPct ?? 0) >= 100.0
+    }
+
+    /// Human-readable message when Codex is at its limit.
+    var codexRateLimitMessage: String? {
+        guard let u = codexUsage else { return nil }
+        let fiveH = u.fiveHourPct ?? 0
+        let weekly = u.weeklyPct ?? 0
+        if fiveH >= 100.0 {
+            let reset = u.resetFiveH ?? "—"
+            return "You've hit your 5-hour rate limit. Resets at \(reset)."
+        }
+        if weekly >= 100.0 {
+            let reset = u.resetWeekly ?? "—"
+            return "You've hit your weekly rate limit. Resets at \(reset)."
+        }
+        return nil
+    }
+
+    /// Nearest reset time string for display (e.g. "14:30" or "12 Jul").
+    var codexResetTime: String? {
+        guard let u = codexUsage else { return nil }
+        if (u.fiveHourPct ?? 0) >= 100.0 { return u.resetFiveH }
+        if (u.weeklyPct ?? 0) >= 100.0 { return u.resetWeekly }
+        return nil
+    }
+
+    /// True when Codex usage is high (>=80%) but not yet at limit.
+    var isCodexUsageHigh: Bool {
+        guard let u = codexUsage else { return false }
+        let fiveH = u.fiveHourPct ?? 0
+        let weekly = u.weeklyPct ?? 0
+        return !isCodexRateLimited && (fiveH >= 80.0 || weekly >= 80.0)
+    }
+
     func fetchCodexUsage(codexPath: String, workingDirectory: String? = nil) async {
         guard shouldRefresh(providerId: "codex-cli") else { return }
         guard !codexPath.isEmpty, FileManager.default.fileExists(atPath: codexPath) else {
@@ -30,7 +70,8 @@ final class ProviderUsageStore: ObservableObject {
         defer { isRefreshing = false }
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
-                await CodexUsageFetcher.fetch(codexPath: codexPath, workingDirectory: workingDirectory)
+                await CodexUsageFetcher.fetch(
+                    codexPath: codexPath, workingDirectory: workingDirectory)
             }.value
         }
         if let usage {
@@ -39,6 +80,16 @@ final class ProviderUsageStore: ObservableObject {
         } else {
             codexUsageMessage = "Rate limits non disponibili o timeout"
         }
+    }
+
+    /// Check if the currently selected provider is rate limited and return a message for the alert.
+    /// Returns nil if not rate-limited or not applicable.
+    func rateLimitAlertMessage(for providerId: String?) -> String? {
+        guard let pid = providerId else { return nil }
+        if pid == "codex-cli" || pid == "agent-swarm" {
+            return codexRateLimitMessage
+        }
+        return nil
     }
 
     func fetchClaudeUsage(claudePath: String, workingDirectory: String? = nil) async {
@@ -52,7 +103,8 @@ final class ProviderUsageStore: ObservableObject {
         defer { isRefreshing = false }
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
-                await ClaudeUsageFetcher.fetch(claudePath: claudePath, workingDirectory: workingDirectory)
+                await ClaudeUsageFetcher.fetch(
+                    claudePath: claudePath, workingDirectory: workingDirectory)
             }.value
         }
         if let usage {
@@ -74,7 +126,8 @@ final class ProviderUsageStore: ObservableObject {
         defer { isRefreshing = false }
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
-                await GeminiCLIUsageFetcher.fetch(geminiPath: geminiPath, workingDirectory: workingDirectory)
+                await GeminiCLIUsageFetcher.fetch(
+                    geminiPath: geminiPath, workingDirectory: workingDirectory)
             }.value
         }
         if let usage {
@@ -89,7 +142,8 @@ final class ProviderUsageStore: ObservableObject {
         apiTokensIn += inputTokens
         apiTokensOut += outputTokens
         lastApiModel = model
-        apiEstimatedCost += ModelPricing.estimatedCost(inputTokens: inputTokens, outputTokens: outputTokens, model: model)
+        apiEstimatedCost += ModelPricing.estimatedCost(
+            inputTokens: inputTokens, outputTokens: outputTokens, model: model)
     }
 
     func resetApiUsage() {
@@ -119,7 +173,9 @@ final class ProviderUsageStore: ObservableObject {
 
     private func shouldRefresh(providerId: String) -> Bool {
         let now = Date()
-        if let last = lastFetchAtByProvider[providerId], now.timeIntervalSince(last) < minRefreshInterval {
+        if let last = lastFetchAtByProvider[providerId],
+            now.timeIntervalSince(last) < minRefreshInterval
+        {
             return false
         }
         lastFetchAtByProvider[providerId] = now

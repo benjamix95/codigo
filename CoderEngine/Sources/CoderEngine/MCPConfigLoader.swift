@@ -112,10 +112,22 @@ public enum MCPConfigLoader {
     /// Carica tutti i server da sorgenti JSON (Cursor, Claude Desktop, XDG, /etc)
     private static func loadFromAllJsonSources() -> [DetectedServer] {
         var result: [DetectedServer] = []
-        result += loadFromJsonMCPFile(path: cursorMCPConfigPath, sourceId: "cursor", sourceLabel: "Cursor")
-        result += loadFromJsonMCPFile(path: claudeDesktopConfigPath, sourceId: "claude", sourceLabel: "Claude Desktop")
-        result += loadFromJsonMCPFile(path: xdgConfigPath, sourceId: "xdg", sourceLabel: "Sistema (~/.config)")
-        result += loadFromJsonMCPFile(path: systemConfigPath, sourceId: "etc", sourceLabel: "Sistema (/etc)")
+        for (path, label) in jsonConfigSources {
+            let sourceId: String
+            switch label {
+            case "Cursor":
+                sourceId = "cursor"
+            case "Claude Desktop":
+                sourceId = "claude"
+            case "Sistema (~/.config)":
+                sourceId = "xdg"
+            case "Sistema (/etc)":
+                sourceId = "etc"
+            default:
+                sourceId = "json"
+            }
+            result += loadFromJsonMCPFile(path: path, sourceId: sourceId, sourceLabel: label)
+        }
         return result
     }
 

@@ -1,5 +1,5 @@
-import SwiftUI
 import CoderEngine
+import SwiftUI
 
 struct UsageFooterView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
@@ -40,7 +40,19 @@ struct UsageFooterView: View {
     private var effectiveProviderId: String? {
         let id = providerRegistry.selectedProviderId ?? ""
         if id == "plan-mode" { return planModeBackend == "claude" ? "claude-cli" : "codex-cli" }
-        if id == "agent-swarm" { return swarmWorkerBackend == "claude" ? "claude-cli" : "codex-cli" }
+        if id == "agent-swarm" {
+            switch swarmWorkerBackend {
+            case "codex": return "codex-cli"
+            case "claude": return "claude-cli"
+            case "gemini": return "gemini-cli"
+            case "openai", "openai-api": return "openai-api"
+            case "anthropic-api": return "anthropic-api"
+            case "google-api": return "google-api"
+            case "openrouter-api": return "openrouter-api"
+            case "minimax-api": return "minimax-api"
+            default: return swarmWorkerBackend
+            }
+        }
         return id
     }
 
@@ -140,7 +152,10 @@ struct UsageFooterView: View {
         .sheet(isPresented: $showCommitSheet) {
             GitCommitSheetView(
                 branch: gitBranch,
-                status: gitStatus ?? GitStatusSummary(changedFiles: 0, added: 0, removed: 0, modified: 0, untracked: 0, aheadBehind: nil, hasRemote: false),
+                status: gitStatus
+                    ?? GitStatusSummary(
+                        changedFiles: 0, added: 0, removed: 0, modified: 0, untracked: 0,
+                        aheadBehind: nil, hasRemote: false),
                 canCreatePR: canCreatePR,
                 includeUnstaged: $includeUnstaged,
                 commitMessage: $commitMessage,
@@ -167,13 +182,20 @@ struct UsageFooterView: View {
         let wd = effectiveContext.primaryPath
         Task {
             if pid == "codex-cli" {
-                let path = codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
+                let path =
+                    codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
                 await providerUsageStore.fetchCodexUsage(codexPath: path, workingDirectory: wd)
             } else if pid == "claude-cli" {
-                let path = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude") : claudePath
+                let path =
+                    claudePath.isEmpty
+                    ? (PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude")
+                    : claudePath
                 await providerUsageStore.fetchClaudeUsage(claudePath: path, workingDirectory: wd)
             } else if pid == "gemini-cli" {
-                let path = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini") : geminiCliPath
+                let path =
+                    geminiCliPath.isEmpty
+                    ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini")
+                    : geminiCliPath
                 await providerUsageStore.fetchGeminiUsage(geminiPath: path, workingDirectory: wd)
             }
         }
@@ -252,7 +274,9 @@ struct UsageFooterView: View {
                         createAndCheckoutBranch()
                     }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isGitBusy)
+                    .disabled(
+                        newBranchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || isGitBusy)
                 }
             }
             .padding(18)
@@ -271,7 +295,9 @@ struct UsageFooterView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
-            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(
+                Color.white.opacity(0.08),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             Text("Branches")
                 .font(.system(size: 13, weight: .semibold))
@@ -358,7 +384,9 @@ struct UsageFooterView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(
+                    Color.white.opacity(0.08),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!canUseGit || isGitBusy)
@@ -520,10 +548,13 @@ struct UsageFooterView: View {
             do {
                 var message = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
                 if message.isEmpty {
-                    let diff = try gitService.diffForCommitMessage(gitRoot: gitRoot, includeUnstaged: includeUnstaged)
+                    let diff = try gitService.diffForCommitMessage(
+                        gitRoot: gitRoot, includeUnstaged: includeUnstaged)
                     if let provider = bestCommitMessageProvider() {
-                        let aiContext = WorkspaceContext(workspacePath: URL(fileURLWithPath: gitRoot))
-                        message = try await commitMessageGenerator.generateCommitMessage(diff: diff, provider: provider, context: aiContext)
+                        let aiContext = WorkspaceContext(
+                            workspacePath: URL(fileURLWithPath: gitRoot))
+                        message = try await commitMessageGenerator.generateCommitMessage(
+                            diff: diff, provider: provider, context: aiContext)
                     } else {
                         message = commitMessageGenerator.fallbackMessage(
                             from: try gitService.status(gitRoot: gitRoot)
@@ -531,7 +562,8 @@ struct UsageFooterView: View {
                     }
                 }
 
-                let commit = try gitService.commit(gitRoot: gitRoot, message: message, includeUnstaged: includeUnstaged)
+                let commit = try gitService.commit(
+                    gitRoot: gitRoot, message: message, includeUnstaged: includeUnstaged)
 
                 if nextStep == .commitAndPush || nextStep == .commitAndCreatePR {
                     try gitService.push(gitRoot: gitRoot, branch: gitBranch)
@@ -591,10 +623,24 @@ struct UsageFooterView: View {
     }
 
     private var codexUsageRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if providerUsageStore.isRefreshing {
                 ProgressView().controlSize(.mini)
             }
+
+            // Rate limit / warning icon
+            if providerUsageStore.isCodexRateLimited {
+                Image(systemName: "octagon.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.red)
+                    .help(providerUsageStore.codexRateLimitMessage ?? "Rate limit raggiunto")
+            } else if providerUsageStore.isCodexUsageHigh {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .help("Usage elevato — rallenta per evitare il rate limit")
+            }
+
             if let u = providerUsageStore.codexUsage {
                 if let p5 = u.fiveHourPct {
                     Text("5 h")
@@ -602,7 +648,10 @@ struct UsageFooterView: View {
                         .foregroundStyle(.secondary)
                     Text("\(Int(p5))%")
                         .font(.system(size: 10, weight: .medium))
-                    if let r = u.resetFiveH { Text(r).font(.system(size: 10)).foregroundStyle(.tertiary) }
+                        .foregroundStyle(p5 >= 100 ? .red : (p5 >= 80 ? .orange : .primary))
+                    if let r = u.resetFiveH {
+                        Text(r).font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
                 }
                 if let pw = u.weeklyPct {
                     Text("·")
@@ -611,7 +660,10 @@ struct UsageFooterView: View {
                         .foregroundStyle(.secondary)
                     Text("\(Int(pw))%")
                         .font(.system(size: 10, weight: .medium))
-                    if let r = u.resetWeekly { Text(r).font(.system(size: 10)).foregroundStyle(.tertiary) }
+                        .foregroundStyle(pw >= 100 ? .red : (pw >= 80 ? .orange : .primary))
+                    if let r = u.resetWeekly {
+                        Text(r).font(.system(size: 10)).foregroundStyle(.tertiary)
+                    }
                 }
             } else {
                 Text(providerUsageStore.codexUsageMessage ?? "—")
@@ -619,10 +671,15 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+        .help(
+            providerUsageStore.isCodexRateLimited
+                ? (providerUsageStore.codexRateLimitMessage ?? "Rate limit raggiunto")
+                : "Codex CLI usage"
+        )
     }
 
     private var claudeUsageRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if providerUsageStore.isRefreshing {
                 ProgressView().controlSize(.mini)
             }
@@ -631,15 +688,33 @@ struct UsageFooterView: View {
                     Text(c)
                         .font(.system(size: 10, weight: .medium))
                 }
-                if let i = u.inputTokens {
-                    Text("in \(i)")
+                if let i = u.inputTokens, i > 0 {
+                    Text("in \(i.formatted())")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
-                if let o = u.outputTokens {
-                    Text("out \(o)")
+                if let o = u.outputTokens, o > 0 {
+                    Text("out \(o.formatted())")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
+                }
+                if let cr = u.cacheReadTokens, cr > 0 {
+                    Text("cache \(cr.formatted())")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                if let dur = u.totalDuration, !dur.isEmpty {
+                    Text("· \(dur)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                // Show something even when all values are zero
+                if u.sessionCost == nil || u.sessionCost == "$0.0000",
+                    (u.inputTokens ?? 0) == 0, (u.outputTokens ?? 0) == 0
+                {
+                    Text("Sessione vuota")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 }
             } else {
                 Text(providerUsageStore.claudeUsageMessage ?? "—")
@@ -647,28 +722,30 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+        .help("Claude Code — costo e token della sessione corrente")
     }
 
     private var geminiUsageRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if providerUsageStore.isRefreshing {
                 ProgressView().controlSize(.mini)
             }
             if let u = providerUsageStore.geminiUsage {
-                if let total = u.totalTokens {
-                    Text("\(total) tok")
+                if let total = u.totalTokens, total > 0 {
+                    Text("\(total.formatted()) tok")
                         .font(.system(size: 10, weight: .medium))
-                } else {
-                    if let i = u.inputTokens {
-                        Text("in \(i)")
+                } else if let i = u.inputTokens, i > 0 {
+                    Text("in \(i.formatted())")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    if let o = u.outputTokens, o > 0 {
+                        Text("out \(o.formatted())")
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
-                    if let o = u.outputTokens {
-                        Text("out \(o)")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
+                } else if let c = u.sessionCost, !c.isEmpty {
+                    Text(c)
+                        .font(.system(size: 10, weight: .medium))
                 }
                 if let note = u.note, !note.isEmpty {
                     Text(note)
@@ -682,6 +759,7 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+        .help("Gemini CLI — usage dalla sessione locale")
     }
 
     private var apiUsageRow: some View {

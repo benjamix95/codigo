@@ -23,7 +23,6 @@ struct ProviderFactoryConfig {
 
     var swarmOrchestrator: String
     var swarmWorkerBackend: String
-    var swarmWorkerBackendOverrides: String
     var swarmAutoPostCodePipeline: Bool
     var swarmMaxPostCodeRetries: Int
     var swarmMaxReviewLoops: Int
@@ -102,8 +101,6 @@ enum ProviderFactory {
         GeminiCLIProvider(
             geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
             modelOverride: config.geminiModelOverride.isEmpty ? nil : config.geminiModelOverride,
-            yoloMode: config.globalYolo,
-            approvalMode: config.globalYolo ? nil : "auto_edit",
             executionController: executionController,
             environmentOverride: environmentOverride
         )
@@ -136,38 +133,69 @@ enum ProviderFactory {
         return roles
     }
 
-    static func swarmProvider(
-        config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?,
-        gemini: GeminiCLIProvider? = nil,
+    /// Resolve any backend identifier to a concrete LLMProvider.
+    static func resolveSwarmBackendProvider(
+        backendId: String,
+        config: ProviderFactoryConfig,
         executionController: ExecutionController?
-    ) -> AgentSwarmProvider {
-        let orchBackend: OrchestratorBackend
-        switch config.swarmOrchestrator {
-        case "codex": orchBackend = .codex
-        case "claude": orchBackend = .claude
-        case "gemini": orchBackend = .gemini
-        default: orchBackend = .openai
+    ) -> (any LLMProvider)? {
+        switch backendId {
+        case "codex":
+            return codexProvider(config: config, executionController: executionController)
+        case "claude":
+            return claudeProvider(config: config, executionController: executionController)
+        case "gemini":
+            return geminiProvider(config: config, executionController: executionController)
+        case "openai":
+            guard !config.openaiApiKey.isEmpty else { return nil }
+            return openAIAPIProvider(config: config)
+        case "openai-api":
+            guard !config.openaiApiKey.isEmpty else { return nil }
+            return openAIAPIProvider(config: config)
+        case "anthropic-api":
+            guard !config.anthropicApiKey.isEmpty else { return nil }
+            return anthropicAPIProvider(config: config)
+        case "google-api":
+            guard !config.googleApiKey.isEmpty else { return nil }
+            return googleAPIProvider(config: config)
+        case "openrouter-api", "openrouter":
+            guard !config.openrouterApiKey.isEmpty else { return nil }
+            return openRouterAPIProvider(config: config)
+        case "minimax-api":
+            guard !config.minimaxApiKey.isEmpty else { return nil }
+            return miniMaxAPIProvider(config: config)
+        default:
+            return nil
         }
-        let workerBackend: WorkerBackend
-        switch config.swarmWorkerBackend {
-        case "claude": workerBackend = .claude
-        case "gemini": workerBackend = .gemini
-        default: workerBackend = .codex
-        }
+    }
 
-        let workerOverrides = WorkerBackendOverrides.deserialize(
-            config.swarmWorkerBackendOverrides)
+    static func swarmProvider(
+        config: ProviderFactoryConfig, executionController: ExecutionController?
+    ) -> AgentSwarmProvider? {
+        let orchBackend = OrchestratorBackend(rawValue: config.swarmOrchestrator) ?? .openai
+        let workerBackend = WorkerBackend(rawValue: config.swarmWorkerBackend) ?? .codex
 
-        let openAIClient: OpenAICompletionsClient? =
-            orchBackend == .openai && !config.openaiApiKey.isEmpty
-            ? OpenAICompletionsClient(apiKey: config.openaiApiKey, model: config.openaiModel)
-            : nil
+        guard
+            let orchProvider = resolveSwarmBackendProvider(
+                backendId: config.swarmOrchestrator,
+                config: config,
+                executionController: executionController
+            )
+        else { return nil }
+
+        guard
+            let workerProvider = resolveSwarmBackendProvider(
+                backendId: config.swarmWorkerBackend,
+                config: config,
+                executionController: executionController
+            )
+        else { return nil }
+
         let enabledRoles = parseRoles(config.swarmEnabledRoles)
 
         let swarmConfig = SwarmConfig(
             orchestratorBackend: orchBackend,
             workerBackend: workerBackend,
-            workerBackendOverrides: workerOverrides,
             enabledRoles: enabledRoles.isEmpty ? nil : enabledRoles,
             autoPostCodePipeline: config.swarmAutoPostCodePipeline,
             maxPostCodeRetries: config.swarmMaxPostCodeRetries,
@@ -175,10 +203,8 @@ enum ProviderFactory {
         )
         return AgentSwarmProvider(
             config: swarmConfig,
-            openAIClient: openAIClient,
-            codexProvider: codex,
-            claudeProvider: claude,
-            geminiProvider: gemini,
+            orchestratorProvider: orchProvider,
+            workerProvider: workerProvider,
             executionController: executionController
         )
     }
