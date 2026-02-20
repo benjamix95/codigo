@@ -231,10 +231,10 @@ struct TaskActivityPanel: View {
     let effectivePrimaryPath: String?
 
     @State private var selectedSwarmLaneId: String?
-    @State private var isActivitiesExpanded = true
-    @State private var isTerminalsExpanded = true
-    @State private var isGrepExpanded = true
-    @State private var isTodoExpanded = true
+    @State private var isActivitiesExpanded = false
+    @State private var isTerminalsExpanded = false
+    @State private var isGrepExpanded = false
+    @State private var isTodoExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -246,6 +246,14 @@ struct TaskActivityPanel: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
+        .onChange(of: chatStore.isLoading) { _, loading in
+            if !loading {
+                isActivitiesExpanded = false
+                isTerminalsExpanded = false
+                isGrepExpanded = false
+                isTodoExpanded = false
+            }
+        }
         .onAppear {
             if selectedSwarmLaneId == nil {
                 selectedSwarmLaneId =
@@ -270,6 +278,10 @@ struct TaskActivityPanel: View {
 
     @ViewBuilder
     private var standardActivityContent: some View {
+        if chatStore.isLoading {
+            liveModeBanner
+        }
+
         // Plan trace
         if coderMode == .plan {
             PlanLiveTraceView(
@@ -357,7 +369,15 @@ struct TaskActivityPanel: View {
 
         // Remaining task activities (non-terminal, non-bash)
         let otherActivities = taskActivityStore.activities
-            .filter { $0.type != "command_execution" && $0.type != "bash" }
+            .filter {
+                $0.type != "command_execution"
+                    && $0.type != "bash"
+                    && !$0.type.hasPrefix("web_search")
+                    && $0.type != "todo_write"
+                    && $0.type != "todo_read"
+                    && $0.type != "plan_step_update"
+                    && $0.type != "reasoning"
+            }
             .suffix(8)
         if !otherActivities.isEmpty {
             ForEach(Array(otherActivities)) { activity in
@@ -370,6 +390,10 @@ struct TaskActivityPanel: View {
 
     @ViewBuilder
     private var swarmActivityContent: some View {
+        if chatStore.isLoading {
+            liveModeBanner
+        }
+
         let laneStates = TaskActivityStore.laneStates(from: taskActivityStore.activities)
         let effectiveSwarmId = selectedSwarmLaneId ?? laneStates.first?.swarmId
         let selectedLaneActivities =
@@ -427,6 +451,106 @@ struct TaskActivityPanel: View {
 
             WebSearchLiveView(activities: selectedLaneActivities)
         }
+    }
+
+    @ViewBuilder
+    private var liveModeBanner: some View {
+        let isPaused = taskActivityStore.activities.last?.type == "process_paused"
+        let phaseLabel: String = {
+            if isPaused { return "Paused" }
+            switch coderMode {
+            case .plan: return "Plan"
+            case .codeReviewMultiSwarm: return "Review"
+            case .agentSwarm: return "Swarm"
+            default: return "Agent"
+            }
+        }()
+        let text: String = {
+            if isPaused {
+                return "Esecuzione in pausa"
+            }
+            switch coderMode {
+            case .plan:
+                let hasStepUpdate = taskActivityStore.activities.contains { $0.type == "plan_step_update" }
+                let hasExecutionSignal = taskActivityStore.activities.contains {
+                    $0.type == "command_execution" || $0.type == "file_change"
+                }
+                if hasExecutionSignal || hasStepUpdate {
+                    return "Plan: esecuzione del piano in corso"
+                }
+                return "Plan: analisi opzioni in corso"
+            case .codeReviewMultiSwarm:
+                let hasExecutionSignal = taskActivityStore.activities.contains {
+                    $0.type == "command_execution" || $0.type == "file_change"
+                }
+                if hasExecutionSignal {
+                    return "Code Review: Fase 2 (applicazione correzioni)"
+                }
+                return "Code Review: Fase 1 (analisi multi-swarm)"
+            case .agentSwarm:
+                return "Swarm: orchestrazione agenti in corso"
+            default:
+                return "Agent: task in esecuzione"
+            }
+        }()
+        let hint: String? = {
+            guard !isPaused else { return "Premi Riprendi per continuare l'esecuzione." }
+            if coderMode == .codeReviewMultiSwarm {
+                let hasExecutionSignal = taskActivityStore.activities.contains {
+                    $0.type == "command_execution" || $0.type == "file_change"
+                }
+                if !hasExecutionSignal {
+                    return "Per applicare fix: invia \"procedi con le correzioni\" oppure abilita yolo."
+                }
+            }
+            if coderMode == .plan {
+                let hasStepUpdate = taskActivityStore.activities.contains { $0.type == "plan_step_update" }
+                if !hasStepUpdate {
+                    return "Quando il piano è pronto, scegli un'opzione per avviare l'implementazione."
+                }
+            }
+            return nil
+        }()
+        let accent: Color = {
+            switch coderMode {
+            case .plan: return DesignSystem.Colors.planColor
+            case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
+            case .agentSwarm: return DesignSystem.Colors.swarmColor
+            default: return DesignSystem.Colors.agentColor
+            }
+        }()
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                if isPaused {
+                    Image(systemName: "pause.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.warning)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(phaseLabel)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(accent.opacity(0.14), in: Capsule())
+                Text(text)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            if let hint {
+                Text(hint)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Expandable Section
