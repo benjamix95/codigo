@@ -30,6 +30,7 @@ struct Conversation: Identifiable, Codable {
     var contextId: UUID?
     var contextFolderPath: String?
     var mode: CoderMode?
+    var preferredProviderId: String?
     var isArchived: Bool
     var isPinned: Bool
     var isFavorite: Bool
@@ -47,6 +48,7 @@ struct Conversation: Identifiable, Codable {
         contextId: UUID? = nil,
         contextFolderPath: String? = nil,
         mode: CoderMode? = nil,
+        preferredProviderId: String? = nil,
         isArchived: Bool = false,
         isPinned: Bool = false,
         isFavorite: Bool = false,
@@ -61,6 +63,7 @@ struct Conversation: Identifiable, Codable {
         self.contextId = contextId
         self.contextFolderPath = contextFolderPath
         self.mode = mode
+        self.preferredProviderId = preferredProviderId
         self.isArchived = isArchived
         self.isPinned = isPinned
         self.isFavorite = isFavorite
@@ -70,7 +73,7 @@ struct Conversation: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, messages, createdAt, contextId, contextFolderPath, mode, isArchived, isPinned, isFavorite, workspaceId, adHocFolderPaths, checkpoints
+        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, isArchived, isPinned, isFavorite, workspaceId, adHocFolderPaths, checkpoints
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +95,7 @@ struct Conversation: Identifiable, Codable {
         } else {
             mode = nil
         }
+        preferredProviderId = try? c.decode(String.self, forKey: .preferredProviderId)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -103,6 +107,7 @@ struct Conversation: Identifiable, Codable {
         try c.encode(contextId, forKey: .contextId)
         try c.encode(contextFolderPath, forKey: .contextFolderPath)
         try c.encode(mode?.rawValue, forKey: .mode)
+        try c.encodeIfPresent(preferredProviderId, forKey: .preferredProviderId)
         try c.encode(isArchived, forKey: .isArchived)
         try c.encode(isPinned, forKey: .isPinned)
         try c.encode(isFavorite, forKey: .isFavorite)
@@ -276,6 +281,13 @@ final class ChatStore: ObservableObject {
     func setArchived(conversationId: UUID, archived: Bool) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         conversations[idx].isArchived = archived
+        saveConversations()
+    }
+
+    func updatePreferredProvider(conversationId: UUID?, providerId: String?) {
+        guard let id = conversationId,
+              let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
+        conversations[idx].preferredProviderId = providerId?.isEmpty == true ? nil : providerId
         saveConversations()
     }
 

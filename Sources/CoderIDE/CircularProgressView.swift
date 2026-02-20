@@ -18,11 +18,12 @@ struct CircularProgressView: View {
     }
 
     var body: some View {
+        let clamped = min(1, max(0, progress))
         ZStack {
             Circle()
                 .stroke(Color(nsColor: .separatorColor), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: min(1, progress))
+                .trim(from: 0, to: clamped)
                 .stroke(progressColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }

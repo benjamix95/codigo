@@ -15,7 +15,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "CoderIDE",
-            dependencies: ["CoderEngine", "SwiftTerm"],
+            dependencies: [
+                .product(name: "CoderEngine", package: "CoderEngine"),
+                .product(name: "SwiftTerm", package: "SwiftTerm")
+            ],
             path: "Sources/CoderIDE"
         ),
         .testTarget(

@@ -6,75 +6,95 @@ public actor SwarmOrchestrator {
     private let openAIClient: OpenAICompletionsClient?
     private let codexProvider: CodexCLIProvider?
     private let claudeProvider: ClaudeCLIProvider?
+    private let geminiProvider: GeminiCLIProvider?
 
     public init(
         config: SwarmConfig,
         openAIClient: OpenAICompletionsClient?,
         codexProvider: CodexCLIProvider?,
-        claudeProvider: ClaudeCLIProvider? = nil
+        claudeProvider: ClaudeCLIProvider? = nil,
+        geminiProvider: GeminiCLIProvider? = nil
     ) {
         self.config = config
         self.openAIClient = openAIClient
         self.codexProvider = codexProvider
         self.claudeProvider = claudeProvider
+        self.geminiProvider = geminiProvider
     }
 
-    /// Prompt di sistema per l'orchestratore
+    /// System prompt for the orchestrator – language-neutral, concise, structured.
     private static let systemPrompt = """
-    Sei un orchestratore per un sistema di agenti specializzati. Ruoli disponibili:
-    - planner: scompone il compito in passi chiari
-    - coder: scrive o modifica codice
-    - debugger: identifica e risolve bug
-    - reviewer: revisiona codice e suggerisce miglioramenti
-    - docWriter: scrive documentazione
-    - securityAuditor: analisi sicurezza e vulnerabilità
-    - testWriter: scrive test
+        You are an orchestrator for a multi-agent coding system. Available specialist roles:
+        - planner: breaks down the task into clear implementation steps (no code)
+        - coder: writes or modifies code according to the plan
+        - debugger: identifies bugs, analyzes stack traces, fixes issues
+        - reviewer: reviews code for style, best practices, suggests optimizations
+        - docWriter: writes documentation (README, comments, docstrings)
+        - securityAuditor: analyzes code for vulnerabilities and insecure dependencies
+        - testWriter: writes unit, integration, and smoke tests
 
-    Produci UN SOLO blocco JSON: un array di task. Formato: [{"role":"planner","taskDescription":"...","order":1}, ...]
-    Usa solo i ruoli necessari per la richiesta. Ordina per dipendenze (es. planner prima di coder).
-    Non includere testo fuori dal JSON. Solo l'array JSON.
-    """
+        Produce EXACTLY ONE JSON block: an array of task objects.
+        Format: [{"role":"<role>","taskDescription":"<description>","order":<int>}]
+
+        Rules:
+        1. Use only the roles that are strictly necessary for the request.
+        2. Order tasks by dependency (e.g. planner before coder, coder before testWriter).
+        3. Tasks with the same "order" value run in parallel.
+        4. Output ONLY the JSON array – no commentary, no markdown fences, no extra text.
+        """
 
     /// Produce un piano di task per la richiesta dell'utente
     public func plan(userPrompt: String, context: WorkspaceContext) async throws -> [AgentTask] {
         let enabledRolesList = config.enabledRoles.map { $0.rawValue }.joined(separator: ", ")
         let userMessage = """
-        Richiesta utente: \(userPrompt)
-        \(context.contextPrompt())
+            User request: \(userPrompt)
+            \(context.contextPrompt())
 
-        Ruoli abilitati: \(enabledRolesList)
-        Produci l'array JSON di task.
-        """
+            Enabled roles: \(enabledRolesList)
+            Produce the JSON array of tasks.
+            """
 
         let rawOutput: String
         switch config.orchestratorBackend {
         case .openai:
             guard let client = openAIClient else {
-                throw CoderEngineError.apiError("OpenAI client non configurato per orchestratore")
+                throw CoderEngineError.apiError("OpenAI client not configured for orchestrator")
             }
             rawOutput = try await client.complete(messages: [
                 .system(Self.systemPrompt),
-                .user(userMessage)
+                .user(userMessage),
             ])
         case .codex:
             guard let provider = codexProvider else {
-                throw CoderEngineError.apiError("Codex provider non configurato per orchestratore")
+                throw CoderEngineError.apiError("Codex provider not configured for orchestrator")
             }
             let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectProviderOutput(provider: provider, prompt: fullPrompt, context: context)
+            rawOutput = try await collectProviderOutput(
+                provider: provider, prompt: fullPrompt, context: context)
         case .claude:
             guard let provider = claudeProvider else {
-                throw CoderEngineError.apiError("Claude provider non configurato per orchestratore")
+                throw CoderEngineError.apiError("Claude provider not configured for orchestrator")
             }
             let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
-            rawOutput = try await collectProviderOutput(provider: provider, prompt: fullPrompt, context: context)
+            rawOutput = try await collectProviderOutput(
+                provider: provider, prompt: fullPrompt, context: context)
+        case .gemini:
+            guard let provider = geminiProvider else {
+                throw CoderEngineError.apiError(
+                    "Gemini CLI provider not configured for orchestrator")
+            }
+            let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
+            rawOutput = try await collectProviderOutput(
+                provider: provider, prompt: fullPrompt, context: context)
         }
 
         return try parseTasks(from: rawOutput)
     }
 
     /// Raccolta output completo da un LLMProvider
-    private func collectProviderOutput(provider: any LLMProvider, prompt: String, context: WorkspaceContext) async throws -> String {
+    private func collectProviderOutput(
+        provider: any LLMProvider, prompt: String, context: WorkspaceContext
+    ) async throws -> String {
         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: nil)
         var full = ""
         for try await event in stream {
@@ -89,13 +109,17 @@ public actor SwarmOrchestrator {
     private func parseTasks(from raw: String) throws -> [AgentTask] {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Estrai da ```json ... ``` se presente
+        // Extract from ```json ... ``` if present
         if let start = trimmed.range(of: "```json"),
-           let end = trimmed.range(of: "```", range: start.upperBound..<trimmed.endIndex) {
-            trimmed = String(trimmed[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let end = trimmed.range(of: "```", range: start.upperBound..<trimmed.endIndex)
+        {
+            trimmed = String(trimmed[start.upperBound..<end.lowerBound]).trimmingCharacters(
+                in: .whitespacesAndNewlines)
         } else if let start = trimmed.range(of: "```"),
-                  let end = trimmed.range(of: "```", range: start.upperBound..<trimmed.endIndex) {
-            trimmed = String(trimmed[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let end = trimmed.range(of: "```", range: start.upperBound..<trimmed.endIndex)
+        {
+            trimmed = String(trimmed[start.upperBound..<end.lowerBound]).trimmingCharacters(
+                in: .whitespacesAndNewlines)
         }
 
         guard !trimmed.isEmpty else {
@@ -119,8 +143,9 @@ public actor SwarmOrchestrator {
         if let parsed = decodeTasks(from: trimmed) {
             rawTasks = parsed
         } else if let start = trimmed.firstIndex(of: "["),
-                  let end = trimmed.lastIndex(of: "]"),
-                  start < end {
+            let end = trimmed.lastIndex(of: "]"),
+            start < end
+        {
             let candidate = String(trimmed[start...end])
             if let parsed = decodeTasks(from: candidate) {
                 rawTasks = parsed
@@ -133,7 +158,8 @@ public actor SwarmOrchestrator {
 
         let mapped = rawTasks.compactMap { raw -> AgentTask? in
             guard let role = AgentRole(rawValue: raw.role),
-                  config.enabledRoles.contains(role) else { return nil }
+                config.enabledRoles.contains(role)
+            else { return nil }
             return AgentTask(role: role, taskDescription: raw.taskDescription, order: raw.order)
         }.sorted { $0.order < $1.order }
         return mapped.isEmpty ? fallbackTasks() : mapped
@@ -142,12 +168,25 @@ public actor SwarmOrchestrator {
     private func fallbackTasks() -> [AgentTask] {
         var tasks: [AgentTask] = []
         if config.enabledRoles.contains(.planner) {
-            tasks.append(AgentTask(role: .planner, taskDescription: "Scomponi la richiesta in passi implementabili e dipendenze.", order: 1))
+            tasks.append(
+                AgentTask(
+                    role: .planner,
+                    taskDescription:
+                        "Break down the request into clear, implementable steps and identify dependencies.",
+                    order: 1))
         }
         if config.enabledRoles.contains(.coder) {
-            tasks.append(AgentTask(role: .coder, taskDescription: "Implementa la richiesta utente in modo completo e verificabile.", order: tasks.isEmpty ? 1 : 2))
+            tasks.append(
+                AgentTask(
+                    role: .coder,
+                    taskDescription: "Implement the user request completely and verifiably.",
+                    order: tasks.isEmpty ? 1 : 2))
         } else if config.enabledRoles.contains(.debugger) {
-            tasks.append(AgentTask(role: .debugger, taskDescription: "Analizza e correggi i problemi principali segnalati dalla richiesta.", order: tasks.isEmpty ? 1 : 2))
+            tasks.append(
+                AgentTask(
+                    role: .debugger,
+                    taskDescription: "Analyze and fix the main issues described in the request.",
+                    order: tasks.isEmpty ? 1 : 2))
         }
         return tasks
     }

@@ -7,13 +7,13 @@ final class ChatStoreCheckpointTests: XCTestCase {
     private let planKey = "CoderIDE.planBoards"
 
     override func setUp() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: planKey)
+        super.setUp()
+        clearPersistedState()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: planKey)
+        clearPersistedState()
+        super.tearDown()
     }
 
     func testCreateCheckpointPersistsGitMetadata() {
@@ -76,5 +76,10 @@ final class ChatStoreCheckpointTests: XCTestCase {
         let cps = store.conversation(for: convId)?.checkpoints ?? []
         XCTAssertEqual(cps.count, 1)
         XCTAssertEqual(cps.first?.messageCount, 1)
+    }
+
+    private func clearPersistedState() {
+        UserDefaults.standard.removeObject(forKey: convKey)
+        UserDefaults.standard.removeObject(forKey: planKey)
     }
 }

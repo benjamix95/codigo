@@ -30,7 +30,10 @@ struct PlanSummaryCardView: View {
                     .foregroundStyle(.primary)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(summaryMarkdown.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.prefix(14), id: \.self) { line in
+                    let lines = summaryMarkdown
+                        .components(separatedBy: .newlines)
+                        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    ForEach(Array(lines.prefix(14).enumerated()), id: \.offset) { _, line in
                         Text(line)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(.primary.opacity(0.92))

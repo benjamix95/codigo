@@ -44,7 +44,7 @@ struct ConversationCheckpointGitStore {
 
         let indexPath = temporaryIndexPath()
         defer { try? FileManager.default.removeItem(atPath: indexPath) }
-        FileManager.default.createFile(atPath: indexPath, contents: Data())
+        _ = FileManager.default.createFile(atPath: indexPath, contents: Data())
         var env = ProcessInfo.processInfo.environment
         env["GIT_INDEX_FILE"] = indexPath
 
@@ -65,10 +65,11 @@ struct ConversationCheckpointGitStore {
             throw GitStoreError.commandFailed("Impossibile creare tree git per checkpoint.")
         }
 
-        var commitArgs = ["commit-tree", tree, "-m", "checkpoint:\(conversationId.uuidString):\(Int(Date().timeIntervalSince1970))"]
+        var commitArgs = ["commit-tree", tree]
         if let prev = previousRef, !prev.isEmpty {
-            commitArgs.insert(contentsOf: ["-p", prev], at: 3)
+            commitArgs.append(contentsOf: ["-p", prev])
         }
+        commitArgs.append(contentsOf: ["-m", "checkpoint:\(conversationId.uuidString):\(Int(Date().timeIntervalSince1970))"])
         let commit = try runGit(commitArgs, cwd: gitRoot).trimmingCharacters(in: .whitespacesAndNewlines)
         if commit.isEmpty {
             throw GitStoreError.commandFailed("Impossibile creare commit snapshot.")

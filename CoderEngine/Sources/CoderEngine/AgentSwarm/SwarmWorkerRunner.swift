@@ -61,14 +61,14 @@ public struct SwarmWorkerRunner: Sendable {
                             let task = groupTasks[0]
                             let header = "\n## \(task.role.displayName)\n\n"
                             continuation.yield(.textDelta(header))
-                            continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "started"]))
+                            continuation.yield(.raw(type: "agent", payload: swarmPayload(for: task, detail: "started")))
                             let taskImageURLs = isFirstTask && !(imageURLs?.isEmpty ?? true) ? imageURLs : nil
                             let output = try await runSingleTask(task, context: context, imageURLs: taskImageURLs, previousOutputs: accumulatedOutput, provider: provider, continuation: continuation)
-                            continuation.yield(.raw(type: "agent", payload: ["title": task.role.displayName, "detail": "completed"]))
+                            continuation.yield(.raw(type: "agent", payload: swarmPayload(for: task, detail: "completed")))
                             accumulatedOutput += output + "\n"
                         } else {
                             continuation.yield(.textDelta("\n## Parallelo: \(groupTasks.map { $0.role.displayName }.joined(separator: ", "))\n\n"))
-                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: ["title": t.role.displayName, "detail": "started"])) }
+                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: swarmPayload(for: t, detail: "started"))) }
                             var groupOutputs: [(String, String)] = []
                             await withTaskGroup(of: (String, String).self) { g in
                                 for (idx, task) in groupTasks.enumerated() {
@@ -86,6 +86,9 @@ public struct SwarmWorkerRunner: Sendable {
                                             for try await event in stream {
                                                 if case .textDelta(let d) = event { out += d }
                                                 if case .error(let e) = event { err = "\n[Errore \(task.role.displayName): \(e)]\n"; out += err! }
+                                                if case .raw(let type, let payload) = event {
+                                                    continuation.yield(.raw(type: type, payload: self.enrichSwarmPayload(payload, for: task)))
+                                                }
                                             }
                                         } catch {
                                             err = "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
@@ -96,7 +99,7 @@ public struct SwarmWorkerRunner: Sendable {
                                 }
                                 for await res in g { groupOutputs.append(res) }
                             }
-                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: ["title": t.role.displayName, "detail": "completed"])) }
+                            for t in groupTasks { continuation.yield(.raw(type: "agent", payload: swarmPayload(for: t, detail: "completed"))) }
                             let merged = groupOutputs.sorted(by: { $0.0 < $1.0 }).map(\.1).joined(separator: "\n")
                             continuation.yield(.textDelta(merged))
                             accumulatedOutput += merged + "\n"
@@ -133,11 +136,32 @@ public struct SwarmWorkerRunner: Sendable {
                 continuation.yield(.textDelta(e))
                 taskOutput += e
             case .raw(let type, let payload):
-                continuation.yield(.raw(type: type, payload: payload))
+                continuation.yield(.raw(type: type, payload: enrichSwarmPayload(payload, for: task)))
             default: break
             }
         }
         return taskOutput
+    }
+
+    private func swarmPayload(for task: AgentTask, detail: String) -> [String: String] {
+        [
+            "title": task.role.displayName,
+            "detail": detail,
+            "swarm_id": task.role.rawValue,
+            "group_id": "swarm-\(task.role.rawValue)"
+        ]
+    }
+
+    private func enrichSwarmPayload(_ payload: [String: String], for task: AgentTask) -> [String: String] {
+        var enriched = payload
+        enriched["swarm_id"] = task.role.rawValue
+        if enriched["group_id"] == nil {
+            enriched["group_id"] = "swarm-\(task.role.rawValue)"
+        }
+        if (enriched["title"] ?? "").isEmpty {
+            enriched["title"] = task.role.displayName
+        }
+        return enriched
     }
 
     private func buildPrompt(for task: AgentTask, previousOutputs: String) -> String {

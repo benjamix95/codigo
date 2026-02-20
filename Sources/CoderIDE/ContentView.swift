@@ -10,6 +10,7 @@ struct ContentView: View {
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
+    @AppStorage("default_agent_provider_id") private var defaultAgentProviderId = "codex-cli"
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -40,10 +41,25 @@ struct ContentView: View {
             .ignoresSafeArea(.container, edges: .top)
         }
         .onAppear {
-            let defaultContextId = workspaceStore.activeWorkspaceId
+            // Inizializza la selezione SOLO al primo avvio, altrimenti onAppear sovrascriverebbe
+            // la conversazione scelta dall'utente (es. dopo "New thread") ogni volta che la view riappare.
+            guard selectedConversationId == nil else {
+                return
+            }
+            let defaultContextId = workspaceStore.activeWorkspaceId ?? projectContextStore.activeContextId
             let agentConversationId = chatStore.getOrCreateConversationForMode(contextId: defaultContextId, mode: .agent)
             selectedConversationId = agentConversationId
-            providerRegistry.selectedProviderId = "codex-cli"
+            let agentConv = chatStore.conversation(for: agentConversationId)
+            if let preferred = agentConv?.preferredProviderId,
+               ProviderSupport.isAgentProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if ProviderSupport.isAgentProvider(id: defaultAgentProviderId),
+                      providerRegistry.provider(for: defaultAgentProviderId) != nil {
+                providerRegistry.selectedProviderId = defaultAgentProviderId
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -51,10 +67,25 @@ struct ContentView: View {
                 .environmentObject(executionController)
                 .environmentObject(providerUsageStore)
         }
-        .toolbar(.hidden, for: .windowToolbar)
         .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
             showSettings = true
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onChange(of: projectContextStore.activeContextId) { _, newContextId in
+            guard let newContextId else { return }
+            let conv = chatStore.conversation(for: selectedConversationId)
+            guard conv?.contextId != newContextId else { return }
+            let ctx = projectContextStore.context(id: newContextId)
+            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+            // Se c'è un thread su cui avevi lavorato in questo tab, mostralo; altrimenti nuovo thread
+            if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
+               let lastConv = chatStore.conversation(for: lastId),
+               lastConv.contextId == newContextId,
+               lastConv.messages.contains(where: { $0.role == .user }) {
+                selectedConversationId = lastId
+            } else {
+                selectedConversationId = chatStore.createConversation(contextId: newContextId, contextFolderPath: folderScope)
+            }
         }
     }
 
@@ -150,6 +181,7 @@ struct ContentView: View {
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)
+        .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
         .sidebarPanel(cornerRadius: 14)
     }

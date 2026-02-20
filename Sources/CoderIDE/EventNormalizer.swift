@@ -108,7 +108,8 @@ enum EventNormalizer {
         let normalizedType = normalizeSpecialType(type, payload: payload)
         let phase = phaseForType(normalizedType)
         let running = runningStateForType(normalizedType)
-        let title = payload["title"] ?? defaultTitle(for: normalizedType)
+        let baseTitle = payload["title"] ?? defaultTitle(for: normalizedType)
+        let title = withSwarmPrefix(baseTitle, payload: payload)
         events.append(.taskActivity(TaskActivity(
             type: normalizedType,
             title: title,
@@ -177,9 +178,27 @@ enum EventNormalizer {
             return "Ricerca web completata"
         case "web_search_failed":
             return "Ricerca web fallita"
+        case "tool_execution_error":
+            return "Errore esecuzione tool"
+        case "tool_validation_error":
+            return "Errore validazione tool"
+        case "tool_timeout":
+            return "Timeout tool"
+        case "permission_denied":
+            return "Permesso negato"
         default:
             return type
         }
+    }
+
+    private static func withSwarmPrefix(_ title: String, payload: [String: String]) -> String {
+        guard let swarmId = payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !swarmId.isEmpty else {
+            return title
+        }
+        if title.hasPrefix("Swarm \(swarmId)") {
+            return title
+        }
+        return "Swarm \(swarmId) • \(title)"
     }
 
     private static func parseTodoWrite(payload: [String: String]) -> TodoWritePayload? {

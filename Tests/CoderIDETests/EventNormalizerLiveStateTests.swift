@@ -38,5 +38,6 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(activity.phase, .thinking)
         XCTAssertFalse(activity.isRunning)
         XCTAssertEqual(activity.title, "Processo in pausa")
+        XCTAssertNil(activity.groupId)
     }
 }

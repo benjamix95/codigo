@@ -5,12 +5,18 @@ final class ExecutionControllerPauseResumeTests: XCTestCase {
     func testPauseResumeWithoutProcessIsNoop() {
         let controller = ExecutionController()
         XCTAssertEqual(controller.runState, .idle)
+        XCTAssertFalse(controller.swarmPauseRequested)
+        XCTAssertFalse(controller.swarmStopRequested)
 
         controller.pause(scope: .agent)
         XCTAssertEqual(controller.runState, .idle)
+        XCTAssertFalse(controller.swarmPauseRequested)
+        XCTAssertFalse(controller.swarmStopRequested)
 
         controller.resume(scope: .agent)
         XCTAssertEqual(controller.runState, .idle)
+        XCTAssertFalse(controller.swarmPauseRequested)
+        XCTAssertFalse(controller.swarmStopRequested)
     }
 
     func testScopeLifecycleTransitionsRunState() {

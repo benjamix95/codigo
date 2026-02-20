@@ -133,6 +133,11 @@ public struct WorkspaceContext: Sendable {
             parts.append(selection)
             parts.append("```")
         }
+
+        let rulesBlock = CoderRulesFile.rulesPrompt(workspacePath: workspacePaths.first?.path)
+        if !rulesBlock.isEmpty {
+            parts.append("\n\(rulesBlock)")
+        }
         
         if parts.isEmpty && activeFilePath == nil {
             return ""

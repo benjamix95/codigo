@@ -6,6 +6,7 @@ final class GitServiceTests: XCTestCase {
     private let git = GitService()
 
     override func setUpWithError() throws {
+        try super.setUpWithError()
         repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("git-service-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
         try runGit(["init"], cwd: repoURL.path)
@@ -20,6 +21,7 @@ final class GitServiceTests: XCTestCase {
         if let repoURL {
             try? FileManager.default.removeItem(at: repoURL)
         }
+        try super.tearDownWithError()
     }
 
     func testBranchAndStatusAndCommit() throws {
@@ -54,9 +56,20 @@ final class GitServiceTests: XCTestCase {
         p.standardError = err
         try p.run()
         p.waitUntilExit()
+        let stdout = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         if p.terminationStatus != 0 {
-            let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw NSError(domain: "GitServiceTests", code: Int(p.terminationStatus), userInfo: [NSLocalizedDescriptionKey: stderr])
+            throw NSError(
+                domain: "GitServiceTests",
+                code: Int(p.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey: """
+                    git \(args.joined(separator: " ")) failed (\(p.terminationStatus))
+                    stdout: \(stdout)
+                    stderr: \(stderr)
+                    """
+                ]
+            )
         }
     }
 }

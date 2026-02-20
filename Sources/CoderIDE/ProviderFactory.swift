@@ -1,5 +1,5 @@
-import Foundation
 import CoderEngine
+import Foundation
 
 struct ProviderFactoryConfig {
     var openaiApiKey: String
@@ -23,6 +23,7 @@ struct ProviderFactoryConfig {
 
     var swarmOrchestrator: String
     var swarmWorkerBackend: String
+    var swarmWorkerBackendOverrides: String
     var swarmAutoPostCodePipeline: Bool
     var swarmMaxPostCodeRetries: Int
     var swarmMaxReviewLoops: Int
@@ -33,11 +34,13 @@ struct ProviderFactoryConfig {
     var codeReviewAnalysisOnly: Bool
     var codeReviewMaxRounds: Int
     var codeReviewAnalysisBackend: String
+    var codeReviewExecutionBackend: String
 
     var claudePath: String
     var claudeModel: String
     var claudeAllowedTools: [String]
     var geminiCliPath: String
+    var geminiModelOverride: String
 }
 
 enum ProviderFactory {
@@ -47,7 +50,8 @@ enum ProviderFactory {
     }
 
     static func askForApproval(from config: ProviderFactoryConfig) -> String {
-        config.globalYolo ? "never" : CodexCLIProvider.normalizeAskForApproval(config.codexAskForApproval)
+        config.globalYolo
+            ? "never" : CodexCLIProvider.normalizeAskForApproval(config.codexAskForApproval)
     }
 
     static func codexParams(from config: ProviderFactoryConfig) -> CodexCreateParams {
@@ -55,17 +59,22 @@ enum ProviderFactory {
             codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
             sandboxMode: sandbox(from: config),
             modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
-            modelReasoningEffort: config.codexReasoningEffort.isEmpty ? nil : config.codexReasoningEffort,
+            modelReasoningEffort: config.codexReasoningEffort.isEmpty
+                ? nil : config.codexReasoningEffort,
             askForApproval: askForApproval(from: config)
         )
     }
 
-    static func codexProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> CodexCLIProvider {
+    static func codexProvider(
+        config: ProviderFactoryConfig, executionController: ExecutionController?,
+        environmentOverride: [String: String]? = nil
+    ) -> CodexCLIProvider {
         CodexCLIProvider(
             codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
             sandboxMode: sandbox(from: config),
             modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
-            modelReasoningEffort: config.codexReasoningEffort.isEmpty ? nil : config.codexReasoningEffort,
+            modelReasoningEffort: config.codexReasoningEffort.isEmpty
+                ? nil : config.codexReasoningEffort,
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),
             executionController: executionController,
@@ -73,7 +82,10 @@ enum ProviderFactory {
         )
     }
 
-    static func claudeProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> ClaudeCLIProvider {
+    static func claudeProvider(
+        config: ProviderFactoryConfig, executionController: ExecutionController?,
+        environmentOverride: [String: String]? = nil
+    ) -> ClaudeCLIProvider {
         ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
             model: config.claudeModel,
@@ -83,22 +95,32 @@ enum ProviderFactory {
         )
     }
 
-    static func geminiProvider(config: ProviderFactoryConfig, executionController: ExecutionController?, environmentOverride: [String: String]? = nil) -> GeminiCLIProvider {
+    static func geminiProvider(
+        config: ProviderFactoryConfig, executionController: ExecutionController?,
+        environmentOverride: [String: String]? = nil
+    ) -> GeminiCLIProvider {
         GeminiCLIProvider(
             geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
+            modelOverride: config.geminiModelOverride.isEmpty ? nil : config.geminiModelOverride,
+            yoloMode: config.globalYolo,
+            approvalMode: config.globalYolo ? nil : "auto_edit",
             executionController: executionController,
             environmentOverride: environmentOverride
         )
     }
 
-    static func planProvider(config: ProviderFactoryConfig, codex: CodexCLIProvider?, claude: ClaudeCLIProvider?, executionController: ExecutionController?) -> PlanModeProvider {
+    static func planProvider(
+        config: ProviderFactoryConfig, codex: CodexCLIProvider?, claude: ClaudeCLIProvider?,
+        executionController: ExecutionController?
+    ) -> PlanModeProvider {
         PlanModeProvider(
             codexProvider: codex,
             claudeProvider: claude,
             codexParams: codexParams(from: config),
             backend: config.planModeBackend,
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
-            claudeModel: config.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty ? nil : config.claudeModel,
+            claudeModel: config.claudeModel.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : config.claudeModel,
             executionController: executionController
         )
     }
@@ -114,15 +136,30 @@ enum ProviderFactory {
         return roles
     }
 
-    static func swarmProvider(config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?, executionController: ExecutionController?) -> AgentSwarmProvider {
+    static func swarmProvider(
+        config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?,
+        gemini: GeminiCLIProvider? = nil,
+        executionController: ExecutionController?
+    ) -> AgentSwarmProvider {
         let orchBackend: OrchestratorBackend
         switch config.swarmOrchestrator {
         case "codex": orchBackend = .codex
         case "claude": orchBackend = .claude
+        case "gemini": orchBackend = .gemini
         default: orchBackend = .openai
         }
-        let workerBackend: WorkerBackend = config.swarmWorkerBackend == "claude" ? .claude : .codex
-        let openAIClient: OpenAICompletionsClient? = orchBackend == .openai && !config.openaiApiKey.isEmpty
+        let workerBackend: WorkerBackend
+        switch config.swarmWorkerBackend {
+        case "claude": workerBackend = .claude
+        case "gemini": workerBackend = .gemini
+        default: workerBackend = .codex
+        }
+
+        let workerOverrides = WorkerBackendOverrides.deserialize(
+            config.swarmWorkerBackendOverrides)
+
+        let openAIClient: OpenAICompletionsClient? =
+            orchBackend == .openai && !config.openaiApiKey.isEmpty
             ? OpenAICompletionsClient(apiKey: config.openaiApiKey, model: config.openaiModel)
             : nil
         let enabledRoles = parseRoles(config.swarmEnabledRoles)
@@ -130,6 +167,7 @@ enum ProviderFactory {
         let swarmConfig = SwarmConfig(
             orchestratorBackend: orchBackend,
             workerBackend: workerBackend,
+            workerBackendOverrides: workerOverrides,
             enabledRoles: enabledRoles.isEmpty ? nil : enabledRoles,
             autoPostCodePipeline: config.swarmAutoPostCodePipeline,
             maxPostCodeRetries: config.swarmMaxPostCodeRetries,
@@ -140,23 +178,120 @@ enum ProviderFactory {
             openAIClient: openAIClient,
             codexProvider: codex,
             claudeProvider: claude,
+            geminiProvider: gemini,
             executionController: executionController
         )
     }
 
-    static func codeReviewProvider(config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?) -> MultiSwarmReviewProvider {
+    static func codeReviewProvider(
+        config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?
+    ) -> MultiSwarmReviewProvider {
         let reviewConfig = MultiSwarmReviewConfig(
             partitionCount: config.codeReviewPartitions,
             yoloMode: config.globalYolo,
             enabledPhases: config.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
             maxReviewRounds: config.codeReviewMaxRounds,
-            analysisBackend: config.codeReviewAnalysisBackend
+            analysisBackend: config.codeReviewAnalysisBackend,
+            executionBackend: config.codeReviewExecutionBackend
         )
+        let execProvider = codeReviewExecutionProvider(config: config, codex: codex, claude: claude)
         return MultiSwarmReviewProvider(
             config: reviewConfig,
             codexProvider: codex,
             codexParams: codexParams(from: config),
-            claudeProvider: claude
+            claudeProvider: claude,
+            executionProvider: execProvider
         )
+    }
+
+    private static func codeReviewExecutionProvider(
+        config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?
+    ) -> (any LLMProvider)? {
+        switch config.codeReviewExecutionBackend {
+        case "claude":
+            guard let c = claude, c.isAuthenticated() else { return nil }
+            return ClaudeCLIProvider(
+                claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
+                model: config.claudeModel,
+                allowedTools: config.claudeAllowedTools,
+                executionController: nil,
+                executionScope: .review
+            )
+        case "anthropic-api":
+            guard !config.anthropicApiKey.isEmpty else { return nil }
+            return anthropicAPIProvider(config: config, executionScope: .review)
+        case "openai-api":
+            guard !config.openaiApiKey.isEmpty else { return nil }
+            return openAIAPIProvider(config: config, executionScope: .review)
+        case "google-api":
+            guard !config.googleApiKey.isEmpty else { return nil }
+            return googleAPIProvider(config: config, executionScope: .review)
+        case "openrouter-api":
+            guard !config.openrouterApiKey.isEmpty else { return nil }
+            return openRouterAPIProvider(config: config, executionScope: .review)
+        default:
+            return nil
+        }
+    }
+
+    static func openAIAPIProvider(
+        config: ProviderFactoryConfig, reasoningEffort: String? = nil,
+        executionScope: ExecutionScope = .agent
+    ) -> any LLMProvider {
+        let base = OpenAIAPIProvider(
+            apiKey: config.openaiApiKey,
+            model: config.openaiModel,
+            reasoningEffort: reasoningEffort
+        )
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+    }
+
+    static func anthropicAPIProvider(
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+    ) -> any LLMProvider {
+        let base = AnthropicAPIProvider(
+            apiKey: config.anthropicApiKey,
+            model: config.anthropicModel,
+            displayName: "Anthropic"
+        )
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+    }
+
+    static func googleAPIProvider(
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+    ) -> any LLMProvider {
+        let base = OpenAIAPIProvider(
+            apiKey: config.googleApiKey,
+            model: config.googleModel,
+            id: "google-api",
+            displayName: "Google Gemini",
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+        )
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+    }
+
+    static func miniMaxAPIProvider(config: ProviderFactoryConfig) -> any LLMProvider {
+        let base = OpenAIAPIProvider(
+            apiKey: config.minimaxApiKey,
+            model: config.minimaxModel,
+            id: "minimax-api",
+            displayName: "MiniMax",
+            baseURL: "https://api.minimax.io/v1/chat/completions"
+        )
+        return ToolEnabledLLMProvider(base: base, executionScope: .agent)
+    }
+
+    static func openRouterAPIProvider(
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+    ) -> any LLMProvider {
+        let base = OpenAIAPIProvider(
+            apiKey: config.openrouterApiKey,
+            model: config.openrouterModel,
+            id: "openrouter-api",
+            displayName: "OpenRouter",
+            baseURL: "https://openrouter.ai/api/v1/chat/completions",
+            extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
+        )
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
     }
 }

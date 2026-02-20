@@ -69,6 +69,11 @@ final class CLIAccountUsageLedgerStore: ObservableObject {
               let decoded = try? JSONDecoder().decode([CLIUsageEvent].self, from: data) else {
             return
         }
+        if decoded.count > 5000 {
+            events = Array(decoded.suffix(5000))
+            save()
+            return
+        }
         events = decoded
     }
 }

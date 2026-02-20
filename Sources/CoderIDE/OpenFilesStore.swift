@@ -35,6 +35,10 @@ final class OpenFilesStore: ObservableObject {
     func closeFile(_ path: String) {
         if pinnedPaths.contains(path) { return }
         openPaths.removeAll { $0 == path }
+        fileContents.removeValue(forKey: path)
+        diskSnapshot.removeValue(forKey: path)
+        loadErrors.removeValue(forKey: path)
+        dirtyPaths.remove(path)
         viewModeByPath.removeValue(forKey: path)
         diffByPath.removeValue(forKey: path)
         if openFilePath == path {
@@ -51,7 +55,17 @@ final class OpenFilesStore: ObservableObject {
     }
 
     func closeOthers(keeping path: String) {
-        openPaths = openPaths.filter { $0 == path || pinnedPaths.contains($0) }
+        let keptPaths = openPaths.filter { $0 == path || pinnedPaths.contains($0) }
+        let keptSet = Set(keptPaths)
+        for stalePath in openPaths where !keptSet.contains(stalePath) {
+            fileContents.removeValue(forKey: stalePath)
+            diskSnapshot.removeValue(forKey: stalePath)
+            loadErrors.removeValue(forKey: stalePath)
+            dirtyPaths.remove(stalePath)
+            viewModeByPath.removeValue(forKey: stalePath)
+            diffByPath.removeValue(forKey: stalePath)
+        }
+        openPaths = keptPaths
         openFilePath = path
     }
 
@@ -76,6 +90,11 @@ final class OpenFilesStore: ObservableObject {
     func closeAllFiles() {
         openPaths.removeAll()
         openFilePath = nil
+        fileContents.removeAll()
+        diskSnapshot.removeAll()
+        loadErrors.removeAll()
+        dirtyPaths.removeAll()
+        pinnedPaths.removeAll()
         viewModeByPath.removeAll()
         diffByPath.removeAll()
     }
@@ -158,9 +177,16 @@ final class OpenFilesStore: ObservableObject {
 
     func openFileWithDiff(_ absolutePath: String, gitRoot: String, gitService: GitService) {
         openFile(absolutePath)
-        let rootURL = URL(fileURLWithPath: gitRoot)
-        let fileURL = URL(fileURLWithPath: absolutePath)
-        let relative = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+        let rootURL = URL(fileURLWithPath: gitRoot).standardizedFileURL
+        let fileURL = URL(fileURLWithPath: absolutePath).standardizedFileURL
+        let rootPath = rootURL.path
+        let filePath = fileURL.path
+        guard filePath.hasPrefix(rootPath + "/") else {
+            loadErrors[absolutePath] = "Il file selezionato non appartiene al repository corrente"
+            viewModeByPath[absolutePath] = .plain
+            return
+        }
+        let relative = String(filePath.dropFirst(rootPath.count + 1))
         do {
             let patch = try gitService.fileDiff(gitRoot: gitRoot, path: relative)
             diffByPath[absolutePath] = patch

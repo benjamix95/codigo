@@ -40,6 +40,14 @@ struct TaskActivityPanelView: View {
     }
 }
 
+private enum TimeFormatters {
+    static let hms: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
+}
+
 struct ChatTerminalSessionsView: View {
     let activities: [TaskActivity]
     @State private var expandedSessions: Set<UUID> = []
@@ -67,11 +75,7 @@ struct ChatTerminalSessionsView: View {
     private func terminalSessionCard(_ session: TerminalActivitySession) -> some View {
         let isExpanded = expandedSessions.contains(session.id)
         let hasOutput = !(session.output?.isEmpty ?? true) || !(session.stderr?.isEmpty ?? true)
-        let timeString: String = {
-            let f = DateFormatter()
-            f.dateFormat = "HH:mm:ss"
-            return f.string(from: session.timestamp)
-        }()
+        let timeString = TimeFormatters.hms.string(from: session.timestamp)
 
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -235,6 +239,7 @@ struct TaskActivityRow: View {
         case "todo_write", "todo_read": return "checklist"
         case "plan_step_update": return "list.bullet.rectangle"
         case "mcp_tool_call": return "wrench.and.screwdriver.fill"
+        case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied": return "exclamationmark.triangle.fill"
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "agent": return "ant.fill"
@@ -251,6 +256,7 @@ struct TaskActivityRow: View {
         case "todo_write", "todo_read": return .green
         case "plan_step_update": return DesignSystem.Colors.planColor
         case "mcp_tool_call": return DesignSystem.Colors.ideColor
+        case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied": return DesignSystem.Colors.error
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "agent": return DesignSystem.Colors.swarmColor
@@ -259,7 +265,7 @@ struct TaskActivityRow: View {
     }
 
     private var timeString: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f.string(from: activity.timestamp)
+        TimeFormatters.hms.string(from: activity.timestamp)
     }
 
     var body: some View {

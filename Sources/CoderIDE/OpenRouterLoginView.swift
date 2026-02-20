@@ -11,6 +11,7 @@ struct OpenRouterLoginView: View {
     @State private var isAuthenticating = false
     @State private var authMessage = ""
     @State private var errorMessage: String?
+    @State private var authSession: ASWebAuthenticationSession?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -161,6 +162,7 @@ struct OpenRouterLoginView: View {
                error.code == .canceledLogin {
                 DispatchQueue.main.async {
                     isAuthenticating = false
+                    authSession = nil
                 }
                 return
             }
@@ -168,6 +170,8 @@ struct OpenRouterLoginView: View {
                 DispatchQueue.main.async {
                     errorMessage = error.localizedDescription
                     authMessage = "Errore"
+                    isAuthenticating = false
+                    authSession = nil
                 }
                 return
             }
@@ -177,6 +181,8 @@ struct OpenRouterLoginView: View {
                 DispatchQueue.main.async {
                     errorMessage = "Codice di autorizzazione non ricevuto"
                     authMessage = "Errore"
+                    isAuthenticating = false
+                    authSession = nil
                 }
                 return
             }
@@ -189,10 +195,12 @@ struct OpenRouterLoginView: View {
 
         session.presentationContextProvider = OpenRouterAuthContext.shared
         session.prefersEphemeralWebBrowserSession = false
+        authSession = session
 
         if !session.start() {
             errorMessage = "Impossibile avviare sessione di autenticazione"
             isAuthenticating = false
+            authSession = nil
         }
     }
 
@@ -226,6 +234,7 @@ struct OpenRouterLoginView: View {
                 await MainActor.run {
                     apiKey = key
                     isAuthenticating = false
+                    authSession = nil
                     onSuccess()
                     dismiss()
                 }
@@ -233,6 +242,8 @@ struct OpenRouterLoginView: View {
                 await MainActor.run {
                     errorMessage = "Scambio fallito: \(error.localizedDescription)"
                     authMessage = "Errore"
+                    isAuthenticating = false
+                    authSession = nil
                 }
             }
         }

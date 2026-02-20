@@ -78,14 +78,16 @@ struct PlanOptionsView: View {
 
                     Button {
                         let t = customText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !t.isEmpty { onCustomResponse(t) }
+                        guard !t.isEmpty else { return }
+                        onCustomResponse(t)
+                        customText = ""
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(customText.isEmpty ? Color.secondary : planColor)
+                            .foregroundStyle(customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : planColor)
                     }
                     .buttonStyle(.plain)
-                    .disabled(customText.isEmpty)
+                    .disabled(customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }

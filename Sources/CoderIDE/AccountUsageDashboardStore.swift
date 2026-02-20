@@ -210,7 +210,7 @@ final class AccountUsageDashboardStore: ObservableObject {
 
         let effectiveCodexPath = (codexPath?.isEmpty == false) ? codexPath! : (PathFinder.find(executable: "codex") ?? "")
         let effectiveClaudePath = (claudePath?.isEmpty == false) ? claudePath! : (PathFinder.find(executable: "claude") ?? "")
-        let effectiveGeminiPath = (geminiPath?.isEmpty == false) ? geminiPath! : (PathFinder.find(executable: "gemini") ?? "")
+        let effectiveGeminiPath = (geminiPath?.isEmpty == false) ? geminiPath! : (GeminiDetector.findGeminiPath(customPath: nil) ?? "")
 
         await providerUsage.fetchCodexUsage(codexPath: effectiveCodexPath, workingDirectory: nil)
         await providerUsage.fetchClaudeUsage(claudePath: effectiveClaudePath, workingDirectory: nil)

@@ -64,11 +64,14 @@ final class CLIAccountRouter: ObservableObject {
         ledger.append(accountId: accountId, provider: provider, inputTokens: inputTokens, outputTokens: outputTokens, estimatedCostUSD: estimatedCost)
 
         guard var account = accountsStore.accounts.first(where: { $0.id == accountId && $0.provider == provider }) else { return }
+        account.health.consecutiveFailures = 0
+        account.health.lastErrorCode = nil
+        account.health.cooldownUntil = nil
         if exceedsPolicy(account: account) {
             account.health.isExhaustedLocally = true
             account.health.lastErrorCode = "local_limit_reached"
-            accountsStore.update(account)
         }
+        accountsStore.update(account)
     }
 
     func markProviderError(accountId: UUID, provider: CLIProviderKind, classifiedError: CLIClassifiedFailure) {
@@ -96,7 +99,12 @@ final class CLIAccountRouter: ObservableObject {
     }
 
     private func availableAccounts(for provider: CLIProviderKind) -> [CLIAccount] {
-        accountsStore.accounts(for: provider).filter { account in
+        accountsStore.accounts(for: provider)
+            .sorted { lhs, rhs in
+                if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
+                return lhs.createdAt < rhs.createdAt
+            }
+            .filter { account in
             guard account.isEnabled else { return false }
             if account.health.isExhaustedLocally { return false }
             if let until = account.health.cooldownUntil, until > Date() { return false }

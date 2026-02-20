@@ -161,7 +161,7 @@ struct CodexLoginView: View {
 
         do {
             try process.run()
-            inputPipe.fileHandleForWriting.write(apiKey.data(using: .utf8) ?? Data())
+            inputPipe.fileHandleForWriting.write((apiKey + "\n").data(using: .utf8) ?? Data())
             try inputPipe.fileHandleForWriting.close()
         } catch {
             isPolling = false

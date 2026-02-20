@@ -8,19 +8,19 @@ final class ChatStoreMigrationTests: XCTestCase {
     private let ctxKey = "CoderIDE.projectContexts"
 
     override func setUp() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: ctxKey)
+        super.setUp()
+        clearPersistedState()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: ctxKey)
+        clearPersistedState()
+        super.tearDown()
     }
 
-    func testMigratesLegacyWorkspaceIdToContextId() {
+    func testMigratesLegacyWorkspaceIdToContextId() throws {
         let wsId = UUID()
         let legacy = Conversation(title: "legacy", messages: [], createdAt: .now, contextId: nil, mode: .agent, workspaceId: wsId, adHocFolderPaths: [])
-        let data = try! JSONEncoder().encode([legacy])
+        let data = try JSONEncoder().encode([legacy])
         UserDefaults.standard.set(data, forKey: convKey)
 
         let workspaceStore = WorkspaceStore()
@@ -33,10 +33,10 @@ final class ChatStoreMigrationTests: XCTestCase {
         XCTAssertEqual(chatStore.conversations.first?.contextId, wsId)
     }
 
-    func testMigratesLegacyAdHocPathsToSingleProjectContext() {
+    func testMigratesLegacyAdHocPathsToSingleProjectContext() throws {
         let folder = "/tmp/my-folder-\(UUID().uuidString)"
         let legacy = Conversation(title: "legacy", messages: [], createdAt: .now, contextId: nil, mode: .agent, workspaceId: nil, adHocFolderPaths: [folder])
-        let data = try! JSONEncoder().encode([legacy])
+        let data = try JSONEncoder().encode([legacy])
         UserDefaults.standard.set(data, forKey: convKey)
 
         let workspaceStore = WorkspaceStore()
@@ -50,5 +50,24 @@ final class ChatStoreMigrationTests: XCTestCase {
         let context = contextStore.context(id: migrated?.contextId)
         XCTAssertEqual(context?.kind, .singleProject)
         XCTAssertEqual(context?.folderPaths, [folder])
+    }
+
+    func testLegacyConversationWithoutPreferredProviderIdDecodesAsNil() throws {
+        // JSON senza preferredProviderId (dati vecchi) deve decodificare con preferredProviderId == nil
+        let legacyJson = """
+        [{"id":"\(UUID().uuidString)","title":"old","messages":[],"createdAt":"2020-01-01T00:00:00.000Z","contextId":null,"contextFolderPath":null,"mode":"Agent","isArchived":false,"isPinned":false,"isFavorite":false,"workspaceId":null,"adHocFolderPaths":[],"checkpoints":[]}]
+        """
+        let data = legacyJson.data(using: .utf8)!
+        UserDefaults.standard.set(data, forKey: convKey)
+
+        let chatStore = ChatStore()
+        let conv = chatStore.conversations.first
+        XCTAssertNotNil(conv)
+        XCTAssertNil(conv?.preferredProviderId)
+    }
+
+    private func clearPersistedState() {
+        UserDefaults.standard.removeObject(forKey: convKey)
+        UserDefaults.standard.removeObject(forKey: ctxKey)
     }
 }

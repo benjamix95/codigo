@@ -6,6 +6,7 @@ final class CheckpointGitStoreTests: XCTestCase {
     private let gitStore = ConversationCheckpointGitStore()
 
     override func setUpWithError() throws {
+        try super.setUpWithError()
         let base = FileManager.default.temporaryDirectory
         repoURL = base.appendingPathComponent("checkpoint-git-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
@@ -21,6 +22,7 @@ final class CheckpointGitStoreTests: XCTestCase {
         if let repoURL {
             try? FileManager.default.removeItem(at: repoURL)
         }
+        try super.tearDownWithError()
     }
 
     func testCaptureAndRestoreTrackedAndUntracked() throws {
@@ -52,9 +54,20 @@ final class CheckpointGitStoreTests: XCTestCase {
         process.standardError = err
         try process.run()
         process.waitUntilExit()
+        let stdout = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         if process.terminationStatus != 0 {
-            let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            XCTFail("git \(args.joined(separator: " ")) failed: \(stderr)")
+            throw NSError(
+                domain: "CheckpointGitStoreTests",
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey: """
+                    git \(args.joined(separator: " ")) failed (\(process.terminationStatus))
+                    stdout: \(stdout)
+                    stderr: \(stderr)
+                    """
+                ]
+            )
         }
     }
 }

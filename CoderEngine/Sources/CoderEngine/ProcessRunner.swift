@@ -2,12 +2,36 @@ import Foundation
 
 /// Esegue un comando in subprocess e restituisce l'output line-by-line
 struct ProcessRunner {
-    private struct ProcessRunnerError: LocalizedError {
+    private static let stdoutTailCapacity = 50
+
+    struct ProcessRunnerError: LocalizedError {
         let exitCode: Int32
         let message: String
+        let stdoutTail: String?
+
+        /// Exit 15 = SIGTERM: processo interrotto (es. pulsante Ferma o cambio tab)
+        private static func interpretExit(_ code: Int32) -> String {
+            switch code {
+            case 15: return "Processo interrotto (SIGTERM)."
+            case 143: return "Processo interrotto (SIGTERM)."
+            case 130: return "Processo interrotto (Ctrl+C)."
+            default: return "Processo terminato con exit code \(code)."
+            }
+        }
 
         var errorDescription: String? {
-            "Processo terminato con exit code \(exitCode): \(message)"
+            let reason = Self.interpretExit(exitCode)
+            var desc = "Errore: \(reason)"
+            let detail = message
+            if !detail.isEmpty && detail != "nessun output stderr disponibile" {
+                desc += " Ultimo output: \(detail)"
+            } else if detail == "nessun output stderr disponibile" {
+                desc += " \(detail)"
+            }
+            if let tail = stdoutTail, !tail.isEmpty {
+                desc += "\n\nUltime righe stdout:\n\(tail)"
+            }
+            return desc
         }
     }
 
@@ -68,6 +92,7 @@ struct ProcessRunner {
                 }
 
                 var buffer = [UInt8]()
+                var stdoutTailBuffer: [String] = []
                 do {
                     for try await byte in stdoutPipe.fileHandleForReading.bytes {
                         buffer.append(byte)
@@ -75,7 +100,13 @@ struct ProcessRunner {
                             let line = String(bytes: buffer, encoding: .utf8)?
                                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                             buffer.removeAll()
-                            if !line.isEmpty { continuation.yield(line) }
+                            if !line.isEmpty {
+                                continuation.yield(line)
+                                stdoutTailBuffer.append(line)
+                                if stdoutTailBuffer.count > Self.stdoutTailCapacity {
+                                    stdoutTailBuffer.removeFirst()
+                                }
+                            }
                         }
                     }
                 } catch {
@@ -84,6 +115,10 @@ struct ProcessRunner {
                         .trimmingCharacters(in: .whitespacesAndNewlines),
                        !line.isEmpty {
                         continuation.yield(line)
+                        stdoutTailBuffer.append(line)
+                        if stdoutTailBuffer.count > Self.stdoutTailCapacity {
+                            stdoutTailBuffer.removeFirst()
+                        }
                     }
                 }
                 if !buffer.isEmpty,
@@ -91,6 +126,10 @@ struct ProcessRunner {
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                    !line.isEmpty {
                     continuation.yield(line)
+                    stdoutTailBuffer.append(line)
+                    if stdoutTailBuffer.count > Self.stdoutTailCapacity {
+                        stdoutTailBuffer.removeFirst()
+                    }
                 }
 
                 process.waitUntilExit()
@@ -100,7 +139,10 @@ struct ProcessRunner {
                     return
                 }
                 let message = stderrTail.isEmpty ? "nessun output stderr disponibile" : stderrTail
-                continuation.finish(throwing: ProcessRunnerError(exitCode: process.terminationStatus, message: message))
+                let stdoutTail: String? = stderrTail.isEmpty && !stdoutTailBuffer.isEmpty
+                    ? stdoutTailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
+                    : nil
+                continuation.finish(throwing: ProcessRunnerError(exitCode: process.terminationStatus, message: message, stdoutTail: stdoutTail))
             }
         }
     }

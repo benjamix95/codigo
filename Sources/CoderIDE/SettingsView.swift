@@ -1,34 +1,34 @@
-import SwiftUI
 import AppKit
 import CoderEngine
+import SwiftUI
 
 // MARK: - Model Lists
 
 let openAIModels = [
     "gpt-5.3-codex", "gpt-5.2-instant", "gpt-5.2-thinking",
     "o3", "o3-pro", "o4-mini",
-    "gpt-4o", "gpt-4o-mini", "gpt-4.5"
+    "gpt-4o", "gpt-4o-mini", "gpt-4.5",
 ]
 
 let anthropicModels = [
     "claude-opus-4-6", "claude-sonnet-4-6",
     "claude-haiku-4-5-20251001",
-    "claude-opus-4", "claude-sonnet-4"
+    "claude-opus-4", "claude-sonnet-4",
 ]
 
 let googleModels = [
     "gemini-3-pro", "gemini-3-flash-preview",
-    "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"
+    "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
 ]
 
 let openRouterPopularModels = [
-    "anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-opus-4.5", "anthropic/claude-sonnet-4.5",
     "google/gemini-3-pro", "google/gemini-2.5-pro",
     "minimax/minimax-m2.5",
     "z-ai/glm-5",
     "qwen/qwen3.5-plus-2025-01-25", "qwen/qwen3-coder-480b-a35b",
     "meta-llama/llama-4-maverick",
-    "deepseek/deepseek-r1"
+    "deepseek/deepseek-r1",
 ]
 
 let openRouterFreeModels = [
@@ -37,11 +37,11 @@ let openRouterFreeModels = [
     "deepseek/deepseek-r1-0528:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "google/gemma-3-27b-it:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free"
+    "mistralai/mistral-small-3.1-24b-instruct:free",
 ]
 
 let minimaxModels = [
-    "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2"
+    "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2",
 ]
 
 // MARK: - Settings Navigation
@@ -83,7 +83,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
-    static var providers: [SettingsSection] { [.openai, .anthropic, .google, .minimax, .openrouter] }
+    static var providers: [SettingsSection] {
+        [.openai, .anthropic, .google, .minimax, .openrouter]
+    }
     static var tools: [SettingsSection] { [.codex, .claudeCli, .geminiCli, .swarm, .codeReview] }
     static var general: [SettingsSection] { [.terminal, .behavior, .appearance, .mcp] }
 }
@@ -92,6 +94,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
@@ -116,7 +119,7 @@ struct SettingsView: View {
 
     // OpenRouter
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
-    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4.5"
 
     // Codex
     @AppStorage("codex_path") private var codexPath = ""
@@ -139,8 +142,10 @@ struct SettingsView: View {
     // Claude CLI
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
-    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
+        "Read,Edit,Bash,Write,Search"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
+    @AppStorage("gemini_model_override") private var geminiModelOverride = ""
 
     // Swarm
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
@@ -148,7 +153,8 @@ struct SettingsView: View {
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
-    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
+    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
+        "planner,coder,debugger,reviewer,testWriter"
 
     // Code Review
     @AppStorage("global_yolo") private var globalYolo = false
@@ -159,6 +165,7 @@ struct SettingsView: View {
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
 
     // General
     @AppStorage("appearance") private var appearance = "system"
@@ -167,6 +174,7 @@ struct SettingsView: View {
     @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
 
     @StateObject private var codexState = CodexStateStore()
+    @StateObject private var geminiState = GeminiStateStore()
     @StateObject private var cliAccountsStore = CLIAccountsStore.shared
     @StateObject private var cliUsageLedger = CLIAccountUsageLedgerStore.shared
     @StateObject private var accountLoginCoordinator = CLIAccountLoginCoordinator()
@@ -174,6 +182,14 @@ struct SettingsView: View {
     @State private var showOpenRouterLogin = false
     @State private var codexAgentsMd = ""
     @State private var claudeMdContent = ""
+    @State private var globalRuleDocs: [CoderRuleDocument] = []
+    @State private var projectRuleDocs: [CoderRuleDocument] = []
+    @State private var selectedGlobalRuleName: String = ""
+    @State private var selectedProjectRuleName: String = ""
+    @State private var newGlobalRuleName: String = ""
+    @State private var newProjectRuleName: String = ""
+    @State private var globalRuleContentDraft: String = ""
+    @State private var projectRuleContentDraft: String = ""
     @State private var newAccountLabelByProvider: [CLIProviderKind: String] = [:]
     @State private var newAccountKeyByProvider: [CLIProviderKind: String] = [:]
     @State private var newDailyLimitByProvider: [CLIProviderKind: String] = [:]
@@ -224,11 +240,14 @@ struct SettingsView: View {
         }
         .onAppear {
             codexState.refresh()
+            geminiState.refresh()
             syncProviders()
             Task { await refreshUsageSnapshotsForSettings() }
         }
         .sheet(isPresented: $showCodexLogin) {
-            if let path = codexState.status.path ?? CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) {
+            if let path = codexState.status.path
+                ?? CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath)
+            {
                 CodexLoginView(codexPath: path) {
                     codexState.refresh()
                     syncCodex()
@@ -277,7 +296,9 @@ struct SettingsView: View {
 
     private var openAISection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "OpenAI", subtitle: "GPT-5, o3, o4-mini e modelli reasoning", icon: "brain.head.profile")
+            sectionHeader(
+                title: "OpenAI", subtitle: "GPT-5, o3, o4-mini e modelli reasoning",
+                icon: "brain.head.profile")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -307,7 +328,8 @@ struct SettingsView: View {
 
             statusBadge(
                 connected: !openaiApiKey.isEmpty,
-                label: openaiApiKey.isEmpty ? "API Key non configurata" : "Configurato — \(openaiModel)"
+                label: openaiApiKey.isEmpty
+                    ? "API Key non configurata" : "Configurato — \(openaiModel)"
             )
         }
     }
@@ -316,7 +338,9 @@ struct SettingsView: View {
 
     private var anthropicSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Anthropic", subtitle: "Claude Opus 4.6, Sonnet 4.6, Haiku 4.5", icon: "sparkle")
+            sectionHeader(
+                title: "Anthropic", subtitle: "Claude Opus 4.6, Sonnet 4.6, Haiku 4.5",
+                icon: "sparkle")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -335,10 +359,13 @@ struct SettingsView: View {
 
             statusBadge(
                 connected: !anthropicApiKey.isEmpty,
-                label: anthropicApiKey.isEmpty ? "API Key non configurata" : "Configurato — \(anthropicModel)"
+                label: anthropicApiKey.isEmpty
+                    ? "API Key non configurata" : "Configurato — \(anthropicModel)"
             )
 
-            hintBox("Per usare Claude direttamente via API. Per Claude Code CLI, vedi la sezione Strumenti → Claude Code.")
+            hintBox(
+                "Per usare Claude direttamente via API. Per Claude Code CLI, vedi la sezione Strumenti → Claude Code."
+            )
         }
     }
 
@@ -346,7 +373,8 @@ struct SettingsView: View {
 
     private var googleSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Google Gemini", subtitle: "Gemini 3 Pro, 2.5 Pro/Flash", icon: "globe")
+            sectionHeader(
+                title: "Google Gemini", subtitle: "Gemini 3 Pro, 2.5 Pro/Flash", icon: "globe")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -365,7 +393,8 @@ struct SettingsView: View {
 
             statusBadge(
                 connected: !googleApiKey.isEmpty,
-                label: googleApiKey.isEmpty ? "API Key non configurata" : "Configurato — \(googleModel)"
+                label: googleApiKey.isEmpty
+                    ? "API Key non configurata" : "Configurato — \(googleModel)"
             )
         }
     }
@@ -374,7 +403,9 @@ struct SettingsView: View {
 
     private var minimaxSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "MiniMax", subtitle: "M2.5 — SWE-Bench 80.2%, agent coding avanzato", icon: "bolt.horizontal.fill")
+            sectionHeader(
+                title: "MiniMax", subtitle: "M2.5 — SWE-Bench 80.2%, agent coding avanzato",
+                icon: "bolt.horizontal.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -393,10 +424,13 @@ struct SettingsView: View {
 
             statusBadge(
                 connected: !minimaxApiKey.isEmpty,
-                label: minimaxApiKey.isEmpty ? "API Key non configurata" : "Configurato — \(minimaxModel)"
+                label: minimaxApiKey.isEmpty
+                    ? "API Key non configurata" : "Configurato — \(minimaxModel)"
             )
 
-            hintBox("Registrati su platform.minimax.io per ottenere una API key. MiniMax M2.5 offre performance top su coding e agentic tasks a costi molto bassi ($0.30/M input).")
+            hintBox(
+                "Registrati su platform.minimax.io per ottenere una API key. MiniMax M2.5 offre performance top su coding e agentic tasks a costi molto bassi ($0.30/M input)."
+            )
         }
     }
 
@@ -404,7 +438,9 @@ struct SettingsView: View {
 
     private var openRouterSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "OpenRouter", subtitle: "Gateway unificato per 400+ modelli AI", icon: "arrow.triangle.branch")
+            sectionHeader(
+                title: "OpenRouter", subtitle: "Gateway unificato per 400+ modelli AI",
+                icon: "arrow.triangle.branch")
 
             GroupBox("Accesso") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -412,7 +448,8 @@ struct SettingsView: View {
                         Button(action: { showOpenRouterLogin = true }) {
                             Label(
                                 openrouterApiKey.isEmpty ? "Accedi con OpenRouter" : "Connesso",
-                                systemImage: openrouterApiKey.isEmpty ? "bolt.fill" : "checkmark.circle.fill"
+                                systemImage: openrouterApiKey.isEmpty
+                                    ? "bolt.fill" : "checkmark.circle.fill"
                             )
                         }
                         .buttonStyle(.borderedProminent)
@@ -445,9 +482,12 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
 
-                    TextField("Oppure inserisci manualmente (es. meta-llama/llama-4-scout)", text: $openrouterModel)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 11))
+                    TextField(
+                        "Oppure inserisci manualmente (es. meta-llama/llama-4-scout)",
+                        text: $openrouterModel
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11))
                 }
                 .padding(4)
             }
@@ -463,9 +503,12 @@ struct SettingsView: View {
                             openrouterModel = model
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: openrouterModel == model ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(openrouterModel == model ? .green : .secondary)
-                                    .font(.system(size: 12))
+                                Image(
+                                    systemName: openrouterModel == model
+                                        ? "checkmark.circle.fill" : "circle"
+                                )
+                                .foregroundStyle(openrouterModel == model ? .green : .secondary)
+                                .font(.system(size: 12))
                                 Text(model.replacingOccurrences(of: ":free", with: ""))
                                     .font(.system(size: 12, weight: .medium))
                                 Spacer()
@@ -486,10 +529,13 @@ struct SettingsView: View {
 
             statusBadge(
                 connected: !openrouterApiKey.isEmpty,
-                label: openrouterApiKey.isEmpty ? "Non connesso" : "Configurato — \(openrouterModel)"
+                label: openrouterApiKey.isEmpty
+                    ? "Non connesso" : "Configurato — \(openrouterModel)"
             )
 
-            hintBox("Accedi con il tuo account OpenRouter per usare 400+ modelli. I modelli gratuiti non richiedono credito, basta un account.")
+            hintBox(
+                "Accedi con il tuo account OpenRouter per usare 400+ modelli. I modelli gratuiti non richiedono credito, basta un account."
+            )
         }
     }
 
@@ -497,7 +543,9 @@ struct SettingsView: View {
 
     private var codexSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Codex CLI", subtitle: "Agente di coding locale con sandbox", icon: "terminal")
+            sectionHeader(
+                title: "Codex CLI", subtitle: "Agente di coding locale con sandbox",
+                icon: "terminal")
 
             GroupBox("Connessione") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -505,7 +553,8 @@ struct SettingsView: View {
                         Button(action: connectToCodex) {
                             Label(
                                 codexState.status.isLoggedIn ? "Connesso" : "Connetti",
-                                systemImage: codexState.status.isLoggedIn ? "checkmark.circle.fill" : "bolt.fill"
+                                systemImage: codexState.status.isLoggedIn
+                                    ? "checkmark.circle.fill" : "bolt.fill"
                             )
                         }
                         .buttonStyle(.borderedProminent)
@@ -518,8 +567,11 @@ struct SettingsView: View {
                     }
 
                     if !codexState.status.isInstalled {
-                        Label("Non installato — brew install codex", systemImage: "exclamationmark.circle.fill")
-                            .font(.caption).foregroundStyle(.red)
+                        Label(
+                            "Non installato — brew install codex",
+                            systemImage: "exclamationmark.circle.fill"
+                        )
+                        .font(.caption).foregroundStyle(.red)
                     }
                 }
                 .padding(4)
@@ -530,7 +582,10 @@ struct SettingsView: View {
                     fieldLabel("Path (vuoto per auto-detect)")
                     TextField("/usr/local/bin/codex", text: $codexPath)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: codexPath) { _, _ in codexState.refresh(); syncCodex() }
+                        .onChange(of: codexPath) { _, _ in
+                            codexState.refresh()
+                            syncCodex()
+                        }
 
                     fieldLabel("Sandbox")
                     Picker("", selection: $codexSandbox) {
@@ -540,7 +595,10 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .onChange(of: codexSandbox) { _, _ in syncCodex(); saveCodexToml() }
+                    .onChange(of: codexSandbox) { _, _ in
+                        syncCodex()
+                        saveCodexToml()
+                    }
 
                     fieldLabel("Ask for approval")
                     Picker("", selection: $codexAskForApproval) {
@@ -555,7 +613,10 @@ struct SettingsView: View {
                     fieldLabel("Modello Override")
                     TextField("es. o3, o4-mini", text: $codexModelOverride)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
+                        .onChange(of: codexModelOverride) { _, _ in
+                            syncCodex()
+                            saveCodexToml()
+                        }
 
                     fieldLabel("Backend Plan Mode")
                     Picker("", selection: $planModeBackend) {
@@ -627,7 +688,10 @@ struct SettingsView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .frame(height: 80)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6).strokeBorder(
+                                Color(nsColor: .separatorColor))
+                        )
                         .onChange(of: codexDeveloperInstructions) { _, _ in saveCodexToml() }
 
                     fieldLabel("AGENTS.md (globale — ~/.codex/AGENTS.md)")
@@ -635,7 +699,10 @@ struct SettingsView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .frame(height: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6).strokeBorder(
+                                Color(nsColor: .separatorColor))
+                        )
                         .onChange(of: codexAgentsMd) { _, _ in
                             CodexAgentsFile.saveGlobal(codexAgentsMd)
                         }
@@ -643,16 +710,150 @@ struct SettingsView: View {
                 .padding(4)
             }
 
+            globalRulesGroup
+            projectRulesGroup
+
             multiAccountProviderSection(.codex)
         }
         .onAppear { loadCodexAdvanced() }
+    }
+
+    private var globalRulesGroup: some View {
+        GroupBox("Rules globali (.codigo/rules/global)") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    TextField("nome-regola.md", text: $newGlobalRuleName)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Crea") { createGlobalRule() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Ricarica") { reloadRulesFromDisk() }
+                        .buttonStyle(.bordered)
+                }
+
+                if globalRuleDocs.isEmpty {
+                    Text(
+                        "Nessuna regola globale. Puoi crearla qui o manualmente in ~/.codigo/rules/global/"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Picker(
+                        "Regola globale",
+                        selection: Binding(
+                            get: { selectedGlobalRuleName },
+                            set: { newValue in
+                                selectedGlobalRuleName = newValue
+                                globalRuleContentDraft =
+                                    globalRuleDocs.first(where: { $0.name == newValue })?.content
+                                    ?? ""
+                            }
+                        )
+                    ) {
+                        ForEach(globalRuleDocs, id: \.name) { doc in
+                            Text(doc.name).tag(doc.name)
+                        }
+                    }
+                    .labelsHidden()
+                }
+
+                TextEditor(text: $globalRuleContentDraft)
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(height: 120)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6).strokeBorder(
+                            Color(nsColor: .separatorColor)))
+
+                HStack(spacing: 8) {
+                    Button("Salva") { saveSelectedGlobalRule() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedGlobalRuleName.isEmpty)
+                    Button("Elimina", role: .destructive) { deleteSelectedGlobalRule() }
+                        .buttonStyle(.bordered)
+                        .disabled(selectedGlobalRuleName.isEmpty)
+                }
+            }
+            .padding(4)
+        }
+    }
+
+    private var projectRulesGroup: some View {
+        GroupBox("Rules progetto (.codigo/rules/project)") {
+            VStack(alignment: .leading, spacing: 10) {
+                if let root = currentProjectRootPath {
+                    Text("Root progetto attiva: \(root)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        TextField("nome-regola.md", text: $newProjectRuleName)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Crea") { createProjectRule() }
+                            .buttonStyle(.borderedProminent)
+                        Button("Ricarica") { reloadRulesFromDisk() }
+                            .buttonStyle(.bordered)
+                    }
+
+                    if projectRuleDocs.isEmpty {
+                        Text(
+                            "Nessuna regola progetto. Crea qui o manualmente in .codigo/rules/project/"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    } else {
+                        Picker(
+                            "Regola progetto",
+                            selection: Binding(
+                                get: { selectedProjectRuleName },
+                                set: { newValue in
+                                    selectedProjectRuleName = newValue
+                                    projectRuleContentDraft =
+                                        projectRuleDocs.first(where: { $0.name == newValue })?
+                                        .content ?? ""
+                                }
+                            )
+                        ) {
+                            ForEach(projectRuleDocs, id: \.name) { doc in
+                                Text(doc.name).tag(doc.name)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+
+                    TextEditor(text: $projectRuleContentDraft)
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6).strokeBorder(
+                                Color(nsColor: .separatorColor)))
+
+                    HStack(spacing: 8) {
+                        Button("Salva") { saveSelectedProjectRule() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(selectedProjectRuleName.isEmpty)
+                        Button("Elimina", role: .destructive) { deleteSelectedProjectRule() }
+                            .buttonStyle(.bordered)
+                            .disabled(selectedProjectRuleName.isEmpty)
+                    }
+                } else {
+                    Text(
+                        "Nessun progetto attivo. Apri/seleziona un workspace per gestire le project rules."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(4)
+        }
     }
 
     // MARK: - Claude CLI
 
     private var claudeSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Claude Code CLI", subtitle: "Agente Anthropic locale", icon: "sparkles")
+            sectionHeader(
+                title: "Claude Code CLI", subtitle: "Agente Anthropic locale", icon: "sparkles")
 
             GroupBox("Connessione") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -676,18 +877,31 @@ struct SettingsView: View {
                     .labelsHidden()
 
                     fieldLabel("Allowed Tools")
-                    let allTools = ["Read", "Edit", "Bash", "Write", "Search", "Glob", "Grep", "TodoRead", "TodoWrite"]
-                    let selectedTools = Set(claudeAllowedTools.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+                    let allTools = [
+                        "Read", "Edit", "Bash", "Write", "Search", "Glob", "Grep", "TodoRead",
+                        "TodoWrite",
+                    ]
+                    let selectedTools = Set(
+                        claudeAllowedTools.components(separatedBy: ",").map {
+                            $0.trimmingCharacters(in: .whitespaces)
+                        })
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 6) {
                         ForEach(allTools, id: \.self) { tool in
-                            Toggle(tool, isOn: Binding(
-                                get: { selectedTools.contains(tool) },
-                                set: { isOn in
-                                    var current = selectedTools
-                                    if isOn { current.insert(tool) } else { current.remove(tool) }
-                                    claudeAllowedTools = current.sorted().joined(separator: ",")
-                                }
-                            ))
+                            Toggle(
+                                tool,
+                                isOn: Binding(
+                                    get: { selectedTools.contains(tool) },
+                                    set: { isOn in
+                                        var current = selectedTools
+                                        if isOn {
+                                            current.insert(tool)
+                                        } else {
+                                            current.remove(tool)
+                                        }
+                                        claudeAllowedTools = current.sorted().joined(separator: ",")
+                                    }
+                                )
+                            )
                             .toggleStyle(.checkbox)
                             .font(.system(size: 11))
                         }
@@ -703,7 +917,10 @@ struct SettingsView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .frame(height: 140)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6).strokeBorder(
+                                Color(nsColor: .separatorColor))
+                        )
                         .onChange(of: claudeMdContent) { _, _ in
                             ClaudeConfigLoader.saveClaudeMd(claudeMdContent)
                         }
@@ -722,14 +939,53 @@ struct SettingsView: View {
 
     private var geminiSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Gemini CLI", subtitle: "Provider CLI Google Gemini locale", icon: "globe")
+            sectionHeader(
+                title: "Gemini CLI", subtitle: "Provider CLI Google Gemini locale", icon: "globe")
 
             GroupBox("Connessione") {
                 VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Button(action: connectToGemini) {
+                            Label(
+                                geminiState.status.isLoggedIn ? "Connesso" : "Connetti",
+                                systemImage: geminiState.status.isLoggedIn
+                                    ? "checkmark.circle.fill" : "bolt.fill"
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(geminiState.status.isLoggedIn ? .green : .accentColor)
+                        .disabled(geminiState.status.isLoggedIn)
+
+                        if geminiState.status.isLoggedIn {
+                            Text("Gemini CLI connesso").font(.caption).foregroundStyle(.green)
+                        }
+                    }
+
+                    if !geminiState.status.isInstalled {
+                        Label(
+                            "Non installato — npm i -g @google/gemini-cli oppure imposta il path",
+                            systemImage: "exclamationmark.circle.fill"
+                        )
+                        .font(.caption).foregroundStyle(.red)
+                    }
+
                     fieldLabel("Path (vuoto per auto-detect)")
-                    TextField("/usr/local/bin/gemini", text: $geminiCliPath)
+                    TextField("Path: /opt/homebrew/bin/gemini o npm global", text: $geminiCliPath)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: geminiCliPath) { _, _ in syncGemini() }
+                        .onChange(of: geminiCliPath) { _, _ in
+                            geminiState.refresh()
+                            syncGemini()
+                        }
+
+                    fieldLabel("Modello")
+                    Picker("", selection: $geminiModelOverride) {
+                        Text("Default (auto)").tag("")
+                        ForEach(GeminiModelsCache.loadModels(), id: \.slug) { m in
+                            Text(m.displayName).tag(m.slug)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: geminiModelOverride) { _, _ in syncGemini() }
                 }
                 .padding(4)
             }
@@ -738,11 +994,19 @@ struct SettingsView: View {
         }
     }
 
+    private func connectToGemini() {
+        geminiState.refresh()
+        syncGemini()
+    }
+
     // MARK: - Agent Swarm
 
     private var swarmSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Agent Swarm", subtitle: "Orchestratore multi-agente: Planner, Coder, Reviewer, Debugger", icon: "ant.fill")
+            sectionHeader(
+                title: "Agent Swarm",
+                subtitle: "Orchestratore multi-agente: Planner, Coder, Reviewer, Debugger",
+                icon: "ant.fill")
 
             GroupBox("Orchestratore") {
                 VStack(alignment: .leading, spacing: 12) {
@@ -770,7 +1034,9 @@ struct SettingsView: View {
                     .labelsHidden()
                     .onChange(of: swarmWorkerBackend) { _, _ in syncSwarm() }
 
-                    hintBox("I worker usano internamente i propri subagent nativi (multi-agent Codex / Claude) per task complessi.")
+                    hintBox(
+                        "I worker usano internamente i propri subagent nativi (multi-agent Codex / Claude) per task complessi."
+                    )
                 }
                 .padding(4)
             }
@@ -778,13 +1044,20 @@ struct SettingsView: View {
             GroupBox("Ruoli abilitati") {
                 VStack(alignment: .leading, spacing: 8) {
                     let allRoles = AgentRole.allCases
-                    let selected = Set(swarmEnabledRoles.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+                    let selected = Set(
+                        swarmEnabledRoles.components(separatedBy: ",").map {
+                            $0.trimmingCharacters(in: .whitespaces)
+                        })
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 6) {
                         ForEach(allRoles, id: \.self) { role in
                             let isOn = selected.contains(role.rawValue)
                             Button {
                                 var roles = Set(selected)
-                                if isOn { roles.remove(role.rawValue) } else { roles.insert(role.rawValue) }
+                                if isOn {
+                                    roles.remove(role.rawValue)
+                                } else {
+                                    roles.insert(role.rawValue)
+                                }
                                 swarmEnabledRoles = roles.sorted().joined(separator: ",")
                                 syncSwarm()
                             } label: {
@@ -803,15 +1076,24 @@ struct SettingsView: View {
 
             GroupBox("Pipeline QA") {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Pipeline QA dopo Coder (Reviewer + TestWriter + test)", isOn: $swarmAutoPostCodePipeline)
-                        .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarm() }
+                    Toggle(
+                        "Pipeline QA dopo Coder (Reviewer + TestWriter + test)",
+                        isOn: $swarmAutoPostCodePipeline
+                    )
+                    .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarm() }
 
                     if swarmAutoPostCodePipeline {
-                        Stepper("Max tentativi correzione test: \(swarmMaxPostCodeRetries)", value: $swarmMaxPostCodeRetries, in: 1...50)
-                            .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarm() }
+                        Stepper(
+                            "Max tentativi correzione test: \(swarmMaxPostCodeRetries)",
+                            value: $swarmMaxPostCodeRetries, in: 1...50
+                        )
+                        .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarm() }
                     }
-                    Stepper("Max loop Reviewer→Coder: \(swarmMaxReviewLoops)", value: $swarmMaxReviewLoops, in: 0...5)
-                        .onChange(of: swarmMaxReviewLoops) { _, _ in syncSwarm() }
+                    Stepper(
+                        "Max loop Reviewer→Coder: \(swarmMaxReviewLoops)",
+                        value: $swarmMaxReviewLoops, in: 0...5
+                    )
+                    .onChange(of: swarmMaxReviewLoops) { _, _ in syncSwarm() }
                 }
                 .padding(4)
             }
@@ -822,7 +1104,10 @@ struct SettingsView: View {
 
     private var codeReviewSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Code Review", subtitle: "Analisi parallela multi-swarm con report aggregato", icon: "doc.text.magnifyingglass")
+            sectionHeader(
+                title: "Code Review",
+                subtitle: "Analisi parallela multi-swarm con report aggregato",
+                icon: "doc.text.magnifyingglass")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -835,14 +1120,36 @@ struct SettingsView: View {
                     .labelsHidden()
                     .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReview() }
 
-                    Stepper("Max agenti contemporanei: \(codeReviewPartitions)", value: $codeReviewPartitions, in: 2...12)
-                        .onChange(of: codeReviewPartitions) { _, _ in syncCodeReview() }
+                    fieldLabel("Backend esecuzione Fase 2 (modifiche file)")
+                    Picker("", selection: $codeReviewExecutionBackend) {
+                        Text("Codex CLI").tag("codex")
+                        Text("Claude CLI").tag("claude")
+                        Text("Anthropic API").tag("anthropic-api")
+                        Text("OpenAI API").tag("openai-api")
+                        Text("Google API").tag("google-api")
+                        Text("OpenRouter API").tag("openrouter-api")
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReview() }
 
-                    Stepper("Max iterazioni analisi→fix: \(codeReviewMaxRounds)", value: $codeReviewMaxRounds, in: 1...10)
-                        .onChange(of: codeReviewMaxRounds) { _, _ in syncCodeReview() }
+                    Stepper(
+                        "Max agenti contemporanei: \(codeReviewPartitions)",
+                        value: $codeReviewPartitions, in: 2...12
+                    )
+                    .onChange(of: codeReviewPartitions) { _, _ in syncCodeReview() }
 
-                    Toggle("Solo analisi (disabilita Fase 2 — esecuzione)", isOn: $codeReviewAnalysisOnly)
-                        .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReview() }
+                    Stepper(
+                        "Max iterazioni analisi→fix: \(codeReviewMaxRounds)",
+                        value: $codeReviewMaxRounds, in: 1...10
+                    )
+                    .onChange(of: codeReviewMaxRounds) { _, _ in syncCodeReview() }
+
+                    Toggle(
+                        "Solo analisi (disabilita Fase 2 — esecuzione)",
+                        isOn: $codeReviewAnalysisOnly
+                    )
+                    .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReview() }
                 }
                 .padding(4)
             }
@@ -853,7 +1160,9 @@ struct SettingsView: View {
 
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Terminale", subtitle: "Terminale integrato nell'editor", icon: "terminal.fill")
+            sectionHeader(
+                title: "Terminale", subtitle: "Terminale integrato nell'editor",
+                icon: "terminal.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -864,8 +1173,10 @@ struct SettingsView: View {
                         Label("Apri Impostazioni: Full Disk Access", systemImage: "lock.open")
                     }
 
-                    Text("Aggiungi Codigo all'elenco e attiva l'interruttore. Riavvia dopo la modifica.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(
+                        "Aggiungi Codigo all'elenco e attiva l'interruttore. Riavvia dopo la modifica."
+                    )
+                    .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(4)
             }
@@ -876,7 +1187,9 @@ struct SettingsView: View {
 
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Comportamento", subtitle: "Procedi senza conferma su tutte le modalità", icon: "bolt.fill")
+            sectionHeader(
+                title: "Comportamento", subtitle: "Procedi senza conferma su tutte le modalità",
+                icon: "bolt.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -887,17 +1200,25 @@ struct SettingsView: View {
                             syncCodeReview()
                         }
 
-                    hintBox("Quando attivo: Plan execute, Code Review Fase 2, Agent e Swarm procedono senza chiedere conferma.")
+                    hintBox(
+                        "Quando attivo: Plan execute, Code Review Fase 2, Agent e Swarm procedono senza chiedere conferma."
+                    )
                 }
                 .padding(4)
             }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Consenti delega automatica allo swarm in Agent", isOn: $agentAutoDelegateSwarm)
-                    hintBox("Se disattivo, Agent non inietta il marker invoke_swarm e resta in esecuzione singola.")
+                    Toggle(
+                        "Consenti delega automatica allo swarm in Agent",
+                        isOn: $agentAutoDelegateSwarm)
+                    hintBox(
+                        "Se disattivo, Agent non inietta il marker invoke_swarm e resta in esecuzione singola."
+                    )
                     Toggle("Flow diagnostics in chat", isOn: $flowDiagnosticsEnabled)
-                    hintBox("Mostra provider effettivo, stato flusso ed eventi normalizzati per debug runtime.")
+                    hintBox(
+                        "Mostra provider effettivo, stato flusso ed eventi normalizzati per debug runtime."
+                    )
                 }
                 .padding(4)
             }
@@ -905,10 +1226,12 @@ struct SettingsView: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Summarize chat automatico (stile Cursor)")
-                    Toggle("Abilita", isOn: Binding(
-                        get: { summarizeThreshold < 1.0 },
-                        set: { summarizeThreshold = $0 ? 0.8 : 1.0 }
-                    ))
+                    Toggle(
+                        "Abilita",
+                        isOn: Binding(
+                            get: { summarizeThreshold < 1.0 },
+                            set: { summarizeThreshold = $0 ? 0.8 : 1.0 }
+                        ))
                     if summarizeThreshold < 1.0 {
                         HStack {
                             Text("Soglia contesto")
@@ -926,8 +1249,12 @@ struct SettingsView: View {
                             Text("Claude CLI").tag("claude-cli")
                         }
                     }
-                    hintBox("Quando il contesto supera la soglia, i messaggi vecchi vengono compressi in un riassunto per liberare spazio.")
-                    hintBox("Se selezioni Codex CLI come provider riassunto, viene usato il compact nativo di Codex (niente riscrittura custom della chat).")
+                    hintBox(
+                        "Quando il contesto supera la soglia, i messaggi vecchi vengono compressi in un riassunto per liberare spazio."
+                    )
+                    hintBox(
+                        "Se selezioni Codex CLI come provider riassunto, viene usato il compact nativo di Codex (niente riscrittura custom della chat)."
+                    )
                 }
                 .padding(4)
             }
@@ -938,7 +1265,9 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "Aspetto", subtitle: "Tema e comportamento generale", icon: "paintbrush.fill")
+            sectionHeader(
+                title: "Aspetto", subtitle: "Tema e comportamento generale", icon: "paintbrush.fill"
+            )
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -962,7 +1291,9 @@ struct SettingsView: View {
 
     private var mcpSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(title: "MCP", subtitle: "Model Context Protocol — server e strumenti", icon: "server.rack")
+            sectionHeader(
+                title: "MCP", subtitle: "Model Context Protocol — server e strumenti",
+                icon: "server.rack")
 
             MCPSettingsSection()
         }
@@ -976,7 +1307,9 @@ struct SettingsView: View {
                 .font(.system(size: 22, weight: .medium))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 36, height: 36)
-                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(
+                    Color.accentColor.opacity(0.1),
+                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.title3.weight(.semibold))
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
@@ -1012,7 +1345,9 @@ struct SettingsView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .background(
+            Color(nsColor: .controlBackgroundColor).opacity(0.5),
+            in: RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder
@@ -1020,9 +1355,11 @@ struct SettingsView: View {
         GroupBox("Multi-account \(provider.displayName)") {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Abilita multi-account CLI", isOn: $cliAccountsStore.multiAccountEnabled)
-                Text("Auto-switch su quota/rate limit e limiti locali giornalieri/settimanali/mensili.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Auto-switch su quota/rate limit e limiti locali giornalieri/settimanali/mensili."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
                 let providerAccounts = cliAccountsStore.accounts(for: provider)
                 if providerAccounts.isEmpty {
@@ -1033,31 +1370,38 @@ struct SettingsView: View {
                     ForEach(providerAccounts) { account in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                TextField("Label", text: Binding(
-                                    get: { account.label },
-                                    set: { newValue in
-                                        var updated = account
-                                        updated.label = newValue
-                                        cliAccountsStore.update(updated)
-                                    }
-                                ))
-                                Toggle("Attivo", isOn: Binding(
-                                    get: { account.isEnabled },
-                                    set: { newValue in
-                                        var updated = account
-                                        updated.isEnabled = newValue
-                                        cliAccountsStore.update(updated)
-                                    }
-                                ))
+                                TextField(
+                                    "Label",
+                                    text: Binding(
+                                        get: { account.label },
+                                        set: { newValue in
+                                            var updated = account
+                                            updated.label = newValue
+                                            cliAccountsStore.update(updated)
+                                        }
+                                    ))
+                                Toggle(
+                                    "Attivo",
+                                    isOn: Binding(
+                                        get: { account.isEnabled },
+                                        set: { newValue in
+                                            var updated = account
+                                            updated.isEnabled = newValue
+                                            cliAccountsStore.update(updated)
+                                        }
+                                    )
+                                )
                                 .toggleStyle(.checkbox)
-                                Stepper("Priorità \(account.priority)", value: Binding(
-                                    get: { account.priority },
-                                    set: { newValue in
-                                        var updated = account
-                                        updated.priority = max(0, newValue)
-                                        cliAccountsStore.update(updated)
-                                    }
-                                ), in: 0...99)
+                                Stepper(
+                                    "Priorità \(account.priority)",
+                                    value: Binding(
+                                        get: { account.priority },
+                                        set: { newValue in
+                                            var updated = account
+                                            updated.priority = max(0, newValue)
+                                            cliAccountsStore.update(updated)
+                                        }
+                                    ), in: 0...99)
                             }
 
                             HStack(spacing: 10) {
@@ -1066,8 +1410,10 @@ struct SettingsView: View {
                                     label: accountStatusLabel(account)
                                 )
                                 let day = cliUsageLedger.totals(accountId: account.id, period: .day)
-                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
-                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                                let week = cliUsageLedger.totals(
+                                    accountId: account.id, period: .weekOfYear)
+                                let month = cliUsageLedger.totals(
+                                    accountId: account.id, period: .month)
                                 Text("Oggi $\(day.cost, specifier: "%.2f")")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
@@ -1080,8 +1426,10 @@ struct SettingsView: View {
                             }
                             HStack(spacing: 10) {
                                 let day = cliUsageLedger.totals(accountId: account.id, period: .day)
-                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
-                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                                let week = cliUsageLedger.totals(
+                                    accountId: account.id, period: .weekOfYear)
+                                let month = cliUsageLedger.totals(
+                                    accountId: account.id, period: .month)
                                 Text("Tok D \(day.tokens)")
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
@@ -1106,7 +1454,8 @@ struct SettingsView: View {
                                         set: { loginMethodByAccount[account.id] = $0 }
                                     )
                                 ) {
-                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) { method in
+                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) {
+                                        method in
                                         Text(method.title).tag(method)
                                     }
                                 }
@@ -1116,7 +1465,8 @@ struct SettingsView: View {
                                     connectAccount(account)
                                 }
                                 .buttonStyle(.borderedProminent)
-                                .disabled(accountLoginCoordinator.isRunningByAccount[account.id] == true)
+                                .disabled(
+                                    accountLoginCoordinator.isRunningByAccount[account.id] == true)
                                 Button("Disconnetti account") {
                                     disconnectAccount(account)
                                 }
@@ -1134,7 +1484,9 @@ struct SettingsView: View {
                                         .font(.caption)
                                         .foregroundStyle(result.contains("OK") ? .green : .red)
                                 }
-                                if let status = accountLoginCoordinator.statusByAccount[account.id], !status.isEmpty {
+                                if let status = accountLoginCoordinator.statusByAccount[account.id],
+                                    !status.isEmpty
+                                {
                                     Text(status)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -1143,35 +1495,47 @@ struct SettingsView: View {
                             }
                         }
                         .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+                        .background(
+                            Color(nsColor: .controlBackgroundColor).opacity(0.45),
+                            in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
 
                 Divider()
                 fieldLabel("Aggiungi account")
                 HStack(spacing: 8) {
-                    TextField("Label", text: Binding(
-                        get: { newAccountLabelByProvider[provider, default: ""] },
-                        set: { newAccountLabelByProvider[provider] = $0 }
-                    ))
-                    SecureField("API key (opzionale)", text: Binding(
-                        get: { newAccountKeyByProvider[provider, default: ""] },
-                        set: { newAccountKeyByProvider[provider] = $0 }
-                    ))
+                    TextField(
+                        "Label",
+                        text: Binding(
+                            get: { newAccountLabelByProvider[provider, default: ""] },
+                            set: { newAccountLabelByProvider[provider] = $0 }
+                        ))
+                    SecureField(
+                        "API key (opzionale)",
+                        text: Binding(
+                            get: { newAccountKeyByProvider[provider, default: ""] },
+                            set: { newAccountKeyByProvider[provider] = $0 }
+                        ))
                 }
                 HStack(spacing: 8) {
-                    TextField("Limit giornaliero $", text: Binding(
-                        get: { newDailyLimitByProvider[provider, default: ""] },
-                        set: { newDailyLimitByProvider[provider] = $0 }
-                    ))
-                    TextField("Limit settimanale $", text: Binding(
-                        get: { newWeeklyLimitByProvider[provider, default: ""] },
-                        set: { newWeeklyLimitByProvider[provider] = $0 }
-                    ))
-                    TextField("Limit mensile $", text: Binding(
-                        get: { newMonthlyLimitByProvider[provider, default: ""] },
-                        set: { newMonthlyLimitByProvider[provider] = $0 }
-                    ))
+                    TextField(
+                        "Limit giornaliero $",
+                        text: Binding(
+                            get: { newDailyLimitByProvider[provider, default: ""] },
+                            set: { newDailyLimitByProvider[provider] = $0 }
+                        ))
+                    TextField(
+                        "Limit settimanale $",
+                        text: Binding(
+                            get: { newWeeklyLimitByProvider[provider, default: ""] },
+                            set: { newWeeklyLimitByProvider[provider] = $0 }
+                        ))
+                    TextField(
+                        "Limit mensile $",
+                        text: Binding(
+                            get: { newMonthlyLimitByProvider[provider, default: ""] },
+                            set: { newMonthlyLimitByProvider[provider] = $0 }
+                        ))
                 }
                 HStack(spacing: 8) {
                     Button("Aggiungi account") {
@@ -1212,7 +1576,8 @@ struct SettingsView: View {
 
     private func codexCreditsLabel() -> String {
         guard let usage = providerUsageStore.codexUsage,
-              let balance = usage.creditsBalance else {
+            let balance = usage.creditsBalance
+        else {
             return "Crediti: N/D"
         }
         let currency = usage.creditsCurrency ?? "USD"
@@ -1220,12 +1585,20 @@ struct SettingsView: View {
     }
 
     private func addAccount(_ provider: CLIProviderKind) {
-        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(
+            in: .whitespacesAndNewlines)
         let quota = CLIAccountQuotaPolicy(
-            dailyLimitUSD: Double(newDailyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
-            weeklyLimitUSD: Double(newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
-            monthlyLimitUSD: Double(newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            dailyLimitUSD: Double(
+                newDailyLimitByProvider[provider, default: ""].replacingOccurrences(
+                    of: ",", with: ".")),
+            weeklyLimitUSD: Double(
+                newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(
+                    of: ",", with: ".")),
+            monthlyLimitUSD: Double(
+                newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(
+                    of: ",", with: ".")),
             dailyTokenLimit: nil,
             weeklyTokenLimit: nil,
             monthlyTokenLimit: nil
@@ -1255,13 +1628,21 @@ struct SettingsView: View {
         let args: [String]
         switch account.provider {
         case .codex:
-            executable = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex") : codexPath
+            executable =
+                codexPath.isEmpty
+                ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex")
+                : codexPath
             args = ["--version"]
         case .claude:
-            executable = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
+            executable =
+                claudePath.isEmpty
+                ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
             args = ["--version"]
         case .gemini:
-            executable = geminiCliPath.isEmpty ? (PathFinder.find(executable: "gemini") ?? "/opt/homebrew/bin/gemini") : geminiCliPath
+            executable =
+                geminiCliPath.isEmpty
+                ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini")
+                : geminiCliPath
             args = ["--version"]
         }
 
@@ -1277,7 +1658,8 @@ struct SettingsView: View {
                 process.waitUntilExit()
                 let ok = process.terminationStatus == 0
                 await MainActor.run {
-                    accountTestResultById[account.id] = ok ? "OK" : "Errore exit \(process.terminationStatus)"
+                    accountTestResultById[account.id] =
+                        ok ? "OK" : "Errore exit \(process.terminationStatus)"
                 }
             } catch {
                 await MainActor.run {
@@ -1314,9 +1696,7 @@ struct SettingsView: View {
 
     private func accountAuthStatus(_ account: CLIAccount) -> CLIAccountAuthStatus {
         CLIAccountAuthDetector.detect(
-            account: account,
-            providerPath: providerPath(for: account.provider)
-        )
+            account: account, providerPath: providerPath(for: account.provider))
     }
 
     private func providerPath(for provider: CLIProviderKind) -> String? {
@@ -1331,7 +1711,9 @@ struct SettingsView: View {
     }
 
     private func connectToCodex() {
-        if codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil {
+        if codexState.status.path != nil
+            || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil
+        {
             if codexState.status.isLoggedIn {
                 syncCodex()
             } else {
@@ -1341,9 +1723,13 @@ struct SettingsView: View {
     }
 
     private func refreshUsageSnapshotsForSettings() async {
-        let codexBin = codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
-        let claudeBin = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
-        let geminiBin = geminiCliPath.isEmpty ? (PathFinder.find(executable: "gemini") ?? "") : geminiCliPath
+        let codexBin =
+            codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "") : codexPath
+        let claudeBin =
+            claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
+        let geminiBin =
+            geminiCliPath.isEmpty
+            ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "") : geminiCliPath
         await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
         await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
         await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
@@ -1368,86 +1754,85 @@ struct SettingsView: View {
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         guard codex != nil || claude != nil else { return }
         providerRegistry.unregister(id: "plan-mode")
-        providerRegistry.register(ProviderFactory.planProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.planProvider(
+                config: providerFactoryConfig(), codex: codex, claude: claude,
+                executionController: executionController))
     }
 
     private func syncOpenAI() {
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
         providerRegistry.unregister(id: "openai-api")
-        providerRegistry.register(OpenAIAPIProvider(apiKey: openaiApiKey, model: openaiModel, reasoningEffort: effort))
+        providerRegistry.register(
+            ProviderFactory.openAIAPIProvider(
+                config: providerFactoryConfig(), reasoningEffort: effort))
     }
 
     private func syncAnthropic() {
         providerRegistry.unregister(id: "anthropic-api")
-        providerRegistry.register(AnthropicAPIProvider(
-            apiKey: anthropicApiKey,
-            model: anthropicModel,
-            displayName: "Anthropic"
-        ))
+        providerRegistry.register(
+            ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig()))
     }
 
     private func syncGoogle() {
         providerRegistry.unregister(id: "google-api")
-        providerRegistry.register(OpenAIAPIProvider(
-            apiKey: googleApiKey,
-            model: googleModel,
-            id: "google-api",
-            displayName: "Google Gemini",
-            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-        ))
+        providerRegistry.register(
+            ProviderFactory.googleAPIProvider(config: providerFactoryConfig()))
     }
 
     private func syncCodex() {
         providerRegistry.unregister(id: "codex-cli")
-        providerRegistry.register(ProviderFactory.codexProvider(config: providerFactoryConfig(), executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.codexProvider(
+                config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func openFullDiskAccessPreferences() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+        if let url = URL(
+            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
+        {
             NSWorkspace.shared.open(url)
         }
     }
 
     private func syncMiniMax() {
         providerRegistry.unregister(id: "minimax-api")
-        providerRegistry.register(OpenAIAPIProvider(
-            apiKey: minimaxApiKey,
-            model: minimaxModel,
-            id: "minimax-api",
-            displayName: "MiniMax",
-            baseURL: "https://api.minimax.io/v1/chat/completions"
-        ))
+        providerRegistry.register(
+            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig()))
     }
 
     private func syncOpenRouter() {
         providerRegistry.unregister(id: "openrouter-api")
-        providerRegistry.register(OpenAIAPIProvider(
-            apiKey: openrouterApiKey,
-            model: openrouterModel,
-            id: "openrouter-api",
-            displayName: "OpenRouter",
-            baseURL: "https://openrouter.ai/api/v1/chat/completions",
-            extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
-        ))
+        providerRegistry.register(
+            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig()))
     }
 
     private func syncClaude() {
         providerRegistry.unregister(id: "claude-cli")
-        providerRegistry.register(ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.claudeProvider(
+                config: providerFactoryConfig(), executionController: executionController))
         syncSwarm()
         syncPlanProvider()
     }
 
     private func syncGemini() {
         providerRegistry.unregister(id: "gemini-cli")
-        providerRegistry.register(ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.geminiProvider(
+                config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncSwarm() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
+        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
+            return
+        }
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         providerRegistry.unregister(id: "agent-swarm")
-        providerRegistry.register(ProviderFactory.swarmProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.swarmProvider(
+                config: providerFactoryConfig(), codex: codex, claude: claude,
+                executionController: executionController))
     }
 
     private func loadCodexAdvanced() {
@@ -1460,12 +1845,15 @@ struct SettingsView: View {
         codexReasoningSummary = cfg.modelReasoningSummary ?? "auto"
         codexVerbosity = cfg.modelVerbosity ?? "medium"
         let validPersonalities = ["none", "friendly", "pragmatic"]
-        codexPersonality = validPersonalities.contains(cfg.personality ?? "none") ? (cfg.personality ?? "none") : "none"
+        codexPersonality =
+            validPersonalities.contains(cfg.personality ?? "none")
+            ? (cfg.personality ?? "none") : "none"
         codexNetworkAccess = cfg.networkAccess ?? false
         codexAdditionalWriteRoots = cfg.additionalWriteRoots.joined(separator: ", ")
         codexDeveloperInstructions = cfg.developerInstructions ?? ""
         codexCheckUpdate = cfg.checkForUpdateOnStartup ?? true
         codexAgentsMd = CodexAgentsFile.loadGlobal()
+        reloadRulesFromDisk()
     }
 
     private func saveCodexToml() {
@@ -1482,16 +1870,21 @@ struct SettingsView: View {
         cfg.additionalWriteRoots = codexAdditionalWriteRoots.components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        cfg.developerInstructions = codexDeveloperInstructions.isEmpty ? nil : codexDeveloperInstructions
+        cfg.developerInstructions =
+            codexDeveloperInstructions.isEmpty ? nil : codexDeveloperInstructions
         cfg.checkForUpdateOnStartup = codexCheckUpdate ? nil : false
         CodexConfigLoader.save(cfg)
     }
 
     private func syncCodeReview() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
+        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
+            return
+        }
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         providerRegistry.unregister(id: "multi-swarm-review")
-        providerRegistry.register(ProviderFactory.codeReviewProvider(config: providerFactoryConfig(), codex: codex, claude: claude))
+        providerRegistry.register(
+            ProviderFactory.codeReviewProvider(
+                config: providerFactoryConfig(), codex: codex, claude: claude))
     }
 
     private func parseSwarmEnabledRoles() -> Set<AgentRole> {
@@ -1540,6 +1933,8 @@ struct SettingsView: View {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
+            swarmWorkerBackendOverrides: UserDefaults.standard.string(
+                forKey: "swarm_worker_backend_overrides") ?? "",
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
             swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
             swarmMaxReviewLoops: swarmMaxReviewLoops,
@@ -1549,10 +1944,103 @@ struct SettingsView: View {
             codeReviewAnalysisOnly: codeReviewAnalysisOnly,
             codeReviewMaxRounds: codeReviewMaxRounds,
             codeReviewAnalysisBackend: codeReviewAnalysisBackend,
+            codeReviewExecutionBackend: codeReviewExecutionBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
             claudeAllowedTools: parseClaudeAllowedTools(),
-            geminiCliPath: geminiCliPath
+            geminiCliPath: geminiCliPath,
+            geminiModelOverride: geminiModelOverride
         )
+    }
+
+    private var currentProjectRootPath: String? {
+        if let active = workspaceStore.activeWorkspace, let root = active.folderPaths.first,
+            !root.isEmpty
+        {
+            return root
+        }
+        return workspaceStore.workspaces.first(where: { !$0.folderPaths.isEmpty })?.folderPaths
+            .first
+    }
+
+    private func reloadRulesFromDisk() {
+        globalRuleDocs = CoderRulesFile.loadGlobalRules()
+        if selectedGlobalRuleName.isEmpty
+            || !globalRuleDocs.contains(where: { $0.name == selectedGlobalRuleName })
+        {
+            selectedGlobalRuleName = globalRuleDocs.first?.name ?? ""
+        }
+        globalRuleContentDraft =
+            globalRuleDocs.first(where: { $0.name == selectedGlobalRuleName })?.content ?? ""
+
+        if let root = currentProjectRootPath {
+            projectRuleDocs = CoderRulesFile.loadProjectRules(workspacePath: root)
+            if selectedProjectRuleName.isEmpty
+                || !projectRuleDocs.contains(where: { $0.name == selectedProjectRuleName })
+            {
+                selectedProjectRuleName = projectRuleDocs.first?.name ?? ""
+            }
+            projectRuleContentDraft =
+                projectRuleDocs.first(where: { $0.name == selectedProjectRuleName })?.content ?? ""
+        } else {
+            projectRuleDocs = []
+            selectedProjectRuleName = ""
+            projectRuleContentDraft = ""
+        }
+    }
+
+    private func createGlobalRule() {
+        let base = newGlobalRuleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty else { return }
+        CoderRulesFile.saveGlobalRule(
+            name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n")
+        newGlobalRuleName = ""
+        reloadRulesFromDisk()
+        if let created = globalRuleDocs.last?.name {
+            selectedGlobalRuleName = created
+            globalRuleContentDraft =
+                globalRuleDocs.first(where: { $0.name == created })?.content ?? ""
+        }
+    }
+
+    private func saveSelectedGlobalRule() {
+        guard !selectedGlobalRuleName.isEmpty else { return }
+        CoderRulesFile.saveGlobalRule(name: selectedGlobalRuleName, content: globalRuleContentDraft)
+        reloadRulesFromDisk()
+    }
+
+    private func deleteSelectedGlobalRule() {
+        guard !selectedGlobalRuleName.isEmpty else { return }
+        CoderRulesFile.deleteGlobalRule(name: selectedGlobalRuleName)
+        reloadRulesFromDisk()
+    }
+
+    private func createProjectRule() {
+        guard let root = currentProjectRootPath else { return }
+        let base = newProjectRuleName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty else { return }
+        CoderRulesFile.saveProjectRule(
+            name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n",
+            workspacePath: root)
+        newProjectRuleName = ""
+        reloadRulesFromDisk()
+        if let created = projectRuleDocs.last?.name {
+            selectedProjectRuleName = created
+            projectRuleContentDraft =
+                projectRuleDocs.first(where: { $0.name == created })?.content ?? ""
+        }
+    }
+
+    private func saveSelectedProjectRule() {
+        guard let root = currentProjectRootPath, !selectedProjectRuleName.isEmpty else { return }
+        CoderRulesFile.saveProjectRule(
+            name: selectedProjectRuleName, content: projectRuleContentDraft, workspacePath: root)
+        reloadRulesFromDisk()
+    }
+
+    private func deleteSelectedProjectRule() {
+        guard let root = currentProjectRootPath, !selectedProjectRuleName.isEmpty else { return }
+        CoderRulesFile.deleteProjectRule(name: selectedProjectRuleName, workspacePath: root)
+        reloadRulesFromDisk()
     }
 }

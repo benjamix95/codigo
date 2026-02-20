@@ -249,7 +249,8 @@ struct GitService {
             var added = 0
             var removed = 0
             if statusCode != "??" {
-                let stat = try runGit(["diff", "--numstat", "--", path], gitRoot: gitRoot)
+                // Include both staged and unstaged deltas against HEAD for accurate file totals.
+                let stat = try runGit(["diff", "--numstat", "HEAD", "--", path], gitRoot: gitRoot)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !stat.isEmpty {
                     let comps = stat.split(separator: "\t")

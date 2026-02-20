@@ -1,6 +1,6 @@
-import SwiftUI
 import AppKit
 import CoderEngine
+import SwiftUI
 
 @main
 struct CodigoApp: App {
@@ -33,24 +33,28 @@ struct CodigoApp: App {
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
-    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
+        "Read,Edit,Bash,Write,Search"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
-    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
+    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
+        "planner,coder,debugger,reviewer,testWriter"
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("minimax_api_key") private var minimaxApiKey = ""
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
-    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
+    @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4.5"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
+    @AppStorage("gemini_model_override") private var geminiModelOverride = ""
 
     private var colorScheme: ColorScheme? {
         switch appearance {
@@ -80,7 +84,8 @@ struct CodigoApp: App {
                 .environmentObject(accountUsageDashboardStore)
                 .onAppear {
                     projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                    chatStore.migrateLegacyContextsIfNeeded(contextStore: projectContextStore, workspaceStore: workspaceStore)
+                    chatStore.migrateLegacyContextsIfNeeded(
+                        contextStore: projectContextStore, workspaceStore: workspaceStore)
                     registerProviders()
                     configureWindow()
                 }
@@ -100,43 +105,39 @@ struct CodigoApp: App {
         for window in candidates {
             window.minSize = NSSize(width: 1000, height: 600)
             window.backgroundColor = DesignSystem.AppKit.windowBackground
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.title = ""
-            window.styleMask.insert(.fullSizeContentView)
-            // Evita che la top area (dove vivono i tab) venga interpretata come drag-region.
-            window.isMovableByWindowBackground = false
+            AppDelegate.applyMainWindowStyle(window)
         }
     }
 
     private func registerProviders() {
         if providerRegistry.provider(for: "openai-api") == nil {
-            providerRegistry.register(OpenAIAPIProvider(apiKey: apiKey, model: model))
+            let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
+            providerRegistry.register(
+                ProviderFactory.openAIAPIProvider(
+                    config: providerFactoryConfig(), reasoningEffort: effort))
         }
         if providerRegistry.provider(for: "anthropic-api") == nil {
-            providerRegistry.register(AnthropicAPIProvider(
-                apiKey: anthropicApiKey,
-                model: anthropicModel,
-                displayName: "Anthropic"
-            ))
+            providerRegistry.register(
+                ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig()))
         }
         if providerRegistry.provider(for: "google-api") == nil {
-            providerRegistry.register(OpenAIAPIProvider(
-                apiKey: googleApiKey,
-                model: googleModel,
-                id: "google-api",
-                displayName: "Google Gemini",
-                baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-            ))
+            providerRegistry.register(
+                ProviderFactory.googleAPIProvider(config: providerFactoryConfig()))
         }
         if providerRegistry.provider(for: "codex-cli") == nil {
-            providerRegistry.register(ProviderFactory.codexProvider(config: providerFactoryConfig(), executionController: executionController))
+            providerRegistry.register(
+                ProviderFactory.codexProvider(
+                    config: providerFactoryConfig(), executionController: executionController))
         }
         if providerRegistry.provider(for: "claude-cli") == nil {
-            providerRegistry.register(ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+            providerRegistry.register(
+                ProviderFactory.claudeProvider(
+                    config: providerFactoryConfig(), executionController: executionController))
         }
         if providerRegistry.provider(for: "gemini-cli") == nil {
-            providerRegistry.register(ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
+            providerRegistry.register(
+                ProviderFactory.geminiProvider(
+                    config: providerFactoryConfig(), executionController: executionController))
         }
         registerMiniMax()
         registerOpenRouter()
@@ -147,25 +148,14 @@ struct CodigoApp: App {
 
     private func registerMiniMax() {
         providerRegistry.unregister(id: "minimax-api")
-        providerRegistry.register(OpenAIAPIProvider(
-            apiKey: minimaxApiKey,
-            model: minimaxModel,
-            id: "minimax-api",
-            displayName: "MiniMax",
-            baseURL: "https://api.minimax.io/v1/chat/completions"
-        ))
+        providerRegistry.register(
+            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig()))
     }
 
     private func registerOpenRouter() {
         providerRegistry.unregister(id: "openrouter-api")
-        providerRegistry.register(OpenAIAPIProvider(
-            apiKey: openrouterApiKey,
-            model: openrouterModel,
-            id: "openrouter-api",
-            displayName: "OpenRouter",
-            baseURL: "https://openrouter.ai/api/v1/chat/completions",
-            extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
-        ))
+        providerRegistry.register(
+            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig()))
     }
 
     private func registerPlanProvider() {
@@ -173,28 +163,42 @@ struct CodigoApp: App {
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
         guard codex != nil || claude != nil else { return }
         providerRegistry.unregister(id: "plan-mode")
-        providerRegistry.register(ProviderFactory.planProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController))
+        providerRegistry.register(
+            ProviderFactory.planProvider(
+                config: providerFactoryConfig(), codex: codex, claude: claude,
+                executionController: executionController))
     }
 
     private func registerMultiSwarmReviewProvider() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
+        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
+            return
+        }
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        let provider = ProviderFactory.codeReviewProvider(config: providerFactoryConfig(), codex: codex, claude: claude)
+        let provider = ProviderFactory.codeReviewProvider(
+            config: providerFactoryConfig(), codex: codex, claude: claude)
         providerRegistry.unregister(id: "multi-swarm-review")
         providerRegistry.register(provider)
     }
 
     private func registerSwarmProvider() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else { return }
+        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
+            return
+        }
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        let swarm = ProviderFactory.swarmProvider(config: providerFactoryConfig(), codex: codex, claude: claude, executionController: executionController)
+        let swarm = ProviderFactory.swarmProvider(
+            config: providerFactoryConfig(), codex: codex, claude: claude,
+            executionController: executionController)
         providerRegistry.unregister(id: "agent-swarm")
         providerRegistry.register(swarm)
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {
-        let effectiveSandbox = codexSandbox.isEmpty ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
-        let tools = claudeAllowedTools.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let effectiveSandbox =
+            codexSandbox.isEmpty
+            ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
+        let tools = claudeAllowedTools.components(separatedBy: ",").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
         return ProviderFactoryConfig(
             openaiApiKey: apiKey,
             openaiModel: model,
@@ -215,6 +219,8 @@ struct CodigoApp: App {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
+            swarmWorkerBackendOverrides: UserDefaults.standard.string(
+                forKey: "swarm_worker_backend_overrides") ?? "",
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
             swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
             swarmMaxReviewLoops: swarmMaxReviewLoops,
@@ -224,10 +230,12 @@ struct CodigoApp: App {
             codeReviewAnalysisOnly: codeReviewAnalysisOnly,
             codeReviewMaxRounds: codeReviewMaxRounds,
             codeReviewAnalysisBackend: codeReviewAnalysisBackend,
+            codeReviewExecutionBackend: codeReviewExecutionBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
             claudeAllowedTools: tools,
-            geminiCliPath: geminiCliPath
+            geminiCliPath: geminiCliPath,
+            geminiModelOverride: geminiModelOverride
         )
     }
 }

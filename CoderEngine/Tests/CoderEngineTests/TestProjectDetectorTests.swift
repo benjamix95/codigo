@@ -40,8 +40,22 @@ final class TestProjectDetectorTests: XCTestCase {
 
     func testDetectUnknown() {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
         let type = TestProjectDetector.detect(workspacePath: tempDir)
         XCTAssertEqual(type, .unknown)
+    }
+
+    func testDetectRustProject() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let cargoToml = tempDir.appendingPathComponent("Cargo.toml")
+        try "[package]\nname = \"demo\"".write(to: cargoToml, atomically: true, encoding: .utf8)
+
+        let type = TestProjectDetector.detect(workspacePath: tempDir)
+        XCTAssertEqual(type, .rust)
     }
 
     func testTestCommandSwift() throws {
@@ -59,5 +73,16 @@ final class TestProjectDetectorTests: XCTestCase {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let cmd = TestProjectDetector.testCommand(workspacePath: tempDir)
         XCTAssertNil(cmd)
+    }
+
+    func testTestCommandRust() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        try "".write(to: tempDir.appendingPathComponent("Cargo.toml"), atomically: true, encoding: .utf8)
+
+        let cmd = TestProjectDetector.testCommand(workspacePath: tempDir)
+        XCTAssertNotNil(cmd)
+        XCTAssertTrue(cmd?.arguments.contains("test") == true)
     }
 }

@@ -3,14 +3,25 @@ import CoderEngine
 
 private let projectContextsKey = "CoderIDE.projectContexts"
 private let activeContextIdKey = "CoderIDE.activeContextId"
+private let lastActiveConversationKey = "CoderIDE.lastActiveConversationByContext"
 
 @MainActor
 final class ProjectContextStore: ObservableObject {
     @Published var contexts: [ProjectContext] = []
-    @Published var activeContextId: UUID?
+    @Published var activeContextId: UUID? {
+        didSet { persistActiveContextId() }
+    }
 
     init() {
         load()
+    }
+
+    private func persistActiveContextId() {
+        if let activeContextId {
+            UserDefaults.standard.set(activeContextId.uuidString, forKey: activeContextIdKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: activeContextIdKey)
+        }
     }
 
     var activeContext: ProjectContext? {
@@ -118,6 +129,31 @@ final class ProjectContextStore: ObservableObject {
         contexts[idx].name = name
         contexts[idx].updatedAt = .now
         save()
+    }
+
+    private func contextKey(contextId: UUID, folderPath: String?) -> String {
+        "\(contextId.uuidString)|\(folderPath ?? "")"
+    }
+
+    func setLastActiveConversation(contextId: UUID, folderPath: String?, conversationId: UUID) {
+        var map = loadLastActiveMap()
+        map[contextKey(contextId: contextId, folderPath: folderPath)] = conversationId.uuidString
+        if let data = try? JSONEncoder().encode(map) {
+            UserDefaults.standard.set(data, forKey: lastActiveConversationKey)
+        }
+    }
+
+    func lastActiveConversationId(contextId: UUID, folderPath: String?) -> UUID? {
+        let map = loadLastActiveMap()
+        guard let str = map[contextKey(contextId: contextId, folderPath: folderPath)],
+              let id = UUID(uuidString: str) else { return nil }
+        return id
+    }
+
+    private func loadLastActiveMap() -> [String: String] {
+        guard let data = UserDefaults.standard.data(forKey: lastActiveConversationKey),
+              let map = try? JSONDecoder().decode([String: String].self, from: data) else { return [:] }
+        return map
     }
 
     private func normalize(paths: [String]) -> [String] {

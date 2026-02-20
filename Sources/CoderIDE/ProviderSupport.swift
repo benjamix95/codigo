@@ -1,6 +1,13 @@
 import CoderEngine
 
 enum ProviderSupport {
+    static let agentProviderIds = ["codex-cli", "claude-cli", "gemini-cli"]
+
+    static func isAgentProvider(id: String?) -> Bool {
+        guard let id else { return false }
+        return agentProviderIds.contains(id)
+    }
+
     static let preferredIDEProviderIds = [
         "openai-api",
         "anthropic-api",

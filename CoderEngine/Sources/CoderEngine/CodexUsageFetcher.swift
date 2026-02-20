@@ -168,7 +168,7 @@ public enum CodexUsageFetcher {
     private static func runCodexStatus(codexPath: String, workingDirectory: String?) async -> (output: String, exitCode: Int32) {
         var args = ["exec", "--json", "--skip-git-repo-check"]
         if let wd = workingDirectory, !wd.isEmpty, FileManager.default.fileExists(atPath: wd) {
-            args = ["exec", "--json", "-C", wd]
+            args += ["-C", wd]
         }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: codexPath)
@@ -178,7 +178,9 @@ public enum CodexUsageFetcher {
         process.standardOutput = outPipe
         process.standardError = nil
         process.environment = CodexDetector.shellEnvironment()
-        process.currentDirectoryURL = workingDirectory.flatMap { URL(fileURLWithPath: $0) } ?? URL(fileURLWithPath: "/tmp")
+        process.currentDirectoryURL = workingDirectory
+            .flatMap { FileManager.default.fileExists(atPath: $0) ? URL(fileURLWithPath: $0) : nil }
+            ?? URL(fileURLWithPath: "/tmp")
         let stdin = "/status\n"
         do {
             try process.run()

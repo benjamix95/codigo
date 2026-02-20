@@ -173,7 +173,7 @@ struct UsageFooterView: View {
                 let path = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude") : claudePath
                 await providerUsageStore.fetchClaudeUsage(claudePath: path, workingDirectory: wd)
             } else if pid == "gemini-cli" {
-                let path = geminiCliPath.isEmpty ? (PathFinder.find(executable: "gemini") ?? "/opt/homebrew/bin/gemini") : geminiCliPath
+                let path = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini") : geminiCliPath
                 await providerUsageStore.fetchGeminiUsage(geminiPath: path, workingDirectory: wd)
             }
         }

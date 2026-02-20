@@ -33,4 +33,18 @@ final class GitCommitMessageGeneratorTests: XCTestCase {
         let status = GitStatusSummary(changedFiles: 2, added: 0, removed: 0, modified: 2, untracked: 0, aheadBehind: nil, hasRemote: true)
         XCTAssertEqual(generator.fallbackMessage(from: status), "chore: update project files")
     }
+
+    func testGenerateCommitMessageFailsOnWhitespaceOnlyResponse() async throws {
+        let generator = GitCommitMessageGenerator()
+        let provider = MockProvider(response: "   \n  \n")
+        let ctx = WorkspaceContext(workspacePath: URL(fileURLWithPath: "/tmp"))
+        do {
+            _ = try await generator.generateCommitMessage(diff: "diff --git", provider: provider, context: ctx)
+            XCTFail("Expected error for whitespace-only response")
+        } catch {
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, "GitCommitMessageGenerator")
+            XCTAssertEqual(nsError.code, 1)
+        }
+    }
 }

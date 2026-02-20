@@ -498,7 +498,13 @@ struct SidebarView: View {
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onTapGesture {
             selectedConversationId = conv.id
-            if let contextId = conv.contextId { projectContextStore.activeContextId = contextId }
+            if let contextId = conv.contextId {
+                projectContextStore.activeContextId = contextId
+                syncActiveWorkspaceIfNeeded(contextId: contextId)
+                if conv.messages.contains(where: { $0.role == .user }) {
+                    projectContextStore.setLastActiveConversation(contextId: contextId, folderPath: conv.contextFolderPath, conversationId: conv.id)
+                }
+            }
         }
     }
 
@@ -689,11 +695,23 @@ struct SidebarView: View {
 
     private func attachConversation(to contextId: UUID) {
         projectContextStore.activeContextId = contextId
-        if let convId = selectedConversationId {
-            chatStore.setContext(conversationId: convId, contextId: contextId)
+        syncActiveWorkspaceIfNeeded(contextId: contextId)
+        let folderScope = (currentContext?.kind == .workspace) ? currentContext?.activeFolderPath : nil
+        // Se c'è un thread su cui avevi lavorato in questo tab, mostralo; altrimenti nuovo thread
+        if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
+           let lastConv = chatStore.conversation(for: lastId),
+           lastConv.contextId == contextId,
+           lastConv.messages.contains(where: { $0.role == .user }) {
+            selectedConversationId = lastId
         } else {
-            selectedConversationId = chatStore.createConversation(contextId: contextId)
+            selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
+    }
+
+    private func syncActiveWorkspaceIfNeeded(contextId: UUID?) {
+        guard let contextId, workspaceStore.workspaces.contains(where: { $0.id == contextId }) else { return }
+        workspaceStore.activeWorkspaceId = contextId
+        workspaceStore.save()
     }
 
     private func clearConversationContext() {
@@ -706,7 +724,10 @@ struct SidebarView: View {
         let folderScope = (currentContext?.kind == .workspace) ? currentContext?.activeFolderPath : nil
         let newId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         selectedConversationId = newId
-        if let contextId { projectContextStore.activeContextId = contextId }
+        if let contextId {
+            projectContextStore.activeContextId = contextId
+            syncActiveWorkspaceIfNeeded(contextId: contextId)
+        }
     }
 
     private func deleteWorkspace(_ ws: Workspace) {

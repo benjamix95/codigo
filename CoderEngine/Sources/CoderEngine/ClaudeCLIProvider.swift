@@ -172,6 +172,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                         }
 
                         if eventType == "result", let resultText = json["result"] as? String, !resultText.isEmpty {
+                            let previousFullContent = fullContent
                             if resultText.count > fullContent.count {
                                 let delta = String(resultText.dropFirst(fullContent.count))
                                 fullContent = resultText
@@ -192,9 +193,9 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                     continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                 }
                             }
-                            let suffix = resultText.count > fullContent.count
-                                ? String(resultText.dropFirst(fullContent.count))
-                                : resultText
+                            let suffix = resultText.count > previousFullContent.count
+                                ? String(resultText.dropFirst(previousFullContent.count))
+                                : ""
                             for markerEvent in Self.parseCoderIDEMarkerEvents(in: suffix) {
                                 let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                 if emittedMarkers.insert(key).inserted {
@@ -221,20 +222,20 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
 
         switch name {
         case "Bash":
-            let cmd = input["command"] as? String ?? input["command_line"] as? String ?? ""
+            let cmd = firstString(in: input, keys: ["command", "command_line", "cmd"]) ?? ""
             let title = "Bash • \(String(cmd.prefix(50)))\(cmd.count > 50 ? "..." : "")"
             var payload: [String: String] = [
                 "title": title,
                 "detail": cmd,
-                "command": String(cmd.prefix(80))
+                "command": cmd
             ]
-            if let cwd = input["cwd"] as? String ?? input["working_directory"] as? String {
+            if let cwd = firstString(in: input, keys: ["cwd", "working_directory", "workdir"]) {
                 payload["cwd"] = cwd
             }
-            if let output = input["output"] as? String ?? input["result"] as? String ?? input["stdout"] as? String {
+            if let output = firstString(in: input, keys: ["output", "result", "stdout", "message", "content"]) {
                 payload["output"] = String(output.prefix(6_000))
             }
-            if let stderr = input["stderr"] as? String, !stderr.isEmpty {
+            if let stderr = firstString(in: input, keys: ["stderr", "error", "error_message"]), !stderr.isEmpty {
                 payload["stderr"] = String(stderr.prefix(3_000))
             }
             return ("command_execution", payload)
@@ -251,11 +252,24 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             var payload: [String: String] = ["title": title, "detail": path, "path": path, "file": path]
             if added > 0 { payload["linesAdded"] = "\(added)" }
             if removed > 0 { payload["linesRemoved"] = "\(removed)" }
+            if !oldStr.isEmpty || !newStr.isEmpty {
+                payload["diffPreview"] = buildDiffPreview(old: oldStr, new: newStr)
+            }
             return ("file_change", payload)
         case "Read":
             let path = input["path"] as? String ?? input["file_path"] as? String ?? ""
-            let title = "Read • \((path as NSString).lastPathComponent)"
-            return ("file_change", ["title": title, "detail": path, "path": path, "file": path])
+            var payload: [String: String] = [
+                "title": "Read • \((path as NSString).lastPathComponent)",
+                "detail": path,
+                "path": path,
+                "file": path,
+                "count": "1",
+                "files": path
+            ]
+            if let out = firstString(in: input, keys: ["content", "output", "result"]), !out.isEmpty {
+                payload["output"] = String(out.prefix(6_000))
+            }
+            return ("read_batch_completed", payload)
         default:
             let title = name
             let detail = (input["query"] as? String) ?? (input["command"] as? String) ?? ""
@@ -345,5 +359,62 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             .replacingOccurrences(of: "\\\\", with: "\\")
             .replacingOccurrences(of: "\\|", with: "|")
             .replacingOccurrences(of: "\\]", with: "]")
+    }
+
+    private static func firstString(in input: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            if let value = input[key], let stringValue = stringify(value), !stringValue.isEmpty {
+                return stringValue
+            }
+        }
+        for (_, value) in input {
+            if let nested = value as? [String: Any], let found = firstString(in: nested, keys: keys) {
+                return found
+            }
+            if let list = value as? [Any] {
+                for item in list {
+                    if let nested = item as? [String: Any], let found = firstString(in: nested, keys: keys) {
+                        return found
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func stringify(_ value: Any) -> String? {
+        if let s = value as? String { return s }
+        if let n = value as? NSNumber { return n.stringValue }
+        if let arr = value as? [String] { return arr.joined(separator: "\n") }
+        if let arr = value as? [[String: Any]] {
+            let chunks = arr.compactMap { dict -> String? in
+                if let t = dict["text"] as? String { return t }
+                if let o = dict["output"] as? String { return o }
+                return nil
+            }
+            if !chunks.isEmpty { return chunks.joined(separator: "\n") }
+        }
+        if let dict = value as? [String: Any] {
+            if let t = dict["text"] as? String { return t }
+            if let o = dict["output"] as? String { return o }
+            if let e = dict["error"] as? String { return e }
+        }
+        return nil
+    }
+
+    private static func buildDiffPreview(old: String, new: String) -> String {
+        let oldLines = old.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let newLines = new.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var out: [String] = []
+        let maxCount = min(max(oldLines.count, newLines.count), 80)
+        for i in 0..<maxCount {
+            let oldLine = i < oldLines.count ? oldLines[i] : nil
+            let newLine = i < newLines.count ? newLines[i] : nil
+            if oldLine == newLine { continue }
+            if let oldLine { out.append("- \(oldLine)") }
+            if let newLine { out.append("+ \(newLine)") }
+            if out.count >= 40 { break }
+        }
+        return out.joined(separator: "\n")
     }
 }

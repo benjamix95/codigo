@@ -26,6 +26,17 @@ enum CLIAccountAuthDetector {
         guard let executable else { return .notInstalled }
         guard FileManager.default.isExecutableFile(atPath: executable) else { return .notInstalled }
 
+        // Non bloccare mai il main thread (render SwiftUI): evita waitUntilExit in UI pass.
+        if Thread.isMainThread {
+            if let secret = CLIAccountSecretsStore().secret(for: account.id), !secret.isEmpty {
+                return .loggedIn(method: .apiKey)
+            }
+            if account.lastAuthMethod != nil, account.lastAuthError == nil {
+                return .loggedIn(method: account.lastAuthMethod ?? .oauth)
+            }
+            return .notLoggedIn
+        }
+
         let env = buildEnvironment(for: account)
         do {
             let ok = try runLoginStatus(provider: account.provider, executable: executable, environment: env)
@@ -54,7 +65,7 @@ enum CLIAccountAuthDetector {
         case .claude:
             return PathFinder.find(executable: "claude")
         case .gemini:
-            return PathFinder.find(executable: "gemini")
+            return GeminiDetector.findGeminiPath(customPath: providerPath)
         }
     }
 
@@ -79,7 +90,7 @@ enum CLIAccountAuthDetector {
         case .claude:
             process.arguments = ["auth", "status"]
         case .gemini:
-            process.arguments = ["auth", "status"]
+            process.arguments = ["--version"]
         }
         process.environment = environment
         process.standardOutput = Pipe()
