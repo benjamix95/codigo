@@ -6,16 +6,29 @@ struct ClickableMessageContent: View {
     let onFileClicked: (String) -> Void
     var textAlignment: TextAlignment = .leading
 
-    /// Rimuove marker CODERIDE (completi e incompleti). Durante lo streaming il modello
-    /// emette token per token, quindi `[CODERIDE:read|path=x` senza `]` resta visibile
-    /// se non gestiamo il caso incompleto.
+    /// Rimuove marker CODERIDE (completi, incompleti, con spazi/newline). Durante lo streaming
+    /// il modello emette token per token; possono comparire varianti come [ CODERIDE: o [CODERIDE\n:
     private var displayContent: String {
         var out = content
-        while let start = out.range(of: "[CODERIDE:", options: .caseInsensitive) {
+        guard let regex = try? NSRegularExpression(
+            pattern: "\\[\\s*CODERIDE\\s*:[^\\]]*\\]?",
+            options: .caseInsensitive
+        ) else {
+            return content
+        }
+        while true {
+            let ns = out as NSString
+            let fullRange = NSRange(location: 0, length: ns.length)
+            guard let match = regex.firstMatch(in: out, range: fullRange) else { break }
+            let start = out.index(out.startIndex, offsetBy: match.range.location)
+            let end = out.index(start, offsetBy: match.range.length)
+            out.removeSubrange(start..<end)
+        }
+        // Fallback: frammenti come [CODERIDE senza pipe (es. [CODERIDE:read incompleto)
+        while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
             if let end = out[start.upperBound...].firstIndex(of: "]") {
                 out.removeSubrange(start.lowerBound..<out.index(after: end))
             } else {
-                // marker incompleto (streaming): rimuovi da [CODERIDE: fino a fine stringa
                 out.removeSubrange(start.lowerBound..<out.endIndex)
             }
         }
@@ -30,33 +43,40 @@ struct ClickableMessageContent: View {
                 if url.isFileURL { onFileClicked(url.path); return .handled }
                 return .systemAction(url)
             })
-            .font(.system(size: 13))
-            .lineSpacing(3)
+            .font(.system(size: 13.5, weight: .regular, design: .default))
+            .lineSpacing(5)
             .multilineTextAlignment(textAlignment)
             .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func buildAttributedString() -> AttributedString {
-        var result = AttributedString()
+        var result: AttributedString
+        if let markdown = try? AttributedString(
+            markdown: displayContent,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .full,
+                failurePolicy: .returnPartiallyParsedIfPossible
+            )
+        ) {
+            result = markdown
+        } else {
+            result = AttributedString(displayContent)
+        }
         let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return AttributedString(displayContent) }
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
         let nsContent = displayContent as NSString
         let fullRange = NSRange(location: 0, length: nsContent.length)
-        var lastEnd = 0
         for match in regex.matches(in: displayContent, range: fullRange) {
-            if match.range.location > lastEnd {
-                result.append(AttributedString(nsContent.substring(with: NSRange(location: lastEnd, length: match.range.location - lastEnd))))
-            }
             let fileRef = nsContent.substring(with: match.range)
-            var linkAttr = AttributedString(fileRef)
-            linkAttr.foregroundColor = NSColor.controlAccentColor
-            linkAttr.underlineStyle = .single
-            linkAttr.link = URL(fileURLWithPath: resolvePath(fileRef))
-            result.append(linkAttr)
-            lastEnd = match.range.location + match.range.length
-        }
-        if lastEnd < nsContent.length {
-            result.append(AttributedString(nsContent.substring(with: NSRange(location: lastEnd, length: nsContent.length - lastEnd))))
+            guard let strRange = Range(match.range, in: displayContent) else { continue }
+            guard let lower = AttributedString.Index(strRange.lowerBound, within: result),
+                  let upper = AttributedString.Index(strRange.upperBound, within: result) else {
+                continue
+            }
+            result[lower..<upper].foregroundColor = NSColor.controlAccentColor
+            result[lower..<upper].underlineStyle = .single
+            result[lower..<upper].link = URL(fileURLWithPath: resolvePath(fileRef))
         }
         return result
     }

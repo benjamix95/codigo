@@ -47,6 +47,7 @@ struct ModeControlsBarView: View {
     let onSyncCodexProvider: () -> Void
     let onSyncGeminiProvider: () -> Void
     let onSyncSwarmProvider: () -> Void
+    let onSyncPlanProvider: () -> Void
     let onDelegateToAgent: () -> Void
     let attachedImageURLs: [URL]
 
@@ -109,6 +110,7 @@ struct ModeControlsBarView: View {
             }
 
         case "plan-mode":
+            planBackendPicker
             Spacer()
             if coderMode == .plan {
                 formicaButton
@@ -410,6 +412,40 @@ struct ModeControlsBarView: View {
                     }
                 }()
                 Text("Orch: \(orchLabel)").font(.caption)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    // MARK: - Plan Backend Picker
+
+    private var planBackendPicker: some View {
+        Menu {
+            Button {
+                planModeBackend = "codex"
+                onSyncPlanProvider()
+            } label: {
+                HStack {
+                    Text("Codex CLI")
+                    if planModeBackend == "codex" { Image(systemName: "checkmark") }
+                }
+            }
+            Button {
+                planModeBackend = "claude"
+                onSyncPlanProvider()
+            } label: {
+                HStack {
+                    Text("Claude CLI")
+                    if planModeBackend == "claude" { Image(systemName: "checkmark") }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "list.bullet.rectangle").font(.caption2)
+                Text("Plan: \(planModeBackend == "claude" ? "Claude" : "Codex")").font(.caption)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)

@@ -148,22 +148,22 @@ enum ProviderFactory {
             return geminiProvider(config: config, executionController: executionController)
         case "openai":
             guard !config.openaiApiKey.isEmpty else { return nil }
-            return openAIAPIProvider(config: config)
+            return openAIAPIProvider(config: config, executionController: executionController)
         case "openai-api":
             guard !config.openaiApiKey.isEmpty else { return nil }
-            return openAIAPIProvider(config: config)
+            return openAIAPIProvider(config: config, executionController: executionController)
         case "anthropic-api":
             guard !config.anthropicApiKey.isEmpty else { return nil }
-            return anthropicAPIProvider(config: config)
+            return anthropicAPIProvider(config: config, executionController: executionController)
         case "google-api":
             guard !config.googleApiKey.isEmpty else { return nil }
-            return googleAPIProvider(config: config)
+            return googleAPIProvider(config: config, executionController: executionController)
         case "openrouter-api", "openrouter":
             guard !config.openrouterApiKey.isEmpty else { return nil }
-            return openRouterAPIProvider(config: config)
+            return openRouterAPIProvider(config: config, executionController: executionController)
         case "minimax-api":
             guard !config.minimaxApiKey.isEmpty else { return nil }
-            return miniMaxAPIProvider(config: config)
+            return miniMaxAPIProvider(config: config, executionController: executionController)
         default:
             return nil
         }
@@ -234,6 +234,18 @@ enum ProviderFactory {
         config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?
     ) -> (any LLMProvider)? {
         switch config.codeReviewExecutionBackend {
+        case "codex":
+            return CodexCLIProvider(
+                codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
+                sandboxMode: sandbox(from: config),
+                modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
+                modelReasoningEffort: config.codexReasoningEffort.isEmpty
+                    ? nil : config.codexReasoningEffort,
+                yoloMode: config.globalYolo,
+                askForApproval: askForApproval(from: config),
+                executionController: nil,
+                executionScope: .review
+            )
         case "claude":
             guard let c = claude, c.isAuthenticated() else { return nil }
             return ClaudeCLIProvider(
@@ -256,35 +268,38 @@ enum ProviderFactory {
             guard !config.openrouterApiKey.isEmpty else { return nil }
             return openRouterAPIProvider(config: config, executionScope: .review)
         default:
-            return nil
+            return codex
         }
     }
 
     static func openAIAPIProvider(
         config: ProviderFactoryConfig, reasoningEffort: String? = nil,
-        executionScope: ExecutionScope = .agent
+        executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openaiApiKey,
             model: config.openaiModel,
             reasoningEffort: reasoningEffort
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
     }
 
     static func anthropicAPIProvider(
-        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil
     ) -> any LLMProvider {
         let base = AnthropicAPIProvider(
             apiKey: config.anthropicApiKey,
             model: config.anthropicModel,
             displayName: "Anthropic"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
     }
 
     static func googleAPIProvider(
-        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.googleApiKey,
@@ -293,10 +308,13 @@ enum ProviderFactory {
             displayName: "Google Gemini",
             baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
     }
 
-    static func miniMaxAPIProvider(config: ProviderFactoryConfig) -> any LLMProvider {
+    static func miniMaxAPIProvider(
+        config: ProviderFactoryConfig,
+        executionController: ExecutionController? = nil
+    ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.minimaxApiKey,
             model: config.minimaxModel,
@@ -304,11 +322,12 @@ enum ProviderFactory {
             displayName: "MiniMax",
             baseURL: "https://api.minimax.io/v1/chat/completions"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: .agent)
+        return ToolEnabledLLMProvider(base: base, executionScope: .agent, executionController: executionController)
     }
 
     static func openRouterAPIProvider(
-        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openrouterApiKey,
@@ -318,6 +337,6 @@ enum ProviderFactory {
             baseURL: "https://openrouter.ai/api/v1/chat/completions",
             extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope)
+        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
     }
 }

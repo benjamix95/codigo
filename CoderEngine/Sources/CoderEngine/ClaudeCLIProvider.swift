@@ -99,6 +99,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                     var didEmitShowTaskPanel = false
                     var didEmitInvokeSwarm = false
                     var emittedMarkers = Set<String>()
+                    var markerCarry = ""
 
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
@@ -138,7 +139,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                     continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                 }
                             }
-                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: text) {
+                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: text, carry: &markerCarry) {
                                 let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                 if emittedMarkers.insert(key).inserted {
                                     continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
@@ -181,7 +182,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                             continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                         }
                                     }
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: text) {
+                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: text, carry: &markerCarry) {
                                         let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                         if emittedMarkers.insert(key).inserted {
                                             continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
@@ -216,7 +217,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                             let suffix = resultText.count > previousFullContent.count
                                 ? String(resultText.dropFirst(previousFullContent.count))
                                 : ""
-                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: suffix) {
+                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: suffix, carry: &markerCarry) {
                                 let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                 if emittedMarkers.insert(key).inserted {
                                     continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
@@ -310,16 +311,27 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         return result.isEmpty ? ["Read", "Edit", "Bash"] : result
     }
 
-    private static func parseCoderIDEMarkerEvents(in text: String) -> [(type: String, payload: [String: String])] {
+    private static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
         var events: [(type: String, payload: [String: String])] = []
-        if text.contains(CoderIDEMarkers.todoRead) {
-            events.append((type: "todo_read", payload: [:]))
+        let markers = CoderIDEMarkerParser.parseStreamingChunk(text, carry: &carry)
+        for marker in markers {
+            switch marker.kind {
+            case "todo_read":
+                events.append((type: "todo_read", payload: [:]))
+            case "todo_write":
+                events.append((type: "todo_write", payload: marker.payload))
+            case "instant_grep":
+                events.append((type: "instant_grep", payload: marker.payload))
+            case "plan_step":
+                events.append((type: "plan_step_update", payload: marker.payload))
+            case "read_batch":
+                events.append((type: "read_batch_started", payload: marker.payload))
+            case "web_search":
+                events.append((type: "web_search_started", payload: marker.payload))
+            default:
+                break
+            }
         }
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
         return events
     }
 

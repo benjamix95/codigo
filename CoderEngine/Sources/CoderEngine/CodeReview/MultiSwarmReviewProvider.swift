@@ -57,7 +57,6 @@ public struct CodexCreateParams: Sendable {
     }
 }
 
-private let analysisClaudeTools = ["Read", "Glob", "Grep"]
 private let missingWorkerOutputPrefix = "[Nessun output dal worker "
 
 private enum ReviewFailureReason: String {
@@ -203,14 +202,30 @@ public final class MultiSwarmReviewProvider: LLMProvider, @unchecked Sendable {
         return .raw(type: type, payload: enriched)
     }
 
+    private func shouldRunPhase2(prompt: String) -> Bool {
+        let normalized = prompt
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+        if config.yoloMode { return true }
+        let triggers = [
+            "procedi",
+            "applica",
+            "correggi",
+            "fix",
+            "go ahead",
+            "continue"
+        ]
+        return triggers.contains(where: { normalized.contains($0) })
+    }
+
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let config = self.config
         let codexProvider = self.codexProvider
         let codexParams = self.codexParams
 
         let analysisProvider: any LLMProvider
-        if config.analysisBackend == "claude", claudeProvider != nil {
-            analysisProvider = ClaudeCLIProvider(allowedTools: analysisClaudeTools, executionController: nil, executionScope: .review)
+        if config.analysisBackend == "claude", let claude = claudeProvider {
+            analysisProvider = claude
         } else if let p = codexParams {
             analysisProvider = CodexCLIProvider(
                 codexPath: p.codexPath,
@@ -274,7 +289,7 @@ public final class MultiSwarmReviewProvider: LLMProvider, @unchecked Sendable {
                 }
                 continuation.yield(.textDelta("\n"))
 
-                let runPhase2 = config.enabledPhases == .analysisAndExecution && (config.yoloMode || prompt.lowercased().contains("procedi") || prompt.lowercased().contains("applica") || prompt.lowercased().contains("sì"))
+                let runPhase2 = config.enabledPhases == .analysisAndExecution && shouldRunPhase2(prompt: prompt)
 
                 let yieldPartition: (String, String) -> Void = { pid, output in
                     continuation.yield(.textDelta("\n### Swarm \(pid)\n\n"))

@@ -21,28 +21,34 @@ enum PlanOptionsParser {
         var i = 0
         while i < lines.count {
             let line = lines[i]
-            // Match "Opzione 1:" o "## Opzione 1: Title"
-            if line.range(of: #"Opzione\s+\d+\s*[:\-]"#, options: .regularExpression) != nil {
+            // Match "Opzione 1:" / "Option 1:" o "## Opzione 1 - Title" (case-insensitive).
+            if line.range(of: #"(?i)(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]"#, options: .regularExpression) != nil {
                 var num = 0
                 var title = "Opzione"
-                if let regex = try? NSRegularExpression(pattern: #"Opzione\s+(\d+)\s*[:\-]\s*(.*)"#),
-                   let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) {
-                    if let r1 = Range(match.range(at: 1), in: line), let n = Int(line[r1]) {
-                        num = n
-                    }
-                    if match.range(at: 2).location != NSNotFound, let r2 = Range(match.range(at: 2), in: line) {
-                        title = String(line[r2]).trimmingCharacters(in: .whitespaces)
-                        if title.isEmpty { title = "Opzione \(num)" }
+                if let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#),
+                   let digitMatch = digitsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                   let digitRange = Range(digitMatch.range, in: line),
+                   let n = Int(String(line[digitRange])) {
+                    num = n
+                }
+
+                let separators = [":", "-", "–", "—"]
+                if let sepRange = separators.compactMap({ line.range(of: $0) }).min(by: { $0.lowerBound < $1.lowerBound }) {
+                    let rawTitle = String(line[sepRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+                    if !rawTitle.isEmpty {
+                        title = rawTitle
                     } else {
-                        title = "Opzione \(num)"
+                        title = "Opzione \(max(num, 1))"
                     }
+                } else {
+                    title = "Opzione \(max(num, 1))"
                 }
 
                 var fullLines = [line]
                 i += 1
                 while i < lines.count {
                     let next = lines[i]
-                    if next.range(of: #"^\s*(?:##\s*)?Opzione\s+\d+"#, options: .regularExpression) != nil {
+                    if next.range(of: #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+"#, options: .regularExpression) != nil {
                         break
                     }
                     fullLines.append(next)

@@ -6,18 +6,27 @@ struct CoderIDEMarker {
 }
 
 enum CoderIDEMarkerParser {
+    private static let maxCarryLength = 2_048
+
     static func parse(from text: String) -> [CoderIDEMarker] {
         var markers: [CoderIDEMarker] = []
-        var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\[\s*CODERIDE\s*:\s*([^\]]+)\]"#,
+            options: [.caseInsensitive]
+        ) else {
+            return markers
+        }
 
-        while let start = text.range(of: "[CODERIDE:", range: searchRange) {
-            guard let end = text[start.upperBound...].firstIndex(of: "]") else { break }
-            let raw = String(text[start.upperBound..<end])
+        let ns = text as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        for match in regex.matches(in: text, range: full) {
+            guard match.numberOfRanges >= 2 else { continue }
+            let contentRange = match.range(at: 1)
+            guard contentRange.location != NSNotFound else { continue }
+            let raw = ns.substring(with: contentRange)
             let parts = splitEscaped(raw, separator: "|")
-            guard let head = parts.first, !head.isEmpty else {
-                searchRange = end..<text.endIndex
-                continue
-            }
+            guard let head = parts.first, !head.isEmpty else { continue }
+
             let payloadParts = Array(parts.dropFirst())
             var payload: [String: String] = [:]
             for part in payloadParts {
@@ -26,11 +35,39 @@ enum CoderIDEMarkerParser {
                 payload[unescape(pair[0]).trimmingCharacters(in: .whitespaces)] =
                     unescape(pair[1]).trimmingCharacters(in: .whitespaces)
             }
-            let kind = head.trimmingCharacters(in: .whitespaces)
+            let kind = head.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             markers.append(CoderIDEMarker(kind: kind, payload: payload))
-            searchRange = end..<text.endIndex
         }
         return markers
+    }
+
+    static func parseStreamingChunk(_ text: String, carry: inout String) -> [CoderIDEMarker] {
+        let combined = carry + text
+        let markers = parse(from: combined)
+        carry = trailingPartialMarker(from: combined)
+        if carry.count > maxCarryLength {
+            carry = String(carry.suffix(maxCarryLength))
+        }
+        return markers
+    }
+
+    private static func trailingPartialMarker(from text: String) -> String {
+        guard let openerRegex = try? NSRegularExpression(
+            pattern: #"\[\s*CODERIDE\s*:"#,
+            options: [.caseInsensitive]
+        ) else {
+            return ""
+        }
+
+        let ns = text as NSString
+        let full = NSRange(location: 0, length: ns.length)
+        let matches = openerRegex.matches(in: text, range: full)
+        guard let last = matches.last else { return "" }
+        guard last.range.location != NSNotFound else { return "" }
+
+        let start = last.range.location
+        let candidate = ns.substring(from: start)
+        return candidate.contains("]") ? "" : candidate
     }
 
     private static func splitEscaped(_ input: String, separator: String) -> [String] {

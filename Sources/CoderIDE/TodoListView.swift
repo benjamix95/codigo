@@ -75,7 +75,7 @@ struct TodoListView: View {
 
     private func row(_ todo: TodoItem) -> some View {
         let expanded = expandedTaskId == todo.id
-        return HStack(spacing: 7) {
+        return HStack(alignment: .firstTextBaseline, spacing: 7) {
             Button {
                 toggleStatus(todo)
             } label: {
@@ -87,11 +87,28 @@ struct TodoListView: View {
 
             Circle().fill(priorityColor(todo.priority)).frame(width: 5, height: 5)
 
-            Text(todo.title)
-                .font(.system(size: 11))
-                .strikethrough(todo.status == .done)
-                .foregroundStyle(todo.status == .done ? .secondary : .primary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(todo.title)
+                    .font(.system(size: 11, weight: .medium))
+                    .strikethrough(todo.status == .done)
+                    .foregroundStyle(todo.status == .done ? .secondary : .primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 6) {
+                    Text(statusLabel(todo.status))
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(statusColor(todo.status))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(statusColor(todo.status).opacity(0.14), in: Capsule())
+                    Text(todo.priority.rawValue.uppercased())
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(priorityColor(todo.priority))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(priorityColor(todo.priority).opacity(0.12), in: Capsule())
+                }
+            }
 
             Spacer()
 
@@ -105,7 +122,7 @@ struct TodoListView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
         .background(expanded ? Color.accentColor.opacity(0.10) : Color.clear)
     }
 
@@ -115,6 +132,7 @@ struct TodoListView: View {
                 Text(todo.notes)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if !todo.linkedFiles.isEmpty {
@@ -171,6 +189,15 @@ struct TodoListView: View {
         }
     }
 
+    private func statusLabel(_ status: TodoStatus) -> String {
+        switch status {
+        case .pending: return "OPEN"
+        case .inProgress: return "DOING"
+        case .blocked: return "BLOCKED"
+        case .done: return "DONE"
+        }
+    }
+
     private func statusColor(_ status: TodoStatus) -> Color {
         switch status {
         case .pending: return .secondary
@@ -205,14 +232,29 @@ struct TodoLiveInlineCard: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 ForEach(items) { todo in
-                    Text("• \(todo.title)")
-                        .font(.system(size: 11))
-                        .strikethrough(todo.status == .done)
-                        .foregroundStyle(todo.status == .done ? .secondary : .primary)
-                        .lineLimit(1)
+                    HStack(alignment: .top, spacing: 6) {
+                        Circle()
+                            .fill(priorityColor(todo.priority))
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 4)
+                        Text(todo.title)
+                            .font(.system(size: 11))
+                            .strikethrough(todo.status == .done)
+                            .foregroundStyle(todo.status == .done ? .secondary : .primary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    private func priorityColor(_ priority: TodoPriority) -> Color {
+        switch priority {
+        case .low: return .secondary
+        case .medium: return .blue
+        case .high: return .pink
         }
     }
 }

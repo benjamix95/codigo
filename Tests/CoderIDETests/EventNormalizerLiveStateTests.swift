@@ -40,4 +40,22 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(activity.title, "Processo in pausa")
         XCTAssertNil(activity.groupId)
     }
+
+    func testTodoWriteNormalizesDashedStatus() {
+        let events = EventNormalizer.normalize(
+            type: "todo_write",
+            payload: [
+                "title": "Refactor parser",
+                "status": "in-progress",
+                "priority": "high"
+            ]
+        )
+
+        guard case .todoWrite(let todo)? = events.first else {
+            XCTFail("Evento todoWrite mancante")
+            return
+        }
+        XCTAssertEqual(todo.status, .inProgress)
+        XCTAssertEqual(todo.priority, .high)
+    }
 }

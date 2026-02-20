@@ -146,6 +146,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     var didEmitInvokeSwarm = false
                     var didEmitContextCompacted = false
                     var emittedMarkers = Set<String>()
+                    var markerCarry = ""
 
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
@@ -207,7 +208,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                                 lastFullText = text
                                 if !delta.isEmpty {
                                     continuation.yield(.textDelta(delta))
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta) {
+                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta, carry: &markerCarry) {
                                         let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                         if emittedMarkers.insert(key).inserted {
                                             continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
@@ -321,19 +322,27 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return payload.contains("compaction")
     }
 
-    private static func parseCoderIDEMarkerEvents(in text: String) -> [(type: String, payload: [String: String])] {
+    private static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
         var events: [(type: String, payload: [String: String])] = []
-
-        if text.contains(CoderIDEMarkers.todoRead) {
-            events.append((type: "todo_read", payload: [:]))
+        let markers = CoderIDEMarkerParser.parseStreamingChunk(text, carry: &carry)
+        for marker in markers {
+            switch marker.kind {
+            case "todo_read":
+                events.append((type: "todo_read", payload: [:]))
+            case "todo_write":
+                events.append((type: "todo_write", payload: marker.payload))
+            case "instant_grep":
+                events.append((type: "instant_grep", payload: marker.payload))
+            case "plan_step":
+                events.append((type: "plan_step_update", payload: marker.payload))
+            case "read_batch":
+                events.append((type: "read_batch_started", payload: marker.payload))
+            case "web_search":
+                events.append((type: "web_search_started", payload: marker.payload))
+            default:
+                break
+            }
         }
-
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.todoWritePrefix, mappedType: "todo_write")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.instantGrepPrefix, mappedType: "instant_grep")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.planStepPrefix, mappedType: "plan_step_update")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.readBatchPrefix, mappedType: "read_batch_started")
-        events += parseMarkerList(text: text, prefix: CoderIDEMarkers.webSearchPrefix, mappedType: "web_search_started")
-
         return events
     }
 

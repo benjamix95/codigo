@@ -218,11 +218,27 @@ enum EventNormalizer {
         let title = payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !title.isEmpty else { return nil }
         let id = payload["id"].flatMap(UUID.init(uuidString:))
-        let status = payload["status"].flatMap(TodoStatus.init(rawValue:))
-        let priority = payload["priority"].flatMap(TodoPriority.init(rawValue:))
+        let status = normalizedTodoStatus(payload["status"])
+        let priority = normalizedTodoPriority(payload["priority"])
         let notes = payload["notes"]
         let files = payload["files"]?.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } ?? []
         return TodoWritePayload(id: id, title: title, status: status, priority: priority, notes: notes, files: files)
+    }
+
+    private static func normalizedTodoStatus(_ raw: String?) -> TodoStatus? {
+        guard let raw else { return nil }
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        return TodoStatus(rawValue: normalized)
+    }
+
+    private static func normalizedTodoPriority(_ raw: String?) -> TodoPriority? {
+        guard let raw else { return nil }
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return TodoPriority(rawValue: normalized)
     }
 
     private static func parseInstantGrep(payload: [String: String], timestamp: Date) -> InstantGrepResult? {
