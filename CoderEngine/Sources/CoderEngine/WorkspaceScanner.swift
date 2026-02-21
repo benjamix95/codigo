@@ -55,6 +55,7 @@ public enum WorkspaceScanner {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else { return [] }
         var result: [String] = []
+        var seen = Set<String>()
         for line in output.components(separatedBy: .newlines) {
             guard line.count >= 3 else { continue }
             let chars = Array(line)
@@ -79,9 +80,11 @@ public enum WorkspaceScanner {
             guard sourceExtensions.contains(ext) else { continue }
             let fullPath = workspacePath.appendingPathComponent(path).path
             if isExcluded(path: fullPath, basePath: workspacePath, excludedPaths: excludedPaths) { continue }
-            if !result.contains(path) { result.append(path) }
+            if seen.insert(path).inserted {
+                result.append(path)
+            }
         }
-        return result
+        return result.sorted()
     }
 
     private static func unquoteGitPath(_ raw: String) -> String {
@@ -121,8 +124,9 @@ public enum WorkspaceScanner {
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else { return }
+        let sortedContents = contents.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }
 
-        for item in contents {
+        for item in sortedContents {
             let name = item.lastPathComponent
             if excludedDirs.contains(name) { continue }
             let relPath = relativePrefix.isEmpty ? name : "\(relativePrefix)/\(name)"

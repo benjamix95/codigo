@@ -56,6 +56,7 @@ public enum CodebasePartitioner: Sendable {
 
     /// Raggruppa per directory principale (primo componente del path)
     private static func partitionByDirectory(files: [String], maxPartitions: Int) -> [CodebasePartition] {
+        let boundedMaxPartitions = max(1, maxPartitions)
         var byDir: [String: [String]] = [:]
         for path in files {
             let parts = path.split(separator: "/")
@@ -71,8 +72,8 @@ public enum CodebasePartitioner: Sendable {
             result.append(CodebasePartition(id: id, paths: paths))
         }
 
-        if result.count > maxPartitions {
-            return mergePartitions(result, targetCount: maxPartitions)
+        if result.count > boundedMaxPartitions {
+            return mergePartitions(result, targetCount: boundedMaxPartitions)
         }
         if result.isEmpty {
             return [CodebasePartition(id: "p0", paths: files)]
@@ -99,9 +100,10 @@ public enum CodebasePartitioner: Sendable {
     }
 
     private static func mergePartitions(_ partitions: [CodebasePartition], targetCount: Int) -> [CodebasePartition] {
-        guard partitions.count > targetCount else { return partitions }
+        let boundedTargetCount = max(1, targetCount)
+        guard partitions.count > boundedTargetCount else { return partitions }
         var merged: [CodebasePartition] = []
-        let perMerge = (partitions.count + targetCount - 1) / targetCount
+        let perMerge = max(1, (partitions.count + boundedTargetCount - 1) / boundedTargetCount)
         for i in stride(from: 0, to: partitions.count, by: perMerge) {
             let slice = Array(partitions[i..<min(i + perMerge, partitions.count)])
             let allPaths = slice.flatMap(\.paths)

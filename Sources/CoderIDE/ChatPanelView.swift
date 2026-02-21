@@ -573,12 +573,13 @@ struct ChatPanelView: View {
                         let messages = conv.messages
                         let lastMsg = messages.last
                         let taskDone = !chatStore.isLoading
+                        let hasTodoItems = !todoStore.todos.isEmpty
                         let showPanelBeforeLast =
                             coderMode == .agent
                             && taskDone
                             && lastMsg?.role == .assistant
-                            && !taskActivityStore.activities.isEmpty
                             && taskPanelEnabled
+                            && (!taskActivityStore.activities.isEmpty || hasTodoItems)
 
                         ForEach(Array(messages.enumerated()), id: \.element.id) { item in
                             let index = item.offset
@@ -679,7 +680,8 @@ struct ChatPanelView: View {
                         if !timelineActive
                             && !showPanelBeforeLast
                             && (chatStore.isLoading
-                                || (!taskActivityStore.activities.isEmpty && taskPanelEnabled))
+                                || ((!taskActivityStore.activities.isEmpty || !todoStore.todos.isEmpty)
+                                    && taskPanelEnabled))
                         {
                             TaskActivityPanel(
                                 chatStore: chatStore,
@@ -899,6 +901,7 @@ struct ChatPanelView: View {
                 taskPanelEnabled = true
                 taskActivityStore.addInstantGrep(grep)
             case .todoWrite(let todo):
+                taskPanelEnabled = true
                 if timelineConversationId != nil {
                     turnTimelineStore.appendTodoSnapshot()
                 }
@@ -911,6 +914,7 @@ struct ChatPanelView: View {
                     linkedFiles: todo.files
                 )
             case .todoRead:
+                taskPanelEnabled = true
                 break
             case .planStepUpdate(let stepId, let status):
                 chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: conversationId)
@@ -1812,6 +1816,7 @@ struct ChatPanelView: View {
         if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
         if providerRegistry.selectedProviderId == "codex-cli"
             || providerRegistry.selectedProviderId == "claude-cli"
+            || providerRegistry.selectedProviderId == "gemini-cli"
         {
             let baseInstructions = """
                 **Workflow Todo (obbligatorio):** All'inizio di ogni task:
