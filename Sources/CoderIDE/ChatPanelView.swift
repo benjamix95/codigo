@@ -120,6 +120,9 @@ struct ChatPanelView: View {
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
+    private var supportsInlineTimelineMode: Bool {
+        coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -590,7 +593,7 @@ struct ChatPanelView: View {
                             let useTimeline =
                                 isLastAssistant
                                 && chatStore.isLoading
-                                && coderMode == .agent
+                                && supportsInlineTimelineMode
                                 && conv.id == timelineConversationId
                             let userMessageCheckpoint = message.role == .user
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
@@ -674,9 +677,9 @@ struct ChatPanelView: View {
                             .id("plan-options")
                         }
                         // Activity panel (expandable sections in scroll)
-                        // Nascondi quando la timeline inline è attiva (agent mode, in streaming)
+                        // Nascondi quando la timeline inline è attiva (mode supportate, in streaming)
                         let timelineActive =
-                            coderMode == .agent
+                            supportsInlineTimelineMode
                             && chatStore.isLoading
                             && conv.id == timelineConversationId
                         if !timelineActive
@@ -738,7 +741,7 @@ struct ChatPanelView: View {
             .onChange(of: chatStore.isLoading) { _, loading in
                 if loading {
                     let timelineActive =
-                        coderMode == .agent
+                        supportsInlineTimelineMode
                         && chatStore.isLoading
                         && conversationId == timelineConversationId
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -753,7 +756,7 @@ struct ChatPanelView: View {
                 }
             }
             .onChange(of: turnTimelineStore.segments.count) { _, _ in
-                if chatStore.isLoading, coderMode == .agent, isFollowingLive,
+                if chatStore.isLoading, supportsInlineTimelineMode, isFollowingLive,
                     let last = chatStore.conversation(for: conversationId)?.messages.last
                 {
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -765,7 +768,7 @@ struct ChatPanelView: View {
                 if chatStore.isLoading {
                     if isFollowingLive {
                         let timelineActive =
-                            coderMode == .agent
+                            supportsInlineTimelineMode
                             && chatStore.isLoading
                             && conversationId == timelineConversationId
                         withAnimation(.easeOut(duration: 0.2)) {
