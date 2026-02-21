@@ -1351,12 +1351,16 @@ struct ChatPanelView: View {
     private func syncPlanProvider() {
         let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        guard codex != nil || claude != nil else { return }
         providerRegistry.unregister(id: "plan-mode")
+        guard codex != nil || claude != nil else {
+            checkProviderAuth()
+            return
+        }
         providerRegistry.register(
             ProviderFactory.planProvider(
                 config: providerFactoryConfig(), codex: codex, claude: claude,
                 executionController: executionController))
+        checkProviderAuth()
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {
@@ -1601,7 +1605,14 @@ struct ChatPanelView: View {
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
-        guard let selectedProvider = providerRegistry.selectedProvider else { return }
+        guard let selectedProvider = providerRegistry.selectedProvider else {
+            appendTechnicalErrorMessage(
+                "[Errore] Nessun provider selezionato. Configura un provider nelle Impostazioni.",
+                in: conversationId
+            )
+            flowDiagnosticsStore.setError("Nessun provider selezionato")
+            return
+        }
         hasJustCompletedTask = false
 
         // Check rate limit before proceeding — show alert popup if at 100%
@@ -1620,9 +1631,24 @@ struct ChatPanelView: View {
             let runtimeProvider = resolveRuntimeProvider(
                 selectedProvider: selectedProvider, shouldRunPlanInline: shouldRunPlanInline
             )
-        else { return }
+        else {
+            appendTechnicalErrorMessage(
+                "[Errore] Impossibile risolvere il provider runtime per questa modalità.",
+                in: conversationId
+            )
+            flowDiagnosticsStore.setError("Provider runtime non risolto")
+            return
+        }
 
-        guard runtimeProvider.isAuthenticated() else { return }
+        guard runtimeProvider.isAuthenticated() else {
+            let providerName = runtimeProvider.displayName
+            appendTechnicalErrorMessage(
+                "[Errore] Provider \(providerName) non autenticato. Esegui login e riprova.",
+                in: conversationId
+            )
+            flowDiagnosticsStore.setError("Provider non autenticato: \(runtimeProvider.id)")
+            return
+        }
 
         // 2. Build workspace context & checkpoint
         let ctx = effectiveContext.toWorkspaceContext(

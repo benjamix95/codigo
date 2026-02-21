@@ -2,6 +2,10 @@ import Foundation
 
 // #region agent log
 private func _dbgLog(_ msg: String, _ data: [String: Any] = [:]) {
+    guard let path = ProcessInfo.processInfo.environment["CODERENGINE_DEBUG_LOG_PATH"],
+          !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return
+    }
     var payload: [String: Any] = [
         "sessionId": "63fcab",
         "location": "ToolEnabledLLMProvider",
@@ -11,7 +15,6 @@ private func _dbgLog(_ msg: String, _ data: [String: Any] = [:]) {
     data.forEach { payload[$0.key] = $0.value }
     guard let json = try? JSONSerialization.data(withJSONObject: payload),
           let line = String(data: json, encoding: .utf8) else { return }
-    let path = "/Users/benjaminstoica/codigo/.cursor/debug-63fcab.log"
     if !FileManager.default.fileExists(atPath: path) {
         FileManager.default.createFile(atPath: path, contents: nil)
     }
@@ -35,15 +38,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
     public init(
         base: any LLMProvider,
-        runtime: UnifiedToolRuntime = UnifiedToolRuntime(),
+        runtime: UnifiedToolRuntime? = nil,
         policy: ToolRuntimePolicy = ToolRuntimePolicy(),
         executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil,
         maxToolRounds: Int = 20
     ) {
         self.base = base
         self.id = base.id
         self.displayName = base.displayName
-        self.runtime = runtime
+        self.runtime = runtime ?? UnifiedToolRuntime(executionController: executionController, executionScope: executionScope)
         self.policy = policy
         self.executionScope = executionScope
         self.maxToolRounds = max(1, maxToolRounds)
@@ -96,8 +100,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     } else if marker.kind == "read_batch",
                                        let summary = summarizeReadBatchEvents(produced, marker: marker) {
                                         roundToolResults.append(summary)
-                                    } else if marker.kind == "todo_write" || marker.kind == "plan_step" {
-                                        roundToolResults.append(summarizeAckMarker(marker))
                                     }
                                 }
                             case .started:
@@ -135,7 +137,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         }
 
                         conversationTranscript += "\n[assistant]\n\(roundText)\n"
-                        _dbgLog("round_end", ["hypothesisId": "H2", "roundToolResultsCount": roundToolResults.count, "willBreak": false, "runId": "post-fix"])
+                        let shouldContinue = !roundToolResults.isEmpty
+                        _dbgLog("round_end", ["hypothesisId": "H2", "roundToolResultsCount": roundToolResults.count, "willBreak": !shouldContinue, "runId": "post-fix"])
+                        guard shouldContinue else { break }
                         currentPrompt = buildFollowUpPrompt(
                             originalPrompt: prompt,
                             transcript: conversationTranscript,
@@ -143,6 +147,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         )
                         isFirstRound = false
                     }
+
                     continuation.yield(.completed)
                     continuation.finish()
                 } catch {
@@ -211,17 +216,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             "group_id": groupId
         ]))
         return result
-    }
-
-    private func summarizeAckMarker(_ marker: CoderIDEMarker) -> [String: String] {
-        let id = marker.payload["id"] ?? marker.payload["group_id"] ?? marker.payload["step_id"] ?? UUID().uuidString
-        let detail = marker.payload["title"] ?? marker.payload["status"] ?? "ok"
-        return [
-            "id": id,
-            "name": marker.kind,
-            "status": "acked",
-            "detail": detail
-        ]
     }
 
     private func summarizeReadBatchEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
