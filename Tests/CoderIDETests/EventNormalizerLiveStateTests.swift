@@ -58,4 +58,38 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(todo.status, .inProgress)
         XCTAssertEqual(todo.priority, .high)
     }
+
+    func testTodoWriteAcceptsTaskAliasWhenTitleMissing() {
+        let events = EventNormalizer.normalize(
+            type: "todo_write",
+            payload: [
+                "task": "Allineare layout chat",
+                "status": "pending",
+                "priority": "medium"
+            ]
+        )
+
+        guard case .todoWrite(let todo)? = events.first else {
+            XCTFail("Evento todoWrite mancante")
+            return
+        }
+        XCTAssertEqual(todo.title, "Allineare layout chat")
+        XCTAssertEqual(todo.status, .pending)
+    }
+
+    func testTodoReadAlsoEmitsTaskActivityForRealtimeVisibility() {
+        let events = EventNormalizer.normalize(
+            type: "todo_read",
+            payload: [:]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .todoRead = $0 { return true }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 { return activity.type == "todo_read" }
+            return false
+        })
+    }
 }

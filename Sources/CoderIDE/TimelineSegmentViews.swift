@@ -47,17 +47,33 @@ struct ThinkingCardView: View {
     let modeColor: Color
 
     @State private var isExpanded = false
+    private var reasoningText: String? {
+        let candidates = [
+            activity.payload["output"],
+            activity.payload["text"],
+            activity.payload["reasoning"],
+            activity.payload["thinking"],
+            activity.payload["content"],
+            activity.payload["detail"],
+            activity.payload["summary"],
+        ]
+        for candidate in candidates {
+            let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !text.isEmpty { return text }
+        }
+        return nil
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 11) {
             Image(systemName: "brain")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(modeColor.opacity(0.8))
                 .frame(width: 24, alignment: .center)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Text("Thinking")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
                     Text(TimelineFormatters.hms.string(from: activity.timestamp))
                         .font(.system(size: 9, design: .monospaced))
@@ -73,19 +89,19 @@ struct ThinkingCardView: View {
                     .buttonStyle(.plain)
                 }
                 Text(activity.title)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(isExpanded ? nil : 2)
-                if let output = activity.payload["output"] ?? activity.payload["text"], !output.isEmpty {
+                if let output = reasoningText {
                     Text(output)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .lineLimit(isExpanded ? 12 : 3)
+                        .lineLimit(isExpanded ? 16 : 4)
                         .textSelection(.enabled)
                 }
             }
         }
-        .padding(12)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: 760, alignment: .leading)
         .background(
@@ -134,20 +150,20 @@ struct ToolExecutionCardView: View {
     private var cardFill: Color {
         if isTerminalLike {
             // Palette dark slate in stile Codex/ChatGPT terminal cards
-            return Color(red: 0.09, green: 0.11, blue: 0.14).opacity(0.92)
+            return Color(red: 0.10, green: 0.12, blue: 0.16).opacity(0.94)
         }
         return Color(nsColor: .controlBackgroundColor).opacity(0.6)
     }
 
     private var cardBorder: Color {
         if isTerminalLike {
-            return Color(red: 0.28, green: 0.33, blue: 0.40).opacity(0.75)
+            return Color(red: 0.33, green: 0.39, blue: 0.46).opacity(0.82)
         }
         return DesignSystem.Colors.border.opacity(0.6)
     }
 
     private var commandColor: Color {
-        isTerminalLike ? Color(red: 0.78, green: 0.90, blue: 0.74) : .primary
+        isTerminalLike ? Color(red: 0.81, green: 0.92, blue: 0.79) : .primary
     }
 
     private var terminalPreview: String? {
@@ -165,15 +181,15 @@ struct ToolExecutionCardView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 11) {
             Image(systemName: iconName)
                 .font(.system(size: 12))
                 .foregroundStyle(iconColor)
                 .frame(width: 24, alignment: .center)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Text(activity.title)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Text(TimelineFormatters.hms.string(from: activity.timestamp))
@@ -224,7 +240,7 @@ struct ToolExecutionCardView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: 760, alignment: .leading)
         .background(
@@ -323,6 +339,10 @@ struct RealtimeOperationsStripView: View {
         let candidates = [
             activity.detail,
             activity.payload["detail"],
+            activity.payload["output"],
+            activity.payload["text"],
+            activity.payload["reasoning"],
+            activity.payload["thinking"],
             activity.payload["summary"],
             activity.payload["path"],
             activity.payload["tool"],
@@ -339,7 +359,7 @@ struct RealtimeOperationsStripView: View {
         if !liveItems.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Operazioni live")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(.secondary)
                 ForEach(liveItems) { activity in
                     HStack(alignment: .top, spacing: 8) {
@@ -347,10 +367,10 @@ struct RealtimeOperationsStripView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(accent(for: activity))
                             .frame(width: 14, alignment: .center)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
                                 Text(activity.title)
-                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if activity.isRunning {

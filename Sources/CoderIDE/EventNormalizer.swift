@@ -74,10 +74,36 @@ enum EventNormalizer {
 
         if type == "todo_write", let todo = parseTodoWrite(payload: payload) {
             events.append(.todoWrite(todo))
+            events.append(
+                .taskActivity(
+                    TaskActivity(
+                        type: type,
+                        title: "Todo aggiornato",
+                        detail: todo.title,
+                        payload: payload,
+                        timestamp: timestamp,
+                        phase: .planning,
+                        isRunning: false
+                    )
+                )
+            )
             return events
         }
         if type == "todo_read" {
             events.append(.todoRead)
+            events.append(
+                .taskActivity(
+                    TaskActivity(
+                        type: type,
+                        title: "Lettura Todo",
+                        detail: "Richiesto stato corrente dei task",
+                        payload: payload,
+                        timestamp: timestamp,
+                        phase: .planning,
+                        isRunning: false
+                    )
+                )
+            )
             return events
         }
         if type == "plan_step_update",
@@ -215,7 +241,14 @@ enum EventNormalizer {
     }
 
     private static func parseTodoWrite(payload: [String: String]) -> TodoWritePayload? {
-        let title = payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = (
+            payload["title"]
+                ?? payload["task"]
+                ?? payload["name"]
+                ?? payload["item"]
+                ?? payload["detail"]
+                ?? payload["summary"]
+        )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !title.isEmpty else { return nil }
         let id = payload["id"].flatMap(UUID.init(uuidString:))
         let status = normalizedTodoStatus(payload["status"])

@@ -941,6 +941,9 @@ struct ChatPanelView: View {
                 )
             case .todoRead:
                 taskPanelEnabled = true
+                if timelineConversationId != nil {
+                    turnTimelineStore.appendTodoSnapshot()
+                }
                 break
             case .planStepUpdate(let stepId, let status):
                 let targetId = timelineConversationId ?? conversationId
@@ -2342,6 +2345,8 @@ struct ChatPanelView: View {
                         $0.payload["output"]
                             ?? $0.payload["text"]
                             ?? $0.payload["reasoning"]
+                            ?? $0.payload["thinking"]
+                            ?? $0.payload["content"]
                             ?? $0.payload["detail"]
                             ?? $0.payload["summary"]
                             ?? ""
@@ -2353,6 +2358,8 @@ struct ChatPanelView: View {
                 $0.payload["output"]
                     ?? $0.payload["text"]
                     ?? $0.payload["reasoning"]
+                    ?? $0.payload["thinking"]
+                    ?? $0.payload["content"]
                     ?? $0.payload["detail"]
                     ?? $0.payload["summary"]
             }
