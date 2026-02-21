@@ -1689,7 +1689,8 @@ struct ChatPanelView: View {
         }
         chatStore.beginTask()
         taskActivityStore.clear()
-        todoStore.clear()
+        // Preserve manual todos across turns; reset only agent-emitted workflow todos.
+        todoStore.clearAgentTodos()
         turnTimelineStore.clear()
         timelineConversationId = conversationId
         if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }

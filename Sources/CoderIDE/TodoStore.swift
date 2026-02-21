@@ -238,4 +238,9 @@ final class TodoStore: ObservableObject {
         todos.removeAll()
         saveTodos()
     }
+
+    func clearAgentTodos() {
+        todos.removeAll { $0.source == .agent }
+        saveTodos()
+    }
 }
