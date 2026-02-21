@@ -1560,6 +1560,8 @@ struct ChatPanelView: View {
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
         chatStore.beginTask()
         taskActivityStore.clear()
+        // Keep manual todos stable; reset only agent workflow todos for this new execution.
+        todoStore.clearAgentTodos()
         turnTimelineStore.clear()
         timelineConversationId = agentConvId
 
