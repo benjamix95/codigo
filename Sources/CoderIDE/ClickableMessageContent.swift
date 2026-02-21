@@ -43,10 +43,11 @@ struct ClickableMessageContent: View {
                 if url.isFileURL { onFileClicked(url.path); return .handled }
                 return .systemAction(url)
             })
-            .font(.system(size: 13.5, weight: .regular, design: .default))
-            .lineSpacing(5)
+            .font(.system(size: 14.5, weight: .regular, design: .default))
+            .lineSpacing(6)
             .multilineTextAlignment(textAlignment)
             .textSelection(.enabled)
+            .padding(.vertical, 1)
             .fixedSize(horizontal: false, vertical: true)
     }
 

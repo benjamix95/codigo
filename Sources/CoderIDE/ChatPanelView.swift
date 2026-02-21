@@ -569,7 +569,7 @@ struct ChatPanelView: View {
     private var messagesArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 24) {
+                LazyVStack(alignment: .leading, spacing: 28) {
                     if let conv = chatStore.conversation(for: conversationId) {
                         let messages = conv.messages
                         let lastMsg = messages.last
