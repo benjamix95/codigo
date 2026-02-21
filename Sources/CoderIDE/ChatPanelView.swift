@@ -1625,10 +1625,18 @@ struct ChatPanelView: View {
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
+        guard let targetConversationId = conversationId else {
+            appendTechnicalErrorMessage(
+                "[Errore] Nessuna conversazione selezionata. Crea o seleziona un thread e riprova.",
+                in: nil
+            )
+            flowDiagnosticsStore.setError("Nessuna conversazione selezionata")
+            return
+        }
         guard let selectedProvider = providerRegistry.selectedProvider else {
             appendTechnicalErrorMessage(
                 "[Errore] Nessun provider selezionato. Configura un provider nelle Impostazioni.",
-                in: conversationId
+                in: targetConversationId
             )
             flowDiagnosticsStore.setError("Nessun provider selezionato")
             return
@@ -1654,7 +1662,7 @@ struct ChatPanelView: View {
         else {
             appendTechnicalErrorMessage(
                 "[Errore] Impossibile risolvere il provider runtime per questa modalità.",
-                in: conversationId
+                in: targetConversationId
             )
             flowDiagnosticsStore.setError("Provider runtime non risolto")
             return
@@ -1664,7 +1672,7 @@ struct ChatPanelView: View {
             let providerName = runtimeProvider.displayName
             appendTechnicalErrorMessage(
                 "[Errore] Provider \(providerName) non autenticato. Esegui login e riprova.",
-                in: conversationId
+                in: targetConversationId
             )
             flowDiagnosticsStore.setError("Provider non autenticato: \(runtimeProvider.id)")
             return
@@ -1678,10 +1686,10 @@ struct ChatPanelView: View {
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
         do {
-            try createCheckpointBeforeTurn(conversationId: conversationId, workspaceContext: ctx)
+            try createCheckpointBeforeTurn(conversationId: targetConversationId, workspaceContext: ctx)
         } catch {
             appendTechnicalErrorMessage(
-                "[Errore checkpoint: \(error.localizedDescription)]", in: conversationId)
+                "[Errore checkpoint: \(error.localizedDescription)]", in: targetConversationId)
             flowDiagnosticsStore.setError(error.localizedDescription)
             return
         }
@@ -1695,11 +1703,11 @@ struct ChatPanelView: View {
             ChatMessage(
                 role: .user, content: contentToStore, isStreaming: false,
                 imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore),
-            to: conversationId
+            to: targetConversationId
         )
         chatStore.addMessage(
-            ChatMessage(role: .assistant, content: "", isStreaming: true), to: conversationId)
-        if let conv = chatStore.conversation(for: conversationId), let ctxId = conv.contextId {
+            ChatMessage(role: .assistant, content: "", isStreaming: true), to: targetConversationId)
+        if let conv = chatStore.conversation(for: targetConversationId), let ctxId = conv.contextId {
             projectContextStore.setLastActiveConversation(
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
         }
@@ -1708,7 +1716,7 @@ struct ChatPanelView: View {
         // Preserve manual todos across turns; reset only agent-emitted workflow todos.
         todoStore.clearAgentTodos()
         turnTimelineStore.clear()
-        timelineConversationId = conversationId
+        timelineConversationId = targetConversationId
         if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }
 
         let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
@@ -1727,8 +1735,8 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: imageURLsToSend,
                     onText: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
-                        if timelineConversationId == conversationId {
+                        chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
+                        if timelineConversationId == targetConversationId {
                             turnTimelineStore.updateLastKnownText(content)
                         }
                     },
@@ -1736,24 +1744,25 @@ struct ChatPanelView: View {
                         handleRawStreamEvent(type: t, payload: p, providerId: pid)
                     },
                     onError: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                        chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
                     }
                 )
 
                 // 6. Handle stream completion (plan options, swarm delegation)
                 await handleStreamResult(
+                    conversationId: targetConversationId,
                     streamResult, shouldRunPlanInline: shouldRunPlanInline,
                     ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
                 )
             } catch {
-                let lastContent = chatStore.conversation(for: conversationId)?
+                let lastContent = chatStore.conversation(for: targetConversationId)?
                     .messages.last(where: { $0.role == .assistant })?.content ?? ""
-                if timelineConversationId == conversationId {
+                if timelineConversationId == targetConversationId {
                     turnTimelineStore.finalize(lastFullText: lastContent)
                 }
                 chatStore.updateLastAssistantMessage(
-                    content: "[Errore: \(error.localizedDescription)]", in: conversationId)
-                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                    content: "[Errore: \(error.localizedDescription)]", in: targetConversationId)
+                chatStore.setLastAssistantStreaming(false, in: targetConversationId)
                 await MainActor.run {
                     flowDiagnosticsStore.setError(error.localizedDescription)
                     flowCoordinator.fail()
@@ -1907,6 +1916,7 @@ struct ChatPanelView: View {
     // MARK: - Handle Stream Result (plan options + swarm delegation)
 
     private func handleStreamResult(
+        conversationId streamConversationId: UUID,
         _ streamResult: (fullText: String, pendingSwarmTask: String?),
         shouldRunPlanInline: Bool,
         ctx: WorkspaceContext,
@@ -1915,10 +1925,10 @@ struct ChatPanelView: View {
     ) async {
         let full = streamResult.fullText
         let pendingSwarmTask = streamResult.pendingSwarmTask
-        if timelineConversationId == conversationId {
+        if timelineConversationId == streamConversationId {
             turnTimelineStore.finalize(lastFullText: full)
         }
-        chatStore.setLastAssistantStreaming(false, in: conversationId)
+        chatStore.setLastAssistantStreaming(false, in: streamConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
 
         // Handle plan options parsing
@@ -1930,8 +1940,9 @@ struct ChatPanelView: View {
                         planningState = .awaitingChoice(planContent: full, options: opts)
                     }
                     let board = PlanBoard.build(from: full, options: opts)
-                    chatStore.setPlanBoard(board, for: conversationId)
-                    if shouldRunPlanInline, let cid = conversationId {
+                    chatStore.setPlanBoard(board, for: streamConversationId)
+                    if shouldRunPlanInline {
+                        let cid = streamConversationId
                         inlinePlanSummaries[cid] = {
                             let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
                             return InlinePlanSummary(title: parsed.title, body: parsed.body)
