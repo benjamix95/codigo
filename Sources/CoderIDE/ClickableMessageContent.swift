@@ -64,6 +64,7 @@ struct ClickableMessageContent: View {
         } else {
             result = AttributedString(displayContent)
         }
+        applyMarkdownVisualStyling(to: &result)
         let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
         let nsContent = displayContent as NSString
@@ -80,6 +81,17 @@ struct ClickableMessageContent: View {
             result[lower..<upper].link = URL(fileURLWithPath: resolvePath(fileRef))
         }
         return result
+    }
+
+    private func applyMarkdownVisualStyling(to attributed: inout AttributedString) {
+        for run in attributed.runs {
+            let range = run.range
+            guard let inlineIntent = run.inlinePresentationIntent else { continue }
+            if inlineIntent.contains(.code) {
+                attributed[range].font = .system(size: 13.5, weight: .regular, design: .monospaced)
+                attributed[range].backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.65)
+            }
+        }
     }
 
     private func resolvePath(_ ref: String) -> String {
