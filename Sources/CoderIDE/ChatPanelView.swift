@@ -1003,7 +1003,12 @@ struct ChatPanelView: View {
                 activeModeGradient: activeModeGradient,
                 inputHint: inputHint,
                 providerNotReadyMessage: providerNotReadyMessage,
-                onSend: sendMessage
+                quickCommandPresets: composerQuickCommandPresets,
+                onSend: sendMessage,
+                onApplyQuickCommand: { text in
+                    inputText = text
+                    isInputFocused = true
+                }
             )
             ModeControlsBarView(
                 providerRegistry: providerRegistry,
@@ -1145,6 +1150,70 @@ struct ChatPanelView: View {
         case .ide: return "Modalità IDE: chat API + modifica manuale nell'editor"
         case .mcpServer: return "Invia al server MCP configurato"
         }
+    }
+
+    private var composerQuickCommandPresets: [ChatComposerView.QuickCommandPreset] {
+        guard coderMode == .codeReviewMultiSwarm else { return [] }
+        return [
+            .init(
+                id: "review-uncommitted",
+                slash: "/review-uncommitted",
+                label: "Audit completo non committato",
+                prompt:
+                    """
+                    Esegui code review ultra-deep su tutte le modifiche non committate (staged, unstaged, untracked).
+                    Output richiesto:
+                    1) findings prioritizzati (P0-P3),
+                    2) aree impattate file-per-file,
+                    3) rischi regressione,
+                    4) verdetto finale correttezza patch.
+                    """
+            ),
+            .init(
+                id: "review-staged-only",
+                slash: "/review-staged-only",
+                label: "Solo staged diff",
+                prompt:
+                    """
+                    Esegui review SOLO sulle modifiche staged.
+                    Ignora unstaged e untracked.
+                    Restituisci findings severi e azionabili con priorità/confidenza.
+                    """
+            ),
+            .init(
+                id: "review-autofix",
+                slash: "/review-autofix",
+                label: "Review + fix automatico",
+                prompt:
+                    """
+                    Fai review deep delle modifiche non committate e correggi direttamente tutti i bug confermati.
+                    Dopo i fix esegui build/test pertinenti e riporta il changelog tecnico.
+                    """
+            ),
+            .init(
+                id: "review-autofix-commit",
+                slash: "/review-autofix-commit",
+                label: "Review + fix + commit",
+                prompt:
+                    """
+                    Esegui review completa su staged/unstaged/untracked, applica i fix necessari e crea commit atomico finale.
+                    Requisiti: niente modifiche superflue, build/test verdi, messaggio commit specifico.
+                    """
+            ),
+            .init(
+                id: "review-ui-realtime",
+                slash: "/review-ui-realtime",
+                label: "Focus UI realtime",
+                prompt:
+                    """
+                    Focus su flussi realtime della review:
+                    - stream thinking visibile,
+                    - card read/tool/terminal aggiornate live,
+                    - todo coerente e senza glitch layout.
+                    Correggi i problemi trovati e valida con test/build.
+                    """
+            ),
+        ]
     }
 
     private var effectiveSandbox: String {

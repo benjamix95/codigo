@@ -9,6 +9,13 @@ import UniformTypeIdentifiers
 /// and the drag-and-drop / paste image handling.
 
 struct ChatComposerView: View {
+    struct QuickCommandPreset: Identifiable {
+        let id: String
+        let slash: String
+        let label: String
+        let prompt: String
+    }
+
     // MARK: - Bindings & Environment
 
     @Binding var inputText: String
@@ -25,8 +32,10 @@ struct ChatComposerView: View {
     let activeModeGradient: LinearGradient
     let inputHint: String
     let providerNotReadyMessage: String
+    let quickCommandPresets: [QuickCommandPreset]
 
     let onSend: () -> Void
+    let onApplyQuickCommand: (String) -> Void
 
     // MARK: - Body
 
@@ -40,8 +49,48 @@ struct ChatComposerView: View {
 
             VStack(spacing: 8) {
                 composerBox
+                if !quickCommandPresets.isEmpty {
+                    quickCommandsRow
+                }
             }
             .padding(12)
+        }
+    }
+
+    // MARK: - Quick Commands
+
+    private var quickCommandsRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(quickCommandPresets) { preset in
+                    Button {
+                        onApplyQuickCommand("\(preset.slash)\n\n\(preset.prompt)")
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.slash)
+                                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(activeModeColor)
+                            Text(preset.label)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(
+                            Color(nsColor: .controlBackgroundColor).opacity(0.55),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(activeModeColor.opacity(0.22), lineWidth: 0.6)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help(preset.prompt)
+                }
+            }
+            .padding(.horizontal, 1)
         }
     }
 
