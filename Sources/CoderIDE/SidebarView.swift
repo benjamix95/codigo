@@ -10,7 +10,6 @@ struct SidebarView: View {
     @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var codexState: CodexStateStore
-    @EnvironmentObject var todoStore: TodoStore
 
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool
@@ -24,6 +23,7 @@ struct SidebarView: View {
     @State private var showCreateWorkspace = false
     @State private var newWorkspaceName = ""
     @State private var workspaceToRename: Workspace?
+    @State private var conversationToRename: Conversation?
     @State private var expandedFolders: Set<String> = []
     @State private var showArchived = false
     @State private var favoritesOnly = false
@@ -109,8 +109,6 @@ struct SidebarView: View {
                 }
 
                 Divider().opacity(0.4)
-                todoSection
-                Divider().opacity(0.4)
                 taskCloudSection
             }
             .padding(.horizontal, 10)
@@ -134,12 +132,16 @@ struct SidebarView: View {
             RenameWorkspaceSheet(workspace: ws, onDismiss: { workspaceToRename = nil })
                 .environmentObject(workspaceStore)
         }
+        .sheet(item: $conversationToRename) { conv in
+            RenameConversationSheet(conversation: conv, onDismiss: { conversationToRename = nil })
+                .environmentObject(chatStore)
+        }
         .onAppear { projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces) }
     }
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: 6) {
-            actionRow("New thread", icon: "square.and.pencil") {
+            actionRow("New thread", icon: "plus.message.fill") {
                 createThread(contextId: currentContext?.id)
             }
             actionRow("Apri progetto", icon: "folder.badge.plus") {
@@ -221,11 +223,12 @@ struct SidebarView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "arrow.triangle.swap")
+                    Image(systemName: "rectangle.on.rectangle")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
+                .help("Cambia progetto o workspace")
             }
 
             if let context = currentContext {
@@ -424,7 +427,7 @@ struct SidebarView: View {
     private func threadRow(_ conv: Conversation) -> some View {
         let selected = selectedConversationId == conv.id
         return HStack(spacing: 8) {
-            Image(systemName: selected ? "bubble.left.fill" : "bubble.left")
+            Image(systemName: selected ? "message.fill" : "message")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(selected ? Color.accentColor : .secondary)
             Text(conv.title)
@@ -453,33 +456,38 @@ struct SidebarView: View {
                 .menuStyle(.borderlessButton)
                 .help("Sposta in cartella…")
             }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(selected ? Color.white.opacity(0.08) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(conv.isPinned ? Color.yellow : Color.clear, lineWidth: 2)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .contextMenu {
             Button {
-                chatStore.setPinned(conversationId: conv.id, pinned: !conv.isPinned)
+                conversationToRename = conv
             } label: {
-                Image(systemName: conv.isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(conv.isPinned ? Color.orange : Color.secondary.opacity(0.7))
+                Label("Rinomina", systemImage: "pencil")
             }
-            .buttonStyle(.plain)
-            .help(conv.isPinned ? "Rimuovi pin" : "Pin thread")
             Button {
                 chatStore.setFavorite(conversationId: conv.id, favorite: !conv.isFavorite)
             } label: {
-                Image(systemName: conv.isFavorite ? "star.fill" : "star")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(conv.isFavorite ? Color.yellow : Color.secondary.opacity(0.7))
+                Label(conv.isFavorite ? "Rimuovi preferito" : "Aggiungi preferito", systemImage: conv.isFavorite ? "star.fill" : "star")
             }
-            .buttonStyle(.plain)
-            .help(conv.isFavorite ? "Rimuovi preferito" : "Aggiungi preferito")
+            Button {
+                chatStore.setPinned(conversationId: conv.id, pinned: !conv.isPinned)
+            } label: {
+                Label(conv.isPinned ? "Rimuovi pin" : "Pin thread", systemImage: conv.isPinned ? "pin.fill" : "pin")
+            }
             Button {
                 chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
             } label: {
-                Image(systemName: conv.isArchived ? "archivebox.fill" : "archivebox")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                Label(conv.isArchived ? "Ripristina thread" : "Archivia thread", systemImage: conv.isArchived ? "archivebox.fill" : "archivebox")
             }
-            .buttonStyle(.plain)
-            .help(conv.isArchived ? "Ripristina thread" : "Archivia thread")
+            Divider()
             Button(role: .destructive) {
                 let wasSelected = selectedConversationId == conv.id
                 cleanupCheckpointSnapshots(for: conv)
@@ -488,18 +496,9 @@ struct SidebarView: View {
                     selectedConversationId = chatStore.conversations.first?.id
                 }
             } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                Label("Elimina thread", systemImage: "trash")
             }
-            .buttonStyle(.plain)
-            .help("Elimina thread")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(selected ? Color.white.opacity(0.08) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onTapGesture {
             selectedConversationId = conv.id
             if let contextId = conv.contextId {
@@ -636,15 +635,6 @@ struct SidebarView: View {
         )
     }
 
-    private var todoSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("To-do")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-            TodoListView(store: todoStore)
-        }
-    }
-
     private var taskCloudSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -705,6 +695,7 @@ struct SidebarView: View {
         if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
            let lastConv = chatStore.conversation(for: lastId),
            lastConv.contextId == contextId,
+           !lastConv.isArchived,
            lastConv.messages.contains(where: { $0.role == .user }) {
             selectedConversationId = lastId
         } else {
@@ -713,8 +704,12 @@ struct SidebarView: View {
     }
 
     private func syncActiveWorkspaceIfNeeded(contextId: UUID?) {
-        guard let contextId, workspaceStore.workspaces.contains(where: { $0.id == contextId }) else { return }
-        workspaceStore.activeWorkspaceId = contextId
+        guard let contextId else { return }
+        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
+            workspaceStore.activeWorkspaceId = contextId
+        } else {
+            workspaceStore.activeWorkspaceId = nil
+        }
         workspaceStore.save()
     }
 
@@ -832,6 +827,39 @@ private struct RenameWorkspaceSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 320)
+    }
+}
+
+private struct RenameConversationSheet: View {
+    let conversation: Conversation
+    let onDismiss: () -> Void
+    @EnvironmentObject var chatStore: ChatStore
+    @State private var newTitle: String
+
+    init(conversation: Conversation, onDismiss: @escaping () -> Void) {
+        self.conversation = conversation
+        self.onDismiss = onDismiss
+        _newTitle = State(initialValue: conversation.title)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Rinomina thread")
+                .font(.title3)
+            TextField("Titolo", text: $newTitle)
+                .textFieldStyle(.roundedBorder)
+            HStack(spacing: 12) {
+                Button("Annulla", role: .cancel, action: onDismiss)
+                Button("Salva") {
+                    chatStore.setTitle(conversationId: conversation.id, title: newTitle)
+                    onDismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(newTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(24)

@@ -1,4 +1,6 @@
 import SwiftUI
+import CodeEditorView
+import LanguageSupport
 
 struct EditorPlaceholderView: View {
     let folderPaths: [String]
@@ -7,6 +9,9 @@ struct EditorPlaceholderView: View {
     private var displayPath: String { folderPaths.first ?? "" }
     @State private var saveFeedback: String?
     @State private var saveFeedbackIsError = false
+
+    @State private var position: CodeEditor.Position = CodeEditor.Position()
+    @State private var messages: Set<TextLocated<Message>> = []
 
     var body: some View {
         Group {
@@ -18,6 +23,8 @@ struct EditorPlaceholderView: View {
         }
         .onChange(of: openFilesStore.openFilePath) { _, newPath in
             openFilesStore.ensureLoaded(newPath)
+            position = CodeEditor.Position()
+            messages = []
             saveFeedback = nil
             saveFeedbackIsError = false
         }
@@ -92,11 +99,13 @@ struct EditorPlaceholderView: View {
                 if openFilesStore.viewMode(for: path) == .diffInline {
                     diffInlineView(path: path)
                 } else {
-                    TextEditor(text: fileBinding(path: path))
-                        .font(.system(size: 12, design: .monospaced))
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background(DesignSystem.Colors.backgroundPrimary)
+                    CodeEditor(
+                        text: fileBinding(path: path),
+                        position: $position,
+                        messages: $messages,
+                        language: languageFor(path: path)
+                    )
+                    .environment(\.codeEditorTheme, Theme.defaultDark)
                 }
             }
 
@@ -140,6 +149,8 @@ struct EditorPlaceholderView: View {
             Text(fileDisplayName(path))
                 .font(.system(size: 10, weight: isActive ? .semibold : .regular))
                 .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 160, alignment: .leading)
             if openFilesStore.isDirty(path: path) {
                 Circle()
                     .fill(DesignSystem.Colors.warning)
@@ -251,6 +262,14 @@ struct EditorPlaceholderView: View {
                 saveFeedbackIsError = false
             }
         )
+    }
+
+    private func languageFor(path: String) -> LanguageConfiguration {
+        let ext = (path as NSString).pathExtension.lowercased()
+        switch ext {
+        case "swift": return .swift()
+        default: return .none
+        }
     }
 
     private func viewModeBinding(path: String) -> Binding<EditorViewMode> {

@@ -17,7 +17,7 @@ struct CodigoApp: App {
     @StateObject private var executionController = ExecutionController()
     @StateObject private var providerUsageStore = ProviderUsageStore.shared
     @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
-    @StateObject private var changedFilesStore = ChangedFilesStore()
+    @StateObject private var gitPanelStore = GitPanelStore()
     @StateObject private var accountUsageDashboardStore = AccountUsageDashboardStore.shared
     @AppStorage("openai_api_key") private var apiKey = ""
     @AppStorage("openai_model") private var model = "gpt-4o-mini"
@@ -80,7 +80,7 @@ struct CodigoApp: App {
                 .environmentObject(executionController)
                 .environmentObject(providerUsageStore)
                 .environmentObject(flowDiagnosticsStore)
-                .environmentObject(changedFilesStore)
+                .environmentObject(gitPanelStore)
                 .environmentObject(accountUsageDashboardStore)
                 .onAppear {
                     projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
@@ -90,9 +90,20 @@ struct CodigoApp: App {
                     configureWindow()
                 }
         }
-        MenuBarExtra("Codigo • Usage", systemImage: "chart.bar.fill") {
+        MenuBarExtra {
             UsageMenuBarView()
                 .environmentObject(accountUsageDashboardStore)
+        } label: {
+            if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+               let img = NSImage(contentsOf: url) {
+                let resized = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+                    img.draw(in: rect)
+                    return true
+                }
+                Image(nsImage: resized)
+            } else {
+                Image(systemName: "chart.bar.fill")
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
@@ -114,15 +125,20 @@ struct CodigoApp: App {
             let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
             providerRegistry.register(
                 ProviderFactory.openAIAPIProvider(
-                    config: providerFactoryConfig(), reasoningEffort: effort))
+                    config: providerFactoryConfig(), reasoningEffort: effort,
+                    executionController: executionController))
         }
         if providerRegistry.provider(for: "anthropic-api") == nil {
             providerRegistry.register(
-                ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig()))
+                ProviderFactory.anthropicAPIProvider(
+                    config: providerFactoryConfig(),
+                    executionController: executionController))
         }
         if providerRegistry.provider(for: "google-api") == nil {
             providerRegistry.register(
-                ProviderFactory.googleAPIProvider(config: providerFactoryConfig()))
+                ProviderFactory.googleAPIProvider(
+                    config: providerFactoryConfig(),
+                    executionController: executionController))
         }
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
@@ -149,13 +165,17 @@ struct CodigoApp: App {
     private func registerMiniMax() {
         providerRegistry.unregister(id: "minimax-api")
         providerRegistry.register(
-            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.miniMaxAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func registerOpenRouter() {
         providerRegistry.unregister(id: "openrouter-api")
         providerRegistry.register(
-            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.openRouterAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func registerPlanProvider() {

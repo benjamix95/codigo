@@ -16,7 +16,7 @@ struct AssistantTextChunkView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(modeColor.opacity(0.7))
                 .frame(width: 24, alignment: .center)
-            ClickableMessageContent(
+            MarkdownContentView(
                 content: text,
                 context: context,
                 onFileClicked: onFileClicked,
@@ -68,7 +68,7 @@ struct ThinkingCardView: View {
         HStack(alignment: .top, spacing: 11) {
             Image(systemName: "brain")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(modeColor.opacity(0.8))
+                .foregroundStyle(modeColor.opacity(0.7))
                 .frame(width: 24, alignment: .center)
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
@@ -84,7 +84,7 @@ struct ThinkingCardView: View {
                     } label: {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -101,16 +101,16 @@ struct ThinkingCardView: View {
                 }
             }
         }
-        .padding(13)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: 760, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(modeColor.opacity(0.25), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(modeColor.opacity(0.15), lineWidth: 0.5)
         )
     }
 }
@@ -240,16 +240,16 @@ struct ToolExecutionCardView: View {
                 }
             }
         }
-        .padding(13)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: 760, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(cardFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(cardBorder, lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(cardBorder, lineWidth: 0.5)
         )
     }
 }
@@ -277,12 +277,12 @@ struct TodoTimelineCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(maxWidth: 760, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.success.opacity(0.3), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.success.opacity(0.2), lineWidth: 0.5)
         )
     }
 }
@@ -300,7 +300,21 @@ struct RealtimeOperationsStripView: View {
         }
         var seen = Set<String>()
         let deduped = filtered.reversed().filter { activity in
-            let key = (activity.groupId ?? "") + "|" + activity.type + "|" + activity.title
+            let status = (
+                activity.payload["status"]
+                ?? activity.payload["detail"]
+                ?? activity.detail
+                ?? ""
+            ).lowercased()
+            let key = (activity.groupId ?? "")
+                + "|"
+                + activity.type
+                + "|"
+                + activity.title
+                + "|"
+                + status
+                + "|"
+                + (activity.isRunning ? "running" : "stopped")
             if seen.contains(key) { return false }
             seen.insert(key)
             return true
@@ -399,12 +413,12 @@ struct RealtimeOperationsStripView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(maxWidth: 760, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.6)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
             )
         }
     }

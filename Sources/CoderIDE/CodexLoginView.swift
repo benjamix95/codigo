@@ -169,8 +169,15 @@ struct CodexLoginView: View {
         }
 
         let capturedPath = codexPath
-        process.terminationHandler = { _ in
-            DispatchQueue.main.async { startPolling(codexPath: capturedPath) }
+        process.terminationHandler = { proc in
+            DispatchQueue.main.async {
+                if proc.terminationStatus == 0 {
+                    startPolling(codexPath: capturedPath)
+                } else {
+                    isPolling = false
+                    loginMessage = "Login fallito. Verifica API key e riprova."
+                }
+            }
         }
     }
 
@@ -203,9 +210,16 @@ struct CodexLoginView: View {
         }
 
         let capturedPath = codexPath
-        process.terminationHandler = { _ in
+        process.terminationHandler = { proc in
             outPipe.fileHandleForReading.readabilityHandler = nil
-            DispatchQueue.main.async { startPolling(codexPath: capturedPath) }
+            DispatchQueue.main.async {
+                if proc.terminationStatus == 0 {
+                    startPolling(codexPath: capturedPath)
+                } else {
+                    isPolling = false
+                    loginMessage = "Login non completato. Riprova."
+                }
+            }
         }
     }
 

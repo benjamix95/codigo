@@ -46,6 +46,15 @@ struct GitFileDiff: Equatable {
     let isBinary: Bool
 }
 
+struct GitLogEntry: Identifiable, Equatable {
+    let id = UUID()
+    let sha: String
+    let shortSha: String
+    let subject: String
+    let authorName: String
+    let relativeDate: String
+}
+
 enum GitServiceError: LocalizedError {
     case missingWorkingDirectory
     case notGitRepository
@@ -264,6 +273,26 @@ struct GitService {
             result.append(GitChangedFile(path: path, added: added, removed: removed, status: statusCode.isEmpty ? "M" : statusCode))
         }
         return result
+    }
+
+    func commitHistory(gitRoot: String, limit: Int = 20) throws -> [GitLogEntry] {
+        let format = "%H|%h|%an|%ar|%s"
+        let out = try runGit(["log", "--format=\(format)", "-\(limit)"], gitRoot: gitRoot)
+        return out
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+            .compactMap { line -> GitLogEntry? in
+                let parts = line.split(separator: "|", maxSplits: 4, omittingEmptySubsequences: false).map(String.init)
+                guard parts.count >= 5 else { return nil }
+                return GitLogEntry(
+                    sha: parts[0],
+                    shortSha: parts[1],
+                    subject: parts[4],
+                    authorName: parts[2],
+                    relativeDate: parts[3]
+                )
+            }
     }
 
     func fileDiff(gitRoot: String, path: String) throws -> GitFileDiff {

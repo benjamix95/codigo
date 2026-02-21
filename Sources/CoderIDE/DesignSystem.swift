@@ -53,7 +53,7 @@ struct DesignSystem {
         static let swarmColorLight = swarmColor.opacity(0.8)
         static let reviewColor = Color(red: 0.18, green: 0.83, blue: 0.75)
         static let reviewColorLight = reviewColor.opacity(0.8)
-        static let planColor = Color(red: 0.39, green: 0.40, blue: 0.95)
+        static let planColor = Color(red: 0.95, green: 0.55, blue: 0.18)
         static let planColorLight = planColor.opacity(0.8)
 
         // Background layers — rich blue-black in dark, system in light
@@ -89,6 +89,11 @@ struct DesignSystem {
             NSColor(red: 0.39, green: 0.40, blue: 0.95, alpha: 0.08)
         )
         static let assistantBubble = backgroundSecondary
+        /// Neutral user bubble fill — ChatGPT-style (not mode-colored)
+        static let chatUserBubbleFill = codigoAdaptive(
+            NSColor(red: 0.945, green: 0.945, blue: 0.957, alpha: 0.92),
+            NSColor(red: 0.173, green: 0.173, blue: 0.204, alpha: 0.85)
+        )
 
         // Borders
         static let divider = codigoAdaptive(
@@ -119,7 +124,7 @@ struct DesignSystem {
 
         // Mode gradients — 2-stop subtle shifts
         static let primaryGradient = LinearGradient(
-            colors: [planColor, Color(red: 0.51, green: 0.55, blue: 0.98)],
+            colors: [planColor, Color(red: 0.98, green: 0.68, blue: 0.32)],
             startPoint: .leading, endPoint: .trailing
         )
         static let agentGradient = LinearGradient(
@@ -143,7 +148,7 @@ struct DesignSystem {
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
         static let planGradient = LinearGradient(
-            colors: [planColor, Color(red: 0.53, green: 0.56, blue: 0.98)],
+            colors: [planColor, Color(red: 0.98, green: 0.68, blue: 0.32)],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
         static let glassGradient = LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)

@@ -120,7 +120,12 @@ final class TaskActivityStore: ObservableObject {
             return
         }
         if let idx = activities.lastIndex(where: { $0.groupId == groupId && $0.type == activity.type }) {
-            activities[idx] = activity
+            let existing = activities[idx]
+            if shouldMerge(existing: existing, incoming: activity) {
+                activities[idx] = activity
+            } else {
+                activities.append(activity)
+            }
         } else {
             activities.append(activity)
         }
@@ -130,6 +135,61 @@ final class TaskActivityStore: ObservableObject {
 
     private func recalcActiveOperations() {
         activeOperationsCount = activities.suffix(40).filter(\.isRunning).count
+    }
+
+    private func shouldMerge(existing: TaskActivity, incoming: TaskActivity) -> Bool {
+        if existing.groupId == nil || incoming.groupId == nil {
+            return false
+        }
+        if existing.type != incoming.type {
+            return false
+        }
+        let existingStatus = normalizedStatus(existing)
+        let incomingStatus = normalizedStatus(incoming)
+        if !existingStatus.isEmpty || !incomingStatus.isEmpty, existingStatus != incomingStatus {
+            return false
+        }
+        let existingTerminal = isTerminalLike(existing)
+        let incomingTerminal = isTerminalLike(incoming)
+        if existingTerminal != incomingTerminal {
+            return false
+        }
+        if existing.isRunning != incoming.isRunning, (!existing.isRunning || !incoming.isRunning) {
+            return false
+        }
+        return true
+    }
+
+    private func normalizedStatus(_ activity: TaskActivity) -> String {
+        let raw = (
+            activity.payload["status"]
+            ?? activity.payload["detail"]
+            ?? activity.detail
+            ?? ""
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+        if raw.isEmpty { return "" }
+        return raw.replacingOccurrences(of: "-", with: "_")
+    }
+
+    private func isTerminalLike(_ activity: TaskActivity) -> Bool {
+        let status = normalizedStatus(activity)
+        if status.contains("completed")
+            || status.contains("failed")
+            || status.contains("error")
+            || status.contains("done")
+            || status.contains("success")
+        {
+            return true
+        }
+        let title = activity.title.lowercased()
+        let detail = (activity.detail ?? "").lowercased()
+        return title.contains("completed")
+            || title.contains("failed")
+            || detail.contains("completed")
+            || detail.contains("failed")
+            || detail.contains("errore")
     }
 
     func clear() {

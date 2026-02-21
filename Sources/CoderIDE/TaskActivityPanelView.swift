@@ -112,39 +112,60 @@ struct ChatTerminalSessionsView: View {
         sessions.first(where: { $0.isRunning || $0.status == "started" || $0.status == "running" || $0.status == "in_progress" })
     }
 
-    private var terminalCardFill: Color {
-        Color(red: 0.09, green: 0.11, blue: 0.14).opacity(0.92)
-    }
-
-    private var terminalCardBorder: Color {
-        Color(red: 0.28, green: 0.33, blue: 0.40).opacity(0.75)
-    }
-
-    private var terminalCommandColor: Color {
-        Color(red: 0.78, green: 0.90, blue: 0.74)
-    }
+    private var terminalCardFill: Color { Color(red: 0.08, green: 0.10, blue: 0.13).opacity(0.94) }
+    private var terminalCardBorder: Color { Color(red: 0.29, green: 0.35, blue: 0.43).opacity(0.80) }
+    private var terminalCommandColor: Color { Color(red: 0.82, green: 0.92, blue: 0.79) }
+    private var terminalHeaderFill: Color { Color(red: 0.11, green: 0.13, blue: 0.18).opacity(0.9) }
+    private var terminalAccent: Color { Color(red: 0.31, green: 0.76, blue: 0.99) }
+    private var terminalMuted: Color { Color(red: 0.59, green: 0.66, blue: 0.76) }
 
     var body: some View {
         if !sessions.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Terminale in chat")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(terminalAccent)
+                    Text("Terminale Live")
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text("\(sessions.count) session\(sessions.count == 1 ? "" : "i")")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(terminalHeaderFill, in: Capsule())
+                    Spacer()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(terminalCardBorder.opacity(0.7), lineWidth: 0.6)
+                )
+
                 if let running = runningSession {
                     TimelineView(.periodic(from: running.timestamp, by: 1.0)) { context in
                         let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text("Running command for \(elapsed)s")
-                                .font(.system(size: 12, weight: .semibold))
+                            Text("Comando in esecuzione da \(elapsed)s")
+                                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.primary)
                             Spacer()
+                            Text("LIVE")
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(terminalAccent)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(terminalAccent.opacity(0.16), in: Capsule())
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(Color(red: 0.13, green: 0.16, blue: 0.20).opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .strokeBorder(terminalCardBorder, lineWidth: 0.6)
                         )
                     }
@@ -153,6 +174,14 @@ struct ChatTerminalSessionsView: View {
                     terminalSessionCard(session)
                 }
             }
+            .padding(10)
+            .frame(maxWidth: 860, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .background(terminalCardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(terminalCardBorder.opacity(0.72), lineWidth: 0.7)
+            )
         }
     }
 
@@ -161,21 +190,21 @@ struct ChatTerminalSessionsView: View {
         let hasOutput = !(session.output?.isEmpty ?? true) || !(session.stderr?.isEmpty ?? true)
         let timeString = TimeFormatters.hms.string(from: session.timestamp)
 
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "terminal.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DesignSystem.Colors.warning)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(terminalAccent)
                 Text("bash")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(terminalMuted)
                 if session.isRunning {
                     ProgressView()
                         .controlSize(.mini)
                 }
                 Text(timeString)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(terminalMuted.opacity(0.85))
                 Spacer()
                 Button {
                     if isExpanded { expandedSessions.remove(session.id) } else { expandedSessions.insert(session.id) }
@@ -193,10 +222,15 @@ struct ChatTerminalSessionsView: View {
                 .lineLimit(isExpanded ? nil : 2)
 
             if let cwd = session.cwd, !cwd.isEmpty {
-                Text(cwd)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                    Text(cwd)
+                        .font(.system(size: 10, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .foregroundStyle(terminalMuted.opacity(0.9))
             }
 
             if isExpanded {
@@ -208,9 +242,13 @@ struct ChatTerminalSessionsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                     }
-                    .frame(maxHeight: 180)
+                    .frame(maxHeight: 200)
                     .padding(8)
-                    .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(terminalCardBorder.opacity(0.5), lineWidth: 0.6)
+                    )
                 }
                 if let stderr = session.stderr, !stderr.isEmpty {
                     Text(stderr)
@@ -233,10 +271,10 @@ struct ChatTerminalSessionsView: View {
                     .lineLimit(4)
             }
         }
-        .padding(10)
-        .background(terminalCardFill, in: RoundedRectangle(cornerRadius: 9))
+        .padding(11)
+        .background(Color(red: 0.11, green: 0.13, blue: 0.17).opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 9)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(terminalCardBorder, lineWidth: 0.7)
         )
     }

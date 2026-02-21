@@ -261,7 +261,10 @@ struct OpenRouterLoginView: View {
 
     private func generateCodeVerifier() -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard status == errSecSuccess else {
+            return UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        }
         return Data(bytes)
             .base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")

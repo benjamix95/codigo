@@ -78,6 +78,7 @@ final class ProviderUsageStore: ObservableObject {
             codexUsage = usage
             codexUsageMessage = nil
         } else {
+            codexUsage = nil
             codexUsageMessage = "Rate limits non disponibili o timeout"
         }
     }
@@ -111,6 +112,7 @@ final class ProviderUsageStore: ObservableObject {
             claudeUsage = usage
             claudeUsageMessage = nil
         } else {
+            claudeUsage = nil
             claudeUsageMessage = "Usage Claude non disponibile o timeout"
         }
     }
@@ -134,6 +136,7 @@ final class ProviderUsageStore: ObservableObject {
             geminiUsage = usage
             geminiUsageMessage = usage.note
         } else {
+            geminiUsage = nil
             geminiUsageMessage = "Usage Gemini non disponibile o timeout"
         }
     }

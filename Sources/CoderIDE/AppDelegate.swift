@@ -6,6 +6,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
 
+        // Set the app icon from the bundled PNG (SPM resources in Bundle.module)
+        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+           let icon = NSImage(contentsOf: url) {
+            NSApplication.shared.applicationIconImage = icon
+        }
+
         installWindowStyleObservers()
 
         DispatchQueue.main.async {

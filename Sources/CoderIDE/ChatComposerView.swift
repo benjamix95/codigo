@@ -33,6 +33,8 @@ struct ChatComposerView: View {
     let inputHint: String
     let providerNotReadyMessage: String
     let quickCommandPresets: [QuickCommandPreset]
+    let showCodeReviewAutofixToggle: Bool
+    @Binding var codeReviewAutofixEnabled: Bool
 
     let onSend: () -> Void
     let onApplyQuickCommand: (String) -> Void
@@ -55,6 +57,9 @@ struct ChatComposerView: View {
                 }
                 if !quickCommandPresets.isEmpty {
                     quickCommandsRow
+                }
+                if showCodeReviewAutofixToggle {
+                    codeReviewAutofixToggleRow
                 }
             }
             .padding(12)
@@ -170,6 +175,57 @@ struct ChatComposerView: View {
         )
     }
 
+    private var codeReviewAutofixToggleRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(activeModeColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Code Review")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(codeReviewAutofixEnabled
+                    ? "Autofix (YOLO): analisi + applicazione fix automatica"
+                    : "Discovery: solo analisi, nessun fix automatico")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Toggle(isOn: $codeReviewAutofixEnabled) {
+                Text(codeReviewAutofixEnabled ? "Autofix" : "Discovery")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(codeReviewAutofixEnabled ? DesignSystem.Colors.success : .secondary)
+            }
+            .toggleStyle(.switch)
+            .labelsHidden()
+            Text(codeReviewAutofixEnabled ? "Autofix" : "Discovery")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(codeReviewAutofixEnabled ? DesignSystem.Colors.success : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    (codeReviewAutofixEnabled ? DesignSystem.Colors.success : activeModeColor)
+                        .opacity(0.12),
+                    in: Capsule()
+                )
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.46))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(
+                    (codeReviewAutofixEnabled ? DesignSystem.Colors.success : activeModeColor)
+                        .opacity(0.25),
+                    lineWidth: 0.6
+                )
+        )
+    }
+
     // MARK: - Separator
 
     private var separator: some View {
@@ -200,23 +256,13 @@ struct ChatComposerView: View {
     private var composerBox: some View {
         HStack(alignment: .bottom, spacing: 10) {
             VStack(alignment: .leading, spacing: 5) {
-                // Mode indicator dot + hint
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(activeModeGradient)
-                        .frame(width: 6, height: 6)
-                    Text(inputHint)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(activeModeColor.opacity(0.6))
-                }
-
                 // Attached images preview row
                 if !attachedImageURLs.isEmpty {
                     attachedImagesRow
                 }
 
-                // Text field
-                TextField("Send a message...", text: $inputText, axis: .vertical)
+                // Text field — hint moved to placeholder
+                TextField(inputHint, text: $inputText, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .lineLimit(1...8)
@@ -236,24 +282,23 @@ struct ChatComposerView: View {
                 sendButton
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(DesignSystem.Colors.backgroundTertiary)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(
                     isComposerDropTargeted
-                        ? activeModeColor.opacity(0.6)
+                        ? activeModeColor.opacity(0.5)
                         : (focusState
-                            ? activeModeColor.opacity(0.4) : DesignSystem.Colors.border),
-                    lineWidth: isComposerDropTargeted ? 2 : (focusState ? 1.2 : 0.5)
+                            ? activeModeColor.opacity(0.3) : DesignSystem.Colors.border.opacity(0.6)),
+                    lineWidth: isComposerDropTargeted ? 2 : (focusState ? 1 : 0.5)
                 )
         )
-        .shadow(color: focusState ? activeModeColor.opacity(0.1) : .clear, radius: 12, y: 2)
-        .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+        .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
         .animation(.easeOut(duration: 0.2), value: focusState)
         .onDrop(
             of: [.image, .fileURL, .png, .jpeg, .gif],
@@ -270,7 +315,7 @@ struct ChatComposerView: View {
         }
         .overlay {
             if isConvertingHeic {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay {
                         VStack(spacing: 8) {
@@ -343,9 +388,9 @@ struct ChatComposerView: View {
 
         return Button(action: onSend) {
             Image(systemName: "arrow.up")
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 28, height: 28)
+                .frame(width: 30, height: 30)
                 .background {
                     Circle().fill(
                         canSend
@@ -357,10 +402,6 @@ struct ChatComposerView: View {
                             )
                     )
                 }
-                .shadow(
-                    color: canSend ? activeModeColor.opacity(0.3) : .clear,
-                    radius: 6, y: 2
-                )
         }
         .buttonStyle(.plain)
         .disabled(!canSend)

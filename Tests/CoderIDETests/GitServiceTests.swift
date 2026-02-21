@@ -2,19 +2,20 @@ import XCTest
 @testable import CoderIDE
 
 final class GitServiceTests: XCTestCase {
-    private var repoURL: URL!
+    private var repoURL: URL?
     private let git = GitService()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        repoURL = FileManager.default.temporaryDirectory.appendingPathComponent("git-service-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
-        try runGit(["init"], cwd: repoURL.path)
-        try runGit(["config", "user.email", "test@example.com"], cwd: repoURL.path)
-        try runGit(["config", "user.name", "Git Test"], cwd: repoURL.path)
-        try "hello".write(to: repoURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
-        try runGit(["add", "."], cwd: repoURL.path)
-        try runGit(["commit", "-m", "init"], cwd: repoURL.path)
+        let repo = FileManager.default.temporaryDirectory.appendingPathComponent("git-service-\(UUID().uuidString)")
+        repoURL = repo
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try runGit(["init"], cwd: repo.path)
+        try runGit(["config", "user.email", "test@example.com"], cwd: repo.path)
+        try runGit(["config", "user.name", "Git Test"], cwd: repo.path)
+        try "hello".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try runGit(["add", "."], cwd: repo.path)
+        try runGit(["commit", "-m", "init"], cwd: repo.path)
     }
 
     override func tearDownWithError() throws {
@@ -25,13 +26,14 @@ final class GitServiceTests: XCTestCase {
     }
 
     func testBranchAndStatusAndCommit() throws {
-        let root = try git.resolveGitRoot(from: repoURL.path)
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
         let current = try git.currentBranch(gitRoot: root)
         XCTAssertFalse(current.isEmpty)
         let branches = try git.listLocalBranches(gitRoot: root)
         XCTAssertTrue(branches.contains(where: { $0.isCurrent }))
 
-        try "change".write(to: repoURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try "change".write(to: repo.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
         let status = try git.status(gitRoot: root)
         XCTAssertGreaterThan(status.changedFiles, 0)
 
@@ -41,7 +43,8 @@ final class GitServiceTests: XCTestCase {
     }
 
     func testPushWithoutRemoteFails() throws {
-        let root = try git.resolveGitRoot(from: repoURL.path)
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
         XCTAssertThrowsError(try git.push(gitRoot: root, branch: try git.currentBranch(gitRoot: root)))
     }
 

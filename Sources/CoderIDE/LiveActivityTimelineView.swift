@@ -20,25 +20,15 @@ struct LiveActivityTimelineView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Reasoning Trace")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(visibleActivities.count) eventi")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-
             ForEach(visibleActivities) { activity in
                 row(activity)
             }
         }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.34), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 0.6)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.6)
         )
     }
 

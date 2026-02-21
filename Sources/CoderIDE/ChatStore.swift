@@ -284,6 +284,14 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
+    func setTitle(conversationId: UUID, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        conversations[idx].title = trimmed
+        saveConversations()
+    }
+
     func updatePreferredProvider(conversationId: UUID?, providerId: String?) {
         guard let id = conversationId,
               let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
@@ -409,8 +417,128 @@ final class ChatStore: ObservableObject {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        conversations[idx].messages[lastIdx].content = content
+        conversations[idx].messages[lastIdx].content = Self.stripCoderideMarkers(content)
         saveConversations()
+    }
+
+    /// Rimuove marker CODERIDE alla sorgente per evitare flash durante lo streaming.
+    static func stripCoderideMarkers(_ content: String) -> String {
+        var out = content
+        // 1. Standard [CODERIDE:...] markers (regex)
+        if let regex = try? NSRegularExpression(
+            pattern: "\\[\\s*CODERIDE\\s*:[^\\]]*\\]?",
+            options: .caseInsensitive
+        ) {
+            while true {
+                let ns = out as NSString
+                guard let match = regex.firstMatch(in: out, range: NSRange(location: 0, length: ns.length))
+                else { break }
+                let start = out.index(out.startIndex, offsetBy: match.range.location)
+                let end = out.index(start, offsetBy: match.range.length)
+                out.removeSubrange(start..<end)
+            }
+        }
+        // 2. Fallback for incomplete [CODERIDE markers
+        while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
+            if let end = out[start.upperBound...].firstIndex(of: "]") {
+                out.removeSubrange(start.lowerBound..<out.index(after: end))
+            } else {
+                out.removeSubrange(start.lowerBound..<out.endIndex)
+            }
+        }
+        // 3. Strip operational status lines that leak into output
+        // e.g. "Creating detailed Italian planIDE:files=README.md]"
+        if let statusLineRegex = try? NSRegularExpression(
+            pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
+            options: [.caseInsensitive, .anchorsMatchLines]
+        ) {
+            let ns = out as NSString
+            out = statusLineRegex.stringByReplacingMatches(
+                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+            )
+        }
+        // 4. Strip lines that are purely operational prefixes (e.g. "Creating detailed..." followed by IDE markers)
+        if let opLineRegex = try? NSRegularExpression(
+            pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines]
+        ) {
+            let ns = out as NSString
+            out = opLineRegex.stringByReplacingMatches(
+                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+            )
+        }
+        // Marker inline "markers:todo_write|..." o "todo_write|..."
+        out = out.replacingOccurrences(
+            of: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:todo_write|todo_read|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            with: "",
+            options: .regularExpression
+        )
+        // Rimuove singoli frammenti key=value tipici dei marker operativi.
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
+            with: "",
+            options: .regularExpression
+        )
+        // Fallback robusto: rimuove payload marker "grezzi" trapelati nel testo
+        // (es. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
+        out = stripStructuredMarkerPayloads(out)
+        // Cleanup formattazione leggibile (stile chat): spazi, punteggiatura, line breaks.
+        out = out.replacingOccurrences(of: #"\s+\n"#, with: "\n", options: .regularExpression)
+        out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+        out = out.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+        out = out.replacingOccurrences(
+            of: #"([.!?])([A-Za-zÀ-ÖØ-öø-ÿ])"#,
+            with: "$1 $2",
+            options: .regularExpression
+        )
+        return out
+            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func stripStructuredMarkerPayloads(_ input: String) -> String {
+        let markerKeys: Set<String> = [
+            "id", "title", "status", "priority", "notes", "files", "step_id",
+            "queryid", "query", "group_id", "count", "task",
+        ]
+        guard let regex = try? NSRegularExpression(
+            pattern: #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#,
+            options: []
+        ) else {
+            return input
+        }
+        var out = input
+        while true {
+            let ns = out as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            let matches = regex.matches(in: out, options: [], range: range)
+            guard !matches.isEmpty else { break }
+            var removed = false
+            for match in matches.reversed() {
+                guard let strRange = Range(match.range, in: out) else { continue }
+                let chunk = String(out[strRange])
+                let keys = chunk
+                    .split(separator: "|")
+                    .compactMap { segment -> String? in
+                        guard let eq = segment.firstIndex(of: "=") else { return nil }
+                        return String(segment[..<eq]).trimmingCharacters(in: .whitespacesAndNewlines)
+                            .lowercased()
+                    }
+                guard !keys.isEmpty else { continue }
+                let markerKeyCount = keys.filter { markerKeys.contains($0) }.count
+                if markerKeyCount >= 3 {
+                    out.removeSubrange(strRange)
+                    removed = true
+                }
+            }
+            if !removed { break }
+        }
+        return out
     }
 
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
@@ -453,6 +581,14 @@ final class ChatStore: ObservableObject {
         guard let conversationId, var board = planBoards[conversationId] else { return }
         guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
         board.steps[index].status = status
+        board.updatedAt = .now
+        planBoards[conversationId] = board
+        savePlanBoards()
+    }
+
+    func setWalkthrough(_ markdown: String, for conversationId: UUID?) {
+        guard let conversationId, var board = planBoards[conversationId] else { return }
+        board.walkthroughMarkdown = markdown
         board.updatedAt = .now
         planBoards[conversationId] = board
         savePlanBoards()
@@ -528,6 +664,11 @@ final class ChatStore: ObservableObject {
     func previousCheckpoint(conversationId: UUID?) -> ConversationCheckpoint? {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
         return conversations[idx].checkpoints.last
+    }
+
+    func checkpoint(forMessageIndex messageIndex: Int, conversationId: UUID?) -> ConversationCheckpoint? {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+        return conversations[idx].checkpoints.last { $0.messageCount == (messageIndex + 1) }
     }
 
     @discardableResult

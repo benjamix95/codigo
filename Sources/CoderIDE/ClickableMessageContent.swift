@@ -9,30 +9,7 @@ struct ClickableMessageContent: View {
     /// Rimuove marker CODERIDE (completi, incompleti, con spazi/newline). Durante lo streaming
     /// il modello emette token per token; possono comparire varianti come [ CODERIDE: o [CODERIDE\n:
     private var displayContent: String {
-        var out = content
-        guard let regex = try? NSRegularExpression(
-            pattern: "\\[\\s*CODERIDE\\s*:[^\\]]*\\]?",
-            options: .caseInsensitive
-        ) else {
-            return content
-        }
-        while true {
-            let ns = out as NSString
-            let fullRange = NSRange(location: 0, length: ns.length)
-            guard let match = regex.firstMatch(in: out, range: fullRange) else { break }
-            let start = out.index(out.startIndex, offsetBy: match.range.location)
-            let end = out.index(start, offsetBy: match.range.length)
-            out.removeSubrange(start..<end)
-        }
-        // Fallback: frammenti come [CODERIDE senza pipe (es. [CODERIDE:read incompleto)
-        while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
-            if let end = out[start.upperBound...].firstIndex(of: "]") {
-                out.removeSubrange(start.lowerBound..<out.index(after: end))
-            } else {
-                out.removeSubrange(start.lowerBound..<out.endIndex)
-            }
-        }
-        return out
+        ChatStore.stripCoderideMarkers(content)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }

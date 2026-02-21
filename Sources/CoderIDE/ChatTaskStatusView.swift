@@ -616,14 +616,14 @@ struct TaskActivityPanel: View {
 // MARK: - Changed Files Summary Card (Expandable with chevron)
 
 struct ChangedFilesSummaryCard: View {
-    @ObservedObject var changedFilesStore: ChangedFilesStore
+    @ObservedObject var gitPanelStore: GitPanelStore
     let onOpenFile: (String) -> Void
     let onUndoAll: () -> Void
 
     @State private var isExpanded = false
 
     var body: some View {
-        if !changedFilesStore.files.isEmpty {
+        if !gitPanelStore.changedFiles.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 // Header row - always visible, tappable
                 Button {
@@ -643,13 +643,13 @@ struct ChangedFilesSummaryCard: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.agentColor)
 
-                        Text("\(changedFilesStore.files.count) files changed")
+                        Text("\(gitPanelStore.changedFiles.count) files changed")
                             .font(.system(size: 12, weight: .semibold))
 
-                        Text("+\(changedFilesStore.totalAdded)")
+                        Text("+\(gitPanelStore.totalAdded)")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.success)
-                        Text("-\(changedFilesStore.totalRemoved)")
+                        Text("-\(gitPanelStore.totalRemoved)")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.error)
 
@@ -669,7 +669,7 @@ struct ChangedFilesSummaryCard: View {
                         .padding(.horizontal, 8)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(changedFilesStore.files) { file in
+                        ForEach(gitPanelStore.changedFiles) { file in
                             HStack(spacing: 8) {
                                 Button {
                                     onOpenFile(file.path)
@@ -717,7 +717,7 @@ struct ChangedFilesSummaryCard: View {
                                 .foregroundStyle(DesignSystem.Colors.error)
                             }
                             .buttonStyle(.plain)
-                            .disabled(changedFilesStore.files.isEmpty)
+                            .disabled(gitPanelStore.changedFiles.isEmpty)
                         }
                         .padding(.top, 4)
                     }
@@ -752,3 +752,4 @@ struct ChangedFilesSummaryCard: View {
         }
     }
 }
+

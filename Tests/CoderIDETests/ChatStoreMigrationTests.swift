@@ -57,7 +57,7 @@ final class ChatStoreMigrationTests: XCTestCase {
         let legacyJson = """
         [{"id":"\(UUID().uuidString)","title":"old","messages":[],"createdAt":"2020-01-01T00:00:00.000Z","contextId":null,"contextFolderPath":null,"mode":"Agent","isArchived":false,"isPinned":false,"isFavorite":false,"workspaceId":null,"adHocFolderPaths":[],"checkpoints":[]}]
         """
-        let data = legacyJson.data(using: .utf8)!
+        let data = try XCTUnwrap(legacyJson.data(using: .utf8))
         UserDefaults.standard.set(data, forKey: convKey)
 
         let chatStore = ChatStore()

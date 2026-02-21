@@ -33,7 +33,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @EnvironmentObject var flowDiagnosticsStore: FlowDiagnosticsStore
-    @EnvironmentObject var changedFilesStore: ChangedFilesStore
+    @EnvironmentObject var gitPanelStore: GitPanelStore
     @Binding var selectedConversationId: UUID?
     let effectiveContext: EffectiveContext
 
@@ -85,6 +85,7 @@ struct ChatPanelView: View {
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
     @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
+    @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
     @State private var isProviderReady = false
     @State private var attachedImageURLs: [URL] = []
@@ -135,20 +136,6 @@ struct ChatPanelView: View {
             modeTabBar
             separator
             chatHeader
-            if changedFilesStore.isVisiblePanel {
-                ChangedFilesPanelView(
-                    onOpenFile: { path in
-                        openChangedFile(path)
-                    },
-                    onClose: {
-                        changedFilesStore.isVisiblePanel = false
-                    }
-                )
-                .environmentObject(changedFilesStore)
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-                .padding(.bottom, 6)
-            }
 
             if coderMode == .agentSwarm
                 && (!swarmProgressStore.steps.isEmpty
@@ -198,18 +185,18 @@ struct ChatPanelView: View {
             syncMultiSwarmReviewProvider()
             syncPlanProvider()
             checkProviderAuth()
-            changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
         .onChange(of: effectiveContext.primaryPath) { _, newPath in
-            changedFilesStore.refresh(workingDirectory: newPath)
+            gitPanelStore.refresh(workingDirectory: newPath)
         }
         .onChange(of: selectedConversationId) { _, _ in
-            changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
         .onChange(of: chatStore.isLoading) { oldValue, newValue in
             if oldValue && !newValue {
                 hasJustCompletedTask = true
-                changedFilesStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 isFollowingLive = true
                 newEventsWhileDetached = 0
             }
@@ -282,7 +269,7 @@ struct ChatPanelView: View {
     private func installPasteMonitor() {
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if isShiftTab(event), !isInputFocused {
-                planToggleEnabled.toggle()
+                showPlanPanel.toggle()
                 return nil
             }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
@@ -320,15 +307,15 @@ struct ChatPanelView: View {
 
     private var separator: some View {
         Rectangle()
-            .fill(DesignSystem.Colors.border)
+            .fill(DesignSystem.Colors.border.opacity(0.5))
             .frame(height: 0.5)
     }
 
     private var chatHeader: some View {
         HStack(spacing: 8) {
             Text(chatStore.conversation(for: conversationId)?.title ?? "Nuova conversazione")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer()
             Button {
@@ -336,7 +323,7 @@ struct ChatPanelView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 11, weight: .medium))
                     if isRewinding {
                         ProgressView()
                             .controlSize(.small)
@@ -344,7 +331,7 @@ struct ChatPanelView: View {
                 }
                 .foregroundStyle(
                     (chatStore.canRewind(conversationId: conversationId) && !chatStore.isLoading
-                        && !isRewinding) ? .primary : .tertiary)
+                        && !isRewinding) ? .secondary : .quaternary)
             }
             .buttonStyle(.plain)
             .disabled(
@@ -354,118 +341,56 @@ struct ChatPanelView: View {
             .help("Torna al checkpoint precedente (ripristina chat e file)")
             .accessibilityLabel("Rewind checkpoint chat")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Mode Tab Bar
     private var modeTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 3) {
-                ForEach(CoderMode.allCases, id: \.self) { mode in
+            HStack(spacing: 2) {
+                ForEach(CoderMode.allCases.filter({ $0 != .plan }), id: \.self) { mode in
                     modeTabButton(for: mode)
                 }
-                changedFilesButton
+                Spacer(minLength: 4)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
         }
     }
 
-    private var changedFilesButton: some View {
-        Button {
-            changedFilesStore.isVisiblePanel = true
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "doc.badge.gearshape")
-                    .font(.system(size: 10, weight: .semibold))
-                Text("Changed files")
-                    .font(.system(size: 11.5, weight: .medium))
-                Text("\(changedFilesStore.files.count)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.08), in: Capsule())
-            }
-            .foregroundStyle(changedFilesStore.gitRoot == nil ? .tertiary : .secondary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 5.5)
-            .background(
-                Capsule()
-                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.6)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(changedFilesStore.gitRoot == nil)
-        .help(
-            changedFilesStore.gitRoot == nil
-                ? "Nessuna repository Git nel contesto attivo"
-                : "Apri elenco completo file modificati")
-    }
 
     @ViewBuilder
     private func modeTabButton(for mode: CoderMode) -> some View {
         let isSelected = coderMode == mode
-        let isPlanMode = mode == .plan
-        let isPlanActive = isPlanMode && planToggleEnabled
         let color = modeColor(for: mode)
-        let gradient = modeGradient(for: mode)
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                if isPlanMode {
-                    planToggleEnabled.toggle()
-                    if planToggleEnabled {
-                        self.selectMode(.plan)
-                    } else if coderMode == .plan {
-                        self.selectMode(.agent)
-                    }
-                    return
-                }
                 self.selectMode(mode)
             }
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: modeIcon(for: mode))
-                    .font(.system(size: 10, weight: .semibold))
-                Text(mode.rawValue)
-                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
-                if isPlanMode && isPlanTabHovered {
-                    Text("Shift+Tab")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Color(nsColor: .controlBackgroundColor).opacity(0.7), in: Capsule())
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: modeIcon(for: mode))
+                        .font(.system(size: 9.5, weight: .medium))
+                    Text(mode.rawValue)
+                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                 }
+                .foregroundStyle(isSelected ? color : Color.secondary.opacity(0.5))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+
+                // Underline indicator
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(isSelected ? color : Color.clear)
+                    .frame(height: 2)
+                    .padding(.horizontal, 6)
             }
-            .foregroundStyle((isSelected || isPlanActive) ? .white : .secondary)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 5.5)
-            .background {
-                if isSelected || isPlanActive {
-                    Capsule()
-                        .fill(
-                            isPlanMode && isPlanActive && !isSelected
-                                ? DesignSystem.Colors.planGradient : gradient
-                        )
-                        .shadow(color: color.opacity(0.35), radius: 8, y: 2)
-                }
-            }
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            if isPlanMode {
-                isPlanTabHovered = hovering
-            }
-        }
-        .help(isPlanMode ? "Toggle Plan (Shift+Tab)" : "")
     }
+
 
     @ViewBuilder
     private func assistantTimelineView(
@@ -577,7 +502,7 @@ struct ChatPanelView: View {
     private var messagesArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     if let conv = chatStore.conversation(for: conversationId) {
                         let messages = conv.messages
                         let lastMsg = messages.last
@@ -646,7 +571,6 @@ struct ChatPanelView: View {
                             .id(message.id)
                         }
                         if coderMode == .agent,
-                            planToggleEnabled,
                             let cid = conversationId,
                             let summary = inlinePlanSummaries[cid]
                         {
@@ -656,7 +580,9 @@ struct ChatPanelView: View {
                                 isCollapsed: isPlanSummaryCollapsed,
                                 onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
                                 onExpandPlan: {
-                                    selectMode(.plan)
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        showPlanPanel = true
+                                    }
                                 }
                             )
                             .padding(.horizontal, 16)
@@ -708,23 +634,35 @@ struct ChatPanelView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
                         }
-                        // Changed files card with chevron
-                        if hasJustCompletedTask, !changedFilesStore.files.isEmpty {
-                            ChangedFilesSummaryCard(
-                                changedFilesStore: changedFilesStore,
-                                onOpenFile: { openChangedFile($0) },
-                                onUndoAll: { changedFilesStore.undoAll() }
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
-                            .id("changed-files-card")
-                        }
                     }
                 }
-                .padding(.top, 8).padding(.bottom, 16)
+            }
+                .padding(.top, 12).padding(.bottom, 16)
                 .frame(maxWidth: chatColumnMaxWidth)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
+            .overlay {
+                let conv = chatStore.conversation(for: conversationId)
+                let isEmpty = conv == nil || conv!.messages.isEmpty
+                if isEmpty && !chatStore.isLoading {
+                    VStack(spacing: 16) {
+                        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+                           let icon = NSImage(contentsOf: url) {
+                            Image(nsImage: icon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 64, height: 64)
+                                .cornerRadius(14)
+                                .saturation(0)
+                                .opacity(0.35)
+                        }
+                        Text("codigo")
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary.opacity(0.5))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+                }
             }
             .onChange(of: chatStore.conversation(for: conversationId)?.messages.last?.content ?? "")
             { _, _ in
@@ -1023,6 +961,13 @@ struct ChatPanelView: View {
                 inputHint: inputHint,
                 providerNotReadyMessage: providerNotReadyMessage,
                 quickCommandPresets: composerQuickCommandPresets,
+                showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
+                codeReviewAutofixEnabled: Binding(
+                    get: { !codeReviewAnalysisOnly },
+                    set: { enabled in
+                        codeReviewAnalysisOnly = !enabled
+                    }
+                ),
                 onSend: sendMessage,
                 onApplyQuickCommand: { text in
                     inputText = text
@@ -1060,7 +1005,8 @@ struct ChatPanelView: View {
                 onSyncSwarmProvider: syncSwarmProvider,
                 onSyncPlanProvider: syncPlanProvider,
                 onDelegateToAgent: delegateToAgent,
-                attachedImageURLs: attachedImageURLs
+                attachedImageURLs: attachedImageURLs,
+                showPlanPanel: $showPlanPanel
             )
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
@@ -1428,9 +1374,14 @@ struct ChatPanelView: View {
             return
         }
         let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
+        var reviewConfig = providerFactoryConfig()
+        if !reviewConfig.codeReviewAnalysisOnly {
+            // In Autofix mode force YOLO only for the review provider instance.
+            reviewConfig.globalYolo = true
+        }
         providerRegistry.register(
             ProviderFactory.codeReviewProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude))
+                config: reviewConfig, codex: codex, claude: claude))
         checkProviderAuth()
     }
     private func syncProviderFromConversation() {
@@ -1799,7 +1750,7 @@ struct ChatPanelView: View {
             return
         }
 
-        let shouldRunPlanInline = coderMode == .agent && planToggleEnabled
+        let shouldRunPlanInline = coderMode == .agent && (planToggleEnabled || showPlanPanel)
 
         // 1. Resolve the runtime provider (plan-mode, multi-account, or default)
         guard
@@ -2419,7 +2370,7 @@ struct ChatPanelView: View {
     }
 
     private func openChangedFile(_ repoRelativePath: String) {
-        guard let gitRoot = changedFilesStore.gitRoot else { return }
+        guard let gitRoot = gitPanelStore.gitRoot else { return }
         let absolutePath = URL(fileURLWithPath: gitRoot).appendingPathComponent(repoRelativePath)
             .path
         let gitService = GitService()
@@ -2457,33 +2408,24 @@ struct ChatPanelView: View {
 
     private func streamingReasoningText(for message: ChatMessage) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
-        let raw = taskActivityStore.activities
-            .reversed()
-            .first {
-                $0.phase == .thinking
-                    && !((
-                        $0.payload["output"]
-                            ?? $0.payload["text"]
-                            ?? $0.payload["reasoning"]
-                            ?? $0.payload["thinking"]
-                            ?? $0.payload["content"]
-                            ?? $0.payload["detail"]
-                            ?? $0.payload["summary"]
-                            ?? ""
-                    ).trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ).isEmpty)
-            }
-            .flatMap {
-                $0.payload["output"]
-                    ?? $0.payload["text"]
-                    ?? $0.payload["reasoning"]
-                    ?? $0.payload["thinking"]
-                    ?? $0.payload["content"]
-                    ?? $0.payload["detail"]
-                    ?? $0.payload["summary"]
-            }
-        let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let activities = taskActivityStore.activities
+        let thinkingActivity = activities.reversed().first { act in
+            act.phase == .thinking && !(payloadText(act) ?? "").trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+            ).isEmpty
+        }
+        let raw = thinkingActivity.flatMap { payloadText($0) }
+        let text = raw?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         return text.isEmpty ? nil : text
+    }
+
+    private func payloadText(_ activity: TaskActivity) -> String? {
+        activity.payload["output"]
+            ?? activity.payload["text"]
+            ?? activity.payload["reasoning"]
+            ?? activity.payload["thinking"]
+            ?? activity.payload["content"]
+            ?? activity.payload["detail"]
+            ?? activity.payload["summary"]
     }
 }

@@ -50,6 +50,7 @@ struct ModeControlsBarView: View {
     let onSyncPlanProvider: () -> Void
     let onDelegateToAgent: () -> Void
     let attachedImageURLs: [URL]
+    @Binding var showPlanPanel: Bool
 
     // MARK: - Body
 
@@ -81,17 +82,20 @@ struct ModeControlsBarView: View {
             codexReasoningPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
+                planButton
                 formicaButton
             }
 
         case "gemini-cli":
             geminiModelPicker
             if coderMode == .agent || coderMode == .agentSwarm {
+                planButton
                 formicaButton
             }
 
         case "claude-cli":
             if coderMode == .agent || coderMode == .agentSwarm {
+                planButton
                 formicaButton
             }
 
@@ -106,6 +110,7 @@ struct ModeControlsBarView: View {
             }
             .buttonStyle(.plain)
             if coderMode == .agent || coderMode == .agentSwarm {
+                planButton
                 formicaButton
             }
 
@@ -119,6 +124,7 @@ struct ModeControlsBarView: View {
         default:
             if [.agent, .agentSwarm, .plan].contains(coderMode) {
                 Spacer()
+                planButton
                 formicaButton
             } else if coderMode == .ide {
                 Spacer()
@@ -468,6 +474,28 @@ struct ModeControlsBarView: View {
         }
         .buttonStyle(.plain)
         .help("Task Activity Panel")
+    }
+
+    // MARK: - Plan Button
+
+    private var planButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                showPlanPanel.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.caption2)
+                Text("Plan")
+                    .font(.caption)
+            }
+            .foregroundStyle(
+                showPlanPanel ? DesignSystem.Colors.planColor : .secondary
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Plan panel (Shift+Tab)")
     }
 
     // MARK: - Delegate to Agent Button

@@ -2,20 +2,21 @@ import XCTest
 @testable import CoderIDE
 
 final class CheckpointGitStoreTests: XCTestCase {
-    private var repoURL: URL!
+    private var repoURL: URL?
     private let gitStore = ConversationCheckpointGitStore()
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         let base = FileManager.default.temporaryDirectory
-        repoURL = base.appendingPathComponent("checkpoint-git-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: repoURL, withIntermediateDirectories: true)
-        try run(["init"], cwd: repoURL.path)
-        try run(["config", "user.email", "test@example.com"], cwd: repoURL.path)
-        try run(["config", "user.name", "Checkpoint Test"], cwd: repoURL.path)
-        try "v1".write(to: repoURL.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
-        try run(["add", "."], cwd: repoURL.path)
-        try run(["commit", "-m", "init"], cwd: repoURL.path)
+        let repo = base.appendingPathComponent("checkpoint-git-\(UUID().uuidString)")
+        repoURL = repo
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try run(["init"], cwd: repo.path)
+        try run(["config", "user.email", "test@example.com"], cwd: repo.path)
+        try run(["config", "user.name", "Checkpoint Test"], cwd: repo.path)
+        try "v1".write(to: repo.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
+        try run(["add", "."], cwd: repo.path)
+        try run(["commit", "-m", "init"], cwd: repo.path)
     }
 
     override func tearDownWithError() throws {
@@ -27,20 +28,22 @@ final class CheckpointGitStoreTests: XCTestCase {
 
     func testCaptureAndRestoreTrackedAndUntracked() throws {
         let convId = UUID()
-        let snap = try gitStore.captureSnapshot(conversationId: convId, workingDirectory: repoURL.path)
+        let repo = try XCTUnwrap(repoURL)
+        let snap = try gitStore.captureSnapshot(conversationId: convId, workingDirectory: repo.path)
 
-        try "v2".write(to: repoURL.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
-        try "tmp".write(to: repoURL.appendingPathComponent("untracked.txt"), atomically: true, encoding: .utf8)
+        try "v2".write(to: repo.appendingPathComponent("tracked.txt"), atomically: true, encoding: .utf8)
+        try "tmp".write(to: repo.appendingPathComponent("untracked.txt"), atomically: true, encoding: .utf8)
 
         try gitStore.restoreSnapshot(ref: snap.ref, gitRoot: snap.gitRoot)
 
-        let tracked = try String(contentsOf: repoURL.appendingPathComponent("tracked.txt"), encoding: .utf8)
+        let tracked = try String(contentsOf: repo.appendingPathComponent("tracked.txt"), encoding: .utf8)
         XCTAssertEqual(tracked, "v1")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: repoURL.appendingPathComponent("untracked.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repo.appendingPathComponent("untracked.txt").path))
     }
 
     func testRestoreFailsForInvalidRef() throws {
-        XCTAssertThrowsError(try gitStore.restoreSnapshot(ref: "deadbeef", gitRoot: repoURL.path))
+        let repo = try XCTUnwrap(repoURL)
+        XCTAssertThrowsError(try gitStore.restoreSnapshot(ref: "deadbeef", gitRoot: repo.path))
     }
 
     private func run(_ args: [String], cwd: String) throws {

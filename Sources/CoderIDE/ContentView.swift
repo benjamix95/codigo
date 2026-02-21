@@ -10,11 +10,15 @@ struct ContentView: View {
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
+    @EnvironmentObject var todoStore: TodoStore
+    @EnvironmentObject var taskActivityStore: TaskActivityStore
+    @EnvironmentObject var gitPanelStore: GitPanelStore
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
     @State private var terminalHeight: CGFloat = 200
     @State private var showSettings = false
+    @State private var showPlanPanel = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -24,7 +28,7 @@ struct ContentView: View {
                 .environmentObject(workspaceStore)
                 .environmentObject(projectContextStore)
                 .environmentObject(openFilesStore)
-                .navigationSplitViewColumnWidth(min: 250, ideal: 290, max: 360)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 420)
         } detail: {
             HStack(spacing: 6) {
                 if showEditorPanel {
@@ -33,6 +37,34 @@ struct ContentView: View {
                 }
                 chatPanel
                     .frame(minWidth: 380, idealWidth: 500)
+                if showPlanPanel {
+                    PlanPanelView(
+                        todoStore: todoStore,
+                        chatStore: chatStore,
+                        taskActivityStore: taskActivityStore,
+                        conversationId: selectedConversationId,
+                        planningState: .idle,
+                        onClose: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showPlanPanel = false
+                            }
+                        },
+                        onSelectOption: { _ in },
+                        onCustomResponse: { _ in }
+                    )
+                    .environmentObject(providerRegistry)
+                    .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+                if gitPanelStore.isOpen {
+                    GitPanelView(
+                        store: gitPanelStore,
+                        effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
+                        onOpenFile: { openFilesStore.openFile($0) }
+                    )
+                    .environmentObject(providerRegistry)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 6)
@@ -45,10 +77,32 @@ struct ContentView: View {
             guard selectedConversationId == nil else {
                 return
             }
-            let defaultContextId = workspaceStore.activeWorkspaceId ?? projectContextStore.activeContextId
-            let agentConversationId = chatStore.getOrCreateConversationForMode(contextId: defaultContextId, mode: .agent)
-            selectedConversationId = agentConversationId
-            let agentConv = chatStore.conversation(for: agentConversationId)
+            // Preferisce projectContextStore: è l'ultimo contesto effettivamente usato.
+            let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+            let ctx = projectContextStore.context(id: defaultContextId)
+            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+            // Un solo thread per contesto: usa lastActive o riusa un thread esistente, creando
+            // un nuovo thread solo quando non esiste nessun candidato.
+            if let contextId = defaultContextId,
+               let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
+               let lastConv = chatStore.conversation(for: lastId),
+               lastConv.contextId == contextId,
+               !lastConv.isArchived {
+                selectedConversationId = lastId
+            } else {
+                let reusableConversation = chatStore.conversations.first { conv in
+                    !conv.isArchived
+                        && conv.contextId == defaultContextId
+                        && conv.contextFolderPath == folderScope
+                        && (conv.mode == nil || conv.mode == .agent)
+                }
+                selectedConversationId = reusableConversation?.id ?? chatStore.createConversation(
+                    contextId: defaultContextId,
+                    contextFolderPath: folderScope,
+                    mode: nil
+                )
+            }
+            let agentConv = chatStore.conversation(for: selectedConversationId)
             if let preferred = agentConv?.preferredProviderId,
                ProviderSupport.isAgentCompatibleProvider(id: preferred),
                providerRegistry.provider(for: preferred) != nil {
@@ -77,6 +131,7 @@ struct ContentView: View {
             if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
                lastConv.contextId == newContextId,
+               !lastConv.isArchived,
                lastConv.messages.contains(where: { $0.role == .user }) {
                 selectedConversationId = lastId
             } else {
@@ -176,7 +231,8 @@ struct ContentView: View {
     private var chatPanel: some View {
         ChatPanelView(
             selectedConversationId: $selectedConversationId,
-            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
+            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
+            showPlanPanel: $showPlanPanel
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)

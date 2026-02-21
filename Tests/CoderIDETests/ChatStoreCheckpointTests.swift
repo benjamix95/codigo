@@ -16,12 +16,9 @@ final class ChatStoreCheckpointTests: XCTestCase {
         super.tearDown()
     }
 
-    func testCreateCheckpointPersistsGitMetadata() {
+    func testCreateCheckpointPersistsGitMetadata() throws {
         let store = ChatStore()
-        guard let convId = store.conversations.first?.id else {
-            XCTFail("Conversation mancante")
-            return
-        }
+        let convId = try conversationID(from: store)
         store.addMessage(ChatMessage(role: .user, content: "ciao"), to: convId)
 
         let gitState = ConversationCheckpointGitState(
@@ -35,12 +32,9 @@ final class ChatStoreCheckpointTests: XCTestCase {
         XCTAssertEqual(checkpoint?.gitStates, [gitState])
     }
 
-    func testRewindConversationStateTrimsMessagesAndPlanBoard() {
+    func testRewindConversationStateTrimsMessagesAndPlanBoard() throws {
         let store = ChatStore()
-        guard let convId = store.conversations.first?.id else {
-            XCTFail("Conversation mancante")
-            return
-        }
+        let convId = try conversationID(from: store)
         store.addMessage(ChatMessage(role: .user, content: "m1"), to: convId)
         let board = PlanBoard(goal: "goal", options: [PlanOption(id: 1, title: "A", fullText: "A")], chosenPath: nil, steps: [], updatedAt: .now)
         store.setPlanBoard(board, for: convId)
@@ -60,12 +54,9 @@ final class ChatStoreCheckpointTests: XCTestCase {
         XCTAssertFalse(store.canRewind(conversationId: convId))
     }
 
-    func testTrimFutureCheckpointsRemovesNewerMessageCounts() {
+    func testTrimFutureCheckpointsRemovesNewerMessageCounts() throws {
         let store = ChatStore()
-        guard let convId = store.conversations.first?.id else {
-            XCTFail("Conversation mancante")
-            return
-        }
+        let convId = try conversationID(from: store)
         store.addMessage(ChatMessage(role: .user, content: "a"), to: convId)
         store.createCheckpoint(for: convId, gitStates: [])
         store.addMessage(ChatMessage(role: .assistant, content: "b"), to: convId)
@@ -78,8 +69,30 @@ final class ChatStoreCheckpointTests: XCTestCase {
         XCTAssertEqual(cps.first?.messageCount, 1)
     }
 
+    func testCheckpointLookupUsesZeroBasedMessageIndex() throws {
+        let store = ChatStore()
+        let convId = try conversationID(from: store)
+        store.addMessage(ChatMessage(role: .user, content: "first"), to: convId)
+        store.createCheckpoint(for: convId, gitStates: [])
+        store.addMessage(ChatMessage(role: .assistant, content: "reply"), to: convId)
+        store.addMessage(ChatMessage(role: .user, content: "second"), to: convId)
+        store.createCheckpoint(for: convId, gitStates: [])
+
+        let firstCheckpoint = store.checkpoint(forMessageIndex: 0, conversationId: convId)
+        let secondCheckpoint = store.checkpoint(forMessageIndex: 2, conversationId: convId)
+
+        XCTAssertNotNil(firstCheckpoint)
+        XCTAssertEqual(firstCheckpoint?.messageCount, 1)
+        XCTAssertNotNil(secondCheckpoint)
+        XCTAssertEqual(secondCheckpoint?.messageCount, 3)
+    }
+
     private func clearPersistedState() {
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: planKey)
+    }
+
+    private func conversationID(from store: ChatStore) throws -> UUID {
+        try XCTUnwrap(store.conversations.first?.id, "Conversation mancante")
     }
 }

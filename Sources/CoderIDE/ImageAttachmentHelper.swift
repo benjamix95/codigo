@@ -38,7 +38,7 @@ enum ImageAttachmentHelper {
     /// Extracts image URL from drop provider (file URL or image data). Returns normalized PNG URL.
     static func imageURLFromDropProvider(_ provider: NSItemProvider) async -> URL? {
         if let url = await withCheckedContinuation({ (cont: CheckedContinuation<URL?, Never>) in
-            provider.loadObject(ofClass: URL.self) { obj, _ in cont.resume(returning: obj as? URL) }
+            _ = provider.loadObject(ofClass: URL.self) { obj, _ in cont.resume(returning: obj) }
         }), url.isFileURL, FileManager.default.fileExists(atPath: url.path),
            let normalized = normalizeToPngIfNeeded(url: url) {
             return normalized

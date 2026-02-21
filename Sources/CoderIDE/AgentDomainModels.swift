@@ -63,11 +63,13 @@ struct PlanBoard: Codable, Equatable {
     var chosenPath: String?
     var steps: [PlanStep]
     var updatedAt: Date
+    /// Walkthrough markdown generated when the plan completes (Antigravity-style summary)
+    var walkthroughMarkdown: String?
 
     static func build(from planContent: String, options: [PlanOption]) -> PlanBoard {
         let goal = PlanBoard.extractGoal(from: planContent)
         let steps = PlanBoard.extractSteps(from: planContent)
-        return PlanBoard(goal: goal, options: options, chosenPath: nil, steps: steps, updatedAt: .now)
+        return PlanBoard(goal: goal, options: options, chosenPath: nil, steps: steps, updatedAt: .now, walkthroughMarkdown: nil)
     }
 
     private static func extractGoal(from text: String) -> String {
