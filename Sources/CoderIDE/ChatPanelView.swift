@@ -1603,6 +1603,7 @@ struct ChatPanelView: View {
                 let lastContent = chatStore.conversation(for: agentConvId)?
                     .messages.last(where: { $0.role == .assistant })?.content ?? ""
                 turnTimelineStore.finalize(lastFullText: lastContent)
+                chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                 chatStore.updateLastAssistantMessage(
                     content: "[Errore: \(error.localizedDescription)]", in: agentConvId)
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
