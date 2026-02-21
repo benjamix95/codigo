@@ -116,6 +116,7 @@ struct ChatPanelView: View {
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
     private let topInteractiveInset: CGFloat = 22
+    private let chatColumnMaxWidth: CGFloat = 980
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
@@ -539,7 +540,7 @@ struct ChatPanelView: View {
                 in: RoundedRectangle(cornerRadius: 8)
             )
         }
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: 760, alignment: .leading)
     }
 
     private func timelineStreamingPlaceholder(statusText: String) -> some View {
@@ -553,7 +554,7 @@ struct ChatPanelView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: 760, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
@@ -713,6 +714,9 @@ struct ChatPanelView: View {
                     }
                 }
                 .padding(.top, 8).padding(.bottom, 16)
+                .frame(maxWidth: chatColumnMaxWidth)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 16)
             }
             .onChange(of: chatStore.conversation(for: conversationId)?.messages.last?.content ?? "")
             { _, _ in

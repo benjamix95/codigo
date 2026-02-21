@@ -13,6 +13,8 @@ struct MessageRow: View {
     let streamingDetailText: String?
     let streamingReasoningText: String?
     let onFileClicked: (String) -> Void
+    var onRestoreCheckpoint: (() -> Void)? = nil
+    var canRestoreCheckpoint: Bool = false
     @State private var isHovered = false
     @State private var isReasoningExpanded = false
     @Environment(\.colorScheme) private var colorScheme
@@ -46,6 +48,19 @@ struct MessageRow: View {
                     Text(isUser ? "Tu" : "Coder AI")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isUser ? Color.accentColor : modeColor)
+                    if isUser {
+                        Button {
+                            onRestoreCheckpoint?()
+                        } label: {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(canRestoreCheckpoint ? .primary : .tertiary)
+                        .disabled(!canRestoreCheckpoint)
+                        .help("Ripristina chat e file da questo punto")
+                        .accessibilityLabel("Ripristina checkpoint")
+                    }
                     if !isUser {
                         Image(systemName: "sparkle")
                             .font(.system(size: 8, weight: .bold))
@@ -61,24 +76,16 @@ struct MessageRow: View {
                     onFileClicked: onFileClicked,
                     textAlignment: isUser ? .trailing : .leading
                 )
-                .frame(maxWidth: 380, alignment: isUser ? .trailing : .leading)
+                .frame(maxWidth: 620, alignment: isUser ? .trailing : .leading)
                 if isActivelyStreaming { streamingBar }
             }
             if isUser { avatar }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
-        .frame(maxWidth: 420, alignment: isUser ? .trailing : .leading)
-        .fixedSize(horizontal: true, vertical: false)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(bubbleBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.7)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        .frame(maxWidth: 760, alignment: isUser ? .trailing : .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .modifier(MessageBubbleModifier(isUser: isUser, bubbleBackground: bubbleBackground))
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.1), value: isHovered)
     }
@@ -213,6 +220,30 @@ struct MessageRow: View {
             }
         }
         .padding(.bottom, 4)
+    }
+}
+
+// MARK: - Message Bubble (solo per messaggi utente)
+private struct MessageBubbleModifier: ViewModifier {
+    let isUser: Bool
+    let bubbleBackground: Color
+
+    func body(content: Content) -> some View {
+        if isUser {
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(bubbleBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.7)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        } else {
+            content
+        }
     }
 }
 
