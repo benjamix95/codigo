@@ -433,7 +433,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
 
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|panel_write|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|[^\n\r]*"#,
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|panel_write|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|[^\n\r]*"#,
             with: "",
             options: .regularExpression
         )

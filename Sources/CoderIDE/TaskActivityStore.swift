@@ -269,7 +269,7 @@ final class TaskActivityStore: ObservableObject {
                  "web_search", "web_search_started", "web_search_completed", "web_search_failed",
                  "mcp_tool_call",
                  "process_paused", "process_resumed",
-                 "plan_step_update", "planning_auto_reset",
+                 "plan_step", "plan_step_update", "planning_auto_reset",
                  "file_change", "edit":
                 return true
             default:

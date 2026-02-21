@@ -24,9 +24,26 @@ struct PlanCommandParseResult: Equatable {
     let forcePlanInline: Bool
 }
 
+private func hasStrictPlanCommandPrefix(_ text: String) -> Bool {
+    guard text.lowercased().hasPrefix("/plan") else { return false }
+    guard text.count > 5 else { return true }
+    let boundary = text.index(text.startIndex, offsetBy: 5)
+    let next = text[boundary]
+    return next.isWhitespace || next.isNewline
+}
+
+func shouldUseClarificationPrompt(
+    coderMode: CoderMode,
+    planningState: PlanningState,
+    shouldRunPlanInline: Bool
+) -> Bool {
+    guard case .awaitingClarification = planningState else { return false }
+    return coderMode == .plan || shouldRunPlanInline
+}
+
 func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     let text = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard text.lowercased().hasPrefix("/plan") else {
+    guard hasStrictPlanCommandPrefix(text) else {
         return PlanCommandParseResult(
             displayedInput: text,
             llmPromptInput: text,
@@ -2059,12 +2076,11 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: nil,
                     onText: { content in
-                        let cid = agentConvId
-                        Task { @MainActor in
-                            chatStore.updateLastAssistantMessage(content: content, in: cid, persistImmediately: false)
-                            turnTimelineStore.updateLastKnownText(content)
-                            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
-                        }
+                        applyStreamingUpdate(
+                            content: content,
+                            conversationId: agentConvId,
+                            timelineIdGuard: agentConvId
+                        )
                     },
                     onRaw: { t, p, pid in
                         if t == "coderide_show_task_panel" { taskPanelEnabled = true }
@@ -2222,15 +2238,11 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: imageURLsToSend,
                     onText: { content in
-                        let cid = targetConversationId
-                        let tid = timelineConversationId
-                        Task { @MainActor in
-                            chatStore.updateLastAssistantMessage(content: content, in: cid, persistImmediately: false)
-                            if tid == timelineConversationId {
-                                turnTimelineStore.updateLastKnownText(content)
-                            }
-                            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
-                        }
+                        applyStreamingUpdate(
+                            content: content,
+                            conversationId: targetConversationId,
+                            timelineIdGuard: timelineConversationId
+                        )
                     },
                     onRaw: { t, p, pid in
                         handleRawStreamEvent(type: t, payload: p, providerId: pid)
@@ -2428,6 +2440,21 @@ struct ChatPanelView: View {
         recordTaskActivity(type: t, payload: p, providerId: pid)
     }
 
+    private func applyStreamingUpdate(
+        content: String,
+        conversationId: UUID?,
+        timelineIdGuard: UUID?
+    ) {
+        chatStore.updateLastAssistantMessage(
+            content: content,
+            in: conversationId,
+            persistImmediately: false
+        )
+        if timelineIdGuard == timelineConversationId {
+            turnTimelineStore.updateLastKnownText(content)
+        }
+    }
+
     // MARK: - Handle Stream Result (plan options + swarm delegation)
 
     private func handleStreamResult(
@@ -2581,25 +2608,21 @@ struct ChatPanelView: View {
             agentFollowUpProvider: followUpProvider,
             originalPrompt: prompt,
             onSwarmText: { content in
-                let cid = conversationId
-                Task { @MainActor in
-                    chatStore.updateLastAssistantMessage(
-                        content: content, in: cid, persistImmediately: false)
-                    turnTimelineStore.updateLastKnownText(content)
-                    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
-                }
+                applyStreamingUpdate(
+                    content: content,
+                    conversationId: conversationId,
+                    timelineIdGuard: conversationId
+                )
             },
             onRaw: { t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid)
             },
             onFollowUpText: { content in
-                let cid = conversationId
-                Task { @MainActor in
-                    chatStore.updateLastAssistantMessage(
-                        content: content, in: cid, persistImmediately: false)
-                    turnTimelineStore.updateLastKnownText(content)
-                    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
-                }
+                applyStreamingUpdate(
+                    content: content,
+                    conversationId: conversationId,
+                    timelineIdGuard: conversationId
+                )
             },
             onError: { content in
                 DispatchQueue.main.async {

@@ -53,7 +53,7 @@ enum EventNormalizer {
         case "reasoning": kind = .generic
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
-        case "plan_step_update": kind = .planStepUpdate
+        case "plan_step", "plan_step_update": kind = .planStepUpdate
         case "swarm_steps", "agent": kind = .swarmProgress
         case "usage": kind = .usageUpdate
         case "error": kind = .errorDiagnostic
@@ -106,7 +106,7 @@ enum EventNormalizer {
             )
             return events
         }
-        if type == "plan_step_update",
+        if (type == "plan_step" || type == "plan_step_update"),
            let stepId = payload["step_id"],
            let statusRaw = payload["status"],
            let status = PlanStepStatus(rawValue: statusRaw) {
@@ -173,7 +173,7 @@ enum EventNormalizer {
             return .editing
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed":
             return .searching
-        case "plan_step_update":
+        case "plan_step", "plan_step_update":
             return .planning
         default:
             return .thinking

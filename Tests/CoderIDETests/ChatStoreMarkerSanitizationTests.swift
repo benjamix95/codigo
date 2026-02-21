@@ -65,4 +65,18 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertTrue(sanitized.contains("Inizio con una verifica"))
         XCTAssertFalse(sanitized.contains("workflow withInizio"))
     }
+
+    func testStripCoderideMarkersRemovesPlanStepInlineMarkerVariant() {
+        let input = """
+        Procedo markers:plan_step|step_id=1|status=running|poi continuo con l'analisi.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.contains("plan_step|"))
+        XCTAssertFalse(sanitized.contains("step_id=1"))
+        XCTAssertFalse(sanitized.contains("status=running"))
+        XCTAssertTrue(sanitized.contains("Procedo"))
+        XCTAssertTrue(sanitized.contains("poi continuo con l'analisi"))
+    }
 }

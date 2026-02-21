@@ -14,9 +14,9 @@ struct PlanPanelView: View {
     let conversationId: UUID?
     let planningState: PlanningState
     let onClose: () -> Void
-    let onSelectOption: (PlanOption) -> Void
+    let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
-    let onBuild: (String) -> Void
+    let onBuild: (String, String?) -> Void
     let onStop: () -> Void
 
     @State private var planText: String = ""
@@ -55,7 +55,9 @@ struct PlanPanelView: View {
                         PlanOptionsView(
                             options: options,
                             planColor: planColor,
-                            onSelectOption: onSelectOption,
+                            onSelectOption: { option in
+                                onSelectOption(option, planProviderId)
+                            },
                             onCustomResponse: onCustomResponse
                         )
                     }
@@ -328,7 +330,7 @@ struct PlanPanelView: View {
             return
         }
         buildHint = "Build avviata..."
-        onBuild(choice)
+        onBuild(choice, planProviderId)
     }
 
     // MARK: - Bottom Bar

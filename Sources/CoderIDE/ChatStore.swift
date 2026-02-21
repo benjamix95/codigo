@@ -443,8 +443,16 @@ final class ChatStore: ObservableObject {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        objectWillChange.send()
-        conversations[idx].messages[lastIdx].content = Self.stripCoderideMarkers(content)
+        let stripped = Self.stripCoderideMarkers(content)
+        var conv = conversations[idx]
+        var msgs = conv.messages
+        var msg = msgs[lastIdx]
+        msg.content = stripped
+        msgs[lastIdx] = msg
+        conv.messages = msgs
+        var updated = conversations
+        updated[idx] = conv
+        conversations = updated
         if persistImmediately { saveConversations() }
     }
 
@@ -530,19 +538,19 @@ final class ChatStore: ObservableObject {
             options: .regularExpression
         )
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:todo_write|todo_read|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            of: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
             with: "",
             options: .regularExpression
         )
         // Varianti spezzate/troncate dei marker operativi (es. "do_write|", "markersdo_write|").
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
             with: "",
             options: .regularExpression
         )
         // Eventi tecnici che non devono mai apparire nel testo utente.
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|plan_step_update|todo_write|todo_read|instant_grep)\b"#,
+            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#,
             with: "",
             options: .regularExpression
         )
@@ -624,8 +632,15 @@ final class ChatStore: ObservableObject {
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        objectWillChange.send()
-        conversations[idx].messages[lastIdx].isStreaming = streaming
+        var conv = conversations[idx]
+        var msgs = conv.messages
+        var msg = msgs[lastIdx]
+        msg.isStreaming = streaming
+        msgs[lastIdx] = msg
+        conv.messages = msgs
+        var updated = conversations
+        updated[idx] = conv
+        conversations = updated
         saveConversations()
     }
 
