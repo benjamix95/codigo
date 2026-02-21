@@ -147,6 +147,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     var didEmitContextCompacted = false
                     var emittedMarkers = Set<String>()
                     var markerCarry = ""
+                    var scrubCarry = ""
 
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
@@ -204,10 +205,22 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                                 }
                             }
                             if text != lastFullText {
-                                let delta = String(text.dropFirst(lastFullText.count))
-                                lastFullText = text
+                                let delta: String
+                                if text.hasPrefix(lastFullText) {
+                                    delta = String(text.dropFirst(lastFullText.count))
+                                    lastFullText = text
+                                } else if lastFullText.hasPrefix(text) {
+                                    delta = ""
+                                    lastFullText = text
+                                } else {
+                                    delta = text
+                                    lastFullText = text
+                                }
                                 if !delta.isEmpty {
-                                    continuation.yield(.textDelta(delta))
+                                    let cleaned = Self.scrubTechnicalTextChunk(delta, carry: &scrubCarry)
+                                    if !cleaned.isEmpty {
+                                        continuation.yield(.textDelta(cleaned))
+                                    }
                                     for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta, carry: &markerCarry) {
                                         let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
                                         if emittedMarkers.insert(key).inserted {
@@ -403,6 +416,40 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             .replacingOccurrences(of: "\\\\", with: "\\")
             .replacingOccurrences(of: "\\|", with: "|")
             .replacingOccurrences(of: "\\]", with: "]")
+    }
+
+    private static func scrubTechnicalTextChunk(_ input: String, carry: inout String) -> String {
+        var out = carry + input
+        carry = ""
+
+        while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
+            if let end = out[start.lowerBound...].firstIndex(of: "]") {
+                out.removeSubrange(start.lowerBound...end)
+            } else {
+                carry = String(out[start.lowerBound...])
+                out.removeSubrange(start.lowerBound..<out.endIndex)
+                break
+            }
+        }
+
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|panel_write|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|[^\n\r]*"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^|\n\r\]]+(?:\||\])?"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
+            of: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+        out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private static func titleForType(_ type: String, item: [String: Any]) -> String {

@@ -25,6 +25,13 @@ struct MessageRow: View {
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
     }
+    
+    /// Mostra la barra streaming solo quando c'è reasoning interno reale.
+    private var shouldShowStreamingBar: Bool {
+        guard isActivelyStreaming else { return false }
+        let reasoning = streamingReasoningText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !reasoning.isEmpty
+    }
 
     private var isUser: Bool { message.role == .user }
     private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
@@ -112,7 +119,7 @@ struct MessageRow: View {
                     .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 }
                 .padding(.vertical, 4)
-                if isActivelyStreaming { streamingBar }
+                if shouldShowStreamingBar { streamingBar }
             }
         }
     }

@@ -414,11 +414,37 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
-    func updateLastAssistantMessage(content: String, in conversationId: UUID?) {
+    /// - Parameter persistImmediately: se false, salta saveConversations (usare durante streaming per non bloccare il main thread con I/O).
+    func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        // #region agent log
+        let logPath = "/Users/benjaminstoica/codigo/.cursor/debug-93c771.log"
+        let payload: [String: Any] = [
+            "sessionId": "93c771",
+            "location": "ChatStore.swift:updateLastAssistantMessage",
+            "message": "updateLastAssistantMessage",
+            "data": ["contentLen": content.count, "hypothesisId": "A", "persistImmediately": persistImmediately, "isMainThread": Thread.isMainThread] as [String: Any],
+            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
+            "hypothesisId": "B",
+        ]
+        if let json = try? JSONSerialization.data(withJSONObject: payload),
+           let line = String(data: json, encoding: .utf8),
+           let data = (line + "\n").data(using: .utf8) {
+            let url = URL(fileURLWithPath: logPath)
+            if FileManager.default.fileExists(atPath: logPath),
+               let handle = try? FileHandle(forWritingTo: url) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                try? handle.close()
+            } else {
+                try? data.write(to: url)
+            }
+        }
+        // #endregion
+        objectWillChange.send()
         conversations[idx].messages[lastIdx].content = Self.stripCoderideMarkers(content)
-        saveConversations()
+        if persistImmediately { saveConversations() }
     }
 
     /// Rimuove marker CODERIDE alla sorgente per evitare flash durante lo streaming.
@@ -467,6 +493,16 @@ final class ChatStore: ObservableObject {
                 in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
             )
         }
+        // 4b. Rimuove boilerplate operativi iniziali prima della risposta utile.
+        if let initBoilerplateRegex = try? NSRegularExpression(
+            pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
+            options: [.caseInsensitive, .anchorsMatchLines]
+        ) {
+            let ns = out as NSString
+            out = initBoilerplateRegex.stringByReplacingMatches(
+                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+            )
+        }
         // Marker inline "markers:todo_write|..." o "todo_write|..."
         out = out.replacingOccurrences(
             of: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#,
@@ -478,9 +514,33 @@ final class ChatStore: ObservableObject {
             with: "",
             options: .regularExpression
         )
+        // Varianti spezzate/troncate dei marker operativi (es. "do_write|", "markersdo_write|").
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step_update|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            with: "",
+            options: .regularExpression
+        )
+        // Eventi tecnici che non devono mai apparire nel testo utente.
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|plan_step_update|todo_write|todo_read|instant_grep)\b"#,
+            with: "",
+            options: .regularExpression
+        )
+        // Se un marker si incolla al testo, separa il token key=value prima della rimozione.
+        out = out.replacingOccurrences(
+            of: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#,
+            with: "$1 $2",
+            options: .regularExpression
+        )
         // Rimuove singoli frammenti key=value tipici dei marker operativi.
         out = out.replacingOccurrences(
             of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
+            with: "",
+            options: .regularExpression
+        )
+        // Fallback key=value con chiusura ] (es. files=Sources/..]).
+        out = out.replacingOccurrences(
+            of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#,
             with: "",
             options: .regularExpression
         )
@@ -544,6 +604,7 @@ final class ChatStore: ObservableObject {
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        objectWillChange.send()
         conversations[idx].messages[lastIdx].isStreaming = streaming
         saveConversations()
     }

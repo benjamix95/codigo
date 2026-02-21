@@ -398,6 +398,15 @@ struct ChatPanelView: View {
         streamingStatusText: String,
         streamingReasoningText: String?
     ) -> some View {
+        let fallback = fallbackContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasAssistantTextSegment = turnTimelineStore.segments.contains { segment in
+            if case .assistantText(let text, _) = segment {
+                let visible = ChatStore.stripCoderideMarkers(text)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return !visible.isEmpty
+            }
+            return false
+        }
         VStack(alignment: .leading, spacing: 12) {
             ForEach(turnTimelineStore.segments) { segment in
                 switch segment {
@@ -427,18 +436,15 @@ struct ChatPanelView: View {
                     context: effectiveContext.context,
                     onFileClicked: { openFilesStore.openFile($0) }
                 )
-            } else if turnTimelineStore.segments.isEmpty {
-                let fallback = fallbackContent.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !fallback.isEmpty {
-                    AssistantTextChunkView(
-                        text: fallback,
-                        modeColor: activeModeColor,
-                        context: effectiveContext.context,
-                        onFileClicked: { openFilesStore.openFile($0) }
-                    )
-                } else {
-                    timelineStreamingPlaceholder(statusText: streamingStatusText)
-                }
+            } else if !fallback.isEmpty && (!hasAssistantTextSegment || chatStore.isLoading) {
+                // Durante lo stream mostra sempre il testo assistant disponibile,
+                // anche se sono già presenti segmenti tecnici (thinking/tool).
+                AssistantTextChunkView(
+                    text: fallback,
+                    modeColor: activeModeColor,
+                    context: effectiveContext.context,
+                    onFileClicked: { openFilesStore.openFile($0) }
+                )
             }
             if let reasoning = streamingReasoningText, !reasoning.isEmpty {
                 timelineReasoningStream(reasoning: reasoning)
@@ -520,11 +526,14 @@ struct ChatPanelView: View {
                             let message = item.element
                             let isLast = message.id == lastMsg?.id
                             let isLastAssistant = lastMsg?.role == .assistant && isLast
+                            let assistantTextVisible =
+                                !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             let useTimeline =
                                 isLastAssistant
                                 && chatStore.isLoading
                                 && supportsInlineTimelineMode
                                 && conv.id == timelineConversationId
+                                && !assistantTextVisible
                             let userMessageCheckpoint = message.role == .user
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
@@ -1687,8 +1696,10 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: nil,
                     onText: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
-                        turnTimelineStore.updateLastKnownText(content)
+                        Task { @MainActor in
+                            chatStore.updateLastAssistantMessage(content: content, in: agentConvId, persistImmediately: false)
+                            turnTimelineStore.updateLastKnownText(content)
+                        }
                     },
                     onRaw: { t, p, pid in
                         if t == "coderide_show_task_panel" { taskPanelEnabled = true }
@@ -1833,9 +1844,13 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: imageURLsToSend,
                     onText: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
-                        if timelineConversationId == targetConversationId {
-                            turnTimelineStore.updateLastKnownText(content)
+                        let cid = targetConversationId
+                        let tid = timelineConversationId
+                        Task { @MainActor in
+                            chatStore.updateLastAssistantMessage(content: content, in: cid, persistImmediately: false)
+                            if tid == timelineConversationId {
+                                turnTimelineStore.updateLastKnownText(content)
+                            }
                         }
                     },
                     onRaw: { t, p, pid in
@@ -2116,17 +2131,23 @@ struct ChatPanelView: View {
             agentFollowUpProvider: followUpProvider,
             originalPrompt: prompt,
             onSwarmText: { content in
-                chatStore.updateLastAssistantMessage(
-                    content: content, in: conversationId)
-                turnTimelineStore.updateLastKnownText(content)
+                let cid = conversationId
+                Task { @MainActor in
+                    chatStore.updateLastAssistantMessage(
+                        content: content, in: cid, persistImmediately: false)
+                    turnTimelineStore.updateLastKnownText(content)
+                }
             },
             onRaw: { t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid)
             },
             onFollowUpText: { content in
-                chatStore.updateLastAssistantMessage(
-                    content: content, in: conversationId)
-                turnTimelineStore.updateLastKnownText(content)
+                let cid = conversationId
+                Task { @MainActor in
+                    chatStore.updateLastAssistantMessage(
+                        content: content, in: cid, persistImmediately: false)
+                    turnTimelineStore.updateLastKnownText(content)
+                }
             },
             onError: { content in
                 chatStore.updateLastAssistantMessage(
@@ -2383,16 +2404,17 @@ struct ChatPanelView: View {
         if executionController.runState == .paused {
             return "In pausa..."
         }
-        guard let last = taskActivityStore.activities.last else { return "Sto pensando..." }
+        guard let last = taskActivityStore.activities.last else { return "Sto scrivendo..." }
         switch last.phase {
         case .executing:
-            return "Sto eseguendo..."
+            return "In esecuzione..."
         case .editing:
             return "Sto scrivendo..."
         case .searching:
             return "Ricerca web in corso..."
         case .planning, .thinking:
-            return "Sto pensando..."
+            // Mostra "Sto pensando..." solo se c'è reasoning effettivo visibile.
+            return streamingReasoningText(for: message) == nil ? "Sto scrivendo..." : "Sto pensando..."
         }
     }
 
