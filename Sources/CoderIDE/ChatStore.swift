@@ -1,24 +1,40 @@
 import SwiftUI
 import CoderEngine
 
+struct PlanAttachment: Codable, Equatable {
+    var historyEntryId: UUID
+    var layoutVersion: Int
+    var showExpand: Bool
+    var snapshotTitle: String
+}
+
 struct ChatMessage: Identifiable, Codable {
     var id: UUID
     var role: Role
     var content: String
     var isStreaming: Bool
     var imagePaths: [String]?
+    var planAttachment: PlanAttachment?
 
     enum Role: String, Codable {
         case user
         case assistant
     }
 
-    init(id: UUID = UUID(), role: Role, content: String, isStreaming: Bool = false, imagePaths: [String]? = nil) {
+    init(
+        id: UUID = UUID(),
+        role: Role,
+        content: String,
+        isStreaming: Bool = false,
+        imagePaths: [String]? = nil,
+        planAttachment: PlanAttachment? = nil
+    ) {
         self.id = id
         self.role = role
         self.content = content
         self.isStreaming = isStreaming
         self.imagePaths = imagePaths
+        self.planAttachment = planAttachment
     }
 }
 
@@ -154,6 +170,7 @@ final class ChatStore: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var isLoading = false
     @Published var taskStartDate: Date?
+    @Published var activeTaskConversationId: UUID?
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
 
     init() {
@@ -404,6 +421,14 @@ final class ChatStore: ObservableObject {
         return conversations.first { $0.id == id }
     }
 
+    func isAssistantStreaming(in conversationId: UUID?) -> Bool {
+        guard let conversation = conversation(for: conversationId) else { return false }
+        guard let lastAssistant = conversation.messages.last(where: { $0.role == .assistant }) else {
+            return false
+        }
+        return lastAssistant.isStreaming
+    }
+
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         conversations[idx].messages.append(message)
@@ -418,30 +443,6 @@ final class ChatStore: ObservableObject {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        // #region agent log
-        let logPath = "/Users/benjaminstoica/codigo/.cursor/debug-93c771.log"
-        let payload: [String: Any] = [
-            "sessionId": "93c771",
-            "location": "ChatStore.swift:updateLastAssistantMessage",
-            "message": "updateLastAssistantMessage",
-            "data": ["contentLen": content.count, "hypothesisId": "A", "persistImmediately": persistImmediately, "isMainThread": Thread.isMainThread] as [String: Any],
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            "hypothesisId": "B",
-        ]
-        if let json = try? JSONSerialization.data(withJSONObject: payload),
-           let line = String(data: json, encoding: .utf8),
-           let data = (line + "\n").data(using: .utf8) {
-            let url = URL(fileURLWithPath: logPath)
-            if FileManager.default.fileExists(atPath: logPath),
-               let handle = try? FileHandle(forWritingTo: url) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                try? handle.close()
-            } else {
-                try? data.write(to: url)
-            }
-        }
-        // #endregion
         objectWillChange.send()
         conversations[idx].messages[lastIdx].content = Self.stripCoderideMarkers(content)
         if persistImmediately { saveConversations() }
@@ -494,12 +495,31 @@ final class ChatStore: ObservableObject {
             )
         }
         // 4b. Rimuove boilerplate operativi iniziali prima della risposta utile.
+        if let bugReviewRegex = try? NSRegularExpression(
+            pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines]
+        ) {
+            let ns = out as NSString
+            out = bugReviewRegex.stringByReplacingMatches(
+                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+            )
+        }
         if let initBoilerplateRegex = try? NSRegularExpression(
             pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
             options: [.caseInsensitive, .anchorsMatchLines]
         ) {
             let ns = out as NSString
             out = initBoilerplateRegex.stringByReplacingMatches(
+                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+            )
+        }
+        // 4c. Rimuove heading/righe operative di "progress commentary" trapelate nello stream.
+        if let progressHeadingRegex = try? NSRegularExpression(
+            pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines]
+        ) {
+            let ns = out as NSString
+            out = progressHeadingRegex.stringByReplacingMatches(
                 in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
             )
         }
@@ -609,14 +629,33 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
-    func beginTask() {
+    func beginTask(conversationId: UUID?) {
         isLoading = true
         taskStartDate = Date()
+        activeTaskConversationId = conversationId
     }
 
-    func endTask() {
+    // Compat legacy call sites.
+    func beginTask() {
+        beginTask(conversationId: activeTaskConversationId)
+    }
+
+    func endTask(conversationId: UUID?) {
+        // Evita che uno stop fuori contesto resetti task ancora attivo in altro thread.
+        if let active = activeTaskConversationId,
+            let conversationId,
+            active != conversationId
+        {
+            return
+        }
         isLoading = false
         taskStartDate = nil
+        activeTaskConversationId = nil
+    }
+
+    // Compat legacy call sites.
+    func endTask() {
+        endTask(conversationId: activeTaskConversationId)
     }
 
     func setPlanBoard(_ board: PlanBoard, for conversationId: UUID?) {
@@ -636,6 +675,88 @@ final class ChatStore: ObservableObject {
     func planBoard(for conversationId: UUID?) -> PlanBoard? {
         guard let conversationId else { return nil }
         return planBoards[conversationId]
+    }
+
+    func attachPlanEntry(
+        toMessageId messageId: UUID,
+        conversationId: UUID?,
+        entry: PlanHistoryEntry
+    ) {
+        guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let midx = conversations[cidx].messages.firstIndex(where: { $0.id == messageId }) else { return }
+        conversations[cidx].messages[midx].planAttachment = PlanAttachment(
+            historyEntryId: entry.id,
+            layoutVersion: 1,
+            showExpand: true,
+            snapshotTitle: entry.title
+        )
+        saveConversations()
+    }
+
+    @discardableResult
+    func attachPlanEntryToLastAssistant(
+        conversationId: UUID?,
+        entry: PlanHistoryEntry
+    ) -> UUID? {
+        guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+        guard let midx = conversations[cidx].messages.lastIndex(where: { $0.role == .assistant }) else {
+            return nil
+        }
+        let msgId = conversations[cidx].messages[midx].id
+        conversations[cidx].messages[midx].planAttachment = PlanAttachment(
+            historyEntryId: entry.id,
+            layoutVersion: 1,
+            showExpand: true,
+            snapshotTitle: entry.title
+        )
+        saveConversations()
+        return msgId
+    }
+
+    func backfillPlanAttachmentsIfNeeded(historyStore: PlanHistoryStore) {
+        var changed = false
+        for cidx in conversations.indices {
+            let conv = conversations[cidx]
+            for midx in conversations[cidx].messages.indices {
+                var msg = conversations[cidx].messages[midx]
+                guard msg.role == .assistant else { continue }
+                if msg.planAttachment != nil { continue }
+                let opts = PlanOptionsParser.parse(from: msg.content)
+                guard !opts.isEmpty else { continue }
+                let summary = PlanOptionsParser.extractDisplaySummary(from: msg.content)
+                let existing = historyStore.findEntry(
+                    conversationId: conv.id,
+                    sourceMessageId: msg.id
+                )
+                let entry: PlanHistoryEntry
+                if let existing {
+                    entry = existing
+                } else {
+                    entry = historyStore.createEntry(
+                        conversationId: conv.id,
+                        contextId: conv.contextId,
+                        contextFolderPath: conv.contextFolderPath,
+                        title: summary.title,
+                        markdown: msg.content,
+                        options: opts,
+                        chosenPath: nil,
+                        tags: [],
+                        sourceMessageId: msg.id
+                    )
+                }
+                msg.planAttachment = PlanAttachment(
+                    historyEntryId: entry.id,
+                    layoutVersion: 1,
+                    showExpand: true,
+                    snapshotTitle: entry.title
+                )
+                conversations[cidx].messages[midx] = msg
+                changed = true
+            }
+        }
+        if changed {
+            saveConversations()
+        }
     }
 
     func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversationId: UUID?) {

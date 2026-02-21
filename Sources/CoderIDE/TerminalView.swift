@@ -2,8 +2,23 @@ import SwiftUI
 import AppKit
 import SwiftTerm
 
+final class AutoFollowLocalProcessTerminalView: LocalProcessTerminalView {
+    var isAutoFollowEnabled = true
+
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        super.dataReceived(slice: slice)
+        guard isAutoFollowEnabled else { return }
+        // Keep terminal pinned to latest output for live-follow behavior.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.scroll(toPosition: 1.0)
+        }
+    }
+}
+
 struct TerminalPanelView: View {
     let workingDirectory: String?
+    @AppStorage("terminal_auto_follow_output") private var autoFollowOutput = true
 
     init(workingDirectory: String? = nil) {
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
@@ -12,7 +27,10 @@ struct TerminalPanelView: View {
     var body: some View {
         VStack(spacing: 10) {
             terminalHeader
-            TerminalContainerView(workingDirectory: workingDirectory)
+            TerminalContainerView(
+                workingDirectory: workingDirectory,
+                autoFollowOutput: autoFollowOutput
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -113,11 +131,13 @@ struct TerminalPanelView: View {
 
 struct TerminalContainerView: NSViewRepresentable {
     let workingDirectory: String?
+    let autoFollowOutput: Bool
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
-        let view = LocalProcessTerminalView(frame: .zero)
+        let view = AutoFollowLocalProcessTerminalView(frame: .zero)
         view.processDelegate = context.coordinator
         context.coordinator.terminal = view
+        view.isAutoFollowEnabled = autoFollowOutput
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1).cgColor
         view.layer?.cornerCurve = .continuous
@@ -130,7 +150,9 @@ struct TerminalContainerView: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {}
+    func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
+        (nsView as? AutoFollowLocalProcessTerminalView)?.isAutoFollowEnabled = autoFollowOutput
+    }
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     class Coordinator: NSObject, LocalProcessTerminalViewDelegate {

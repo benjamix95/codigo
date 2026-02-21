@@ -13,6 +13,7 @@ struct ContentView: View {
     @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
+    @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -37,25 +38,6 @@ struct ContentView: View {
                 }
                 chatPanel
                     .frame(minWidth: 380, idealWidth: 500)
-                if showPlanPanel {
-                    PlanPanelView(
-                        todoStore: todoStore,
-                        chatStore: chatStore,
-                        taskActivityStore: taskActivityStore,
-                        conversationId: selectedConversationId,
-                        planningState: .idle,
-                        onClose: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showPlanPanel = false
-                            }
-                        },
-                        onSelectOption: { _ in },
-                        onCustomResponse: { _ in }
-                    )
-                    .environmentObject(providerRegistry)
-                    .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
                 if gitPanelStore.isOpen {
                     GitPanelView(
                         store: gitPanelStore,
@@ -123,6 +105,14 @@ struct ContentView: View {
         }
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
+            if let selectedId = selectedConversationId,
+                let selected = chatStore.conversation(for: selectedId),
+                !selected.isArchived,
+                selected.messages.isEmpty
+            {
+                // Se l'utente ha appena creato manualmente un thread vuoto, non sovrascrivere la selezione.
+                return
+            }
             let conv = chatStore.conversation(for: selectedConversationId)
             guard conv?.contextId != newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
@@ -238,6 +228,7 @@ struct ContentView: View {
         .environmentObject(chatStore)
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
+        .environmentObject(planHistoryStore)
         .sidebarPanel(cornerRadius: 14)
     }
 }

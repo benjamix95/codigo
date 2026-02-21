@@ -49,8 +49,10 @@ struct ModeControlsBarView: View {
     let onSyncSwarmProvider: () -> Void
     let onSyncPlanProvider: () -> Void
     let onDelegateToAgent: () -> Void
+    let onOpenPlanPanel: () -> Void
     let attachedImageURLs: [URL]
     @Binding var showPlanPanel: Bool
+    let highlightPlanButton: Bool
 
     // MARK: - Body
 
@@ -481,7 +483,11 @@ struct ModeControlsBarView: View {
     private var planButton: some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                showPlanPanel.toggle()
+                if showPlanPanel {
+                    showPlanPanel = false
+                } else {
+                    onOpenPlanPanel()
+                }
             }
         } label: {
             HStack(spacing: 3) {
@@ -491,11 +497,21 @@ struct ModeControlsBarView: View {
                     .font(.caption)
             }
             .foregroundStyle(
-                showPlanPanel ? DesignSystem.Colors.planColor : .secondary
+                (showPlanPanel || highlightPlanButton) ? DesignSystem.Colors.planColor : .secondary
+            )
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(
+                        (showPlanPanel || highlightPlanButton)
+                            ? DesignSystem.Colors.planColor.opacity(0.14)
+                            : Color.clear
+                    )
             )
         }
         .buttonStyle(.plain)
-        .help("Toggle Plan panel (Shift+Tab)")
+        .help("Apri/chiudi Plan panel (Cmd+Shift+P)")
     }
 
     // MARK: - Delegate to Agent Button

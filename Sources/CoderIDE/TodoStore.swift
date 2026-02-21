@@ -147,6 +147,14 @@ final class TodoStore: ObservableObject {
         return done / Double(todos.count)
     }
 
+    var openTodosCount: Int {
+        todos.filter { $0.status != .done }.count
+    }
+
+    var hasOpenTodos: Bool {
+        openTodosCount > 0
+    }
+
     private func loadTodos() {
         guard let data = UserDefaults.standard.data(forKey: todosStorageKey),
               let decoded = try? JSONDecoder().decode([TodoItem].self, from: data) else {

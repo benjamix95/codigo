@@ -60,9 +60,19 @@ final class TurnTimelineStore: ObservableObject {
         }
     }
 
-    /// Aggiunge una card todo alla timeline (una sola, aggiornata in place).
-    func appendTodoSnapshot() {
-        if !segments.contains(where: { if case .todoSnapshot = $0 { return true }; return false }) {
+    /// Aggiunge una card todo alla timeline.
+    /// Quando `placeAtTop` è true, la card viene ancorata in alto.
+    func appendTodoSnapshot(placeAtTop: Bool = false) {
+        if let idx = segments.firstIndex(where: { if case .todoSnapshot = $0 { return true }; return false }) {
+            if placeAtTop, idx != 0 {
+                let segment = segments.remove(at: idx)
+                segments.insert(segment, at: 0)
+            }
+            return
+        }
+        if placeAtTop {
+            segments.insert(.todoSnapshot(), at: 0)
+        } else {
             segments.append(.todoSnapshot())
         }
     }

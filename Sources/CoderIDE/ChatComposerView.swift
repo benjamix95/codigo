@@ -34,10 +34,12 @@ struct ChatComposerView: View {
     let providerNotReadyMessage: String
     let quickCommandPresets: [QuickCommandPreset]
     let showCodeReviewAutofixToggle: Bool
+    let showPlanRequestIndicator: Bool
     @Binding var codeReviewAutofixEnabled: Bool
 
     let onSend: () -> Void
     let onApplyQuickCommand: (String) -> Void
+    let onInputTextChanged: (String) -> Void
     let onRunQuickCommand: (String) -> Void
 
     // MARK: - Body
@@ -256,6 +258,23 @@ struct ChatComposerView: View {
     private var composerBox: some View {
         HStack(alignment: .bottom, spacing: 10) {
             VStack(alignment: .leading, spacing: 5) {
+                if showPlanRequestIndicator {
+                    HStack(spacing: 6) {
+                        Image(systemName: "list.bullet.rectangle")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.planColor)
+                        Text("Plan attivo")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.planColor)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        DesignSystem.Colors.planColor.opacity(0.14),
+                        in: Capsule()
+                    )
+                }
+
                 // Attached images preview row
                 if !attachedImageURLs.isEmpty {
                     attachedImagesRow
@@ -268,6 +287,9 @@ struct ChatComposerView: View {
                     .lineLimit(1...8)
                     .focused($focusState)
                     .onSubmit { onSend() }
+                    .onChange(of: inputText) { _, newValue in
+                        onInputTextChanged(newValue)
+                    }
                     .onChange(of: isInputFocused) { _, newValue in
                         focusState = newValue
                     }

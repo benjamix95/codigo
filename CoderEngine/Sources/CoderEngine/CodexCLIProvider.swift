@@ -443,6 +443,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             options: .regularExpression
         )
         out = out.replacingOccurrences(
+            of: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
             of: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
             with: "",
             options: .regularExpression

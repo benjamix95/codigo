@@ -1,6 +1,19 @@
 import Foundation
 import CoderEngine
 
+/// Wrapper Sendable per iterator di AsyncSequence, usato per evitare cattura di `var` in closure concorrenti.
+private final class IteratorHolder<Stream: AsyncSequence>: @unchecked Sendable {
+    private var iterator: Stream.AsyncIterator
+
+    init(_ stream: Stream) {
+        self.iterator = stream.makeAsyncIterator()
+    }
+
+    func next() async throws -> Stream.AsyncIterator.Element? {
+        try await iterator.next()
+    }
+}
+
 private enum StreamWatchdogError: LocalizedError {
     case noEvents(timeout: Int)
     case stalled(timeout: Int)
@@ -74,15 +87,15 @@ final class ConversationFlowCoordinator: ObservableObject {
         var full = ""
         var pendingSwarmTask: String?
         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
-        var iterator = stream.makeAsyncIterator()
+        let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
-        let firstEventTimeout = 20
-        let inactivityTimeout = 120
+        let firstEventTimeout = 60
+        let inactivityTimeout = 300
 
         while true {
             let timeout = hasReceivedAnyEvent ? inactivityTimeout : firstEventTimeout
             let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                try await iterator.next()
+                try await iteratorHolder.next()
             }
             guard let ev = maybeEvent else { break }
             hasReceivedAnyEvent = true
@@ -116,7 +129,7 @@ final class ConversationFlowCoordinator: ObservableObject {
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000_000)
-                throw timeout == 20
+                throw timeout <= 60
                     ? StreamWatchdogError.noEvents(timeout: timeout)
                     : StreamWatchdogError.stalled(timeout: timeout)
             }
@@ -144,12 +157,12 @@ final class ConversationFlowCoordinator: ObservableObject {
         do {
             var swarmFull = ""
             let swarmStream = try await swarmProvider.send(prompt: task, context: context, imageURLs: imageURLs)
-            var swarmIterator = swarmStream.makeAsyncIterator()
+            let swarmIteratorHolder = IteratorHolder(swarmStream)
             var swarmReceivedAny = false
             while true {
-                let timeout = swarmReceivedAny ? 120 : 20
+                let timeout = swarmReceivedAny ? 300 : 60
                 let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                    try await swarmIterator.next()
+                    try await swarmIteratorHolder.next()
                 }
                 guard let ev = maybeEvent else { break }
                 swarmReceivedAny = true
@@ -185,12 +198,12 @@ final class ConversationFlowCoordinator: ObservableObject {
             """
             var follow = ""
             let followStream = try await agentProvider.send(prompt: followUpPrompt, context: context, imageURLs: nil)
-            var followIterator = followStream.makeAsyncIterator()
+            let followIteratorHolder = IteratorHolder(followStream)
             var followReceivedAny = false
             while true {
-                let timeout = followReceivedAny ? 120 : 20
+                let timeout = followReceivedAny ? 300 : 60
                 let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                    try await followIterator.next()
+                    try await followIteratorHolder.next()
                 }
                 guard let ev = maybeEvent else { break }
                 followReceivedAny = true

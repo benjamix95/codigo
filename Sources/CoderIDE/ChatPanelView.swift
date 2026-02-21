@@ -14,7 +14,134 @@ enum CoderMode: String, CaseIterable {
 
 enum PlanningState: Equatable {
     case idle
+    case awaitingClarification(questions: String)
     case awaitingChoice(planContent: String, options: [PlanOption])
+}
+
+struct PlanCommandParseResult: Equatable {
+    let displayedInput: String
+    let llmPromptInput: String
+    let forcePlanInline: Bool
+}
+
+func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
+    let text = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard text.lowercased().hasPrefix("/plan") else {
+        return PlanCommandParseResult(
+            displayedInput: text,
+            llmPromptInput: text,
+            forcePlanInline: false
+        )
+    }
+    let remainder = String(text.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
+    let prompt = remainder.isEmpty
+        ? "Genera un planning strutturato con opzioni alternative, pro/contro e complessità."
+        : remainder
+    return PlanCommandParseResult(
+        displayedInput: prompt,
+        llmPromptInput: prompt,
+        forcePlanInline: true
+    )
+}
+
+func isShiftTabShortcut(flags: NSEvent.ModifierFlags, charsIgnoringModifiers: String?, keyCode: UInt16)
+    -> Bool
+{
+    let normalized = flags.intersection(.deviceIndependentFlagsMask)
+    let isBacktabChar = charsIgnoringModifiers == "\u{19}"
+    let isTabKeycode = keyCode == 48
+    return (isBacktabChar || isTabKeycode)
+        && normalized.contains(.shift)
+        && !normalized.contains(.command)
+        && !normalized.contains(.option)
+        && !normalized.contains(.control)
+}
+
+func isCmdShiftPShortcut(flags: NSEvent.ModifierFlags, charsIgnoringModifiers: String?) -> Bool {
+    let normalized = flags.intersection(.deviceIndependentFlagsMask)
+    return normalized.contains(.command)
+        && normalized.contains(.shift)
+        && !normalized.contains(.option)
+        && !normalized.contains(.control)
+        && charsIgnoringModifiers?.lowercased() == "p"
+}
+
+struct ShiftTabPlanShortcutTransition: Equatable {
+    let nextInputText: String
+    let shouldFocusInput: Bool
+    let shouldHighlightPlanToggle: Bool
+    let nextPrimedUntil: Date?
+}
+
+func evaluateShiftTabPlanShortcut(
+    now: Date,
+    primedUntil: Date?,
+    currentInputText: String
+) -> ShiftTabPlanShortcutTransition {
+    if let primedUntil, primedUntil > now {
+        let trimmed = currentInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return ShiftTabPlanShortcutTransition(
+                nextInputText: "/plan ",
+                shouldFocusInput: true,
+                shouldHighlightPlanToggle: false,
+                nextPrimedUntil: nil
+            )
+        }
+        if trimmed.lowercased().hasPrefix("/plan") {
+            return ShiftTabPlanShortcutTransition(
+                nextInputText: currentInputText,
+                shouldFocusInput: true,
+                shouldHighlightPlanToggle: false,
+                nextPrimedUntil: nil
+            )
+        }
+        return ShiftTabPlanShortcutTransition(
+            nextInputText: "/plan " + trimmed,
+            shouldFocusInput: true,
+            shouldHighlightPlanToggle: false,
+            nextPrimedUntil: nil
+        )
+    }
+
+    return ShiftTabPlanShortcutTransition(
+        nextInputText: currentInputText,
+        shouldFocusInput: false,
+        shouldHighlightPlanToggle: true,
+        nextPrimedUntil: now.addingTimeInterval(2.5)
+    )
+}
+
+struct CmdShiftPPlanShortcutTransition: Equatable {
+    let nextPlanToggleEnabled: Bool
+    let nextShowPlanPanel: Bool
+}
+
+func evaluateCmdShiftPPlanShortcut(
+    currentPlanToggleEnabled: Bool,
+    currentShowPlanPanel: Bool
+) -> CmdShiftPPlanShortcutTransition {
+    // 1) off/off -> attiva plan inline (badge in chat)
+    if !currentPlanToggleEnabled && !currentShowPlanPanel {
+        return CmdShiftPPlanShortcutTransition(
+            nextPlanToggleEnabled: true,
+            nextShowPlanPanel: false
+        )
+    }
+
+    // 2) on/off -> apri pannello plan
+    if currentPlanToggleEnabled && !currentShowPlanPanel {
+        return CmdShiftPPlanShortcutTransition(
+            nextPlanToggleEnabled: true,
+            nextShowPlanPanel: true
+        )
+    }
+
+    // 3) qualunque stato con pannello aperto -> spegni tutto
+    return CmdShiftPPlanShortcutTransition(
+        nextPlanToggleEnabled: false,
+        nextShowPlanPanel: false
+    )
 }
 
 private struct InlinePlanSummary: Equatable {
@@ -34,6 +161,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @EnvironmentObject var flowDiagnosticsStore: FlowDiagnosticsStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
+    @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @Binding var selectedConversationId: UUID?
     let effectiveContext: EffectiveContext
 
@@ -97,6 +225,7 @@ struct ChatPanelView: View {
     @State private var isRewinding = false
     @State private var isPlanSummaryCollapsed = false
     @State private var isPlanTabHovered = false
+    @State private var planShortcutPrimedUntil: Date?
     @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State private var hasJustCompletedTask = false
     @State private var showRateLimitAlert = false
@@ -123,47 +252,75 @@ struct ChatPanelView: View {
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
+    private var showPlanRequestIndicator: Bool {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return planToggleEnabled || trimmed.hasPrefix("/plan")
+    }
     private var supportsInlineTimelineMode: Bool {
         coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
     }
+    private var planPanelConversationId: UUID? { conversationId }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Keep tabs out of macOS titlebar hit-test zone while still using full-height content.
-            Color.clear
-                .frame(height: topInteractiveInset)
-                .allowsHitTesting(false)
-            modeTabBar
-            separator
-            chatHeader
+        HStack(spacing: 6) {
+            VStack(spacing: 0) {
+                // Keep tabs out of macOS titlebar hit-test zone while still using full-height content.
+                Color.clear
+                    .frame(height: topInteractiveInset)
+                    .allowsHitTesting(false)
+                modeTabBar
+                separator
+                chatHeader
 
-            if coderMode == .agentSwarm
-                && (!swarmProgressStore.steps.isEmpty
-                    || !TaskActivityStore.laneStates(from: taskActivityStore.activities).isEmpty)
-            {
-                SwarmProgressView(
-                    store: swarmProgressStore,
-                    activities: taskActivityStore.activities,
-                    isTaskRunning: chatStore.isLoading
-                )
+                if coderMode == .agentSwarm
+                    && (!swarmProgressStore.steps.isEmpty
+                        || !TaskActivityStore.laneStates(from: taskActivityStore.activities).isEmpty)
+                {
+                    SwarmProgressView(
+                        store: swarmProgressStore,
+                        activities: taskActivityStore.activities,
+                        isTaskRunning: chatStore.isLoading
+                    )
+                }
+
+                messagesArea
+
+                // Task control bar — FIXED above composer (not in scroll)
+                if chatStore.isLoading || isSummarizing {
+                    TaskControlBar(
+                        chatStore: chatStore,
+                        taskActivityStore: taskActivityStore,
+                        executionController: executionController,
+                        coderMode: coderMode,
+                        isSummarizing: isSummarizing,
+                        activeModeColor: activeModeColor,
+                        onInterrupt: { interruptTask() }
+                    )
+                }
+
+                composerArea
             }
-
-            messagesArea
-
-            // Task control bar — FIXED above composer (not in scroll)
-            if chatStore.isLoading || isSummarizing {
-                TaskControlBar(
+            if showPlanPanel {
+                PlanPanelView(
+                    todoStore: todoStore,
                     chatStore: chatStore,
                     taskActivityStore: taskActivityStore,
-                    executionController: executionController,
-                    coderMode: coderMode,
-                    isSummarizing: isSummarizing,
-                    activeModeColor: activeModeColor,
-                    onInterrupt: { interruptTask() }
+                    conversationId: planPanelConversationId,
+                    planningState: planningState,
+                    onClose: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showPlanPanel = false
+                        }
+                    },
+                    onSelectOption: { executeWithPlanChoice($0.fullText, fromPlanConversationId: planPanelConversationId) },
+                    onCustomResponse: { executeWithPlanChoice($0, fromPlanConversationId: planPanelConversationId) },
+                    onBuild: { executeWithPlanChoice($0, fromPlanConversationId: planPanelConversationId) },
+                    onStop: { interruptTask() }
                 )
+                .id(planPanelConversationId)
+                .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
-
-            composerArea
         }
         .onChange(of: providerRegistry.selectedProviderId) { _, newId in
             syncCoderModeToProvider(newId)
@@ -174,6 +331,11 @@ struct ChatPanelView: View {
                 ignoreNextConversationChangeReset = false
             } else {
                 userModeOverrideUntilConversationChange = false
+            }
+            if showPlanPanel {
+                // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito.
+                planningState = .idle
+                planHistoryStore.setSelectedEntry(id: nil)
             }
             syncProviderFromConversation()
         }
@@ -192,6 +354,7 @@ struct ChatPanelView: View {
         }
         .onChange(of: selectedConversationId) { _, _ in
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            reconcilePlanAutoReset()
         }
         .onChange(of: chatStore.isLoading) { oldValue, newValue in
             if oldValue && !newValue {
@@ -200,6 +363,7 @@ struct ChatPanelView: View {
                 isFollowingLive = true
                 newEventsWhileDetached = 0
             }
+            reconcilePlanAutoReset()
         }
         .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
         .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
@@ -268,8 +432,12 @@ struct ChatPanelView: View {
 
     private func installPasteMonitor() {
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if isShiftTab(event), !isInputFocused {
-                showPlanPanel.toggle()
+            if isCmdShiftP(event) {
+                cyclePlanShortcutState()
+                return nil
+            }
+            if isShiftTab(event) {
+                handleShiftTabPlanShortcut()
                 return nil
             }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
@@ -288,20 +456,87 @@ struct ChatPanelView: View {
     }
 
     private func isShiftTab(_ event: NSEvent) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let isBacktabChar = event.charactersIgnoringModifiers == "\u{19}"
-        let isTabKeycode = event.keyCode == 48
-        return (isBacktabChar || isTabKeycode)
-            && flags.contains(.shift)
-            && !flags.contains(.command)
-            && !flags.contains(.option)
-            && !flags.contains(.control)
+        isShiftTabShortcut(
+            flags: event.modifierFlags,
+            charsIgnoringModifiers: event.charactersIgnoringModifiers,
+            keyCode: event.keyCode
+        )
+    }
+
+    private func isCmdShiftP(_ event: NSEvent) -> Bool {
+        isCmdShiftPShortcut(
+            flags: event.modifierFlags,
+            charsIgnoringModifiers: event.charactersIgnoringModifiers
+        )
     }
 
     private func removePasteMonitor() {
         if let m = pasteMonitor {
             NSEvent.removeMonitor(m)
             pasteMonitor = nil
+        }
+    }
+
+    private func openPlanPanelForCurrentContext(preserveHistorySelection: Bool = false) {
+        // Il toggle Plan deve aprire sempre un workspace vuoto.
+        if !preserveHistorySelection {
+            planHistoryStore.setSelectedEntry(id: nil)
+        }
+        showPlanPanel = true
+    }
+
+    private func cyclePlanShortcutState() {
+        let transition = evaluateCmdShiftPPlanShortcut(
+            currentPlanToggleEnabled: planToggleEnabled,
+            currentShowPlanPanel: showPlanPanel
+        )
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            planToggleEnabled = transition.nextPlanToggleEnabled
+            if transition.nextShowPlanPanel {
+                openPlanPanelForCurrentContext()
+            } else {
+                showPlanPanel = false
+                if !transition.nextPlanToggleEnabled {
+                    planningState = .idle
+                    planHistoryStore.setSelectedEntry(id: nil)
+                }
+            }
+        }
+        isInputFocused = true
+    }
+
+    private func handleShiftTabPlanShortcut() {
+        let transition = evaluateShiftTabPlanShortcut(
+            now: Date(),
+            primedUntil: planShortcutPrimedUntil,
+            currentInputText: inputText
+        )
+        inputText = transition.nextInputText
+        if transition.shouldFocusInput {
+            isInputFocused = true
+        }
+        planShortcutPrimedUntil = transition.nextPrimedUntil
+        if transition.shouldHighlightPlanToggle {
+            isPlanTabHovered = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                isPlanTabHovered = false
+            }
+        }
+    }
+
+    private func downloadPlanEntry(_ entry: PlanHistoryEntry) {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.canCreateDirectories = true
+        let baseName = entry.title.isEmpty ? "PLAN" : entry.title
+        savePanel.nameFieldStringValue = "\(baseName.replacingOccurrences(of: " ", with: "_")).md"
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else { return }
+            do {
+                try entry.markdown.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                flowDiagnosticsStore.setError("Download plan fallito: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -537,7 +772,8 @@ struct ChatPanelView: View {
                             let userMessageCheckpoint = message.role == .user
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
-                            let canRestoreFromMessage = userMessageCheckpoint != nil
+                            let hasCheckpointForMessage = userMessageCheckpoint != nil
+                            let canRewindFromMessage = message.role == .user && !isRewinding
 
                             if isLast && showPanelBeforeLast {
                                 TaskActivityPanel(
@@ -559,6 +795,38 @@ struct ChatPanelView: View {
                                         streamingStatusText: streamingStatusText(for: message),
                                         streamingReasoningText: streamingReasoningText(for: message)
                                     )
+                                } else if message.role == .assistant,
+                                    let attachment = message.planAttachment,
+                                    let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
+                                {
+                                    PlanChatCardView(
+                                        entry: entry,
+                                        onDownload: { downloadPlanEntry(entry) },
+                                        onDuplicate: { _ = planHistoryStore.duplicateEntry(id: entry.id) },
+                                        onRebuild: {
+                                            let choice = (entry.chosenPath?.isEmpty == false)
+                                                ? (entry.chosenPath ?? entry.markdown)
+                                                : entry.markdown
+                                            executeWithPlanChoice(
+                                                choice,
+                                                fromPlanConversationId: entry.conversationId
+                                            )
+                                            planHistoryStore.markRebuilt(id: entry.id)
+                                        },
+                                        onOpenInPanel: {
+                                            planHistoryStore.setSelectedEntry(id: entry.id)
+                                            openPlanPanelForCurrentContext(
+                                                preserveHistorySelection: true
+                                            )
+                                        },
+                                        onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
+                                        onExpandPlan: {
+                                            planHistoryStore.setSelectedEntry(id: entry.id)
+                                            openPlanPanelForCurrentContext(
+                                                preserveHistorySelection: true
+                                            )
+                                        }
+                                    )
                                 } else {
                                     MessageRow(
                                         message: message,
@@ -572,14 +840,17 @@ struct ChatPanelView: View {
                                         onRestoreCheckpoint: message.role == .user
                                             ? { rewindToMessage(at: index, conversationId: conv.id) }
                                             : nil,
-                                        canRestoreCheckpoint: canRestoreFromMessage
+                                        canRewind: canRewindFromMessage,
+                                        hasCheckpointForRestore: hasCheckpointForMessage
                                     )
                                 }
                                 if message.role == .assistant { Spacer(minLength: 0) }
                             }
                             .id(message.id)
                         }
+                        let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
                         if coderMode == .agent,
+                            !hasPersistentPlanCard,
                             let cid = conversationId,
                             let summary = inlinePlanSummaries[cid]
                         {
@@ -590,7 +861,7 @@ struct ChatPanelView: View {
                                 onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
                                 onExpandPlan: {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        showPlanPanel = true
+                                        openPlanPanelForCurrentContext()
                                     }
                                 }
                             )
@@ -598,7 +869,7 @@ struct ChatPanelView: View {
                             .padding(.bottom, 8)
                             .id("plan-summary-card")
                         }
-                        if let board = chatStore.planBoard(for: conversationId) {
+                        if coderMode == .plan, let board = chatStore.planBoard(for: conversationId) {
                             PlanBoardView(
                                 board: board,
                                 onSelectOption: { executeWithPlanChoice($0.fullText) }
@@ -607,7 +878,11 @@ struct ChatPanelView: View {
                             .padding(.bottom, 8)
                             .id("plan-board")
                         }
-                        if case .awaitingChoice(_, let options) = planningState {
+                        if coderMode == .plan, case .awaitingClarification(let questions) = planningState {
+                            PlanClarificationView(questions: questions, planColor: DesignSystem.Colors.planColor)
+                                .id("plan-clarification")
+                        }
+                        if coderMode == .plan, case .awaitingChoice(_, let options) = planningState {
                             PlanOptionsView(
                                 options: options,
                                 planColor: DesignSystem.Colors.planColor,
@@ -687,6 +962,10 @@ struct ChatPanelView: View {
                 if case .awaitingChoice = new {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("plan-options", anchor: .bottom)
+                    }
+                } else if case .awaitingClarification = new {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("plan-clarification", anchor: .bottom)
                     }
                 }
             }
@@ -812,7 +1091,7 @@ struct ChatPanelView: View {
                     : cur + "\n\n[Interrotto dall'utente]", in: cid)
             chatStore.setLastAssistantStreaming(false, in: cid)
         }
-        chatStore.endTask()
+        chatStore.endTask(conversationId: timelineConversationId ?? conversationId)
     }
 
     @MainActor
@@ -890,7 +1169,7 @@ struct ChatPanelView: View {
             case .todoWrite(let todo):
                 taskPanelEnabled = true
                 if timelineConversationId != nil {
-                    turnTimelineStore.appendTodoSnapshot()
+                    turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
                 }
                 todoStore.upsertFromAgent(
                     id: todo.id,
@@ -903,7 +1182,7 @@ struct ChatPanelView: View {
             case .todoRead:
                 taskPanelEnabled = true
                 if timelineConversationId != nil {
-                    turnTimelineStore.appendTodoSnapshot()
+                    turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
                 }
                 break
             case .planStepUpdate(let stepId, let status):
@@ -971,6 +1250,7 @@ struct ChatPanelView: View {
                 providerNotReadyMessage: providerNotReadyMessage,
                 quickCommandPresets: composerQuickCommandPresets,
                 showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
+                showPlanRequestIndicator: showPlanRequestIndicator,
                 codeReviewAutofixEnabled: Binding(
                     get: { !codeReviewAnalysisOnly },
                     set: { enabled in
@@ -981,6 +1261,13 @@ struct ChatPanelView: View {
                 onApplyQuickCommand: { text in
                     inputText = text
                     isInputFocused = true
+                },
+                onInputTextChanged: { newValue in
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased()
+                    if trimmed.hasPrefix("/plan") {
+                        planToggleEnabled = true
+                    }
                 },
                 onRunQuickCommand: { text in
                     inputText = text
@@ -1014,8 +1301,10 @@ struct ChatPanelView: View {
                 onSyncSwarmProvider: syncSwarmProvider,
                 onSyncPlanProvider: syncPlanProvider,
                 onDelegateToAgent: delegateToAgent,
+                onOpenPlanPanel: { openPlanPanelForCurrentContext() },
                 attachedImageURLs: attachedImageURLs,
-                showPlanPanel: $showPlanPanel
+                showPlanPanel: $showPlanPanel,
+                highlightPlanButton: isPlanTabHovered
             )
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
@@ -1060,6 +1349,14 @@ struct ChatPanelView: View {
         default:
             return "Provider \"\(id)\" non autenticato. Vai nelle Impostazioni per configurare."
         }
+    }
+
+    private func reconcilePlanAutoReset() {
+        guard planToggleEnabled else { return }
+        guard !todoStore.hasOpenTodos else { return }
+        guard !chatStore.isAssistantStreaming(in: conversationId) else { return }
+        planToggleEnabled = false
+        taskActivityStore.markPlanningAutoCompletedIfNeeded()
     }
 
     /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
@@ -1581,28 +1878,11 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Plan Choice Execution
-    private func executeWithPlanChoice(_ choice: String) {
-        let planConversationId = conversationId
-        let planContent: String
-        if case .awaitingChoice(let fullPlan, _) = planningState {
-            planContent = fullPlan
-        } else if let board = chatStore.planBoard(for: planConversationId) {
-            let optionsBlock = board.options
-                .sorted(by: { $0.id < $1.id })
-                .map { "Opzione \($0.id): \($0.title)\n\($0.fullText)" }
-                .joined(separator: "\n\n")
-            planContent = """
-            # \(board.goal)
-
-            \(optionsBlock)
-            """
-        } else {
-            appendTechnicalErrorMessage(
-                "[Plan] Nessun piano disponibile da eseguire. Rigenera il piano e riprova.",
-                in: conversationId
-            )
-            return
-        }
+    private func executeWithPlanChoice(
+        _ choice: String,
+        fromPlanConversationId explicitPlanConversationId: UUID? = nil
+    ) {
+        let planConversationId = explicitPlanConversationId ?? conversationId
         let useClaude = planModeBackend == "claude"
         let provider: any LLMProvider
         if useClaude {
@@ -1658,23 +1938,61 @@ struct ChatPanelView: View {
 
         planningState = .idle
         chatStore.choosePlanPath(choice, for: planConversationId)
+
+        let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
+        let existingAgentTodos = todoStore.todos.filter { $0.source == .agent }
+        let doneTodos = existingAgentTodos.filter { $0.status == .done }
+        let isResume = !doneTodos.isEmpty && existingAgentTodos.count >= 1
+
+        if isResume {
+            // Ripresa: mantieni lo stato todo esistente, non ripopolare dal piano
+        } else if !planTodos.isEmpty {
+            todoStore.clearAgentTodos()
+            for todoTitle in planTodos {
+                todoStore.upsertFromAgent(
+                    id: nil,
+                    title: todoTitle,
+                    status: .pending,
+                    priority: .medium,
+                    notes: nil,
+                    linkedFiles: []
+                )
+            }
+        }
+
+        if let selected = planHistoryStore.selectedEntryId {
+            planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
+            planHistoryStore.markRebuilt(id: selected)
+        }
         chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: planConversationId)
         selectedConversationId = agentConvId
         providerRegistry.selectedProviderId =
             planModeBackend == "claude" ? "claude-cli" : "codex-cli"
         coderMode = .agent
 
+        let userMessageContent: String
+        if isResume {
+            userMessageContent = "Continua l'implementazione da dove hai lasciato (vedi istruzioni sotto)."
+        } else {
+            userMessageContent = choice.count > 200
+                ? "Procedi con l'opzione scelta dal piano (vedi istruzioni sotto)."
+                : "Procedi con: \(choice)"
+        }
         chatStore.addMessage(
-            ChatMessage(role: .user, content: "Procedi con: \(choice)", isStreaming: false),
+            ChatMessage(role: .user, content: userMessageContent, isStreaming: false),
             to: agentConvId)
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
-        chatStore.beginTask()
+        chatStore.beginTask(conversationId: agentConvId)
         taskActivityStore.clear()
-        // Keep manual todos stable; reset only agent workflow todos for this new execution.
-        todoStore.clearAgentTodos()
+        if !isResume && planTodos.isEmpty {
+            todoStore.clearAgentTodos()
+        }
         turnTimelineStore.clear()
         timelineConversationId = agentConvId
+        if !todoStore.todos.isEmpty {
+            turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
+        }
 
         let planExecutionWorkflow = """
             **Workflow Todo (obbligatorio):** All'inizio di ogni task:
@@ -1685,8 +2003,53 @@ struct ChatPanelView: View {
             4. Prima di concludere verifica che tutti i todo siano done.
             """
 
-        let prompt =
-            "\(planExecutionWorkflow)\n\nL'utente ha scelto il seguente approccio dal piano precedentemente proposto. Implementalo.\n\nPiano di riferimento:\n\(planContent)\n\nScelta dell'utente:\n\(choice)"
+        let executionPlanBase: String
+        if let board = chatStore.planBoard(for: planConversationId), !board.goal.isEmpty {
+            executionPlanBase = """
+            **Obiettivo:** \(board.goal)
+
+            **Piano (opzione scelta):**
+            \(choice)
+            """
+        } else {
+            executionPlanBase = "**Piano da implementare:**\n\(choice)"
+        }
+
+        var prompt: String
+        if isResume {
+            let planTodoItems = todoStore.todos.filter { $0.source == .agent }
+            let doneList = planTodoItems
+                .filter { $0.status == .done }
+                .sorted { $0.updatedAt < $1.updatedAt }
+                .map { "- [x] \($0.title)" }
+                .joined(separator: "\n")
+            let pendingList = planTodoItems
+                .filter { $0.status != .done }
+                .sorted { $0.status.rank < $1.status.rank }
+                .map { "- [ ] \($0.title)" }
+                .joined(separator: "\n")
+            prompt = """
+            \(planExecutionWorkflow)
+
+            **RIPRESA IMPLEMENTAZIONE** — Continua da dove hai lasciato.
+
+            \(executionPlanBase)
+
+            **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
+            \(doneList.isEmpty ? "(nessuno)" : doneList)
+
+            **Todo da completare:**
+            \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
+
+            Procedi verificando i done, riapplicando eventuali modifiche mancanti, poi completa i todo rimanenti.
+            """
+        } else {
+            prompt = "\(planExecutionWorkflow)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo gli step indicati.\n\n\(executionPlanBase)"
+            if !planTodos.isEmpty {
+                let todoList = planTodos.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+                prompt += "\n\n**Todo da completare (in ordine):**\n\(todoList)"
+            }
+        }
 
         Task {
             do {
@@ -1696,9 +2059,11 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: nil,
                     onText: { content in
+                        let cid = agentConvId
                         Task { @MainActor in
-                            chatStore.updateLastAssistantMessage(content: content, in: agentConvId, persistImmediately: false)
+                            chatStore.updateLastAssistantMessage(content: content, in: cid, persistImmediately: false)
                             turnTimelineStore.updateLastKnownText(content)
+                            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
                         }
                     },
                     onRaw: { t, p, pid in
@@ -1706,7 +2071,9 @@ struct ChatPanelView: View {
                         recordTaskActivity(type: t, payload: p, providerId: pid)
                     },
                     onError: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
+                        DispatchQueue.main.async {
+                            chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
+                        }
                     }
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
@@ -1724,7 +2091,7 @@ struct ChatPanelView: View {
                     flowCoordinator.fail()
                 }
             }
-            chatStore.endTask()
+            chatStore.endTask(conversationId: agentConvId)
         }
     }
 
@@ -1732,7 +2099,14 @@ struct ChatPanelView: View {
     // MARK: - Send Message (orchestrator)
 
     private func sendMessage() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedInput = parsePlanCommandInput(inputText)
+        let text = parsedInput.llmPromptInput
+        let displayedInput = parsedInput.displayedInput
+        let forcePlanInline = parsedInput.forcePlanInline
+        if forcePlanInline {
+            // /plan deve solo guidare il prompt LLM, senza aprire il pannello.
+            showPlanPanel = false
+        }
         guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
         guard let targetConversationId = conversationId else {
             appendTechnicalErrorMessage(
@@ -1761,12 +2135,15 @@ struct ChatPanelView: View {
             return
         }
 
-        let shouldRunPlanInline = coderMode == .agent && (planToggleEnabled || showPlanPanel)
+        // Aprire il pannello plan non deve attivare automaticamente la pianificazione.
+        let shouldRunPlanInline = forcePlanInline || (coderMode == .agent && planToggleEnabled)
 
         // 1. Resolve the runtime provider (plan-mode, multi-account, or default)
         guard
             let runtimeProvider = resolveRuntimeProvider(
-                selectedProvider: selectedProvider, shouldRunPlanInline: shouldRunPlanInline
+                selectedProvider: selectedProvider,
+                shouldRunPlanInline: shouldRunPlanInline,
+                forcePlanInline: forcePlanInline
             )
         else {
             appendTechnicalErrorMessage(
@@ -1806,8 +2183,9 @@ struct ChatPanelView: View {
         // 3. Prepare messages in chat store
         let imagePathsToStore = attachedImageURLs.map { $0.path }
         inputText = ""
+        let userVisibleText = displayedInput
         let contentToStore =
-            text.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Immagine allegata]") : text
+            userVisibleText.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Immagine allegata]") : userVisibleText
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: contentToStore, isStreaming: false,
@@ -1820,7 +2198,7 @@ struct ChatPanelView: View {
             projectContextStore.setLastActiveConversation(
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
         }
-        chatStore.beginTask()
+        chatStore.beginTask(conversationId: targetConversationId)
         taskActivityStore.clear()
         // Preserve manual todos across turns; reset only agent-emitted workflow todos.
         todoStore.clearAgentTodos()
@@ -1851,13 +2229,16 @@ struct ChatPanelView: View {
                             if tid == timelineConversationId {
                                 turnTimelineStore.updateLastKnownText(content)
                             }
+                            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
                         }
                     },
                     onRaw: { t, p, pid in
                         handleRawStreamEvent(type: t, payload: p, providerId: pid)
                     },
                     onError: { content in
-                        chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
+                        DispatchQueue.main.async {
+                            chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
+                        }
                     }
                 )
 
@@ -1881,15 +2262,21 @@ struct ChatPanelView: View {
                     flowCoordinator.fail()
                 }
             }
-            chatStore.endTask()
+            chatStore.endTask(conversationId: targetConversationId)
         }
     }
 
     // MARK: - Resolve Runtime Provider
 
     private func resolveRuntimeProvider(
-        selectedProvider: any LLMProvider, shouldRunPlanInline: Bool
+        selectedProvider: any LLMProvider,
+        shouldRunPlanInline: Bool,
+        forcePlanInline: Bool
     ) -> (any LLMProvider)? {
+        // /plan deve rispettare il provider selezionato, non forzare plan-mode.
+        if forcePlanInline {
+            return selectedProvider
+        }
         if shouldRunPlanInline,
             let p = providerRegistry.provider(for: "plan-mode"),
             p.isAuthenticated()
@@ -1948,6 +2335,21 @@ struct ChatPanelView: View {
         var prompt =
             userText.isEmpty
             ? "[L'utente ha allegato un'immagine. Analizzala e rispondi.]" : userText
+
+        // Plan mode: risposta a domande di chiarimento → includi contesto per proseguire
+        if coderMode == .plan, case .awaitingClarification(let questions) = planningState {
+            prompt = """
+            Risposta dell'utente alle domande di chiarimento:
+
+            \(userText.isEmpty ? "[Nessun testo inserito]" : userText)
+
+            Le domande poste erano:
+            \(questions)
+
+            Procedi con l'analisi del codebase (usa Read, Glob e Grep per esplorare i file rilevanti) e proponi 2-4 opzioni con il formato richiesto, includendo la sezione ## Todo per ogni opzione.
+            """
+        }
+
         if coderMode == .ide {
             prompt =
                 "Rispondi solo con testo. Non modificare file né eseguire comandi.\n\n" + prompt
@@ -1977,7 +2379,7 @@ struct ChatPanelView: View {
                 """
             if agentAutoDelegateSwarm {
                 let swarmInstructions =
-                    "Per task complessi che richiedono planner, coder, reviewer, ecc., delega allo swarm scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
+                    "Per task semplici o lineari resta in single-agent e non delegare. Usa la delega swarm solo quando l'effort richiede parallelizzazione reale o ruoli multipli (planner, coder, reviewer, debugger, testWriter, ecc.), scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
                 prompt = baseInstructions + swarmInstructions + prompt
             } else {
                 prompt = baseInstructions + "\n" + prompt
@@ -2041,19 +2443,48 @@ struct ChatPanelView: View {
         if timelineConversationId == streamConversationId {
             turnTimelineStore.finalize(lastFullText: full)
         }
+        chatStore.updateLastAssistantMessage(content: full, in: streamConversationId, persistImmediately: false)
         chatStore.setLastAssistantStreaming(false, in: streamConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
 
         // Handle plan options parsing
         if coderMode == .plan || shouldRunPlanInline {
-            let opts = PlanOptionsParser.parse(from: full)
-            if !opts.isEmpty {
+            // Prima verifica se è una risposta con domande di chiarimento
+            if let clarificationQuestions = PlanOptionsParser.parseClarificationQuestions(from: full),
+               !clarificationQuestions.isEmpty {
                 await MainActor.run {
                     if coderMode == .plan {
-                        planningState = .awaitingChoice(planContent: full, options: opts)
+                        planningState = .awaitingClarification(questions: full)
+                    }
+                }
+            } else {
+                let opts = PlanOptionsParser.parse(from: full)
+                if !opts.isEmpty {
+                    await MainActor.run {
+                        if coderMode == .plan {
+                            planningState = .awaitingChoice(planContent: full, options: opts)
+                        }
                     }
                     let board = PlanBoard.build(from: full, options: opts)
                     chatStore.setPlanBoard(board, for: streamConversationId)
+                    let currentConv = chatStore.conversation(for: streamConversationId)
+                    let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+                    let entry = planHistoryStore.createEntry(
+                        conversationId: streamConversationId,
+                        contextId: currentConv?.contextId,
+                        contextFolderPath: currentConv?.contextFolderPath,
+                        title: parsedSummary.title,
+                        markdown: full,
+                        options: opts,
+                        chosenPath: board.chosenPath,
+                        tags: [],
+                        sourceMessageId: nil
+                    )
+                    let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
+                        conversationId: streamConversationId,
+                        entry: entry
+                    )
+                    planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
                     if shouldRunPlanInline {
                         let cid = streamConversationId
                         inlinePlanSummaries[cid] = {
@@ -2061,7 +2492,6 @@ struct ChatPanelView: View {
                             return InlinePlanSummary(title: parsed.title, body: parsed.body)
                         }()
                         isPlanSummaryCollapsed = false
-                        let currentConv = chatStore.conversation(for: cid)
                         let contextId = currentConv?.contextId
                         let contextFolderPath = currentConv?.contextFolderPath
                         let planConvId = chatStore.getOrCreateConversationForMode(
@@ -2075,9 +2505,28 @@ struct ChatPanelView: View {
 
         // Handle delegated swarm if pending
         if let task = pendingSwarmTask {
-            await handleDelegatedSwarm(
-                task: task, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+            let evaluation = SwarmDelegationPolicyEvaluator().evaluate(
+                userPrompt: prompt,
+                suggestedTask: task,
+                isAutoDelegateEnabled: agentAutoDelegateSwarm,
+                mode: coderMode
             )
+            switch evaluation.decision {
+            case .autoDelegate:
+                await handleDelegatedSwarm(
+                    task: task, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+                )
+            case .noDelegate:
+                handleRawStreamEvent(
+                    type: "swarm_delegation_skipped",
+                    payload: [
+                        "title": "Swarm delegation skipped",
+                        "detail": evaluation.reason,
+                        "task": task
+                    ],
+                    providerId: providerRegistry.selectedProviderId ?? "agent-policy"
+                )
+            }
         }
     }
 
@@ -2101,7 +2550,7 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true),
             to: conversationId)
-        chatStore.beginTask()
+        chatStore.beginTask(conversationId: conversationId)
         taskActivityStore.clear()
         turnTimelineStore.clear()
         timelineConversationId = conversationId
@@ -2113,6 +2562,7 @@ struct ChatPanelView: View {
                 let agentProvider = providerRegistry.provider(for: agentId),
                 agentProvider.isAuthenticated()
             else { return nil }
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
             chatStore.addMessage(
                 ChatMessage(
                     role: .user, content: "[Seguito agent dopo swarm]",
@@ -2136,6 +2586,7 @@ struct ChatPanelView: View {
                     chatStore.updateLastAssistantMessage(
                         content: content, in: cid, persistImmediately: false)
                     turnTimelineStore.updateLastKnownText(content)
+                    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
                 }
             },
             onRaw: { t, p, pid in
@@ -2147,14 +2598,18 @@ struct ChatPanelView: View {
                     chatStore.updateLastAssistantMessage(
                         content: content, in: cid, persistImmediately: false)
                     turnTimelineStore.updateLastKnownText(content)
+                    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.001))
                 }
             },
             onError: { content in
-                chatStore.updateLastAssistantMessage(
-                    content: content, in: conversationId)
+                DispatchQueue.main.async {
+                    chatStore.updateLastAssistantMessage(
+                        content: content, in: conversationId)
+                }
             }
         )
-        chatStore.endTask()
+        chatStore.setLastAssistantStreaming(false, in: conversationId)
+        chatStore.endTask(conversationId: conversationId)
         await trySummarizeIfNeeded(ctx: ctx)
     }
 
@@ -2245,7 +2700,7 @@ struct ChatPanelView: View {
                         executionController.terminate(scope: .agent)
                     }
                     flowCoordinator.interrupt()
-                    chatStore.endTask()
+                    chatStore.endTask(conversationId: convId)
                 }
             }
 
@@ -2324,7 +2779,7 @@ struct ChatPanelView: View {
                         executionController.terminate(scope: .agent)
                     }
                     flowCoordinator.interrupt()
-                    chatStore.endTask()
+                    chatStore.endTask(conversationId: conversationId)
                 }
             }
 

@@ -433,6 +433,10 @@ struct SidebarView: View {
             Text(conv.title)
                 .font(.system(size: 12, weight: selected ? .semibold : .regular))
                 .lineLimit(1)
+            if chatStore.isLoading, chatStore.activeTaskConversationId == conv.id {
+                ProgressView()
+                    .controlSize(.mini)
+            }
             Spacer()
             Text(relativeDate(conv.createdAt))
                 .font(.system(size: 11))

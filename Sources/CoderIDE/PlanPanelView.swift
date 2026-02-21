@@ -1,5 +1,7 @@
+import AppKit
 import SwiftUI
 import CoderEngine
+import UniformTypeIdentifiers
 
 /// Pannello laterale stile Cursor per il piano.
 /// Top bar fissa (breadcrumb, model picker, Build), contenuto scrollabile sotto.
@@ -8,21 +10,31 @@ struct PlanPanelView: View {
     @ObservedObject var chatStore: ChatStore
     @ObservedObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var providerRegistry: ProviderRegistry
+    @EnvironmentObject var planHistoryStore: PlanHistoryStore
     let conversationId: UUID?
     let planningState: PlanningState
     let onClose: () -> Void
     let onSelectOption: (PlanOption) -> Void
     let onCustomResponse: (String) -> Void
+    let onBuild: (String) -> Void
+    let onStop: () -> Void
 
     @State private var planText: String = ""
     @State private var isEditing = false
+    @State private var buildHint: String?
+    @State private var showDeleteAllHistoryConfirmation = false
     /// Override provider for plan execution (nil = use conversation/global default)
     @State private var planProviderId: String?
+    /// Keeps top controls out of the macOS titlebar non-interactive zone.
+    private let topInteractiveInset: CGFloat = 22
 
     private let planColor = DesignSystem.Colors.planColor
 
     var body: some View {
         VStack(spacing: 0) {
+            Color.clear
+                .frame(height: topInteractiveInset)
+                .allowsHitTesting(false)
             fixedToolbar
             thinSeparator
 
@@ -31,6 +43,11 @@ struct PlanPanelView: View {
                     // Plan Board (steps overview)
                     if let board = chatStore.planBoard(for: conversationId) {
                         planBoardSection(board)
+                    }
+
+                    // Domande di chiarimento (se in attesa)
+                    if case .awaitingClarification(let questions) = planningState {
+                        PlanClarificationView(questions: questions, planColor: planColor)
                     }
 
                     // Plan Options (if awaiting choice)
@@ -43,8 +60,11 @@ struct PlanPanelView: View {
                         )
                     }
 
-                    // Plan content
+                    // New workspace sempre vuoto
                     planContentSection
+
+                    // History persistente
+                    historySection
 
                     // Walkthrough (appears when plan completes)
                     if let board = chatStore.planBoard(for: conversationId),
@@ -76,7 +96,10 @@ struct PlanPanelView: View {
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
-        .onAppear { loadPlanText() }
+        .onAppear {
+            planText = ""
+            isEditing = false
+        }
     }
 
     // MARK: - Fixed Toolbar (Cursor-style)
@@ -111,6 +134,15 @@ struct PlanPanelView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+
+            if let hint = buildHint {
+                Text(hint)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+            }
         }
     }
 
@@ -210,31 +242,93 @@ struct PlanPanelView: View {
 
     // MARK: - Build Button
 
-    private var buildButton: some View {
-        Button {
-            // TODO: wire up plan execution with activeProviderId
-        } label: {
-            HStack(spacing: 4) {
-                Text("Build")
-                    .font(.system(size: 11, weight: .semibold))
-                HStack(spacing: 1) {
-                    Image(systemName: "command")
-                        .font(.system(size: 7, weight: .bold))
-                    Image(systemName: "return")
-                        .font(.system(size: 7, weight: .bold))
-                }
-                .foregroundStyle(.white.opacity(0.7))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                DesignSystem.Colors.planGradient,
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-            )
+    private var isPlanFullyBuilt: Bool {
+        guard let board = chatStore.planBoard(for: conversationId), !board.steps.isEmpty else {
+            return false
         }
-        .buttonStyle(.plain)
-        .help("Esegui il plan (⌘⏎)")
+        return board.steps.allSatisfy { $0.status == .done } && !chatStore.isLoading
+    }
+
+    private var buildButton: some View {
+        let fullyBuilt = isPlanFullyBuilt
+        return Group {
+            if fullyBuilt {
+                Menu {
+                    Button {
+                        performBuild()
+                    } label: {
+                        Label("Esegui di nuovo", systemImage: "arrow.clockwise")
+                    }
+                    .keyboardShortcut(.return, modifiers: [.command])
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Built")
+                            .font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        DesignSystem.Colors.planGradient,
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Plan completato. Clicca per eseguire di nuovo (⌘⏎)")
+            } else {
+                Button {
+                    if chatStore.isLoading {
+                        onStop()
+                        buildHint = "Build interrotto"
+                    } else {
+                        performBuild()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        if chatStore.isLoading {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .tint(.white)
+                        }
+                        Text(chatStore.isLoading ? "Building…" : "Build")
+                            .font(.system(size: 11, weight: .semibold))
+                        HStack(spacing: 1) {
+                            Image(systemName: "command")
+                                .font(.system(size: 7, weight: .bold))
+                            Image(systemName: "return")
+                                .font(.system(size: 7, weight: .bold))
+                        }
+                        .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        DesignSystem.Colors.planGradient,
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
+                    .opacity(chatStore.isLoading ? 0.8 : 1)
+                }
+                .buttonStyle(PlanBuildButtonStyle())
+                .keyboardShortcut(.return, modifiers: [.command])
+                .help(chatStore.isLoading ? "Ferma il build (⌘⏎)" : "Esegui il plan (⌘⏎)")
+            }
+        }
+    }
+
+    private func performBuild() {
+        guard let choice = resolveBuildChoiceText() else {
+            buildHint = "Nessuna opzione disponibile da eseguire."
+            return
+        }
+        buildHint = "Build avviata..."
+        onBuild(choice)
     }
 
     // MARK: - Bottom Bar
@@ -274,11 +368,28 @@ struct PlanPanelView: View {
 
     // MARK: - Plan Content
 
+    /// Contenuto live dalla conversazione durante streaming; altrimenti planText (buffer locale in edit).
+    private var displayPlanContent: String {
+        if isEditing { return planText }
+        if let conv = chatStore.conversation(for: conversationId),
+           let last = conv.messages.last(where: { $0.role == .assistant }),
+           !last.content.isEmpty
+        { return last.content }
+        return planText
+    }
+
     private var planContentSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
+                Text("New Plan Workspace")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
                 Spacer()
                 Button {
+                    if !isEditing {
+                        planText = displayPlanContent
+                    }
                     isEditing.toggle()
                 } label: {
                     Text(isEditing ? "Fine" : "Modifica")
@@ -302,9 +413,9 @@ struct PlanPanelView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
                     )
-            } else if !planText.isEmpty {
+            } else if !displayPlanContent.isEmpty {
                 MarkdownContentView(
-                    content: planText,
+                    content: displayPlanContent,
                     context: nil,
                     onFileClicked: { _ in },
                     textAlignment: .leading
@@ -315,13 +426,138 @@ struct PlanPanelView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 16))
                         .foregroundStyle(.quaternary)
-                    Text("Usa /plan nella chat per generare un piano")
+                    Text("Workspace vuoto. Seleziona un planning dallo storico o genera un nuovo plan.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 30)
             }
+        }
+    }
+
+    private var historySection: some View {
+        let conv = chatStore.conversation(for: conversationId)
+        let ctxId = conv?.contextId
+        let ctxPath = conv?.contextFolderPath
+        let items = planHistoryStore.entriesForContext(
+            contextId: ctxId,
+            contextFolderPath: ctxPath
+        )
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("History")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(items.count)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                if !items.isEmpty {
+                    Button(role: .destructive) {
+                        showDeleteAllHistoryConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Elimina tutta la history")
+                }
+            }
+            if items.isEmpty {
+                Text("Nessun planning salvato per questo contesto.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(items) { entry in
+                    HStack(alignment: .top, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                            Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Button("Preview") {
+                            planHistoryStore.setSelectedEntry(id: entry.id)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: .medium))
+                        Button {
+                            planHistoryStore.setSelectedEntry(id: entry.id)
+                            let choice = entry.chosenPath?.isEmpty == false
+                                ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                            onBuild(choice)
+                            planHistoryStore.markRebuilt(id: entry.id)
+                            buildHint = "Rebuild avviata..."
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            _ = planHistoryStore.duplicateEntry(id: entry.id)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            downloadPlan(entry)
+                        } label: {
+                            Image(systemName: "arrow.down.to.line")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        Button(role: .destructive) {
+                            planHistoryStore.deleteEntry(id: entry.id)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(
+                                planHistoryStore.selectedEntryId == entry.id
+                                    ? DesignSystem.Colors.planColor.opacity(0.12)
+                                    : Color(nsColor: .controlBackgroundColor).opacity(0.2)
+                            )
+                    )
+                }
+                if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
+                    Divider()
+                    MarkdownContentView(
+                        content: selected.markdown,
+                        context: nil,
+                        onFileClicked: { _ in },
+                        textAlignment: .leading
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            Color(nsColor: .controlBackgroundColor).opacity(0.2),
+            in: RoundedRectangle(cornerRadius: 10)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
+        )
+        .alert("Elimina tutta la history?", isPresented: $showDeleteAllHistoryConfirmation) {
+            Button("Annulla", role: .cancel) {}
+            Button("Elimina tutto", role: .destructive) {
+                planHistoryStore.deleteAllForContext(contextId: ctxId, contextFolderPath: ctxPath)
+            }
+        } message: {
+            Text("Tutti i planning salvati per questo contesto verranno eliminati definitivamente.")
         }
     }
 
@@ -519,15 +755,52 @@ struct PlanPanelView: View {
         }
     }
 
-    private func loadPlanText() {
-        if let conv = chatStore.conversation(for: conversationId),
-           let lastAssistant = conv.messages.last(where: { $0.role == .assistant }),
-           !lastAssistant.content.isEmpty
-        {
-            let opts = PlanOptionsParser.parse(from: lastAssistant.content)
-            if opts.count > 1 || (opts.first?.fullText.count ?? 0) > 50 {
-                planText = lastAssistant.content
+    private func resolveBuildChoiceText() -> String? {
+        let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !workspaceText.isEmpty {
+            return workspaceText
+        }
+        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
+            if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !chosen.isEmpty {
+                return chosen
+            }
+            return selected.markdown
+        }
+        if let board = chatStore.planBoard(for: conversationId) {
+            if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !chosen.isEmpty {
+                return chosen
+            }
+            if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+                return first.fullText
             }
         }
+        if case .awaitingChoice(_, let options) = planningState,
+           let first = options.sorted(by: { $0.id < $1.id }).first {
+            return first.fullText
+        }
+        return nil
+    }
+
+    private func downloadPlan(_ entry: PlanHistoryEntry) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+        let baseName = entry.title.isEmpty ? "PLAN" : entry.title
+        panel.nameFieldStringValue = "\(baseName.replacingOccurrences(of: " ", with: "_")).md"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? entry.markdown.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
+
+private struct PlanBuildButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .brightness(configuration.isPressed ? -0.06 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

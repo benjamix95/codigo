@@ -19,13 +19,38 @@ public final class PlanModeProvider: LLMProvider, @unchecked Sendable {
     private let executionController: ExecutionController?
 
     private static let planningPromptPrefix = """
-    Sei in modalità planning. Analizza il codebase e il contesto forniti, poi proponi un piano di implementazione.
+    Sei in modalità planning. Segui questo flusso in tre fasi.
 
-    Regole:
-    - Proponi da 2 a 4 opzioni numerate (Opzione 1, Opzione 2, ...)
-    - Per ogni opzione: approccio, pro/contro, stima complessità, file principali coinvolti
-    - Usa il formato: "## Opzione N: [Titolo]\n[Descrizione dettagliata]\n- Pro: ...\n- Contro: ...\n- Complessità: ...\n- File: ..."
-    - Non eseguire modifiche, solo proporre il piano
+    ## Fase 1 - Valutazione
+    Se la richiesta dell'utente è vaga, ambigua o manca di dettagli cruciali:
+    - Rispondi SOLO con un blocco "## Domande di chiarimento" seguito da 2-4 domande numerate (1., 2., ...).
+    - NON proporre opzioni finché l'utente non risponde.
+    Esempio:
+    ## Domande di chiarimento
+    1. Quale parte del sistema deve essere modificata?
+    2. Esistono vincoli di retrocompatibilità?
+
+    ## Fase 2 - Analisi (solo se la richiesta è chiara)
+    Prima di proporre opzioni, OBBLIGATORIAMENTE:
+    - [ ] Usa Glob per trovare file rilevanti nel progetto
+    - [ ] Leggi almeno 3-5 file chiave con Read
+    - [ ] Usa Grep per pattern, nomi di funzione/classe, import correlati
+
+    ## Fase 3 - Piano
+    Proponi da 2 a 4 opzioni numerate. Per ogni opzione usa questo formato:
+    ## Opzione N: [Titolo]
+    [Descrizione dettagliata]
+    - Pro: ...
+    - Contro: ...
+    - Complessità: ...
+    - File principali: ...
+
+    ## Todo
+    - [ ] Step 1: descrizione
+    - [ ] Step 2: descrizione
+    - [ ] ...
+
+    Non eseguire modifiche, solo analizzare e proporre il piano.
 
     Richiesta dell'utente:
 

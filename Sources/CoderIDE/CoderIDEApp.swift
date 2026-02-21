@@ -18,6 +18,7 @@ struct CodigoApp: App {
     @StateObject private var providerUsageStore = ProviderUsageStore.shared
     @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
     @StateObject private var gitPanelStore = GitPanelStore()
+    @StateObject private var planHistoryStore = PlanHistoryStore()
     @StateObject private var accountUsageDashboardStore = AccountUsageDashboardStore.shared
     @AppStorage("openai_api_key") private var apiKey = ""
     @AppStorage("openai_model") private var model = "gpt-4o-mini"
@@ -81,11 +82,13 @@ struct CodigoApp: App {
                 .environmentObject(providerUsageStore)
                 .environmentObject(flowDiagnosticsStore)
                 .environmentObject(gitPanelStore)
+                .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)
                 .onAppear {
                     projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
                     chatStore.migrateLegacyContextsIfNeeded(
                         contextStore: projectContextStore, workspaceStore: workspaceStore)
+                    chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
                     registerProviders()
                     configureWindow()
                 }

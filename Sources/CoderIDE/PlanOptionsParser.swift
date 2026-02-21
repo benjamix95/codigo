@@ -10,6 +10,49 @@ struct PlanOption: Identifiable, Equatable, Codable {
 /// Estrae opzioni numerate da un testo di piano (es. "## Opzione 1: ...", "Opzione 2:", ecc.)
 enum PlanOptionsParser {
 
+    /// Estrae le domande di chiarimento dal blocco "## Domande di chiarimento".
+    /// Restituisce nil se il blocco non è presente (→ procedere con parsing opzioni).
+    static func parseClarificationQuestions(from text: String) -> [String]? {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        // Cerca "## Domande di chiarimento" o variazioni (Clarification, Questions, ecc.)
+        let headerPattern = #"(?i)##\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify)"#
+        guard normalized.range(of: headerPattern, options: .regularExpression) != nil else {
+            return nil
+        }
+        let lines = normalized.components(separatedBy: .newlines)
+        var inBlock = false
+        var questions: [String] = []
+        let numberedPattern = #"^\s*(\d+)[.)]\s*(.+)$"#
+        let bulletPattern = #"^\s*[-*•]\s+(.+)$"#
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.range(of: headerPattern, options: .regularExpression) != nil {
+                inBlock = true
+                continue
+            }
+            if inBlock {
+                // Esci dal blocco se incontriamo un altro ##
+                if trimmed.hasPrefix("##") {
+                    break
+                }
+                if trimmed.isEmpty { continue }
+                if let regex = try? NSRegularExpression(pattern: numberedPattern),
+                   let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                   let r2 = Range(match.range(at: 2), in: trimmed) {
+                    let q = String(trimmed[r2]).trimmingCharacters(in: .whitespaces)
+                    if !q.isEmpty { questions.append(q) }
+                } else if let regex = try? NSRegularExpression(pattern: bulletPattern),
+                          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                          let r1 = Range(match.range(at: 1), in: trimmed) {
+                    let q = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
+                    if !q.isEmpty { questions.append(q) }
+                }
+            }
+        }
+        return questions.count >= 2 ? questions : nil
+    }
+
     /// Restituisce le opzioni parsegate o una singola opzione con l'intero testo se il parsing fallisce
     static func parse(from text: String) -> [PlanOption] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -95,6 +138,40 @@ enum PlanOptionsParser {
 
         // Ultimo fallback: intero testo come unica opzione
         return [PlanOption(id: 1, title: "Piano completo", fullText: trimmed)]
+    }
+
+    /// Estrae gli step todo dalla sezione "## Todo" di un'opzione di piano.
+    /// Cerca righe "- [ ] step" o "- step" e restituisce i titoli.
+    static func extractTodosFromOptionText(_ optionText: String) -> [String] {
+        let lines = optionText.components(separatedBy: .newlines)
+        var inTodoSection = false
+        var todos: [String] = []
+        let todoHeaderPattern = #"(?i)##\s*Todo"#
+        let checklistPattern = #"^\s*-\s*\[\s*\]\s*(.+)$"#
+        let bulletPattern = #"^\s*-\s+(.+)$"#
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.range(of: todoHeaderPattern, options: .regularExpression) != nil {
+                inTodoSection = true
+                continue
+            }
+            if inTodoSection {
+                if trimmed.hasPrefix("##") { break }
+                if trimmed.isEmpty { continue }
+                if let regex = try? NSRegularExpression(pattern: checklistPattern),
+                   let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                   let r1 = Range(match.range(at: 1), in: trimmed) {
+                    let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
+                    if !title.isEmpty { todos.append(title) }
+                } else if let regex = try? NSRegularExpression(pattern: bulletPattern),
+                          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+                          let r1 = Range(match.range(at: 1), in: trimmed) {
+                    let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
+                    if !title.isEmpty, !title.hasPrefix("[") { todos.append(title) }
+                }
+            }
+        }
+        return todos
     }
 
     static func extractDisplaySummary(from fullPlan: String) -> (title: String, body: String) {

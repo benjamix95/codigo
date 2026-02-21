@@ -110,6 +110,27 @@ final class TaskActivityStore: ObservableObject {
         unseenLiveEventsCount = 0
     }
 
+    func markPlanningAutoCompletedIfNeeded(reason: String = "todos_completed") {
+        if let last = activities.last,
+           last.type == "planning_auto_reset",
+           last.payload["reason"] == reason {
+            return
+        }
+        addActivity(
+            TaskActivity(
+                type: "planning_auto_reset",
+                title: "Planning completato automaticamente",
+                detail: "Plan attivo disattivato: nessun todo aperto e streaming terminato",
+                payload: [
+                    "status": "completed",
+                    "reason": reason,
+                ],
+                phase: .planning,
+                isRunning: false
+            )
+        )
+    }
+
     func appendOrMergeBatchEvent(_ activity: TaskActivity) {
         if shouldPreserveSwarmCriticalEvent(activity) {
             addActivity(activity)
@@ -248,7 +269,7 @@ final class TaskActivityStore: ObservableObject {
                  "web_search", "web_search_started", "web_search_completed", "web_search_failed",
                  "mcp_tool_call",
                  "process_paused", "process_resumed",
-                 "plan_step_update",
+                 "plan_step_update", "planning_auto_reset",
                  "file_change", "edit":
                 return true
             default:
@@ -339,7 +360,7 @@ final class TaskActivityStore: ObservableObject {
         limitPerLane: Int = 120
     ) -> [SwarmLaneState] {
         let cards = SwarmLiveReducer.reduce(activities: activities, limitRecentEvents: limitPerLane)
-        var states: [SwarmLaneState] = cards.values.map { card in
+        let states: [SwarmLaneState] = cards.values.map { card in
             let status: SwarmLaneStatus = {
                 switch card.status {
                 case .running: return .running

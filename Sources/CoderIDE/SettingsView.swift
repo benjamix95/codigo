@@ -174,6 +174,7 @@ struct SettingsView: View {
     @AppStorage("full_auto_tools") private var fullAutoTools = true
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
     @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
+    @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
 
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var geminiState = GeminiStateStore()
@@ -1230,6 +1231,11 @@ struct SettingsView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Auto-follow output live", isOn: $terminalAutoFollowOutput)
+                    hintBox(
+                        "Quando attivo, il terminale integrato resta agganciato all'ultima riga durante build/test/command output."
+                    )
+
                     Text("Per il terminale integrato serve accesso Full Disk Access.")
                         .font(.callout).foregroundStyle(.secondary)
 

@@ -1,0 +1,149 @@
+import AppKit
+import XCTest
+@testable import CoderIDE
+
+final class PlanShortcutAndCommandTests: XCTestCase {
+    func testParsePlanCommandInputWithExplicitPrompt() {
+        let parsed = parsePlanCommandInput("  /plan crea una strategia di rollout  ")
+        XCTAssertTrue(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "crea una strategia di rollout")
+        XCTAssertEqual(parsed.llmPromptInput, "crea una strategia di rollout")
+    }
+
+    func testParsePlanCommandInputWithEmptyPromptUsesFallback() {
+        let parsed = parsePlanCommandInput("/plan")
+        XCTAssertTrue(parsed.forcePlanInline)
+        XCTAssertTrue(parsed.displayedInput.contains("Genera un planning strutturato"))
+        XCTAssertTrue(parsed.llmPromptInput.contains("Genera un planning strutturato"))
+    }
+
+    func testParsePlanCommandInputWithoutCommandKeepsOriginal() {
+        let parsed = parsePlanCommandInput("fix parser plan panel")
+        XCTAssertFalse(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "fix parser plan panel")
+        XCTAssertEqual(parsed.llmPromptInput, "fix parser plan panel")
+    }
+
+    func testIsShiftTabShortcutPositiveWithTabKeyCode() {
+        let flags: NSEvent.ModifierFlags = [.shift]
+        XCTAssertTrue(isShiftTabShortcut(flags: flags, charsIgnoringModifiers: "\t", keyCode: 48))
+    }
+
+    func testIsShiftTabShortcutPositiveWithBacktabChar() {
+        let flags: NSEvent.ModifierFlags = [.shift]
+        XCTAssertTrue(isShiftTabShortcut(flags: flags, charsIgnoringModifiers: "\u{19}", keyCode: 0))
+    }
+
+    func testIsShiftTabShortcutNegativeWhenCommandPressed() {
+        let flags: NSEvent.ModifierFlags = [.shift, .command]
+        XCTAssertFalse(isShiftTabShortcut(flags: flags, charsIgnoringModifiers: "\u{19}", keyCode: 48))
+    }
+
+    func testIsCmdShiftPShortcutPositive() {
+        let flags: NSEvent.ModifierFlags = [.command, .shift]
+        XCTAssertTrue(isCmdShiftPShortcut(flags: flags, charsIgnoringModifiers: "P"))
+    }
+
+    func testIsCmdShiftPShortcutNegativeWithoutShift() {
+        let flags: NSEvent.ModifierFlags = [.command]
+        XCTAssertFalse(isCmdShiftPShortcut(flags: flags, charsIgnoringModifiers: "P"))
+    }
+
+    func testEvaluateShiftTabPlanShortcutFirstPressOnlyHighlightsPlan() {
+        let now = Date()
+        let result = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: nil,
+            currentInputText: "fix parser"
+        )
+
+        XCTAssertEqual(result.nextInputText, "fix parser")
+        XCTAssertFalse(result.shouldFocusInput)
+        XCTAssertTrue(result.shouldHighlightPlanToggle)
+        XCTAssertNotNil(result.nextPrimedUntil)
+        XCTAssertTrue(result.nextPrimedUntil! > now)
+    }
+
+    func testEvaluateShiftTabPlanShortcutSecondPressPrependsPlanCommand() {
+        let now = Date()
+        let result = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: now.addingTimeInterval(1.0),
+            currentInputText: "analizza il refactor"
+        )
+
+        XCTAssertEqual(result.nextInputText, "/plan analizza il refactor")
+        XCTAssertTrue(result.shouldFocusInput)
+        XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertNil(result.nextPrimedUntil)
+    }
+
+    func testEvaluateShiftTabPlanShortcutSecondPressWithEmptyInputSetsPlanOnly() {
+        let now = Date()
+        let result = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: now.addingTimeInterval(1.0),
+            currentInputText: "   "
+        )
+
+        XCTAssertEqual(result.nextInputText, "/plan ")
+        XCTAssertTrue(result.shouldFocusInput)
+        XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertNil(result.nextPrimedUntil)
+    }
+
+    func testEvaluateShiftTabPlanShortcutSecondPressKeepsExistingPlanPrefix() {
+        let now = Date()
+        let result = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: now.addingTimeInterval(1.0),
+            currentInputText: "/plan roadmap fix"
+        )
+
+        XCTAssertEqual(result.nextInputText, "/plan roadmap fix")
+        XCTAssertTrue(result.shouldFocusInput)
+        XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertNil(result.nextPrimedUntil)
+    }
+
+    func testEvaluateShiftTabPlanShortcutAfterExpiryHighlightsAgain() {
+        let now = Date()
+        let result = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: now.addingTimeInterval(-0.1),
+            currentInputText: "nuovo task"
+        )
+
+        XCTAssertEqual(result.nextInputText, "nuovo task")
+        XCTAssertFalse(result.shouldFocusInput)
+        XCTAssertTrue(result.shouldHighlightPlanToggle)
+        XCTAssertNotNil(result.nextPrimedUntil)
+    }
+
+    func testEvaluateCmdShiftPPlanShortcutFirstPressEnablesInlinePlanOnly() {
+        let result = evaluateCmdShiftPPlanShortcut(
+            currentPlanToggleEnabled: false,
+            currentShowPlanPanel: false
+        )
+        XCTAssertTrue(result.nextPlanToggleEnabled)
+        XCTAssertFalse(result.nextShowPlanPanel)
+    }
+
+    func testEvaluateCmdShiftPPlanShortcutSecondPressOpensPanel() {
+        let result = evaluateCmdShiftPPlanShortcut(
+            currentPlanToggleEnabled: true,
+            currentShowPlanPanel: false
+        )
+        XCTAssertTrue(result.nextPlanToggleEnabled)
+        XCTAssertTrue(result.nextShowPlanPanel)
+    }
+
+    func testEvaluateCmdShiftPPlanShortcutThirdPressDisablesAll() {
+        let result = evaluateCmdShiftPPlanShortcut(
+            currentPlanToggleEnabled: true,
+            currentShowPlanPanel: true
+        )
+        XCTAssertFalse(result.nextPlanToggleEnabled)
+        XCTAssertFalse(result.nextShowPlanPanel)
+    }
+}

@@ -14,7 +14,8 @@ struct MessageRow: View {
     let streamingReasoningText: String?
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
-    var canRestoreCheckpoint: Bool = false
+    var canRewind: Bool = false
+    var hasCheckpointForRestore: Bool = false
     @State private var isHovered = false
     @State private var isReasoningExpanded = false
     @Environment(\.colorScheme) private var colorScheme
@@ -70,9 +71,13 @@ struct MessageRow: View {
                     .font(.system(size: 10, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(canRestoreCheckpoint ? .primary : .tertiary)
-            .disabled(!canRestoreCheckpoint)
-            .help("Ripristina chat e file da questo punto")
+            .foregroundStyle(canRewind ? .primary : .tertiary)
+            .disabled(!canRewind)
+            .help(
+                hasCheckpointForRestore
+                    ? "Ripristina chat e file da questo punto"
+                    : "Ripristina chat da questo punto (file non ripristinati)"
+            )
             .accessibilityLabel("Ripristina checkpoint")
         }
         .padding(.trailing, 14)
@@ -87,20 +92,20 @@ struct MessageRow: View {
                 userMessageImagesRow(paths: paths)
             }
             if isUser {
-                // User bubble — clean pill
+                // User bubble — clean pill, allineato a destra
                 ClickableMessageContent(
                     content: message.content,
                     context: context,
                     onFileClicked: onFileClicked,
-                    textAlignment: .trailing
+                    textAlignment: .leading
                 )
-                .frame(maxWidth: contentMaxWidth, alignment: .trailing)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
                 )
+                .frame(maxWidth: contentMaxWidth, alignment: .trailing)
             } else {
                 // Assistant — flat text, no background (ChatGPT-style)
                 HStack(alignment: .top, spacing: 10) {
@@ -232,6 +237,7 @@ struct MessageRow: View {
                 }
             }
         }
+        .fixedSize(horizontal: true, vertical: false) // larghezza solo per contenuto, così VStack .trailing la allinea a destra
         .padding(.bottom, 4)
     }
 }

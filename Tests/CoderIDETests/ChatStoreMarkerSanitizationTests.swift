@@ -41,6 +41,17 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertTrue(sanitized.contains("Procedo con il task t1."))
     }
 
+    func testStripCoderideMarkersRemovesPlanningBugReviewWorkflow() {
+        let input = """
+        Planning bug review workflow
+
+        Ecco la mia analisi del codice...
+        """
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+        XCTAssertFalse(sanitized.contains("Planning bug review workflow"))
+        XCTAssertTrue(sanitized.contains("Ecco la mia analisi"))
+    }
+
     func testStripCoderideMarkersRemovesInlineMarkerPrefixAndKeepsReadableSpacing() {
         let input = """
         Initiating workflow with markers:todo_write|files=README.md,Package.swift|Inizio con una verifica non invasiva del repository.
