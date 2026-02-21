@@ -1566,8 +1566,17 @@ struct ChatPanelView: View {
         turnTimelineStore.clear()
         timelineConversationId = agentConvId
 
+        let planExecutionWorkflow = """
+            **Workflow Todo (obbligatorio):** All'inizio di ogni task:
+            1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
+            2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con marker:
+            \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
+            3. Durante l'esecuzione aggiorna lo status a in_progress e poi done.
+            4. Prima di concludere verifica che tutti i todo siano done.
+            """
+
         let prompt =
-            "L'utente ha scelto il seguente approccio dal piano precedentemente proposto. Implementalo.\n\nPiano di riferimento:\n\(planContent)\n\nScelta dell'utente:\n\(choice)"
+            "\(planExecutionWorkflow)\n\nL'utente ha scelto il seguente approccio dal piano precedentemente proposto. Implementalo.\n\nPiano di riferimento:\n\(planContent)\n\nScelta dell'utente:\n\(choice)"
 
         Task {
             do {
