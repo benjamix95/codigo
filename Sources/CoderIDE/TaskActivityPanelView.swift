@@ -112,6 +112,18 @@ struct ChatTerminalSessionsView: View {
         sessions.first(where: { $0.isRunning || $0.status == "started" || $0.status == "running" || $0.status == "in_progress" })
     }
 
+    private var terminalCardFill: Color {
+        Color(red: 0.09, green: 0.11, blue: 0.14).opacity(0.92)
+    }
+
+    private var terminalCardBorder: Color {
+        Color(red: 0.28, green: 0.33, blue: 0.40).opacity(0.75)
+    }
+
+    private var terminalCommandColor: Color {
+        Color(red: 0.78, green: 0.90, blue: 0.74)
+    }
+
     var body: some View {
         if !sessions.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
@@ -130,7 +142,11 @@ struct ChatTerminalSessionsView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(DesignSystem.Colors.warning.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color(red: 0.13, green: 0.16, blue: 0.20).opacity(0.9), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(terminalCardBorder, lineWidth: 0.6)
+                        )
                     }
                 }
                 ForEach(sessions.prefix(6)) { session in
@@ -173,7 +189,7 @@ struct ChatTerminalSessionsView: View {
 
             Text("$ \(session.command)")
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.primary)
+                .foregroundStyle(terminalCommandColor)
                 .lineLimit(isExpanded ? nil : 2)
 
             if let cwd = session.cwd, !cwd.isEmpty {
@@ -210,13 +226,18 @@ struct ChatTerminalSessionsView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+            } else if let output = session.output, !output.isEmpty {
+                Text(output)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
             }
         }
         .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
+        .background(terminalCardFill, in: RoundedRectangle(cornerRadius: 9))
         .overlay(
             RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.8), lineWidth: 0.6)
+                .strokeBorder(terminalCardBorder, lineWidth: 0.7)
         )
     }
 
