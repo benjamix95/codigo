@@ -24,6 +24,50 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertEqual(parsed.llmPromptInput, "fix parser plan panel")
     }
 
+    func testParsePlanCommandInputDoesNotTriggerForPlannerPrefix() {
+        let parsed = parsePlanCommandInput("/planner analizza il parser")
+        XCTAssertFalse(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "/planner analizza il parser")
+        XCTAssertEqual(parsed.llmPromptInput, "/planner analizza il parser")
+    }
+
+    func testParsePlanCommandInputDoesNotTriggerForPlanxPrefix() {
+        let parsed = parsePlanCommandInput("/planx analizza il parser")
+        XCTAssertFalse(parsed.forcePlanInline)
+        XCTAssertEqual(parsed.displayedInput, "/planx analizza il parser")
+        XCTAssertEqual(parsed.llmPromptInput, "/planx analizza il parser")
+    }
+
+    func testShouldUseClarificationPromptInPlanMode() {
+        XCTAssertTrue(
+            shouldUseClarificationPrompt(
+                coderMode: .plan,
+                planningState: .awaitingClarification(questions: "## Domande di chiarimento\n1. A?\n2. B?"),
+                shouldRunPlanInline: false
+            )
+        )
+    }
+
+    func testShouldUseClarificationPromptInInlinePlanMode() {
+        XCTAssertTrue(
+            shouldUseClarificationPrompt(
+                coderMode: .agent,
+                planningState: .awaitingClarification(questions: "## Domande di chiarimento\n1. A?\n2. B?"),
+                shouldRunPlanInline: true
+            )
+        )
+    }
+
+    func testShouldUseClarificationPromptFalseWhenNotAwaitingClarification() {
+        XCTAssertFalse(
+            shouldUseClarificationPrompt(
+                coderMode: .agent,
+                planningState: .awaitingChoice(planContent: "plan", options: []),
+                shouldRunPlanInline: true
+            )
+        )
+    }
+
     func testIsShiftTabShortcutPositiveWithTabKeyCode() {
         let flags: NSEvent.ModifierFlags = [.shift]
         XCTAssertTrue(isShiftTabShortcut(flags: flags, charsIgnoringModifiers: "\t", keyCode: 48))

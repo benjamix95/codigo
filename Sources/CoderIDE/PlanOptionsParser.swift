@@ -15,8 +15,8 @@ enum PlanOptionsParser {
     static func parseClarificationQuestions(from text: String) -> [String]? {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
-        // Cerca "## Domande di chiarimento" o variazioni (Clarification, Questions, ecc.)
-        let headerPattern = #"(?i)##\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify)"#
+        // Cerca heading Markdown "#/##/### Domande di chiarimento" o variazioni.
+        let headerPattern = #"(?im)^\s*#{1,3}\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify)\s*:?\s*$"#
         guard normalized.range(of: headerPattern, options: .regularExpression) != nil else {
             return nil
         }
@@ -32,8 +32,8 @@ enum PlanOptionsParser {
                 continue
             }
             if inBlock {
-                // Esci dal blocco se incontriamo un altro ##
-                if trimmed.hasPrefix("##") {
+                // Esci dal blocco se incontriamo un altro heading Markdown.
+                if trimmed.hasPrefix("#") {
                     break
                 }
                 if trimmed.isEmpty { continue }

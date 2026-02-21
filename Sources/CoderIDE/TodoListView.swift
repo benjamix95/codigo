@@ -21,11 +21,7 @@ struct TodoListView: View {
         case .doing: base = store.todos.filter { $0.status == .inProgress }
         case .done: base = store.todos.filter { $0.status == .done }
         }
-        return base.sorted {
-            if $0.status.rank != $1.status.rank { return $0.status.rank < $1.status.rank }
-            if $0.priority.rank != $1.priority.rank { return $0.priority.rank < $1.priority.rank }
-            return $0.updatedAt > $1.updatedAt
-        }
+        return store.sortedCanonicalFirstTodos(base)
     }
 
     var body: some View {
@@ -221,7 +217,7 @@ struct TodoLiveInlineCard: View {
     let onOpenFile: (String) -> Void
 
     private var displayedTodos: [TodoItem] {
-        Array(store.todos.sorted { $0.status.rank < $1.status.rank }.prefix(6))
+        Array(store.sortedCanonicalFirstTodos().prefix(6))
     }
 
     var body: some View {

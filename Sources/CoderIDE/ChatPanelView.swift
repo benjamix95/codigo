@@ -18,6 +18,71 @@ enum PlanningState: Equatable {
     case awaitingChoice(planContent: String, options: [PlanOption])
 }
 
+enum PlanFlowPhase: Equatable {
+    case idle
+    case discovery
+    case awaitingClarification
+    case proposalReady
+    case readyToBuild
+    case building
+}
+
+func canExecutePlanBuild(phase: PlanFlowPhase, choice: String) -> Bool {
+    let trimmed = choice.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return false }
+    return phase == .idle || phase == .proposalReady || phase == .readyToBuild
+}
+
+func normalizeBuildFinalResponse(_ text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return text }
+    let lower = trimmed.lowercased()
+    let hasPlanEchoHeader = lower.contains("## opzione") || lower.contains("## option")
+    let hasPlanTodoHeader = lower.contains("## todo")
+    guard hasPlanEchoHeader || hasPlanTodoHeader else { return text }
+    let lines = trimmed.components(separatedBy: .newlines)
+    var kept: [String] = []
+    var skippingPlanBlock = false
+    for line in lines {
+        let l = line.trimmingCharacters(in: .whitespaces)
+        let low = l.lowercased()
+        if low.hasPrefix("## opzione") || low.hasPrefix("## option") || low.hasPrefix("## todo") {
+            skippingPlanBlock = true
+            continue
+        }
+        if skippingPlanBlock && l.hasPrefix("##") {
+            skippingPlanBlock = false
+        }
+        if !skippingPlanBlock {
+            kept.append(line)
+        }
+    }
+    let compact = kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    if compact.isEmpty {
+        return "Build completata. Piano applicato, TODO aggiornati e risultato pronto."
+    }
+    return compact
+}
+
+func nextPlanFlowPhaseForOutput(
+    fullText: String,
+    current: PlanFlowPhase,
+    coderMode: CoderMode,
+    shouldRunPlanInline: Bool
+) -> PlanFlowPhase {
+    guard coderMode == .plan || shouldRunPlanInline else { return current }
+    if let clarification = PlanOptionsParser.parseClarificationQuestions(from: fullText),
+        !clarification.isEmpty
+    {
+        return .awaitingClarification
+    }
+    let options = PlanOptionsParser.parse(from: fullText)
+    if !options.isEmpty {
+        return .proposalReady
+    }
+    return current
+}
+
 struct PlanCommandParseResult: Equatable {
     let displayedInput: String
     let llmPromptInput: String
@@ -232,6 +297,8 @@ struct ChatPanelView: View {
     @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
+    @State private var planFlowPhase: PlanFlowPhase = .idle
+    @State private var activeBuildPlanConversationId: UUID?
     @State private var isProviderReady = false
     @State private var attachedImageURLs: [URL] = []
     @State private var isSelectingImage = false
@@ -270,8 +337,8 @@ struct ChatPanelView: View {
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
     private var showPlanRequestIndicator: Bool {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return planToggleEnabled || trimmed.hasPrefix("/plan")
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return planToggleEnabled || hasStrictPlanCommandPrefix(trimmed)
     }
     private var supportsInlineTimelineMode: Bool {
         coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
@@ -324,14 +391,27 @@ struct ChatPanelView: View {
                     taskActivityStore: taskActivityStore,
                     conversationId: planPanelConversationId,
                     planningState: planningState,
+                    planFlowPhase: planFlowPhase,
                     onClose: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showPlanPanel = false
                         }
                     },
-                    onSelectOption: { executeWithPlanChoice($0.fullText, fromPlanConversationId: planPanelConversationId) },
+                    onSelectOption: {
+                        executeWithPlanChoice(
+                            $0.fullText,
+                            fromPlanConversationId: planPanelConversationId,
+                            providerOverrideId: $1
+                        )
+                    },
                     onCustomResponse: { executeWithPlanChoice($0, fromPlanConversationId: planPanelConversationId) },
-                    onBuild: { executeWithPlanChoice($0, fromPlanConversationId: planPanelConversationId) },
+                    onBuild: {
+                        executeWithPlanChoice(
+                            $0,
+                            fromPlanConversationId: planPanelConversationId,
+                            providerOverrideId: $1
+                        )
+                    },
                     onStop: { interruptTask() }
                 )
                 .id(planPanelConversationId)
@@ -352,6 +432,7 @@ struct ChatPanelView: View {
             if showPlanPanel {
                 // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito.
                 planningState = .idle
+                planFlowPhase = .idle
                 planHistoryStore.setSelectedEntry(id: nil)
             }
             syncProviderFromConversation()
@@ -515,6 +596,7 @@ struct ChatPanelView: View {
                 showPlanPanel = false
                 if !transition.nextPlanToggleEnabled {
                     planningState = .idle
+                    planFlowPhase = .idle
                     planHistoryStore.setSelectedEntry(id: nil)
                 }
             }
@@ -895,11 +977,15 @@ struct ChatPanelView: View {
                             .padding(.bottom, 8)
                             .id("plan-board")
                         }
-                        if coderMode == .plan, case .awaitingClarification(let questions) = planningState {
+                        if (coderMode == .plan || planToggleEnabled),
+                            case .awaitingClarification(let questions) = planningState
+                        {
                             PlanClarificationView(questions: questions, planColor: DesignSystem.Colors.planColor)
                                 .id("plan-clarification")
                         }
-                        if coderMode == .plan, case .awaitingChoice(_, let options) = planningState {
+                        if (coderMode == .plan || planToggleEnabled),
+                            case .awaitingChoice(_, let options) = planningState
+                        {
                             PlanOptionsView(
                                 options: options,
                                 planColor: DesignSystem.Colors.planColor,
@@ -1109,6 +1195,10 @@ struct ChatPanelView: View {
             chatStore.setLastAssistantStreaming(false, in: cid)
         }
         chatStore.endTask(conversationId: timelineConversationId ?? conversationId)
+        activeBuildPlanConversationId = nil
+        if planFlowPhase == .building {
+            planFlowPhase = .proposalReady
+        }
     }
 
     @MainActor
@@ -1205,6 +1295,9 @@ struct ChatPanelView: View {
             case .planStepUpdate(let stepId, let status):
                 let targetId = timelineConversationId ?? conversationId
                 chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: targetId)
+                if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
+                    chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: sourcePlanId)
+                }
             }
         }
     }
@@ -1281,8 +1374,7 @@ struct ChatPanelView: View {
                 },
                 onInputTextChanged: { newValue in
                     let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        .lowercased()
-                    if trimmed.hasPrefix("/plan") {
+                    if hasStrictPlanCommandPrefix(trimmed) {
                         planToggleEnabled = true
                     }
                 },
@@ -1575,6 +1667,7 @@ struct ChatPanelView: View {
         case .plan:
             providerRegistry.selectedProviderId = "plan-mode"
             planningState = .idle
+            planFlowPhase = .idle
             planToggleEnabled = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
@@ -1715,6 +1808,7 @@ struct ChatPanelView: View {
         }
         coderMode = mode
         planningState = .idle
+        planFlowPhase = .idle
         switch mode {
         case .ide:
             if let preferred = conv.preferredProviderId,
@@ -1755,24 +1849,29 @@ struct ChatPanelView: View {
         if ProviderSupport.isAgentCompatibleProvider(id: id) {
             coderMode = .agent
             planningState = .idle
+            planFlowPhase = .idle
             return
         }
         if ProviderSupport.isIDEProvider(id: id) {
             coderMode = .ide
             planningState = .idle
+            planFlowPhase = .idle
             return
         }
         switch id {
         case "agent-swarm":
             coderMode = .agentSwarm
             planningState = .idle
+            planFlowPhase = .idle
         case "multi-swarm-review":
             coderMode = .codeReviewMultiSwarm
             planningState = .idle
+            planFlowPhase = .idle
         case "plan-mode": coderMode = .plan
         case "codex-cli", "claude-cli", "gemini-cli":
             coderMode = .agent
             planningState = .idle
+            planFlowPhase = .idle
         default: break
         }
     }
@@ -1895,13 +1994,8 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Plan Choice Execution
-    private func executeWithPlanChoice(
-        _ choice: String,
-        fromPlanConversationId explicitPlanConversationId: UUID? = nil
-    ) {
-        let planConversationId = explicitPlanConversationId ?? conversationId
+    private func resolvePlanExecutionProviderFromBackend() -> (any LLMProvider)? {
         let useClaude = planModeBackend == "claude"
-        let provider: any LLMProvider
         if useClaude {
             guard let c = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider else {
                 appendTechnicalErrorMessage(
@@ -1909,27 +2003,92 @@ struct ChatPanelView: View {
                     in: conversationId
                 )
                 flowDiagnosticsStore.setError("Plan backend Claude non disponibile")
-                return
+                return nil
             }
-            provider = c
-        } else {
-            guard let c = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-                appendTechnicalErrorMessage(
-                    "[Plan] Backend Codex non disponibile. Verifica impostazioni/autenticazione Codex CLI.",
-                    in: conversationId
-                )
-                flowDiagnosticsStore.setError("Plan backend Codex non disponibile")
-                return
-            }
-            provider = c
+            return c
         }
-        guard provider.isAuthenticated() else {
+        guard let c = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
             appendTechnicalErrorMessage(
-                "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
+                "[Plan] Backend Codex non disponibile. Verifica impostazioni/autenticazione Codex CLI.",
                 in: conversationId
             )
-            flowDiagnosticsStore.setError("Plan backend non autenticato")
+            flowDiagnosticsStore.setError("Plan backend Codex non disponibile")
+            return nil
+        }
+        return c
+    }
+
+    private func executeWithPlanChoice(
+        _ choice: String,
+        fromPlanConversationId explicitPlanConversationId: UUID? = nil,
+        providerOverrideId: String? = nil
+    ) {
+        guard canExecutePlanBuild(phase: planFlowPhase, choice: choice) else {
+            appendTechnicalErrorMessage(
+                "[Plan] Build non disponibile: completa discovery/chiarimenti e genera un piano valido prima di eseguire.",
+                in: conversationId
+            )
+            flowDiagnosticsStore.setError("Plan build bloccata: fase \(planFlowPhase)")
             return
+        }
+        let planConversationId = explicitPlanConversationId ?? conversationId
+        let provider: any LLMProvider
+        let normalizedOverride = providerOverrideId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let overrideId = normalizedOverride, !overrideId.isEmpty {
+            if let overrideProvider = providerRegistry.provider(for: overrideId) {
+                if overrideProvider.isAuthenticated() {
+                    provider = overrideProvider
+                } else {
+                    appendTechnicalErrorMessage(
+                        "[Plan] Provider selezionato nel pannello non autenticato (\(overrideProvider.displayName)). Uso backend Plan predefinito.",
+                        in: conversationId
+                    )
+                    flowDiagnosticsStore.setError("Plan override non autenticato: \(overrideId)")
+                    guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+                        return
+                    }
+                    provider = backendProvider
+                    if !provider.isAuthenticated() {
+                        appendTechnicalErrorMessage(
+                            "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
+                            in: conversationId
+                        )
+                        flowDiagnosticsStore.setError("Plan backend non autenticato")
+                        return
+                    }
+                }
+            } else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Provider selezionato nel pannello non disponibile (\(overrideId)). Uso backend Plan predefinito.",
+                    in: conversationId
+                )
+                flowDiagnosticsStore.setError("Plan override non disponibile: \(overrideId)")
+                guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+                    return
+                }
+                provider = backendProvider
+                if !provider.isAuthenticated() {
+                    appendTechnicalErrorMessage(
+                        "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
+                        in: conversationId
+                    )
+                    flowDiagnosticsStore.setError("Plan backend non autenticato")
+                    return
+                }
+            }
+        } else {
+            guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+                return
+            }
+            provider = backendProvider
+            if !provider.isAuthenticated() {
+                appendTechnicalErrorMessage(
+                    "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
+                    in: conversationId
+                )
+                flowDiagnosticsStore.setError("Plan backend non autenticato")
+                return
+            }
         }
 
         let currentConv = chatStore.conversation(for: conversationId)
@@ -1954,28 +2113,14 @@ struct ChatPanelView: View {
         }
 
         planningState = .idle
+        planFlowPhase = .readyToBuild
         chatStore.choosePlanPath(choice, for: planConversationId)
 
         let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-        let existingAgentTodos = todoStore.todos.filter { $0.source == .agent }
-        let doneTodos = existingAgentTodos.filter { $0.status == .done }
-        let isResume = !doneTodos.isEmpty && existingAgentTodos.count >= 1
-
-        if isResume {
-            // Ripresa: mantieni lo stato todo esistente, non ripopolare dal piano
-        } else if !planTodos.isEmpty {
-            todoStore.clearAgentTodos()
-            for todoTitle in planTodos {
-                todoStore.upsertFromAgent(
-                    id: nil,
-                    title: todoTitle,
-                    status: .pending,
-                    priority: .medium,
-                    notes: nil,
-                    linkedFiles: []
-                )
-            }
-        }
+        todoStore.upsertCanonicalPlanTodos(planTodos)
+        let canonicalTodos = todoStore.todos.filter { $0.isPlanCanonical }
+        let doneTodos = canonicalTodos.filter { $0.status == .done }
+        let isResume = !doneTodos.isEmpty && !canonicalTodos.isEmpty
 
         if let selected = planHistoryStore.selectedEntryId {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
@@ -1983,28 +2128,22 @@ struct ChatPanelView: View {
         }
         chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: planConversationId)
         selectedConversationId = agentConvId
-        providerRegistry.selectedProviderId =
-            planModeBackend == "claude" ? "claude-cli" : "codex-cli"
+        providerRegistry.selectedProviderId = provider.id
         coderMode = .agent
+        planFlowPhase = .building
+        activeBuildPlanConversationId = planConversationId
 
-        let userMessageContent: String
-        if isResume {
-            userMessageContent = "Continua l'implementazione da dove hai lasciato (vedi istruzioni sotto)."
-        } else {
-            userMessageContent = choice.count > 200
-                ? "Procedi con l'opzione scelta dal piano (vedi istruzioni sotto)."
-                : "Procedi con: \(choice)"
-        }
         chatStore.addMessage(
-            ChatMessage(role: .user, content: userMessageContent, isStreaming: false),
+            ChatMessage(
+                role: .user,
+                content: isResume ? "Build piano ripresa: esegui i task rimanenti." : "Build piano avviata: esegui il piano selezionato.",
+                isStreaming: false
+            ),
             to: agentConvId)
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
         chatStore.beginTask(conversationId: agentConvId)
         taskActivityStore.clear()
-        if !isResume && planTodos.isEmpty {
-            todoStore.clearAgentTodos()
-        }
         turnTimelineStore.clear()
         timelineConversationId = agentConvId
         if !todoStore.todos.isEmpty {
@@ -2014,10 +2153,11 @@ struct ChatPanelView: View {
         let planExecutionWorkflow = """
             **Workflow Todo (obbligatorio):** All'inizio di ogni task:
             1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
-            2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con marker:
-            \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
-            3. Durante l'esecuzione aggiorna lo status a in_progress e poi done.
-            4. Prima di concludere verifica che tutti i todo siano done.
+            2. NON creare una nuova lista TODO da zero: usa e aggiorna i TODO canonici del plan già presenti.
+            3. Se emetti \(CoderIDEMarkers.todoWritePrefix), deve aggiornare TODO esistenti; nuovi TODO solo se strettamente necessari.
+            4. Durante l'esecuzione aggiorna lo status a in_progress e poi done.
+            5. Prima di concludere verifica che tutti i todo canonici del plan siano done o spiega i blocchi.
+            6. Non ripetere integralmente il piano in chat: esegui, aggiorna TODO/step, e fornisci feedback operativo.
             """
 
         let executionPlanBase: String
@@ -2034,7 +2174,9 @@ struct ChatPanelView: View {
 
         var prompt: String
         if isResume {
-            let planTodoItems = todoStore.todos.filter { $0.source == .agent }
+            let planTodoItems = todoStore.sortedCanonicalFirstTodos(
+                todoStore.todos.filter { $0.isPlanCanonical }
+            )
             let doneList = planTodoItems
                 .filter { $0.status == .done }
                 .sorted { $0.updatedAt < $1.updatedAt }
@@ -2094,6 +2236,7 @@ struct ChatPanelView: View {
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 chatStore.updatePlanStepStatus(stepId: "1", status: .done, in: planConversationId)
+                await MainActor.run { planFlowPhase = .readyToBuild }
             } catch {
                 let lastContent = chatStore.conversation(for: agentConvId)?
                     .messages.last(where: { $0.role == .assistant })?.content ?? ""
@@ -2105,9 +2248,11 @@ struct ChatPanelView: View {
                 await MainActor.run {
                     flowDiagnosticsStore.setError(error.localizedDescription)
                     flowCoordinator.fail()
+                    planFlowPhase = .proposalReady
                 }
             }
             chatStore.endTask(conversationId: agentConvId)
+            await MainActor.run { activeBuildPlanConversationId = nil }
         }
     }
 
@@ -2153,6 +2298,11 @@ struct ChatPanelView: View {
 
         // Aprire il pannello plan non deve attivare automaticamente la pianificazione.
         let shouldRunPlanInline = forcePlanInline || (coderMode == .agent && planToggleEnabled)
+        if coderMode == .plan || shouldRunPlanInline {
+            planFlowPhase = .discovery
+        } else if planFlowPhase != .building {
+            planFlowPhase = .idle
+        }
 
         // 1. Resolve the runtime provider (plan-mode, multi-account, or default)
         guard
@@ -2216,8 +2366,9 @@ struct ChatPanelView: View {
         }
         chatStore.beginTask(conversationId: targetConversationId)
         taskActivityStore.clear()
-        // Preserve manual todos across turns; reset only agent-emitted workflow todos.
-        todoStore.clearAgentTodos()
+        // Preserve manual todos across turns; for a new standard turn reset all agent todos,
+        // including stale canonical plan tasks from previous plans/conversations.
+        todoStore.clearAgentTodos(includePlanCanonical: true)
         turnTimelineStore.clear()
         timelineConversationId = targetConversationId
         if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }
@@ -2226,7 +2377,7 @@ struct ChatPanelView: View {
         attachedImageURLs = []
 
         // 4. Build the prompt with mode-specific instructions
-        let prompt = buildPrompt(userText: text)
+        let prompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
 
         // 5. Execute async stream
         Task {
@@ -2343,13 +2494,19 @@ struct ChatPanelView: View {
 
     // MARK: - Build Prompt
 
-    private func buildPrompt(userText: String) -> String {
+    private func buildPrompt(userText: String, shouldRunPlanInline: Bool) -> String {
         var prompt =
             userText.isEmpty
             ? "[L'utente ha allegato un'immagine. Analizzala e rispondi.]" : userText
 
         // Plan mode: risposta a domande di chiarimento → includi contesto per proseguire
-        if coderMode == .plan, case .awaitingClarification(let questions) = planningState {
+        if shouldUseClarificationPrompt(
+            coderMode: coderMode,
+            planningState: planningState,
+            shouldRunPlanInline: shouldRunPlanInline
+        ),
+            case .awaitingClarification(let questions) = planningState
+        {
             prompt = """
             Risposta dell'utente alle domande di chiarimento:
 
@@ -2465,7 +2622,9 @@ struct ChatPanelView: View {
         imageURLsToSend: [URL]?,
         prompt: String
     ) async {
-        let full = streamResult.fullText
+        let full = (planFlowPhase == .building)
+            ? normalizeBuildFinalResponse(streamResult.fullText)
+            : streamResult.fullText
         let pendingSwarmTask = streamResult.pendingSwarmTask
         if timelineConversationId == streamConversationId {
             turnTimelineStore.finalize(lastFullText: full)
@@ -2476,21 +2635,26 @@ struct ChatPanelView: View {
 
         // Handle plan options parsing
         if coderMode == .plan || shouldRunPlanInline {
+            let parsedPhase = nextPlanFlowPhaseForOutput(
+                fullText: full,
+                current: planFlowPhase,
+                coderMode: coderMode,
+                shouldRunPlanInline: shouldRunPlanInline
+            )
+            await MainActor.run { planFlowPhase = parsedPhase }
             // Prima verifica se è una risposta con domande di chiarimento
             if let clarificationQuestions = PlanOptionsParser.parseClarificationQuestions(from: full),
                !clarificationQuestions.isEmpty {
                 await MainActor.run {
-                    if coderMode == .plan {
-                        planningState = .awaitingClarification(questions: full)
-                    }
+                    planningState = .awaitingClarification(questions: full)
+                    planFlowPhase = .awaitingClarification
                 }
             } else {
                 let opts = PlanOptionsParser.parse(from: full)
                 if !opts.isEmpty {
                     await MainActor.run {
-                        if coderMode == .plan {
-                            planningState = .awaitingChoice(planContent: full, options: opts)
-                        }
+                        planningState = .awaitingChoice(planContent: full, options: opts)
+                        planFlowPhase = .proposalReady
                     }
                     let board = PlanBoard.build(from: full, options: opts)
                     chatStore.setPlanBoard(board, for: streamConversationId)
@@ -2769,10 +2933,12 @@ struct ChatPanelView: View {
                 }
                 isInputFocused = true
                 planningState = .idle
+                planFlowPhase = .idle
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
                 turnTimelineStore.clear()
                 timelineConversationId = nil
+                activeBuildPlanConversationId = nil
                 isRewinding = false
             }
         }
@@ -2838,10 +3004,12 @@ struct ChatPanelView: View {
                 }
                 isInputFocused = true
                 planningState = .idle
+                planFlowPhase = .idle
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
                 turnTimelineStore.clear()
                 timelineConversationId = nil
+                activeBuildPlanConversationId = nil
                 isRewinding = false
             }
         }

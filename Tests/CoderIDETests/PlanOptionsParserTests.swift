@@ -66,6 +66,43 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertNil(questions)
     }
 
+    func testParseClarificationQuestionsSupportsLevelThreeHeader() {
+        let input = """
+        ### Domande di chiarimento:
+        1. Quale modulo va aggiornato?
+        2. Quale comportamento va preservato?
+        """
+        let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
+        XCTAssertEqual(questions?.count, 2)
+        XCTAssertEqual(questions?.first, "Quale modulo va aggiornato?")
+    }
+
+    func testParseClarificationQuestionsSupportsMixedBulletsAndNumbers() {
+        let input = """
+        ## Clarification Questions
+        - Qual è il target principale?
+        2. Quali test esistono già?
+        """
+        let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
+        XCTAssertEqual(questions?.count, 2)
+        XCTAssertEqual(questions?[0], "Qual è il target principale?")
+        XCTAssertEqual(questions?[1], "Quali test esistono già?")
+    }
+
+    func testParseClarificationQuestionsStopsAtAnyMarkdownHeading() {
+        let input = """
+        # Clarification Questions
+        - Quale modulo?
+        - Quale vincolo?
+        # Option 1
+        - Questo bullet non è una domanda di chiarimento
+        """
+        let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
+        XCTAssertEqual(questions?.count, 2)
+        XCTAssertEqual(questions?[0], "Quale modulo?")
+        XCTAssertEqual(questions?[1], "Quale vincolo?")
+    }
+
     func testExtractTodosFromOptionText() {
         let input = """
         ## Opzione 1: Refactor
@@ -101,4 +138,3 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertTrue(todos.isEmpty)
     }
 }
-

@@ -3,6 +3,17 @@ import SwiftUI
 import CoderEngine
 import UniformTypeIdentifiers
 
+func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool) -> Bool {
+    switch phase {
+    case .proposalReady, .readyToBuild:
+        return true
+    case .idle:
+        return hasBuildChoice
+    case .discovery, .awaitingClarification, .building:
+        return false
+    }
+}
+
 /// Pannello laterale stile Cursor per il piano.
 /// Top bar fissa (breadcrumb, model picker, Build), contenuto scrollabile sotto.
 struct PlanPanelView: View {
@@ -13,6 +24,7 @@ struct PlanPanelView: View {
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     let conversationId: UUID?
     let planningState: PlanningState
+    let planFlowPhase: PlanFlowPhase
     let onClose: () -> Void
     let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
@@ -137,7 +149,7 @@ struct PlanPanelView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
 
-            if let hint = buildHint {
+            if let hint = phaseHint {
                 Text(hint)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -251,6 +263,30 @@ struct PlanPanelView: View {
         return board.steps.allSatisfy { $0.status == .done } && !chatStore.isLoading
     }
 
+    private var isBuildEnabledByPhase: Bool {
+        isPlanBuildEnabled(
+            phase: planFlowPhase,
+            hasBuildChoice: resolveBuildChoiceText() != nil
+        )
+    }
+
+    private var phaseHint: String? {
+        switch planFlowPhase {
+        case .idle:
+            return buildHint
+        case .discovery:
+            return "Analisi in corso: attendi il completamento della discovery."
+        case .awaitingClarification:
+            return "Servono chiarimenti: rispondi alle domande prima del build."
+        case .proposalReady:
+            return "Proposta pronta: seleziona/conferma l'opzione e avvia Build."
+        case .readyToBuild:
+            return "Piano pronto: puoi avviare Build."
+        case .building:
+            return "Build in esecuzione..."
+        }
+    }
+
     private var buildButton: some View {
         let fullyBuilt = isPlanFullyBuilt
         return Group {
@@ -283,6 +319,7 @@ struct PlanPanelView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Plan completato. Clicca per eseguire di nuovo (⌘⏎)")
+                .disabled(!isBuildEnabledByPhase)
             } else {
                 Button {
                     if chatStore.isLoading {
@@ -320,11 +357,16 @@ struct PlanPanelView: View {
                 .buttonStyle(PlanBuildButtonStyle())
                 .keyboardShortcut(.return, modifiers: [.command])
                 .help(chatStore.isLoading ? "Ferma il build (⌘⏎)" : "Esegui il plan (⌘⏎)")
+                .disabled(!isBuildEnabledByPhase && !chatStore.isLoading)
             }
         }
     }
 
     private func performBuild() {
+        guard isBuildEnabledByPhase else {
+            buildHint = phaseHint ?? "Build non disponibile in questa fase."
+            return
+        }
         guard let choice = resolveBuildChoiceText() else {
             buildHint = "Nessuna opzione disponibile da eseguire."
             return
@@ -489,10 +531,14 @@ struct PlanPanelView: View {
                         .buttonStyle(.plain)
                         .font(.system(size: 10, weight: .medium))
                         Button {
+                            guard isBuildEnabledByPhase else {
+                                buildHint = phaseHint ?? "Build non disponibile in questa fase."
+                                return
+                            }
                             planHistoryStore.setSelectedEntry(id: entry.id)
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
-                            onBuild(choice)
+                            onBuild(choice, planProviderId)
                             planHistoryStore.markRebuilt(id: entry.id)
                             buildHint = "Rebuild avviata..."
                         } label: {
