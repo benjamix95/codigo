@@ -885,11 +885,24 @@ struct ChatPanelView: View {
                 if timelineConversationId != nil, activity.type != "usage" {
                     turnTimelineStore.appendActivity(activity)
                 }
+                // Auto-show panel per tutte le operazioni concrete (non solo terminale/web)
                 let shouldAutoShow =
-                    activity.type == "command_execution" || activity.type == "bash"
-                    || activity.type == "web_search_started"
-                    || activity.type == "web_search_completed"
-                    || activity.type == "web_search_failed"
+                    activity.type != "usage"
+                    && (
+                        activity.type == "command_execution"
+                            || activity.type == "bash"
+                            || activity.type == "web_search_started"
+                            || activity.type == "web_search_completed"
+                            || activity.type == "web_search_failed"
+                            || activity.type == "read_batch_started"
+                            || activity.type == "read_batch_completed"
+                            || activity.type == "mcp_tool_call"
+                            || activity.type == "file_change"
+                            || activity.type == "edit"
+                            || activity.type == "reasoning"
+                            || activity.type == "process_paused"
+                            || activity.type == "process_resumed"
+                    )
                 if shouldAutoShow {
                     taskPanelEnabled = true
                 }
@@ -2285,11 +2298,24 @@ struct ChatPanelView: View {
             .reversed()
             .first {
                 $0.phase == .thinking
-                    && !(($0.payload["output"] ?? $0.payload["text"] ?? "").trimmingCharacters(
+                    && !((
+                        $0.payload["output"]
+                            ?? $0.payload["text"]
+                            ?? $0.payload["reasoning"]
+                            ?? $0.payload["detail"]
+                            ?? $0.payload["summary"]
+                            ?? ""
+                    ).trimmingCharacters(
                         in: .whitespacesAndNewlines
                     ).isEmpty)
             }
-            .flatMap { $0.payload["output"] ?? $0.payload["text"] }
+            .flatMap {
+                $0.payload["output"]
+                    ?? $0.payload["text"]
+                    ?? $0.payload["reasoning"]
+                    ?? $0.payload["detail"]
+                    ?? $0.payload["summary"]
+            }
         let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return text.isEmpty ? nil : text
     }

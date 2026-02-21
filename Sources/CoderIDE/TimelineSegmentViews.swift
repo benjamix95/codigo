@@ -76,11 +76,11 @@ struct ThinkingCardView: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(isExpanded ? nil : 2)
-                if isExpanded, let output = activity.payload["output"] ?? activity.payload["text"], !output.isEmpty {
+                if let output = activity.payload["output"] ?? activity.payload["text"], !output.isEmpty {
                     Text(output)
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
-                        .lineLimit(12)
+                        .lineLimit(isExpanded ? 12 : 3)
                         .textSelection(.enabled)
                 }
             }
@@ -127,6 +127,43 @@ struct ToolExecutionCardView: View {
         }
     }
 
+    private var isTerminalLike: Bool {
+        activity.type == "bash" || activity.type == "command_execution"
+    }
+
+    private var cardFill: Color {
+        if isTerminalLike {
+            // Palette dark slate in stile Codex/ChatGPT terminal cards
+            return Color(red: 0.09, green: 0.11, blue: 0.14).opacity(0.92)
+        }
+        return Color(nsColor: .controlBackgroundColor).opacity(0.6)
+    }
+
+    private var cardBorder: Color {
+        if isTerminalLike {
+            return Color(red: 0.28, green: 0.33, blue: 0.40).opacity(0.75)
+        }
+        return DesignSystem.Colors.border.opacity(0.6)
+    }
+
+    private var commandColor: Color {
+        isTerminalLike ? Color(red: 0.78, green: 0.90, blue: 0.74) : .primary
+    }
+
+    private var terminalPreview: String? {
+        let merged = [
+            activity.payload["output"],
+            activity.payload["stdout"],
+            activity.payload["stderr"],
+            activity.payload["detail"],
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .first { !$0.isEmpty }
+        guard let merged else { return nil }
+        let lines = merged.split(separator: "\n").prefix(5).map(String.init)
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: iconName)
@@ -159,8 +196,15 @@ struct ToolExecutionCardView: View {
                 if let command = activity.payload["command"], !command.isEmpty {
                     Text("$ \(command)")
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(commandColor)
                         .lineLimit(isExpanded ? nil : 2)
+                        .textSelection(.enabled)
+                }
+                if !isExpanded, let preview = terminalPreview, isTerminalLike {
+                    Text(preview)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(5)
                         .textSelection(.enabled)
                 }
                 if isExpanded {
@@ -185,11 +229,11 @@ struct ToolExecutionCardView: View {
         .frame(maxWidth: 760, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+                .fill(cardFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.6)
+                .strokeBorder(cardBorder, lineWidth: 0.7)
         )
     }
 }
