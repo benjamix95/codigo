@@ -177,6 +177,9 @@ struct ProcessRunner {
             lines.append(line)
         }
         process.waitUntilExit()
+        if executionController?.runState == .stopping {
+            throw CancellationError()
+        }
         return (lines, process.terminationStatus)
     }
 }

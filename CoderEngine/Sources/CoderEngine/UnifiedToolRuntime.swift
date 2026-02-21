@@ -182,6 +182,12 @@ public actor UnifiedToolRuntime {
                 "cwd": cwd.path,
                 "output": String(output.prefix(6000))
             ])
+        } catch is CancellationError {
+            return failure("interrotto dall'utente", startDate: startDate, payload: [
+                "title": title,
+                "command": command,
+                "cwd": cwd.path
+            ])
         } catch {
             return failure(error.localizedDescription, startDate: startDate, payload: [
                 "title": title,
