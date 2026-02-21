@@ -29,6 +29,14 @@ struct SwarmLiveBoardView: View {
         cards
     }
 
+    private var liveSignature: String {
+        visibleCards
+            .map {
+                "\($0.swarmId)|\($0.status.rawValue)|\($0.lastEventAt?.timeIntervalSince1970 ?? 0)|\($0.activeOpsCount)|\($0.errorCount)|\($0.recentEvents.count)"
+            }
+            .joined(separator: ";")
+    }
+
     var body: some View {
         if !visibleCards.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
@@ -78,7 +86,7 @@ struct SwarmLiveBoardView: View {
                         guard isFollowingLive, let last = visibleCards.first?.swarmId else { return }
                         proxy.scrollTo("card-\(last)", anchor: .top)
                     }
-                    .onChange(of: cards.count) { _, _ in
+                    .onChange(of: liveSignature) { _, _ in
                         guard isFollowingLive, let top = visibleCards.first?.swarmId else { return }
                         withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo("card-\(top)", anchor: .top)
