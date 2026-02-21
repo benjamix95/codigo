@@ -77,6 +77,27 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(todo.status, .pending)
     }
 
+    func testTodoWriteAlsoEmitsTaskActivityForRealtimeVisibility() {
+        let events = EventNormalizer.normalize(
+            type: "todo_write",
+            payload: [
+                "title": "Fix stream reasoning",
+                "status": "in_progress",
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .todoWrite = $0 { return true }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "todo_write" && activity.title == "Todo aggiornato"
+            }
+            return false
+        })
+    }
+
     func testTodoReadAlsoEmitsTaskActivityForRealtimeVisibility() {
         let events = EventNormalizer.normalize(
             type: "todo_read",
