@@ -121,6 +121,10 @@ struct ProcessRunner {
                     continuation.finish()
                     return
                 }
+                if executionController?.runState == .stopping {
+                    continuation.finish(throwing: CancellationError())
+                    return
+                }
                 let message = stderrTail.isEmpty ? "nessun output stderr disponibile" : stderrTail
                 let stdoutTail: String? = stderrTail.isEmpty && !stdoutTailBuffer.isEmpty
                     ? stdoutTailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
@@ -130,11 +134,15 @@ struct ProcessRunner {
         }
     }
 
-    /// Esegue un comando e restituisce tutte le linee di output più il codice di uscita
+    /// Esegue un comando e restituisce tutte le linee di output più il codice di uscita.
+    /// Se executionController è fornito, il processo viene registrato e può essere terminato
+    /// quando l'utente preme "Ferma" o quando il flusso si interrompe.
     static func runCollecting(
         executable: String,
         arguments: [String],
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        executionController: ExecutionController? = nil,
+        scope: ExecutionScope = .agent
     ) async throws -> (output: [String], terminationStatus: Int32) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -147,6 +155,10 @@ struct ProcessRunner {
         process.standardError = pipe
         process.standardInput = nil
         try process.run()
+
+        executionController?.beginScope(scope)
+        executionController?.setCurrentProcess(process)
+        defer { executionController?.clearCurrentProcess() }
 
         var lines: [String] = []
         var buffer = [UInt8]()
