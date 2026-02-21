@@ -6,6 +6,8 @@ struct SwarmProgressView: View {
     let isTaskRunning: Bool
 
     var body: some View {
+        let cards = SwarmLiveReducer.sorted(
+            states: Array(SwarmLiveReducer.reduce(activities: activities).values))
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Image(systemName: "checklist")
@@ -21,7 +23,7 @@ struct SwarmProgressView: View {
             ForEach(store.steps) { step in
                 SwarmStepRow(step: step)
             }
-            SwarmLiveBoardView(activities: activities, isTaskRunning: isTaskRunning)
+            SwarmLiveBoardView(cards: cards, isTaskRunning: isTaskRunning)
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
         }

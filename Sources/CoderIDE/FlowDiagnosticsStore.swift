@@ -22,6 +22,9 @@ final class FlowDiagnosticsStore: ObservableObject {
     @Published var selectedProviderId: String = ""
     @Published private(set) var entries: [FlowDiagnosticEntry] = []
     @Published private(set) var lastError: String?
+    @Published private(set) var swarmEventsReceived: Int = 0
+    @Published private(set) var swarmEventsAssigned: Int = 0
+    @Published private(set) var swarmEventsFallback: Int = 0
 
     func push(providerId: String, eventType: String, summary: String) {
         entries.insert(FlowDiagnosticEntry(providerId: providerId, eventType: eventType, summary: summary), at: 0)
@@ -32,5 +35,15 @@ final class FlowDiagnosticsStore: ObservableObject {
 
     func setError(_ value: String?) {
         lastError = value
+    }
+
+    func recordSwarmRouting(assignedToSwarm: Bool, fallbackToOrchestrator: Bool) {
+        swarmEventsReceived += 1
+        if assignedToSwarm {
+            swarmEventsAssigned += 1
+        }
+        if fallbackToOrchestrator {
+            swarmEventsFallback += 1
+        }
     }
 }

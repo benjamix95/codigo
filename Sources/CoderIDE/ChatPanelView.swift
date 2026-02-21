@@ -889,6 +889,14 @@ struct ChatPanelView: View {
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
+                if flowDiagnosticsEnabled {
+                    let owner = SwarmLiveReducer.ownerSwarmId(
+                        for: activity, includeOrchestratorFallback: true)
+                    flowDiagnosticsStore.recordSwarmRouting(
+                        assignedToSwarm: owner != nil && owner != "orchestrator",
+                        fallbackToOrchestrator: owner == "orchestrator"
+                    )
+                }
                 // Usage è metadata (token), non va in timeline—creerebbe un card vuoto
                 if timelineConversationId != nil, activity.type != "usage" {
                     turnTimelineStore.appendActivity(activity)
@@ -921,7 +929,11 @@ struct ChatPanelView: View {
                     || activity.type == "bash" || activity.type == "mcp_tool_call"
                     || activity.type == "reasoning"
                 {
-                    taskActivityStore.appendOrMergeBatchEvent(activity)
+                    if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
+                        taskActivityStore.addActivity(activity)
+                    } else {
+                        taskActivityStore.appendOrMergeBatchEvent(activity)
+                    }
                 } else {
                     taskActivityStore.addActivity(activity)
                 }
@@ -974,6 +986,11 @@ struct ChatPanelView: View {
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.red)
             }
+            Text(
+                "Swarm events: recv \(flowDiagnosticsStore.swarmEventsReceived) • assigned \(flowDiagnosticsStore.swarmEventsAssigned) • fallback \(flowDiagnosticsStore.swarmEventsFallback)"
+            )
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.tertiary)
             ForEach(flowDiagnosticsStore.entries.prefix(5)) { entry in
                 Text("[\(entry.providerId)] \(entry.eventType) • \(entry.summary)")
                     .font(.system(size: 10, design: .monospaced))

@@ -69,10 +69,18 @@ final class TaskActivityStore: ObservableObject {
     @Published private(set) var envelopes: [NormalizedEventEnvelope] = []
     @Published private(set) var activeOperationsCount: Int = 0
     @Published private(set) var unseenLiveEventsCount: Int = 0
+    @Published private(set) var swarmCards: [String: SwarmLiveCardState] = [:]
+    @Published private(set) var swarmEventsReceivedCount: Int = 0
+    @Published private(set) var swarmEventsAssignedCount: Int = 0
+    @Published private(set) var swarmEventsFallbackCount: Int = 0
+
+    private var swarmCardDedupKeys: [String: Set<String>] = [:]
+    private let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
 
     func addActivity(_ activity: TaskActivity) {
         activities.append(activity)
         recalcActiveOperations()
+        ingestSwarmCard(activity: activity)
     }
 
     func addInstantGrep(_ result: InstantGrepResult) {
@@ -103,6 +111,10 @@ final class TaskActivityStore: ObservableObject {
     }
 
     func appendOrMergeBatchEvent(_ activity: TaskActivity) {
+        if shouldPreserveSwarmCriticalEvent(activity) {
+            addActivity(activity)
+            return
+        }
         guard let groupId = activity.groupId else {
             addActivity(activity)
             return
@@ -113,6 +125,7 @@ final class TaskActivityStore: ObservableObject {
             activities.append(activity)
         }
         recalcActiveOperations()
+        rebuildSwarmCards()
     }
 
     private func recalcActiveOperations() {
@@ -125,6 +138,41 @@ final class TaskActivityStore: ObservableObject {
         envelopes.removeAll()
         activeOperationsCount = 0
         unseenLiveEventsCount = 0
+        swarmCards.removeAll()
+        swarmCardDedupKeys.removeAll()
+        swarmEventsReceivedCount = 0
+        swarmEventsAssignedCount = 0
+        swarmEventsFallbackCount = 0
+    }
+
+    func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {
+        guard SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil
+        else {
+            return false
+        }
+        return SwarmLiveReducer.isSwarmCriticalTransition(activity)
+    }
+
+    func setSwarmCardCollapsed(_ swarmId: String, collapsed: Bool) {
+        guard var card = swarmCards[swarmId] else { return }
+        card.isCollapsed = collapsed
+        if !collapsed {
+            card.hasUnreadSinceCollapse = false
+        }
+        swarmCards[swarmId] = card
+    }
+
+    func swarmCardStates(limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit)
+        -> [SwarmLiveCardState]
+    {
+        if limitEventsPerCard != defaultSwarmEventsLimit {
+            let reduced = SwarmLiveReducer.reduce(
+                activities: activities,
+                limitRecentEvents: limitEventsPerCard
+            )
+            return SwarmLiveReducer.sorted(states: Array(reduced.values))
+        }
+        return SwarmLiveReducer.sorted(states: Array(swarmCards.values))
     }
 
     func recentActivities(limit: Int) -> [TaskActivity] {
@@ -230,49 +278,28 @@ final class TaskActivityStore: ObservableObject {
         from activities: [TaskActivity],
         limitPerLane: Int = 120
     ) -> [SwarmLaneState] {
-        let grouped = activitiesGroupedBySwarm(from: activities, limitPerLane: limitPerLane, includeCorrelatedGlobal: true)
-        var states: [SwarmLaneState] = grouped.map { swarmId, events in
-            let status = laneStatus(for: events)
-            let errors = events.filter { isErrorEvent($0) }.count
-            let active = events.filter(\.isRunning).count
-            let last = events.last
+        let cards = SwarmLiveReducer.reduce(activities: activities, limitRecentEvents: limitPerLane)
+        var states: [SwarmLaneState] = cards.values.map { card in
+            let status: SwarmLaneStatus = {
+                switch card.status {
+                case .running: return .running
+                case .failed: return .failed
+                case .completed: return .completed
+                case .idle: return .idle
+                }
+            }()
             return SwarmLaneState(
-                id: swarmId,
-                swarmId: swarmId,
+                id: card.swarmId,
+                swarmId: card.swarmId,
                 status: status,
-                lastEventAt: last?.timestamp,
-                currentActivityTitle: last?.title ?? "In attesa eventi",
-                events: events,
-                activeOpsCount: active,
-                errorsCount: errors,
-                hasUnreadWhileCollapsed: false
+                lastEventAt: card.lastEventAt,
+                currentActivityTitle: card.currentStepTitle,
+                events: card.recentEvents,
+                activeOpsCount: card.activeOpsCount,
+                errorsCount: card.errorCount,
+                hasUnreadWhileCollapsed: card.hasUnreadSinceCollapse
             )
         }
-
-        let knownSwarmIds = Set(grouped.keys)
-        let orchestratorEvents = activities.filter {
-            let hasSwarm = !($0.payload["swarm_id"] ?? "").isEmpty
-            if hasSwarm { return false }
-            if let groupId = $0.payload["group_id"], groupId.hasPrefix("swarm-") {
-                return false
-            }
-            return !$0.type.isEmpty
-        }
-        if !orchestratorEvents.isEmpty && !knownSwarmIds.contains("orchestrator") {
-            let clipped = Array(orchestratorEvents.sorted { $0.timestamp < $1.timestamp }.suffix(max(1, limitPerLane)))
-            states.append(SwarmLaneState(
-                id: "orchestrator",
-                swarmId: "orchestrator",
-                status: laneStatus(for: clipped),
-                lastEventAt: clipped.last?.timestamp,
-                currentActivityTitle: clipped.last?.title ?? "Orchestrator",
-                events: clipped,
-                activeOpsCount: clipped.filter(\.isRunning).count,
-                errorsCount: clipped.filter { isErrorEvent($0) }.count,
-                hasUnreadWhileCollapsed: false
-            ))
-        }
-
         return states.sorted { lhs, rhs in
             let lw = laneSortWeight(lhs.status)
             let rw = laneSortWeight(rhs.status)
@@ -309,5 +336,32 @@ final class TaskActivityStore: ObservableObject {
         let t = activity.title.lowercased()
         let d = (activity.detail ?? "").lowercased()
         return t.contains("errore") || t.contains("failed") || d.contains("errore") || d.contains("failed")
+    }
+
+    private func ingestSwarmCard(activity: TaskActivity) {
+        swarmEventsReceivedCount += 1
+        let owner = SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: true)
+        if owner == "orchestrator" {
+            swarmEventsFallbackCount += 1
+        } else if owner != nil {
+            swarmEventsAssignedCount += 1
+        }
+        SwarmLiveReducer.apply(
+            activity: activity,
+            to: &swarmCards,
+            dedupeKeys: &swarmCardDedupKeys,
+            limitRecentEvents: defaultSwarmEventsLimit
+        )
+    }
+
+    private func rebuildSwarmCards() {
+        swarmCards.removeAll()
+        swarmCardDedupKeys.removeAll()
+        swarmEventsReceivedCount = 0
+        swarmEventsAssignedCount = 0
+        swarmEventsFallbackCount = 0
+        for activity in activities {
+            ingestSwarmCard(activity: activity)
+        }
     }
 }

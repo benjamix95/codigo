@@ -256,12 +256,11 @@ struct TaskActivityPanel: View {
         }
         .onAppear {
             if selectedSwarmLaneId == nil {
-                selectedSwarmLaneId =
-                    TaskActivityStore.laneStates(from: taskActivityStore.activities).first?.swarmId
+                selectedSwarmLaneId = taskActivityStore.swarmCardStates().first?.swarmId
             }
         }
         .onChange(of: taskActivityStore.activities.count) { _, _ in
-            let laneStates = TaskActivityStore.laneStates(from: taskActivityStore.activities)
+            let laneStates = taskActivityStore.swarmCardStates()
             let valid = laneStates.contains { $0.swarmId == selectedSwarmLaneId }
             if !valid {
                 selectedSwarmLaneId = laneStates.first?.swarmId
@@ -394,19 +393,20 @@ struct TaskActivityPanel: View {
             liveModeBanner
         }
 
-        let laneStates = TaskActivityStore.laneStates(from: taskActivityStore.activities)
-        let effectiveSwarmId = selectedSwarmLaneId ?? laneStates.first?.swarmId
-        let selectedLaneActivities =
-            effectiveSwarmId.map {
-                taskActivityStore.activitiesForSwarmLane($0, limit: 120)
-            } ?? []
+        let cards = taskActivityStore.swarmCardStates()
+        let effectiveSwarmId = selectedSwarmLaneId ?? cards.first?.swarmId
+        let selectedCard = cards.first(where: { $0.swarmId == effectiveSwarmId })
+        let selectedLaneActivities = selectedCard?.recentEvents ?? []
 
         SwarmLiveBoardView(
-            activities: taskActivityStore.activities,
+            cards: cards,
             isTaskRunning: chatStore.isLoading,
             selectedSwarmId: effectiveSwarmId,
             onSelectSwarm: { selected in
                 selectedSwarmLaneId = selected
+            },
+            onSetCollapsed: { swarmId, collapsed in
+                taskActivityStore.setSwarmCardCollapsed(swarmId, collapsed: collapsed)
             }
         )
 
