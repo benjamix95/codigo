@@ -920,7 +920,8 @@ struct ChatPanelView: View {
                 taskPanelEnabled = true
                 break
             case .planStepUpdate(let stepId, let status):
-                chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: conversationId)
+                let targetId = timelineConversationId ?? conversationId
+                chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: targetId)
             }
         }
     }
