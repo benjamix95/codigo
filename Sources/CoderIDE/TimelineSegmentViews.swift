@@ -270,3 +270,122 @@ struct TodoTimelineCardView: View {
         )
     }
 }
+
+// MARK: - Realtime Operations Strip
+
+struct RealtimeOperationsStripView: View {
+    let activities: [TaskActivity]
+
+    private var liveItems: [TaskActivity] {
+        let filtered = activities.filter { activity in
+            if activity.type == "usage" { return false }
+            if activity.type == "command_execution" || activity.type == "bash" { return false }
+            return true
+        }
+        var seen = Set<String>()
+        let deduped = filtered.reversed().filter { activity in
+            let key = (activity.groupId ?? "") + "|" + activity.type + "|" + activity.title
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+        return Array(deduped.prefix(4))
+    }
+
+    private func icon(for activity: TaskActivity) -> String {
+        switch activity.type {
+        case "read_batch_started", "read_batch_completed":
+            return "doc.on.doc"
+        case "web_search_started", "web_search_completed", "web_search_failed":
+            return "magnifyingglass"
+        case "mcp_tool_call":
+            return "wrench.and.screwdriver.fill"
+        case "edit", "file_change":
+            return "pencil"
+        case "todo_write", "todo_read":
+            return "checklist"
+        default:
+            return activity.phase == .thinking ? "brain" : "gearshape.fill"
+        }
+    }
+
+    private func accent(for activity: TaskActivity) -> Color {
+        switch activity.phase {
+        case .editing: return DesignSystem.Colors.agentColor
+        case .executing: return DesignSystem.Colors.warning
+        case .searching: return DesignSystem.Colors.info
+        case .planning: return DesignSystem.Colors.planColor
+        case .thinking: return .secondary
+        }
+    }
+
+    private func detail(for activity: TaskActivity) -> String? {
+        let candidates = [
+            activity.detail,
+            activity.payload["detail"],
+            activity.payload["summary"],
+            activity.payload["path"],
+            activity.payload["tool"],
+            activity.payload["query"],
+        ]
+        for value in candidates {
+            let text = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !text.isEmpty, text != activity.title { return text }
+        }
+        return nil
+    }
+
+    var body: some View {
+        if !liveItems.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Operazioni live")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(liveItems) { activity in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: icon(for: activity))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(accent(for: activity))
+                            .frame(width: 14, alignment: .center)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(activity.title)
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if activity.isRunning {
+                                    ProgressView()
+                                        .controlSize(.mini)
+                                }
+                            }
+                            if let detail = detail(for: activity) {
+                                Text(detail)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(
+                        Color(nsColor: .controlBackgroundColor).opacity(0.45),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 760, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.6)
+            )
+        }
+    }
+}

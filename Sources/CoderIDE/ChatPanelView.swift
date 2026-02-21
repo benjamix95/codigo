@@ -116,7 +116,7 @@ struct ChatPanelView: View {
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
     private let topInteractiveInset: CGFloat = 22
-    private let chatColumnMaxWidth: CGFloat = 980
+    private let chatColumnMaxWidth: CGFloat = 900
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
@@ -515,6 +515,9 @@ struct ChatPanelView: View {
             }
             if let reasoning = streamingReasoningText, !reasoning.isEmpty {
                 timelineReasoningStream(reasoning: reasoning)
+            }
+            if chatStore.isLoading {
+                RealtimeOperationsStripView(activities: taskActivityStore.activities)
             }
         }
     }
