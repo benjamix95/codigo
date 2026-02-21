@@ -60,6 +60,8 @@ struct ChatPanelView: View {
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
     @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
+    @AppStorage("code_review_quick_commands_custom_json")
+    private var codeReviewQuickCommandsCustomJSON = ""
     @AppStorage("openai_api_key") private var openaiApiKey = ""
     @AppStorage("openai_model") private var openaiModel = "gpt-4o-mini"
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
@@ -1008,6 +1010,11 @@ struct ChatPanelView: View {
                 onApplyQuickCommand: { text in
                     inputText = text
                     isInputFocused = true
+                },
+                onRunQuickCommand: { text in
+                    inputText = text
+                    isInputFocused = true
+                    sendMessage()
                 }
             )
             ModeControlsBarView(
@@ -1154,7 +1161,7 @@ struct ChatPanelView: View {
 
     private var composerQuickCommandPresets: [ChatComposerView.QuickCommandPreset] {
         guard coderMode == .codeReviewMultiSwarm else { return [] }
-        return [
+        let defaults: [ChatComposerView.QuickCommandPreset] = [
             .init(
                 id: "review-uncommitted",
                 slash: "/review-uncommitted",
@@ -1214,6 +1221,33 @@ struct ChatPanelView: View {
                     """
             ),
         ]
+        return defaults + customCodeReviewQuickPresets
+    }
+
+    private var customCodeReviewQuickPresets: [ChatComposerView.QuickCommandPreset] {
+        struct CustomPreset: Decodable {
+            let slash: String
+            let label: String
+            let prompt: String
+        }
+        let raw = codeReviewQuickCommandsCustomJSON.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard !raw.isEmpty, let data = raw.data(using: .utf8) else { return [] }
+        guard let decoded = try? JSONDecoder().decode([CustomPreset].self, from: data) else {
+            return []
+        }
+        return decoded.enumerated().compactMap { idx, item in
+            let slash = item.slash.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = item.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = item.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard slash.hasPrefix("/"), !label.isEmpty, !prompt.isEmpty else { return nil }
+            return .init(
+                id: "review-custom-\(idx)-\(slash)",
+                slash: slash,
+                label: label,
+                prompt: prompt
+            )
+        }
     }
 
     private var effectiveSandbox: String {

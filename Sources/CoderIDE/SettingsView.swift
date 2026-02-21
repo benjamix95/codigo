@@ -166,6 +166,8 @@ struct SettingsView: View {
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
     @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
+    @AppStorage("code_review_quick_commands_custom_json")
+    private var codeReviewQuickCommandsCustomJSON = ""
 
     // General
     @AppStorage("appearance") private var appearance = "system"
@@ -1164,6 +1166,57 @@ struct SettingsView: View {
                 }
                 .padding(4)
             }
+
+            GroupBox("Quick Commands /review-* (custom)") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(
+                        "Inserisci un JSON array di preset custom. Ogni voce richiede: slash, label, prompt."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    TextEditor(text: $codeReviewQuickCommandsCustomJSON)
+                        .font(.system(size: 11, design: .monospaced))
+                        .frame(minHeight: 140, maxHeight: 220)
+                        .padding(6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(nsColor: .textBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.6)
+                        )
+
+                    HStack(spacing: 10) {
+                        Button("Inserisci template") {
+                            if codeReviewQuickCommandsCustomJSON.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ).isEmpty {
+                                codeReviewQuickCommandsCustomJSON = """
+                                [
+                                  {
+                                    "slash": "/review-risk-focus",
+                                    "label": "Risk focus",
+                                    "prompt": "Fai review solo su rischi di regressione ad alto impatto (runtime, data loss, security). Riporta findings P0/P1 con prove."
+                                  },
+                                  {
+                                    "slash": "/review-fix-tests",
+                                    "label": "Fix + tests",
+                                    "prompt": "Trova bug nelle modifiche correnti, applica fix, aggiungi/aggiorna test e valida con build/test completi."
+                                  }
+                                ]
+                                """
+                            }
+                        }
+                        Button("Reset custom") {
+                            codeReviewQuickCommandsCustomJSON = ""
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(4)
+            }
         }
     }
 
@@ -1776,19 +1829,24 @@ struct SettingsView: View {
         providerRegistry.unregister(id: "openai-api")
         providerRegistry.register(
             ProviderFactory.openAIAPIProvider(
-                config: providerFactoryConfig(), reasoningEffort: effort))
+                config: providerFactoryConfig(), reasoningEffort: effort,
+                executionController: executionController))
     }
 
     private func syncAnthropic() {
         providerRegistry.unregister(id: "anthropic-api")
         providerRegistry.register(
-            ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.anthropicAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func syncGoogle() {
         providerRegistry.unregister(id: "google-api")
         providerRegistry.register(
-            ProviderFactory.googleAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.googleAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func syncCodex() {
@@ -1809,13 +1867,17 @@ struct SettingsView: View {
     private func syncMiniMax() {
         providerRegistry.unregister(id: "minimax-api")
         providerRegistry.register(
-            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.miniMaxAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func syncOpenRouter() {
         providerRegistry.unregister(id: "openrouter-api")
         providerRegistry.register(
-            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig()))
+            ProviderFactory.openRouterAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
     }
 
     private func syncClaude() {
