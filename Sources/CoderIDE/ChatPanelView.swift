@@ -677,6 +677,7 @@ struct ChatPanelView: View {
                         let timelineActive =
                             coderMode == .agent
                             && chatStore.isLoading
+                            && conv.id == timelineConversationId
                         if !timelineActive
                             && !showPanelBeforeLast
                             && (chatStore.isLoading
@@ -735,6 +736,7 @@ struct ChatPanelView: View {
                     let timelineActive =
                         coderMode == .agent
                         && chatStore.isLoading
+                        && conversationId == timelineConversationId
                     withAnimation(.easeOut(duration: 0.2)) {
                         if timelineActive, let last = chatStore.conversation(for: conversationId)?.messages.last {
                             proxy.scrollTo(last.id, anchor: .bottom)
@@ -761,6 +763,7 @@ struct ChatPanelView: View {
                         let timelineActive =
                             coderMode == .agent
                             && chatStore.isLoading
+                            && conversationId == timelineConversationId
                         withAnimation(.easeOut(duration: 0.2)) {
                             if timelineActive,
                                 let last = chatStore.conversation(for: conversationId)?.messages.last
