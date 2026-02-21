@@ -1472,10 +1472,11 @@ struct ChatPanelView: View {
 
     // MARK: - Plan Choice Execution
     private func executeWithPlanChoice(_ choice: String) {
+        let planConversationId = conversationId
         let planContent: String
         if case .awaitingChoice(let fullPlan, _) = planningState {
             planContent = fullPlan
-        } else if let board = chatStore.planBoard(for: conversationId) {
+        } else if let board = chatStore.planBoard(for: planConversationId) {
             let optionsBlock = board.options
                 .sorted(by: { $0.id < $1.id })
                 .map { "Opzione \($0.id): \($0.title)\n\($0.fullText)" }
@@ -1546,8 +1547,8 @@ struct ChatPanelView: View {
         }
 
         planningState = .idle
-        chatStore.choosePlanPath(choice, for: conversationId)
-        chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: conversationId)
+        chatStore.choosePlanPath(choice, for: planConversationId)
+        chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: planConversationId)
         selectedConversationId = agentConvId
         providerRegistry.selectedProviderId =
             planModeBackend == "claude" ? "claude-cli" : "codex-cli"
@@ -1588,7 +1589,7 @@ struct ChatPanelView: View {
                     }
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
-                chatStore.updatePlanStepStatus(stepId: "1", status: .done, in: conversationId)
+                chatStore.updatePlanStepStatus(stepId: "1", status: .done, in: planConversationId)
             } catch {
                 let lastContent = chatStore.conversation(for: agentConvId)?
                     .messages.last(where: { $0.role == .assistant })?.content ?? ""
