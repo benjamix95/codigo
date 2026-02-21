@@ -40,7 +40,13 @@ public struct ToolExecutionContext: Sendable {
 }
 
 public actor UnifiedToolRuntime {
-    public init() {}
+    private let executionController: ExecutionController?
+    private let executionScope: ExecutionScope
+
+    public init(executionController: ExecutionController? = nil, executionScope: ExecutionScope = .agent) {
+        self.executionController = executionController
+        self.executionScope = executionScope
+    }
 
     public func execute(_ call: ToolCall, context: ToolExecutionContext) async -> [StreamEvent] {
         let start = Date()
@@ -95,7 +101,11 @@ public actor UnifiedToolRuntime {
         do {
             switch call.name {
             case "read":
-                let path = resolvePath(call.args["path"], workspace: context.workspaceContext.workspacePath.path)
+                let path = resolvePath(
+                    call.args["path"],
+                    workspace: context.workspaceContext.workspacePath.path,
+                    sandboxMode: context.policy.sandboxMode
+                )
                 guard let path else { return failure("Path mancante", startDate: startDate) }
                 let content = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
                 return success(["title": "Read \(path)", "path": path, "output": String(content.prefix(6000))], startDate: startDate)
@@ -110,7 +120,13 @@ public actor UnifiedToolRuntime {
                 return await runBash(command: cmd, cwd: context.workspaceContext.workspacePath, startDate: startDate, title: "Grep \(query)")
             case "edit", "write":
                 guard let pathArg = call.args["path"] else { return failure("Path mancante", startDate: startDate) }
-                let path = resolvePath(pathArg, workspace: context.workspaceContext.workspacePath.path) ?? pathArg
+                guard let path = resolvePath(
+                    pathArg,
+                    workspace: context.workspaceContext.workspacePath.path,
+                    sandboxMode: context.policy.sandboxMode
+                ) else {
+                    return failure("Path non consentito dal sandbox: \(pathArg)", startDate: startDate)
+                }
                 let content = call.args["content"] ?? ""
                 let oldContent = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
                 try content.write(toFile: path, atomically: true, encoding: .utf8)
@@ -147,7 +163,9 @@ public actor UnifiedToolRuntime {
             let result = try await ProcessRunner.runCollecting(
                 executable: "/bin/zsh",
                 arguments: ["-lc", command],
-                workingDirectory: cwd
+                workingDirectory: cwd,
+                executionController: executionController,
+                scope: executionScope
             )
             let output = result.output.joined(separator: "\n")
             if result.terminationStatus == 0 {
@@ -173,10 +191,25 @@ public actor UnifiedToolRuntime {
         }
     }
 
-    private func resolvePath(_ rawPath: String?, workspace: String) -> String? {
+    private func resolvePath(_ rawPath: String?, workspace: String, sandboxMode: String) -> String? {
         guard let rawPath = rawPath?.trimmingCharacters(in: .whitespacesAndNewlines), !rawPath.isEmpty else { return nil }
-        if (rawPath as NSString).isAbsolutePath { return rawPath }
-        return (workspace as NSString).appendingPathComponent(rawPath)
+        let workspaceURL = URL(fileURLWithPath: workspace).standardizedFileURL
+        let resolvedURL: URL
+        if (rawPath as NSString).isAbsolutePath {
+            resolvedURL = URL(fileURLWithPath: rawPath).standardizedFileURL
+        } else {
+            resolvedURL = workspaceURL.appendingPathComponent(rawPath).standardizedFileURL
+        }
+
+        // Enforce workspace confinement except in full-access sandbox.
+        if sandboxMode != "danger-full-access" {
+            let workspacePath = workspaceURL.path.hasSuffix("/") ? workspaceURL.path : workspaceURL.path + "/"
+            let resolvedPath = resolvedURL.path
+            if resolvedPath != workspaceURL.path && !resolvedPath.hasPrefix(workspacePath) {
+                return nil
+            }
+        }
+        return resolvedURL.path
     }
 
     private func success(_ payload: [String: String], startDate: Date) -> ToolResult {
