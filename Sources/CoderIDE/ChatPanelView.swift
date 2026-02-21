@@ -1629,7 +1629,7 @@ struct ChatPanelView: View {
                 turnTimelineStore.finalize(lastFullText: lastContent)
                 chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                 chatStore.updateLastAssistantMessage(
-                    content: "[Errore: \(error.localizedDescription)]", in: agentConvId)
+                    content: userFacingStreamError(error), in: agentConvId)
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 await MainActor.run {
                     flowDiagnosticsStore.setError(error.localizedDescription)
@@ -1782,7 +1782,7 @@ struct ChatPanelView: View {
                     turnTimelineStore.finalize(lastFullText: lastContent)
                 }
                 chatStore.updateLastAssistantMessage(
-                    content: "[Errore: \(error.localizedDescription)]", in: targetConversationId)
+                    content: userFacingStreamError(error), in: targetConversationId)
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
                 await MainActor.run {
                     flowDiagnosticsStore.setError(error.localizedDescription)
@@ -2085,8 +2085,42 @@ struct ChatPanelView: View {
     }
 
     private func appendTechnicalErrorMessage(_ message: String, in conversationId: UUID?) {
+        let normalized = normalizeTechnicalErrorMessage(message)
+        if let conversationId,
+            let last = chatStore.conversation(for: conversationId)?.messages.last,
+            last.role == .assistant,
+            last.content == normalized
+        {
+            return
+        }
         chatStore.addMessage(
-            ChatMessage(role: .assistant, content: message, isStreaming: false), to: conversationId)
+            ChatMessage(role: .assistant, content: normalized, isStreaming: false),
+            to: conversationId
+        )
+    }
+
+    private func normalizeTechnicalErrorMessage(_ message: String) -> String {
+        let raw = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else {
+            return "[Errore] Operazione non completata. Riprova."
+        }
+        let lower = raw.lowercased()
+        if lower.contains("coderengine.coderengineerror error 0")
+            || (lower.contains("operation couldn") && lower.contains("coderengine"))
+        {
+            return
+                "[Errore runtime] Operazione non completata dal provider CLI. Verifica autenticazione e limiti di utilizzo, poi riprova."
+        }
+        return raw
+    }
+
+    private func userFacingStreamError(_ error: Error) -> String {
+        let detail = String(describing: error)
+        let normalized = normalizeTechnicalErrorMessage(detail)
+        if normalized == detail.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return "[Errore] \(error.localizedDescription)"
+        }
+        return normalized
     }
 
     private func rewindConversation() {

@@ -18,6 +18,8 @@ struct MessageRow: View {
     @State private var isHovered = false
     @State private var isReasoningExpanded = false
     @Environment(\.colorScheme) private var colorScheme
+    private let userRowMaxWidth: CGFloat = 600
+    private let assistantRowMaxWidth: CGFloat = 760
 
     /// Only show streaming UI when both the message flag AND the actual loading state agree.
     private var isActivelyStreaming: Bool {
@@ -25,6 +27,8 @@ struct MessageRow: View {
     }
 
     private var isUser: Bool { message.role == .user }
+    private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
+    private var contentMaxWidth: CGFloat { isUser ? 500 : 620 }
 
     private var bubbleBackground: Color {
         if isUser {
@@ -42,52 +46,59 @@ struct MessageRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             if !isUser { avatar }
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    if isUser { Spacer(minLength: 0) }
-                    Text(isUser ? "Tu" : "Coder AI")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(isUser ? Color.accentColor : modeColor)
-                    if isUser {
-                        Button {
-                            onRestoreCheckpoint?()
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
-                                .font(.system(size: 10, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(canRestoreCheckpoint ? .primary : .tertiary)
-                        .disabled(!canRestoreCheckpoint)
-                        .help("Ripristina chat e file da questo punto")
-                        .accessibilityLabel("Ripristina checkpoint")
-                    }
-                    if !isUser {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(modeColor.opacity(0.5))
-                    }
-                }
-                if let paths = message.imagePaths, !paths.isEmpty {
-                    userMessageImagesRow(paths: paths)
-                }
-                ClickableMessageContent(
-                    content: message.content,
-                    context: context,
-                    onFileClicked: onFileClicked,
-                    textAlignment: isUser ? .trailing : .leading
-                )
-                .frame(maxWidth: 620, alignment: isUser ? .trailing : .leading)
-                if isActivelyStreaming { streamingBar }
-            }
+            messageContent
             if isUser { avatar }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, isUser ? 8 : 16)
+        .padding(.vertical, isUser ? 6 : 10)
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
-        .frame(maxWidth: 760, alignment: isUser ? .trailing : .leading)
+        .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
-        .modifier(MessageBubbleModifier(isUser: isUser, bubbleBackground: bubbleBackground))
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.1), value: isHovered)
+    }
+
+    private var messageContent: some View {
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                if isUser { Spacer(minLength: 0) }
+                Text(isUser ? "Tu" : "Coder AI")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isUser ? Color.accentColor : modeColor)
+                if isUser {
+                    Button {
+                        onRestoreCheckpoint?()
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(canRestoreCheckpoint ? .primary : .tertiary)
+                    .disabled(!canRestoreCheckpoint)
+                    .help("Ripristina chat e file da questo punto")
+                    .accessibilityLabel("Ripristina checkpoint")
+                }
+                if !isUser {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(modeColor.opacity(0.5))
+                }
+            }
+            if let paths = message.imagePaths, !paths.isEmpty {
+                userMessageImagesRow(paths: paths)
+            }
+            ClickableMessageContent(
+                content: message.content,
+                context: context,
+                onFileClicked: onFileClicked,
+                textAlignment: isUser ? .trailing : .leading
+            )
+            .frame(maxWidth: contentMaxWidth, alignment: isUser ? .trailing : .leading)
+            if isActivelyStreaming { streamingBar }
+        }
+        .padding(.horizontal, isUser ? 14 : 0)
+        .padding(.vertical, isUser ? 10 : 0)
+        .modifier(MessageBubbleModifier(isUser: isUser, bubbleBackground: bubbleBackground))
     }
 
     // MARK: - Avatar
