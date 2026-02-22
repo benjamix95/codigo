@@ -48,6 +48,8 @@ struct PlanPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     let conversationId: UUID?
+    /// True solo quando il task in corso appartiene a questa conversazione (evita "Building…" su thread diverso).
+    let isCurrentConversationLoading: Bool
     let planningState: PlanningState
     let planFlowPhase: PlanFlowPhase
     let onClose: () -> Void
@@ -366,7 +368,7 @@ struct PlanPanelView: View {
         guard let board = chatStore.planBoard(for: conversationId), !board.steps.isEmpty else {
             return false
         }
-        return board.steps.allSatisfy { $0.status == .done } && !chatStore.isLoading
+        return board.steps.allSatisfy { $0.status == .done } && !isCurrentConversationLoading
     }
 
     private var isBuildEnabledByPhase: Bool {
@@ -447,7 +449,7 @@ struct PlanPanelView: View {
                 .disabled(!isBuildEnabledByPhase)
             } else {
                 Button {
-                    if chatStore.isLoading {
+                    if isCurrentConversationLoading {
                         onStop()
                         buildHint = "Build interrotto"
                     } else {
@@ -455,12 +457,12 @@ struct PlanPanelView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        if chatStore.isLoading {
+                        if isCurrentConversationLoading {
                             ProgressView()
                                 .controlSize(.mini)
                                 .tint(.white)
                         }
-                        Text(chatStore.isLoading ? "Building…" : (resolvedBuildChoice?.isFallback == true ? "Build (fallback)" : "Build"))
+                        Text(isCurrentConversationLoading ? "Building…" : (resolvedBuildChoice?.isFallback == true ? "Build (fallback)" : "Build"))
                             .font(.system(size: 11, weight: .semibold))
                         HStack(spacing: 1) {
                             Image(systemName: "command")
@@ -477,12 +479,12 @@ struct PlanPanelView: View {
                         DesignSystem.Colors.planGradient,
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                     )
-                    .opacity(chatStore.isLoading ? 0.8 : 1)
+                    .opacity(isCurrentConversationLoading ? 0.8 : 1)
                 }
                 .buttonStyle(PlanBuildButtonStyle())
                 .keyboardShortcut(.return, modifiers: [.command])
-                .help(chatStore.isLoading ? "Ferma il build (⌘⏎)" : (buildDisabledReason ?? "Esegui il plan (⌘⏎)"))
-                .disabled(!isBuildEnabledByPhase && !chatStore.isLoading)
+                .help(isCurrentConversationLoading ? "Ferma il build (⌘⏎)" : (buildDisabledReason ?? "Esegui il plan (⌘⏎)"))
+                .disabled(!isBuildEnabledByPhase && !isCurrentConversationLoading)
             }
         }
     }
@@ -587,6 +589,23 @@ struct PlanPanelView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
                     )
+            } else if planFlowPhase == .discovery && isCurrentConversationLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.regular)
+                        .scaleEffect(0.8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Analisi in corso")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("Il provider sta esplorando il codebase…")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 24)
+                .padding(.horizontal, 12)
             } else if !displayPlanContent.isEmpty {
                 MarkdownContentView(
                     content: displayPlanContent,

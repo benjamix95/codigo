@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 import CoderEngine
 
 struct ContentView: View {
@@ -20,11 +21,12 @@ struct ContentView: View {
     @State private var terminalHeight: CGFloat = 200
     @State private var showSettings = false
     @State private var showPlanPanel = false
+    @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selectedConversationId: $selectedConversationId, showSettings: $showSettings)
+            SidebarView(selectedConversationId: $selectedConversationId, showSettings: $showSettings, isSelectingProjectFolders: $isSelectingProjectFolders)
                 .environmentObject(providerRegistry)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
@@ -94,6 +96,7 @@ struct ContentView: View {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
         }
+        .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(providerRegistry)
@@ -103,6 +106,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
             showSettings = true
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onChange(of: isSelectingProjectFolders) { _, isPresented in
+            if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
@@ -215,6 +221,30 @@ struct ContentView: View {
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Color.accentColor.opacity(0.08), in: Capsule())
             .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.12), lineWidth: 0.5))
+        }
+    }
+
+    private func handleProjectFolderSelection(result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else { return }
+        let paths = urls.map { $0.path(percentEncoded: false) }
+        guard let contextId = projectContextStore.createOrReuseSingleProject(paths: paths) else { return }
+        projectContextStore.activeContextId = contextId
+        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
+            workspaceStore.activeWorkspaceId = contextId
+        } else {
+            workspaceStore.activeWorkspaceId = nil
+        }
+        workspaceStore.save()
+        let ctx = projectContextStore.context(id: contextId)
+        let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+        if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
+           let lastConv = chatStore.conversation(for: lastId),
+           lastConv.contextId == contextId,
+           !lastConv.isArchived,
+           lastConv.messages.contains(where: { $0.role == .user }) {
+            selectedConversationId = lastId
+        } else {
+            selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
     }
 

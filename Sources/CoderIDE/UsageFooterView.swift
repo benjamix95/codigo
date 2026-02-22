@@ -88,9 +88,9 @@ struct UsageFooterView: View {
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .padding(.vertical, 2)
         .onAppear {
             scheduleRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)

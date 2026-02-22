@@ -25,8 +25,17 @@ let package = Package(
                 .product(name: "CodeEditorView", package: "CodeEditorView")
             ],
             path: "Sources/CoderIDE",
+            exclude: ["Info.plist"],
             resources: [
                 .process("Resources")
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "Sources/CoderIDE/Info.plist"
+                ])
             ]
         ),
         .testTarget(

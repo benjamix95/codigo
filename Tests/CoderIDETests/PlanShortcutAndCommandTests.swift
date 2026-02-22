@@ -231,15 +231,21 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         )
     }
 
-    func testSwarmModeIsViewOnlyForComposerAndFooter() {
+    func testSwarmModeIsViewOnlyForComposerAndUsageFooterStillVisible() {
         XCTAssertTrue(shouldShowSwarmViewOnly(for: .agentSwarm))
         XCTAssertFalse(shouldShowComposer(for: .agentSwarm))
-        XCTAssertFalse(shouldShowUsageFooter(for: .agentSwarm))
+        XCTAssertTrue(shouldShowUsageFooter(for: .agentSwarm))
     }
 
     func testNonSwarmModesShowComposerAndFooter() {
         XCTAssertFalse(shouldShowSwarmViewOnly(for: .agent))
         XCTAssertTrue(shouldShowComposer(for: .agent))
         XCTAssertTrue(shouldShowUsageFooter(for: .agent))
+    }
+
+    func testUsageFooterVisibleInEveryMode() {
+        for mode in CoderMode.allCases {
+            XCTAssertTrue(shouldShowUsageFooter(for: mode), "Footer usage should be visible in \\(mode.rawValue)")
+        }
     }
 }

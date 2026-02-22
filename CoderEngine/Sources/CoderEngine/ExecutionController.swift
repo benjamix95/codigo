@@ -54,22 +54,37 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
     /// Termina il processo corrente. Chiamato dal pulsante Ferma.
     public func terminateCurrent() {
         lock.withLock {
+            guard let process = currentProcess else {
+                currentScope = nil
+                _runState = .idle
+                return
+            }
+            guard process.isRunning else {
+                currentProcess = nil
+                currentScope = nil
+                _runState = .idle
+                return
+            }
+
+            // Mantieni lo stato "stopping" finché ProcessRunner non osserva la terminazione
+            // e richiama clearCurrentProcess(). Questo evita che uno stop utente venga
+            // classificato come errore runtime (es. exit code 15).
             _runState = .stopping
-            currentProcess?.terminate()
-            currentProcess = nil
-            currentScope = nil
-            _runState = .idle
+            process.terminate()
         }
     }
 
     public func terminate(scope: ExecutionScope) {
         lock.withLock {
             if currentScope == scope || scope == .system {
-                _runState = .stopping
-                currentProcess?.terminate()
-                currentProcess = nil
-                currentScope = nil
-                _runState = .idle
+                if let process = currentProcess, process.isRunning {
+                    _runState = .stopping
+                    process.terminate()
+                } else {
+                    currentProcess = nil
+                    currentScope = nil
+                    _runState = .idle
+                }
             }
             if scope == .swarm || scope == .system {
                 _swarmStopRequested = true

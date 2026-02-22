@@ -447,10 +447,22 @@ final class ChatStore: ObservableObject {
         // evita di eliminare frasi "operative" legittime che altrimenti fanno sembrare
         // il testo bloccato dopo il primo chunk.
         let stripped = Self.stripCoderideMarkers(content, aggressive: persistImmediately)
+        let rawTrimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedContent: String
+        if stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !rawTrimmed.isEmpty {
+            // Fallback difensivo: non perdere mai il contenuto assistant su provider non-Codex.
+            // Se la sanitizzazione aggressiva svuota tutto, riprova in modalita` conservativa.
+            let conservative = Self.stripCoderideMarkers(content, aggressive: false)
+            resolvedContent = conservative.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? content
+                : conservative
+        } else {
+            resolvedContent = stripped
+        }
         var conv = conversations[idx]
         var msgs = conv.messages
         var msg = msgs[lastIdx]
-        msg.content = stripped
+        msg.content = resolvedContent
         msgs[lastIdx] = msg
         conv.messages = msgs
         var updated = conversations
@@ -588,27 +600,29 @@ final class ChatStore: ObservableObject {
             with: "",
             options: .regularExpression
         )
-        // Se un marker si incolla al testo, separa il token key=value prima della rimozione.
-        out = out.replacingOccurrences(
-            of: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#,
-            with: "$1 $2",
-            options: .regularExpression
-        )
-        // Rimuove singoli frammenti key=value tipici dei marker operativi.
-        out = out.replacingOccurrences(
-            of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
-            with: "",
-            options: .regularExpression
-        )
-        // Fallback key=value con chiusura ] (es. files=Sources/..]).
-        out = out.replacingOccurrences(
-            of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#,
-            with: "",
-            options: .regularExpression
-        )
-        // Fallback robusto: rimuove payload marker "grezzi" trapelati nel testo
-        // (es. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
-        out = stripStructuredMarkerPayloads(out)
+        if aggressive {
+            // Se un marker si incolla al testo, separa il token key=value prima della rimozione.
+            out = out.replacingOccurrences(
+                of: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#,
+                with: "$1 $2",
+                options: .regularExpression
+            )
+            // Rimuove singoli frammenti key=value tipici dei marker operativi.
+            out = out.replacingOccurrences(
+                of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
+                with: "",
+                options: .regularExpression
+            )
+            // Fallback key=value con chiusura ] (es. files=Sources/..]).
+            out = out.replacingOccurrences(
+                of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#,
+                with: "",
+                options: .regularExpression
+            )
+            // Fallback robusto: rimuove payload marker "grezzi" trapelati nel testo
+            // (es. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
+            out = stripStructuredMarkerPayloads(out)
+        }
         // Cleanup formattazione leggibile (stile chat): spazi, punteggiatura, line breaks.
         out = out.replacingOccurrences(of: #"\s+\n"#, with: "\n", options: .regularExpression)
         out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
@@ -660,6 +674,31 @@ final class ChatStore: ObservableObject {
             if !removed { break }
         }
         return out
+    }
+
+    /// Estrae l'ultima riga "operativa" dal contenuto durante lo streaming (es. "Planning next moves", "Explored lints").
+    /// Usata per mostrare il thinking dell'LLM come su Cursor.
+    static func extractLastOperationalThinkingLine(from content: String) -> String? {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lines = trimmed.components(separatedBy: .newlines)
+        let operationalPrefixes = [
+            "Planning", "Explored", "Inspecting", "Ran ", "Reading", "Analyzing",
+            "Implementing", "Updating", "Creating", "Generating", "Processing",
+            "Setting", "Preparing", "Starting", "Initializing", "Bootstrapping",
+            "Writing", "Searching"
+        ]
+        for line in lines.reversed() {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard t.count > 3, t.count < 150 else { continue }
+            let lower = t.lowercased()
+            for prefix in operationalPrefixes {
+                if lower.hasPrefix(prefix.lowercased()) {
+                    return t
+                }
+            }
+        }
+        return nil
     }
 
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {

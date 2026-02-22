@@ -120,6 +120,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 }
                 full += d
                 onText(full)
+                await Task.yield()
             case .error(let e):
                 full += "\n\n[Errore: \(e)]"
                 onError(full)

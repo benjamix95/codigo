@@ -192,17 +192,6 @@ func shouldFallbackToPreferredProvider(
     !selectedProviderIsAuthenticated && hasPreferredAuthenticatedFallback
 }
 
-func shouldResetPlanningStateAfterAutoPlanToggleReset(
-    planFlowPhase: PlanFlowPhase,
-    planningState: PlanningState
-) -> Bool {
-    guard planFlowPhase != .building else { return false }
-    if case .awaitingChoice = planningState {
-        return false
-    }
-    return true
-}
-
 func shouldSyncModeOnProviderChange(suppressForUserPicker: Bool) -> Bool {
     !suppressForUserPicker
 }
@@ -216,56 +205,30 @@ func shouldShowComposer(for mode: CoderMode) -> Bool {
 }
 
 func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
-    shouldShowComposer(for: mode)
+    true
 }
 
-struct AssistantTimelineRenderPolicy: Equatable {
-    let fallbackText: String
-    let pendingText: String?
-    let showFallback: Bool
-    let showPending: Bool
+struct ComposerFrozenTimerState: Equatable {
+    let text: String
+    let dismissible: Bool
+    let autoHideDelay: TimeInterval?
 }
 
-@MainActor
-func renderableAssistantText(_ raw: String) -> String {
-    ChatStore.stripCoderideMarkers(raw, aggressive: false)
+func formatComposerElapsed(_ seconds: Int) -> String {
+    let safeSeconds = max(0, seconds)
+    let minutes = safeSeconds / 60
+    let remainder = safeSeconds % 60
+    return String(format: "%d:%02d", minutes, remainder)
 }
 
-@MainActor
-func assistantTimelineRenderPolicy(
-    fallbackContent: String,
-    pendingChunk: String?,
-    isLoading: Bool
-) -> AssistantTimelineRenderPolicy {
-    let normalizedFallback = renderableAssistantText(fallbackContent)
-    let normalizedPending = renderableAssistantText(pendingChunk ?? "")
-    let hasFallback = !normalizedFallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    let hasPending = !normalizedPending.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    let pendingText = hasPending ? normalizedPending : nil
-
-    if isLoading {
-        if hasFallback {
-            // Durante lo stream la risposta assistant principale resta sempre visibile in fondo.
-            return AssistantTimelineRenderPolicy(
-                fallbackText: normalizedFallback,
-                pendingText: pendingText,
-                showFallback: true,
-                showPending: false
-            )
-        }
-        return AssistantTimelineRenderPolicy(
-            fallbackText: normalizedFallback,
-            pendingText: pendingText,
-            showFallback: false,
-            showPending: hasPending
-        )
-    }
-
-    return AssistantTimelineRenderPolicy(
-        fallbackText: normalizedFallback,
-        pendingText: pendingText,
-        showFallback: false,
-        showPending: hasPending
+func buildComposerFrozenTimerState(
+    elapsedSeconds: Int,
+    endedByManualStop: Bool
+) -> ComposerFrozenTimerState {
+    ComposerFrozenTimerState(
+        text: formatComposerElapsed(elapsedSeconds),
+        dismissible: !endedByManualStop,
+        autoHideDelay: endedByManualStop ? 2.0 : nil
     )
 }
 
@@ -433,6 +396,12 @@ struct ChatPanelView: View {
     let effectiveContext: EffectiveContext
 
     private var conversationId: UUID? { selectedConversationId }
+
+    /// Loading state solo per il thread attualmente visualizzato (evita di mostrare loading di altri thread).
+    private var isLoadingForCurrentConversation: Bool {
+        chatStore.isLoading && chatStore.activeTaskConversationId == conversationId
+    }
+
     @State private var coderMode: CoderMode = .agent
     @State private var inputText = ""
     @State private var isInputFocused: Bool = false
@@ -502,20 +471,27 @@ struct ChatPanelView: View {
     @State private var rateLimitAlertText = ""
     @State private var isFollowingLive = true
     @State private var newEventsWhileDetached = 0
+    @StateObject private var voiceInputController = VoiceInputController()
+    @State private var composerFrozenTimerState: ComposerFrozenTimerState?
+    @State private var composerTimerAutoHideTask: Task<Void, Never>?
+    @State private var composerTaskStartDate: Date?
+    @State private var lastTaskEndedByManualStop = false
 
     @State private var isAnyAgentProviderReady = false
+    @State private var checkProviderAuthGeneration = 0
     @State private var userModeOverrideUntilConversationChange = false
     @State private var suppressModeSyncForNextProviderChange = false
     @State private var ignoreNextConversationChangeReset = false
+    @State private var skipNextLoadingCompletedHandling = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
     @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
-    @StateObject private var turnTimelineStore = TurnTimelineStore()
-    @State private var timelineConversationId: UUID?
     @State private var pendingTaskActivities: [TaskActivity] = []
     @State private var pendingInstantGreps: [InstantGrepResult] = []
     @State private var taskFlushWorkItem: DispatchWorkItem?
     @State private var autoScrollWorkItem: DispatchWorkItem?
     @State private var fallbackTurnStartWorkItem: DispatchWorkItem?
+    @State private var streamingReasoningText: String?
+    @State private var streamingReasoningConversationId: UUID?
     private let checkpointGitStore = ConversationCheckpointGitStore()
     private let cliAccountsStore = CLIAccountsStore.shared
     private let cliAccountRouter = CLIAccountRouter.shared
@@ -532,7 +508,13 @@ struct ChatPanelView: View {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         return planToggleEnabled || hasStrictPlanCommandPrefix(trimmed)
     }
-    private var supportsInlineTimelineMode: Bool {
+    private var composerRuntimeStartDate: Date? {
+        guard isLoadingForCurrentConversation else { return nil }
+        return chatStore.taskStartDate ?? composerTaskStartDate
+    }
+    private var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
+    private var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }
+    private var supportsInlineActivityMode: Bool {
         coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
     }
     private var shouldShowTaskPanelTodoSection: Bool {
@@ -567,7 +549,7 @@ struct ChatPanelView: View {
                     SwarmProgressView(
                         store: swarmProgressStore,
                         activities: taskActivityStore.activities,
-                        isTaskRunning: chatStore.isLoading
+                        isTaskRunning: isLoadingForCurrentConversation
                     )
                 }
 
@@ -577,8 +559,8 @@ struct ChatPanelView: View {
                     messagesArea
                 }
 
-                // Task control bar — FIXED above composer (not in scroll)
-                if chatStore.isLoading || isSummarizing {
+                // Mantieni la task bar legacy solo quando il composer non è visibile (es. Swarm).
+                if !shouldShowComposer(for: coderMode) && (isLoadingForCurrentConversation || isSummarizing) {
                     TaskControlBar(
                         chatStore: chatStore,
                         taskActivityStore: taskActivityStore,
@@ -593,6 +575,9 @@ struct ChatPanelView: View {
                 if shouldShowComposer(for: coderMode) {
                     composerArea
                 }
+                if shouldShowUsageFooter(for: coderMode) {
+                    usageFooterArea
+                }
             }
             if showPlanPanel {
                 planPanelSidebar
@@ -606,17 +591,23 @@ struct ChatPanelView: View {
             }
             checkProviderAuth()
         }
-        .onChange(of: selectedConversationId) { _, _ in
+        .onChange(of: selectedConversationId) { oldId, newId in
             if ignoreNextConversationChangeReset {
                 ignoreNextConversationChangeReset = false
             } else {
                 userModeOverrideUntilConversationChange = false
             }
             planShortcutPrimedUntil = nil
+            // Se c'è un task attivo sul thread che si sta lasciando, interrompilo.
+            if let oldId, chatStore.activeTaskConversationId == oldId {
+                skipNextLoadingCompletedHandling = true
+                interruptTask(for: oldId)
+            }
             // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito
             // anche se il pannello non è visibile in quel momento.
             planningState = .idle
             planFlowPhase = .idle
+            activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
             syncProviderFromConversation()
         }
@@ -635,16 +626,50 @@ struct ChatPanelView: View {
         }
         .onChange(of: selectedConversationId) { _, _ in
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-            reconcilePlanAutoReset()
+            composerFrozenTimerState = nil
+            composerTaskStartDate = nil
+            composerTimerAutoHideTask?.cancel()
+            composerTimerAutoHideTask = nil
+            lastTaskEndedByManualStop = false
         }
         .onChange(of: chatStore.isLoading) { oldValue, newValue in
+            if !oldValue && newValue {
+                composerTaskStartDate = chatStore.taskStartDate ?? Date()
+                composerFrozenTimerState = nil
+                composerTimerAutoHideTask?.cancel()
+                composerTimerAutoHideTask = nil
+                lastTaskEndedByManualStop = false
+            }
             if oldValue && !newValue {
+                if skipNextLoadingCompletedHandling {
+                    skipNextLoadingCompletedHandling = false
+                    return
+                }
                 hasJustCompletedTask = true
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 isFollowingLive = true
                 newEventsWhileDetached = 0
+                let startDate = composerTaskStartDate ?? Date()
+                let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
+                let frozen = buildComposerFrozenTimerState(
+                    elapsedSeconds: elapsed,
+                    endedByManualStop: lastTaskEndedByManualStop
+                )
+                composerFrozenTimerState = frozen
+                composerTaskStartDate = nil
+                composerTimerAutoHideTask?.cancel()
+                composerTimerAutoHideTask = nil
+                if let delay = frozen.autoHideDelay {
+                    composerTimerAutoHideTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                        guard !Task.isCancelled else { return }
+                        if !chatStore.isLoading {
+                            composerFrozenTimerState = nil
+                        }
+                    }
+                }
+                lastTaskEndedByManualStop = false
             }
-            reconcilePlanAutoReset()
         }
         .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
         .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
@@ -672,6 +697,9 @@ struct ChatPanelView: View {
         .onDisappear {
             taskFlushWorkItem?.cancel()
             autoScrollWorkItem?.cancel()
+            composerTimerAutoHideTask?.cancel()
+            composerTimerAutoHideTask = nil
+            voiceInputController.cancel()
             flushPendingTaskActivities()
             removePasteMonitor()
         }
@@ -700,6 +728,7 @@ struct ChatPanelView: View {
             chatStore: chatStore,
             taskActivityStore: taskActivityStore,
             conversationId: planPanelConversationId,
+            isCurrentConversationLoading: isLoadingForCurrentConversation,
             planningState: planningState,
             planFlowPhase: planFlowPhase,
             onClose: {
@@ -728,7 +757,10 @@ struct ChatPanelView: View {
                     allowIdleRebuild: allowIdleRebuild
                 )
             },
-            onStop: { interruptTask() }
+            onStop: {
+                lastTaskEndedByManualStop = true
+                interruptTask()
+            }
         )
         .id(planPanelConversationId)
         .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
@@ -742,7 +774,7 @@ struct ChatPanelView: View {
                 SwarmProgressView(
                     store: swarmProgressStore,
                     activities: taskActivityStore.activities,
-                    isTaskRunning: chatStore.isLoading
+                    isTaskRunning: isLoadingForCurrentConversation
                 )
                 if taskPanelEnabled {
                     if !taskActivityStore.concreteRecentActivities(limit: 1).isEmpty || !todoStore.todos.isEmpty {
@@ -936,12 +968,12 @@ struct ChatPanelView: View {
                     }
                 }
                 .foregroundStyle(
-                    (chatStore.canRewind(conversationId: conversationId) && !chatStore.isLoading
+                    (chatStore.canRewind(conversationId: conversationId) && !isLoadingForCurrentConversation
                         && !isRewinding) ? .secondary : .quaternary)
             }
             .buttonStyle(.plain)
             .disabled(
-                !chatStore.canRewind(conversationId: conversationId) || chatStore.isLoading
+                !chatStore.canRewind(conversationId: conversationId) || isLoadingForCurrentConversation
                     || isRewinding
             )
             .help("Torna al checkpoint precedente (ripristina chat e file)")
@@ -998,59 +1030,6 @@ struct ChatPanelView: View {
     }
 
 
-    @ViewBuilder
-    private func assistantTimelineView(
-        fallbackContent: String
-    ) -> some View {
-        let renderPolicy = assistantTimelineRenderPolicy(
-            fallbackContent: fallbackContent,
-            pendingChunk: turnTimelineStore.pendingStreamingChunk,
-            isLoading: chatStore.isLoading
-        )
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(turnTimelineStore.segments) { segment in
-                switch segment {
-                case .assistantText(let text, _):
-                    if !chatStore.isLoading {
-                        AssistantTextChunkView(
-                            text: text,
-                            modeColor: activeModeColor,
-                            context: effectiveContext.context,
-                            onFileClicked: { openFilesStore.openFile($0) },
-                            isStreaming: false
-                        )
-                    }
-                case .step(let activity):
-                    StepByStepRowView(activity: activity, modeColor: activeModeColor)
-                case .todoSnapshot:
-                    TodoTimelineCardView(
-                        todoStore: todoStore,
-                        modeColor: activeModeColor,
-                        onOpenFile: { openFilesStore.openFile($0) }
-                    )
-                }
-            }
-            if renderPolicy.showFallback {
-                AssistantTextChunkView(
-                    text: renderPolicy.fallbackText,
-                    modeColor: activeModeColor,
-                    context: effectiveContext.context,
-                    onFileClicked: { openFilesStore.openFile($0) },
-                    isStreaming: chatStore.isLoading
-                )
-            }
-            if renderPolicy.showPending, let pending = renderPolicy.pendingText {
-                AssistantTextChunkView(
-                    text: pending,
-                    modeColor: activeModeColor,
-                    context: effectiveContext.context,
-                    onFileClicked: { openFilesStore.openFile($0) },
-                    isStreaming: chatStore.isLoading
-                )
-            }
-        }
-    }
-
     // MARK: - Messages Area
     private var messagesArea: some View {
         ScrollViewReader { proxy in
@@ -1065,13 +1044,6 @@ struct ChatPanelView: View {
                             let message = item.element
                             let isLast = message.id == lastMsg?.id
                             let isLastAssistant = lastMsg?.role == .assistant && isLast
-                            let disableInlineTimelineForCodex = providerRegistry.selectedProviderId == "codex-cli"
-                            let useTimeline =
-                                isLastAssistant
-                                && chatStore.isLoading
-                                && supportsInlineTimelineMode
-                                && conv.id == timelineConversationId
-                                && !disableInlineTimelineForCodex
                             let userMessageCheckpoint = message.role == .user
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
@@ -1080,11 +1052,7 @@ struct ChatPanelView: View {
 
                             HStack(alignment: .top, spacing: 0) {
                                 if message.role == .user { Spacer(minLength: 0) }
-                                if useTimeline {
-                                    assistantTimelineView(
-                                        fallbackContent: message.content
-                                    )
-                                } else if message.role == .assistant,
+                                if message.role == .assistant,
                                     let attachment = message.planAttachment,
                                     let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
                                 {
@@ -1117,20 +1085,64 @@ struct ChatPanelView: View {
                                         }
                                     )
                                 } else {
-                                    MessageRow(
-                                        message: message,
-                                        context: effectiveContext.context,
-                                        modeColor: activeModeColor,
-                                        isActuallyLoading: chatStore.isLoading,
-                                        streamingStatusText: streamingStatusText(for: message),
-                                        streamingDetailText: streamingDetailText(for: message),
-                                        onFileClicked: { openFilesStore.openFile($0) },
-                                        onRestoreCheckpoint: message.role == .user
-                                            ? { rewindToMessage(at: index, conversationId: conv.id) }
-                                            : nil,
-                                        canRewind: canRewindFromMessage,
-                                        hasCheckpointForRestore: hasCheckpointForMessage
-                                    )
+                                    let effectiveReasoning = (conv.id == streamingReasoningConversationId
+                                        && isLastAssistant
+                                        && message.isStreaming)
+                                        ? streamingReasoningText
+                                        : nil
+                                    let showInlineActivityFeed =
+                                        isLastAssistant
+                                        && isLoadingForCurrentConversation
+                                        && supportsInlineActivityMode
+                                        && conv.id == chatStore.activeTaskConversationId
+                                    let statusFallback: String = {
+                                        if executionController.runState == .paused { return "Pausa" }
+                                        let concrete = taskActivityStore.concreteRecentActivities(limit: 1)
+                                        if concrete.isEmpty { return "Thinking" }
+                                        let last = concrete.first!
+                                        if last.isRunning { return streamingDetailText(for: message, conversationId: conv.id) ?? last.title }
+                                        return "Planning next moves"
+                                    }()
+                                    if showInlineActivityFeed {
+                                        VStack(alignment: .leading, spacing: 14) {
+                                            InlineActivityFeedView(
+                                                activities: taskActivityStore.concreteRecentActivities(limit: 20),
+                                                modeColor: activeModeColor,
+                                                statusFallback: statusFallback
+                                            )
+                                            MessageRow(
+                                                message: message,
+                                                context: effectiveContext.context,
+                                                modeColor: activeModeColor,
+                                                isActuallyLoading: isLoadingForCurrentConversation,
+                                                streamingStatusText: streamingStatusText(for: message),
+                                                streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
+                                                streamingReasoningText: effectiveReasoning,
+                                                onFileClicked: { openFilesStore.openFile($0) },
+                                                onRestoreCheckpoint: message.role == .user
+                                                    ? { rewindToMessage(at: index, conversationId: conv.id) }
+                                                    : nil,
+                                                canRewind: canRewindFromMessage,
+                                                hasCheckpointForRestore: hasCheckpointForMessage
+                                            )
+                                        }
+                                    } else {
+                                        MessageRow(
+                                            message: message,
+                                            context: effectiveContext.context,
+                                            modeColor: activeModeColor,
+                                            isActuallyLoading: isLoadingForCurrentConversation,
+                                            streamingStatusText: streamingStatusText(for: message),
+                                            streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
+                                            streamingReasoningText: effectiveReasoning,
+                                            onFileClicked: { openFilesStore.openFile($0) },
+                                            onRestoreCheckpoint: message.role == .user
+                                                ? { rewindToMessage(at: index, conversationId: conv.id) }
+                                                : nil,
+                                            canRewind: canRewindFromMessage,
+                                            hasCheckpointForRestore: hasCheckpointForMessage
+                                        )
+                                    }
                                 }
                                 if message.role == .assistant { Spacer(minLength: 0) }
                             }
@@ -1184,7 +1196,7 @@ struct ChatPanelView: View {
             .overlay {
                 let conv = chatStore.conversation(for: conversationId)
                 let isEmpty = conv == nil || conv!.messages.isEmpty
-                if isEmpty && !chatStore.isLoading {
+                if isEmpty && !isLoadingForCurrentConversation {
                     VStack(spacing: 16) {
                         if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
                            let icon = NSImage(contentsOf: url) {
@@ -1225,24 +1237,16 @@ struct ChatPanelView: View {
                 }
             }
             .onChange(of: chatStore.isLoading) { _, loading in
-                if loading {
+                if loading && isLoadingForCurrentConversation {
                     if let target = liveScrollTarget() {
                         scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
                     }
-                } else {
+                } else if !loading {
                     cancelFallbackTurnStartEvent()
-                    timelineConversationId = nil
-                }
-            }
-            .onChange(of: turnTimelineStore.segments.count) { _, _ in
-                if chatStore.isLoading, supportsInlineTimelineMode, isFollowingLive,
-                    let last = chatStore.conversation(for: conversationId)?.messages.last
-                {
-                    scheduleAutoScroll(proxy: proxy, target: last.id)
                 }
             }
             .onChange(of: taskActivityStore.activities.count) { _, _ in
-                if chatStore.isLoading {
+                if isLoadingForCurrentConversation {
                     if isFollowingLive {
                         if let target = liveScrollTarget() {
                             scheduleAutoScroll(proxy: proxy, target: target)
@@ -1254,13 +1258,13 @@ struct ChatPanelView: View {
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 3).onChanged { _ in
-                    if chatStore.isLoading {
+                    if isLoadingForCurrentConversation {
                         isFollowingLive = false
                     }
                 }
             )
             .overlay(alignment: .bottomTrailing) {
-                if !isFollowingLive && chatStore.isLoading {
+                if !isFollowingLive && isLoadingForCurrentConversation {
                     Button {
                         isFollowingLive = true
                         newEventsWhileDetached = 0
@@ -1307,8 +1311,7 @@ struct ChatPanelView: View {
         fallbackTurnStartWorkItem?.cancel()
         let work = DispatchWorkItem {
             Task { @MainActor in
-                guard chatStore.isLoading else { return }
-                guard timelineConversationId == conversationId else { return }
+                guard chatStore.isLoading, chatStore.activeTaskConversationId == conversationId else { return }
                 guard taskActivityStore.activities.isEmpty else { return }
                 recordTaskActivity(
                     type: "turn_started",
@@ -1332,13 +1335,7 @@ struct ChatPanelView: View {
     }
 
     private func liveScrollTarget() -> AnyHashable? {
-        let timelineActive =
-            supportsInlineTimelineMode
-            && chatStore.isLoading
-            && conversationId == timelineConversationId
-        if timelineActive, let last = chatStore.conversation(for: conversationId)?.messages.last {
-            return AnyHashable(last.id)
-        }
+        guard isLoadingForCurrentConversation else { return nil }
         if let last = chatStore.conversation(for: conversationId)?.messages.last {
             return AnyHashable(last.id)
         }
@@ -1366,35 +1363,94 @@ struct ChatPanelView: View {
     }
 
     private func interruptTask() {
-        let scope: ExecutionScope = {
-            switch coderMode {
-            case .agentSwarm: return .swarm
-            case .codeReviewMultiSwarm: return .review
-            case .plan: return .plan
-            default: return .agent
-            }
-        }()
+        interruptTask(for: conversationId)
+    }
+
+    private func interruptTask(for targetConversationId: UUID?) {
+        let scope = executionScopeForCurrentMode()
         executionController.terminate(scope: scope)
         flowCoordinator.interrupt()
-        if let cid = (timelineConversationId ?? conversationId) {
+        if let cid = targetConversationId {
             let cur =
                 chatStore.conversation(for: cid)?.messages.last(where: {
                     $0.role == .assistant
                 })?.content ?? ""
-            if timelineConversationId == cid {
-                turnTimelineStore.finalize(lastFullText: cur)
-            }
             chatStore.updateLastAssistantMessage(
                 content: cur.isEmpty
                     ? "[Interrotto dall'utente]"
                     : cur + "\n\n[Interrotto dall'utente]", in: cid)
             chatStore.setLastAssistantStreaming(false, in: cid)
+            clearStreamingReasoning(for: cid)
         }
         cancelFallbackTurnStartEvent()
-        chatStore.endTask(conversationId: timelineConversationId ?? conversationId)
+        chatStore.endTask(conversationId: targetConversationId)
         activeBuildPlanConversationId = nil
         if planFlowPhase == .building {
             planFlowPhase = .proposalReady
+        }
+    }
+
+    private func executionScopeForCurrentMode() -> ExecutionScope {
+        switch coderMode {
+        case .agentSwarm: return .swarm
+        case .codeReviewMultiSwarm: return .review
+        case .plan: return .plan
+        default: return .agent
+        }
+    }
+
+    private func pauseOrResumeActiveTask() {
+        let scope = executionScopeForCurrentMode()
+        if executionController.runState == .paused {
+            executionController.resume(scope: scope)
+            taskActivityStore.markResumed()
+            taskActivityStore.addActivity(
+                TaskActivity(
+                    type: "process_resumed",
+                    title: "Processo ripreso",
+                    detail: "Esecuzione ripresa dall'utente",
+                    payload: [:],
+                    phase: .executing,
+                    isRunning: true
+                )
+            )
+            return
+        }
+
+        executionController.pause(scope: scope)
+        taskActivityStore.markPaused()
+        taskActivityStore.addActivity(
+            TaskActivity(
+                type: "process_paused",
+                title: "Processo in pausa",
+                detail: "Esecuzione sospesa dall'utente",
+                payload: [:],
+                phase: .planning,
+                isRunning: false
+            )
+        )
+    }
+
+    private func handleVoiceAction() {
+        if chatStore.isLoading {
+            return
+        }
+        switch voiceInputController.state {
+        case .idle, .failed:
+            voiceInputController.start { transcript in
+                let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    inputText = trimmed
+                } else {
+                    inputText = inputText + (inputText.hasSuffix(" ") ? "" : " ") + trimmed
+                }
+                isInputFocused = true
+            }
+        case .listening:
+            voiceInputController.stop()
+        case .requestingPermission, .transcribing:
+            break
         }
     }
 
@@ -1405,19 +1461,9 @@ struct ChatPanelView: View {
             providerId: providerId, type: type, payload: payload)
         taskActivityStore.addEnvelope(envelope)
 
-        if let cid = timelineConversationId {
-            let lastContent = chatStore.conversation(for: cid)?
-                .messages.last(where: { $0.role == .assistant })?.content ?? ""
-            turnTimelineStore.commitText(from: lastContent)
-        }
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
-                if timelineConversationId != nil,
-                    TaskActivityStore.isConcreteVisibleEvent(activity)
-                {
-                    turnTimelineStore.appendActivity(activity)
-                }
                 enqueueTaskActivity(activity)
             case .instantGrep(let grep):
                 enableTaskPanelIfNeeded()
@@ -1425,9 +1471,6 @@ struct ChatPanelView: View {
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
                 enableTaskPanelIfNeeded()
-                if timelineConversationId != nil {
-                    turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
-                }
                 if planFlowPhase == .building {
                     _ = todoStore.upsertCanonicalOnlyFromAgent(
                         id: todo.id,
@@ -1449,12 +1492,9 @@ struct ChatPanelView: View {
                 }
             case .todoRead:
                 enableTaskPanelIfNeeded()
-                if timelineConversationId != nil {
-                    turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
-                }
                 break
             case .planStepUpdate(let stepId, let status, let stepTitle):
-                let targetId = timelineConversationId ?? conversationId
+                let targetId = chatStore.activeTaskConversationId ?? conversationId
                 chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
                     chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
@@ -1524,8 +1564,12 @@ struct ChatPanelView: View {
                 isConvertingHeic: $isConvertingHeic,
                 isInputFocused: $isInputFocused,
                 isProviderReady: isProviderReady,
-                isLoading: chatStore.isLoading,
+                isLoading: isLoadingForCurrentConversation,
                 planningState: planningState,
+                runtimeRunState: executionController.runState,
+                runtimeTaskStartDate: composerRuntimeStartDate,
+                frozenTimerText: composerFrozenTimerText,
+                frozenTimerDismissible: composerFrozenTimerDismissible,
                 activeModeColor: activeModeColor,
                 activeModeGradient: activeModeGradient,
                 inputHint: inputHint,
@@ -1533,6 +1577,8 @@ struct ChatPanelView: View {
                 quickCommandPresets: composerQuickCommandPresets,
                 showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
                 showPlanRequestIndicator: showPlanRequestIndicator,
+                controlsRow: AnyView(modeControlsRow),
+                voiceState: voiceInputController.state,
                 codeReviewAutofixEnabled: Binding(
                     get: { !codeReviewAnalysisOnly },
                     set: { enabled in
@@ -1554,61 +1600,77 @@ struct ChatPanelView: View {
                     inputText = text
                     isInputFocused = true
                     sendMessage()
-                }
+                },
+                onPauseResume: { pauseOrResumeActiveTask() },
+                onStop: {
+                    lastTaskEndedByManualStop = true
+                    interruptTask()
+                },
+                onDismissFrozenTimer: { composerFrozenTimerState = nil },
+                onVoiceAction: { handleVoiceAction() }
             )
-            ModeControlsBarView(
-                providerRegistry: providerRegistry,
-                chatStore: chatStore,
-                coderMode: coderMode,
-                conversationId: conversationId,
-                isAnyAgentProviderReady: isAnyAgentProviderReady,
-                codexModelOverride: $codexModelOverride,
-                codexReasoningEffort: $codexReasoningEffort,
-                codexSandbox: $codexSandbox,
-                geminiModelOverride: $geminiModelOverride,
-                swarmOrchestrator: $swarmOrchestrator,
-                taskPanelEnabled: $taskPanelEnabled,
-                showSwarmHelp: $showSwarmHelp,
-                inputText: $inputText,
-                planModeBackend: $planModeBackend,
-                swarmWorkerBackend: $swarmWorkerBackend,
-                openaiModel: $openaiModel,
-                claudeModel: $claudeModel,
-                openrouterModel: $openrouterModel,
-                codexModels: codexModels,
-                geminiModels: geminiModels,
-                effectiveModeProviderLabel: effectiveModeProviderLabel,
-                onSyncCodexProvider: syncCodexProvider,
-                onSyncGeminiProvider: syncGeminiProvider,
-                onSyncSwarmProvider: syncSwarmProvider,
-                onSyncPlanProvider: syncPlanProvider,
-                onSyncOpenRouterProvider: syncOpenRouterProvider,
-                onSyncToolRuntimePolicy: syncToolRuntimePolicy,
-                onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
-                onDelegateToAgent: delegateToAgent,
-                onOpenPlanPanel: { openPlanPanelForCurrentContext() },
-                attachedImageURLs: attachedImageURLs,
-                showPlanPanel: $showPlanPanel,
-                highlightPlanButton: isPlanTabHovered
-            )
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
-            .alert("Rate Limit Raggiunto", isPresented: $showRateLimitAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(rateLimitAlertText)
-            }
-            if shouldShowUsageFooter(for: coderMode) {
-                UsageFooterView(
-                    selectedConversationId: $selectedConversationId,
-                    effectiveContext: effectiveContext,
-                    planModeBackend: planModeBackend,
-                    swarmWorkerBackend: swarmWorkerBackend,
-                    openaiModel: openaiModel,
-                    claudeModel: claudeModel
-                )
-            }
         }
+        .frame(maxWidth: chatColumnMaxWidth)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 20)
+        .alert("Rate Limit Raggiunto", isPresented: $showRateLimitAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(rateLimitAlertText)
+        }
+    }
+
+    @ViewBuilder
+    private var modeControlsRow: some View {
+        ModeControlsBarView(
+            providerRegistry: providerRegistry,
+            chatStore: chatStore,
+            coderMode: coderMode,
+            conversationId: conversationId,
+            isAnyAgentProviderReady: isAnyAgentProviderReady,
+            codexModelOverride: $codexModelOverride,
+            codexReasoningEffort: $codexReasoningEffort,
+            codexSandbox: $codexSandbox,
+            geminiModelOverride: $geminiModelOverride,
+            swarmOrchestrator: $swarmOrchestrator,
+            taskPanelEnabled: $taskPanelEnabled,
+            showSwarmHelp: $showSwarmHelp,
+            inputText: $inputText,
+            planModeBackend: $planModeBackend,
+            swarmWorkerBackend: $swarmWorkerBackend,
+            openaiModel: $openaiModel,
+            claudeModel: $claudeModel,
+            openrouterModel: $openrouterModel,
+            codexModels: codexModels,
+            geminiModels: geminiModels,
+            effectiveModeProviderLabel: effectiveModeProviderLabel,
+            onSyncCodexProvider: syncCodexProvider,
+            onSyncGeminiProvider: syncGeminiProvider,
+            onSyncSwarmProvider: syncSwarmProvider,
+            onSyncPlanProvider: syncPlanProvider,
+            onSyncOpenRouterProvider: syncOpenRouterProvider,
+            onSyncToolRuntimePolicy: syncToolRuntimePolicy,
+            onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
+            onDelegateToAgent: delegateToAgent,
+            attachedImageURLs: attachedImageURLs,
+            planToggleEnabled: $planToggleEnabled,
+            highlightPlanButton: isPlanTabHovered
+        )
+    }
+
+    @ViewBuilder
+    private var usageFooterArea: some View {
+        UsageFooterView(
+            selectedConversationId: $selectedConversationId,
+            effectiveContext: effectiveContext,
+            planModeBackend: planModeBackend,
+            swarmWorkerBackend: swarmWorkerBackend,
+            openaiModel: openaiModel,
+            claudeModel: claudeModel
+        )
+        .frame(maxWidth: chatColumnMaxWidth)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 20)
     }
 
     private var providerNotReadyMessage: String {
@@ -1630,26 +1692,6 @@ struct ChatPanelView: View {
         default:
             return "Provider \"\(id)\" non autenticato. Vai nelle Impostazioni per configurare."
         }
-    }
-
-    private func reconcilePlanAutoReset() {
-        guard planToggleEnabled else { return }
-        // Se l'utente sta ancora componendo un comando /plan, non spegnere il toggle.
-        let trimmedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !hasStrictPlanCommandPrefix(trimmedInput) else { return }
-        guard !todoStore.hasOpenTodos else { return }
-        guard !chatStore.isAssistantStreaming(in: conversationId) else { return }
-        planToggleEnabled = false
-        if shouldResetPlanningStateAfterAutoPlanToggleReset(
-            planFlowPhase: planFlowPhase,
-            planningState: planningState
-        ) {
-            planningState = .idle
-            if planFlowPhase != .proposalReady && planFlowPhase != .readyToBuild {
-                planFlowPhase = .idle
-            }
-        }
-        taskActivityStore.markPlanningAutoCompletedIfNeeded()
     }
 
     /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
@@ -1953,6 +1995,8 @@ struct ChatPanelView: View {
             }
             return
         }
+        checkProviderAuthGeneration += 1
+        let generation = checkProviderAuthGeneration
         let provider = providerRegistry.selectedProvider
         let codexProvider = providerRegistry.provider(for: "codex-cli")
         let claudeProvider = providerRegistry.provider(for: "claude-cli")
@@ -1968,6 +2012,7 @@ struct ChatPanelView: View {
                 || (geminiProvider?.isAuthenticated() ?? false)
                 || (anyRealProvider != nil)
             await MainActor.run {
+                guard generation == checkProviderAuthGeneration else { return }
                 isProviderReady = ready
                 isAnyAgentProviderReady = anyAgentReady
             }
@@ -2307,7 +2352,7 @@ struct ChatPanelView: View {
         providerOverrideId: String? = nil,
         allowIdleRebuild: Bool = false
     ) {
-        guard canStartPlanBuild(isLoading: chatStore.isLoading, phase: planFlowPhase) else {
+        guard canStartPlanBuild(isLoading: isLoadingForCurrentConversation, phase: planFlowPhase) else {
             return
         }
         guard canExecutePlanBuild(
@@ -2431,12 +2476,7 @@ struct ChatPanelView: View {
         chatStore.beginTask(conversationId: agentConvId)
         flowDiagnosticsStore.reset(for: agentConvId)
         taskActivityStore.clear()
-        turnTimelineStore.clear()
-        timelineConversationId = agentConvId
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
-        if !todoStore.todos.isEmpty {
-            turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
-        }
 
         let planExecutionWorkflow = """
             **Workflow Todo (obbligatorio):** All'inizio di ogni task:
@@ -2475,15 +2515,10 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: nil,
                     onText: { content in
-                        applyStreamingUpdate(
-                            content: content,
-                            conversationId: agentConvId,
-                            timelineIdGuard: agentConvId
-                        )
+                        applyStreamingUpdate(content: content, conversationId: agentConvId)
                     },
                     onRaw: { t, p, pid in
-                        if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
-                        recordTaskActivity(type: t, payload: p, providerId: pid)
+                        handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: agentConvId)
                     },
                     onError: { content in
                         DispatchQueue.main.async {
@@ -2495,19 +2530,26 @@ struct ChatPanelView: View {
                     }
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
+                clearStreamingReasoning(for: agentConvId)
                 chatStore.updatePlanStepStatus(stepId: "1", status: .done, in: planConversationId)
                 await MainActor.run { planFlowPhase = .readyToBuild }
             } catch {
-                let lastContent = chatStore.conversation(for: agentConvId)?
-                    .messages.last(where: { $0.role == .assistant })?.content ?? ""
-                turnTimelineStore.finalize(lastFullText: lastContent)
-                chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
-                chatStore.updateLastAssistantMessage(
-                    content: userFacingStreamError(error), in: agentConvId)
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
-                await MainActor.run {
-                    flowCoordinator.fail()
-                    planFlowPhase = .proposalReady
+                clearStreamingReasoning(for: agentConvId)
+                if isInterruptedStreamError(error) {
+                    chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
+                    await MainActor.run {
+                        flowCoordinator.interrupt()
+                        planFlowPhase = .proposalReady
+                    }
+                } else {
+                    chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
+                    chatStore.updateLastAssistantMessage(
+                        content: userFacingStreamError(error), in: agentConvId)
+                    await MainActor.run {
+                        flowCoordinator.fail()
+                        planFlowPhase = .proposalReady
+                    }
                 }
             }
             chatStore.endTask(conversationId: agentConvId)
@@ -2557,6 +2599,7 @@ struct ChatPanelView: View {
         let shouldRunPlanInline = forcePlanInline || (coderMode == .agent && planToggleEnabled)
         if coderMode == .plan || shouldRunPlanInline {
             planFlowPhase = .discovery
+            openPlanPanelForCurrentContext()
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
         }
@@ -2638,8 +2681,6 @@ struct ChatPanelView: View {
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
         todoStore.clearAgentTodos(includePlanCanonical: true)
-        turnTimelineStore.clear()
-        timelineConversationId = targetConversationId
         scheduleFallbackTurnStartEvent(
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id
@@ -2653,6 +2694,7 @@ struct ChatPanelView: View {
         let prompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
 
         // 5. Execute async stream
+        let isPlanDiscoveryStreaming = (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .discovery
         Task {
             do {
                 let streamResult = try await flowCoordinator.runStream(
@@ -2661,14 +2703,16 @@ struct ChatPanelView: View {
                     context: ctx,
                     imageURLs: imageURLsToSend,
                     onText: { content in
+                        let displayContent = isPlanDiscoveryStreaming
+                            ? "Planning in corso… Apri il pannello Planning per vedere il risultato."
+                            : content
                         applyStreamingUpdate(
-                            content: content,
-                            conversationId: targetConversationId,
-                            timelineIdGuard: timelineConversationId
+                            content: displayContent,
+                            conversationId: targetConversationId
                         )
                     },
                     onRaw: { t, p, pid in
-                        handleRawStreamEvent(type: t, payload: p, providerId: pid)
+                        handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
                     },
                     onError: { content in
                         DispatchQueue.main.async {
@@ -2685,7 +2729,8 @@ struct ChatPanelView: View {
                     provider: effectiveRuntimeProvider,
                     originalPrompt: prompt,
                     context: ctx,
-                    conversationId: targetConversationId
+                    conversationId: targetConversationId,
+                    hideContentDuringPlanDiscovery: isPlanDiscoveryStreaming
                 )
 
                 // 6. Handle stream completion (plan options, swarm delegation)
@@ -2695,16 +2740,18 @@ struct ChatPanelView: View {
                     ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
                 )
             } catch {
-                let lastContent = chatStore.conversation(for: targetConversationId)?
-                    .messages.last(where: { $0.role == .assistant })?.content ?? ""
-                if timelineConversationId == targetConversationId {
-                    turnTimelineStore.finalize(lastFullText: lastContent)
-                }
-                chatStore.updateLastAssistantMessage(
-                    content: userFacingStreamError(error), in: targetConversationId)
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
-                await MainActor.run {
-                    flowCoordinator.fail()
+                clearStreamingReasoning(for: targetConversationId)
+                if isInterruptedStreamError(error) {
+                    await MainActor.run {
+                        flowCoordinator.interrupt()
+                    }
+                } else {
+                    chatStore.updateLastAssistantMessage(
+                        content: userFacingStreamError(error), in: targetConversationId)
+                    await MainActor.run {
+                        flowCoordinator.fail()
+                    }
                 }
             }
             chatStore.endTask(conversationId: targetConversationId)
@@ -2716,7 +2763,8 @@ struct ChatPanelView: View {
         provider: any LLMProvider,
         originalPrompt: String,
         context: WorkspaceContext,
-        conversationId: UUID
+        conversationId: UUID,
+        hideContentDuringPlanDiscovery: Bool = false
     ) async throws -> (fullText: String, pendingSwarmTask: String?) {
         guard initial.pendingSwarmTask == nil else { return initial }
         guard shouldAutoContinueStub(initial.fullText) else { return initial }
@@ -2739,14 +2787,16 @@ struct ChatPanelView: View {
             imageURLs: nil,
             onText: { deltaFull in
                 let combined = initial.fullText + "\n" + deltaFull
+                let displayContent = hideContentDuringPlanDiscovery
+                    ? "Planning in corso… Apri il pannello Planning per vedere il risultato."
+                    : combined
                 applyStreamingUpdate(
-                    content: combined,
-                    conversationId: conversationId,
-                    timelineIdGuard: timelineConversationId
+                    content: displayContent,
+                    conversationId: conversationId
                 )
             },
             onRaw: { t, p, pid in
-                handleRawStreamEvent(type: t, payload: p, providerId: pid)
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onError: { content in
                 DispatchQueue.main.async {
@@ -2881,15 +2931,12 @@ struct ChatPanelView: View {
             (coderMode == .plan || shouldRunPlanInline)
             && planFlowPhase != .building
 
-        if providerRegistry.selectedProviderId == "codex-cli"
-            || providerRegistry.selectedProviderId == "claude-cli"
-            || providerRegistry.selectedProviderId == "gemini-cli"
-        {
+        if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
             if isPlanningDiscoveryFlow {
                 let planningInstructions = """
                 **Workflow Planning (obbligatorio):**
-                1. Prima analizza il codebase con Read/Glob/Grep, in batch paralleli quando necessario.
-                2. Se mancano informazioni critiche, rispondi SOLO con una sezione:
+                1. Prima di proporre qualsiasi opzione, DEVI esplorare il codebase usando Read, Glob e Grep per capire struttura, dipendenze e vincoli. Non proporre opzioni senza aver letto almeno 2-3 file rilevanti o effettuato grep/glob.
+                2. Se mancano informazioni critiche dopo l'analisi, rispondi SOLO con una sezione:
                    ## Questions
                    1. Domanda?
                    A) Opzione 1
@@ -2898,7 +2945,7 @@ struct ChatPanelView: View {
                    (2-4 domande al massimo, opzioni mutualmente esclusive)
                    Usa "Other..." solo quando la domanda è realmente aperta/ambigua.
                    Evita "Other..." quando le opzioni chiuse coprono già il dominio decisionale.
-                3. Se le informazioni sono sufficienti, proponi 2-4 opzioni concrete. Per ogni opzione includi SEMPRE:
+                3. Solo dopo aver completato l'analisi: se le informazioni sono sufficienti, proponi 2-4 opzioni concrete. Per ogni opzione includi SEMPRE:
                    ## Todo
                    - [ ] task 1
                    - [ ] task 2
@@ -2949,8 +2996,13 @@ struct ChatPanelView: View {
     // MARK: - Handle Raw Stream Events
 
     private func handleRawStreamEvent(
-        type t: String, payload p: [String: String], providerId pid: String
+        type t: String, payload p: [String: String], providerId pid: String,
+        conversationId convId: UUID?
     ) {
+        if t == "reasoning", let output = p["output"], !output.isEmpty {
+            streamingReasoningText = output
+            streamingReasoningConversationId = convId
+        }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
             let n = s.split(separator: ",").map {
@@ -2977,19 +3029,21 @@ struct ChatPanelView: View {
         recordTaskActivity(type: t, payload: p, providerId: pid)
     }
 
+    private func clearStreamingReasoning(for conversationId: UUID?) {
+        guard let id = conversationId, streamingReasoningConversationId == id else { return }
+        streamingReasoningText = nil
+        streamingReasoningConversationId = nil
+    }
+
     private func applyStreamingUpdate(
         content: String,
-        conversationId: UUID?,
-        timelineIdGuard: UUID?
+        conversationId: UUID?
     ) {
         chatStore.updateLastAssistantMessage(
             content: content,
             in: conversationId,
             persistImmediately: false
         )
-        if timelineIdGuard == timelineConversationId {
-            turnTimelineStore.updateLastKnownText(content)
-        }
     }
 
     // MARK: - Handle Stream Result (plan options + swarm delegation)
@@ -3006,11 +3060,9 @@ struct ChatPanelView: View {
             ? normalizeBuildFinalResponse(streamResult.fullText)
             : streamResult.fullText
         let pendingSwarmTask = streamResult.pendingSwarmTask
-        if timelineConversationId == streamConversationId {
-            turnTimelineStore.finalize(lastFullText: full)
-        }
         chatStore.updateLastAssistantMessage(content: full, in: streamConversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: streamConversationId)
+        clearStreamingReasoning(for: streamConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
 
         // Handle plan options parsing
@@ -3028,6 +3080,8 @@ struct ChatPanelView: View {
                 }
             }
             if case .awaitingClarification = classification.planningState {
+                let summaryContent = "Servono chiarimenti per procedere con il piano. Apri il pannello Planning per rispondere alle domande."
+                chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 await MainActor.run {
                     openPlanPanelForCurrentContext(preserveHistorySelection: true)
                 }
@@ -3037,6 +3091,8 @@ struct ChatPanelView: View {
                 chatStore.setPlanBoard(board, for: streamConversationId)
                 let currentConv = chatStore.conversation(for: streamConversationId)
                 let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+                let summaryContent = "Piano pronto: \(parsedSummary.title)\n\nApri il pannello Planning per selezionare un'opzione."
+                chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 let entry = planHistoryStore.createEntry(
                     conversationId: streamConversationId,
                     contextId: currentConv?.contextId,
@@ -3067,6 +3123,9 @@ struct ChatPanelView: View {
                         mode: .plan)
                     chatStore.setPlanBoard(board, for: planConvId)
                 }
+                await MainActor.run {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                }
             }
         }
 
@@ -3091,7 +3150,8 @@ struct ChatPanelView: View {
                         "detail": evaluation.reason,
                         "task": task
                     ],
-                    providerId: providerRegistry.selectedProviderId ?? "agent-policy"
+                    providerId: providerRegistry.selectedProviderId ?? "agent-policy",
+                    conversationId: streamConversationId
                 )
             }
         }
@@ -3120,8 +3180,6 @@ struct ChatPanelView: View {
             to: conversationId)
         chatStore.beginTask(conversationId: conversationId)
         taskActivityStore.clear()
-        turnTimelineStore.clear()
-        timelineConversationId = conversationId
         if let activeConversationId = conversationId {
             scheduleFallbackTurnStartEvent(
                 conversationId: activeConversationId,
@@ -3137,6 +3195,7 @@ struct ChatPanelView: View {
                 agentProvider.isAuthenticated()
             else { return nil }
             chatStore.setLastAssistantStreaming(false, in: conversationId)
+            clearStreamingReasoning(for: conversationId)
             chatStore.addMessage(
                 ChatMessage(
                     role: .user, content: "[Seguito agent dopo swarm]",
@@ -3157,18 +3216,16 @@ struct ChatPanelView: View {
             onSwarmText: { content in
                 applyStreamingUpdate(
                     content: content,
-                    conversationId: conversationId,
-                    timelineIdGuard: conversationId
+                    conversationId: conversationId
                 )
             },
             onRaw: { t, p, pid in
-                handleRawStreamEvent(type: t, payload: p, providerId: pid)
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onFollowUpText: { content in
                 applyStreamingUpdate(
                     content: content,
-                    conversationId: conversationId,
-                    timelineIdGuard: conversationId
+                    conversationId: conversationId
                 )
             },
             onError: { content in
@@ -3179,6 +3236,7 @@ struct ChatPanelView: View {
             }
         )
         chatStore.setLastAssistantStreaming(false, in: conversationId)
+        clearStreamingReasoning(for: conversationId)
         chatStore.endTask(conversationId: conversationId)
         await trySummarizeIfNeeded(ctx: ctx)
     }
@@ -3246,6 +3304,29 @@ struct ChatPanelView: View {
         return normalized
     }
 
+    private func isInterruptedStreamError(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
+            return true
+        }
+
+        if executionController.runState == .stopping || flowCoordinator.state == .interrupted {
+            return true
+        }
+
+        let normalized = String(describing: error).lowercased()
+        if normalized.contains("cancellationerror")
+            || normalized.contains("cancelled")
+            || normalized.contains("canceled")
+        {
+            return true
+        }
+
+        return false
+    }
+
     private func rewindConversation() {
         guard !isRewinding else { return }
         guard let convId = conversationId,
@@ -3258,7 +3339,7 @@ struct ChatPanelView: View {
 
         Task {
             await MainActor.run {
-                if chatStore.isLoading {
+                if isLoadingForCurrentConversation {
                     switch coderMode {
                     case .agentSwarm:
                         executionController.terminate(scope: .swarm)
@@ -3321,8 +3402,6 @@ struct ChatPanelView: View {
                 planFlowPhase = .idle
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
-                turnTimelineStore.clear()
-                timelineConversationId = nil
                 activeBuildPlanConversationId = nil
                 isRewinding = false
             }
@@ -3341,7 +3420,7 @@ struct ChatPanelView: View {
 
         Task {
             await MainActor.run {
-                if chatStore.isLoading {
+                if isLoadingForCurrentConversation {
                     switch coderMode {
                     case .agentSwarm:
                         executionController.terminate(scope: .swarm)
@@ -3394,8 +3473,6 @@ struct ChatPanelView: View {
                 planFlowPhase = .idle
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
-                turnTimelineStore.clear()
-                timelineConversationId = nil
                 activeBuildPlanConversationId = nil
                 isRewinding = false
             }
@@ -3480,11 +3557,25 @@ struct ChatPanelView: View {
         )
     }
 
-    private func streamingDetailText(for message: ChatMessage) -> String? {
+    private func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
-        return TaskActivityStore.streamingDetailText(
+        if let fromActivities = TaskActivityStore.streamingDetailText(
             activities: taskActivityStore.activities,
             activeOperationsCount: taskActivityStore.activeOperationsCount
-        )
+        ) {
+            return fromActivities
+        }
+        if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content) {
+            return fromContent
+        }
+        if convId == streamingReasoningConversationId, let reasoning = streamingReasoningText, !reasoning.isEmpty {
+            let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
+                .last?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            if !lastLine.isEmpty {
+                return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
+            }
+        }
+        return "Planning next moves"
     }
 }

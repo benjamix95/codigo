@@ -13,10 +13,10 @@ struct SidebarView: View {
 
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool
+    @Binding var isSelectingProjectFolders: Bool
 
     @State private var sidebarQuery = ""
     @State private var isSelectingAddFolder = false
-    @State private var isSelectingProjectFolders = false
     @State private var pendingAddFolderWorkspaceId: UUID?
     @State private var codexTasks: [CodexCloudTask] = []
     @State private var isLoadingTasks = false
@@ -36,7 +36,12 @@ struct SidebarView: View {
         let pid = providerRegistry.selectedProviderId
         return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
     }
-    private var currentContext: ProjectContext? { projectContextStore.context(id: selectedConversation?.contextId) }
+    /// Contesto del progetto/workspace attuale. Con nessun thread selezionato, mantiene activeContextId
+    /// così il progetto non "si chiude" quando si eliminano tutte le conversazioni.
+    private var currentContext: ProjectContext? {
+        let ctxId = selectedConversation?.contextId ?? projectContextStore.activeContextId
+        return projectContextStore.context(id: ctxId)
+    }
 
     private var orderedContexts: [ProjectContext] {
         projectContextStore.contexts.sorted {
@@ -126,7 +131,6 @@ struct SidebarView: View {
                 }
             )
         }
-        .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
         .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderSelection)
         .sheet(item: $workspaceToRename) { ws in
             RenameWorkspaceSheet(workspace: ws, onDismiss: { workspaceToRename = nil })
@@ -364,6 +368,29 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                if !visibleThreads.isEmpty {
+                    Menu {
+                        Button {
+                            for conv in visibleThreads {
+                                chatStore.setArchived(conversationId: conv.id, archived: true)
+                            }
+                        } label: {
+                            Label("Archivia tutti i thread", systemImage: "archivebox")
+                        }
+                        Button(role: .destructive) {
+                            deleteAllVisibleThreads()
+                        } label: {
+                            Label("Elimina tutti i thread", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .rotationEffect(.degrees(90))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .help("Azioni su tutti i thread")
+                }
             }
 
             if let context = currentContext {
@@ -460,6 +487,29 @@ struct SidebarView: View {
                 .menuStyle(.borderlessButton)
                 .help("Sposta in cartella…")
             }
+            Button {
+                chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
+            } label: {
+                Image(systemName: conv.isArchived ? "archivebox.fill" : "archivebox")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help(conv.isArchived ? "Ripristina thread" : "Archivia thread")
+            Button {
+                let wasSelected = selectedConversationId == conv.id
+                cleanupCheckpointSnapshots(for: conv)
+                chatStore.deleteConversation(id: conv.id)
+                if wasSelected {
+                    selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
+                }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Elimina thread")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -535,6 +585,18 @@ struct SidebarView: View {
         let roots = Set(conversation.checkpoints.flatMap { $0.gitStates.map(\.gitRootPath) })
         for root in roots {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
+        }
+    }
+
+    private func deleteAllVisibleThreads() {
+        let toDelete = visibleThreads
+        let wasSelectingOne = toDelete.contains { $0.id == selectedConversationId }
+        for conv in toDelete {
+            cleanupCheckpointSnapshots(for: conv)
+            chatStore.deleteConversation(id: conv.id)
+        }
+        if wasSelectingOne {
+            selectedConversationId = chatStore.conversations.first?.id
         }
     }
 
@@ -769,13 +831,6 @@ struct SidebarView: View {
                 isLoadingTasks = false
             }
         }
-    }
-
-    private func handleProjectFolderSelection(result: Result<[URL], Error>) {
-        guard case .success(let urls) = result else { return }
-        let paths = urls.map { $0.path(percentEncoded: false) }
-        guard let contextId = projectContextStore.createOrReuseSingleProject(paths: paths) else { return }
-        attachConversation(to: contextId)
     }
 
     private func handleAddFolderSelection(result: Result<[URL], Error>) {

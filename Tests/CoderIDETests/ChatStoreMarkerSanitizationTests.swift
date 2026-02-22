@@ -120,4 +120,33 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("Ran codex --version"))
         XCTAssertTrue(sanitized.contains("Risposta utile finale."))
     }
+
+    func testNonAggressiveSanitizationKeepsGenericKeyValueText() {
+        let input = """
+        Config attuale:
+        status=ok
+        id=abc123
+        notes=valore visibile
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input, aggressive: false)
+
+        XCTAssertTrue(sanitized.contains("status=ok"))
+        XCTAssertTrue(sanitized.contains("id=abc123"))
+        XCTAssertTrue(sanitized.contains("notes=valore visibile"))
+    }
+
+    func testNonAggressiveSanitizationRemovesExplicitCodexMarkersButKeepsText() {
+        let input = """
+        Prima del marker [CODERIDE:todo_read]
+        todo_write|id=t1|title=Task|
+        Contenuto visibile.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input, aggressive: false)
+
+        XCTAssertFalse(sanitized.contains("CODERIDE"))
+        XCTAssertFalse(sanitized.contains("todo_write|"))
+        XCTAssertTrue(sanitized.contains("Contenuto visibile."))
+    }
 }

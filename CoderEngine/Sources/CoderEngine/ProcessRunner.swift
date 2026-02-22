@@ -3,6 +3,8 @@ import Foundation
 /// Esegue un comando in subprocess e restituisce l'output line-by-line
 struct ProcessRunner {
     private static let stdoutTailCapacity = 50
+    private static let lineFeed: UInt8 = 10
+    private static let carriageReturn: UInt8 = 13
 
     struct ProcessRunnerError: LocalizedError {
         let exitCode: Int32
@@ -54,21 +56,14 @@ struct ProcessRunner {
                     var stderrLines: [String] = []
                     do {
                         for try await byte in stderrPipe.fileHandleForReading.bytes {
-                            stderrBuffer.append(byte)
-                            if byte == 10 {
-                                let line = String(bytes: stderrBuffer, encoding: .utf8)?
-                                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                                stderrBuffer.removeAll()
-                                if !line.isEmpty { stderrLines.append(line) }
+                            consumeLineByte(byte, buffer: &stderrBuffer) { line in
+                                stderrLines.append(line)
                             }
                         }
                     } catch {
                         // In caso di stream interrotto, usa comunque quanto raccolto.
                     }
-                    if !stderrBuffer.isEmpty,
-                       let line = String(bytes: stderrBuffer, encoding: .utf8)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                       !line.isEmpty {
+                    flushLineBuffer(&stderrBuffer) { line in
                         stderrLines.append(line)
                     }
                     return stderrLines.suffix(10).joined(separator: "\n")
@@ -78,25 +73,16 @@ struct ProcessRunner {
                 var stdoutTailBuffer: [String] = []
                 do {
                     for try await byte in stdoutPipe.fileHandleForReading.bytes {
-                        buffer.append(byte)
-                        if byte == 10 {
-                            let line = String(bytes: buffer, encoding: .utf8)?
-                                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                            buffer.removeAll()
-                            if !line.isEmpty {
-                                continuation.yield(line)
-                                stdoutTailBuffer.append(line)
-                                if stdoutTailBuffer.count > Self.stdoutTailCapacity {
-                                    stdoutTailBuffer.removeFirst()
-                                }
+                        consumeLineByte(byte, buffer: &buffer) { line in
+                            continuation.yield(line)
+                            stdoutTailBuffer.append(line)
+                            if stdoutTailBuffer.count > Self.stdoutTailCapacity {
+                                stdoutTailBuffer.removeFirst()
                             }
                         }
                     }
                 } catch {
-                    if !buffer.isEmpty,
-                       let line = String(bytes: buffer, encoding: .utf8)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
-                       !line.isEmpty {
+                    flushLineBuffer(&buffer) { line in
                         continuation.yield(line)
                         stdoutTailBuffer.append(line)
                         if stdoutTailBuffer.count > Self.stdoutTailCapacity {
@@ -104,10 +90,7 @@ struct ProcessRunner {
                         }
                     }
                 }
-                if !buffer.isEmpty,
-                   let line = String(bytes: buffer, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                   !line.isEmpty {
+                flushLineBuffer(&buffer) { line in
                     continuation.yield(line)
                     stdoutTailBuffer.append(line)
                     if stdoutTailBuffer.count > Self.stdoutTailCapacity {
@@ -119,6 +102,12 @@ struct ProcessRunner {
                 let stderrTail = await stderrTask.value
                 if process.terminationStatus == 0 {
                     continuation.finish()
+                    return
+                }
+                // SIGTERM (15) viene spesso usato per stop intenzionale dal controller/UI.
+                // Trattiamolo come cancellazione anche se lo stato non e` piu` osservabile qui.
+                if process.terminationStatus == 15 {
+                    continuation.finish(throwing: CancellationError())
                     return
                 }
                 if executionController?.runState == .stopping {
@@ -163,17 +152,11 @@ struct ProcessRunner {
         var lines: [String] = []
         var buffer = [UInt8]()
         for try await byte in pipe.fileHandleForReading.bytes {
-            buffer.append(byte)
-            if byte == 10 {
-                let line = String(bytes: buffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                buffer.removeAll()
-                if !line.isEmpty { lines.append(line) }
+            consumeLineByte(byte, buffer: &buffer) { line in
+                lines.append(line)
             }
         }
-        if !buffer.isEmpty,
-           let line = String(bytes: buffer, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !line.isEmpty {
+        flushLineBuffer(&buffer) { line in
             lines.append(line)
         }
         process.waitUntilExit()
@@ -181,5 +164,30 @@ struct ProcessRunner {
             throw CancellationError()
         }
         return (lines, process.terminationStatus)
+    }
+
+    private static func consumeLineByte(
+        _ byte: UInt8,
+        buffer: inout [UInt8],
+        onLine: (String) -> Void
+    ) {
+        if byte == lineFeed || byte == carriageReturn {
+            flushLineBuffer(&buffer, onLine: onLine)
+            return
+        }
+        buffer.append(byte)
+    }
+
+    private static func flushLineBuffer(
+        _ buffer: inout [UInt8],
+        onLine: (String) -> Void
+    ) {
+        guard !buffer.isEmpty else { return }
+        defer { buffer.removeAll(keepingCapacity: true) }
+        guard let line = String(bytes: buffer, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !line.isEmpty
+        else { return }
+        onLine(line)
     }
 }

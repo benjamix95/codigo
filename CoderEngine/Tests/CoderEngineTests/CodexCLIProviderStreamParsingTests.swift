@@ -2,6 +2,31 @@ import XCTest
 @testable import CoderEngine
 
 final class CodexCLIProviderStreamParsingTests: XCTestCase {
+    func testParseStreamJSONPayloadsRemovesControlPrefix() {
+        let raw = "\u{04}\u{08}\u{08}{\"type\":\"turn.started\"}"
+        let payloads = CodexCLIProvider.parseStreamJSONPayloads(from: raw)
+
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?["type"] as? String, "turn.started")
+    }
+
+    func testParseStreamJSONPayloadsExtractsJSONFromNoisyLine() {
+        let raw = "2026-01-01T00:00:00Z WARN something {\"type\":\"turn.completed\"}"
+        let payloads = CodexCLIProvider.parseStreamJSONPayloads(from: raw)
+
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?["type"] as? String, "turn.completed")
+    }
+
+    func testParseStreamJSONPayloadsHandlesConcatenatedObjects() {
+        let raw = #"{"type":"turn.started"}{"type":"turn.completed"}"#
+        let payloads = CodexCLIProvider.parseStreamJSONPayloads(from: raw)
+
+        XCTAssertEqual(payloads.count, 2)
+        XCTAssertEqual(payloads.first?["type"] as? String, "turn.started")
+        XCTAssertEqual(payloads.last?["type"] as? String, "turn.completed")
+    }
+
     func testReasoningAndAgentMessageRemainSeparated() {
         let events = runParser(events: [
             ["type": "turn.started"],
@@ -80,6 +105,42 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         }
 
         XCTAssertEqual(statuses, ["started", "completed"])
+    }
+
+    func testParserNormalizesEventTypesWithEmbeddedWhitespace() {
+        let events = runParser(events: [
+            ["type": "turn. started"],
+            [
+                "type": "item. started",
+                "item": [
+                    "id": "cmd-1",
+                    "type": "command_execution",
+                    "command": "ls -la"
+                ],
+            ],
+            [
+                "type": "item. completed",
+                "item": [
+                    "id": "cmd-1",
+                    "type": "command_execution",
+                    "command": "ls -la",
+                    "output": "ok"
+                ],
+            ],
+            ["type": "turn. completed"],
+        ])
+
+        let timelineTypes = events.compactMap { event -> String? in
+            if case .raw(let type, _) = event { return type }
+            return nil
+        }
+
+        XCTAssertTrue(timelineTypes.contains("turn_started"))
+        XCTAssertTrue(timelineTypes.contains("turn_completed"))
+        XCTAssertEqual(
+            timelineTypes.filter { $0 == "command_execution" }.count,
+            2
+        )
     }
 
     func testTurnWithCompletedAgentMessageStillProducesFinalText() {

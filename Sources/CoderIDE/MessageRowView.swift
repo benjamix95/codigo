@@ -11,6 +11,7 @@ struct MessageRow: View {
     let isActuallyLoading: Bool
     let streamingStatusText: String
     let streamingDetailText: String?
+    var streamingReasoningText: String? = nil
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
     var canRewind: Bool = false
@@ -24,11 +25,9 @@ struct MessageRow: View {
         message.isStreaming && isActuallyLoading
     }
     
-    /// Mostra la barra streaming solo quando esiste un dettaglio operativo concreto.
+    /// Mostra la barra streaming durante lo streaming attivo.
     private var shouldShowStreamingBar: Bool {
-        guard isActivelyStreaming else { return false }
-        let detail = streamingDetailText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return !detail.isEmpty
+        isActivelyStreaming
     }
 
     private var isUser: Bool { message.role == .user }
@@ -105,22 +104,20 @@ struct MessageRow: View {
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
             } else {
                 // Assistant — flat text, no background (ChatGPT-style)
-                HStack(alignment: .top, spacing: 10) {
-                    // Subtle AI indicator
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(modeColor.opacity(0.55))
-                        .padding(.top, 3)
-
-                    MarkdownContentView(
-                        content: message.content,
-                        context: context,
-                        onFileClicked: onFileClicked,
-                        textAlignment: .leading,
-                        isStreaming: isActivelyStreaming
-                    )
-                    .frame(maxWidth: contentMaxWidth, alignment: .leading)
+                if isActivelyStreaming,
+                   let reasoning = streamingReasoningText, !reasoning.isEmpty
+                {
+                    ThinkingBlockView(text: reasoning)
+                        .padding(.bottom, 8)
                 }
+                MarkdownContentView(
+                    content: message.content,
+                    context: context,
+                    onFileClicked: onFileClicked,
+                    textAlignment: .leading,
+                    isStreaming: isActivelyStreaming
+                )
+                .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 .padding(.vertical, 4)
                 if shouldShowStreamingBar { streamingBar }
             }
@@ -146,7 +143,6 @@ struct MessageRow: View {
             }
         }
         .padding(.top, 2)
-        .padding(.leading, 21) // align with text after sparkle icon
     }
 
     // MARK: - User Message Images Row
@@ -178,6 +174,54 @@ struct MessageRow: View {
         }
         .fixedSize(horizontal: true, vertical: false) // larghezza solo per contenuto, così VStack .trailing la allinea a destra
         .padding(.bottom, 4)
+    }
+}
+
+// MARK: - Thinking Block (LLM reasoning)
+
+struct ThinkingBlockView: View {
+    let text: String
+    @State private var isExpanded = false
+    private let collapsedLineLimit = 8
+    private let contentMaxWidth: CGFloat = 680
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Thinking")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+            if isExpanded {
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 200)
+            } else {
+                Text(text)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(collapsedLineLimit)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                Text(isExpanded ? "Riduci" : "Espandi")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: contentMaxWidth, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 }
 

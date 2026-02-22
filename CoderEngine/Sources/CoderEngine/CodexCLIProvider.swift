@@ -131,9 +131,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     if let override = environmentOverride {
                         env.merge(override) { _, new in new }
                     }
-                    let stream = try await ProcessRunner.run(
+                    let invocation = Self.streamInvocation(
                         executable: execPath,
-                        arguments: args,
+                        arguments: args
+                    )
+                    let stream = try await ProcessRunner.run(
+                        executable: invocation.executable,
+                        arguments: invocation.arguments,
                         workingDirectory: workspacePath,
                         environment: env,
                         executionController: executionController,
@@ -142,13 +146,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     
                     continuation.yield(.started)
                     var parserState = CodexStreamParserState()
-                    for try await line in stream {
-                        guard let data = line.data(using: .utf8),
-                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                            continue
-                        }
-                        for event in Self.parseStreamJSONEvent(json, state: &parserState) {
-                            continuation.yield(event)
+                    for try await rawLine in stream {
+                        let payloads = Self.parseStreamJSONPayloads(from: rawLine)
+                        guard !payloads.isEmpty else { continue }
+                        for json in payloads {
+                            for event in Self.parseStreamJSONEvent(json, state: &parserState) {
+                                continuation.yield(event)
+                            }
                         }
                     }
                     for event in Self.finalizeStreamJSONState(state: &parserState) {
@@ -156,12 +160,110 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     }
                     continuation.yield(.completed)
                     continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: CancellationError())
                 } catch {
                     continuation.yield(.error(error.localizedDescription))
                     continuation.finish(throwing: error)
                 }
             }
         }
+    }
+
+    static func streamInvocation(
+        executable: String,
+        arguments: [String]
+    ) -> (executable: String, arguments: [String]) {
+        let scriptPath = "/usr/bin/script"
+        guard FileManager.default.isExecutableFile(atPath: scriptPath) else {
+            return (executable, arguments)
+        }
+        // Usa PTY per ridurre i casi di stdout buffered fino a EOF.
+        return (scriptPath, ["-q", "/dev/null", executable] + arguments)
+    }
+
+    static func parseStreamJSONPayloads(from rawLine: String) -> [[String: Any]] {
+        let cleaned = cleanedJSONCandidateLine(rawLine)
+        guard !cleaned.isEmpty else { return [] }
+
+        if let direct = decodeJSONDictionary(cleaned) {
+            return [direct]
+        }
+
+        // Fallback: estrai eventuali oggetti JSON annidati in linee rumorose/concatenate.
+        let extracted = extractJSONObjectStrings(from: cleaned)
+        if extracted.isEmpty {
+            return []
+        }
+        return extracted.compactMap { decodeJSONDictionary($0) }
+    }
+
+    private static func cleanedJSONCandidateLine(_ raw: String) -> String {
+        let scalars = raw.unicodeScalars.filter { scalar in
+            // Mantieni tab e caratteri stampabili; rimuovi controlli (\0, \b, ^D, ecc).
+            scalar.value == 0x09 || scalar.value >= 0x20
+        }
+        return String(String.UnicodeScalarView(scalars))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func decodeJSONDictionary(_ line: String) -> [String: Any]? {
+        guard let data = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    private static func extractJSONObjectStrings(from line: String) -> [String] {
+        var results: [String] = []
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var startIndex: String.Index?
+
+        var index = line.startIndex
+        while index < line.endIndex {
+            let ch = line[index]
+
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if ch == "\\" {
+                    escaped = true
+                } else if ch == "\"" {
+                    inString = false
+                }
+                index = line.index(after: index)
+                continue
+            }
+
+            if ch == "\"" {
+                inString = true
+                index = line.index(after: index)
+                continue
+            }
+
+            if ch == "{" {
+                if depth == 0 {
+                    startIndex = index
+                }
+                depth += 1
+            } else if ch == "}" {
+                if depth > 0 {
+                    depth -= 1
+                    if depth == 0, let start = startIndex {
+                        let end = line.index(after: index)
+                        results.append(String(line[start..<end]))
+                        startIndex = nil
+                    }
+                }
+            }
+
+            index = line.index(after: index)
+        }
+
+        return results
     }
 
     struct CodexStreamParserState {
@@ -189,7 +291,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         state: inout CodexStreamParserState
     ) -> [StreamEvent] {
         var events: [StreamEvent] = []
-        let eventType = (json["type"] as? String) ?? ""
+        let eventType = normalizedEventType((json["type"] as? String) ?? "")
 
         if eventType == "turn.started" {
             events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
@@ -482,7 +584,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     
     /// Parses Codex JSONL for structured events (file_change, command_execution, mcp_tool_call, web_search)
     static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
-        let eventType = (json["type"] as? String) ?? ""
+        let eventType = normalizedEventType((json["type"] as? String) ?? "")
         let item = (json["item"] as? [String: Any]) ?? json
         guard let type = (item["type"] as? String) ?? (eventType.hasPrefix("item.") ? nil : eventType) else { return nil }
         let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed"]
@@ -528,6 +630,10 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let edits = item["edit_count"] as? Int { payload["editCount"] = "\(edits)" }
         
         return (type, payload)
+    }
+
+    private static func normalizedEventType(_ raw: String) -> String {
+        raw.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
     }
 
     private static func firstString(in input: [String: Any], keys: [String]) -> String? {

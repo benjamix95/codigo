@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Codigo utilizza il microfono per la dettatura vocale nella chat.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Codigo utilizza il riconoscimento vocale per convertire la tua voce in testo nella chat.</string>
+</dict>
+</plist>

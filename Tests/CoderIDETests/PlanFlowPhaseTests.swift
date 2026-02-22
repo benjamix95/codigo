@@ -55,27 +55,4 @@ final class PlanFlowPhaseTests: XCTestCase {
         XCTAssertFalse(isPlanBuildEnabled(phase: .idle, hasBuildChoice: false))
     }
 
-    func testAutoResetPlanningStateDoesNotClearAwaitingChoice() {
-        XCTAssertFalse(
-            shouldResetPlanningStateAfterAutoPlanToggleReset(
-                planFlowPhase: .proposalReady,
-                planningState: .awaitingChoice(planContent: "x", options: [])
-            )
-        )
-    }
-
-    func testAutoResetPlanningStateClearsIdleOrClarificationStates() {
-        XCTAssertTrue(
-            shouldResetPlanningStateAfterAutoPlanToggleReset(
-                planFlowPhase: .discovery,
-                planningState: .awaitingClarification(questions: "q")
-            )
-        )
-        XCTAssertFalse(
-            shouldResetPlanningStateAfterAutoPlanToggleReset(
-                planFlowPhase: .building,
-                planningState: .awaitingClarification(questions: "q")
-            )
-        )
-    }
 }

@@ -20,7 +20,14 @@ IDE Cursor-like nativo in Swift per macOS, con un assistente AI ("Coder") che su
 ```bash
 cd codigo
 swift build
-swift run CoderIDE
+swift run Codigo
+```
+
+**Input vocale (microfono)**: per il riconoscimento vocale TCC richiede un bundle .app. Usa:
+
+```bash
+./build-app.sh
+open Codigo.app
 ```
 
 ## Configurazione

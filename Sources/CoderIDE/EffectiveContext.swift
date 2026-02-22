@@ -113,11 +113,16 @@ func effectiveContext(
     chatStore: ChatStore,
     projectContextStore: ProjectContextStore
 ) -> EffectiveContext {
-    guard let conv = chatStore.conversation(for: conversationId) else {
-        return .empty()
+    let contextId: UUID?
+    if let conv = chatStore.conversation(for: conversationId) {
+        // Thread globale (contextId nil): usa il progetto attivo se aperto.
+        contextId = conv.contextId ?? projectContextStore.activeContextId
+    } else {
+        // Nessuna conversazione selezionata (es. eliminate tutte): mantieni il progetto aperto.
+        contextId = projectContextStore.activeContextId
     }
 
-    if let context = projectContextStore.context(id: conv.contextId) {
+    if let contextId, let context = projectContextStore.context(id: contextId) {
         return EffectiveContext(
             contextId: context.id,
             folderPaths: context.folderPaths,
