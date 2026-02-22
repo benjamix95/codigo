@@ -76,56 +76,75 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                     var didEmitInvokeSwarm = false
                     var emittedMarkers = Set<String>()
                     var markerCarry = ""
-                    for try await line in stream {
-                        if let data = line.data(using: .utf8),
-                           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                            if let rawEvent = Self.parseRawEvent(from: json) {
-                                continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
-                            }
-                            if let usage = json["usage"] as? [String: Any] {
-                                let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int) ?? -1
-                                let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int) ?? -1
-                                continuation.yield(.raw(type: "usage", payload: [
-                                    "input_tokens": "\(input)",
-                                    "output_tokens": "\(output)",
-                                    "model": "gemini-cli"
-                                ]))
-                            }
-                            if let text = Self.extractText(from: json), !text.isEmpty {
-                                let delta = text.hasPrefix(fullText) ? String(text.dropFirst(fullText.count)) : text
-                                fullText = text
-                                if !delta.isEmpty {
-                                    continuation.yield(.textDelta(delta))
-                                    if !didEmitShowTaskPanel, fullText.contains(CoderIDEMarkers.showTaskPanel) {
-                                        didEmitShowTaskPanel = true
-                                        continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
-                                    }
-                                    if !didEmitInvokeSwarm, fullText.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                                       let start = fullText.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                                       let endRange = fullText[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-                                        didEmitInvokeSwarm = true
-                                        let task = String(fullText[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if !task.isEmpty {
-                                            continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
-                                        }
-                                    }
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta, carry: &markerCarry) {
-                                        let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                        if emittedMarkers.insert(key).inserted {
-                                            continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
-                                        }
+                    var jsonCarry = ""
+
+                    func consumeJSON(_ json: [String: Any]) {
+                        if let rawEvent = Self.parseRawEvent(from: json) {
+                            continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
+                        }
+                        if let usage = json["usage"] as? [String: Any] {
+                            let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int) ?? -1
+                            let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int) ?? -1
+                            continuation.yield(.raw(type: "usage", payload: [
+                                "input_tokens": "\(input)",
+                                "output_tokens": "\(output)",
+                                "model": "gemini-cli"
+                            ]))
+                        }
+                        if let text = Self.extractText(from: json), !text.isEmpty {
+                            let delta = text.hasPrefix(fullText) ? String(text.dropFirst(fullText.count)) : text
+                            fullText = text
+                            if !delta.isEmpty {
+                                continuation.yield(.textDelta(delta))
+                                if !didEmitShowTaskPanel, fullText.contains(CoderIDEMarkers.showTaskPanel) {
+                                    didEmitShowTaskPanel = true
+                                    continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
+                                }
+                                if !didEmitInvokeSwarm, fullText.contains(CoderIDEMarkers.invokeSwarmPrefix),
+                                   let start = fullText.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
+                                   let endRange = fullText[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
+                                    didEmitInvokeSwarm = true
+                                    let task = String(fullText[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !task.isEmpty {
+                                        continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
                                     }
                                 }
-                                continue
+                                for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta, carry: &markerCarry) {
+                                    let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
+                                    if emittedMarkers.insert(key).inserted {
+                                        continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
+                                    }
+                                }
                             }
+                        }
+                    }
+
+                    for try await line in stream {
+                        let payloads = Self.parseStreamJSONPayloads(from: line, carry: &jsonCarry)
+                        if !payloads.isEmpty {
+                            for json in payloads {
+                                consumeJSON(json)
+                            }
+                            continue
+                        }
+
+                        // Evita di mostrare rumore JSON parziale (es. output pretty-printed multilinea).
+                        if !jsonCarry.isEmpty || Self.looksLikeJSONFragment(line) {
+                            continue
                         }
                         continuation.yield(.textDelta(line + "\n"))
                     }
+                    for json in Self.flushStreamJSONPayloads(carry: &jsonCarry) {
+                        consumeJSON(json)
+                    }
                     continuation.yield(.completed)
                     continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: CancellationError())
                 } catch {
-                    continuation.yield(.error(error.localizedDescription))
-                    continuation.finish(throwing: error)
+                    let message = Self.userFacingErrorMessage(from: error)
+                    continuation.yield(.error(message))
+                    continuation.finish(throwing: CoderEngineError.apiError(message))
                 }
             }
         }
@@ -197,14 +216,82 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func extractText(from obj: Any) -> String? {
+    static func parseStreamJSONPayloads(from rawLine: String, carry: inout String) -> [[String: Any]] {
+        let cleaned = cleanedJSONCandidateLine(rawLine)
+        guard !cleaned.isEmpty else { return [] }
+
+        if let direct = decodeJSONDictionary(cleaned) {
+            return [direct]
+        }
+
+        // Gestisci oggetti concatenati/noisy solo quando la riga sembra contenere
+        // oggetti JSON top-level, evitando oggetti annidati di righe pretty-printed.
+        if let first = cleaned.first, first == "{" {
+            let inlinePayloads = extractJSONObjectStrings(from: cleaned).compactMap { decodeJSONDictionary($0) }
+            if !inlinePayloads.isEmpty {
+                return inlinePayloads
+            }
+        }
+
+        if !carry.isEmpty || looksLikeJSONFragment(cleaned) {
+            if !carry.isEmpty {
+                carry.append("\n")
+            }
+            carry.append(cleaned)
+
+            if let full = decodeJSONDictionary(carry) {
+                carry = ""
+                return [full]
+            }
+
+            // Safety valve: evita crescita indefinita del buffer su output inatteso.
+            if carry.count > 200_000 {
+                carry = String(carry.suffix(50_000))
+            }
+        }
+
+        return []
+    }
+
+    static func flushStreamJSONPayloads(carry: inout String) -> [[String: Any]] {
+        let cleaned = carry.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else {
+            carry = ""
+            return []
+        }
+        if let full = decodeJSONDictionary(cleaned) {
+            carry = ""
+            return [full]
+        }
+        let payloads = extractJSONObjectStrings(from: cleaned).compactMap { decodeJSONDictionary($0) }
+        carry = ""
+        return payloads
+    }
+
+    static func extractText(from obj: Any) -> String? {
         if let dict = obj as? [String: Any] {
-            for key in ["response", "text", "result", "content", "message", "output"] {
-                if let value = dict[key], let txt = stringify(value), !txt.isEmpty {
+            // Preferisci i campi canonici di risposta Gemini ed evita metadata.
+            for key in ["response", "result", "output", "text"] {
+                if let value = dict[key], let txt = nonEmptyString(value) {
                     return txt
                 }
             }
-            for (_, value) in dict {
+
+            for key in ["content", "message"] {
+                if let value = dict[key], let txt = nonEmptyString(value) {
+                    return txt
+                }
+            }
+
+            let metadataKeys: Set<String> = [
+                "session_id", "id", "status", "stats", "models", "model", "tools", "files",
+                "usage", "tokens", "api", "totalrequests", "totalerrors", "totallatencyms",
+                "prompt", "input", "cached", "thoughts", "candidates", "total", "durationms"
+            ]
+            for (key, value) in dict {
+                if metadataKeys.contains(key.lowercased()) {
+                    continue
+                }
                 if let nested = extractText(from: value), !nested.isEmpty {
                     return nested
                 }
@@ -219,6 +306,82 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             if !chunks.isEmpty { return chunks.joined(separator: "\n") }
         }
         return nil
+    }
+
+    private static func looksLikeJSONFragment(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if let first = trimmed.first, ["{", "}", "[", "]", "\"", ","].contains(first) {
+            return true
+        }
+        return trimmed.contains("\":")
+    }
+
+    private static func cleanedJSONCandidateLine(_ raw: String) -> String {
+        let scalars = raw.unicodeScalars.filter { scalar in
+            scalar.value == 0x09 || scalar.value >= 0x20
+        }
+        return String(String.UnicodeScalarView(scalars))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func decodeJSONDictionary(_ raw: String) -> [String: Any]? {
+        guard let data = raw.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json
+    }
+
+    private static func extractJSONObjectStrings(from line: String) -> [String] {
+        var results: [String] = []
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var startIndex: String.Index?
+
+        var index = line.startIndex
+        while index < line.endIndex {
+            let ch = line[index]
+
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if ch == "\\" {
+                    escaped = true
+                } else if ch == "\"" {
+                    inString = false
+                }
+                index = line.index(after: index)
+                continue
+            }
+
+            if ch == "\"" {
+                inString = true
+                index = line.index(after: index)
+                continue
+            }
+
+            if ch == "{" {
+                if depth == 0 {
+                    startIndex = index
+                }
+                depth += 1
+            } else if ch == "}" {
+                if depth > 0 {
+                    depth -= 1
+                    if depth == 0, let start = startIndex {
+                        let end = line.index(after: index)
+                        results.append(String(line[start..<end]))
+                        startIndex = nil
+                    }
+                }
+            }
+
+            index = line.index(after: index)
+        }
+
+        return results
     }
 
     private static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
@@ -343,5 +506,118 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             if let e = dict["error"] as? String { return e }
         }
         return nil
+    }
+
+    private static func nonEmptyString(_ value: Any?) -> String? {
+        guard let value, let text = stringify(value) else { return nil }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+    }
+
+    static func userFacingErrorMessage(from error: Error) -> String {
+        if let cancellation = error as? CancellationError {
+            return cancellation.localizedDescription
+        }
+
+        let processError = error as? ProcessRunner.ProcessRunnerError
+        let candidates = [
+            processError?.message,
+            processError?.stdoutTail,
+            error.localizedDescription,
+        ].compactMap { $0 }.filter { !$0.isEmpty }
+
+        for candidate in candidates {
+            if let parsed = parseGeminiCLIErrorMessage(from: candidate) {
+                return parsed
+            }
+        }
+
+        return error.localizedDescription
+    }
+
+    static func parseGeminiCLIErrorMessage(from raw: String) -> String? {
+        let objects = extractJSONObjectStrings(from: raw)
+        for object in objects.reversed() {
+            guard let dict = decodeJSONDictionary(object) else { continue }
+            if let message = geminiErrorMessage(from: dict, raw: raw) {
+                return message
+            }
+        }
+
+        if raw.contains("[object Object]"), let http = firstHTTPStatusCode(in: raw) {
+            if http == 404 {
+                return "Gemini CLI: errore HTTP 404 (risorsa/modello non trovato). Verifica il modello selezionato o aggiorna la CLI."
+            }
+            return "Gemini CLI: errore HTTP \(http)."
+        }
+
+        return nil
+    }
+
+    private static func geminiErrorMessage(from json: [String: Any], raw: String) -> String? {
+        let topError = json["error"] as? [String: Any]
+        let topMessage = nonEmptyString(topError?["message"]) ?? nonEmptyString(json["message"])
+        let topCode = nonEmptyString(topError?["code"]) ?? nonEmptyString(json["code"])
+
+        let httpCode = firstHTTPStatusCode(in: raw)
+            ?? intValue(topCode)
+            ?? intValue(nonEmptyString(json["status"]))
+
+        let cleanedMessage = cleanedGeminiErrorMessage(topMessage)
+
+        if let code = httpCode, code == 404 {
+            if let cleanedMessage, !cleanedMessage.isEmpty {
+                return "Gemini CLI: errore HTTP 404 — \(cleanedMessage)"
+            }
+            return "Gemini CLI: errore HTTP 404 (risorsa/modello non trovato). Verifica il modello selezionato o aggiorna la CLI."
+        }
+
+        if let code = httpCode {
+            if let cleanedMessage, !cleanedMessage.isEmpty {
+                return "Gemini CLI: errore HTTP \(code) — \(cleanedMessage)"
+            }
+            return "Gemini CLI: errore HTTP \(code)."
+        }
+
+        if let cleanedMessage, !cleanedMessage.isEmpty {
+            return "Gemini CLI: \(cleanedMessage)"
+        }
+
+        if raw.contains("[object Object]") {
+            return "Gemini CLI: richiesta fallita (errore non dettagliato). Verifica configurazione account e modello."
+        }
+
+        return nil
+    }
+
+    private static func cleanedGeminiErrorMessage(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed == "[object Object]" { return nil }
+        return trimmed
+    }
+
+    private static func firstHTTPStatusCode(in text: String) -> Int? {
+        let patterns = [
+            #"(?i)\bhttp\s*([45]\d{2})\b"#,
+            #"(?i)\bstatus(?:\s*code)?\s*[:=]?\s*([45]\d{2})\b"#,
+            #"(?i)\bcode\s*[:=]?\s*([45]\d{2})\b"#,
+        ]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            guard let match = regex.firstMatch(in: text, range: range),
+                  let codeRange = Range(match.range(at: 1), in: text),
+                  let code = Int(text[codeRange]) else { continue }
+            return code
+        }
+        return nil
+    }
+
+    private static func intValue(_ text: String?) -> Int? {
+        guard let text else { return nil }
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        return Int(cleaned)
     }
 }

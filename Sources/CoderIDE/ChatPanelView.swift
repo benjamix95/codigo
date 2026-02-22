@@ -1048,7 +1048,7 @@ struct ChatPanelView: View {
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
                             let hasCheckpointForMessage = userMessageCheckpoint != nil
-                            let canRewindFromMessage = message.role == .user && !isRewinding
+                            let canRewindFromMessage = message.role == .user && !isRewinding && index > 0
 
                             HStack(alignment: .top, spacing: 0) {
                                 if message.role == .user { Spacer(minLength: 0) }
@@ -3249,6 +3249,11 @@ struct ChatPanelView: View {
         conversationId: UUID?, workspaceContext: WorkspaceContext
     ) throws {
         guard let conversationId else { return }
+        guard let conv = chatStore.conversation(for: conversationId), !conv.messages.isEmpty else {
+            // Non creare checkpoint per il primo messaggio: non ha senso offrire rewind
+            // verso una chat vuota.
+            return
+        }
         let pathStrings = workspaceContext.workspacePaths.map(\.path)
         do {
             let states = try checkpointGitStore.captureSnapshots(
@@ -3378,10 +3383,16 @@ struct ChatPanelView: View {
             }
 
             await MainActor.run {
-                let rewound: Bool
+                var rewound: Bool
                 if let checkpoint {
                     rewound = chatStore.rewindConversationState(
                         to: checkpoint.id, conversationId: convId)
+                    if rewound {
+                        // Assicurati che il messaggio utente sia rimosso dalla chat
+                        // (rimane solo nell'input per modifica).
+                        rewound = chatStore.rewindConversationToMessageCount(
+                            lastUserIndex, conversationId: convId)
+                    }
                 } else {
                     // Fallback senza checkpoint: rimuove ultimo turno utente+risposta.
                     rewound = chatStore.rewindConversationToMessageCount(
@@ -3457,8 +3468,10 @@ struct ChatPanelView: View {
             }
 
             await MainActor.run {
+                // Rimuove il messaggio user dalla chat (e tutto ciò che segue) così può essere
+                // modificato nell'input e reinviato senza duplicati.
                 let rewound = chatStore.rewindConversationToMessageCount(
-                    messageIndex + 1, conversationId: conversationId)
+                    messageIndex, conversationId: conversationId)
                 guard rewound else {
                     appendTechnicalErrorMessage(
                         "[Errore rewind: impossibile ripristinare lo stato chat.]", in: conversationId)

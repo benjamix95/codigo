@@ -429,8 +429,31 @@ final class ChatStore: ObservableObject {
         return lastAssistant.isStreaming
     }
 
+    /// Imposta isStreaming=false su tutti i messaggi assistant. Chiamare prima di aggiungere
+    /// un nuovo assistant placeholder per evitare doppi indicatori di caricamento.
+    func clearStaleAssistantStreaming(conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        var conv = conversations[idx]
+        var msgs = conv.messages
+        var changed = false
+        for i in msgs.indices where msgs[i].role == .assistant {
+            if msgs[i].isStreaming {
+                msgs[i].isStreaming = false
+                changed = true
+            }
+        }
+        if changed {
+            conv.messages = msgs
+            conversations[idx] = conv
+            saveConversations()
+        }
+    }
+
     func addMessage(_ message: ChatMessage, to conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        if message.role == .assistant, message.isStreaming {
+            clearStaleAssistantStreaming(conversationId: conversationId)
+        }
         conversations[idx].messages.append(message)
         if conversations[idx].title == "Nuova conversazione", case .user = message.role {
             conversations[idx].title = String(message.content.prefix(40))

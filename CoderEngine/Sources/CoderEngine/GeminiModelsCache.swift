@@ -20,7 +20,6 @@ public enum GeminiModelsCache {
     /// Per "Default (auto)" non passare --model: usare geminiModelOverride = "".
     private static let knownModels: [GeminiModel] = [
         // Gemini 3 (preview)
-        GeminiModel(slug: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (preview)"),
         GeminiModel(slug: "gemini-3-pro-preview", displayName: "Gemini 3 Pro (preview)"),
         GeminiModel(slug: "gemini-3-flash-preview", displayName: "Gemini 3 Flash (preview)"),
         // Gemini 2.5
