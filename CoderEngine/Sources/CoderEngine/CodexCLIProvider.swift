@@ -141,95 +141,18 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     )
                     
                     continuation.yield(.started)
-                    var lastFullText = ""
-                    var didEmitShowTaskPanel = false
-                    var didEmitInvokeSwarm = false
-                    var didEmitContextCompacted = false
-                    var emittedMarkers = Set<String>()
-                    var markerCarry = ""
-                    var scrubCarry = ""
-
+                    var parserState = CodexStreamParserState()
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
                               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                             continue
                         }
-                        
-                        // Emit usage da turn.completed
-                        if (json["type"] as? String) == "turn.completed",
-                           let usage = json["usage"] as? [String: Any],
-                           let inp = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int),
-                           let out = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int) {
-                            continuation.yield(.raw(type: "usage", payload: [
-                                "input_tokens": "\(inp)",
-                                "output_tokens": "\(out)",
-                                "model": "codex"
-                            ]))
+                        for event in Self.parseStreamJSONEvent(json, state: &parserState) {
+                            continuation.yield(event)
                         }
-                        // Emit .raw for structured task activities (file_change, command_execution, mcp_tool_call, web_search)
-                        if let rawEvent = Self.parseRawEvent(from: json) {
-                            continuation.yield(.raw(type: rawEvent.type, payload: rawEvent.payload))
-                        }
-                        if !didEmitContextCompacted, Self.containsCompactionSignal(json: json) {
-                            didEmitContextCompacted = true
-                            continuation.yield(.raw(type: "context_compacted", payload: [
-                                "title": "Automatically compacting context",
-                                "detail": "Codex ha compattato il contesto nativamente."
-                            ]))
-                        }
-                        
-                        func extractText(from obj: Any) -> String? {
-                            if let dict = obj as? [String: Any] {
-                                if let text = dict["text"] as? String { return text }
-                                if let content = dict["content"] as? [[String: Any]] {
-                                    return content.compactMap { extractText(from: $0) }.joined()
-                                }
-                                if let item = dict["item"] { return extractText(from: item) }
-                                if let event = dict["event"] { return extractText(from: event) }
-                            }
-                            return nil
-                        }
-                        
-                        if let text = extractText(from: json), !text.isEmpty {
-                            if !didEmitShowTaskPanel, text.contains(CoderIDEMarkers.showTaskPanel) {
-                                didEmitShowTaskPanel = true
-                                continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
-                            }
-                            if !didEmitInvokeSwarm, text.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                               let start = text.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                               let endRange = text[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-                                didEmitInvokeSwarm = true
-                                let task = String(text[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !task.isEmpty {
-                                    continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
-                                }
-                            }
-                            if text != lastFullText {
-                                let delta: String
-                                if text.hasPrefix(lastFullText) {
-                                    delta = String(text.dropFirst(lastFullText.count))
-                                    lastFullText = text
-                                } else if lastFullText.hasPrefix(text) {
-                                    delta = ""
-                                    lastFullText = text
-                                } else {
-                                    delta = text
-                                    lastFullText = text
-                                }
-                                if !delta.isEmpty {
-                                    let cleaned = Self.scrubTechnicalTextChunk(delta, carry: &scrubCarry)
-                                    if !cleaned.isEmpty {
-                                        continuation.yield(.textDelta(cleaned))
-                                    }
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: delta, carry: &markerCarry) {
-                                        let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                        if emittedMarkers.insert(key).inserted {
-                                            continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    }
+                    for event in Self.finalizeStreamJSONState(state: &parserState) {
+                        continuation.yield(event)
                     }
                     continuation.yield(.completed)
                     continuation.finish()
@@ -240,15 +163,333 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             }
         }
     }
+
+    struct CodexStreamParserState {
+        struct TurnState {
+            var lastObservedAgentText = ""
+            var lastValidAgentMessage = ""
+            var emittedAnyAssistantDelta = false
+        }
+
+        var turn = TurnState()
+        var markerCarry = ""
+        var scrubCarry = ""
+        var emittedRawKeys: Set<String> = []
+        var emittedContextCompacted = false
+
+        mutating func resetTurn() {
+            turn = TurnState()
+            markerCarry = ""
+            scrubCarry = ""
+        }
+    }
+
+    static func parseStreamJSONEvent(
+        _ json: [String: Any],
+        state: inout CodexStreamParserState
+    ) -> [StreamEvent] {
+        var events: [StreamEvent] = []
+        let eventType = (json["type"] as? String) ?? ""
+
+        if eventType == "turn.started" {
+            events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
+            state.resetTurn()
+            var payload: [String: String] = [
+                "title": "Turno avviato",
+                "detail": "Esecuzione richiesta in corso",
+                "status": "started",
+            ]
+            if let turnId = firstString(in: json, keys: ["turn_id", "id"]), !turnId.isEmpty {
+                payload["id"] = turnId
+                payload["group_id"] = turnId
+            }
+            appendRawEvent(
+                type: "turn_started",
+                payload: payload,
+                state: &state,
+                events: &events
+            )
+        }
+
+        if eventType == "turn.completed",
+           let usage = json["usage"] as? [String: Any],
+           let inp = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int),
+           let out = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int) {
+            appendRawEvent(
+                type: "usage",
+                payload: [
+                    "input_tokens": "\(inp)",
+                    "output_tokens": "\(out)",
+                    "model": "codex",
+                ],
+                state: &state,
+                events: &events
+            )
+        }
+        if eventType == "turn.completed" {
+            var payload: [String: String] = [
+                "title": "Turno completato",
+                "detail": "Esecuzione richiesta completata",
+                "status": "completed",
+            ]
+            if let turnId = firstString(in: json, keys: ["turn_id", "id"]), !turnId.isEmpty {
+                payload["id"] = turnId
+                payload["group_id"] = turnId
+            }
+            appendRawEvent(
+                type: "turn_completed",
+                payload: payload,
+                state: &state,
+                events: &events
+            )
+        }
+
+        if let rawEvent = parseRawEvent(from: json) {
+            appendRawEvent(
+                type: rawEvent.type,
+                payload: rawEvent.payload,
+                state: &state,
+                events: &events
+            )
+        }
+
+        if !state.emittedContextCompacted, containsCompactionSignal(json: json) {
+            state.emittedContextCompacted = true
+            appendRawEvent(
+                type: "context_compacted",
+                payload: [
+                    "title": "Automatically compacting context",
+                    "detail": "Codex ha compattato il contesto nativamente.",
+                ],
+                state: &state,
+                events: &events
+            )
+        }
+
+        if let agentChunk = extractAgentMessageChunk(from: json) {
+            events.append(
+                contentsOf: processAgentMessageChunk(
+                    agentChunk.text,
+                    isDelta: agentChunk.isDelta,
+                    state: &state
+                )
+            )
+        }
+
+        if eventType == "turn.completed" {
+            events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
+            state.resetTurn()
+        }
+
+        return events
+    }
+
+    static func finalizeStreamJSONState(state: inout CodexStreamParserState) -> [StreamEvent] {
+        finalizeAssistantTurnIfNeeded(state: &state)
+    }
+
+    private static func processAgentMessageChunk(
+        _ text: String,
+        isDelta: Bool,
+        state: inout CodexStreamParserState
+    ) -> [StreamEvent] {
+        guard !text.isEmpty else { return [] }
+        var events: [StreamEvent] = []
+        var rawDelta = ""
+
+        if isDelta {
+            rawDelta = text
+            state.turn.lastObservedAgentText += text
+            state.turn.lastValidAgentMessage = state.turn.lastObservedAgentText
+        } else {
+            let previous = state.turn.lastObservedAgentText
+            state.turn.lastObservedAgentText = text
+            state.turn.lastValidAgentMessage = text
+            if text.hasPrefix(previous) {
+                rawDelta = String(text.dropFirst(previous.count))
+            } else if previous.hasPrefix(text) {
+                rawDelta = ""
+            } else {
+                rawDelta = text
+            }
+        }
+
+        if !rawDelta.isEmpty {
+            emitMarkerEvents(from: rawDelta, state: &state, events: &events)
+            let cleaned = scrubTechnicalTextChunk(rawDelta, carry: &state.scrubCarry)
+            if !cleaned.isEmpty {
+                state.turn.emittedAnyAssistantDelta = true
+                events.append(.textDelta(cleaned))
+            }
+        }
+
+        return events
+    }
+
+    private static func finalizeAssistantTurnIfNeeded(
+        state: inout CodexStreamParserState
+    ) -> [StreamEvent] {
+        guard !state.turn.lastValidAgentMessage.isEmpty else { return [] }
+        guard !state.turn.emittedAnyAssistantDelta else { return [] }
+
+        var events: [StreamEvent] = []
+        emitMarkerEvents(from: state.turn.lastValidAgentMessage, state: &state, events: &events)
+        var cleanupCarry = ""
+        let cleaned = scrubTechnicalTextChunk(state.turn.lastValidAgentMessage, carry: &cleanupCarry)
+        if !cleaned.isEmpty {
+            state.turn.emittedAnyAssistantDelta = true
+            events.append(.textDelta(cleaned))
+        }
+        return events
+    }
+
+    private static func emitMarkerEvents(
+        from text: String,
+        state: inout CodexStreamParserState,
+        events: inout [StreamEvent]
+    ) {
+        for markerEvent in parseInlineControlMarkerEvents(in: text) {
+            appendRawEvent(
+                type: markerEvent.type,
+                payload: markerEvent.payload,
+                state: &state,
+                events: &events
+            )
+        }
+        for markerEvent in parseCoderIDEMarkerEvents(in: text, carry: &state.markerCarry) {
+            appendRawEvent(
+                type: markerEvent.type,
+                payload: markerEvent.payload,
+                state: &state,
+                events: &events
+            )
+        }
+    }
+
+    private static func appendRawEvent(
+        type: String,
+        payload: [String: String],
+        state: inout CodexStreamParserState,
+        events: inout [StreamEvent]
+    ) {
+        let key = rawDedupKey(type: type, payload: payload)
+        guard state.emittedRawKeys.insert(key).inserted else { return }
+        events.append(.raw(type: type, payload: payload))
+    }
+
+    static func rawDedupKey(type: String, payload: [String: String]) -> String {
+        let identityKeys = [
+            "id", "group_id", "queryId", "query_id",
+            "tool_call_id", "call_id", "swarm_id", "step_id"
+        ]
+        let identifier = identityKeys.compactMap { payload[$0] }.first(where: { !$0.isEmpty }) ?? ""
+        let status = (payload["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !identifier.isEmpty || !status.isEmpty {
+            return "\(type)|\(identifier)|\(status)"
+        }
+        let canonicalPayload = payload.keys.sorted().map { key in
+            "\(key)=\(payload[key] ?? "")"
+        }.joined(separator: "|")
+        return "\(type)|\(canonicalPayload)"
+    }
+
+    static func extractAgentMessageChunk(from json: [String: Any]) -> (text: String, isDelta: Bool)? {
+        let eventType = (json["type"] as? String) ?? ""
+
+        if eventType.hasPrefix("item."),
+           let item = json["item"] as? [String: Any],
+           let itemType = item["type"] as? String,
+           itemType == "agent_message" {
+            if let delta = firstString(in: item, keys: ["delta", "text_delta"]), !delta.isEmpty {
+                return (delta, true)
+            }
+            if let text = extractTextPayload(from: item), !text.isEmpty {
+                return (text, false)
+            }
+            return nil
+        }
+
+        if eventType == "agent_message" {
+            if let text = extractTextPayload(from: json), !text.isEmpty {
+                return (text, false)
+            }
+        }
+
+        return nil
+    }
+
+    static func extractTextPayload(from obj: Any) -> String? {
+        if let s = obj as? String {
+            return s
+        }
+        if let dict = obj as? [String: Any] {
+            if let text = dict["text"] as? String { return text }
+            if let output = dict["output"] as? String { return output }
+            if let message = dict["message"] {
+                if let extracted = extractTextPayload(from: message), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let item = dict["item"] {
+                if let extracted = extractTextPayload(from: item), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let event = dict["event"] {
+                if let extracted = extractTextPayload(from: event), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let content = dict["content"] as? [Any] {
+                let chunks = content.compactMap { extractTextPayload(from: $0) }
+                if !chunks.isEmpty {
+                    return chunks.joined()
+                }
+            }
+            if let output = dict["output"] as? [Any] {
+                let chunks = output.compactMap { extractTextPayload(from: $0) }
+                if !chunks.isEmpty {
+                    return chunks.joined()
+                }
+            }
+            return nil
+        }
+        if let array = obj as? [Any] {
+            let chunks = array.compactMap { extractTextPayload(from: $0) }
+            if !chunks.isEmpty {
+                return chunks.joined()
+            }
+        }
+        return nil
+    }
+
+    private static func parseInlineControlMarkerEvents(
+        in text: String
+    ) -> [(type: String, payload: [String: String])] {
+        var events: [(type: String, payload: [String: String])] = []
+        if text.contains(CoderIDEMarkers.showTaskPanel) {
+            events.append((type: "coderide_show_task_panel", payload: [:]))
+        }
+        if let start = text.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
+           let endRange = text[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
+            let task = String(text[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !task.isEmpty {
+                events.append((type: "coderide_invoke_swarm", payload: ["task": task]))
+            }
+        }
+        return events
+    }
     
     /// Parses Codex JSONL for structured events (file_change, command_execution, mcp_tool_call, web_search)
-    private static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
+    static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
+        let eventType = (json["type"] as? String) ?? ""
         let item = (json["item"] as? [String: Any]) ?? json
-        guard let type = (item["type"] as? String) ?? (json["type"] as? String) else { return nil }
-        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed", "reasoning"]
+        guard let type = (item["type"] as? String) ?? (eventType.hasPrefix("item.") ? nil : eventType) else { return nil }
+        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed"]
         guard activityTypes.contains(type) else { return nil }
         
         var payload: [String: String] = ["title": titleForType(type, item: item), "detail": detailForType(type, item: item)]
+        if let itemId = firstString(in: item, keys: ["id"]) { payload["id"] = itemId }
         if let path = firstString(in: item, keys: ["path", "file_path", "file", "target_path"]) { payload["path"] = path }
         if let path = item["path"] as? String { payload["file"] = path }
         if let cmd = firstString(in: item, keys: ["command", "command_line", "cmd"]) { payload["command"] = cmd }
@@ -267,8 +508,19 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let query = firstString(in: item, keys: ["query", "search_query"]) { payload["query"] = query }
         if let qid = firstString(in: item, keys: ["query_id", "id"]) { payload["queryId"] = qid }
         if let status = firstString(in: item, keys: ["status"]) { payload["status"] = status }
-        if let groupId = firstString(in: item, keys: ["group_id"]) { payload["group_id"] = groupId }
-        if type == "reasoning" && payload["group_id"] == nil { payload["group_id"] = "reasoning-stream" }
+        if payload["status"] == nil {
+            switch eventType {
+            case "item.started":
+                payload["status"] = "started"
+            case "item.updated":
+                payload["status"] = "in_progress"
+            case "item.completed":
+                payload["status"] = "completed"
+            default:
+                break
+            }
+        }
+        if let groupId = firstString(in: item, keys: ["group_id", "id"]) { payload["group_id"] = groupId }
         if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId }
         if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]) { payload["tool_call_id"] = toolCallId }
         if let count = item["result_count"] as? Int { payload["resultCount"] = "\(count)" }
@@ -448,6 +700,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             options: .regularExpression
         )
         out = out.replacingOccurrences(
+            of: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
+            with: "",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
             of: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
             with: "",
             options: .regularExpression
@@ -475,9 +732,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return "\(tool)"
         case "web_search":
             return "Search"
-        case "reasoning":
-            let text = (item["text"] as? String) ?? (item["output"] as? String) ?? ""
-            return text.isEmpty ? "Ragionamento" : String(text.prefix(60)) + (text.count > 60 ? "…" : "")
         default:
             return type
         }
@@ -494,8 +748,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return (item["query"] as? String) ?? (item["arguments"] as? String) ?? ""
         case "web_search":
             return (item["query"] as? String) ?? ""
-        case "reasoning":
-            return (item["text"] as? String) ?? (item["output"] as? String) ?? ""
         default:
             return ""
         }

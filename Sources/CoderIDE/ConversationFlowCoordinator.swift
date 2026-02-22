@@ -30,6 +30,13 @@ private enum StreamWatchdogError: LocalizedError {
 
 @MainActor
 final class ConversationFlowCoordinator: ObservableObject {
+    enum StreamSignal {
+        case streamStarted(Date)
+        case firstEvent(Date)
+        case firstTextDelta(Date)
+        case streamCompleted(Date)
+    }
+
     enum State: String {
         case idle
         case streaming
@@ -81,14 +88,17 @@ final class ConversationFlowCoordinator: ObservableObject {
         imageURLs: [URL]?,
         onText: @escaping (String) -> Void,
         onRaw: @escaping (String, [String: String], String) -> Void,
-        onError: @escaping (String) -> Void
+        onError: @escaping (String) -> Void,
+        onSignal: ((StreamSignal) -> Void)? = nil
     ) async throws -> (fullText: String, pendingSwarmTask: String?) {
         startStreaming()
+        onSignal?(.streamStarted(.now))
         var full = ""
         var pendingSwarmTask: String?
         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
+        var emittedFirstText = false
         let firstEventTimeout = 60
         let inactivityTimeout = 300
 
@@ -98,9 +108,16 @@ final class ConversationFlowCoordinator: ObservableObject {
                 try await iteratorHolder.next()
             }
             guard let ev = maybeEvent else { break }
+            if !hasReceivedAnyEvent {
+                onSignal?(.firstEvent(.now))
+            }
             hasReceivedAnyEvent = true
             switch ev {
             case .textDelta(let d):
+                if !emittedFirstText {
+                    emittedFirstText = true
+                    onSignal?(.firstTextDelta(.now))
+                }
                 full += d
                 onText(full)
             case .error(let e):
@@ -115,6 +132,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 break
             }
         }
+        onSignal?(.streamCompleted(.now))
         finish()
         return (full, pendingSwarmTask)
     }

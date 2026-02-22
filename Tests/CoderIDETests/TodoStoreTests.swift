@@ -161,4 +161,42 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(manual?.title, "Setup CI")
         XCTAssertEqual(manual?.isPlanCanonical, false)
     }
+
+    func testUpsertCanonicalOnlyFromAgentUpdatesExistingCanonicalTodo() {
+        let store = TodoStore()
+        store.upsertCanonicalPlanTodos(["Implementare parser wizard"])
+
+        let updated = store.upsertCanonicalOnlyFromAgent(
+            id: nil,
+            title: "implementare   parser WIZARD",
+            status: .inProgress,
+            priority: .high,
+            notes: "in corso",
+            linkedFiles: ["Sources/CoderIDE/PlanOptionsParser.swift"]
+        )
+
+        XCTAssertTrue(updated)
+        XCTAssertEqual(store.todos.count, 1)
+        XCTAssertEqual(store.todos.first?.isPlanCanonical, true)
+        XCTAssertEqual(store.todos.first?.status, .inProgress)
+        XCTAssertEqual(store.todos.first?.priority, .high)
+    }
+
+    func testUpsertCanonicalOnlyFromAgentIgnoresUnknownRuntimeTodo() {
+        let store = TodoStore()
+        store.upsertCanonicalPlanTodos(["Task canonica"])
+
+        let updated = store.upsertCanonicalOnlyFromAgent(
+            id: nil,
+            title: "Task runtime non canonica",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: []
+        )
+
+        XCTAssertFalse(updated)
+        XCTAssertEqual(store.todos.count, 1)
+        XCTAssertEqual(store.todos.first?.title, "Task canonica")
+    }
 }

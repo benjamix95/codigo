@@ -257,6 +257,50 @@ final class TodoStore: ObservableObject {
     }
 
     @discardableResult
+    func upsertCanonicalOnlyFromAgent(
+        id: UUID?,
+        title: String,
+        status: TodoStatus?,
+        priority: TodoPriority?,
+        notes: String?,
+        linkedFiles: [String]
+    ) -> Bool {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty else { return false }
+
+        func applyUpdate(at idx: Int) {
+            todos[idx].title = normalizedTitle
+            if let status { todos[idx].status = status }
+            if let priority { todos[idx].priority = priority }
+            if let notes, !notes.isEmpty { todos[idx].notes = notes }
+            if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
+            todos[idx].source = .agent
+            todos[idx].updatedAt = .now
+            saveTodos()
+        }
+
+        if let id, let idx = todos.firstIndex(where: { $0.id == id && $0.isPlanCanonical }) {
+            applyUpdate(at: idx)
+            return true
+        }
+
+        if let matchedCanonicalId = bindRuntimeTodoToCanonicalIfMatch(title: normalizedTitle),
+           let idx = todos.firstIndex(where: { $0.id == matchedCanonicalId && $0.isPlanCanonical }) {
+            applyUpdate(at: idx)
+            return true
+        }
+
+        if let idx = todos.firstIndex(where: {
+            $0.isPlanCanonical && $0.title.caseInsensitiveCompare(normalizedTitle) == .orderedSame
+        }) {
+            applyUpdate(at: idx)
+            return true
+        }
+
+        return false
+    }
+
+    @discardableResult
     func bindRuntimeTodoToCanonicalIfMatch(title: String) -> UUID? {
         let key = canonicalKey(for: title)
         guard !key.isEmpty else { return nil }

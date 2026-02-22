@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Mode Controls Bar View
 /// Extracted from ChatPanelView.controlsBar and associated picker computed properties.
 /// Contains the provider picker, model pickers, reasoning picker, access level menu,
-/// swarm orchestrator picker, formica button, and delegate-to-agent button.
+/// swarm orchestrator picker, swarm activity toggle, and delegate-to-agent button.
 
 struct ModeControlsBarView: View {
     // MARK: - Provider Registry
@@ -50,11 +50,11 @@ struct ModeControlsBarView: View {
     let onSyncSwarmProvider: () -> Void
     let onSyncPlanProvider: () -> Void
     let onSyncOpenRouterProvider: () -> Void
+    let onSyncToolRuntimePolicy: () -> Void
     let onUserSelectedProvider: () -> Void
     let onDelegateToAgent: () -> Void
-    let onOpenPlanPanel: () -> Void
     let attachedImageURLs: [URL]
-    @Binding var showPlanPanel: Bool
+    @Binding var planToggleEnabled: Bool
     let highlightPlanButton: Bool
 
     // MARK: - Body
@@ -88,26 +88,46 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+            }
+            if coderMode == .agentSwarm {
                 formicaButton
             }
 
         case "gemini-cli":
             geminiModelPicker
+            accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+            }
+            if coderMode == .agentSwarm {
                 formicaButton
             }
 
         case "claude-cli":
+            accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+            }
+            if coderMode == .agentSwarm {
                 formicaButton
             }
 
         case "openrouter-api":
             openRouterModelPicker
+            accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+            }
+            if coderMode == .agentSwarm {
+                formicaButton
+            }
+
+        case "openai-api", "anthropic-api", "google-api", "minimax-api":
+            accessLevelMenu
+            if coderMode == .agent || coderMode == .agentSwarm {
+                planButton
+            }
+            if coderMode == .agentSwarm {
                 formicaButton
             }
 
@@ -115,7 +135,9 @@ struct ModeControlsBarView: View {
             if [.agent, .agentSwarm, .plan].contains(coderMode) {
                 Spacer()
                 planButton
-                formicaButton
+                if coderMode == .agentSwarm {
+                    formicaButton
+                }
             } else if coderMode == .ide {
                 Spacer()
                 delegateAdAgentButton
@@ -371,7 +393,7 @@ struct ModeControlsBarView: View {
         return Menu {
             Button {
                 codexSandbox = ""
-                onSyncCodexProvider()
+                onSyncToolRuntimePolicy()
             } label: {
                 HStack {
                     Label("Default (da config)", systemImage: "doc.badge.gearshape")
@@ -386,19 +408,19 @@ struct ModeControlsBarView: View {
             Divider()
             Button {
                 codexSandbox = "read-only"
-                onSyncCodexProvider()
+                onSyncToolRuntimePolicy()
             } label: {
                 Label("Read Only", systemImage: "lock.shield")
             }
             Button {
                 codexSandbox = "workspace-write"
-                onSyncCodexProvider()
+                onSyncToolRuntimePolicy()
             } label: {
                 Label("Default", systemImage: "shield")
             }
             Button {
                 codexSandbox = "danger-full-access"
-                onSyncCodexProvider()
+                onSyncToolRuntimePolicy()
             } label: {
                 Label("Full Access", systemImage: "exclamationmark.shield.fill")
             }
@@ -519,7 +541,7 @@ struct ModeControlsBarView: View {
         .fixedSize()
     }
 
-    // MARK: - Formica (Task Activity Panel) Button
+    // MARK: - Swarm Activity Panel Toggle
 
     private var formicaButton: some View {
         Button {
@@ -532,7 +554,7 @@ struct ModeControlsBarView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help("Task Activity Panel")
+        .help("Mostra/nascondi pannello attività swarm")
     }
 
     // MARK: - Plan Button
@@ -540,11 +562,7 @@ struct ModeControlsBarView: View {
     private var planButton: some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                if showPlanPanel {
-                    showPlanPanel = false
-                } else {
-                    onOpenPlanPanel()
-                }
+                planToggleEnabled.toggle()
             }
         } label: {
             HStack(spacing: 3) {
@@ -554,21 +572,22 @@ struct ModeControlsBarView: View {
                     .font(.caption)
             }
             .foregroundStyle(
-                (showPlanPanel || highlightPlanButton) ? DesignSystem.Colors.planColor : .secondary
+                (planToggleEnabled || highlightPlanButton)
+                    ? DesignSystem.Colors.planColor : .secondary
             )
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(
-                        (showPlanPanel || highlightPlanButton)
+                        (planToggleEnabled || highlightPlanButton)
                             ? DesignSystem.Colors.planColor.opacity(0.14)
                             : Color.clear
                     )
             )
         }
         .buttonStyle(.plain)
-        .help("Apri/chiudi Plan panel (Cmd+Shift+P)")
+        .help("Attiva/disattiva Plan inline")
     }
 
     // MARK: - Delegate to Agent Button

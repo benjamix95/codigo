@@ -37,6 +37,354 @@ struct PlanClarificationView: View {
     }
 }
 
+struct PlanClarificationWizardView: View {
+    private enum FocusField: Hashable {
+        case customQuestion(Int)
+        case finalNote
+    }
+
+    let questionnaire: PlanClarificationQuestionnaire
+    let planColor: Color
+    let onSubmit: (PlanClarificationSubmission) -> Void
+
+    @State private var currentQuestionIndex: Int = 0
+    @State private var selectedOptionByQuestionId: [Int: String] = [:]
+    @State private var customTextByQuestionId: [Int: String] = [:]
+    @State private var finalMandatoryNote: String = ""
+    @State private var isConfirmStep = false
+    @FocusState private var focusedField: FocusField?
+
+    private var orderedQuestions: [PlanClarificationQuestion] {
+        questionnaire.questions.sorted(by: { $0.id < $1.id })
+    }
+
+    private var currentQuestion: PlanClarificationQuestion? {
+        guard orderedQuestions.indices.contains(currentQuestionIndex) else { return nil }
+        return orderedQuestions[currentQuestionIndex]
+    }
+
+    private var trimmedFinalMandatoryNote: String {
+        finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(planColor)
+                Text("Questions")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !isConfirmStep {
+                    Text("\(min(currentQuestionIndex + 1, orderedQuestions.count)) di \(orderedQuestions.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            if isConfirmStep {
+                confirmContent
+            } else if let question = currentQuestion {
+                questionContent(question)
+            } else {
+                Text("Questionario non disponibile.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(planColor.opacity(0.3), lineWidth: 0.5)
+        )
+        .onChange(of: isConfirmStep) { _, newValue in
+            guard newValue else { return }
+            Task { @MainActor in
+                focusedField = .finalNote
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func questionContent(_ question: PlanClarificationQuestion) -> some View {
+        Text(question.prompt)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(question.options) { option in
+                let isSelected = selectedOptionByQuestionId[question.id] == option.id
+                Button {
+                    selectedOptionByQuestionId[question.id] = option.id
+                    if PlanOptionsParser.isOtherLikeClarificationOption(option) {
+                        focusedField = .customQuestion(question.id)
+                    } else {
+                        customTextByQuestionId[question.id] = ""
+                        if focusedField == .customQuestion(question.id) {
+                            focusedField = nil
+                        }
+                    }
+                } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(option.id)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(isSelected ? .white : planColor)
+                            .frame(width: 22, height: 22)
+                            .background(
+                                isSelected ? AnyShapeStyle(planColor) : AnyShapeStyle(planColor.opacity(0.12)),
+                                in: Circle()
+                            )
+                        Text(option.text)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isSelected ? planColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? planColor.opacity(0.6) : Color(nsColor: .separatorColor),
+                                lineWidth: isSelected ? 1.0 : 0.5
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+
+        if shouldShowCustomField(for: question) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Risposta personalizzata (prevale)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                TextField(
+                    "Scrivi qui la risposta personalizzata...",
+                    text: customTextBinding(for: question.id),
+                    axis: .vertical
+                )
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+                .focused($focusedField, equals: .customQuestion(question.id))
+                .submitLabel(isLastQuestion(question) ? .done : .next)
+                .onSubmit {
+                    advanceFromQuestion(question)
+                }
+                if isCustomFieldRequiredButEmpty(question) {
+                    Text("Risposta personalizzata obbligatoria per questa opzione.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+
+        wizardActions(for: question)
+    }
+
+    @ViewBuilder
+    private func wizardActions(for question: PlanClarificationQuestion) -> some View {
+        let canContinue = isQuestionAnswered(question)
+        let isLastQuestion = isLastQuestion(question)
+        HStack(spacing: 8) {
+            Button("Indietro") {
+                if currentQuestionIndex > 0 {
+                    currentQuestionIndex -= 1
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.caption.weight(.medium))
+            .disabled(currentQuestionIndex == 0)
+
+            Spacer()
+
+            Button(isLastQuestion ? "Vai a conferma" : "Continua") {
+                advanceFromQuestion(question)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .tint(planColor)
+            .disabled(!canContinue)
+        }
+    }
+
+    private var confirmContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Conferma finale")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            ForEach(orderedQuestions) { question in
+                let selectedId = selectedOptionByQuestionId[question.id]
+                let selected = question.options.first(where: { $0.id == selectedId })
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(question.id). \(question.prompt)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    if let selected {
+                        Text("Risposta selezionata: \(selected.id)) \(selected.text)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.primary)
+                        let custom = customTextByQuestionId[question.id]?
+                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        if !custom.isEmpty {
+                            Text("Risposta personalizzata (prevale): \(custom)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(planColor)
+                        }
+                    } else {
+                        Text("Risposta: non selezionata")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Nota finale obbligatoria")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                TextField(
+                    "Aggiungi dettagli finali indispensabili per il piano...",
+                    text: $finalMandatoryNote,
+                    axis: .vertical
+                )
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...6)
+                .focused($focusedField, equals: .finalNote)
+                .submitLabel(.done)
+                .onSubmit {
+                    submitIfPossible()
+                }
+                if trimmedFinalMandatoryNote.isEmpty {
+                    Text("Campo obbligatorio per inviare il wizard.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Torna alle domande") {
+                    isConfirmStep = false
+                    if let question = currentQuestion, shouldShowCustomField(for: question) {
+                        focusedField = .customQuestion(question.id)
+                    } else {
+                        focusedField = nil
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.caption.weight(.medium))
+
+                Spacer()
+
+                Button("Conferma finale") {
+                    submitIfPossible()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(planColor)
+                .disabled(!canSubmitFinal)
+            }
+        }
+    }
+
+    private var canSubmitFinal: Bool {
+        !orderedQuestions.isEmpty
+            && orderedQuestions.allSatisfy(isQuestionAnswered)
+            && !trimmedFinalMandatoryNote.isEmpty
+    }
+
+    private func customTextBinding(for questionId: Int) -> Binding<String> {
+        Binding(
+            get: { customTextByQuestionId[questionId] ?? "" },
+            set: { customTextByQuestionId[questionId] = $0 }
+        )
+    }
+
+    private func selectedOption(for question: PlanClarificationQuestion) -> PlanClarificationOption? {
+        guard let selectedId = selectedOptionByQuestionId[question.id] else { return nil }
+        return question.options.first(where: { $0.id == selectedId })
+    }
+
+    private func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
+        guard let selectedOption = selectedOption(for: question) else { return false }
+        return PlanOptionsParser.isOtherLikeClarificationOption(selectedOption)
+    }
+
+    private func isCustomFieldRequiredButEmpty(_ question: PlanClarificationQuestion) -> Bool {
+        shouldShowCustomField(for: question)
+            && (customTextByQuestionId[question.id]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+    }
+
+    private func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
+        guard let lastQuestionId = orderedQuestions.last?.id else { return false }
+        return question.id == lastQuestionId
+    }
+
+    private func advanceFromQuestion(_ question: PlanClarificationQuestion) {
+        guard isQuestionAnswered(question) else { return }
+        if isLastQuestion(question) {
+            isConfirmStep = true
+        } else {
+            currentQuestionIndex += 1
+            if let nextQuestion = currentQuestion, shouldShowCustomField(for: nextQuestion) {
+                focusedField = .customQuestion(nextQuestion.id)
+            } else {
+                focusedField = nil
+            }
+        }
+    }
+
+    private func buildSubmission() -> PlanClarificationSubmission? {
+        let answers = orderedQuestions.compactMap { question -> PlanClarificationAnswer? in
+            guard let optionId = selectedOptionByQuestionId[question.id],
+                  let option = question.options.first(where: { $0.id == optionId }) else {
+                return nil
+            }
+            let customText = customTextByQuestionId[question.id]?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let customResponse = PlanOptionsParser.isOtherLikeClarificationOption(option)
+                ? (customText.isEmpty ? nil : customText)
+                : nil
+            return PlanClarificationAnswer(
+                questionId: question.id,
+                question: question.prompt,
+                optionId: option.id,
+                optionText: option.text,
+                customResponse: customResponse
+            )
+        }
+        guard answers.count == orderedQuestions.count else { return nil }
+        guard !trimmedFinalMandatoryNote.isEmpty else { return nil }
+        return PlanClarificationSubmission(
+            answers: answers,
+            finalMandatoryNote: trimmedFinalMandatoryNote
+        )
+    }
+
+    private func submitIfPossible() {
+        guard let submission = buildSubmission() else { return }
+        onSubmit(submission)
+        isConfirmStep = false
+        focusedField = nil
+    }
+
+    private func isQuestionAnswered(_ question: PlanClarificationQuestion) -> Bool {
+        guard let selectedOption = selectedOption(for: question) else { return false }
+        guard PlanOptionsParser.isOtherLikeClarificationOption(selectedOption) else { return true }
+        let custom = customTextByQuestionId[question.id]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        return !custom.isEmpty
+    }
+}
+
 struct PlanOptionsView: View {
     let options: [PlanOption]
     let onSelectOption: (PlanOption) -> Void

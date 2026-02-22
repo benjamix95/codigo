@@ -64,7 +64,8 @@ struct TaskActivityPanelView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(alignment: .leading, spacing: 3) {
-                ForEach(store.activities) { activity in
+                ForEach(store.activities.filter { TaskActivityStore.isConcreteVisibleEvent($0) }) {
+                    activity in
                     TaskActivityRow(activity: activity)
                 }
             }
@@ -112,12 +113,12 @@ struct ChatTerminalSessionsView: View {
         sessions.first(where: { $0.isRunning || $0.status == "started" || $0.status == "running" || $0.status == "in_progress" })
     }
 
-    private var terminalCardFill: Color { Color(red: 0.08, green: 0.10, blue: 0.13).opacity(0.94) }
-    private var terminalCardBorder: Color { Color(red: 0.29, green: 0.35, blue: 0.43).opacity(0.80) }
-    private var terminalCommandColor: Color { Color(red: 0.82, green: 0.92, blue: 0.79) }
-    private var terminalHeaderFill: Color { Color(red: 0.11, green: 0.13, blue: 0.18).opacity(0.9) }
-    private var terminalAccent: Color { Color(red: 0.31, green: 0.76, blue: 0.99) }
-    private var terminalMuted: Color { Color(red: 0.59, green: 0.66, blue: 0.76) }
+    private var terminalCardFill: Color { Color(nsColor: .controlBackgroundColor).opacity(0.22) }
+    private var terminalCardBorder: Color { Color(nsColor: .separatorColor).opacity(0.45) }
+    private var terminalCommandColor: Color { .primary }
+    private var terminalHeaderFill: Color { Color(nsColor: .controlBackgroundColor).opacity(0.35) }
+    private var terminalAccent: Color { .secondary }
+    private var terminalMuted: Color { .secondary }
 
     var body: some View {
         if !sessions.isEmpty {
@@ -244,7 +245,10 @@ struct ChatTerminalSessionsView: View {
                     }
                     .frame(maxHeight: 200)
                     .padding(8)
-                    .background(Color.black.opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(
+                        Color(nsColor: .controlBackgroundColor).opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(terminalCardBorder.opacity(0.5), lineWidth: 0.6)
@@ -272,7 +276,10 @@ struct ChatTerminalSessionsView: View {
             }
         }
         .padding(11)
-        .background(Color(red: 0.11, green: 0.13, blue: 0.17).opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(
+            Color(nsColor: .controlBackgroundColor).opacity(0.28),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(terminalCardBorder, lineWidth: 0.7)
@@ -403,17 +410,17 @@ struct TaskActivityRow: View {
 
     private var typeColor: Color {
         switch activity.type {
-        case "edit", "file_change": return DesignSystem.Colors.agentColor
-        case "read_batch_started", "read_batch_completed": return DesignSystem.Colors.agentColor
-        case "bash", "command_execution": return DesignSystem.Colors.warning
-        case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return DesignSystem.Colors.info
-        case "todo_write", "todo_read": return .green
-        case "plan_step_update": return DesignSystem.Colors.planColor
-        case "mcp_tool_call": return DesignSystem.Colors.ideColor
+        case "edit", "file_change": return .secondary
+        case "read_batch_started", "read_batch_completed": return .secondary
+        case "bash", "command_execution": return .secondary
+        case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return .secondary
+        case "todo_write", "todo_read": return .secondary
+        case "plan_step_update": return .secondary
+        case "mcp_tool_call": return .secondary
         case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied": return DesignSystem.Colors.error
-        case "process_paused": return DesignSystem.Colors.warning
-        case "process_resumed": return DesignSystem.Colors.success
-        case "agent": return DesignSystem.Colors.swarmColor
+        case "process_paused": return .secondary
+        case "process_resumed": return .secondary
+        case "agent": return .secondary
         default: return .secondary
         }
     }

@@ -1,49 +1,73 @@
-import SwiftUI
+import Foundation
 
-struct FlowDiagnosticEntry: Identifiable {
-    let id: UUID
-    let timestamp: Date
-    let providerId: String
-    let eventType: String
-    let summary: String
+struct FlowLatencySnapshot: Equatable {
+    let conversationId: UUID
+    var streamStartedAt: Date?
+    var firstEventAt: Date?
+    var firstTextDeltaAt: Date?
+    var streamCompletedAt: Date?
 
-    init(id: UUID = UUID(), timestamp: Date = .now, providerId: String, eventType: String, summary: String) {
-        self.id = id
-        self.timestamp = timestamp
-        self.providerId = providerId
-        self.eventType = eventType
-        self.summary = summary
+    var firstEventLatencyMs: Int? {
+        milliseconds(from: streamStartedAt, to: firstEventAt)
+    }
+
+    var firstTextLatencyMs: Int? {
+        milliseconds(from: streamStartedAt, to: firstTextDeltaAt)
+    }
+
+    var totalLatencyMs: Int? {
+        milliseconds(from: streamStartedAt, to: streamCompletedAt)
+    }
+
+    private func milliseconds(from start: Date?, to end: Date?) -> Int? {
+        guard let start, let end else { return nil }
+        return max(0, Int(end.timeIntervalSince(start) * 1000))
     }
 }
 
 @MainActor
 final class FlowDiagnosticsStore: ObservableObject {
-    @Published var flowState: String = "idle"
-    @Published var selectedProviderId: String = ""
-    @Published private(set) var entries: [FlowDiagnosticEntry] = []
-    @Published private(set) var lastError: String?
-    @Published private(set) var swarmEventsReceived: Int = 0
-    @Published private(set) var swarmEventsAssigned: Int = 0
-    @Published private(set) var swarmEventsFallback: Int = 0
+    @Published private(set) var snapshots: [UUID: FlowLatencySnapshot] = [:]
 
-    func push(providerId: String, eventType: String, summary: String) {
-        entries.insert(FlowDiagnosticEntry(providerId: providerId, eventType: eventType, summary: summary), at: 0)
-        if entries.count > 20 {
-            entries = Array(entries.prefix(20))
-        }
+    func reset(for conversationId: UUID) {
+        snapshots[conversationId] = FlowLatencySnapshot(
+            conversationId: conversationId,
+            streamStartedAt: nil,
+            firstEventAt: nil,
+            firstTextDeltaAt: nil,
+            streamCompletedAt: nil
+        )
     }
 
-    func setError(_ value: String?) {
-        lastError = value
+    func record(
+        signal: ConversationFlowCoordinator.StreamSignal,
+        conversationId: UUID
+    ) {
+        var snapshot = snapshots[conversationId] ?? FlowLatencySnapshot(
+            conversationId: conversationId,
+            streamStartedAt: nil,
+            firstEventAt: nil,
+            firstTextDeltaAt: nil,
+            streamCompletedAt: nil
+        )
+
+        switch signal {
+        case .streamStarted(let at):
+            snapshot.streamStartedAt = snapshot.streamStartedAt ?? at
+            snapshot.streamCompletedAt = nil
+        case .firstEvent(let at):
+            snapshot.firstEventAt = snapshot.firstEventAt ?? at
+        case .firstTextDelta(let at):
+            snapshot.firstTextDeltaAt = snapshot.firstTextDeltaAt ?? at
+        case .streamCompleted(let at):
+            snapshot.streamCompletedAt = at
+        }
+
+        snapshots[conversationId] = snapshot
     }
 
-    func recordSwarmRouting(assignedToSwarm: Bool, fallbackToOrchestrator: Bool) {
-        swarmEventsReceived += 1
-        if assignedToSwarm {
-            swarmEventsAssigned += 1
-        }
-        if fallbackToOrchestrator {
-            swarmEventsFallback += 1
-        }
+    func snapshot(for conversationId: UUID?) -> FlowLatencySnapshot? {
+        guard let conversationId else { return nil }
+        return snapshots[conversationId]
     }
 }

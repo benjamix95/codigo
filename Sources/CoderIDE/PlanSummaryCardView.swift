@@ -8,10 +8,10 @@ struct PlanSummaryCardView: View {
     let onExpandPlan: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Writing plan")
-                    .font(.system(size: 13, weight: .semibold))
+                Text("Piano")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(action: onToggleCollapse) {
@@ -25,7 +25,7 @@ struct PlanSummaryCardView: View {
 
             if !isCollapsed {
                 Text(title)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 18, weight: .semibold))
                     .lineLimit(2)
                     .foregroundStyle(.primary)
 
@@ -35,8 +35,8 @@ struct PlanSummaryCardView: View {
                         .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     ForEach(Array(lines.prefix(14).enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.primary.opacity(0.92))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -44,12 +44,20 @@ struct PlanSummaryCardView: View {
                 HStack {
                     Spacer()
                     Button(action: onExpandPlan) {
-                        Text("Expand plan")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 8)
-                            .background(Color.white, in: Capsule())
+                        HStack(spacing: 6) {
+                            Text("Apri piano completo")
+                                .font(.system(size: 12, weight: .semibold))
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
+                        )
                     }
                     .buttonStyle(.plain)
                     Spacer()
@@ -57,14 +65,14 @@ struct PlanSummaryCardView: View {
                 .padding(.top, 4)
             }
         }
-        .padding(18)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.28))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.6)
         )
     }
 }

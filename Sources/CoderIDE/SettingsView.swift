@@ -107,7 +107,7 @@ struct SettingsView: View {
     @AppStorage("codex_sandbox") private var codexSandbox = "workspace-write"
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
-    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "xhigh"
+    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
     @AppStorage("codex_session_full_access") private var codexSessionFullAccess = false
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
 
@@ -152,10 +152,12 @@ struct SettingsView: View {
 
     // General
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("chat_background_style") private var chatBackgroundStyle =
+        ChatBackgroundStyle.defaultRawValue
     @AppStorage("full_auto_tools") private var fullAutoTools = true
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
-    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
     @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
+    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
 
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var geminiState = GeminiStateStore()
@@ -1284,9 +1286,18 @@ struct SettingsView: View {
                     hintBox(
                         "Se disattivo, Agent non inietta il marker invoke_swarm e resta in esecuzione singola."
                     )
-                    Toggle("Flow diagnostics in chat", isOn: $flowDiagnosticsEnabled)
+                }
+                .padding(4)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(
+                        "Mostra diagnostica latenza in chat",
+                        isOn: $flowDiagnosticsEnabled
+                    )
                     hintBox(
-                        "Mostra provider effettivo, stato flusso ed eventi normalizzati per debug runtime."
+                        "Aggiunge un riquadro Diagnostics con timing stream (first event, first text, completion) quando lo stream è attivo."
                     )
                 }
                 .padding(4)
@@ -1345,6 +1356,14 @@ struct SettingsView: View {
                         Label("Sistema", systemImage: "circle.lefthalf.filled").tag("system")
                         Label("Chiaro", systemImage: "sun.max").tag("light")
                         Label("Scuro", systemImage: "moon").tag("dark")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    fieldLabel("Sfondo chat")
+                    Picker("", selection: $chatBackgroundStyle) {
+                        Text("Opaco neutro").tag(ChatBackgroundStyle.solidNeutral.rawValue)
+                        Text("Trasparente (legacy)").tag(ChatBackgroundStyle.transparentLegacy.rawValue)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -1975,6 +1994,7 @@ struct SettingsView: View {
         if !["system", "light", "dark"].contains(appearance) {
             appearance = "system"
         }
+        chatBackgroundStyle = ChatBackgroundStyle.normalizedRawValue(chatBackgroundStyle)
     }
 
     private func loadCodexAdvanced() {
@@ -1982,7 +2002,7 @@ struct SettingsView: View {
         // Configurazione principale da config.toml (sorgente unica per Codex CLI)
         codexSandbox = cfg.sandboxMode ?? ""
         codexModelOverride = cfg.model ?? ""
-        codexReasoningEffort = cfg.modelReasoningEffort ?? "xhigh"
+        codexReasoningEffort = cfg.modelReasoningEffort ?? "low"
         // Modello avanzato
         codexReasoningSummary = cfg.modelReasoningSummary ?? "auto"
         codexVerbosity = cfg.modelVerbosity ?? "medium"

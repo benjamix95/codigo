@@ -524,6 +524,17 @@ final class ChatStore: ObservableObject {
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
+            // 4b-1. Se la riga contiene prefisso operativo + contenuto utile sulla stessa riga,
+            // rimuove solo il prefisso iniziale e preserva il testo che segue.
+            if let inlineOperationalPrefixRegex = try? NSRegularExpression(
+                pattern: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = inlineOperationalPrefixRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
             if let initBoilerplateRegex = try? NSRegularExpression(
                 pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
                 options: [.caseInsensitive, .anchorsMatchLines]
@@ -540,6 +551,16 @@ final class ChatStore: ObservableObject {
             ) {
                 let ns = out as NSString
                 out = progressHeadingRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
+            // 4d. Rimuove righe di progress tecnico non utili al testo utente finale.
+            if let cliTraceRegex = try? NSRegularExpression(
+                pattern: #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = cliTraceRegex.stringByReplacingMatches(
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
@@ -808,6 +829,47 @@ final class ChatStore: ObservableObject {
         guard let conversationId, var board = planBoards[conversationId] else { return }
         guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
         board.steps[index].status = status
+        board.updatedAt = .now
+        planBoards[conversationId] = board
+        savePlanBoards()
+    }
+
+    func upsertPlanStep(
+        stepId: String,
+        status: PlanStepStatus,
+        title: String? = nil,
+        in conversationId: UUID?
+    ) {
+        guard let conversationId else { return }
+        var board = planBoards[conversationId] ?? PlanBoard(
+            goal: "Piano operativo in corso",
+            options: [],
+            chosenPath: nil,
+            steps: [],
+            updatedAt: .now,
+            walkthroughMarkdown: nil
+        )
+
+        if let index = board.steps.firstIndex(where: { $0.id == stepId }) {
+            board.steps[index].status = status
+            if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                board.steps[index].title = title
+                board.steps[index].description = title
+            }
+        } else {
+            let cleanTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedTitle = (cleanTitle?.isEmpty == false) ? cleanTitle! : "Step \(stepId)"
+            board.steps.append(
+                PlanStep(
+                    id: stepId,
+                    title: resolvedTitle,
+                    description: resolvedTitle,
+                    targetFile: nil,
+                    status: status
+                )
+            )
+        }
+
         board.updatedAt = .now
         planBoards[conversationId] = board
         savePlanBoards()

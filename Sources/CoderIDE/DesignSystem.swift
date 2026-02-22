@@ -94,6 +94,11 @@ struct DesignSystem {
             NSColor(red: 0.945, green: 0.945, blue: 0.957, alpha: 0.92),
             NSColor(red: 0.173, green: 0.173, blue: 0.204, alpha: 0.85)
         )
+        /// Default chat surface in minimal mode (opaque, neutral).
+        static let chatPanelSolidBackground = codigoAdaptive(
+            NSColor(red: 0.965, green: 0.965, blue: 0.972, alpha: 1.0),
+            NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1.0)
+        )
 
         // Borders
         static let divider = codigoAdaptive(
@@ -283,6 +288,22 @@ extension View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5)
             )
+    }
+
+    @ViewBuilder
+    func chatPanelContainer(style: ChatBackgroundStyle, cornerRadius: CGFloat = 10) -> some View {
+        switch style {
+        case .solidNeutral:
+            self
+                .background(DesignSystem.Colors.chatPanelSolidBackground)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                )
+        case .transparentLegacy:
+            self.sidebarPanel(cornerRadius: cornerRadius)
+        }
     }
 
     func panelBackground(cornerRadius: CGFloat = 0) -> some View {

@@ -36,14 +36,14 @@ final class PlanFlowPhaseTests: XCTestCase {
         XCTAssertTrue(canStartPlanBuild(isLoading: false, phase: .proposalReady))
     }
 
-    func testPhaseDoesNotTransitionToProposalReadyOnGenericText() {
+    func testPhaseTransitionsToProposalReadyOnGenericTextFallback() {
         let phase = nextPlanFlowPhaseForOutput(
             fullText: "Analisi completata, ma servono più informazioni.",
             current: .discovery,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
-        XCTAssertEqual(phase, .discovery)
+        XCTAssertEqual(phase, .proposalReady)
     }
 
     func testPanelBuildEnabledInIdleWhenChoiceExists() {
@@ -53,5 +53,29 @@ final class PlanFlowPhaseTests: XCTestCase {
 
     func testPanelBuildDisabledInIdleWhenNoChoiceExists() {
         XCTAssertFalse(isPlanBuildEnabled(phase: .idle, hasBuildChoice: false))
+    }
+
+    func testAutoResetPlanningStateDoesNotClearAwaitingChoice() {
+        XCTAssertFalse(
+            shouldResetPlanningStateAfterAutoPlanToggleReset(
+                planFlowPhase: .proposalReady,
+                planningState: .awaitingChoice(planContent: "x", options: [])
+            )
+        )
+    }
+
+    func testAutoResetPlanningStateClearsIdleOrClarificationStates() {
+        XCTAssertTrue(
+            shouldResetPlanningStateAfterAutoPlanToggleReset(
+                planFlowPhase: .discovery,
+                planningState: .awaitingClarification(questions: "q")
+            )
+        )
+        XCTAssertFalse(
+            shouldResetPlanningStateAfterAutoPlanToggleReset(
+                planFlowPhase: .building,
+                planningState: .awaitingClarification(questions: "q")
+            )
+        )
     }
 }

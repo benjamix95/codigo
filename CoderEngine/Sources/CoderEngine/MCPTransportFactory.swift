@@ -13,7 +13,8 @@ public enum MCPTransportFactory {
     public static func connectToProcess(
         command: String,
         arguments: [String] = [],
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        environment: [String: String] = [:]
     ) async throws -> (transport: StdioTransport, process: Process) {
         let (clientRead, serverWrite) = try FileDescriptor.pipe()
         let (serverRead, clientWrite) = try FileDescriptor.pipe()
@@ -24,6 +25,11 @@ public enum MCPTransportFactory {
         process.standardInput = FileHandle(fileDescriptor: serverRead.rawValue)
         process.standardOutput = FileHandle(fileDescriptor: serverWrite.rawValue)
         process.standardError = nil
+        if !environment.isEmpty {
+            var env = ProcessInfo.processInfo.environment
+            env.merge(environment) { _, new in new }
+            process.environment = env
+        }
         if let cwd = workingDirectory {
             process.currentDirectoryURL = cwd
         }

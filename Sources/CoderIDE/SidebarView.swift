@@ -497,7 +497,7 @@ struct SidebarView: View {
                 cleanupCheckpointSnapshots(for: conv)
                 chatStore.deleteConversation(id: conv.id)
                 if wasSelected {
-                    selectedConversationId = chatStore.conversations.first?.id
+                    selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
                 }
             } label: {
                 Label("Elimina thread", systemImage: "trash")
@@ -536,6 +536,26 @@ struct SidebarView: View {
         for root in roots {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
         }
+    }
+
+    private func nextConversationSelectionAfterDelete(deletedConversation: Conversation) -> UUID? {
+        // Mantieni il focus nello stesso contesto/cartella quando possibile.
+        if let replacement = visibleThreads.first(where: { $0.id != deletedConversation.id }) {
+            return replacement.id
+        }
+
+        // Fallback: thread non archiviato più recente nello stesso contesto.
+        if let sameContext = chatStore.conversations.first(where: {
+            !$0.isArchived
+                && $0.id != deletedConversation.id
+                && $0.contextId == deletedConversation.contextId
+                && $0.contextFolderPath == deletedConversation.contextFolderPath
+        }) {
+            return sameContext.id
+        }
+
+        // Ultimo fallback: primo thread disponibile.
+        return chatStore.conversations.first?.id
     }
 
     private func explorerSection(context: ProjectContext) -> some View {

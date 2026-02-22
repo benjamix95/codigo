@@ -33,6 +33,19 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertTrue(options[0].title.localizedCaseInsensitiveContains("strategy"))
     }
 
+    func testParseSupportsApproachVariantAndLetterIndex() {
+        let input = """
+        ### Approccio A: Refactor completo
+        dettagli...
+
+        ### Approach 2 - Patch incrementale
+        dettagli...
+        """
+        let options = PlanOptionsParser.parse(from: input)
+        XCTAssertEqual(options.count, 2)
+        XCTAssertTrue(options[0].title.localizedCaseInsensitiveContains("Refactor"))
+    }
+
     func testParseClarificationQuestionsReturnsQuestions() {
         let input = """
         Ho bisogno di dettagli.
@@ -79,6 +92,7 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertTrue(strict.isEmpty)
         XCTAssertEqual(display.count, 1)
         XCTAssertEqual(display.first?.id, 1)
+        XCTAssertTrue(PlanOptionsParser.isFallbackOption(display[0]))
     }
 
     func testParseClarificationQuestionsSupportsLevelThreeHeader() {
@@ -116,6 +130,73 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertEqual(questions?.count, 2)
         XCTAssertEqual(questions?[0], "Quale modulo?")
         XCTAssertEqual(questions?[1], "Quale vincolo?")
+    }
+
+    func testParseClarificationQuestionnaireStructuredQuestionsAndOptions() {
+        let input = """
+        ## Questions
+        1. Qual è l'obiettivo principale?
+        A) Migliorare performance
+        B) Correggere bug
+        C) Migliorare DX
+
+        2. Quale priorità vuoi?
+        A) Alta
+        B) Media
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertNotNil(questionnaire)
+        XCTAssertEqual(questionnaire?.questions.count, 2)
+        XCTAssertEqual(questionnaire?.questions[0].prompt, "Qual è l'obiettivo principale?")
+        XCTAssertEqual(questionnaire?.questions[0].options.map(\.id), ["A", "B", "C"])
+        XCTAssertEqual(questionnaire?.questions[1].options.map(\.text), ["Alta", "Media"])
+    }
+
+    func testParseClarificationQuestionnaireReturnsNilWhenOptionsMissing() {
+        let input = """
+        ## Questions
+        1. Quale modulo va toccato?
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertNil(questionnaire)
+    }
+
+    func testIsOtherLikeClarificationOptionMatchesKeywordsCaseAndDiacritics() {
+        XCTAssertTrue(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "I", text: "Other...")
+            )
+        )
+        XCTAssertTrue(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "L", text: "Áltro (specìfica nell'input)")
+            )
+        )
+        XCTAssertTrue(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "M", text: "Please specify custom details")
+            )
+        )
+        XCTAssertTrue(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "N", text: "Specifica nel campo sotto")
+            )
+        )
+    }
+
+    func testIsOtherLikeClarificationOptionRejectsClosedOptions() {
+        XCTAssertFalse(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "H", text: "Nessuna priorità specifica")
+            )
+        )
+        XCTAssertFalse(
+            PlanOptionsParser.isOtherLikeClarificationOption(
+                PlanClarificationOption(id: "Z", text: "Motherboard compatibility")
+            )
+        )
     }
 
     func testExtractTodosFromOptionText() {

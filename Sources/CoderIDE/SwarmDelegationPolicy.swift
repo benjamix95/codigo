@@ -13,6 +13,7 @@ struct SwarmDelegationEvaluation: Equatable {
 struct SwarmDelegationPolicyEvaluator {
     private static let explicitDelegationSignals: [String] = [
         "swarm",
+        "swam",
         "multi-agent",
         "multi agent",
         "parallel",

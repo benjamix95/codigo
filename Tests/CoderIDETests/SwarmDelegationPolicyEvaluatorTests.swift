@@ -37,6 +37,17 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
         XCTAssertEqual(result.decision, .autoDelegate)
     }
 
+    func testAutoDelegateForExplicitSwamAliasRequest() {
+        let result = evaluator.evaluate(
+            userPrompt: "Usa swam e parallelizza questo lavoro",
+            suggestedTask: "qualsiasi task",
+            isAutoDelegateEnabled: true,
+            mode: .agent
+        )
+
+        XCTAssertEqual(result.decision, .autoDelegate)
+    }
+
     func testAutoDelegateForMultiRoleTask() {
         let result = evaluator.evaluate(
             userPrompt: "Implementa la feature",

@@ -51,4 +51,26 @@ final class PlanOutputClassifierTests: XCTestCase {
             return XCTFail("planningState should be awaitingClarification")
         }
     }
+
+    func testClassifyFreeformPlanFallsBackToAwaitingChoice() {
+        let input = """
+        Piano consigliato:
+        1. Analizza i moduli coinvolti.
+        2. Applica il refactor in sicurezza.
+        3. Esegui build e test.
+        """
+        let result = PlanOutputClassifier.classify(
+            fullText: input,
+            current: .discovery,
+            coderMode: .plan,
+            shouldRunPlanInline: false
+        )
+        XCTAssertFalse(result.hasStrictOptions)
+        XCTAssertEqual(result.nextPhase, .proposalReady)
+        guard case .awaitingChoice(_, let options) = result.planningState else {
+            return XCTFail("planningState should be awaitingChoice")
+        }
+        XCTAssertEqual(options.count, 1)
+        XCTAssertTrue(PlanOptionsParser.isFallbackOption(options[0]))
+    }
 }

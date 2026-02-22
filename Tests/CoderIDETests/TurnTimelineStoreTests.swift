@@ -19,13 +19,13 @@ final class TurnTimelineStoreTests: XCTestCase {
         XCTAssertNil(store.pendingStreamingChunk)
     }
 
-    func testAppendActivityRoutesThinkingAndToolPhases() {
+    func testAppendActivityAlwaysCreatesStepSegments() {
         let store = TurnTimelineStore()
 
         let thinking = TaskActivity(
-            type: "reasoning",
-            title: "Ragionamento",
-            phase: .thinking,
+            type: "turn_started",
+            title: "Turno avviato",
+            phase: .planning,
             isRunning: true
         )
         let tool = TaskActivity(
@@ -39,15 +39,15 @@ final class TurnTimelineStoreTests: XCTestCase {
         store.appendActivity(tool)
 
         XCTAssertEqual(store.segments.count, 2)
-        if case .thinking(let activity) = store.segments[0] {
-            XCTAssertEqual(activity.type, "reasoning")
+        if case .step(let activity) = store.segments[0] {
+            XCTAssertEqual(activity.type, "turn_started")
         } else {
-            XCTFail("Il primo segmento deve essere thinking")
+            XCTFail("Il primo segmento deve essere step")
         }
-        if case .tool(let activity) = store.segments[1] {
+        if case .step(let activity) = store.segments[1] {
             XCTAssertEqual(activity.type, "read_batch_started")
         } else {
-            XCTFail("Il secondo segmento deve essere tool")
+            XCTFail("Il secondo segmento deve essere step")
         }
     }
 

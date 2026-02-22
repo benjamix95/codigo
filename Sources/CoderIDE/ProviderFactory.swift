@@ -43,6 +43,17 @@ struct ProviderFactoryConfig {
 }
 
 enum ProviderFactory {
+    private static func codexEnvironmentOverride(
+        _ environmentOverride: [String: String]?
+    ) -> [String: String]? {
+        var merged = environmentOverride ?? [:]
+        let current = merged["RUST_LOG"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if current.isEmpty {
+            merged["RUST_LOG"] = "error"
+        }
+        return merged.isEmpty ? nil : merged
+    }
+
     static func sandbox(from config: ProviderFactoryConfig) -> CodexSandboxMode {
         if config.codexSessionFullAccess { return .dangerFullAccess }
         return CodexSandboxMode(rawValue: config.codexSandbox).map { $0 } ?? .workspaceWrite
@@ -51,6 +62,13 @@ enum ProviderFactory {
     static func askForApproval(from config: ProviderFactoryConfig) -> String {
         config.globalYolo
             ? "never" : CodexCLIProvider.normalizeAskForApproval(config.codexAskForApproval)
+    }
+
+    static func toolRuntimePolicy(from config: ProviderFactoryConfig) -> ToolRuntimePolicy {
+        ToolRuntimePolicy(
+            sandboxMode: sandbox(from: config).rawValue,
+            askForApproval: askForApproval(from: config)
+        )
     }
 
     static func codexProvider(
@@ -66,7 +84,7 @@ enum ProviderFactory {
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),
             executionController: executionController,
-            environmentOverride: environmentOverride
+            environmentOverride: codexEnvironmentOverride(environmentOverride)
         )
     }
 
@@ -196,7 +214,8 @@ enum ProviderFactory {
                 yoloMode: config.globalYolo,
                 askForApproval: askForApproval(from: config),
                 executionController: nil,
-                executionScope: .review
+                executionScope: .review,
+                environmentOverride: codexEnvironmentOverride(nil)
             )
         case "claude", "claude-cli":
             guard let c = claude, c.isAuthenticated() else { return nil }
@@ -244,7 +263,12 @@ enum ProviderFactory {
             model: config.openaiModel,
             reasoningEffort: reasoningEffort
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
+        return ToolEnabledLLMProvider(
+            base: base,
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
     }
 
     static func anthropicAPIProvider(
@@ -256,7 +280,12 @@ enum ProviderFactory {
             model: config.anthropicModel,
             displayName: "Anthropic"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
+        return ToolEnabledLLMProvider(
+            base: base,
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
     }
 
     static func googleAPIProvider(
@@ -270,7 +299,12 @@ enum ProviderFactory {
             displayName: "Google Gemini",
             baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
+        return ToolEnabledLLMProvider(
+            base: base,
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
     }
 
     static func miniMaxAPIProvider(
@@ -285,7 +319,12 @@ enum ProviderFactory {
             displayName: "MiniMax",
             baseURL: "https://api.minimax.io/v1/chat/completions"
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
+        return ToolEnabledLLMProvider(
+            base: base,
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
     }
 
     static func openRouterAPIProvider(
@@ -300,6 +339,11 @@ enum ProviderFactory {
             baseURL: "https://openrouter.ai/api/v1/chat/completions",
             extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
         )
-        return ToolEnabledLLMProvider(base: base, executionScope: executionScope, executionController: executionController)
+        return ToolEnabledLLMProvider(
+            base: base,
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
     }
 }

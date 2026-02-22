@@ -14,6 +14,31 @@ func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool, allowIdleReb
     }
 }
 
+func planBuildDisabledReason(
+    phase: PlanFlowPhase,
+    hasBuildChoice: Bool,
+    providerExecutionCapable: Bool
+) -> String? {
+    if !providerExecutionCapable {
+        return "Provider non pronto: seleziona un provider execution-capable autenticato."
+    }
+    if !hasBuildChoice {
+        return "Nessuna opzione disponibile da eseguire."
+    }
+    switch phase {
+    case .idle:
+        return "Build non disponibile in idle: genera o seleziona prima un piano."
+    case .discovery:
+        return "Analisi in corso: attendi il completamento della discovery."
+    case .awaitingClarification:
+        return "Servono chiarimenti: rispondi alle domande prima del build."
+    case .building:
+        return "Build in esecuzione..."
+    case .proposalReady, .readyToBuild:
+        return nil
+    }
+}
+
 /// Pannello laterale stile Cursor per il piano.
 /// Top bar fissa (breadcrumb, model picker, Build), contenuto scrollabile sotto.
 struct PlanPanelView: View {
@@ -28,6 +53,7 @@ struct PlanPanelView: View {
     let onClose: () -> Void
     let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
+    let onSubmitClarificationAnswers: (PlanClarificationSubmission) -> Void
     let onBuild: (String, String?, Bool) -> Void
     let onStop: () -> Void
 
@@ -52,6 +78,10 @@ struct PlanPanelView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    if !canonicalPlanTodos.isEmpty {
+                        todosSection
+                    }
+
                     // Plan Board (steps overview)
                     if let board = chatStore.planBoard(for: conversationId) {
                         planBoardSection(board)
@@ -59,7 +89,16 @@ struct PlanPanelView: View {
 
                     // Domande di chiarimento (se in attesa)
                     if case .awaitingClarification(let questions) = planningState {
-                        PlanClarificationView(questions: questions, planColor: planColor)
+                        if let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
+                            PlanClarificationWizardView(
+                                questionnaire: questionnaire,
+                                planColor: planColor,
+                                onSubmit: onSubmitClarificationAnswers
+                            )
+                            .id("plan-clarification-wizard-\(questions.hashValue)")
+                        } else {
+                            PlanClarificationView(questions: questions, planColor: planColor)
+                        }
                     }
 
                     // Plan Options (if awaiting choice)
@@ -84,11 +123,6 @@ struct PlanPanelView: View {
                     if let board = chatStore.planBoard(for: conversationId),
                        let wt = board.walkthroughMarkdown, !wt.isEmpty {
                         walkthroughSection(wt)
-                    }
-
-                    // Todos
-                    if !todoStore.todos.isEmpty {
-                        todosSection
                     }
 
                     // Live activity trace
@@ -338,22 +372,40 @@ struct PlanPanelView: View {
     private var isBuildEnabledByPhase: Bool {
         isPlanBuildEnabled(
             phase: planFlowPhase,
-            hasBuildChoice: resolveBuildChoiceText() != nil,
+            hasBuildChoice: resolvedBuildChoice != nil,
             allowIdleRebuild: false
         )
+    }
+
+    private var buildDisabledReason: String? {
+        planBuildDisabledReason(
+            phase: planFlowPhase,
+            hasBuildChoice: resolvedBuildChoice != nil,
+            providerExecutionCapable: isActiveProviderExecutionCapable
+        )
+    }
+
+    private var resolvedBuildChoice: (text: String, isFallback: Bool)? {
+        resolveBuildChoice()
     }
 
     private var phaseHint: String? {
         switch planFlowPhase {
         case .idle:
-            return buildHint
+            return buildHint ?? buildDisabledReason
         case .discovery:
-            return "Analisi in corso: attendi il completamento della discovery."
+            return buildDisabledReason
         case .awaitingClarification:
-            return "Servono chiarimenti: rispondi alle domande prima del build."
+            return buildDisabledReason
         case .proposalReady:
+            if let reason = buildDisabledReason {
+                return reason
+            }
             return "Proposta pronta: seleziona/conferma l'opzione e avvia Build."
         case .readyToBuild:
+            if let reason = buildDisabledReason {
+                return reason
+            }
             return "Piano pronto: puoi avviare Build."
         case .building:
             return "Build in esecuzione..."
@@ -408,7 +460,7 @@ struct PlanPanelView: View {
                                 .controlSize(.mini)
                                 .tint(.white)
                         }
-                        Text(chatStore.isLoading ? "Building…" : "Build")
+                        Text(chatStore.isLoading ? "Building…" : (resolvedBuildChoice?.isFallback == true ? "Build (fallback)" : "Build"))
                             .font(.system(size: 11, weight: .semibold))
                         HStack(spacing: 1) {
                             Image(systemName: "command")
@@ -429,7 +481,7 @@ struct PlanPanelView: View {
                 }
                 .buttonStyle(PlanBuildButtonStyle())
                 .keyboardShortcut(.return, modifiers: [.command])
-                .help(chatStore.isLoading ? "Ferma il build (⌘⏎)" : "Esegui il plan (⌘⏎)")
+                .help(chatStore.isLoading ? "Ferma il build (⌘⏎)" : (buildDisabledReason ?? "Esegui il plan (⌘⏎)"))
                 .disabled(!isBuildEnabledByPhase && !chatStore.isLoading)
             }
         }
@@ -437,23 +489,28 @@ struct PlanPanelView: View {
 
     private func performBuild() {
         guard isBuildEnabledByPhase else {
-            buildHint = phaseHint ?? "Build non disponibile in questa fase."
+            buildHint = buildDisabledReason ?? phaseHint ?? "Build non disponibile in questa fase."
             return
         }
-        guard let choice = resolveBuildChoiceText() else {
+        guard let choice = resolvedBuildChoice?.text else {
             buildHint = "Nessuna opzione disponibile da eseguire."
             return
         }
+        let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
+        guard !extractedTodos.isEmpty else {
+            buildHint = "Build bloccata: il piano selezionato non contiene la sezione ## Todo."
+            return
+        }
         buildHint = "Build avviata..."
-                                onBuild(choice, planProviderId, false)
+        onBuild(choice, planProviderId, false)
     }
 
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
         HStack(spacing: 6) {
-            let total = todoStore.todos.count
-            let done = todoStore.todos.filter { $0.status == .done }.count
+            let total = canonicalPlanTodos.count
+            let done = canonicalPlanTodos.filter { $0.status == .done }.count
             if total > 0 {
                 Text("\(done) To-dos · Completed In Order")
                     .font(.system(size: 10, weight: .medium))
@@ -615,6 +672,11 @@ struct PlanPanelView: View {
                             planHistoryStore.setSelectedEntry(id: entry.id)
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                            let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
+                            guard !extractedTodos.isEmpty else {
+                                buildHint = "Build bloccata: il piano selezionato non contiene la sezione ## Todo."
+                                return
+                            }
                             onBuild(choice, planProviderId, true)
                             planHistoryStore.markRebuilt(id: entry.id)
                             buildHint = "Rebuild avviata..."
@@ -728,24 +790,29 @@ struct PlanPanelView: View {
 
     // MARK: - Todos Section
 
+    private var canonicalPlanTodos: [TodoItem] {
+        let canonical = todoStore.todos.filter { $0.isPlanCanonical }
+        return todoStore.sortedCanonicalFirstTodos(canonical)
+    }
+
     private var todosSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "checklist")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(planColor)
-                Text("Todo")
+                Text("Todo (Piano)")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                let total = todoStore.todos.count
-                let done = todoStore.todos.filter { $0.status == .done }.count
+                let total = canonicalPlanTodos.count
+                let done = canonicalPlanTodos.filter { $0.status == .done }.count
                 Text("\(done)/\(total)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
 
-            ForEach(todoStore.todos) { todo in
+            ForEach(canonicalPlanTodos) { todo in
                 HStack(spacing: 8) {
                     Button {
                         let newStatus: TodoStatus = todo.status == .done ? .pending : .done
@@ -880,30 +947,30 @@ struct PlanPanelView: View {
         }
     }
 
-    private func resolveBuildChoiceText() -> String? {
+    private func resolveBuildChoice() -> (text: String, isFallback: Bool)? {
         let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !workspaceText.isEmpty {
-            return workspaceText
+            return (workspaceText, false)
         }
         if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
             if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                !chosen.isEmpty {
-                return chosen
+                return (chosen, false)
             }
-            return selected.markdown
+            return (selected.markdown, false)
         }
         if let board = chatStore.planBoard(for: conversationId) {
             if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                !chosen.isEmpty {
-                return chosen
+                return (chosen, false)
             }
             if let first = board.options.sorted(by: { $0.id < $1.id }).first {
-                return first.fullText
+                return (first.fullText, PlanOptionsParser.isFallbackOption(first))
             }
         }
         if case .awaitingChoice(_, let options) = planningState,
            let first = options.sorted(by: { $0.id < $1.id }).first {
-            return first.fullText
+            return (first.fullText, PlanOptionsParser.isFallbackOption(first))
         }
         return nil
     }

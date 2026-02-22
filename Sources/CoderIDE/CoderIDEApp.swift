@@ -16,7 +16,6 @@ struct CodigoApp: App {
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var executionController = ExecutionController()
     @StateObject private var providerUsageStore = ProviderUsageStore.shared
-    @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
     @StateObject private var gitPanelStore = GitPanelStore()
     @StateObject private var planHistoryStore = PlanHistoryStore()
     @StateObject private var accountUsageDashboardStore = AccountUsageDashboardStore.shared
@@ -30,7 +29,7 @@ struct CodigoApp: App {
     @AppStorage("codex_sandbox") private var codexSandbox = ""
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
-    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "xhigh"
+    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
@@ -80,7 +79,6 @@ struct CodigoApp: App {
                 .environmentObject(codexState)
                 .environmentObject(executionController)
                 .environmentObject(providerUsageStore)
-                .environmentObject(flowDiagnosticsStore)
                 .environmentObject(gitPanelStore)
                 .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)

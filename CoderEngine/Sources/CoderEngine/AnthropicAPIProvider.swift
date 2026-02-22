@@ -72,6 +72,7 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                         "model": model,
                         "max_tokens": maxTokens,
                         "stream": true,
+                        "system": SystemPrompts.taskCompletionStrict,
                         "tools": Self.toolDefinitions,
                         "messages": [
                             [
@@ -284,6 +285,100 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                 ],
                 "required": ["command"]
             ]),
+            tool(name: "read_range", description: "Read a line range from a file", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "Target file path"],
+                    "start": ["type": "string", "description": "Start line (1-based)"],
+                    "end": ["type": "string", "description": "End line (inclusive)"]
+                ],
+                "required": ["path", "start"]
+            ]),
+            tool(name: "list_dir", description: "List directory entries", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "Directory path"],
+                    "maxEntries": ["type": "string", "description": "Max number of entries"]
+                ],
+                "required": ["path"]
+            ]),
+            tool(name: "git_diff", description: "Show git diff", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "Optional path scope"]
+                ],
+                "required": []
+            ]),
+            tool(name: "search_symbols", description: "Search code symbols", schema: [
+                "type": "object",
+                "properties": [
+                    "query": ["type": "string", "description": "Symbol query"],
+                    "kind": ["type": "string", "description": "class|struct|enum|protocol|function|all"]
+                ],
+                "required": ["query"]
+            ]),
+            tool(name: "run_tests", description: "Run tests for the project", schema: [
+                "type": "object",
+                "properties": [
+                    "target": ["type": "string", "description": "Optional test target or filter"],
+                    "filter": ["type": "string", "description": "Optional test filter"],
+                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"]
+                ],
+                "required": []
+            ]),
+            tool(name: "build_project", description: "Build the project", schema: [
+                "type": "object",
+                "properties": [
+                    "configuration": ["type": "string", "description": "debug|release"],
+                    "target": ["type": "string", "description": "Optional target"],
+                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"]
+                ],
+                "required": []
+            ]),
+            tool(name: "list_processes", description: "List running processes", schema: [
+                "type": "object",
+                "properties": [
+                    "filter": ["type": "string", "description": "Optional process filter"]
+                ],
+                "required": []
+            ]),
+            tool(name: "read_json", description: "Read and pretty-print JSON file", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "JSON file path"]
+                ],
+                "required": ["path"]
+            ]),
+            tool(name: "write_json", description: "Merge JSON patch into JSON file", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "JSON file path"],
+                    "patch": ["type": "string", "description": "JSON object patch string"]
+                ],
+                "required": ["path", "patch"]
+            ]),
+            tool(name: "workspace_stats", description: "Collect workspace stats", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "Optional relative path scope"]
+                ],
+                "required": []
+            ]),
+            tool(name: "dependency_audit", description: "Run dependency audit", schema: [
+                "type": "object",
+                "properties": [
+                    "manager": ["type": "string", "description": "swift|npm|pnpm|yarn"]
+                ],
+                "required": []
+            ]),
+            tool(name: "tail_log", description: "Tail a log file", schema: [
+                "type": "object",
+                "properties": [
+                    "path": ["type": "string", "description": "Log file path"],
+                    "lines": ["type": "string", "description": "Number of lines"]
+                ],
+                "required": ["path"]
+            ]),
             tool(name: "mcp", description: "Invoke MCP tool", schema: [
                 "type": "object",
                 "properties": [
@@ -291,6 +386,40 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                     "args": ["type": "string", "description": "JSON string args"]
                 ],
                 "required": ["tool"]
+            ]),
+            tool(name: "mcp_list_servers", description: "List configured MCP servers", schema: [
+                "type": "object",
+                "properties": [:],
+                "required": []
+            ]),
+            tool(name: "mcp_list_tools", description: "List MCP tools", schema: [
+                "type": "object",
+                "properties": [
+                    "server": ["type": "string", "description": "Optional server id/name"]
+                ],
+                "required": []
+            ]),
+            tool(name: "mcp_describe_tool", description: "Describe MCP tool schema", schema: [
+                "type": "object",
+                "properties": [
+                    "server": ["type": "string", "description": "Optional server id/name"],
+                    "tool": ["type": "string", "description": "Tool name"]
+                ],
+                "required": ["tool"]
+            ]),
+            tool(name: "mcp_health", description: "Check MCP server health", schema: [
+                "type": "object",
+                "properties": [
+                    "server": ["type": "string", "description": "Optional server id/name"]
+                ],
+                "required": []
+            ]),
+            tool(name: "mcp_reconnect", description: "Reconnect MCP session", schema: [
+                "type": "object",
+                "properties": [
+                    "server": ["type": "string", "description": "Server id/name"]
+                ],
+                "required": ["server"]
             ]),
             tool(name: "web_search", description: "Search web", schema: [
                 "type": "object",

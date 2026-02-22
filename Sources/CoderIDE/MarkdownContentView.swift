@@ -7,9 +7,15 @@ struct MarkdownContentView: View {
     let context: ProjectContext?
     let onFileClicked: (String) -> Void
     var textAlignment: TextAlignment = .leading
+    var isStreaming: Bool = false
+    var aggressiveSanitization: Bool? = nil
+
+    private var shouldUseAggressiveSanitization: Bool {
+        aggressiveSanitization ?? !isStreaming
+    }
 
     private var displayContent: String {
-        ChatStore.stripCoderideMarkers(content, aggressive: false)
+        ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
     }
 

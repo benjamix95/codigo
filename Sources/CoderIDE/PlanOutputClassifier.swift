@@ -46,6 +46,19 @@ enum PlanOutputClassifier {
             )
         }
 
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let fallbackOptions = PlanOptionsParser.parse(from: fullText)
+            if !fallbackOptions.isEmpty {
+                return PlanOutputClassification(
+                    hasClarificationQuestions: false,
+                    hasStrictOptions: false,
+                    nextPhase: .proposalReady,
+                    planningState: .awaitingChoice(planContent: fullText, options: fallbackOptions)
+                )
+            }
+        }
+
         return PlanOutputClassification(
             hasClarificationQuestions: false,
             hasStrictOptions: false,

@@ -7,23 +7,178 @@ struct PlanOption: Identifiable, Equatable, Codable {
     let fullText: String
 }
 
+struct PlanClarificationOption: Identifiable, Equatable, Codable {
+    let id: String
+    let text: String
+}
+
+struct PlanClarificationQuestion: Identifiable, Equatable, Codable {
+    let id: Int
+    let prompt: String
+    let options: [PlanClarificationOption]
+}
+
+struct PlanClarificationQuestionnaire: Equatable, Codable {
+    let questions: [PlanClarificationQuestion]
+}
+
+struct PlanClarificationAnswer: Identifiable, Equatable {
+    let questionId: Int
+    let question: String
+    let optionId: String
+    let optionText: String
+    let customResponse: String?
+
+    var id: Int { questionId }
+}
+
+struct PlanClarificationSubmission: Equatable {
+    let answers: [PlanClarificationAnswer]
+    let finalMandatoryNote: String
+}
+
 /// Estrae opzioni numerate da un testo di piano (es. "## Opzione 1: ...", "Opzione 2:", ecc.)
 enum PlanOptionsParser {
     private static let optionHeaderPattern =
-        #"(?i)(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]"#
+        #"(?i)(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
     private static let nextOptionPattern =
-        #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])"#
     private static let optionWithTitlePattern =
-        #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]\s*.+$"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]\s*.+$"#
+    private static let clarificationHeaderPattern =
+        #"(?im)^\s*#{1,3}\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
+    private static let otherLikePrimaryTokens: Set<String> = [
+        "other",
+        "altro",
+        "altra",
+        "custom",
+    ]
+    private static let otherLikeContextualTokens: Set<String> = ["specifica", "specify"]
+
+    static func isOtherLikeClarificationOption(_ option: PlanClarificationOption) -> Bool {
+        let normalized = option.text
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+        let tokens = normalized.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        if tokens.contains(where: { otherLikePrimaryTokens.contains($0) }) {
+            return true
+        }
+        if tokens.contains(where: { otherLikeContextualTokens.contains($0) }) {
+            return normalized.hasPrefix("specifica")
+                || normalized.hasPrefix("specify")
+                || normalized.contains("(specifica")
+                || normalized.contains("(specify")
+                || normalized.contains("specifica:")
+                || normalized.contains("specify:")
+        }
+        return false
+    }
+
+    static func parseClarificationQuestionnaire(from text: String) -> PlanClarificationQuestionnaire? {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard normalized.range(of: clarificationHeaderPattern, options: .regularExpression) != nil else {
+            return nil
+        }
+
+        let lines = normalized.components(separatedBy: .newlines)
+        var inBlock = false
+        var parsedQuestions: [PlanClarificationQuestion] = []
+        var currentQuestionId: Int?
+        var currentPrompt = ""
+        var currentOptions: [PlanClarificationOption] = []
+        var isInvalidStructuredBlock = false
+        let questionPattern = #"^\s*(\d+)[.)]\s*(.+)$"#
+        let optionPattern = #"^\s*(?:[-*•]\s*)?([A-Za-z])[.)]\s+(.+)$"#
+        let questionRegex = try? NSRegularExpression(pattern: questionPattern)
+        let optionRegex = try? NSRegularExpression(pattern: optionPattern)
+
+        func flushQuestion() {
+            guard let questionId = currentQuestionId else { return }
+            let prompt = currentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !prompt.isEmpty, currentOptions.count >= 2 else {
+                isInvalidStructuredBlock = true
+                return
+            }
+            parsedQuestions.append(
+                PlanClarificationQuestion(
+                    id: questionId,
+                    prompt: prompt,
+                    options: currentOptions
+                )
+            )
+        }
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.range(of: clarificationHeaderPattern, options: .regularExpression) != nil {
+                inBlock = true
+                continue
+            }
+            if !inBlock { continue }
+            if trimmed.hasPrefix("#") { break }
+            if trimmed.isEmpty { continue }
+
+            if let questionRegex,
+               let match = questionRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+               let idRange = Range(match.range(at: 1), in: trimmed),
+               let promptRange = Range(match.range(at: 2), in: trimmed),
+               let parsedId = Int(trimmed[idRange])
+            {
+                flushQuestion()
+                if isInvalidStructuredBlock { return nil }
+                currentQuestionId = parsedId
+                currentPrompt = String(trimmed[promptRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                currentOptions = []
+                continue
+            }
+
+            if let optionRegex,
+               let match = optionRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+               let keyRange = Range(match.range(at: 1), in: trimmed),
+               let textRange = Range(match.range(at: 2), in: trimmed),
+               currentQuestionId != nil
+            {
+                let optionId = String(trimmed[keyRange]).uppercased()
+                let optionText = String(trimmed[textRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if optionText.isEmpty {
+                    isInvalidStructuredBlock = true
+                    return nil
+                }
+                currentOptions.append(PlanClarificationOption(id: optionId, text: optionText))
+                continue
+            }
+
+            if currentQuestionId == nil {
+                isInvalidStructuredBlock = true
+                return nil
+            }
+
+            if currentOptions.isEmpty {
+                currentPrompt = "\(currentPrompt) \(trimmed)"
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let lastOption = currentOptions.last {
+                let merged = "\(lastOption.text) \(trimmed)".trimmingCharacters(in: .whitespacesAndNewlines)
+                currentOptions[currentOptions.count - 1] = PlanClarificationOption(id: lastOption.id, text: merged)
+            }
+        }
+
+        flushQuestion()
+        guard !isInvalidStructuredBlock, !parsedQuestions.isEmpty else { return nil }
+        return PlanClarificationQuestionnaire(questions: parsedQuestions)
+    }
 
     /// Estrae le domande di chiarimento dal blocco "## Domande di chiarimento".
     /// Restituisce nil se il blocco non è presente (→ procedere con parsing opzioni).
     static func parseClarificationQuestions(from text: String) -> [String]? {
+        if let structured = parseClarificationQuestionnaire(from: text) {
+            return structured.questions.map(\.prompt)
+        }
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
         // Cerca heading Markdown "#/##/### Domande di chiarimento" o variazioni.
-        let headerPattern = #"(?im)^\s*#{1,3}\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify)\s*:?\s*$"#
-        guard normalized.range(of: headerPattern, options: .regularExpression) != nil else {
+        guard normalized.range(of: clarificationHeaderPattern, options: .regularExpression) != nil else {
             return nil
         }
         let lines = normalized.components(separatedBy: .newlines)
@@ -33,7 +188,7 @@ enum PlanOptionsParser {
         let bulletPattern = #"^\s*[-*•]\s+(.+)$"#
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.range(of: headerPattern, options: .regularExpression) != nil {
+            if trimmed.range(of: clarificationHeaderPattern, options: .regularExpression) != nil {
                 inBlock = true
                 continue
             }
@@ -69,7 +224,7 @@ enum PlanOptionsParser {
         var i = 0
         while i < lines.count {
             let line = lines[i]
-            // Match "Opzione 1:" / "Option 1:" o "## Opzione 1 - Title" (case-insensitive).
+            // Match "Opzione 1:" / "Option 1:" / "Approccio A:" o con heading markdown.
             if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
                 var title = "Opzione"
@@ -168,6 +323,10 @@ enum PlanOptionsParser {
 
         // Ultimo fallback: intero testo come unica opzione
         return [PlanOption(id: 1, title: "Piano completo", fullText: trimmed)]
+    }
+
+    static func isFallbackOption(_ option: PlanOption) -> Bool {
+        option.id == 1 && option.title == "Piano completo"
     }
 
     /// Estrae gli step todo dalla sezione "## Todo" di un'opzione di piano.

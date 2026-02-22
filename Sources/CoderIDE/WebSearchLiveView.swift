@@ -267,7 +267,7 @@ struct WebSearchLiveView: View {
             return SearchStatus(
                 icon: "checkmark.circle.fill",
                 label: "Done",
-                color: DesignSystem.Colors.success
+                color: .secondary
             )
         case "web_search_started":
             return SearchStatus(
@@ -288,10 +288,10 @@ struct WebSearchLiveView: View {
 // MARK: - Colors
 
 private enum WebSearchColors {
-    static let accent = Color.blue
-    static let panelBackground = Color(nsColor: .controlBackgroundColor).opacity(0.35)
-    static let panelBorder = Color(nsColor: .separatorColor).opacity(0.4)
+    static let accent = Color.secondary
+    static let panelBackground = Color(nsColor: .controlBackgroundColor).opacity(0.28)
+    static let panelBorder = Color(nsColor: .separatorColor).opacity(0.35)
     static let rowHover = Color.primary.opacity(0.03)
-    static let codeBackground = Color.black.opacity(0.08)
+    static let codeBackground = Color(nsColor: .controlBackgroundColor).opacity(0.32)
     static let codeBorder = Color(nsColor: .separatorColor).opacity(0.25)
 }

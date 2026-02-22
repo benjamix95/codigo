@@ -46,7 +46,9 @@ struct TaskControlBar: View {
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.primary)
 
-                if let lastActivity = taskActivityStore.activities.last {
+                if let lastActivity = TaskActivityStore.lastConcreteVisibleActivity(
+                    in: taskActivityStore.activities
+                ) {
                     Text("•")
                         .font(.system(size: 9))
                         .foregroundStyle(.quaternary)
@@ -71,7 +73,7 @@ struct TaskControlBar: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(DesignSystem.Colors.backgroundSecondary.opacity(0.6))
+            .background(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
         }
     }
 
@@ -116,7 +118,7 @@ struct TaskControlBar: View {
                             title: "Processo in pausa",
                             detail: "Esecuzione sospesa dall'utente",
                             payload: [:],
-                            phase: .thinking,
+                            phase: .planning,
                             isRunning: false
                         )
                     )
@@ -160,7 +162,7 @@ struct TaskControlBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(DesignSystem.Colors.info.opacity(0.08))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
     }
 
     // MARK: - Helpers
@@ -186,16 +188,16 @@ struct TaskControlBar: View {
         case .editing: return "pencil"
         case .searching: return "magnifyingglass"
         case .planning: return "list.bullet.rectangle"
-        case .thinking: return "brain"
+        case .thinking: return "gearshape"
         }
     }
 
     private func phaseColor(_ phase: ActivityPhase) -> Color {
         switch phase {
-        case .executing: return DesignSystem.Colors.warning
-        case .editing: return DesignSystem.Colors.agentColor
-        case .searching: return DesignSystem.Colors.info
-        case .planning: return DesignSystem.Colors.planColor
+        case .executing: return .secondary
+        case .editing: return .secondary
+        case .searching: return .secondary
+        case .planning: return .secondary
         case .thinking: return .secondary
         }
     }
@@ -229,6 +231,7 @@ struct TaskActivityPanel: View {
     let coderMode: CoderMode
     let onOpenFile: (String) -> Void
     let effectivePrimaryPath: String?
+    let showTodoSection: Bool
 
     @State private var selectedSwarmLaneId: String?
     @State private var isActivitiesExpanded = false
@@ -277,6 +280,9 @@ struct TaskActivityPanel: View {
 
     @ViewBuilder
     private var standardActivityContent: some View {
+        let concreteActivities = taskActivityStore.activities.filter {
+            TaskActivityStore.isConcreteVisibleEvent($0)
+        }
         if chatStore.isLoading {
             liveModeBanner
         }
@@ -288,17 +294,17 @@ struct TaskActivityPanel: View {
             )
         }
 
-        // Reasoning Trace (expandable)
-        if !taskActivityStore.activities.isEmpty {
+        // Attività live (expandable)
+        if !concreteActivities.isEmpty {
             expandableSection(
-                title: "Reasoning Trace",
-                count: taskActivityStore.activities.count,
-                icon: "brain",
+                title: "Attività live",
+                count: concreteActivities.count,
+                icon: "list.bullet.rectangle",
                 color: .secondary,
                 isExpanded: $isActivitiesExpanded
             ) {
                 LiveActivityTimelineView(
-                    activities: taskActivityStore.activities,
+                    activities: concreteActivities,
                     maxVisible: 20
                 )
             }
@@ -323,7 +329,7 @@ struct TaskActivityPanel: View {
                 title: "Terminali",
                 count: terminalActivities.count,
                 icon: "terminal",
-                color: DesignSystem.Colors.warning,
+                color: .secondary,
                 isExpanded: $isTerminalsExpanded
             ) {
                 ChatTerminalSessionsView(activities: taskActivityStore.activities)
@@ -336,7 +342,7 @@ struct TaskActivityPanel: View {
                 title: "Instant Grep",
                 count: taskActivityStore.instantGreps.count,
                 icon: "magnifyingglass",
-                color: DesignSystem.Colors.info,
+                color: .secondary,
                 isExpanded: $isGrepExpanded
             ) {
                 InstantGrepCardsView(results: taskActivityStore.instantGreps) { match in
@@ -353,12 +359,12 @@ struct TaskActivityPanel: View {
         }
 
         // Todo
-        if !todoStore.todos.isEmpty {
+        if showTodoSection, !todoStore.todos.isEmpty {
             expandableSection(
                 title: "Todo",
                 count: todoStore.todos.count,
                 icon: "checklist",
-                color: DesignSystem.Colors.success,
+                color: .secondary,
                 isExpanded: $isTodoExpanded
             ) {
                 TodoLiveInlineCard(
@@ -369,7 +375,7 @@ struct TaskActivityPanel: View {
         }
 
         // Remaining task activities (non-terminal, non-bash)
-        let otherActivities = taskActivityStore.activities
+        let otherActivities = concreteActivities
             .filter {
                 $0.type != "command_execution"
                     && $0.type != "bash"
@@ -377,7 +383,6 @@ struct TaskActivityPanel: View {
                     && $0.type != "todo_write"
                     && $0.type != "todo_read"
                     && $0.type != "plan_step_update"
-                    && $0.type != "reasoning"
             }
             .suffix(8)
         if !otherActivities.isEmpty {
@@ -398,7 +403,9 @@ struct TaskActivityPanel: View {
         let cards = taskActivityStore.swarmCardStates()
         let effectiveSwarmId = selectedSwarmLaneId ?? cards.first?.swarmId
         let selectedCard = cards.first(where: { $0.swarmId == effectiveSwarmId })
-        let selectedLaneActivities = selectedCard?.recentEvents ?? []
+        let selectedLaneActivities = (selectedCard?.recentEvents ?? []).filter {
+            TaskActivityStore.isConcreteVisibleEvent($0)
+        }
 
         SwarmLiveBoardView(
             cards: cards,
@@ -422,9 +429,9 @@ struct TaskActivityPanel: View {
             .padding(.top, 6)
 
             expandableSection(
-                title: "Reasoning Trace",
+                title: "Attività live",
                 count: selectedLaneActivities.count,
-                icon: "brain",
+                icon: "list.bullet.rectangle",
                 color: .secondary,
                 isExpanded: $isActivitiesExpanded
             ) {
@@ -444,7 +451,7 @@ struct TaskActivityPanel: View {
                     title: "Terminali",
                     count: swarmTerminals.count,
                     icon: "terminal",
-                    color: DesignSystem.Colors.warning,
+                    color: .secondary,
                     isExpanded: $isTerminalsExpanded
                 ) {
                     ChatTerminalSessionsView(activities: selectedLaneActivities)
@@ -513,21 +520,14 @@ struct TaskActivityPanel: View {
             }
             return nil
         }()
-        let accent: Color = {
-            switch coderMode {
-            case .plan: return DesignSystem.Colors.planColor
-            case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
-            case .agentSwarm: return DesignSystem.Colors.swarmColor
-            default: return DesignSystem.Colors.agentColor
-            }
-        }()
+        let accent: Color = .secondary
 
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 if isPaused {
                     Image(systemName: "pause.circle.fill")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.warning)
+                        .foregroundStyle(DesignSystem.Colors.error)
                 } else {
                     ProgressView()
                         .controlSize(.small)
@@ -537,7 +537,7 @@ struct TaskActivityPanel: View {
                     .foregroundStyle(accent)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(accent.opacity(0.14), in: Capsule())
+                    .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
                 Text(text)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -552,7 +552,7 @@ struct TaskActivityPanel: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: - Expandable Section
@@ -589,7 +589,7 @@ struct TaskActivityPanel: View {
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(color.opacity(0.12), in: Capsule())
+                            .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
                     }
                     Spacer()
                 }
@@ -605,7 +605,7 @@ struct TaskActivityPanel: View {
         }
         .padding(8)
         .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.45),
+            Color(nsColor: .controlBackgroundColor).opacity(0.3),
             in: RoundedRectangle(cornerRadius: 10)
         )
         .overlay(

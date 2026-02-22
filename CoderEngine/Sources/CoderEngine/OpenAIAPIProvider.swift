@@ -168,6 +168,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         var body: [String: Any] = [
                             "model": model,
                             "messages": [
+                                ["role": "system", "content": SystemPrompts.taskCompletionStrict],
                                 ["role": "user", "content": resolvedContent]
                             ],
                             "stream": true,
@@ -445,11 +446,105 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                     "command": ["type": "string", "description": "Shell command"]
                 ], required: ["command"]),
             functionTool(
+                name: "read_range", description: "Read a line range from a file",
+                properties: [
+                    "path": ["type": "string", "description": "Target file path"],
+                    "start": ["type": "string", "description": "Start line (1-based)"],
+                    "end": ["type": "string", "description": "End line (inclusive)"],
+                ], required: ["path", "start"]),
+            functionTool(
+                name: "list_dir", description: "List directory entries",
+                properties: [
+                    "path": ["type": "string", "description": "Directory path"],
+                    "maxEntries": ["type": "string", "description": "Max number of entries"],
+                ], required: ["path"]),
+            functionTool(
+                name: "git_diff", description: "Show git diff",
+                properties: [
+                    "path": ["type": "string", "description": "Optional path scope"]
+                ], required: []),
+            functionTool(
+                name: "search_symbols", description: "Search code symbols",
+                properties: [
+                    "query": ["type": "string", "description": "Symbol query"],
+                    "kind": ["type": "string", "description": "class|struct|enum|protocol|function|all"],
+                ], required: ["query"]),
+            functionTool(
+                name: "run_tests", description: "Run tests for the project",
+                properties: [
+                    "target": ["type": "string", "description": "Optional test target or filter"],
+                    "filter": ["type": "string", "description": "Optional test filter"],
+                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"],
+                ], required: []),
+            functionTool(
+                name: "build_project", description: "Build the project",
+                properties: [
+                    "configuration": ["type": "string", "description": "debug|release"],
+                    "target": ["type": "string", "description": "Optional target"],
+                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"],
+                ], required: []),
+            functionTool(
+                name: "list_processes", description: "List running processes",
+                properties: [
+                    "filter": ["type": "string", "description": "Optional process filter"],
+                ], required: []),
+            functionTool(
+                name: "read_json", description: "Read and pretty-print JSON file",
+                properties: [
+                    "path": ["type": "string", "description": "JSON file path"],
+                ], required: ["path"]),
+            functionTool(
+                name: "write_json", description: "Merge JSON patch into JSON file",
+                properties: [
+                    "path": ["type": "string", "description": "JSON file path"],
+                    "patch": ["type": "string", "description": "JSON object patch string"],
+                ], required: ["path", "patch"]),
+            functionTool(
+                name: "workspace_stats", description: "Collect workspace stats",
+                properties: [
+                    "path": ["type": "string", "description": "Optional relative path scope"],
+                ], required: []),
+            functionTool(
+                name: "dependency_audit", description: "Run dependency audit",
+                properties: [
+                    "manager": ["type": "string", "description": "swift|npm|pnpm|yarn"],
+                ], required: []),
+            functionTool(
+                name: "tail_log", description: "Tail a log file",
+                properties: [
+                    "path": ["type": "string", "description": "Log file path"],
+                    "lines": ["type": "string", "description": "Number of lines"],
+                ], required: ["path"]),
+            functionTool(
                 name: "mcp", description: "Invoke MCP tool",
                 properties: [
                     "tool": ["type": "string", "description": "MCP tool name"],
                     "args": ["type": "string", "description": "JSON string args"],
                 ], required: ["tool"]),
+            functionTool(
+                name: "mcp_list_servers", description: "List configured MCP servers",
+                properties: [:], required: []),
+            functionTool(
+                name: "mcp_list_tools", description: "List MCP tools",
+                properties: [
+                    "server": ["type": "string", "description": "Optional server id/name"],
+                ], required: []),
+            functionTool(
+                name: "mcp_describe_tool", description: "Describe MCP tool schema",
+                properties: [
+                    "server": ["type": "string", "description": "Optional server id/name"],
+                    "tool": ["type": "string", "description": "Tool name"],
+                ], required: ["tool"]),
+            functionTool(
+                name: "mcp_health", description: "Check MCP server health",
+                properties: [
+                    "server": ["type": "string", "description": "Optional server id/name"],
+                ], required: []),
+            functionTool(
+                name: "mcp_reconnect", description: "Reconnect MCP session",
+                properties: [
+                    "server": ["type": "string", "description": "Server id/name"],
+                ], required: ["server"]),
             functionTool(
                 name: "web_search", description: "Search web",
                 properties: [

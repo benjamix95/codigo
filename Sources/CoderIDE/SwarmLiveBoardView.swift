@@ -48,7 +48,7 @@ struct SwarmLiveBoardView: View {
                     if isFollowingLive {
                         Label("Live", systemImage: "dot.radiowaves.left.and.right")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.info)
+                            .foregroundStyle(.secondary)
                     } else {
                         Button("Torna al live") { isFollowingLive = true }
                             .buttonStyle(.bordered)
@@ -96,12 +96,12 @@ struct SwarmLiveBoardView: View {
             }
             .padding(10)
             .background(
-                Color(nsColor: .controlBackgroundColor).opacity(0.45),
+                Color(nsColor: .controlBackgroundColor).opacity(0.3),
                 in: RoundedRectangle(cornerRadius: 10)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 0.6)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
             )
         }
     }
@@ -120,9 +120,9 @@ private struct SwarmLiveCardView: View {
 
     private var statusColor: Color {
         switch card.status {
-        case .running: return DesignSystem.Colors.warning
+        case .running: return .secondary
         case .failed: return DesignSystem.Colors.error
-        case .completed: return DesignSystem.Colors.success
+        case .completed: return .secondary
         case .idle: return .secondary
         }
     }
@@ -132,7 +132,8 @@ private struct SwarmLiveCardView: View {
     }
 
     private var visibleEvents: [TaskActivity] {
-        isCollapsed ? Array(card.recentEvents.suffix(previewEventCount)) : card.recentEvents
+        let concrete = card.recentEvents.filter { TaskActivityStore.isConcreteVisibleEvent($0) }
+        return isCollapsed ? Array(concrete.suffix(previewEventCount)) : concrete
     }
 
     private var elapsedSeconds: Int? {
@@ -150,10 +151,14 @@ private struct SwarmLiveCardView: View {
                 }
                 Text(statusLabel)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(statusColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(statusColor, in: Capsule())
+                    .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(statusColor.opacity(0.4), lineWidth: 0.5)
+                    )
                 if let elapsedSeconds {
                     Text("\(elapsedSeconds)s")
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -163,10 +168,10 @@ private struct SwarmLiveCardView: View {
                 if card.hasUnreadSinceCollapse && isCollapsed {
                     Text("new")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.info, in: Capsule())
+                        .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
                 }
                 Text("ops \(card.activeOpsCount)")
                     .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -209,7 +214,7 @@ private struct SwarmLiveCardView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.info)
+                .foregroundStyle(.secondary)
                 Spacer()
                 if card.status == .completed, let summary = card.summary {
                     Text(summary)
@@ -225,11 +230,11 @@ private struct SwarmLiveCardView: View {
             }
         }
         .padding(10)
-        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.22), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(
-                    (isSelected ? DesignSystem.Colors.info : statusColor).opacity(
+                    (isSelected ? .secondary : statusColor).opacity(
                         isSelected ? 0.9 : 0.25),
                     lineWidth: isSelected ? 1.2 : 0.8
                 )
@@ -297,7 +302,7 @@ private struct SwarmLiveCardView: View {
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.info)
+                .foregroundStyle(.secondary)
             }
 
             if expanded {
@@ -308,7 +313,10 @@ private struct SwarmLiveCardView: View {
                         .foregroundStyle(.secondary)
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                        .background(
+                            Color(nsColor: .controlBackgroundColor).opacity(0.35),
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
                         .textSelection(.enabled)
                 }
             }
@@ -317,10 +325,10 @@ private struct SwarmLiveCardView: View {
     }
 
     private func activityStatusColor(_ activity: TaskActivity) -> Color {
-        if activity.isRunning { return DesignSystem.Colors.warning }
+        if activity.isRunning { return .secondary }
         let t = activity.type.lowercased()
         if t.contains("failed") || t.contains("error") { return DesignSystem.Colors.error }
-        return DesignSystem.Colors.success
+        return .secondary
     }
 
     private func hasRaw(_ activity: TaskActivity) -> Bool {

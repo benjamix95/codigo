@@ -15,7 +15,10 @@ struct LiveActivityTimelineView: View {
     @State private var expandedIds: Set<UUID> = []
 
     private var visibleActivities: [TaskActivity] {
-        Array(activities.suffix(maxVisible))
+        activities
+            .filter { TaskActivityStore.isConcreteVisibleEvent($0) }
+            .suffix(maxVisible)
+            .map { $0 }
     }
 
     var body: some View {
@@ -25,10 +28,10 @@ struct LiveActivityTimelineView: View {
             }
         }
         .padding(8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.34), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
         )
     }
 
@@ -38,7 +41,7 @@ struct LiveActivityTimelineView: View {
             HStack(spacing: 7) {
                 Image(systemName: icon(for: activity))
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(color(for: activity))
+                    .foregroundStyle(.secondary)
                     .frame(width: 14)
                 Text(activity.title)
                     .font(.system(size: 11, weight: .medium))
@@ -80,7 +83,12 @@ struct LiveActivityTimelineView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.clear)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.border.opacity(0.35))
+                .frame(height: 0.5)
+        }
     }
 
     private func icon(for activity: TaskActivity) -> String {
@@ -89,17 +97,7 @@ struct LiveActivityTimelineView: View {
         case .editing: return "pencil"
         case .searching: return "magnifyingglass"
         case .planning: return "list.bullet.rectangle"
-        case .thinking: return "brain"
-        }
-    }
-
-    private func color(for activity: TaskActivity) -> Color {
-        switch activity.phase {
-        case .executing: return DesignSystem.Colors.warning
-        case .editing: return DesignSystem.Colors.agentColor
-        case .searching: return DesignSystem.Colors.info
-        case .planning: return DesignSystem.Colors.planColor
-        case .thinking: return .secondary
+        case .thinking: return "gearshape"
         }
     }
 

@@ -10,11 +10,11 @@ struct PlanChatCardView: View {
     let onExpandPlan: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Plan")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 HStack(spacing: 12) {
                     toolbarButton(icon: "arrow.down.to.line", help: "Download plan", action: onDownload)
@@ -45,25 +45,33 @@ struct PlanChatCardView: View {
             HStack {
                 Spacer()
                 Button(action: onExpandPlan) {
-                    Text("Expand plan")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(Color.white, in: Capsule())
+                    HStack(spacing: 6) {
+                        Text("Apri piano completo")
+                            .font(.system(size: 12, weight: .semibold))
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
+                    )
                 }
                 .buttonStyle(.plain)
                 Spacer()
             }
         }
-        .padding(18)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.28))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.6)
         )
     }
 

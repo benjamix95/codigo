@@ -109,6 +109,100 @@ func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {
     !isLoading && phase != .building
 }
 
+func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> String {
+    let orderedAnswers = submission.answers.sorted(by: { $0.questionId < $1.questionId })
+    let responseBody = orderedAnswers
+        .map { answer in
+            var lines: [String] = [
+                "\(answer.questionId). \(answer.question)",
+                "   Risposta selezionata: \(answer.optionId)) \(answer.optionText)",
+            ]
+            let custom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !custom.isEmpty {
+                lines.append("   Risposta personalizzata (precedenza): \(custom)")
+            }
+            return lines.joined(separator: "\n")
+        }
+        .joined(separator: "\n")
+
+    let finalNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+    return """
+    Risposte alle domande di chiarimento del piano:
+    \(responseBody)
+
+    Nota finale obbligatoria utente: \(finalNote)
+    """
+}
+
+func isPlanResumeBuild(canonicalTodos: [TodoItem]) -> Bool {
+    guard !canonicalTodos.isEmpty else { return false }
+    return canonicalTodos.contains(where: { $0.status == .done })
+}
+
+func buildPlanExecutionPrompt(
+    workflowInstructions: String,
+    executionPlanBase: String,
+    planTodos: [String],
+    canonicalTodos: [TodoItem]
+) -> (prompt: String, isResume: Bool) {
+    let isResume = isPlanResumeBuild(canonicalTodos: canonicalTodos)
+    if isResume {
+        let sortedPlanTodos = canonicalTodos.sorted { lhs, rhs in
+            if lhs.status.rank != rhs.status.rank { return lhs.status.rank < rhs.status.rank }
+            return lhs.updatedAt < rhs.updatedAt
+        }
+        let doneList = sortedPlanTodos
+            .filter { $0.status == .done }
+            .map { "- [x] \($0.title)" }
+            .joined(separator: "\n")
+        let pendingList = sortedPlanTodos
+            .filter { $0.status != .done }
+            .map { "- [ ] \($0.title)" }
+            .joined(separator: "\n")
+        let prompt = """
+        \(workflowInstructions)
+
+        **RIPRESA IMPLEMENTAZIONE** — Continua da dove hai lasciato.
+
+        \(executionPlanBase)
+
+        **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
+        \(doneList.isEmpty ? "(nessuno)" : doneList)
+
+        **Todo da completare:**
+        \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
+
+        Procedi verificando i done, riapplicando eventuali modifiche mancanti, poi completa i todo rimanenti.
+        """
+        return (prompt, true)
+    }
+
+    var prompt = "\(workflowInstructions)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo gli step indicati.\n\n\(executionPlanBase)"
+    if !planTodos.isEmpty {
+        let todoList = planTodos.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+        prompt += "\n\n**Todo da completare (in ordine):**\n\(todoList)"
+    }
+    return (prompt, false)
+}
+
+func shouldFallbackToPreferredProvider(
+    selectedProviderIsAuthenticated: Bool,
+    hasPreferredAuthenticatedFallback: Bool
+) -> Bool {
+    !selectedProviderIsAuthenticated && hasPreferredAuthenticatedFallback
+}
+
+func shouldResetPlanningStateAfterAutoPlanToggleReset(
+    planFlowPhase: PlanFlowPhase,
+    planningState: PlanningState
+) -> Bool {
+    guard planFlowPhase != .building else { return false }
+    if case .awaitingChoice = planningState {
+        return false
+    }
+    return true
+}
+
 func shouldSyncModeOnProviderChange(suppressForUserPicker: Bool) -> Bool {
     !suppressForUserPicker
 }
@@ -123,6 +217,56 @@ func shouldShowComposer(for mode: CoderMode) -> Bool {
 
 func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
     shouldShowComposer(for: mode)
+}
+
+struct AssistantTimelineRenderPolicy: Equatable {
+    let fallbackText: String
+    let pendingText: String?
+    let showFallback: Bool
+    let showPending: Bool
+}
+
+@MainActor
+func renderableAssistantText(_ raw: String) -> String {
+    ChatStore.stripCoderideMarkers(raw, aggressive: false)
+}
+
+@MainActor
+func assistantTimelineRenderPolicy(
+    fallbackContent: String,
+    pendingChunk: String?,
+    isLoading: Bool
+) -> AssistantTimelineRenderPolicy {
+    let normalizedFallback = renderableAssistantText(fallbackContent)
+    let normalizedPending = renderableAssistantText(pendingChunk ?? "")
+    let hasFallback = !normalizedFallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let hasPending = !normalizedPending.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let pendingText = hasPending ? normalizedPending : nil
+
+    if isLoading {
+        if hasFallback {
+            // Durante lo stream la risposta assistant principale resta sempre visibile in fondo.
+            return AssistantTimelineRenderPolicy(
+                fallbackText: normalizedFallback,
+                pendingText: pendingText,
+                showFallback: true,
+                showPending: false
+            )
+        }
+        return AssistantTimelineRenderPolicy(
+            fallbackText: normalizedFallback,
+            pendingText: pendingText,
+            showFallback: false,
+            showPending: hasPending
+        )
+    }
+
+    return AssistantTimelineRenderPolicy(
+        fallbackText: normalizedFallback,
+        pendingText: pendingText,
+        showFallback: false,
+        showPending: hasPending
+    )
 }
 
 struct PlanCommandParseResult: Equatable {
@@ -283,7 +427,6 @@ struct ChatPanelView: View {
     @EnvironmentObject var swarmProgressStore: SwarmProgressStore
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
-    @EnvironmentObject var flowDiagnosticsStore: FlowDiagnosticsStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @Binding var selectedConversationId: UUID?
@@ -297,7 +440,7 @@ struct ChatPanelView: View {
     @AppStorage("codex_sandbox") private var codexSandbox = ""
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
-    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "xhigh"
+    @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
@@ -325,7 +468,7 @@ struct ChatPanelView: View {
     @State private var codexModels: [CodexModel] = []
     @State private var geminiModels: [GeminiModel] = []
     @State private var showSwarmHelp = false
-    @AppStorage("task_panel_enabled") private var taskPanelEnabled = false
+    @AppStorage("task_panel_enabled") private var taskPanelEnabled = true
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "sonnet"
@@ -337,6 +480,7 @@ struct ChatPanelView: View {
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
     @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
+    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
     @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
@@ -364,9 +508,14 @@ struct ChatPanelView: View {
     @State private var suppressModeSyncForNextProviderChange = false
     @State private var ignoreNextConversationChangeReset = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
+    @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
     @StateObject private var turnTimelineStore = TurnTimelineStore()
     @State private var timelineConversationId: UUID?
-    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
+    @State private var pendingTaskActivities: [TaskActivity] = []
+    @State private var pendingInstantGreps: [InstantGrepResult] = []
+    @State private var taskFlushWorkItem: DispatchWorkItem?
+    @State private var autoScrollWorkItem: DispatchWorkItem?
+    @State private var fallbackTurnStartWorkItem: DispatchWorkItem?
     private let checkpointGitStore = ConversationCheckpointGitStore()
     private let cliAccountsStore = CLIAccountsStore.shared
     private let cliAccountRouter = CLIAccountRouter.shared
@@ -386,10 +535,16 @@ struct ChatPanelView: View {
     private var supportsInlineTimelineMode: Bool {
         coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
     }
-    private var hasTaskPanelContent: Bool {
-        !taskActivityStore.activities.isEmpty
-            || !taskActivityStore.instantGreps.isEmpty
-            || !todoStore.todos.isEmpty
+    private var shouldShowTaskPanelTodoSection: Bool {
+        let planFlowActive =
+            coderMode == .plan
+            || planToggleEnabled
+            || planFlowPhase == .discovery
+            || planFlowPhase == .awaitingClarification
+            || planFlowPhase == .proposalReady
+            || planFlowPhase == .readyToBuild
+            || planFlowPhase == .building
+        return !planFlowActive
     }
     private var showsSwarmViewOnly: Bool { shouldShowSwarmViewOnly(for: coderMode) }
     private var planPanelConversationId: UUID? { conversationId }
@@ -515,6 +670,9 @@ struct ChatPanelView: View {
             installPasteMonitor()
         }
         .onDisappear {
+            taskFlushWorkItem?.cancel()
+            autoScrollWorkItem?.cancel()
+            flushPendingTaskActivities()
             removePasteMonitor()
         }
         .onReceive(NotificationCenter.default.publisher(for: Self.imagePastedNotification)) {
@@ -559,6 +717,9 @@ struct ChatPanelView: View {
             onCustomResponse: { response in
                 executeWithPlanChoice(response, fromPlanConversationId: planPanelConversationId)
             },
+            onSubmitClarificationAnswers: { answers in
+                submitPlanClarificationAnswers(answers)
+            },
             onBuild: { choice, providerId, allowIdleRebuild in
                 executeWithPlanChoice(
                     choice,
@@ -583,17 +744,25 @@ struct ChatPanelView: View {
                     activities: taskActivityStore.activities,
                     isTaskRunning: chatStore.isLoading
                 )
-                if !taskActivityStore.activities.isEmpty || !todoStore.todos.isEmpty {
-                    TaskActivityPanel(
-                        chatStore: chatStore,
-                        taskActivityStore: taskActivityStore,
-                        todoStore: todoStore,
-                        coderMode: coderMode,
-                        onOpenFile: { openFilesStore.openFile($0) },
-                        effectivePrimaryPath: effectiveContext.primaryPath
-                    )
+                if taskPanelEnabled {
+                    if !taskActivityStore.concreteRecentActivities(limit: 1).isEmpty || !todoStore.todos.isEmpty {
+                        TaskActivityPanel(
+                            chatStore: chatStore,
+                            taskActivityStore: taskActivityStore,
+                            todoStore: todoStore,
+                            coderMode: coderMode,
+                            onOpenFile: { openFilesStore.openFile($0) },
+                            effectivePrimaryPath: effectiveContext.primaryPath,
+                            showTodoSection: shouldShowTaskPanelTodoSection
+                        )
+                    } else {
+                        Text("Nessuna attività swarm disponibile.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(16)
+                    }
                 } else {
-                    Text("Nessuna attività swarm disponibile.")
+                    Text("Pannello attività swarm nascosto.")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(16)
@@ -738,7 +907,6 @@ struct ChatPanelView: View {
             do {
                 try entry.markdown.write(to: url, atomically: true, encoding: .utf8)
             } catch {
-                flowDiagnosticsStore.setError("Download plan fallito: \(error.localizedDescription)")
             }
         }
     }
@@ -832,33 +1000,28 @@ struct ChatPanelView: View {
 
     @ViewBuilder
     private func assistantTimelineView(
-        fallbackContent: String,
-        streamingStatusText: String,
-        streamingReasoningText: String?
+        fallbackContent: String
     ) -> some View {
-        let fallback = fallbackContent.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasAssistantTextSegment = turnTimelineStore.segments.contains { segment in
-            if case .assistantText(let text, _) = segment {
-                let visible = ChatStore.stripCoderideMarkers(text)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                return !visible.isEmpty
-            }
-            return false
-        }
+        let renderPolicy = assistantTimelineRenderPolicy(
+            fallbackContent: fallbackContent,
+            pendingChunk: turnTimelineStore.pendingStreamingChunk,
+            isLoading: chatStore.isLoading
+        )
         VStack(alignment: .leading, spacing: 12) {
             ForEach(turnTimelineStore.segments) { segment in
                 switch segment {
                 case .assistantText(let text, _):
-                    AssistantTextChunkView(
-                        text: text,
-                        modeColor: activeModeColor,
-                        context: effectiveContext.context,
-                        onFileClicked: { openFilesStore.openFile($0) }
-                    )
-                case .thinking(let activity):
-                    ThinkingCardView(activity: activity, modeColor: activeModeColor)
-                case .tool(let activity):
-                    ToolExecutionCardView(activity: activity, modeColor: activeModeColor)
+                    if !chatStore.isLoading {
+                        AssistantTextChunkView(
+                            text: text,
+                            modeColor: activeModeColor,
+                            context: effectiveContext.context,
+                            onFileClicked: { openFilesStore.openFile($0) },
+                            isStreaming: false
+                        )
+                    }
+                case .step(let activity):
+                    StepByStepRowView(activity: activity, modeColor: activeModeColor)
                 case .todoSnapshot:
                     TodoTimelineCardView(
                         todoStore: todoStore,
@@ -867,138 +1030,59 @@ struct ChatPanelView: View {
                     )
                 }
             }
-            if let pending = turnTimelineStore.pendingStreamingChunk {
+            if renderPolicy.showFallback {
+                AssistantTextChunkView(
+                    text: renderPolicy.fallbackText,
+                    modeColor: activeModeColor,
+                    context: effectiveContext.context,
+                    onFileClicked: { openFilesStore.openFile($0) },
+                    isStreaming: chatStore.isLoading
+                )
+            }
+            if renderPolicy.showPending, let pending = renderPolicy.pendingText {
                 AssistantTextChunkView(
                     text: pending,
                     modeColor: activeModeColor,
                     context: effectiveContext.context,
-                    onFileClicked: { openFilesStore.openFile($0) }
+                    onFileClicked: { openFilesStore.openFile($0) },
+                    isStreaming: chatStore.isLoading
                 )
-            } else if !fallback.isEmpty && (!hasAssistantTextSegment || chatStore.isLoading) {
-                // Durante lo stream mostra sempre il testo assistant disponibile,
-                // anche se sono già presenti segmenti tecnici (thinking/tool).
-                AssistantTextChunkView(
-                    text: fallback,
-                    modeColor: activeModeColor,
-                    context: effectiveContext.context,
-                    onFileClicked: { openFilesStore.openFile($0) }
-                )
-            } else if chatStore.isLoading && turnTimelineStore.segments.isEmpty {
-                // Evita area completamente vuota quando non è ancora arrivato testo visibile.
-                timelineStreamingPlaceholder(statusText: streamingStatusText)
-            }
-            if let reasoning = streamingReasoningText, !reasoning.isEmpty {
-                timelineReasoningStream(reasoning: reasoning)
-            }
-            if chatStore.isLoading {
-                RealtimeOperationsStripView(activities: taskActivityStore.activities)
             }
         }
-    }
-
-    private func timelineReasoningStream(reasoning: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "brain")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(activeModeColor.opacity(0.8))
-                Text("Ragionamento")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(reasoning)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-            }
-            .frame(maxHeight: 200)
-            .padding(8)
-            .background(
-                Color.primary.opacity(0.06),
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-        }
-        .frame(maxWidth: 760, alignment: .leading)
-    }
-
-    private func timelineStreamingPlaceholder(statusText: String) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "brain")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(activeModeColor.opacity(0.8))
-            StreamingDots(color: activeModeColor)
-            Text(statusText)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .frame(maxWidth: 760, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(activeModeColor.opacity(0.25), lineWidth: 0.6)
-        )
     }
 
     // MARK: - Messages Area
     private var messagesArea: some View {
         ScrollViewReader { proxy in
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     if let conv = chatStore.conversation(for: conversationId) {
                         let messages = conv.messages
                         let lastMsg = messages.last
-                        let taskDone = !chatStore.isLoading
-                        let showPanelBeforeLast =
-                            coderMode == .agent
-                            && taskDone
-                            && lastMsg?.role == .assistant
-                            && taskPanelEnabled
-                            && hasTaskPanelContent
 
                         ForEach(Array(messages.enumerated()), id: \.element.id) { item in
                             let index = item.offset
                             let message = item.element
                             let isLast = message.id == lastMsg?.id
                             let isLastAssistant = lastMsg?.role == .assistant && isLast
-                            let assistantTextVisible =
-                                !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            let disableInlineTimelineForCodex = providerRegistry.selectedProviderId == "codex-cli"
                             let useTimeline =
                                 isLastAssistant
                                 && chatStore.isLoading
                                 && supportsInlineTimelineMode
                                 && conv.id == timelineConversationId
-                                && !assistantTextVisible
+                                && !disableInlineTimelineForCodex
                             let userMessageCheckpoint = message.role == .user
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
                             let hasCheckpointForMessage = userMessageCheckpoint != nil
                             let canRewindFromMessage = message.role == .user && !isRewinding
 
-                            if isLast && showPanelBeforeLast {
-                                TaskActivityPanel(
-                                    chatStore: chatStore,
-                                    taskActivityStore: taskActivityStore,
-                                    todoStore: todoStore,
-                                    coderMode: coderMode,
-                                    onOpenFile: { openFilesStore.openFile($0) },
-                                    effectivePrimaryPath: effectiveContext.primaryPath
-                                )
-                                .id("chat-task-status-pre")
-                            }
-
                             HStack(alignment: .top, spacing: 0) {
                                 if message.role == .user { Spacer(minLength: 0) }
                                 if useTimeline {
                                     assistantTimelineView(
-                                        fallbackContent: message.content,
-                                        streamingStatusText: streamingStatusText(for: message),
-                                        streamingReasoningText: streamingReasoningText(for: message)
+                                        fallbackContent: message.content
                                     )
                                 } else if message.role == .assistant,
                                     let attachment = message.planAttachment,
@@ -1040,7 +1124,6 @@ struct ChatPanelView: View {
                                         isActuallyLoading: chatStore.isLoading,
                                         streamingStatusText: streamingStatusText(for: message),
                                         streamingDetailText: streamingDetailText(for: message),
-                                        streamingReasoningText: streamingReasoningText(for: message),
                                         onFileClicked: { openFilesStore.openFile($0) },
                                         onRestoreCheckpoint: message.role == .user
                                             ? { rewindToMessage(at: index, conversationId: conv.id) }
@@ -1083,48 +1166,13 @@ struct ChatPanelView: View {
                             .padding(.bottom, 8)
                             .id("plan-board")
                         }
-                        if (coderMode == .plan || planToggleEnabled),
-                            case .awaitingClarification(let questions) = planningState
+                        if flowDiagnosticsEnabled,
+                            let snapshot = flowDiagnosticsStore.snapshot(for: conv.id)
                         {
-                            PlanClarificationView(questions: questions, planColor: DesignSystem.Colors.planColor)
-                                .id("plan-clarification")
-                        }
-                        if (coderMode == .plan || planToggleEnabled),
-                            case .awaitingChoice(_, let options) = planningState
-                        {
-                            PlanOptionsView(
-                                options: options,
-                                planColor: DesignSystem.Colors.planColor,
-                                onSelectOption: { executeWithPlanChoice($0.fullText) },
-                                onCustomResponse: { executeWithPlanChoice($0) }
-                            )
-                            .id("plan-options")
-                        }
-                        // Activity panel (expandable sections in scroll)
-                        // Nascondi quando la timeline inline è attiva (mode supportate, in streaming)
-                        let timelineActive =
-                            supportsInlineTimelineMode
-                            && chatStore.isLoading
-                            && conv.id == timelineConversationId
-                        if !timelineActive
-                            && !showPanelBeforeLast
-                            && taskPanelEnabled
-                            && hasTaskPanelContent
-                        {
-                            TaskActivityPanel(
-                                chatStore: chatStore,
-                                taskActivityStore: taskActivityStore,
-                                todoStore: todoStore,
-                                coderMode: coderMode,
-                                onOpenFile: { openFilesStore.openFile($0) },
-                                effectivePrimaryPath: effectiveContext.primaryPath
-                            )
-                            .id("chat-task-status")
-                        }
-                        if flowDiagnosticsEnabled {
-                            flowDiagnosticsCard
+                            diagnosticsCard(snapshot)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
+                                .id("flow-diagnostics-card")
                         }
                     }
                 }
@@ -1161,36 +1209,28 @@ struct ChatPanelView: View {
                 if let last = chatStore.conversation(for: conversationId)?.messages.last,
                     isFollowingLive
                 {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                    scheduleAutoScroll(proxy: proxy, target: last.id)
                 }
             }
             .onChange(of: planningState) { _, new in
                 if case .awaitingChoice = new {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo("plan-options", anchor: .bottom)
-                    }
+                    scheduleAutoScroll(proxy: proxy, target: "plan-options", animated: true, delay: 0)
                 } else if case .awaitingClarification = new {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo("plan-clarification", anchor: .bottom)
-                    }
+                    scheduleAutoScroll(
+                        proxy: proxy,
+                        target: "plan-clarification",
+                        animated: true,
+                        delay: 0
+                    )
                 }
             }
             .onChange(of: chatStore.isLoading) { _, loading in
                 if loading {
-                    let timelineActive =
-                        supportsInlineTimelineMode
-                        && chatStore.isLoading
-                        && conversationId == timelineConversationId
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        if timelineActive, let last = chatStore.conversation(for: conversationId)?.messages.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        } else {
-                            proxy.scrollTo("chat-task-status", anchor: .bottom)
-                        }
+                    if let target = liveScrollTarget() {
+                        scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
                     }
                 } else {
+                    cancelFallbackTurnStartEvent()
                     timelineConversationId = nil
                 }
             }
@@ -1198,26 +1238,14 @@ struct ChatPanelView: View {
                 if chatStore.isLoading, supportsInlineTimelineMode, isFollowingLive,
                     let last = chatStore.conversation(for: conversationId)?.messages.last
                 {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
+                    scheduleAutoScroll(proxy: proxy, target: last.id)
                 }
             }
             .onChange(of: taskActivityStore.activities.count) { _, _ in
                 if chatStore.isLoading {
                     if isFollowingLive {
-                        let timelineActive =
-                            supportsInlineTimelineMode
-                            && chatStore.isLoading
-                            && conversationId == timelineConversationId
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            if timelineActive,
-                                let last = chatStore.conversation(for: conversationId)?.messages.last
-                            {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            } else {
-                                proxy.scrollTo("chat-task-status", anchor: .bottom)
-                            }
+                        if let target = liveScrollTarget() {
+                            scheduleAutoScroll(proxy: proxy, target: target)
                         }
                     } else {
                         newEventsWhileDetached += 1
@@ -1236,14 +1264,8 @@ struct ChatPanelView: View {
                     Button {
                         isFollowingLive = true
                         newEventsWhileDetached = 0
-                        if let last = chatStore.conversation(for: conversationId)?.messages.last {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
-                        } else {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                proxy.scrollTo("chat-task-status", anchor: .bottom)
-                            }
+                        if let target = liveScrollTarget() {
+                            scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
                         }
                         taskActivityStore.markLiveEventsSeen()
                     } label: {
@@ -1274,6 +1296,75 @@ struct ChatPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private func enableTaskPanelIfNeeded() {
+        guard coderMode == .agentSwarm else { return }
+        if !taskPanelEnabled {
+            taskPanelEnabled = true
+        }
+    }
+
+    private func scheduleFallbackTurnStartEvent(conversationId: UUID, providerId: String) {
+        fallbackTurnStartWorkItem?.cancel()
+        let work = DispatchWorkItem {
+            Task { @MainActor in
+                guard chatStore.isLoading else { return }
+                guard timelineConversationId == conversationId else { return }
+                guard taskActivityStore.activities.isEmpty else { return }
+                recordTaskActivity(
+                    type: "turn_started",
+                    payload: [
+                        "title": "Turno avviato",
+                        "detail": "Esecuzione richiesta in corso",
+                        "status": "started",
+                        "group_id": "ui-fallback-\(conversationId.uuidString)",
+                    ],
+                    providerId: providerId
+                )
+            }
+        }
+        fallbackTurnStartWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+    }
+
+    private func cancelFallbackTurnStartEvent() {
+        fallbackTurnStartWorkItem?.cancel()
+        fallbackTurnStartWorkItem = nil
+    }
+
+    private func liveScrollTarget() -> AnyHashable? {
+        let timelineActive =
+            supportsInlineTimelineMode
+            && chatStore.isLoading
+            && conversationId == timelineConversationId
+        if timelineActive, let last = chatStore.conversation(for: conversationId)?.messages.last {
+            return AnyHashable(last.id)
+        }
+        if let last = chatStore.conversation(for: conversationId)?.messages.last {
+            return AnyHashable(last.id)
+        }
+        return nil
+    }
+
+    private func scheduleAutoScroll(
+        proxy: ScrollViewProxy,
+        target: AnyHashable,
+        animated: Bool = false,
+        delay: TimeInterval = 0.08
+    ) {
+        autoScrollWorkItem?.cancel()
+        let work = DispatchWorkItem {
+            if animated {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    proxy.scrollTo(target, anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo(target, anchor: .bottom)
+            }
+        }
+        autoScrollWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
     private func interruptTask() {
         let scope: ExecutionScope = {
             switch coderMode {
@@ -1299,6 +1390,7 @@ struct ChatPanelView: View {
                     : cur + "\n\n[Interrotto dall'utente]", in: cid)
             chatStore.setLastAssistantStreaming(false, in: cid)
         }
+        cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: timelineConversationId ?? conversationId)
         activeBuildPlanConversationId = nil
         if planFlowPhase == .building {
@@ -1308,6 +1400,7 @@ struct ChatPanelView: View {
 
     @MainActor
     private func recordTaskActivity(type: String, payload: [String: String], providerId: String) {
+        cancelFallbackTurnStartEvent()
         let envelope = flowCoordinator.normalizeRawEvent(
             providerId: providerId, type: type, payload: payload)
         taskActivityStore.addEnvelope(envelope)
@@ -1317,132 +1410,106 @@ struct ChatPanelView: View {
                 .messages.last(where: { $0.role == .assistant })?.content ?? ""
             turnTimelineStore.commitText(from: lastContent)
         }
-        if flowDiagnosticsEnabled {
-            flowDiagnosticsStore.push(
-                providerId: providerId,
-                eventType: "\(envelope.kind.rawValue):\(type)",
-                summary: payload["title"] ?? payload["detail"] ?? type
-            )
-        }
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
-                if flowDiagnosticsEnabled {
-                    let owner = SwarmLiveReducer.ownerSwarmId(
-                        for: activity, includeOrchestratorFallback: true)
-                    flowDiagnosticsStore.recordSwarmRouting(
-                        assignedToSwarm: owner != nil && owner != "orchestrator",
-                        fallbackToOrchestrator: owner == "orchestrator"
-                    )
-                }
-                // Usage è metadata (token), non va in timeline—creerebbe un card vuoto
-                if timelineConversationId != nil, activity.type != "usage" {
+                if timelineConversationId != nil,
+                    TaskActivityStore.isConcreteVisibleEvent(activity)
+                {
                     turnTimelineStore.appendActivity(activity)
                 }
-                // Auto-show panel per tutte le operazioni concrete (non solo terminale/web)
-                let shouldAutoShow =
-                    activity.type != "usage"
-                    && (
-                        activity.type == "command_execution"
-                            || activity.type == "bash"
-                            || activity.type == "web_search_started"
-                            || activity.type == "web_search_completed"
-                            || activity.type == "web_search_failed"
-                            || activity.type == "read_batch_started"
-                            || activity.type == "read_batch_completed"
-                            || activity.type == "mcp_tool_call"
-                            || activity.type == "file_change"
-                            || activity.type == "edit"
-                            || activity.type == "reasoning"
-                            || activity.type == "process_paused"
-                            || activity.type == "process_resumed"
-                    )
-                if shouldAutoShow {
-                    taskPanelEnabled = true
-                }
-                if activity.type == "read_batch_started" || activity.type == "read_batch_completed"
-                    || activity.type == "web_search_started"
-                    || activity.type == "web_search_completed"
-                    || activity.type == "web_search_failed" || activity.type == "command_execution"
-                    || activity.type == "bash" || activity.type == "mcp_tool_call"
-                    || activity.type == "reasoning"
-                {
-                    if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
-                        taskActivityStore.addActivity(activity)
-                    } else {
-                        taskActivityStore.appendOrMergeBatchEvent(activity)
-                    }
-                } else {
-                    taskActivityStore.addActivity(activity)
-                }
+                enqueueTaskActivity(activity)
             case .instantGrep(let grep):
-                taskPanelEnabled = true
-                taskActivityStore.addInstantGrep(grep)
+                enableTaskPanelIfNeeded()
+                pendingInstantGreps.append(grep)
+                scheduleTaskActivityFlush()
             case .todoWrite(let todo):
-                taskPanelEnabled = true
+                enableTaskPanelIfNeeded()
                 if timelineConversationId != nil {
                     turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
                 }
-                todoStore.upsertFromAgent(
-                    id: todo.id,
-                    title: todo.title,
-                    status: todo.status,
-                    priority: todo.priority,
-                    notes: todo.notes,
-                    linkedFiles: todo.files
-                )
+                if planFlowPhase == .building {
+                    _ = todoStore.upsertCanonicalOnlyFromAgent(
+                        id: todo.id,
+                        title: todo.title,
+                        status: todo.status,
+                        priority: todo.priority,
+                        notes: todo.notes,
+                        linkedFiles: todo.files
+                    )
+                } else {
+                    todoStore.upsertFromAgent(
+                        id: todo.id,
+                        title: todo.title,
+                        status: todo.status,
+                        priority: todo.priority,
+                        notes: todo.notes,
+                        linkedFiles: todo.files
+                    )
+                }
             case .todoRead:
-                taskPanelEnabled = true
+                enableTaskPanelIfNeeded()
                 if timelineConversationId != nil {
                     turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
                 }
                 break
-            case .planStepUpdate(let stepId, let status):
+            case .planStepUpdate(let stepId, let status, let stepTitle):
                 let targetId = timelineConversationId ?? conversationId
-                chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: targetId)
+                chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
-                    chatStore.updatePlanStepStatus(stepId: stepId, status: status, in: sourcePlanId)
+                    chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
+                }
+                if !showPlanPanel {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var flowDiagnosticsCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Flow Diagnostics")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(flowCoordinator.state.rawValue)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            Text("Provider selezionato: \(providerRegistry.selectedProviderId ?? "-")")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-            if let err = flowDiagnosticsStore.lastError, !err.isEmpty {
-                Text("Errore: \(err)")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.red)
-            }
-            Text(
-                "Swarm events: recv \(flowDiagnosticsStore.swarmEventsReceived) • assigned \(flowDiagnosticsStore.swarmEventsAssigned) • fallback \(flowDiagnosticsStore.swarmEventsFallback)"
-            )
-            .font(.system(size: 10, design: .monospaced))
-            .foregroundStyle(.tertiary)
-            ForEach(flowDiagnosticsStore.entries.prefix(5)) { entry in
-                Text("[\(entry.providerId)] \(entry.eventType) • \(entry.summary)")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+    @MainActor
+    private func enqueueTaskActivity(_ activity: TaskActivity) {
+        pendingTaskActivities.append(activity)
+        scheduleTaskActivityFlush()
+    }
+
+    @MainActor
+    private func scheduleTaskActivityFlush() {
+        taskFlushWorkItem?.cancel()
+        let work = DispatchWorkItem { @MainActor in
+            flushPendingTaskActivities()
+        }
+        taskFlushWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+    }
+
+    @MainActor
+    private func flushPendingTaskActivities() {
+        guard !pendingTaskActivities.isEmpty || !pendingInstantGreps.isEmpty else { return }
+        let activities = pendingTaskActivities
+        let greps = pendingInstantGreps
+        pendingTaskActivities.removeAll(keepingCapacity: true)
+        pendingInstantGreps.removeAll(keepingCapacity: true)
+
+        for activity in activities {
+            if activity.type == "read_batch_started" || activity.type == "read_batch_completed"
+                || activity.type == "web_search_started"
+                || activity.type == "web_search_completed"
+                || activity.type == "web_search_failed" || activity.type == "command_execution"
+                || activity.type == "bash" || activity.type == "mcp_tool_call"
+            {
+                if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
+                    taskActivityStore.addActivity(activity)
+                } else {
+                    taskActivityStore.appendOrMergeBatchEvent(activity)
+                }
+            } else {
+                taskActivityStore.addActivity(activity)
             }
         }
-        .padding(8)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.45),
-            in: RoundedRectangle(cornerRadius: 8))
+
+        for grep in greps {
+            taskActivityStore.addInstantGrep(grep)
+        }
     }
 
     // MARK: - Composer
@@ -1516,6 +1583,7 @@ struct ChatPanelView: View {
                 onSyncSwarmProvider: syncSwarmProvider,
                 onSyncPlanProvider: syncPlanProvider,
                 onSyncOpenRouterProvider: syncOpenRouterProvider,
+                onSyncToolRuntimePolicy: syncToolRuntimePolicy,
                 onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
                 onDelegateToAgent: delegateToAgent,
                 onOpenPlanPanel: { openPlanPanelForCurrentContext() },
@@ -1566,9 +1634,21 @@ struct ChatPanelView: View {
 
     private func reconcilePlanAutoReset() {
         guard planToggleEnabled else { return }
+        // Se l'utente sta ancora componendo un comando /plan, non spegnere il toggle.
+        let trimmedInput = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hasStrictPlanCommandPrefix(trimmedInput) else { return }
         guard !todoStore.hasOpenTodos else { return }
         guard !chatStore.isAssistantStreaming(in: conversationId) else { return }
         planToggleEnabled = false
+        if shouldResetPlanningStateAfterAutoPlanToggleReset(
+            planFlowPhase: planFlowPhase,
+            planningState: planningState
+        ) {
+            planningState = .idle
+            if planFlowPhase != .proposalReady && planFlowPhase != .readyToBuild {
+                planFlowPhase = .idle
+            }
+        }
         taskActivityStore.markPlanningAutoCompletedIfNeeded()
     }
 
@@ -1701,7 +1781,7 @@ struct ChatPanelView: View {
                 prompt:
                     """
                     Focus su flussi realtime della review:
-                    - stream thinking visibile,
+                    - stream step-by-step visibile,
                     - card read/tool/terminal aggiornate live,
                     - todo coerente e senza glitch layout.
                     Correggi i problemi trovati e valida con test/build.
@@ -1918,6 +1998,44 @@ struct ChatPanelView: View {
         checkProviderAuth()
     }
 
+    private func syncToolRuntimePolicy() {
+        let cfg = providerFactoryConfig()
+        let codex = ProviderFactory.codexProvider(
+            config: cfg, executionController: executionController)
+        reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
+
+        if !cfg.openrouterApiKey.isEmpty {
+            let p = ProviderFactory.openRouterAPIProvider(
+                config: cfg, executionController: executionController)
+            reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
+        }
+        if !cfg.openaiApiKey.isEmpty {
+            let p = ProviderFactory.openAIAPIProvider(
+                config: cfg, executionController: executionController)
+            reregisterProviderPreservingSelection(id: "openai-api", provider: p)
+        }
+        if !cfg.anthropicApiKey.isEmpty {
+            let p = ProviderFactory.anthropicAPIProvider(
+                config: cfg, executionController: executionController)
+            reregisterProviderPreservingSelection(id: "anthropic-api", provider: p)
+        }
+        if !cfg.googleApiKey.isEmpty {
+            let p = ProviderFactory.googleAPIProvider(
+                config: cfg, executionController: executionController)
+            reregisterProviderPreservingSelection(id: "google-api", provider: p)
+        }
+        if !cfg.minimaxApiKey.isEmpty {
+            let p = ProviderFactory.miniMaxAPIProvider(
+                config: cfg, executionController: executionController)
+            reregisterProviderPreservingSelection(id: "minimax-api", provider: p)
+        }
+
+        syncSwarmProvider()
+        syncPlanProvider()
+        checkProviderAuth()
+        persistCodexConfigToToml()
+    }
+
     private func reregisterProviderPreservingSelection(id: String, provider: any LLMProvider) {
         let wasSelected = providerRegistry.selectedProviderId == id
         providerRegistry.unregister(id: id)
@@ -2125,7 +2243,7 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Plan Choice Execution
-    private func resolvePreferredRealProvider() -> (any LLMProvider)? {
+    private func preferredRealProvider() -> (any LLMProvider)? {
         if let selectedId = providerRegistry.selectedProviderId,
            ProviderSupport.isPlanBuildExecutionCapableProvider(id: selectedId, registry: providerRegistry),
            let selected = providerRegistry.provider(for: selectedId),
@@ -2138,12 +2256,49 @@ struct ChatPanelView: View {
         }) {
             return fallback
         }
+        return nil
+    }
+
+    private func resolvePreferredRealProvider() -> (any LLMProvider)? {
+        if let provider = preferredRealProvider() {
+            return provider
+        }
         appendTechnicalErrorMessage(
             "[Provider] Nessun provider execution-capable autenticato disponibile.",
             in: conversationId
         )
-        flowDiagnosticsStore.setError("Nessun provider execution-capable autenticato")
         return nil
+    }
+
+    @MainActor
+    private func submitPlanClarificationAnswers(_ submission: PlanClarificationSubmission) {
+        let orderedAnswers = submission.answers.sorted(by: { $0.questionId < $1.questionId })
+        guard !orderedAnswers.isEmpty else { return }
+        let finalMandatoryNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !finalMandatoryNote.isEmpty else { return }
+        let normalizedAnswers = orderedAnswers.map { answer in
+            let normalizedCustom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return PlanClarificationAnswer(
+                questionId: answer.questionId,
+                question: answer.question,
+                optionId: answer.optionId,
+                optionText: answer.optionText,
+                customResponse: (normalizedCustom?.isEmpty == false) ? normalizedCustom : nil
+            )
+        }
+        let prompt = buildPlanClarificationPrompt(
+            PlanClarificationSubmission(
+                answers: normalizedAnswers,
+                finalMandatoryNote: finalMandatoryNote
+            )
+        )
+
+        if coderMode == .agent {
+            planToggleEnabled = true
+        }
+        inputText = prompt
+        isInputFocused = false
+        sendMessage()
     }
 
     private func executeWithPlanChoice(
@@ -2153,7 +2308,6 @@ struct ChatPanelView: View {
         allowIdleRebuild: Bool = false
     ) {
         guard canStartPlanBuild(isLoading: chatStore.isLoading, phase: planFlowPhase) else {
-            flowDiagnosticsStore.setError("Build plan già in esecuzione")
             return
         }
         guard canExecutePlanBuild(
@@ -2165,7 +2319,17 @@ struct ChatPanelView: View {
                 "[Plan] Build non disponibile: completa discovery/chiarimenti e genera un piano valido prima di eseguire.",
                 in: conversationId
             )
-            flowDiagnosticsStore.setError("Plan build bloccata: fase \(planFlowPhase)")
+            return
+        }
+        let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
+        guard !planTodos.isEmpty else {
+            appendTechnicalErrorMessage(
+                "[Plan] Build bloccata: l'opzione selezionata non contiene la sezione ## Todo.",
+                in: conversationId
+            )
+            if !showPlanPanel {
+                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+            }
             return
         }
         let planConversationId = explicitPlanConversationId ?? conversationId
@@ -2177,7 +2341,6 @@ struct ChatPanelView: View {
                     "[Plan] Provider non valido per il build (\(overrideId)).",
                     in: conversationId
                 )
-                flowDiagnosticsStore.setError("Plan override non consentito: \(overrideId)")
                 return
             }
             guard isPlanBuildExecutionCapableProvider(overrideId, registry: providerRegistry) else {
@@ -2185,7 +2348,6 @@ struct ChatPanelView: View {
                     "[Plan] Provider non idoneo al build operativo (\(overrideId)). Seleziona un provider execution-capable.",
                     in: conversationId
                 )
-                flowDiagnosticsStore.setError("Plan override non execution-capable: \(overrideId)")
                 return
             }
             if let overrideProvider = providerRegistry.provider(for: overrideId) {
@@ -2196,7 +2358,6 @@ struct ChatPanelView: View {
                         "[Plan] Provider selezionato nel pannello non autenticato (\(overrideProvider.displayName)). Uso provider reale di fallback.",
                         in: conversationId
                     )
-                    flowDiagnosticsStore.setError("Plan override non autenticato: \(overrideId)")
                     guard let backendProvider = resolvePreferredRealProvider() else {
                         return
                     }
@@ -2207,7 +2368,6 @@ struct ChatPanelView: View {
                     "[Plan] Provider selezionato nel pannello non disponibile (\(overrideId)). Uso provider reale di fallback.",
                     in: conversationId
                 )
-                flowDiagnosticsStore.setError("Plan override non disponibile: \(overrideId)")
                 guard let backendProvider = resolvePreferredRealProvider() else {
                     return
                 }
@@ -2237,7 +2397,6 @@ struct ChatPanelView: View {
         } catch {
             appendTechnicalErrorMessage(
                 "[Errore checkpoint: \(error.localizedDescription)]", in: conversationId)
-            flowDiagnosticsStore.setError(error.localizedDescription)
             return
         }
 
@@ -2245,11 +2404,9 @@ struct ChatPanelView: View {
         planFlowPhase = .readyToBuild
         chatStore.choosePlanPath(choice, for: planConversationId)
 
-        let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
         todoStore.upsertCanonicalPlanTodos(planTodos)
         let canonicalTodos = todoStore.todos.filter { $0.isPlanCanonical }
-        let doneTodos = canonicalTodos.filter { $0.status == .done }
-        let isResume = !doneTodos.isEmpty && !canonicalTodos.isEmpty
+        let isResume = isPlanResumeBuild(canonicalTodos: canonicalTodos)
 
         if let selected = planHistoryStore.selectedEntryId {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
@@ -2272,9 +2429,11 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
         chatStore.beginTask(conversationId: agentConvId)
+        flowDiagnosticsStore.reset(for: agentConvId)
         taskActivityStore.clear()
         turnTimelineStore.clear()
         timelineConversationId = agentConvId
+        scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
         if !todoStore.todos.isEmpty {
             turnTimelineStore.appendTodoSnapshot(placeAtTop: true)
         }
@@ -2301,43 +2460,12 @@ struct ChatPanelView: View {
             executionPlanBase = "**Piano da implementare:**\n\(choice)"
         }
 
-        var prompt: String
-        if isResume {
-            let planTodoItems = todoStore.sortedCanonicalFirstTodos(
-                todoStore.todos.filter { $0.isPlanCanonical }
-            )
-            let doneList = planTodoItems
-                .filter { $0.status == .done }
-                .sorted { $0.updatedAt < $1.updatedAt }
-                .map { "- [x] \($0.title)" }
-                .joined(separator: "\n")
-            let pendingList = planTodoItems
-                .filter { $0.status != .done }
-                .sorted { $0.status.rank < $1.status.rank }
-                .map { "- [ ] \($0.title)" }
-                .joined(separator: "\n")
-            prompt = """
-            \(planExecutionWorkflow)
-
-            **RIPRESA IMPLEMENTAZIONE** — Continua da dove hai lasciato.
-
-            \(executionPlanBase)
-
-            **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
-            \(doneList.isEmpty ? "(nessuno)" : doneList)
-
-            **Todo da completare:**
-            \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
-
-            Procedi verificando i done, riapplicando eventuali modifiche mancanti, poi completa i todo rimanenti.
-            """
-        } else {
-            prompt = "\(planExecutionWorkflow)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo gli step indicati.\n\n\(executionPlanBase)"
-            if !planTodos.isEmpty {
-                let todoList = planTodos.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-                prompt += "\n\n**Todo da completare (in ordine):**\n\(todoList)"
-            }
-        }
+        let prompt = buildPlanExecutionPrompt(
+            workflowInstructions: planExecutionWorkflow,
+            executionPlanBase: executionPlanBase,
+            planTodos: planTodos,
+            canonicalTodos: canonicalTodos
+        ).prompt
 
         Task {
             do {
@@ -2354,13 +2482,16 @@ struct ChatPanelView: View {
                         )
                     },
                     onRaw: { t, p, pid in
-                        if t == "coderide_show_task_panel" { taskPanelEnabled = true }
+                        if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
                         recordTaskActivity(type: t, payload: p, providerId: pid)
                     },
                     onError: { content in
                         DispatchQueue.main.async {
                             chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
                         }
+                    },
+                    onSignal: { signal in
+                        flowDiagnosticsStore.record(signal: signal, conversationId: agentConvId)
                     }
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
@@ -2375,7 +2506,6 @@ struct ChatPanelView: View {
                     content: userFacingStreamError(error), in: agentConvId)
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 await MainActor.run {
-                    flowDiagnosticsStore.setError(error.localizedDescription)
                     flowCoordinator.fail()
                     planFlowPhase = .proposalReady
                 }
@@ -2403,7 +2533,6 @@ struct ChatPanelView: View {
                 "[Errore] Nessuna conversazione selezionata. Crea o seleziona un thread e riprova.",
                 in: nil
             )
-            flowDiagnosticsStore.setError("Nessuna conversazione selezionata")
             return
         }
         guard let selectedProvider = providerRegistry.selectedProvider else {
@@ -2411,7 +2540,6 @@ struct ChatPanelView: View {
                 "[Errore] Nessun provider selezionato. Configura un provider nelle Impostazioni.",
                 in: targetConversationId
             )
-            flowDiagnosticsStore.setError("Nessun provider selezionato")
             return
         }
         hasJustCompletedTask = false
@@ -2445,17 +2573,29 @@ struct ChatPanelView: View {
                 "[Errore] Impossibile risolvere il provider runtime per questa modalità.",
                 in: targetConversationId
             )
-            flowDiagnosticsStore.setError("Provider runtime non risolto")
             return
         }
 
-        guard runtimeProvider.isAuthenticated() else {
-            let providerName = runtimeProvider.displayName
+        let selectedProviderAuthenticated = runtimeProvider.isAuthenticated()
+        let preferredFallbackProvider = preferredRealProvider()
+        var effectiveRuntimeProvider: any LLMProvider = runtimeProvider
+        if shouldFallbackToPreferredProvider(
+            selectedProviderIsAuthenticated: selectedProviderAuthenticated,
+            hasPreferredAuthenticatedFallback: preferredFallbackProvider != nil
+        ),
+            let fallbackProvider = preferredFallbackProvider
+        {
+            effectiveRuntimeProvider = fallbackProvider
             appendTechnicalErrorMessage(
-                "[Errore] Provider \(providerName) non autenticato. Esegui login e riprova.",
+                "[Provider] \(runtimeProvider.displayName) non autenticato. Uso fallback: \(fallbackProvider.displayName).",
                 in: targetConversationId
             )
-            flowDiagnosticsStore.setError("Provider non autenticato: \(runtimeProvider.id)")
+        } else if !selectedProviderAuthenticated {
+            let providerName = runtimeProvider.displayName
+            appendTechnicalErrorMessage(
+                "[Errore] Provider \(providerName) non autenticato e nessun fallback disponibile. Apri Impostazioni e autentica un provider execution-capable.",
+                in: targetConversationId
+            )
             return
         }
 
@@ -2471,7 +2611,6 @@ struct ChatPanelView: View {
         } catch {
             appendTechnicalErrorMessage(
                 "[Errore checkpoint: \(error.localizedDescription)]", in: targetConversationId)
-            flowDiagnosticsStore.setError(error.localizedDescription)
             return
         }
 
@@ -2494,12 +2633,17 @@ struct ChatPanelView: View {
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
         }
         chatStore.beginTask(conversationId: targetConversationId)
+        flowDiagnosticsStore.reset(for: targetConversationId)
         taskActivityStore.clear()
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
         todoStore.clearAgentTodos(includePlanCanonical: true)
         turnTimelineStore.clear()
         timelineConversationId = targetConversationId
+        scheduleFallbackTurnStartEvent(
+            conversationId: targetConversationId,
+            providerId: effectiveRuntimeProvider.id
+        )
         if coderMode == .agentSwarm { swarmProgressStore.clear() }
 
         let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
@@ -2510,10 +2654,9 @@ struct ChatPanelView: View {
 
         // 5. Execute async stream
         Task {
-            await MainActor.run { flowDiagnosticsStore.selectedProviderId = runtimeProvider.id }
             do {
                 let streamResult = try await flowCoordinator.runStream(
-                    provider: runtimeProvider,
+                    provider: effectiveRuntimeProvider,
                     prompt: prompt,
                     context: ctx,
                     imageURLs: imageURLsToSend,
@@ -2531,12 +2674,15 @@ struct ChatPanelView: View {
                         DispatchQueue.main.async {
                             chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
                         }
+                    },
+                    onSignal: { signal in
+                        flowDiagnosticsStore.record(signal: signal, conversationId: targetConversationId)
                     }
                 )
 
                 let finalizedResult = try await continueIfPrematureStub(
                     initial: streamResult,
-                    provider: runtimeProvider,
+                    provider: effectiveRuntimeProvider,
                     originalPrompt: prompt,
                     context: ctx,
                     conversationId: targetConversationId
@@ -2558,7 +2704,6 @@ struct ChatPanelView: View {
                     content: userFacingStreamError(error), in: targetConversationId)
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
                 await MainActor.run {
-                    flowDiagnosticsStore.setError(error.localizedDescription)
                     flowCoordinator.fail()
                 }
             }
@@ -2608,6 +2753,9 @@ struct ChatPanelView: View {
                     let combined = initial.fullText + "\n" + content
                     chatStore.updateLastAssistantMessage(content: combined, in: conversationId)
                 }
+            },
+            onSignal: { signal in
+                flowDiagnosticsStore.record(signal: signal, conversationId: conversationId)
             }
         )
 
@@ -2663,7 +2811,6 @@ struct ChatPanelView: View {
                 appendTechnicalErrorMessage(
                     "[Multi-account \(kind.displayName): \(reason). Configura account o resetta i limiti nelle Impostazioni.]",
                     in: conversationId)
-                flowDiagnosticsStore.setError("Multi-account \(kind.rawValue): \(reason)")
                 return nil
             }
             let availability = cliAccountRouter.currentAvailability(provider: kind)
@@ -2730,43 +2877,70 @@ struct ChatPanelView: View {
                 "Rispondi solo con testo. Non modificare file né eseguire comandi.\n\n" + prompt
         }
         if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
+        let isPlanningDiscoveryFlow =
+            (coderMode == .plan || shouldRunPlanInline)
+            && planFlowPhase != .building
+
         if providerRegistry.selectedProviderId == "codex-cli"
             || providerRegistry.selectedProviderId == "claude-cli"
             || providerRegistry.selectedProviderId == "gemini-cli"
         {
-            let baseInstructions = """
-                **Workflow Todo (obbligatorio):** All'inizio di ogni task:
-                1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
-                2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con tutti i task necessari usando marker:
-                \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
-                (usa un marker per ogni task; puoi includere id=uuid per aggiornamenti successivi)
-                3. Durante l'esecuzione, aggiorna lo status: in_progress quando lavori su un task, done quando è completato.
-                4. Verifica che tutti i todo siano done prima di concludere la risposta.
-                Se devi sapere lo stato attuale dei todo, emetti \(CoderIDEMarkers.todoRead) — il contesto include la lista sotto.
-                Per aggiornare step del piano usa marker:
-                \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
-                Se fai ricerche codice con rg, puoi emettere marker con risultati:
-                \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:linea]
-                Leggi i file in batch paralleli (max 8 per batch) quando serve contesto ampio. Per tracciare il batch puoi emettere:
-                \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
-                Per ricerche web concorrenti (max 4 query in parallelo), emetti marker stato:
-                \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
+            if isPlanningDiscoveryFlow {
+                let planningInstructions = """
+                **Workflow Planning (obbligatorio):**
+                1. Prima analizza il codebase con Read/Glob/Grep, in batch paralleli quando necessario.
+                2. Se mancano informazioni critiche, rispondi SOLO con una sezione:
+                   ## Questions
+                   1. Domanda?
+                   A) Opzione 1
+                   B) Opzione 2
+                   C) Opzione 3 (facoltativa)
+                   (2-4 domande al massimo, opzioni mutualmente esclusive)
+                   Usa "Other..." solo quando la domanda è realmente aperta/ambigua.
+                   Evita "Other..." quando le opzioni chiuse coprono già il dominio decisionale.
+                3. Se le informazioni sono sufficienti, proponi 2-4 opzioni concrete. Per ogni opzione includi SEMPRE:
+                   ## Todo
+                   - [ ] task 1
+                   - [ ] task 2
+                4. Non emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead) durante la discovery del piano.
+                5. Mantieni output operativo e compatibile con parser: niente testo ambiguo fuori formato.
                 """
-            if agentAutoDelegateSwarm {
-                let swarmInstructions =
-                    "Per task semplici o lineari resta in single-agent e non delegare. Usa la delega swarm solo quando l'effort richiede parallelizzazione reale o ruoli multipli (planner, coder, reviewer, debugger, testWriter, ecc.), scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
-                prompt = baseInstructions + swarmInstructions + prompt
+                prompt = planningInstructions + "\n\n" + prompt
             } else {
-                prompt = baseInstructions + "\n" + prompt
-            }
-            if !todoStore.todos.isEmpty {
-                let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
-                    .map { t -> String in
-                        let check = t.status == .done ? "x" : " "
-                        return "- [\(check)] \(t.title) (\(t.status.rawValue))"
-                    }
-                    .joined(separator: "\n")
-                prompt += "\n\n## Todo correnti\n\(todoSection)"
+                let baseInstructions = """
+                    **Workflow Todo (obbligatorio):** All'inizio di ogni task:
+                    1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
+                    2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con tutti i task necessari usando marker:
+                    \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
+                    (usa un marker per ogni task; puoi includere id=uuid per aggiornamenti successivi)
+                    3. Durante l'esecuzione, aggiorna lo status: in_progress quando lavori su un task, done quando è completato.
+                    4. Verifica che tutti i todo siano done prima di concludere la risposta.
+                    Se devi sapere lo stato attuale dei todo, emetti \(CoderIDEMarkers.todoRead) — il contesto include la lista sotto.
+                    Per aggiornare step del piano usa marker:
+                    \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
+                    Se fai ricerche codice con rg, puoi emettere marker con risultati:
+                    \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:linea]
+                    Leggi i file in batch paralleli (max 8 per batch) quando serve contesto ampio. Per tracciare il batch puoi emettere:
+                    \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
+                    Per ricerche web concorrenti (max 4 query in parallelo), emetti marker stato:
+                    \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
+                    """
+                if agentAutoDelegateSwarm {
+                    let swarmInstructions =
+                        "Per task semplici o lineari resta in single-agent e non delegare. Usa la delega swarm solo quando l'effort richiede parallelizzazione reale o ruoli multipli (planner, coder, reviewer, debugger, testWriter, ecc.), scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
+                    prompt = baseInstructions + swarmInstructions + prompt
+                } else {
+                    prompt = baseInstructions + "\n" + prompt
+                }
+                if !todoStore.todos.isEmpty {
+                    let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
+                        .map { t -> String in
+                            let check = t.status == .done ? "x" : " "
+                            return "- [\(check)] \(t.title) (\(t.status.rawValue))"
+                        }
+                        .joined(separator: "\n")
+                    prompt += "\n\n## Todo correnti\n\(todoSection)"
+                }
             }
         }
         return prompt
@@ -2777,7 +2951,7 @@ struct ChatPanelView: View {
     private func handleRawStreamEvent(
         type t: String, payload p: [String: String], providerId pid: String
     ) {
-        if t == "coderide_show_task_panel" { taskPanelEnabled = true }
+        if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
             let n = s.split(separator: ",").map {
                 String($0).trimmingCharacters(in: .whitespaces)
@@ -2835,7 +3009,7 @@ struct ChatPanelView: View {
         if timelineConversationId == streamConversationId {
             turnTimelineStore.finalize(lastFullText: full)
         }
-        chatStore.updateLastAssistantMessage(content: full, in: streamConversationId, persistImmediately: false)
+        chatStore.updateLastAssistantMessage(content: full, in: streamConversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: streamConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
 
@@ -2851,6 +3025,11 @@ struct ChatPanelView: View {
                 planFlowPhase = classification.nextPhase
                 if let state = classification.planningState {
                     planningState = state
+                }
+            }
+            if case .awaitingClarification = classification.planningState {
+                await MainActor.run {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
                 }
             }
             if case .awaitingChoice(_, let opts) = classification.planningState {
@@ -2943,6 +3122,12 @@ struct ChatPanelView: View {
         taskActivityStore.clear()
         turnTimelineStore.clear()
         timelineConversationId = conversationId
+        if let activeConversationId = conversationId {
+            scheduleFallbackTurnStartEvent(
+                conversationId: activeConversationId,
+                providerId: swarm.id
+            )
+        }
         swarmProgressStore.clear()
 
         let followUpProvider: (any LLMProvider)? = {
@@ -3098,8 +3283,10 @@ struct ChatPanelView: View {
                             ref: state.gitSnapshotRef, gitRoot: state.gitRootPath)
                     } catch {
                         await MainActor.run {
-                            flowDiagnosticsStore.setError(
-                                "Rewind file parziale: \(error.localizedDescription)")
+                            appendTechnicalErrorMessage(
+                                "[Rewind file parziale] \(error.localizedDescription)",
+                                in: convId
+                            )
                         }
                     }
                 }
@@ -3177,8 +3364,10 @@ struct ChatPanelView: View {
                             ref: state.gitSnapshotRef, gitRoot: state.gitRootPath)
                     } catch {
                         await MainActor.run {
-                            flowDiagnosticsStore.setError(
-                                "Rewind file parziale: \(error.localizedDescription)")
+                            appendTechnicalErrorMessage(
+                                "[Rewind file parziale] \(error.localizedDescription)",
+                                in: conversationId
+                            )
                         }
                     }
                 }
@@ -3243,55 +3432,59 @@ struct ChatPanelView: View {
         selectMode(.ide)
     }
 
+    @ViewBuilder
+    private func diagnosticsCard(_ snapshot: FlowLatencySnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Diagnostics")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            diagnosticsRow("start stream", snapshot.streamStartedAt?.formatted(date: .omitted, time: .standard))
+            diagnosticsRow("first event", formattedLatency(snapshot.firstEventLatencyMs))
+            diagnosticsRow("first text delta", formattedLatency(snapshot.firstTextLatencyMs))
+            diagnosticsRow("completion total", formattedLatency(snapshot.totalLatencyMs))
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
+        )
+    }
+
+    @ViewBuilder
+    private func diagnosticsRow(_ label: String, _ value: String?) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Text(value ?? "—")
+                .font(.system(size: 10.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formattedLatency(_ valueMs: Int?) -> String? {
+        guard let valueMs else { return nil }
+        return "\(valueMs) ms"
+    }
+
     private func streamingStatusText(for message: ChatMessage) -> String {
-        guard message.isStreaming, message.role == .assistant else { return "Sto scrivendo..." }
-        if executionController.runState == .paused {
-            return "In pausa..."
-        }
-        guard let last = taskActivityStore.activities.last else { return "Sto scrivendo..." }
-        switch last.phase {
-        case .executing:
-            return "In esecuzione..."
-        case .editing:
-            return "Sto scrivendo..."
-        case .searching:
-            return "Ricerca web in corso..."
-        case .planning, .thinking:
-            // Mostra "Sto pensando..." solo se c'è reasoning effettivo visibile.
-            return streamingReasoningText(for: message) == nil ? "Sto scrivendo..." : "Sto pensando..."
-        }
+        guard message.isStreaming, message.role == .assistant else { return "" }
+        return TaskActivityStore.streamingStatusText(
+            isPaused: executionController.runState == .paused,
+            activities: taskActivityStore.activities
+        )
     }
 
     private func streamingDetailText(for message: ChatMessage) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
-        guard let last = taskActivityStore.activities.last else { return nil }
-        let op = taskActivityStore.activeOperationsCount
-        if op > 0 {
-            return "\(last.title) • \(op) operazioni attive"
-        }
-        return last.title
-    }
-
-    private func streamingReasoningText(for message: ChatMessage) -> String? {
-        guard message.isStreaming, message.role == .assistant else { return nil }
-        let activities = taskActivityStore.activities
-        let thinkingActivity = activities.reversed().first { act in
-            act.phase == .thinking && !(payloadText(act) ?? "").trimmingCharacters(
-                in: CharacterSet.whitespacesAndNewlines
-            ).isEmpty
-        }
-        let raw = thinkingActivity.flatMap { payloadText($0) }
-        let text = raw?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        return text.isEmpty ? nil : text
-    }
-
-    private func payloadText(_ activity: TaskActivity) -> String? {
-        activity.payload["output"]
-            ?? activity.payload["text"]
-            ?? activity.payload["reasoning"]
-            ?? activity.payload["thinking"]
-            ?? activity.payload["content"]
-            ?? activity.payload["detail"]
-            ?? activity.payload["summary"]
+        return TaskActivityStore.streamingDetailText(
+            activities: taskActivityStore.activities,
+            activeOperationsCount: taskActivityStore.activeOperationsCount
+        )
     }
 }

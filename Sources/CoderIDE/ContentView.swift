@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var terminalHeight: CGFloat = 200
     @State private var showSettings = false
     @State private var showPlanPanel = false
+    @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -229,6 +230,9 @@ struct ContentView: View {
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
         .environmentObject(planHistoryStore)
-        .sidebarPanel(cornerRadius: 14)
+        .chatPanelContainer(
+            style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
+            cornerRadius: 14
+        )
     }
 }

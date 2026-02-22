@@ -77,8 +77,143 @@ final class TaskActivityStore: ObservableObject {
     private var swarmCardDedupKeys: [String: Set<String>] = [:]
     private let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
 
+    nonisolated private static let hiddenGenericTypes: Set<String> = [
+        "reasoning",
+        "thinking",
+        "analysis",
+        "deliberation",
+        "turn_started",
+        "turn_completed",
+        "usage",
+    ]
+
+    nonisolated private static let hiddenGenericTypePrefixes: [String] = [
+        "reasoning_",
+        "thinking_",
+        "analysis_",
+        "trace_",
+        "internal_",
+        "usage_",
+    ]
+
+    nonisolated private static let concreteTypes: Set<String> = [
+        "agent",
+        "bash",
+        "command_execution",
+        "edit",
+        "error",
+        "file_change",
+        "instant_grep",
+        "mcp_tool_call",
+        "permission_denied",
+        "plan_step",
+        "plan_step_update",
+        "planning_auto_reset",
+        "process_paused",
+        "process_resumed",
+        "read_batch_started",
+        "read_batch_completed",
+        "swarm_delegation_skipped",
+        "tool_execution_error",
+        "tool_timeout",
+        "tool_validation_error",
+        "todo_read",
+        "todo_write",
+        "web_search",
+        "web_search_started",
+        "web_search_completed",
+        "web_search_failed",
+    ]
+
+    nonisolated static func isConcreteVisibleEventType(_ type: String) -> Bool {
+        let normalized = normalizedEventType(type)
+        if isHiddenGenericType(normalized) {
+            return false
+        }
+        if concreteTypes.contains(normalized) {
+            return true
+        }
+        if normalized.hasPrefix("web_search")
+            || normalized.hasPrefix("todo_")
+            || normalized.hasPrefix("read_batch")
+            || normalized.hasPrefix("plan_step")
+        {
+            return true
+        }
+        return false
+    }
+
+    nonisolated static func isConcreteVisibleEvent(_ activity: TaskActivity) -> Bool {
+        let normalized = normalizedEventType(activity.type)
+        if isHiddenGenericType(normalized) {
+            return false
+        }
+        if isConcreteVisibleEventType(activity.type) {
+            return true
+        }
+        // Fallback: unknown type with operational payload still qualifies as concrete.
+        return !(activity.payload["command"] ?? "").isEmpty
+            || !(activity.payload["path"] ?? "").isEmpty
+            || !(activity.payload["file"] ?? "").isEmpty
+            || !(activity.payload["query"] ?? "").isEmpty
+            || !(activity.payload["tool"] ?? "").isEmpty
+    }
+
+    nonisolated private static func normalizedEventType(_ type: String) -> String {
+        type
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    nonisolated private static func isHiddenGenericType(_ normalizedType: String) -> Bool {
+        if hiddenGenericTypes.contains(normalizedType) {
+            return true
+        }
+        return hiddenGenericTypePrefixes.contains { normalizedType.hasPrefix($0) }
+    }
+
+    nonisolated static func lastConcreteVisibleActivity(in activities: [TaskActivity]) -> TaskActivity? {
+        activities.last(where: isConcreteVisibleEvent(_:))
+    }
+
+    func concreteRecentActivities(limit: Int) -> [TaskActivity] {
+        guard limit > 0 else { return [] }
+        return activities.filter { Self.isConcreteVisibleEvent($0) }.suffix(limit).map { $0 }
+    }
+
+    nonisolated static func streamingStatusText(isPaused: Bool, activities: [TaskActivity]) -> String {
+        if isPaused {
+            return "Pausa"
+        }
+        guard let last = lastConcreteVisibleActivity(in: activities) else {
+            return "In esecuzione"
+        }
+        switch last.phase {
+        case .executing:
+            return "Esecuzione"
+        case .editing:
+            return "Modifiche"
+        case .searching:
+            return "Ricerca"
+        case .planning, .thinking:
+            return "Operazione"
+        }
+    }
+
+    nonisolated static func streamingDetailText(
+        activities: [TaskActivity],
+        activeOperationsCount: Int
+    ) -> String? {
+        guard let last = lastConcreteVisibleActivity(in: activities) else { return nil }
+        if activeOperationsCount > 0 {
+            return "\(last.title) • \(activeOperationsCount) operazioni attive"
+        }
+        return last.title
+    }
+
     func addActivity(_ activity: TaskActivity) {
         activities.append(activity)
+        pruneCompletedTerminalActivities()
         recalcActiveOperations()
         ingestSwarmCard(activity: activity)
     }
@@ -150,8 +285,26 @@ final class TaskActivityStore: ObservableObject {
         } else {
             activities.append(activity)
         }
+        pruneCompletedTerminalActivities()
         recalcActiveOperations()
         rebuildSwarmCards()
+    }
+
+    private func pruneCompletedTerminalActivities() {
+        let terminalTypes: Set<String> = ["command_execution", "bash"]
+        var keepLatestCompletedId: UUID?
+        for activity in activities.reversed() {
+            if terminalTypes.contains(activity.type), !activity.isRunning {
+                keepLatestCompletedId = activity.id
+                break
+            }
+        }
+        let cutoff = Date().addingTimeInterval(-8)
+        activities.removeAll { activity in
+            guard terminalTypes.contains(activity.type), !activity.isRunning else { return false }
+            if activity.id == keepLatestCompletedId { return false }
+            return activity.timestamp < cutoff
+        }
     }
 
     private func recalcActiveOperations() {

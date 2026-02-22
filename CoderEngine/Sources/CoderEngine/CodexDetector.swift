@@ -39,6 +39,12 @@ public enum CodexDetector {
         if env["OPENAI_API_KEY"] == nil, let key = loadAPIKeyFromShellConfig() {
             env["OPENAI_API_KEY"] = key
         }
+        if let rustLog = env["RUST_LOG"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           rustLog.isEmpty {
+            env["RUST_LOG"] = "error"
+        } else if env["RUST_LOG"] == nil {
+            env["RUST_LOG"] = "error"
+        }
 
         return env
     }

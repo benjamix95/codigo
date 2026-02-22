@@ -3,21 +3,19 @@ import SwiftUI
 /// Segmento della timeline per il turno assistant corrente (stile Cursor).
 enum TimelineSegment: Identifiable {
     case assistantText(String, id: UUID = UUID())
-    case thinking(TaskActivity)
-    case tool(TaskActivity)
+    case step(TaskActivity)
     case todoSnapshot(id: UUID = UUID())
 
     var id: UUID {
         switch self {
         case .assistantText(_, let id): return id
-        case .thinking(let a): return a.id
-        case .tool(let a): return a.id
+        case .step(let a): return a.id
         case .todoSnapshot(let id): return id
         }
     }
 }
 
-/// Store per la timeline intercalata del turno assistant (testo, thinking, tool, todo).
+/// Store per la timeline intercalata del turno assistant (testo, step operativi, todo).
 @MainActor
 final class TurnTimelineStore: ObservableObject {
     @Published private(set) var segments: [TimelineSegment] = []
@@ -50,14 +48,9 @@ final class TurnTimelineStore: ObservableObject {
         lastCommittedTextLength = newLength
     }
 
-    /// Aggiunge un'attività thinking o tool alla timeline.
+    /// Aggiunge un'attività operativa alla timeline lineare.
     func appendActivity(_ activity: TaskActivity) {
-        switch activity.phase {
-        case .thinking:
-            segments.append(.thinking(activity))
-        case .executing, .editing, .searching, .planning:
-            segments.append(.tool(activity))
-        }
+        segments.append(.step(activity))
     }
 
     /// Aggiunge una card todo alla timeline.

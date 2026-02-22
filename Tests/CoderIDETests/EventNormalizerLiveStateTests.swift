@@ -24,7 +24,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(activity.groupId, "q1")
     }
 
-    func testProcessPausedMapsToThinkingAndStopped() {
+    func testProcessPausedMapsToPlanningAndStopped() {
         let envelope = EventNormalizer.normalizeEnvelope(
             sourceProvider: "codex-cli",
             type: "process_paused",
@@ -35,7 +35,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             XCTFail("Evento taskActivity mancante")
             return
         }
-        XCTAssertEqual(activity.phase, .thinking)
+        XCTAssertEqual(activity.phase, .planning)
         XCTAssertFalse(activity.isRunning)
         XCTAssertEqual(activity.title, "Processo in pausa")
         XCTAssertNil(activity.groupId)
@@ -112,5 +112,59 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             if case .taskActivity(let activity) = $0 { return activity.type == "todo_read" }
             return false
         })
+    }
+
+    func testReasoningEventsAreIgnored() {
+        let events = EventNormalizer.normalize(
+            type: "reasoning",
+            payload: [
+                "title": "Ragionamento",
+                "detail": "Analisi interna"
+            ]
+        )
+
+        XCTAssertTrue(events.isEmpty)
+    }
+
+    func testTurnStartedMapsToPlanningRunning() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "turn_started",
+            payload: [
+                "title": "Turno avviato",
+                "status": "started",
+                "group_id": "turn-1"
+            ]
+        )
+
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Evento taskActivity mancante")
+            return
+        }
+        XCTAssertEqual(activity.type, "turn_started")
+        XCTAssertEqual(activity.phase, .planning)
+        XCTAssertTrue(activity.isRunning)
+        XCTAssertEqual(activity.groupId, "turn-1")
+    }
+
+    func testTurnCompletedMapsToPlanningStopped() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "turn_completed",
+            payload: [
+                "title": "Turno completato",
+                "status": "completed",
+                "group_id": "turn-1"
+            ]
+        )
+
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Evento taskActivity mancante")
+            return
+        }
+        XCTAssertEqual(activity.type, "turn_completed")
+        XCTAssertEqual(activity.phase, .planning)
+        XCTAssertFalse(activity.isRunning)
+        XCTAssertEqual(activity.groupId, "turn-1")
     }
 }

@@ -44,4 +44,94 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         let normalized = normalizeBuildFinalResponse(raw)
         XCTAssertEqual(normalized, raw)
     }
+
+    func testPlanBuildDisabledReasonCodes() {
+        XCTAssertEqual(
+            planBuildDisabledReason(
+                phase: .discovery,
+                hasBuildChoice: true,
+                providerExecutionCapable: true
+            ),
+            "Analisi in corso: attendi il completamento della discovery."
+        )
+        XCTAssertEqual(
+            planBuildDisabledReason(
+                phase: .awaitingClarification,
+                hasBuildChoice: true,
+                providerExecutionCapable: true
+            ),
+            "Servono chiarimenti: rispondi alle domande prima del build."
+        )
+        XCTAssertEqual(
+            planBuildDisabledReason(
+                phase: .proposalReady,
+                hasBuildChoice: false,
+                providerExecutionCapable: true
+            ),
+            "Nessuna opzione disponibile da eseguire."
+        )
+        XCTAssertEqual(
+            planBuildDisabledReason(
+                phase: .proposalReady,
+                hasBuildChoice: true,
+                providerExecutionCapable: false
+            ),
+            "Provider non pronto: seleziona un provider execution-capable autenticato."
+        )
+        XCTAssertNil(
+            planBuildDisabledReason(
+                phase: .readyToBuild,
+                hasBuildChoice: true,
+                providerExecutionCapable: true
+            )
+        )
+    }
+
+    func testBuildPlanClarificationPromptIncludesCustomPrecedenceAndFinalMandatoryNote() {
+        let submission = PlanClarificationSubmission(
+            answers: [
+                PlanClarificationAnswer(
+                    questionId: 2,
+                    question: "Quale priorità vuoi?",
+                    optionId: "I",
+                    optionText: "Other...",
+                    customResponse: "Priorità: stabilità in produzione"
+                ),
+                PlanClarificationAnswer(
+                    questionId: 1,
+                    question: "Qual è l'obiettivo?",
+                    optionId: "B",
+                    optionText: "Correggere bug",
+                    customResponse: nil
+                ),
+            ],
+            finalMandatoryNote: "Non toccare API pubbliche e mantieni retrocompatibilità."
+        )
+
+        let prompt = buildPlanClarificationPrompt(submission)
+        XCTAssertTrue(prompt.contains("1. Qual è l'obiettivo?"))
+        XCTAssertTrue(prompt.contains("Risposta selezionata: B) Correggere bug"))
+        XCTAssertTrue(prompt.contains("2. Quale priorità vuoi?"))
+        XCTAssertTrue(prompt.contains("Risposta personalizzata (precedenza): Priorità: stabilità in produzione"))
+        XCTAssertTrue(prompt.contains("Nota finale obbligatoria utente: Non toccare API pubbliche"))
+    }
+
+    func testBuildPlanClarificationPromptOmitsCustomLineWhenAbsent() {
+        let submission = PlanClarificationSubmission(
+            answers: [
+                PlanClarificationAnswer(
+                    questionId: 1,
+                    question: "Quale area?",
+                    optionId: "A",
+                    optionText: "UI chat",
+                    customResponse: nil
+                )
+            ],
+            finalMandatoryNote: "Testare su macOS."
+        )
+
+        let prompt = buildPlanClarificationPrompt(submission)
+        XCTAssertFalse(prompt.contains("Risposta personalizzata (precedenza):"))
+        XCTAssertTrue(prompt.contains("Nota finale obbligatoria utente: Testare su macOS."))
+    }
 }

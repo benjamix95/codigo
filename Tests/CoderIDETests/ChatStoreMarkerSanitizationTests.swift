@@ -91,4 +91,33 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("CODERIDE"))
         XCTAssertTrue(sanitized.contains("Risposta utile visibile durante lo streaming."))
     }
+
+    func testStripCoderideMarkersRemovesInlineOperationalPrefixButKeepsItalianContent() {
+        let input = """
+        Starting task panel and todo update Procedo con l’implementazione dell’opzione selezionata: prima metto il TODO 1 in in_progress, poi individuo i test esistenti.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.lowercased().contains("starting task panel and todo update"))
+        XCTAssertTrue(sanitized.contains("Procedo con l’implementazione dell’opzione selezionata"))
+        XCTAssertTrue(sanitized.contains("TODO 1 in in_progress"))
+    }
+
+    func testStripCoderideMarkersRemovesCliProgressTraceLines() {
+        let input = """
+        Explored 2 files
+        Inspecting related test files
+        Ran codex --version
+
+        Risposta utile finale.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.contains("Explored 2 files"))
+        XCTAssertFalse(sanitized.contains("Inspecting related test files"))
+        XCTAssertFalse(sanitized.contains("Ran codex --version"))
+        XCTAssertTrue(sanitized.contains("Risposta utile finale."))
+    }
 }

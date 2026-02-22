@@ -11,14 +11,11 @@ struct MessageRow: View {
     let isActuallyLoading: Bool
     let streamingStatusText: String
     let streamingDetailText: String?
-    let streamingReasoningText: String?
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
     var canRewind: Bool = false
     var hasCheckpointForRestore: Bool = false
     @State private var isHovered = false
-    @State private var isReasoningExpanded = false
-    @Environment(\.colorScheme) private var colorScheme
     private let userRowMaxWidth: CGFloat = 560
     private let assistantRowMaxWidth: CGFloat = 780
 
@@ -27,11 +24,11 @@ struct MessageRow: View {
         message.isStreaming && isActuallyLoading
     }
     
-    /// Mostra la barra streaming solo quando c'è reasoning interno reale.
+    /// Mostra la barra streaming solo quando esiste un dettaglio operativo concreto.
     private var shouldShowStreamingBar: Bool {
         guard isActivelyStreaming else { return false }
-        let reasoning = streamingReasoningText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return !reasoning.isEmpty
+        let detail = streamingDetailText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !detail.isEmpty
     }
 
     private var isUser: Bool { message.role == .user }
@@ -119,7 +116,8 @@ struct MessageRow: View {
                         content: message.content,
                         context: context,
                         onFileClicked: onFileClicked,
-                        textAlignment: .leading
+                        textAlignment: .leading,
+                        isStreaming: isActivelyStreaming
                     )
                     .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 }
@@ -139,71 +137,12 @@ struct MessageRow: View {
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer()
-                if let reasoning = streamingReasoningText, !reasoning.isEmpty {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            isReasoningExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "brain")
-                                .font(.system(size: 9, weight: .semibold))
-                            Text(isReasoningExpanded ? "Nascondi" : "Reasoning")
-                                .font(.system(size: 8.5, weight: .medium))
-                            Image(
-                                systemName: isReasoningExpanded ? "chevron.up" : "chevron.down"
-                            )
-                            .font(.system(size: 7, weight: .bold))
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.primary.opacity(0.05), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             if let detail = streamingDetailText, !detail.isEmpty {
                 Text(detail)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-            }
-            // Reasoning preview — always show last snippet
-            if let reasoning = streamingReasoningText, !reasoning.isEmpty {
-                if !isReasoningExpanded {
-                    // Compact preview of last reasoning line
-                    let lastLine =
-                        reasoning.split(separator: "\n").last.map(String.init) ?? reasoning
-                    HStack(spacing: 4) {
-                        Image(systemName: "brain")
-                            .font(.system(size: 8))
-                            .foregroundStyle(modeColor.opacity(0.45))
-                        Text(lastLine)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                } else {
-                    // Full expanded reasoning
-                    ScrollView(.vertical, showsIndicators: true) {
-                        Text(reasoning)
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxHeight: 240)
-                    .padding(8)
-                    .background(
-                        Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10)
-                    )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
             }
         }
         .padding(.top, 2)

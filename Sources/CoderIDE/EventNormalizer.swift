@@ -14,7 +14,7 @@ enum NormalizedEvent {
     case instantGrep(InstantGrepResult)
     case todoWrite(TodoWritePayload)
     case todoRead
-    case planStepUpdate(stepId: String, status: PlanStepStatus)
+    case planStepUpdate(stepId: String, status: PlanStepStatus, title: String?)
 }
 
 enum EventKind: String, Codable {
@@ -50,7 +50,7 @@ enum EventNormalizer {
         switch type {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit": kind = .fileUpdate
-        case "reasoning": kind = .generic
+        case "turn_started", "turn_completed": kind = .generic
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
@@ -71,6 +71,9 @@ enum EventNormalizer {
 
     static func normalize(type: String, payload: [String: String], timestamp: Date = .now) -> [NormalizedEvent] {
         var events: [NormalizedEvent] = []
+        if type == "reasoning" {
+            return []
+        }
 
         if type == "todo_write", let todo = parseTodoWrite(payload: payload) {
             events.append(.todoWrite(todo))
@@ -110,7 +113,8 @@ enum EventNormalizer {
            let stepId = payload["step_id"],
            let statusRaw = payload["status"],
            let status = PlanStepStatus(rawValue: statusRaw) {
-            events.append(.planStepUpdate(stepId: stepId, status: status))
+            let stepTitle = payload["title"] ?? payload["detail"]
+            events.append(.planStepUpdate(stepId: stepId, status: status, title: stepTitle))
             return events
         }
 
@@ -163,20 +167,26 @@ enum EventNormalizer {
         return type
     }
 
-    private static func phaseForType(_ type: String, payload: [String: String]) -> ActivityPhase {
+    private static func phaseForType(_ type: String, payload _: [String: String]) -> ActivityPhase {
         switch type {
         case "command_execution", "bash":
             return .executing
         case "mcp_tool_call":
-            return (payload["tool"] == "bash" || payload["command"] != nil) ? .executing : .thinking
+            return .executing
         case "file_change", "edit", "read_batch_started", "read_batch_completed":
             return .editing
+        case "turn_started", "turn_completed":
+            return .planning
+        case "process_paused":
+            return .planning
+        case "process_resumed":
+            return .executing
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed":
             return .searching
         case "plan_step", "plan_step_update":
             return .planning
         default:
-            return .thinking
+            return .planning
         }
     }
 
@@ -190,6 +200,10 @@ enum EventNormalizer {
         case "agent":
             let detail = payload["detail"]?.lowercased()
             return detail == "started" || status == "started" || status == "running"
+        case "turn_started":
+            return true
+        case "turn_completed":
+            return false
         case "web_search_started", "read_batch_started", "process_resumed":
             return true
         case "web_search_completed", "web_search_failed", "read_batch_completed", "process_paused":
@@ -209,8 +223,10 @@ enum EventNormalizer {
             return "Lettura file in batch avviata"
         case "read_batch_completed":
             return "Lettura file in batch completata"
-        case "reasoning":
-            return "Ragionamento"
+        case "turn_started":
+            return "Turno avviato"
+        case "turn_completed":
+            return "Turno completato"
         case "web_search_started":
             return "Ricerca web avviata"
         case "web_search_completed":

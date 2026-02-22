@@ -210,6 +210,27 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(shouldSyncModeOnProviderChange(suppressForUserPicker: false))
     }
 
+    func testShouldFallbackToPreferredProviderWhenSelectedNotAuthenticated() {
+        XCTAssertTrue(
+            shouldFallbackToPreferredProvider(
+                selectedProviderIsAuthenticated: false,
+                hasPreferredAuthenticatedFallback: true
+            )
+        )
+        XCTAssertFalse(
+            shouldFallbackToPreferredProvider(
+                selectedProviderIsAuthenticated: true,
+                hasPreferredAuthenticatedFallback: true
+            )
+        )
+        XCTAssertFalse(
+            shouldFallbackToPreferredProvider(
+                selectedProviderIsAuthenticated: false,
+                hasPreferredAuthenticatedFallback: false
+            )
+        )
+    }
+
     func testSwarmModeIsViewOnlyForComposerAndFooter() {
         XCTAssertTrue(shouldShowSwarmViewOnly(for: .agentSwarm))
         XCTAssertFalse(shouldShowComposer(for: .agentSwarm))
