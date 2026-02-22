@@ -12,6 +12,7 @@ struct MessageRow: View {
     let streamingStatusText: String
     let streamingDetailText: String?
     var streamingReasoningText: String? = nil
+    var showStreamingBar: Bool = true
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
     var canRewind: Bool = false
@@ -25,9 +26,9 @@ struct MessageRow: View {
         message.isStreaming && isActuallyLoading
     }
     
-    /// Mostra la barra streaming durante lo streaming attivo.
+    /// Mostra la barra streaming durante lo streaming attivo (nascosta se c'è feed attività inline).
     private var shouldShowStreamingBar: Bool {
-        isActivelyStreaming
+        showStreamingBar && isActivelyStreaming
     }
 
     private var isUser: Bool { message.role == .user }

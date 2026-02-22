@@ -199,7 +199,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
 
     private static func extractText(from obj: Any) -> String? {
         if let dict = obj as? [String: Any] {
-            for key in ["text", "result", "content", "message"] {
+            for key in ["response", "text", "result", "content", "message", "output"] {
                 if let value = dict[key], let txt = stringify(value), !txt.isEmpty {
                     return txt
                 }

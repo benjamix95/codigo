@@ -99,7 +99,8 @@ final class ConversationFlowCoordinator: ObservableObject {
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
         var emittedFirstText = false
-        let firstEventTimeout = 60
+        // Gemini CLI può impiegare più tempo per il primo token (modello lento, rete)
+        let firstEventTimeout = provider.id == "gemini-cli" ? 120 : 60
         let inactivityTimeout = 300
 
         while true {
@@ -178,8 +179,9 @@ final class ConversationFlowCoordinator: ObservableObject {
             let swarmStream = try await swarmProvider.send(prompt: task, context: context, imageURLs: imageURLs)
             let swarmIteratorHolder = IteratorHolder(swarmStream)
             var swarmReceivedAny = false
+            let swarmFirstEventTimeout = swarmProvider.id == "gemini-cli" ? 120 : 60
             while true {
-                let timeout = swarmReceivedAny ? 300 : 60
+                let timeout = swarmReceivedAny ? 300 : swarmFirstEventTimeout
                 let maybeEvent = try await nextEvent(withinSeconds: timeout) {
                     try await swarmIteratorHolder.next()
                 }
@@ -219,8 +221,9 @@ final class ConversationFlowCoordinator: ObservableObject {
             let followStream = try await agentProvider.send(prompt: followUpPrompt, context: context, imageURLs: nil)
             let followIteratorHolder = IteratorHolder(followStream)
             var followReceivedAny = false
+            let followFirstEventTimeout = agentProvider.id == "gemini-cli" ? 120 : 60
             while true {
-                let timeout = followReceivedAny ? 300 : 60
+                let timeout = followReceivedAny ? 300 : followFirstEventTimeout
                 let maybeEvent = try await nextEvent(withinSeconds: timeout) {
                     try await followIteratorHolder.next()
                 }

@@ -1095,20 +1095,16 @@ struct ChatPanelView: View {
                                         && isLoadingForCurrentConversation
                                         && supportsInlineActivityMode
                                         && conv.id == chatStore.activeTaskConversationId
-                                    let statusFallback: String = {
+                                    let llmOrActivityStatus: String? = {
                                         if executionController.runState == .paused { return "Pausa" }
-                                        let concrete = taskActivityStore.concreteRecentActivities(limit: 1)
-                                        if concrete.isEmpty { return "Thinking" }
-                                        let last = concrete.first!
-                                        if last.isRunning { return streamingDetailText(for: message, conversationId: conv.id) ?? last.title }
-                                        return "Planning next moves"
+                                        return streamingDetailText(for: message, conversationId: conv.id)
                                     }()
                                     if showInlineActivityFeed {
                                         VStack(alignment: .leading, spacing: 14) {
                                             InlineActivityFeedView(
                                                 activities: taskActivityStore.concreteRecentActivities(limit: 20),
                                                 modeColor: activeModeColor,
-                                                statusFallback: statusFallback
+                                                statusFromLLMOrActivity: llmOrActivityStatus
                                             )
                                             MessageRow(
                                                 message: message,
@@ -1118,6 +1114,7 @@ struct ChatPanelView: View {
                                                 streamingStatusText: streamingStatusText(for: message),
                                                 streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
                                                 streamingReasoningText: effectiveReasoning,
+                                                showStreamingBar: false,
                                                 onFileClicked: { openFilesStore.openFile($0) },
                                                 onRestoreCheckpoint: message.role == .user
                                                     ? { rewindToMessage(at: index, conversationId: conv.id) }
@@ -1127,6 +1124,12 @@ struct ChatPanelView: View {
                                             )
                                         }
                                     } else {
+                                        let shouldHideStreamingBarOnPreviousAssistant =
+                                            message.role == .assistant
+                                            && !isLastAssistant
+                                            && lastMsg?.role == .assistant
+                                            && (lastMsg?.isStreaming ?? false)
+                                            && isLoadingForCurrentConversation
                                         MessageRow(
                                             message: message,
                                             context: effectiveContext.context,
@@ -1135,6 +1138,7 @@ struct ChatPanelView: View {
                                             streamingStatusText: streamingStatusText(for: message),
                                             streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
                                             streamingReasoningText: effectiveReasoning,
+                                            showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
                                             onFileClicked: { openFilesStore.openFile($0) },
                                             onRestoreCheckpoint: message.role == .user
                                                 ? { rewindToMessage(at: index, conversationId: conv.id) }
@@ -3576,6 +3580,6 @@ struct ChatPanelView: View {
                 return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
             }
         }
-        return "Planning next moves"
+        return nil
     }
 }

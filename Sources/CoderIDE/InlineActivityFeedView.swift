@@ -3,22 +3,23 @@ import SwiftUI
 
 /// Vista inline della timeline attività durante lo streaming dell'assistant.
 /// Mostra la lista di step operativi (comandi, modifiche file, web search, ecc.)
-/// e un placeholder "Thinking" / "Planning next moves" quando non ci sono ancora attività.
+/// che l'LLM invoca tramite lo stream. Nessun label fabricato: si mostra solo
+/// ciò che proviene dall'LLM o dagli eventi attività.
 struct InlineActivityFeedView: View {
     let activities: [TaskActivity]
     let modeColor: Color
-    let statusFallback: String
+    let statusFromLLMOrActivity: String?
     let maxVisible: Int
 
     init(
         activities: [TaskActivity],
         modeColor: Color,
-        statusFallback: String = "Planning next moves",
+        statusFromLLMOrActivity: String? = nil,
         maxVisible: Int = 20
     ) {
         self.activities = activities
         self.modeColor = modeColor
-        self.statusFallback = statusFallback
+        self.statusFromLLMOrActivity = statusFromLLMOrActivity
         self.maxVisible = maxVisible
     }
 
@@ -46,14 +47,16 @@ struct InlineActivityFeedView: View {
     private var statusPlaceholder: some View {
         HStack(spacing: 8) {
             StreamingDots(color: modeColor)
-            Text(statusFallback)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+            if let status = statusFromLLMOrActivity, !status.isEmpty {
+                Text(status)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .overlay {
-            if statusFallback == "Planning next moves" {
+            if statusFromLLMOrActivity != nil, !(statusFromLLMOrActivity ?? "").isEmpty {
                 ActivityShimmerTrail()
                     .allowsHitTesting(false)
             }
