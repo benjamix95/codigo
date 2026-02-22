@@ -9,9 +9,8 @@ struct MarkdownContentView: View {
     var textAlignment: TextAlignment = .leading
 
     private var displayContent: String {
-        ChatStore.stripCoderideMarkers(content)
+        ChatStore.stripCoderideMarkers(content, aggressive: false)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @Environment(\.colorScheme) private var colorScheme

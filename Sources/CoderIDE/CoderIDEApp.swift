@@ -47,8 +47,8 @@ struct CodigoApp: App {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("minimax_api_key") private var minimaxApiKey = ""
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
@@ -160,9 +160,6 @@ struct CodigoApp: App {
         }
         registerMiniMax()
         registerOpenRouter()
-        registerPlanProvider()
-        registerSwarmProvider()
-        registerMultiSwarmReviewProvider()
     }
 
     private func registerMiniMax() {
@@ -179,38 +176,6 @@ struct CodigoApp: App {
             ProviderFactory.openRouterAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
-    }
-
-    private func registerPlanProvider() {
-        let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        guard codex != nil || claude != nil else { return }
-        providerRegistry.unregister(id: "plan-mode")
-        providerRegistry.register(
-            ProviderFactory.planProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude,
-                executionController: executionController))
-    }
-
-    private func registerMultiSwarmReviewProvider() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        let provider = ProviderFactory.codeReviewProvider(
-            config: providerFactoryConfig(), codex: codex, claude: claude)
-        providerRegistry.unregister(id: "multi-swarm-review")
-        providerRegistry.register(provider)
-    }
-
-    private func registerSwarmProvider() {
-        providerRegistry.unregister(id: "agent-swarm")
-        if let swarm = ProviderFactory.swarmProvider(
-            config: providerFactoryConfig(),
-            executionController: executionController)
-        {
-            providerRegistry.register(swarm)
-        }
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {

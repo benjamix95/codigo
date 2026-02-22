@@ -79,4 +79,16 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertTrue(sanitized.contains("Procedo"))
         XCTAssertTrue(sanitized.contains("poi continuo con l'analisi"))
     }
+
+    func testStripCoderideMarkersKeepsFollowingLinesWhenMarkerIsIncomplete() {
+        let input = """
+        [CODERIDE:todo_write|id=t1|title=Init
+        Risposta utile visibile durante lo streaming.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.contains("CODERIDE"))
+        XCTAssertTrue(sanitized.contains("Risposta utile visibile durante lo streaming."))
+    }
 }

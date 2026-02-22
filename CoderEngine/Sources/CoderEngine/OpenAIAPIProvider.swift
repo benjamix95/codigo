@@ -485,3 +485,16 @@ public enum CoderEngineError: Error, Sendable {
     case apiError(String)
     case cliNotFound(String)
 }
+
+extension CoderEngineError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .notAuthenticated:
+            return "Provider non autenticato"
+        case .apiError(let message):
+            return message
+        case .cliNotFound(let path):
+            return "CLI non trovata: \(path)"
+        }
+    }
+}

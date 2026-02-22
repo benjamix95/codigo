@@ -53,6 +53,10 @@ struct PlanHistoryEntry: Identifiable, Codable, Equatable {
 }
 
 private let planHistoryStorageKey = "CoderIDE.planHistory"
+private let maxPlanHistoryEntries = 200
+private let maxPlanMarkdownLength = 65_536
+private let maxPlanOptionsPersisted = 8
+private let maxPlanTitleLength = 120
 
 @MainActor
 final class PlanHistoryStore: ObservableObject {
@@ -68,12 +72,24 @@ final class PlanHistoryStore: ObservableObject {
               let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) else {
             return
         }
-        entries = decoded
+        entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
     }
 
     func save() {
         guard let data = try? JSONEncoder().encode(entries) else { return }
         UserDefaults.standard.set(data, forKey: planHistoryStorageKey)
+    }
+
+    private func sanitizeTitle(_ raw: String) -> String {
+        let collapsed = raw
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let trimmed = collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "Piano"
+        }
+        return String(trimmed.prefix(maxPlanTitleLength))
     }
 
     @discardableResult
@@ -88,18 +104,28 @@ final class PlanHistoryStore: ObservableObject {
         tags: [String],
         sourceMessageId: UUID?
     ) -> PlanHistoryEntry {
+        let sanitizedMarkdown = String(markdown.prefix(maxPlanMarkdownLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let cappedOptions = Array(options.prefix(maxPlanOptionsPersisted))
+        let safeTitle = sanitizeTitle(title)
+        let safeMarkdown = sanitizedMarkdown.isEmpty
+            ? "Piano non disponibile (contenuto vuoto)."
+            : sanitizedMarkdown
         let entry = PlanHistoryEntry(
             conversationId: conversationId,
             contextId: contextId,
             contextFolderPath: contextFolderPath,
-            title: title,
-            markdown: markdown,
-            options: options,
+            title: safeTitle,
+            markdown: safeMarkdown,
+            options: cappedOptions,
             chosenPath: chosenPath,
             tags: tags,
             sourceMessageId: sourceMessageId
         )
         entries.append(entry)
+        if entries.count > maxPlanHistoryEntries {
+            entries = Array(entries.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+        }
         selectedEntryId = entry.id
         save()
         return entry

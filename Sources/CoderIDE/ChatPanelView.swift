@@ -27,20 +27,35 @@ enum PlanFlowPhase: Equatable {
     case building
 }
 
-func canExecutePlanBuild(phase: PlanFlowPhase, choice: String) -> Bool {
+func canExecutePlanBuild(phase: PlanFlowPhase, choice: String, allowIdleRebuild: Bool = false) -> Bool {
     let trimmed = choice.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
-    return phase == .idle || phase == .proposalReady || phase == .readyToBuild
+    if allowIdleRebuild, phase == .idle {
+        return true
+    }
+    return phase == .proposalReady || phase == .readyToBuild
 }
 
 func normalizeBuildFinalResponse(_ text: String) -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return text }
-    let lower = trimmed.lowercased()
-    let hasPlanEchoHeader = lower.contains("## opzione") || lower.contains("## option")
-    let hasPlanTodoHeader = lower.contains("## todo")
-    guard hasPlanEchoHeader || hasPlanTodoHeader else { return text }
     let lines = trimmed.components(separatedBy: .newlines)
+    let headerScan = lines.prefix(8).map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+    let hasEarlyOptionHeader = headerScan.contains {
+        $0.hasPrefix("## opzione") || $0.hasPrefix("## option")
+    }
+    let hasStrictOptions = !PlanOptionsParser.parseStrict(from: trimmed).isEmpty
+    let checklistItems = lines.reduce(into: 0) { partialResult, line in
+        if line.range(of: #"^\s*-\s*\[\s*.\s*\]\s+"#, options: .regularExpression) != nil {
+            partialResult += 1
+        }
+    }
+    let hasTodoHeader = lines.contains {
+        $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("## todo")
+    }
+    let looksLikePlanEcho = hasEarlyOptionHeader && hasStrictOptions && hasTodoHeader
+        && checklistItems >= 1
+    guard looksLikePlanEcho else { return text }
     var kept: [String] = []
     var skippingPlanBlock = false
     for line in lines {
@@ -59,7 +74,7 @@ func normalizeBuildFinalResponse(_ text: String) -> String {
     }
     let compact = kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     if compact.isEmpty {
-        return "Build completata. Piano applicato, TODO aggiornati e risultato pronto."
+        return text
     }
     return compact
 }
@@ -70,17 +85,44 @@ func nextPlanFlowPhaseForOutput(
     coderMode: CoderMode,
     shouldRunPlanInline: Bool
 ) -> PlanFlowPhase {
-    guard coderMode == .plan || shouldRunPlanInline else { return current }
-    if let clarification = PlanOptionsParser.parseClarificationQuestions(from: fullText),
-        !clarification.isEmpty
-    {
-        return .awaitingClarification
-    }
-    let options = PlanOptionsParser.parse(from: fullText)
-    if !options.isEmpty {
-        return .proposalReady
-    }
-    return current
+    PlanOutputClassifier.classify(
+        fullText: fullText,
+        current: current,
+        coderMode: coderMode,
+        shouldRunPlanInline: shouldRunPlanInline
+    ).nextPhase
+}
+
+func isPlanExecutionProviderIdAllowed(_ providerId: String) -> Bool {
+    ProviderSupport.isUserSelectableRealProvider(id: providerId)
+}
+
+func isPlanBuildExecutionCapableProvider(_ providerId: String, registry: ProviderRegistry) -> Bool {
+    ProviderSupport.isPlanBuildExecutionCapableProvider(id: providerId, registry: registry)
+}
+
+func shouldHandlePlanKeyboardShortcut(isInputFocused: Bool) -> Bool {
+    isInputFocused
+}
+
+func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {
+    !isLoading && phase != .building
+}
+
+func shouldSyncModeOnProviderChange(suppressForUserPicker: Bool) -> Bool {
+    !suppressForUserPicker
+}
+
+func shouldShowSwarmViewOnly(for mode: CoderMode) -> Bool {
+    mode == .agentSwarm
+}
+
+func shouldShowComposer(for mode: CoderMode) -> Bool {
+    !shouldShowSwarmViewOnly(for: mode)
+}
+
+func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
+    shouldShowComposer(for: mode)
 }
 
 struct PlanCommandParseResult: Equatable {
@@ -268,8 +310,8 @@ struct ChatPanelView: View {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
     @AppStorage("code_review_quick_commands_custom_json")
     private var codeReviewQuickCommandsCustomJSON = ""
     @AppStorage("openai_api_key") private var openaiApiKey = ""
@@ -319,6 +361,7 @@ struct ChatPanelView: View {
 
     @State private var isAnyAgentProviderReady = false
     @State private var userModeOverrideUntilConversationChange = false
+    @State private var suppressModeSyncForNextProviderChange = false
     @State private var ignoreNextConversationChangeReset = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
     @StateObject private var turnTimelineStore = TurnTimelineStore()
@@ -343,6 +386,12 @@ struct ChatPanelView: View {
     private var supportsInlineTimelineMode: Bool {
         coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
     }
+    private var hasTaskPanelContent: Bool {
+        !taskActivityStore.activities.isEmpty
+            || !taskActivityStore.instantGreps.isEmpty
+            || !todoStore.todos.isEmpty
+    }
+    private var showsSwarmViewOnly: Bool { shouldShowSwarmViewOnly(for: coderMode) }
     private var planPanelConversationId: UUID? { conversationId }
 
     var body: some View {
@@ -367,7 +416,11 @@ struct ChatPanelView: View {
                     )
                 }
 
-                messagesArea
+                if showsSwarmViewOnly {
+                    swarmDashboardArea
+                } else {
+                    messagesArea
+                }
 
                 // Task control bar — FIXED above composer (not in scroll)
                 if chatStore.isLoading || isSummarizing {
@@ -382,45 +435,20 @@ struct ChatPanelView: View {
                     )
                 }
 
-                composerArea
+                if shouldShowComposer(for: coderMode) {
+                    composerArea
+                }
             }
             if showPlanPanel {
-                PlanPanelView(
-                    todoStore: todoStore,
-                    chatStore: chatStore,
-                    taskActivityStore: taskActivityStore,
-                    conversationId: planPanelConversationId,
-                    planningState: planningState,
-                    planFlowPhase: planFlowPhase,
-                    onClose: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showPlanPanel = false
-                        }
-                    },
-                    onSelectOption: {
-                        executeWithPlanChoice(
-                            $0.fullText,
-                            fromPlanConversationId: planPanelConversationId,
-                            providerOverrideId: $1
-                        )
-                    },
-                    onCustomResponse: { executeWithPlanChoice($0, fromPlanConversationId: planPanelConversationId) },
-                    onBuild: {
-                        executeWithPlanChoice(
-                            $0,
-                            fromPlanConversationId: planPanelConversationId,
-                            providerOverrideId: $1
-                        )
-                    },
-                    onStop: { interruptTask() }
-                )
-                .id(planPanelConversationId)
-                .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
-                .transition(.move(edge: .trailing).combined(with: .opacity))
+                planPanelSidebar
             }
         }
         .onChange(of: providerRegistry.selectedProviderId) { _, newId in
-            syncCoderModeToProvider(newId)
+            if shouldSyncModeOnProviderChange(suppressForUserPicker: suppressModeSyncForNextProviderChange) {
+                syncCoderModeToProvider(newId)
+            } else {
+                suppressModeSyncForNextProviderChange = false
+            }
             checkProviderAuth()
         }
         .onChange(of: selectedConversationId) { _, _ in
@@ -429,12 +457,12 @@ struct ChatPanelView: View {
             } else {
                 userModeOverrideUntilConversationChange = false
             }
-            if showPlanPanel {
-                // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito.
-                planningState = .idle
-                planFlowPhase = .idle
-                planHistoryStore.setSelectedEntry(id: nil)
-            }
+            planShortcutPrimedUntil = nil
+            // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito
+            // anche se il pannello non è visibile in quel momento.
+            planningState = .idle
+            planFlowPhase = .idle
+            planHistoryStore.setSelectedEntry(id: nil)
             syncProviderFromConversation()
         }
         .onAppear {
@@ -442,7 +470,7 @@ struct ChatPanelView: View {
             codexModels = CodexModelsCache.loadModels()
             geminiModels = GeminiModelsCache.loadModels()
             syncSwarmProvider()
-            syncMultiSwarmReviewProvider()
+            syncCodeReviewRuntimeConfig()
             syncPlanProvider()
             checkProviderAuth()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
@@ -469,13 +497,13 @@ struct ChatPanelView: View {
         .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarmProvider() }
         .onChange(of: globalYolo) { _, _ in
             syncCodexProvider()
-            syncMultiSwarmReviewProvider()
+            syncCodeReviewRuntimeConfig()
             syncPlanProvider()
         }
-        .onChange(of: codeReviewPartitions) { _, _ in syncMultiSwarmReviewProvider() }
-        .onChange(of: codeReviewAnalysisOnly) { _, _ in syncMultiSwarmReviewProvider() }
-        .onChange(of: codeReviewAnalysisBackend) { _, _ in syncMultiSwarmReviewProvider() }
-        .onChange(of: codeReviewExecutionBackend) { _, _ in syncMultiSwarmReviewProvider() }
+        .onChange(of: codeReviewPartitions) { _, _ in syncCodeReviewRuntimeConfig() }
+        .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReviewRuntimeConfig() }
+        .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
+        .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
         .sheet(isPresented: $showSwarmHelp) { AgentSwarmHelpView() }
         .fileImporter(
             isPresented: $isSelectingImage,
@@ -507,6 +535,79 @@ struct ChatPanelView: View {
         }
     }
 
+    @ViewBuilder
+    private var planPanelSidebar: some View {
+        PlanPanelView(
+            todoStore: todoStore,
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            conversationId: planPanelConversationId,
+            planningState: planningState,
+            planFlowPhase: planFlowPhase,
+            onClose: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showPlanPanel = false
+                }
+            },
+            onSelectOption: { option, providerId in
+                executeWithPlanChoice(
+                    option.fullText,
+                    fromPlanConversationId: planPanelConversationId,
+                    providerOverrideId: providerId
+                )
+            },
+            onCustomResponse: { response in
+                executeWithPlanChoice(response, fromPlanConversationId: planPanelConversationId)
+            },
+            onBuild: { choice, providerId, allowIdleRebuild in
+                executeWithPlanChoice(
+                    choice,
+                    fromPlanConversationId: planPanelConversationId,
+                    providerOverrideId: providerId,
+                    allowIdleRebuild: allowIdleRebuild
+                )
+            },
+            onStop: { interruptTask() }
+        )
+        .id(planPanelConversationId)
+        .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+
+    @ViewBuilder
+    private var swarmDashboardArea: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                SwarmProgressView(
+                    store: swarmProgressStore,
+                    activities: taskActivityStore.activities,
+                    isTaskRunning: chatStore.isLoading
+                )
+                if !taskActivityStore.activities.isEmpty || !todoStore.todos.isEmpty {
+                    TaskActivityPanel(
+                        chatStore: chatStore,
+                        taskActivityStore: taskActivityStore,
+                        todoStore: todoStore,
+                        coderMode: coderMode,
+                        onOpenFile: { openFilesStore.openFile($0) },
+                        effectivePrimaryPath: effectiveContext.primaryPath
+                    )
+                } else {
+                    Text("Nessuna attività swarm disponibile.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(16)
+                }
+            }
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .frame(maxWidth: chatColumnMaxWidth)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func handleImageSelection(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -530,11 +631,11 @@ struct ChatPanelView: View {
 
     private func installPasteMonitor() {
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if isCmdShiftP(event) {
+            if shouldHandlePlanKeyboardShortcut(isInputFocused: isInputFocused) && isCmdShiftP(event) {
                 cyclePlanShortcutState()
                 return nil
             }
-            if isShiftTab(event) {
+            if shouldHandlePlanKeyboardShortcut(isInputFocused: isInputFocused) && isShiftTab(event) {
                 handleShiftTabPlanShortcut()
                 return nil
             }
@@ -580,6 +681,7 @@ struct ChatPanelView: View {
         if !preserveHistorySelection {
             planHistoryStore.setSelectedEntry(id: nil)
         }
+        planShortcutPrimedUntil = nil
         showPlanPanel = true
     }
 
@@ -594,6 +696,7 @@ struct ChatPanelView: View {
                 openPlanPanelForCurrentContext()
             } else {
                 showPlanPanel = false
+                planShortcutPrimedUntil = nil
                 if !transition.nextPlanToggleEnabled {
                     planningState = .idle
                     planFlowPhase = .idle
@@ -617,6 +720,7 @@ struct ChatPanelView: View {
         planShortcutPrimedUntil = transition.nextPrimedUntil
         if transition.shouldHighlightPlanToggle {
             isPlanTabHovered = true
+            isInputFocused = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 isPlanTabHovered = false
             }
@@ -779,6 +883,9 @@ struct ChatPanelView: View {
                     context: effectiveContext.context,
                     onFileClicked: { openFilesStore.openFile($0) }
                 )
+            } else if chatStore.isLoading && turnTimelineStore.segments.isEmpty {
+                // Evita area completamente vuota quando non è ancora arrivato testo visibile.
+                timelineStreamingPlaceholder(statusText: streamingStatusText)
             }
             if let reasoning = streamingReasoningText, !reasoning.isEmpty {
                 timelineReasoningStream(reasoning: reasoning)
@@ -847,13 +954,12 @@ struct ChatPanelView: View {
                         let messages = conv.messages
                         let lastMsg = messages.last
                         let taskDone = !chatStore.isLoading
-                        let hasTodoItems = !todoStore.todos.isEmpty
                         let showPanelBeforeLast =
                             coderMode == .agent
                             && taskDone
                             && lastMsg?.role == .assistant
                             && taskPanelEnabled
-                            && (!taskActivityStore.activities.isEmpty || hasTodoItems)
+                            && hasTaskPanelContent
 
                         ForEach(Array(messages.enumerated()), id: \.element.id) { item in
                             let index = item.offset
@@ -1002,9 +1108,8 @@ struct ChatPanelView: View {
                             && conv.id == timelineConversationId
                         if !timelineActive
                             && !showPanelBeforeLast
-                            && (chatStore.isLoading
-                                || ((!taskActivityStore.activities.isEmpty || !todoStore.todos.isEmpty)
-                                    && taskPanelEnabled))
+                            && taskPanelEnabled
+                            && hasTaskPanelContent
                         {
                             TaskActivityPanel(
                                 chatStore: chatStore,
@@ -1402,6 +1507,7 @@ struct ChatPanelView: View {
                 swarmWorkerBackend: $swarmWorkerBackend,
                 openaiModel: $openaiModel,
                 claudeModel: $claudeModel,
+                openrouterModel: $openrouterModel,
                 codexModels: codexModels,
                 geminiModels: geminiModels,
                 effectiveModeProviderLabel: effectiveModeProviderLabel,
@@ -1409,6 +1515,8 @@ struct ChatPanelView: View {
                 onSyncGeminiProvider: syncGeminiProvider,
                 onSyncSwarmProvider: syncSwarmProvider,
                 onSyncPlanProvider: syncPlanProvider,
+                onSyncOpenRouterProvider: syncOpenRouterProvider,
+                onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
                 onDelegateToAgent: delegateToAgent,
                 onOpenPlanPanel: { openPlanPanelForCurrentContext() },
                 attachedImageURLs: attachedImageURLs,
@@ -1422,14 +1530,16 @@ struct ChatPanelView: View {
             } message: {
                 Text(rateLimitAlertText)
             }
-            UsageFooterView(
-                selectedConversationId: $selectedConversationId,
-                effectiveContext: effectiveContext,
-                planModeBackend: planModeBackend,
-                swarmWorkerBackend: swarmWorkerBackend,
-                openaiModel: openaiModel,
-                claudeModel: claudeModel
-            )
+            if shouldShowUsageFooter(for: coderMode) {
+                UsageFooterView(
+                    selectedConversationId: $selectedConversationId,
+                    effectiveContext: effectiveContext,
+                    planModeBackend: planModeBackend,
+                    swarmWorkerBackend: swarmWorkerBackend,
+                    openaiModel: openaiModel,
+                    claudeModel: claudeModel
+                )
+            }
         }
     }
 
@@ -1447,12 +1557,6 @@ struct ChatPanelView: View {
             return "Claude Code non trovato. Configuralo nelle Impostazioni → Claude Code."
         case "gemini-cli":
             return "Gemini CLI non trovato/non autenticato. Configuralo nelle Impostazioni."
-        case "agent-swarm":
-            return "Agent Swarm non configurato. Verifica provider nelle Impostazioni."
-        case "plan-mode":
-            return "Backend Plan Mode non disponibile. Verifica Codex o Claude nelle Impostazioni."
-        case "multi-swarm-review":
-            return "Code Review non configurato. Verifica Codex nelle Impostazioni."
         case "openrouter-api": return "API Key OpenRouter mancante. Configurala nelle Impostazioni."
         case "minimax-api": return "API Key MiniMax mancante. Configurala nelle Impostazioni."
         default:
@@ -1470,10 +1574,7 @@ struct ChatPanelView: View {
 
     /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
     private var effectiveModeProviderLabel: String? {
-        switch providerRegistry.selectedProviderId {
-        case "plan-mode":
-            return "Plan → " + (planModeBackend == "claude" ? "Claude CLI" : "Codex CLI")
-        case "agent-swarm":
+        if coderMode == .agentSwarm {
             let workerLabel: String = {
                 switch swarmWorkerBackend {
                 case "codex": return "Codex CLI"
@@ -1488,40 +1589,48 @@ struct ChatPanelView: View {
                 }
             }()
             return "Swarm → \(workerLabel)"
-        case "multi-swarm-review":
+        }
+        if coderMode == .codeReviewMultiSwarm {
             let execLabel: String = {
                 switch codeReviewExecutionBackend {
-                case "claude": return "Claude CLI"
+                case "claude", "claude-cli": return "Claude CLI"
+                case "codex", "codex-cli": return "Codex CLI"
+                case "gemini", "gemini-cli": return "Gemini CLI"
                 case "anthropic-api": return "Anthropic API"
                 case "openai-api": return "OpenAI API"
                 case "google-api": return "Google API"
                 case "openrouter-api": return "OpenRouter API"
-                default: return "Codex CLI"
+                case "minimax-api": return "MiniMax API"
+                default: return codeReviewExecutionBackend
                 }
             }()
             return "Review → esecuzione: \(execLabel)"
-        default:
-            if coderMode == .ide {
-                guard let selected = providerRegistry.selectedProviderId,
-                    ProviderSupport.isIDEProvider(id: selected),
-                    let provider = providerRegistry.provider(for: selected)
-                else {
-                    return "IDE → Auto"
-                }
-                return "IDE → \(provider.displayName)"
-            }
-            if coderMode == .agent || coderMode == .agentSwarm || coderMode == .codeReviewMultiSwarm
-                || coderMode == .plan
-            {
-                if let selected = providerRegistry.selectedProviderId,
-                   let provider = providerRegistry.provider(for: selected),
-                   ProviderSupport.isAgentCompatibleProvider(id: selected)
-                {
-                    return provider.displayName
-                }
-            }
-            return nil
         }
+        if coderMode == .plan {
+            if let selected = providerRegistry.selectedProviderId,
+               let provider = providerRegistry.provider(for: selected) {
+                return "Plan → \(provider.displayName)"
+            }
+            return "Plan"
+        }
+        if coderMode == .ide {
+            guard let selected = providerRegistry.selectedProviderId,
+                ProviderSupport.isIDEProvider(id: selected),
+                let provider = providerRegistry.provider(for: selected)
+            else {
+                return "IDE → Auto"
+            }
+            return "IDE → \(provider.displayName)"
+        }
+        if coderMode == .agent || coderMode == .codeReviewMultiSwarm {
+            if let selected = providerRegistry.selectedProviderId,
+               let provider = providerRegistry.provider(for: selected),
+               ProviderSupport.isAgentCompatibleProvider(id: selected)
+            {
+                return provider.displayName
+            }
+        }
+        return nil
     }
 
     private var inputHint: String {
@@ -1662,10 +1771,39 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
-        case .agentSwarm: providerRegistry.selectedProviderId = "agent-swarm"
-        case .codeReviewMultiSwarm: providerRegistry.selectedProviderId = "multi-swarm-review"
+        case .agentSwarm:
+            if let preferred = currentConv?.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
+        case .codeReviewMultiSwarm:
+            if let preferred = currentConv?.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
         case .plan:
-            providerRegistry.selectedProviderId = "plan-mode"
+            if let preferred = currentConv?.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
             planningState = .idle
             planFlowPhase = .idle
             planToggleEnabled = true
@@ -1711,7 +1849,12 @@ struct ChatPanelView: View {
         if coderMode == .ide {
             let preferred = ProviderSupport.preferredIDEProvider(in: providerRegistry)
             if providerRegistry.selectedProviderId != preferred {
-                providerRegistry.selectedProviderId = preferred
+                DispatchQueue.main.async {
+                    // Evita mutazioni re-entrant durante transazioni SwiftUI/AppKit (Picker/Menu).
+                    if coderMode == .ide, providerRegistry.selectedProviderId != preferred {
+                        providerRegistry.selectedProviderId = preferred
+                    }
+                }
             }
         }
         let selectedProviderId = providerRegistry.selectedProviderId
@@ -1734,12 +1877,16 @@ struct ChatPanelView: View {
         let codexProvider = providerRegistry.provider(for: "codex-cli")
         let claudeProvider = providerRegistry.provider(for: "claude-cli")
         let geminiProvider = providerRegistry.provider(for: "gemini-cli")
+        let anyRealProvider = providerRegistry.providers.first {
+            ProviderSupport.isUserSelectableRealProvider(id: $0.id) && $0.isAuthenticated()
+        }
         Task.detached {
             let ready = provider?.isAuthenticated() ?? false
             let anyAgentReady =
                 (codexProvider?.isAuthenticated() ?? false)
                 || (claudeProvider?.isAuthenticated() ?? false)
                 || (geminiProvider?.isAuthenticated() ?? false)
+                || (anyRealProvider != nil)
             await MainActor.run {
                 isProviderReady = ready
                 isAnyAgentProviderReady = anyAgentReady
@@ -1750,8 +1897,7 @@ struct ChatPanelView: View {
     private func syncCodexProvider() {
         let p = ProviderFactory.codexProvider(
             config: providerFactoryConfig(), executionController: executionController)
-        providerRegistry.unregister(id: "codex-cli")
-        providerRegistry.register(p)
+        reregisterProviderPreservingSelection(id: "codex-cli", provider: p)
         syncSwarmProvider()
         syncPlanProvider()
         checkProviderAuth()
@@ -1761,9 +1907,24 @@ struct ChatPanelView: View {
     private func syncGeminiProvider() {
         let p = ProviderFactory.geminiProvider(
             config: providerFactoryConfig(), executionController: executionController)
-        providerRegistry.unregister(id: "gemini-cli")
-        providerRegistry.register(p)
+        reregisterProviderPreservingSelection(id: "gemini-cli", provider: p)
         checkProviderAuth()
+    }
+
+    private func syncOpenRouterProvider() {
+        let p = ProviderFactory.openRouterAPIProvider(
+            config: providerFactoryConfig(), executionController: executionController)
+        reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
+        checkProviderAuth()
+    }
+
+    private func reregisterProviderPreservingSelection(id: String, provider: any LLMProvider) {
+        let wasSelected = providerRegistry.selectedProviderId == id
+        providerRegistry.unregister(id: id)
+        providerRegistry.register(provider)
+        if wasSelected {
+            providerRegistry.selectedProviderId = id
+        }
     }
 
     private func persistCodexConfigToToml() {
@@ -1774,30 +1935,11 @@ struct ChatPanelView: View {
         CodexConfigLoader.save(cfg)
     }
     private func syncSwarmProvider() {
-        providerRegistry.unregister(id: "agent-swarm")
-        if let swarm = ProviderFactory.swarmProvider(
-            config: providerFactoryConfig(),
-            executionController: executionController)
-        {
-            providerRegistry.register(swarm)
-        }
+        // Swarm provider is created on-demand at runtime using real providers.
         checkProviderAuth()
     }
-    private func syncMultiSwarmReviewProvider() {
-        providerRegistry.unregister(id: "multi-swarm-review")
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            checkProviderAuth()
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        var reviewConfig = providerFactoryConfig()
-        if !reviewConfig.codeReviewAnalysisOnly {
-            // In Autofix mode force YOLO only for the review provider instance.
-            reviewConfig.globalYolo = true
-        }
-        providerRegistry.register(
-            ProviderFactory.codeReviewProvider(
-                config: reviewConfig, codex: codex, claude: claude))
+    private func syncCodeReviewRuntimeConfig() {
+        // Review provider is created on-demand at runtime using real providers.
         checkProviderAuth()
     }
     private func syncProviderFromConversation() {
@@ -1833,9 +1975,17 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
-        case .agentSwarm: providerRegistry.selectedProviderId = "agent-swarm"
-        case .codeReviewMultiSwarm: providerRegistry.selectedProviderId = "multi-swarm-review"
-        case .plan: providerRegistry.selectedProviderId = "plan-mode"
+        case .agentSwarm, .codeReviewMultiSwarm, .plan:
+            if let preferred = conv.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         checkProviderAuth()
@@ -1859,15 +2009,6 @@ struct ChatPanelView: View {
             return
         }
         switch id {
-        case "agent-swarm":
-            coderMode = .agentSwarm
-            planningState = .idle
-            planFlowPhase = .idle
-        case "multi-swarm-review":
-            coderMode = .codeReviewMultiSwarm
-            planningState = .idle
-            planFlowPhase = .idle
-        case "plan-mode": coderMode = .plan
         case "codex-cli", "claude-cli", "gemini-cli":
             coderMode = .agent
             planningState = .idle
@@ -1876,17 +2017,7 @@ struct ChatPanelView: View {
         }
     }
     private func syncPlanProvider() {
-        let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        providerRegistry.unregister(id: "plan-mode")
-        guard codex != nil || claude != nil else {
-            checkProviderAuth()
-            return
-        }
-        providerRegistry.register(
-            ProviderFactory.planProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude,
-                executionController: executionController))
+        // Plan mode uses selected real provider at runtime.
         checkProviderAuth()
     }
 
@@ -1994,36 +2125,42 @@ struct ChatPanelView: View {
     }
 
     // MARK: - Plan Choice Execution
-    private func resolvePlanExecutionProviderFromBackend() -> (any LLMProvider)? {
-        let useClaude = planModeBackend == "claude"
-        if useClaude {
-            guard let c = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider else {
-                appendTechnicalErrorMessage(
-                    "[Plan] Backend Claude non disponibile. Verifica impostazioni/autenticazione Claude CLI.",
-                    in: conversationId
-                )
-                flowDiagnosticsStore.setError("Plan backend Claude non disponibile")
-                return nil
-            }
-            return c
+    private func resolvePreferredRealProvider() -> (any LLMProvider)? {
+        if let selectedId = providerRegistry.selectedProviderId,
+           ProviderSupport.isPlanBuildExecutionCapableProvider(id: selectedId, registry: providerRegistry),
+           let selected = providerRegistry.provider(for: selectedId),
+           selected.isAuthenticated() {
+            return selected
         }
-        guard let c = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            appendTechnicalErrorMessage(
-                "[Plan] Backend Codex non disponibile. Verifica impostazioni/autenticazione Codex CLI.",
-                in: conversationId
-            )
-            flowDiagnosticsStore.setError("Plan backend Codex non disponibile")
-            return nil
+        if let fallback = providerRegistry.providers.first(where: {
+            ProviderSupport.isPlanBuildExecutionCapableProvider(id: $0.id, registry: providerRegistry)
+                && $0.isAuthenticated()
+        }) {
+            return fallback
         }
-        return c
+        appendTechnicalErrorMessage(
+            "[Provider] Nessun provider execution-capable autenticato disponibile.",
+            in: conversationId
+        )
+        flowDiagnosticsStore.setError("Nessun provider execution-capable autenticato")
+        return nil
     }
 
     private func executeWithPlanChoice(
         _ choice: String,
         fromPlanConversationId explicitPlanConversationId: UUID? = nil,
-        providerOverrideId: String? = nil
+        providerOverrideId: String? = nil,
+        allowIdleRebuild: Bool = false
     ) {
-        guard canExecutePlanBuild(phase: planFlowPhase, choice: choice) else {
+        guard canStartPlanBuild(isLoading: chatStore.isLoading, phase: planFlowPhase) else {
+            flowDiagnosticsStore.setError("Build plan già in esecuzione")
+            return
+        }
+        guard canExecutePlanBuild(
+            phase: planFlowPhase,
+            choice: choice,
+            allowIdleRebuild: allowIdleRebuild
+        ) else {
             appendTechnicalErrorMessage(
                 "[Plan] Build non disponibile: completa discovery/chiarimenti e genera un piano valido prima di eseguire.",
                 in: conversationId
@@ -2035,60 +2172,52 @@ struct ChatPanelView: View {
         let provider: any LLMProvider
         let normalizedOverride = providerOverrideId?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let overrideId = normalizedOverride, !overrideId.isEmpty {
+            guard isPlanExecutionProviderIdAllowed(overrideId) else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Provider non valido per il build (\(overrideId)).",
+                    in: conversationId
+                )
+                flowDiagnosticsStore.setError("Plan override non consentito: \(overrideId)")
+                return
+            }
+            guard isPlanBuildExecutionCapableProvider(overrideId, registry: providerRegistry) else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Provider non idoneo al build operativo (\(overrideId)). Seleziona un provider execution-capable.",
+                    in: conversationId
+                )
+                flowDiagnosticsStore.setError("Plan override non execution-capable: \(overrideId)")
+                return
+            }
             if let overrideProvider = providerRegistry.provider(for: overrideId) {
                 if overrideProvider.isAuthenticated() {
                     provider = overrideProvider
                 } else {
                     appendTechnicalErrorMessage(
-                        "[Plan] Provider selezionato nel pannello non autenticato (\(overrideProvider.displayName)). Uso backend Plan predefinito.",
+                        "[Plan] Provider selezionato nel pannello non autenticato (\(overrideProvider.displayName)). Uso provider reale di fallback.",
                         in: conversationId
                     )
                     flowDiagnosticsStore.setError("Plan override non autenticato: \(overrideId)")
-                    guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+                    guard let backendProvider = resolvePreferredRealProvider() else {
                         return
                     }
                     provider = backendProvider
-                    if !provider.isAuthenticated() {
-                        appendTechnicalErrorMessage(
-                            "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
-                            in: conversationId
-                        )
-                        flowDiagnosticsStore.setError("Plan backend non autenticato")
-                        return
-                    }
                 }
             } else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Provider selezionato nel pannello non disponibile (\(overrideId)). Uso backend Plan predefinito.",
+                    "[Plan] Provider selezionato nel pannello non disponibile (\(overrideId)). Uso provider reale di fallback.",
                     in: conversationId
                 )
                 flowDiagnosticsStore.setError("Plan override non disponibile: \(overrideId)")
-                guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+                guard let backendProvider = resolvePreferredRealProvider() else {
                     return
                 }
                 provider = backendProvider
-                if !provider.isAuthenticated() {
-                    appendTechnicalErrorMessage(
-                        "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
-                        in: conversationId
-                    )
-                    flowDiagnosticsStore.setError("Plan backend non autenticato")
-                    return
-                }
             }
         } else {
-            guard let backendProvider = resolvePlanExecutionProviderFromBackend() else {
+            guard let backendProvider = resolvePreferredRealProvider() else {
                 return
             }
             provider = backendProvider
-            if !provider.isAuthenticated() {
-                appendTechnicalErrorMessage(
-                    "[Plan] Il backend selezionato non è autenticato. Esegui login e riprova.",
-                    in: conversationId
-                )
-                flowDiagnosticsStore.setError("Plan backend non autenticato")
-                return
-            }
         }
 
         let currentConv = chatStore.conversation(for: conversationId)
@@ -2304,7 +2433,7 @@ struct ChatPanelView: View {
             planFlowPhase = .idle
         }
 
-        // 1. Resolve the runtime provider (plan-mode, multi-account, or default)
+        // 1. Resolve the runtime provider
         guard
             let runtimeProvider = resolveRuntimeProvider(
                 selectedProvider: selectedProvider,
@@ -2371,7 +2500,7 @@ struct ChatPanelView: View {
         todoStore.clearAgentTodos(includePlanCanonical: true)
         turnTimelineStore.clear()
         timelineConversationId = targetConversationId
-        if providerRegistry.selectedProviderId == "agent-swarm" { swarmProgressStore.clear() }
+        if coderMode == .agentSwarm { swarmProgressStore.clear() }
 
         let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
         attachedImageURLs = []
@@ -2405,10 +2534,18 @@ struct ChatPanelView: View {
                     }
                 )
 
+                let finalizedResult = try await continueIfPrematureStub(
+                    initial: streamResult,
+                    provider: runtimeProvider,
+                    originalPrompt: prompt,
+                    context: ctx,
+                    conversationId: targetConversationId
+                )
+
                 // 6. Handle stream completion (plan options, swarm delegation)
                 await handleStreamResult(
                     conversationId: targetConversationId,
-                    streamResult, shouldRunPlanInline: shouldRunPlanInline,
+                    finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
                     ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
                 )
             } catch {
@@ -2429,6 +2566,81 @@ struct ChatPanelView: View {
         }
     }
 
+    private func continueIfPrematureStub(
+        initial: (fullText: String, pendingSwarmTask: String?),
+        provider: any LLMProvider,
+        originalPrompt: String,
+        context: WorkspaceContext,
+        conversationId: UUID
+    ) async throws -> (fullText: String, pendingSwarmTask: String?) {
+        guard initial.pendingSwarmTask == nil else { return initial }
+        guard shouldAutoContinueStub(initial.fullText) else { return initial }
+
+        let continuationPrompt = """
+        Continua immediatamente la tua risposta precedente e completala fino a un risultato utile e concreto.
+        Non fermarti a descrivere cosa farai: esegui il ragionamento e fornisci l'output finale.
+
+        Richiesta originale:
+        \(originalPrompt)
+
+        Testo già inviato:
+        \(initial.fullText)
+        """
+
+        let followUp = try await flowCoordinator.runStream(
+            provider: provider,
+            prompt: continuationPrompt,
+            context: context,
+            imageURLs: nil,
+            onText: { deltaFull in
+                let combined = initial.fullText + "\n" + deltaFull
+                applyStreamingUpdate(
+                    content: combined,
+                    conversationId: conversationId,
+                    timelineIdGuard: timelineConversationId
+                )
+            },
+            onRaw: { t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid)
+            },
+            onError: { content in
+                DispatchQueue.main.async {
+                    let combined = initial.fullText + "\n" + content
+                    chatStore.updateLastAssistantMessage(content: combined, in: conversationId)
+                }
+            }
+        )
+
+        let combinedText = initial.fullText + "\n" + followUp.fullText
+        let combinedSwarmTask = initial.pendingSwarmTask ?? followUp.pendingSwarmTask
+        return (fullText: combinedText, pendingSwarmTask: combinedSwarmTask)
+    }
+
+    private func shouldAutoContinueStub(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
+        guard wordCount <= 40 else { return false }
+        let low = trimmed.lowercased()
+        let stubSignals = [
+            "inizierò",
+            "iniziero",
+            "comincerò",
+            "comincero",
+            "esplorerò",
+            "esplorero",
+            "cercherò",
+            "cerchero",
+            "i'll start",
+            "i will start",
+            "i'll begin",
+            "i will begin",
+            "first, i'll",
+            "first i will",
+        ]
+        return stubSignals.contains { low.contains($0) }
+    }
+
     // MARK: - Resolve Runtime Provider
 
     private func resolveRuntimeProvider(
@@ -2436,15 +2648,9 @@ struct ChatPanelView: View {
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool
     ) -> (any LLMProvider)? {
-        // /plan deve rispettare il provider selezionato, non forzare plan-mode.
-        if forcePlanInline {
+        // Plan/Review/Swarm usano provider reali selezionati, senza provider virtuali.
+        if forcePlanInline || shouldRunPlanInline || coderMode == .plan || coderMode == .codeReviewMultiSwarm || coderMode == .agentSwarm {
             return selectedProvider
-        }
-        if shouldRunPlanInline,
-            let p = providerRegistry.provider(for: "plan-mode"),
-            p.isAuthenticated()
-        {
-            return p
         }
         if multiCLIAccountEnabled,
             let selectedProviderId = providerRegistry.selectedProviderId,
@@ -2635,61 +2841,52 @@ struct ChatPanelView: View {
 
         // Handle plan options parsing
         if coderMode == .plan || shouldRunPlanInline {
-            let parsedPhase = nextPlanFlowPhaseForOutput(
+            let classification = PlanOutputClassifier.classify(
                 fullText: full,
                 current: planFlowPhase,
                 coderMode: coderMode,
                 shouldRunPlanInline: shouldRunPlanInline
             )
-            await MainActor.run { planFlowPhase = parsedPhase }
-            // Prima verifica se è una risposta con domande di chiarimento
-            if let clarificationQuestions = PlanOptionsParser.parseClarificationQuestions(from: full),
-               !clarificationQuestions.isEmpty {
-                await MainActor.run {
-                    planningState = .awaitingClarification(questions: full)
-                    planFlowPhase = .awaitingClarification
+            await MainActor.run {
+                planFlowPhase = classification.nextPhase
+                if let state = classification.planningState {
+                    planningState = state
                 }
-            } else {
-                let opts = PlanOptionsParser.parse(from: full)
-                if !opts.isEmpty {
-                    await MainActor.run {
-                        planningState = .awaitingChoice(planContent: full, options: opts)
-                        planFlowPhase = .proposalReady
-                    }
-                    let board = PlanBoard.build(from: full, options: opts)
-                    chatStore.setPlanBoard(board, for: streamConversationId)
-                    let currentConv = chatStore.conversation(for: streamConversationId)
-                    let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-                    let entry = planHistoryStore.createEntry(
-                        conversationId: streamConversationId,
-                        contextId: currentConv?.contextId,
-                        contextFolderPath: currentConv?.contextFolderPath,
-                        title: parsedSummary.title,
-                        markdown: full,
-                        options: opts,
-                        chosenPath: board.chosenPath,
-                        tags: [],
-                        sourceMessageId: nil
-                    )
-                    let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
-                        conversationId: streamConversationId,
-                        entry: entry
-                    )
-                    planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
-                    if shouldRunPlanInline {
-                        let cid = streamConversationId
-                        inlinePlanSummaries[cid] = {
-                            let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
-                            return InlinePlanSummary(title: parsed.title, body: parsed.body)
-                        }()
-                        isPlanSummaryCollapsed = false
-                        let contextId = currentConv?.contextId
-                        let contextFolderPath = currentConv?.contextFolderPath
-                        let planConvId = chatStore.getOrCreateConversationForMode(
-                            contextId: contextId, contextFolderPath: contextFolderPath,
-                            mode: .plan)
-                        chatStore.setPlanBoard(board, for: planConvId)
-                    }
+            }
+            if case .awaitingChoice(_, let opts) = classification.planningState {
+                let board = PlanBoard.build(from: full, options: opts)
+                chatStore.setPlanBoard(board, for: streamConversationId)
+                let currentConv = chatStore.conversation(for: streamConversationId)
+                let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+                let entry = planHistoryStore.createEntry(
+                    conversationId: streamConversationId,
+                    contextId: currentConv?.contextId,
+                    contextFolderPath: currentConv?.contextFolderPath,
+                    title: parsedSummary.title,
+                    markdown: full,
+                    options: opts,
+                    chosenPath: board.chosenPath,
+                    tags: [],
+                    sourceMessageId: nil
+                )
+                let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
+                    conversationId: streamConversationId,
+                    entry: entry
+                )
+                planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
+                if shouldRunPlanInline {
+                    let cid = streamConversationId
+                    inlinePlanSummaries[cid] = {
+                        let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
+                        return InlinePlanSummary(title: parsed.title, body: parsed.body)
+                    }()
+                    isPlanSummaryCollapsed = false
+                    let contextId = currentConv?.contextId
+                    let contextFolderPath = currentConv?.contextFolderPath
+                    let planConvId = chatStore.getOrCreateConversationForMode(
+                        contextId: contextId, contextFolderPath: contextFolderPath,
+                        mode: .plan)
+                    chatStore.setPlanBoard(board, for: planConvId)
                 }
             }
         }
@@ -2729,9 +2926,10 @@ struct ChatPanelView: View {
         imageURLsToSend: [URL]?,
         prompt: String
     ) async {
-        guard let swarm = providerRegistry.provider(for: "agent-swarm"),
-            swarm.isAuthenticated()
-        else { return }
+        guard let swarm = ProviderFactory.swarmProvider(
+            config: providerFactoryConfig(),
+            executionController: executionController
+        ), swarm.isAuthenticated() else { return }
 
         let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
         chatStore.addMessage(
@@ -2749,7 +2947,7 @@ struct ChatPanelView: View {
 
         let followUpProvider: (any LLMProvider)? = {
             guard let agentId = agentProviderIdBeforeSwarm,
-                agentId == "codex-cli" || agentId == "claude-cli",
+                ProviderSupport.isAgentCompatibleProvider(id: agentId),
                 let agentProvider = providerRegistry.provider(for: agentId),
                 agentProvider.isAuthenticated()
             else { return nil }

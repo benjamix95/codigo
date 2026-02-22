@@ -24,13 +24,31 @@ final class PlanFlowPhaseTests: XCTestCase {
     }
 
     func testPhaseTransitionsProposalToReadyToBuildViaGating() {
-        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: "## Opzione 1: A"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .idle, choice: "## Opzione 1: A"))
+        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: "## Opzione 1: A", allowIdleRebuild: true))
         XCTAssertTrue(canExecutePlanBuild(phase: .proposalReady, choice: "## Opzione 1: A"))
         XCTAssertTrue(canExecutePlanBuild(phase: .readyToBuild, choice: "## Opzione 1: A"))
     }
 
+    func testCanStartPlanBuildBlocksConcurrentExecution() {
+        XCTAssertFalse(canStartPlanBuild(isLoading: true, phase: .proposalReady))
+        XCTAssertFalse(canStartPlanBuild(isLoading: false, phase: .building))
+        XCTAssertTrue(canStartPlanBuild(isLoading: false, phase: .proposalReady))
+    }
+
+    func testPhaseDoesNotTransitionToProposalReadyOnGenericText() {
+        let phase = nextPlanFlowPhaseForOutput(
+            fullText: "Analisi completata, ma servono più informazioni.",
+            current: .discovery,
+            coderMode: .plan,
+            shouldRunPlanInline: false
+        )
+        XCTAssertEqual(phase, .discovery)
+    }
+
     func testPanelBuildEnabledInIdleWhenChoiceExists() {
-        XCTAssertTrue(isPlanBuildEnabled(phase: .idle, hasBuildChoice: true))
+        XCTAssertFalse(isPlanBuildEnabled(phase: .idle, hasBuildChoice: true))
+        XCTAssertTrue(isPlanBuildEnabled(phase: .idle, hasBuildChoice: true, allowIdleRebuild: true))
     }
 
     func testPanelBuildDisabledInIdleWhenNoChoiceExists() {

@@ -9,6 +9,12 @@ struct PlanOption: Identifiable, Equatable, Codable {
 
 /// Estrae opzioni numerate da un testo di piano (es. "## Opzione 1: ...", "Opzione 2:", ecc.)
 enum PlanOptionsParser {
+    private static let optionHeaderPattern =
+        #"(?i)(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]"#
+    private static let nextOptionPattern =
+        #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+"#
+    private static let optionWithTitlePattern =
+        #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]\s*.+$"#
 
     /// Estrae le domande di chiarimento dal blocco "## Domande di chiarimento".
     /// Restituisce nil se il blocco non è presente (→ procedere con parsing opzioni).
@@ -50,11 +56,10 @@ enum PlanOptionsParser {
                 }
             }
         }
-        return questions.count >= 2 ? questions : nil
+        return questions.isEmpty ? nil : questions
     }
 
-    /// Restituisce le opzioni parsegate o una singola opzione con l'intero testo se il parsing fallisce
-    static func parse(from text: String) -> [PlanOption] {
+    private static func parseStructured(from text: String) -> [PlanOption] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
@@ -65,7 +70,7 @@ enum PlanOptionsParser {
         while i < lines.count {
             let line = lines[i]
             // Match "Opzione 1:" / "Option 1:" o "## Opzione 1 - Title" (case-insensitive).
-            if line.range(of: #"(?i)(?:Opzione|Option)\s+\d+\s*[:\-\u{2013}\u{2014}]"#, options: .regularExpression) != nil {
+            if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
                 var title = "Opzione"
                 if let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#),
@@ -91,7 +96,7 @@ enum PlanOptionsParser {
                 i += 1
                 while i < lines.count {
                     let next = lines[i]
-                    if next.range(of: #"(?i)^\s*(?:##\s*)?(?:Opzione|Option)\s+\d+"#, options: .regularExpression) != nil {
+                    if next.range(of: nextOptionPattern, options: .regularExpression) != nil {
                         break
                     }
                     fullLines.append(next)
@@ -109,9 +114,34 @@ enum PlanOptionsParser {
                 PlanOption(id: $0.num, title: $0.title, fullText: $0.full)
             }
         }
+        return []
+    }
+
+    /// Restituisce solo opzioni strutturate e affidabili per transizioni di stato/build.
+    static func parseStrict(from text: String) -> [PlanOption] {
+        let options = parseStructured(from: text)
+        guard !options.isEmpty else { return [] }
+
+        // Hardening: evita falsi positivi su testo rumoroso. Richiedi almeno due opzioni
+        // oppure heading opzione completo con titolo.
+        if options.count >= 2 { return options }
+        guard options.count == 1 else { return [] }
+        let firstLine = options[0].fullText.components(separatedBy: .newlines).first ?? ""
+        let hasStrongHeader = firstLine.range(of: optionWithTitlePattern, options: .regularExpression) != nil
+        return hasStrongHeader ? options : []
+    }
+
+    /// Restituisce le opzioni parsegate o una singola opzione con l'intero testo se il parsing fallisce
+    static func parse(from text: String) -> [PlanOption] {
+        let strict = parseStrict(from: text)
+        if !strict.isEmpty { return strict }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
 
         // Fallback: blocchi numerati "1. ..." o "1) ..." con contenuto lungo
         let paragraphs = trimmed.components(separatedBy: "\n\n")
+        var options: [(num: Int, title: String, full: String)] = []
         for para in paragraphs {
             let p = para.trimmingCharacters(in: .whitespaces)
             guard p.count >= 20 else { continue }

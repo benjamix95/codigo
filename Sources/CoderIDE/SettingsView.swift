@@ -21,25 +21,6 @@ let googleModels = [
     "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
 ]
 
-let openRouterPopularModels = [
-    "anthropic/claude-opus-4-6", "anthropic/claude-sonnet-4-6",
-    "google/gemini-3-pro", "google/gemini-2.5-pro",
-    "minimax/minimax-m2.5",
-    "z-ai/glm-5",
-    "qwen/qwen3.5-plus-2025-01-25", "qwen/qwen3-coder-480b-a35b",
-    "meta-llama/llama-4-maverick",
-    "deepseek/deepseek-r1",
-]
-
-let openRouterFreeModels = [
-    "z-ai/glm-4.5-air:free",
-    "qwen/qwen3-next-80b:free",
-    "deepseek/deepseek-r1-0528:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-3-27b-it:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
-]
-
 let minimaxModels = [
     "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2",
 ]
@@ -164,8 +145,8 @@ struct SettingsView: View {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
     @AppStorage("code_review_quick_commands_custom_json")
     private var codeReviewQuickCommandsCustomJSON = ""
 
@@ -242,6 +223,7 @@ struct SettingsView: View {
             }
         }
         .onAppear {
+            normalizeStoredSelections()
             codexState.refresh()
             geminiState.refresh()
             syncProviders()
@@ -481,7 +463,7 @@ struct SettingsView: View {
             GroupBox("Modello") {
                 VStack(alignment: .leading, spacing: 12) {
                     Picker("", selection: $openrouterModel) {
-                        ForEach(openRouterPopularModels, id: \.self) { m in Text(m).tag(m) }
+                        ForEach(openRouterPickerModels, id: \.self) { m in Text(m).tag(m) }
                     }
                     .labelsHidden()
 
@@ -986,6 +968,13 @@ struct SettingsView: View {
                         ForEach(GeminiModelsCache.loadModels(), id: \.slug) { m in
                             Text(m.displayName).tag(m.slug)
                         }
+                        if !geminiModelOverride.isEmpty
+                            && !GeminiModelsCache.loadModels().contains(where: {
+                                $0.slug == geminiModelOverride
+                            })
+                        {
+                            Text(geminiModelOverride).tag(geminiModelOverride)
+                        }
                     }
                     .labelsHidden()
                     .onChange(of: geminiModelOverride) { _, _ in syncGemini() }
@@ -1015,12 +1004,13 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Backend che genera il piano di task")
                     Picker("", selection: $swarmOrchestrator) {
+                        Text("API").foregroundStyle(.secondary).disabled(true)
                         Text("OpenAI API").tag("openai")
                         Text("Anthropic API").tag("anthropic-api")
                         Text("Google API").tag("google-api")
                         Text("OpenRouter").tag("openrouter-api")
                         Text("MiniMax API").tag("minimax-api")
-                        Divider()
+                        Text("CLI").foregroundStyle(.secondary).disabled(true)
                         Text("Codex CLI").tag("codex")
                         Text("Claude Code").tag("claude")
                         Text("Gemini CLI").tag("gemini")
@@ -1035,10 +1025,11 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Backend che esegue i task")
                     Picker("", selection: $swarmWorkerBackend) {
+                        Text("CLI").foregroundStyle(.secondary).disabled(true)
                         Text("Codex CLI").tag("codex")
                         Text("Claude Code").tag("claude")
                         Text("Gemini CLI").tag("gemini")
-                        Divider()
+                        Text("API").foregroundStyle(.secondary).disabled(true)
                         Text("OpenAI API").tag("openai-api")
                         Text("Anthropic API").tag("anthropic-api")
                         Text("Google API").tag("google-api")
@@ -1127,21 +1118,29 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Backend analisi Fase 1")
                     Picker("", selection: $codeReviewAnalysisBackend) {
-                        Text("Codex").tag("codex")
-                        Text("Claude").tag("claude")
+                        Text("Codex CLI").tag("codex-cli")
+                        Text("Claude CLI").tag("claude-cli")
+                        Text("Gemini CLI").tag("gemini-cli")
+                        Text("Anthropic API").tag("anthropic-api")
+                        Text("OpenAI API").tag("openai-api")
+                        Text("Google API").tag("google-api")
+                        Text("OpenRouter API").tag("openrouter-api")
+                        Text("MiniMax API").tag("minimax-api")
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
                     .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReview() }
 
                     fieldLabel("Backend esecuzione Fase 2 (modifiche file)")
                     Picker("", selection: $codeReviewExecutionBackend) {
-                        Text("Codex CLI").tag("codex")
-                        Text("Claude CLI").tag("claude")
+                        Text("Codex CLI").tag("codex-cli")
+                        Text("Claude CLI").tag("claude-cli")
+                        Text("Gemini CLI").tag("gemini-cli")
                         Text("Anthropic API").tag("anthropic-api")
                         Text("OpenAI API").tag("openai-api")
                         Text("Google API").tag("google-api")
                         Text("OpenRouter API").tag("openrouter-api")
+                        Text("MiniMax API").tag("minimax-api")
                     }
                     .pickerStyle(.menu)
                     .labelsHidden()
@@ -1820,44 +1819,33 @@ struct SettingsView: View {
     }
 
     private func syncPlanProvider() {
-        let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        guard codex != nil || claude != nil else { return }
-        providerRegistry.unregister(id: "plan-mode")
-        providerRegistry.register(
-            ProviderFactory.planProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude,
-                executionController: executionController))
+        // Plan runtime usa il provider reale selezionato.
     }
 
     private func syncOpenAI() {
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
-        providerRegistry.unregister(id: "openai-api")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "openai-api", provider:
             ProviderFactory.openAIAPIProvider(
                 config: providerFactoryConfig(), reasoningEffort: effort,
                 executionController: executionController))
     }
 
     private func syncAnthropic() {
-        providerRegistry.unregister(id: "anthropic-api")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "anthropic-api", provider:
             ProviderFactory.anthropicAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
     }
 
     private func syncGoogle() {
-        providerRegistry.unregister(id: "google-api")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "google-api", provider:
             ProviderFactory.googleAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
     }
 
     private func syncCodex() {
-        providerRegistry.unregister(id: "codex-cli")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "codex-cli", provider:
             ProviderFactory.codexProvider(
                 config: providerFactoryConfig(), executionController: executionController))
     }
@@ -1871,24 +1859,21 @@ struct SettingsView: View {
     }
 
     private func syncMiniMax() {
-        providerRegistry.unregister(id: "minimax-api")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "minimax-api", provider:
             ProviderFactory.miniMaxAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
     }
 
     private func syncOpenRouter() {
-        providerRegistry.unregister(id: "openrouter-api")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "openrouter-api", provider:
             ProviderFactory.openRouterAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
     }
 
     private func syncClaude() {
-        providerRegistry.unregister(id: "claude-cli")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "claude-cli", provider:
             ProviderFactory.claudeProvider(
                 config: providerFactoryConfig(), executionController: executionController))
         syncSwarm()
@@ -1896,19 +1881,99 @@ struct SettingsView: View {
     }
 
     private func syncGemini() {
-        providerRegistry.unregister(id: "gemini-cli")
-        providerRegistry.register(
+        reregisterProviderPreservingSelection(id: "gemini-cli", provider:
             ProviderFactory.geminiProvider(
                 config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncSwarm() {
-        providerRegistry.unregister(id: "agent-swarm")
-        if let swarm = ProviderFactory.swarmProvider(
-            config: providerFactoryConfig(),
-            executionController: executionController)
+        // Swarm runtime viene creato on-demand con provider reali.
+    }
+
+    private func reregisterProviderPreservingSelection(
+        id: String,
+        provider: any LLMProvider
+    ) {
+        let wasSelected = providerRegistry.selectedProviderId == id
+        providerRegistry.unregister(id: id)
+        providerRegistry.register(provider)
+        if wasSelected {
+            providerRegistry.selectedProviderId = id
+        }
+    }
+
+    private var openRouterPickerModels: [String] {
+        var models = openRouterPopularModels
+        let current = openrouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !current.isEmpty && !models.contains(current) {
+            models.insert(current, at: 0)
+        }
+        return models
+    }
+
+    private func normalizeStoredSelections() {
+        openrouterModel = normalizeOpenRouterModelId(openrouterModel)
+        if !openAIModels.contains(openaiModel), let first = openAIModels.first {
+            openaiModel = first
+        }
+        if !anthropicModels.contains(anthropicModel), let first = anthropicModels.first {
+            anthropicModel = first
+        }
+        if !googleModels.contains(googleModel), let first = googleModels.first {
+            googleModel = first
+        }
+        if !minimaxModels.contains(minimaxModel), let first = minimaxModels.first {
+            minimaxModel = first
+        }
+        if !["low", "medium", "high"].contains(reasoningEffort) {
+            reasoningEffort = "medium"
+        }
+        if !["read-only", "workspace-write", "danger-full-access"].contains(codexSandbox) {
+            codexSandbox = "workspace-write"
+        }
+        if !["never", "on-request", "untrusted"].contains(codexAskForApproval) {
+            codexAskForApproval = "never"
+        }
+        if !["codex", "claude"].contains(planModeBackend) {
+            planModeBackend = "codex"
+        }
+        if !["auto", "concise", "detailed", "none"].contains(codexReasoningSummary) {
+            codexReasoningSummary = "auto"
+        }
+        if !["low", "medium", "high"].contains(codexVerbosity) {
+            codexVerbosity = "medium"
+        }
+        if !["none", "friendly", "pragmatic"].contains(codexPersonality) {
+            codexPersonality = "none"
+        }
+        if !["opus", "sonnet", "haiku"].contains(claudeModel) {
+            claudeModel = "sonnet"
+        }
+        if !["openai", "anthropic-api", "google-api", "openrouter-api", "minimax-api", "codex", "claude", "gemini"]
+            .contains(swarmOrchestrator)
         {
-            providerRegistry.register(swarm)
+            swarmOrchestrator = "openai"
+        }
+        if !["codex", "claude", "gemini", "openai-api", "anthropic-api", "google-api", "openrouter-api", "minimax-api"]
+            .contains(swarmWorkerBackend)
+        {
+            swarmWorkerBackend = "codex"
+        }
+        if !["codex-cli", "claude-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api", "openrouter-api", "minimax-api"]
+            .contains(codeReviewAnalysisBackend)
+        {
+            codeReviewAnalysisBackend = "codex-cli"
+        }
+        if !["codex-cli", "claude-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api", "openrouter-api", "minimax-api"]
+            .contains(codeReviewExecutionBackend)
+        {
+            codeReviewExecutionBackend = "codex-cli"
+        }
+        if !["openai-api", "codex-cli", "claude-cli"].contains(summarizeProvider) {
+            summarizeProvider = "openai-api"
+        }
+        if !["system", "light", "dark"].contains(appearance) {
+            appearance = "system"
         }
     }
 
@@ -1930,6 +1995,7 @@ struct SettingsView: View {
         codexDeveloperInstructions = cfg.developerInstructions ?? ""
         codexCheckUpdate = cfg.checkForUpdateOnStartup ?? true
         codexAgentsMd = CodexAgentsFile.loadGlobal()
+        normalizeStoredSelections()
         reloadRulesFromDisk()
     }
 
@@ -1954,14 +2020,7 @@ struct SettingsView: View {
     }
 
     private func syncCodeReview() {
-        guard let codex = providerRegistry.provider(for: "codex-cli") as? CodexCLIProvider else {
-            return
-        }
-        let claude = providerRegistry.provider(for: "claude-cli") as? ClaudeCLIProvider
-        providerRegistry.unregister(id: "multi-swarm-review")
-        providerRegistry.register(
-            ProviderFactory.codeReviewProvider(
-                config: providerFactoryConfig(), codex: codex, claude: claude))
+        // Review runtime viene creato on-demand con provider reali.
     }
 
     private func parseSwarmEnabledRoles() -> Set<AgentRole> {

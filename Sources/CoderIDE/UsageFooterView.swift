@@ -20,22 +20,7 @@ struct UsageFooterView: View {
     @State private var usageRefreshTask: Task<Void, Never>?
 
     private var effectiveProviderId: String? {
-        let id = providerRegistry.selectedProviderId ?? ""
-        if id == "plan-mode" { return planModeBackend == "claude" ? "claude-cli" : "codex-cli" }
-        if id == "agent-swarm" {
-            switch swarmWorkerBackend {
-            case "codex": return "codex-cli"
-            case "claude": return "claude-cli"
-            case "gemini": return "gemini-cli"
-            case "openai", "openai-api": return "openai-api"
-            case "anthropic-api": return "anthropic-api"
-            case "google-api": return "google-api"
-            case "openrouter-api": return "openrouter-api"
-            case "minimax-api": return "minimax-api"
-            default: return swarmWorkerBackend
-            }
-        }
-        return id
+        providerRegistry.selectedProviderId ?? ""
     }
 
     private var contextEstimate: (tokens: Int, size: Int, pct: Double) {

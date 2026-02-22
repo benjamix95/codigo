@@ -443,7 +443,10 @@ final class ChatStore: ObservableObject {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        let stripped = Self.stripCoderideMarkers(content)
+        // Durante lo streaming usa una sanitizzazione conservativa:
+        // evita di eliminare frasi "operative" legittime che altrimenti fanno sembrare
+        // il testo bloccato dopo il primo chunk.
+        let stripped = Self.stripCoderideMarkers(content, aggressive: persistImmediately)
         var conv = conversations[idx]
         var msgs = conv.messages
         var msg = msgs[lastIdx]
@@ -457,11 +460,11 @@ final class ChatStore: ObservableObject {
     }
 
     /// Rimuove marker CODERIDE alla sorgente per evitare flash durante lo streaming.
-    static func stripCoderideMarkers(_ content: String) -> String {
+    static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
         var out = content
         // 1. Standard [CODERIDE:...] markers (regex)
         if let regex = try? NSRegularExpression(
-            pattern: "\\[\\s*CODERIDE\\s*:[^\\]]*\\]?",
+            pattern: "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]",
             options: .caseInsensitive
         ) {
             while true {
@@ -474,62 +477,72 @@ final class ChatStore: ObservableObject {
             }
         }
         // 2. Fallback for incomplete [CODERIDE markers
+        // Durante lo streaming possono arrivare frammenti marker non ancora chiusi.
+        // Rimuoviamo solo la porzione di riga "sporca" per evitare di cancellare
+        // anche il testo assistant valido che segue nelle righe successive.
         while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
             if let end = out[start.upperBound...].firstIndex(of: "]") {
                 out.removeSubrange(start.lowerBound..<out.index(after: end))
             } else {
-                out.removeSubrange(start.lowerBound..<out.endIndex)
+                if let newline = out[start.lowerBound...].firstIndex(of: "\n") {
+                    out.removeSubrange(start.lowerBound..<newline)
+                } else {
+                    out.removeSubrange(start.lowerBound..<out.endIndex)
+                }
+                break
             }
         }
-        // 3. Strip operational status lines that leak into output
-        // e.g. "Creating detailed Italian planIDE:files=README.md]"
-        if let statusLineRegex = try? NSRegularExpression(
-            pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
-            options: [.caseInsensitive, .anchorsMatchLines]
-        ) {
-            let ns = out as NSString
-            out = statusLineRegex.stringByReplacingMatches(
-                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-            )
-        }
-        // 4. Strip lines that are purely operational prefixes (e.g. "Creating detailed..." followed by IDE markers)
-        if let opLineRegex = try? NSRegularExpression(
-            pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
-            options: [.caseInsensitive, .anchorsMatchLines]
-        ) {
-            let ns = out as NSString
-            out = opLineRegex.stringByReplacingMatches(
-                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-            )
-        }
-        // 4b. Rimuove boilerplate operativi iniziali prima della risposta utile.
-        if let bugReviewRegex = try? NSRegularExpression(
-            pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
-            options: [.caseInsensitive, .anchorsMatchLines]
-        ) {
-            let ns = out as NSString
-            out = bugReviewRegex.stringByReplacingMatches(
-                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-            )
-        }
-        if let initBoilerplateRegex = try? NSRegularExpression(
-            pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
-            options: [.caseInsensitive, .anchorsMatchLines]
-        ) {
-            let ns = out as NSString
-            out = initBoilerplateRegex.stringByReplacingMatches(
-                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-            )
-        }
-        // 4c. Rimuove heading/righe operative di "progress commentary" trapelate nello stream.
-        if let progressHeadingRegex = try? NSRegularExpression(
-            pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
-            options: [.caseInsensitive, .anchorsMatchLines]
-        ) {
-            let ns = out as NSString
-            out = progressHeadingRegex.stringByReplacingMatches(
-                in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-            )
+        if aggressive {
+            // 3. Strip operational status lines that leak into output
+            // e.g. "Creating detailed Italian planIDE:files=README.md]"
+            if let statusLineRegex = try? NSRegularExpression(
+                pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = statusLineRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
+            // 4. Strip lines that are purely operational prefixes (e.g. "Creating detailed..." followed by IDE markers)
+            if let opLineRegex = try? NSRegularExpression(
+                pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = opLineRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
+            // 4b. Rimuove boilerplate operativi iniziali prima della risposta utile.
+            if let bugReviewRegex = try? NSRegularExpression(
+                pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = bugReviewRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
+            if let initBoilerplateRegex = try? NSRegularExpression(
+                pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = initBoilerplateRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
+            // 4c. Rimuove heading/righe operative di "progress commentary" trapelate nello stream.
+            if let progressHeadingRegex = try? NSRegularExpression(
+                pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
+                options: [.caseInsensitive, .anchorsMatchLines]
+            ) {
+                let ns = out as NSString
+                out = progressHeadingRegex.stringByReplacingMatches(
+                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
+                )
+            }
         }
         // Marker inline "markers:todo_write|..." o "todo_write|..."
         out = out.replacingOccurrences(
@@ -584,9 +597,8 @@ final class ChatStore: ObservableObject {
             with: "$1 $2",
             options: .regularExpression
         )
-        return out
-            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = out.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        return aggressive ? normalized.trimmingCharacters(in: .whitespacesAndNewlines) : normalized
     }
 
     private static func stripStructuredMarkerPayloads(_ input: String) -> String {
@@ -736,15 +748,23 @@ final class ChatStore: ObservableObject {
                 var msg = conversations[cidx].messages[midx]
                 guard msg.role == .assistant else { continue }
                 if msg.planAttachment != nil { continue }
-                let opts = PlanOptionsParser.parse(from: msg.content)
+                let opts = PlanOptionsParser.parseStrict(from: msg.content)
                 guard !opts.isEmpty else { continue }
+                let normalizedHash = normalizedPlanContentHash(msg.content)
                 let summary = PlanOptionsParser.extractDisplaySummary(from: msg.content)
                 let existing = historyStore.findEntry(
                     conversationId: conv.id,
                     sourceMessageId: msg.id
                 )
+                let existingByHash = historyStore.entries.first(where: { entry in
+                    guard entry.conversationId == conv.id else { return false }
+                    guard entry.sourceMessageId == msg.id else { return false }
+                    return normalizedPlanContentHash(entry.markdown) == normalizedHash
+                })
                 let entry: PlanHistoryEntry
-                if let existing {
+                if let existingByHash {
+                    entry = existingByHash
+                } else if let existing {
                     entry = existing
                 } else {
                     entry = historyStore.createEntry(
@@ -772,6 +792,16 @@ final class ChatStore: ObservableObject {
         if changed {
             saveConversations()
         }
+    }
+
+    private func normalizedPlanContentHash(_ raw: String) -> Int {
+        let normalized = raw
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+            .lowercased()
+        return normalized.hashValue
     }
 
     func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversationId: UUID?) {

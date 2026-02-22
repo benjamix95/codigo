@@ -31,5 +31,17 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         XCTAssertFalse(normalized.localizedCaseInsensitiveContains("## Todo"))
         XCTAssertTrue(normalized.localizedCaseInsensitiveContains("Stato esecuzione"))
     }
-}
 
+    func testNormalizeBuildFinalResponseKeepsOperationalTodoSectionWhenNoPlanEcho() {
+        let raw = """
+        ## Stato esecuzione
+        Aggiornamenti:
+
+        ## Todo
+        - [x] Verifica build
+        - [x] Esegui test
+        """
+        let normalized = normalizeBuildFinalResponse(raw)
+        XCTAssertEqual(normalized, raw)
+    }
+}

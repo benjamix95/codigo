@@ -87,7 +87,7 @@ final class ProviderUsageStore: ObservableObject {
     /// Returns nil if not rate-limited or not applicable.
     func rateLimitAlertMessage(for providerId: String?) -> String? {
         guard let pid = providerId else { return nil }
-        if pid == "codex-cli" || pid == "agent-swarm" {
+        if pid == "codex-cli" {
             return codexRateLimitMessage
         }
         return nil

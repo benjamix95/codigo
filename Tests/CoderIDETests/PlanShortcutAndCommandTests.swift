@@ -190,4 +190,35 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertFalse(result.nextPlanToggleEnabled)
         XCTAssertFalse(result.nextShowPlanPanel)
     }
+
+    func testPlanExecutionProviderWhitelist() {
+        XCTAssertTrue(isPlanExecutionProviderIdAllowed("codex-cli"))
+        XCTAssertTrue(isPlanExecutionProviderIdAllowed("claude-cli"))
+        XCTAssertTrue(isPlanExecutionProviderIdAllowed("gemini-cli"))
+        XCTAssertTrue(isPlanExecutionProviderIdAllowed("openai-api"))
+        XCTAssertTrue(isPlanExecutionProviderIdAllowed("openrouter-api"))
+        XCTAssertFalse(isPlanExecutionProviderIdAllowed("not-a-provider"))
+    }
+
+    func testShouldHandlePlanKeyboardShortcutOnlyWhenInputFocused() {
+        XCTAssertTrue(shouldHandlePlanKeyboardShortcut(isInputFocused: true))
+        XCTAssertFalse(shouldHandlePlanKeyboardShortcut(isInputFocused: false))
+    }
+
+    func testShouldSyncModeOnProviderChangeHonorsUserPickerSuppression() {
+        XCTAssertFalse(shouldSyncModeOnProviderChange(suppressForUserPicker: true))
+        XCTAssertTrue(shouldSyncModeOnProviderChange(suppressForUserPicker: false))
+    }
+
+    func testSwarmModeIsViewOnlyForComposerAndFooter() {
+        XCTAssertTrue(shouldShowSwarmViewOnly(for: .agentSwarm))
+        XCTAssertFalse(shouldShowComposer(for: .agentSwarm))
+        XCTAssertFalse(shouldShowUsageFooter(for: .agentSwarm))
+    }
+
+    func testNonSwarmModesShowComposerAndFooter() {
+        XCTAssertFalse(shouldShowSwarmViewOnly(for: .agent))
+        XCTAssertTrue(shouldShowComposer(for: .agent))
+        XCTAssertTrue(shouldShowUsageFooter(for: .agent))
+    }
 }

@@ -289,17 +289,19 @@ struct TaskActivityPanel: View {
         }
 
         // Reasoning Trace (expandable)
-        expandableSection(
-            title: "Reasoning Trace",
-            count: taskActivityStore.activities.count,
-            icon: "brain",
-            color: .secondary,
-            isExpanded: $isActivitiesExpanded
-        ) {
-            LiveActivityTimelineView(
-                activities: taskActivityStore.activities,
-                maxVisible: 20
-            )
+        if !taskActivityStore.activities.isEmpty {
+            expandableSection(
+                title: "Reasoning Trace",
+                count: taskActivityStore.activities.count,
+                icon: "brain",
+                color: .secondary,
+                isExpanded: $isActivitiesExpanded
+            ) {
+                LiveActivityTimelineView(
+                    activities: taskActivityStore.activities,
+                    maxVisible: 20
+                )
+            }
         }
 
         // Web Search
@@ -351,7 +353,7 @@ struct TaskActivityPanel: View {
         }
 
         // Todo
-        if chatStore.isLoading || !todoStore.todos.isEmpty {
+        if !todoStore.todos.isEmpty {
             expandableSection(
                 title: "Todo",
                 count: todoStore.todos.count,
@@ -752,4 +754,3 @@ struct ChangedFilesSummaryCard: View {
         }
     }
 }
-

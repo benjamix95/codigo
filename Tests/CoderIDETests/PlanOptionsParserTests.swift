@@ -57,13 +57,28 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertNil(questions)
     }
 
-    func testParseClarificationQuestionsReturnsNilWithOnlyOneQuestion() {
+    func testParseClarificationQuestionsReturnsOneQuestionWhenPresent() {
         let input = """
         ## Domande di chiarimento
         1. Una sola domanda?
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
-        XCTAssertNil(questions)
+        XCTAssertEqual(questions, ["Una sola domanda?"])
+    }
+
+    func testParseStrictRejectsGenericNonPlanText() {
+        let input = "Ho analizzato il progetto, ma non posso proporre opzioni al momento."
+        let options = PlanOptionsParser.parseStrict(from: input)
+        XCTAssertTrue(options.isEmpty)
+    }
+
+    func testParseFallsBackForDisplayEvenWhenStrictRejects() {
+        let input = "Risposta libera senza struttura formale."
+        let strict = PlanOptionsParser.parseStrict(from: input)
+        let display = PlanOptionsParser.parse(from: input)
+        XCTAssertTrue(strict.isEmpty)
+        XCTAssertEqual(display.count, 1)
+        XCTAssertEqual(display.first?.id, 1)
     }
 
     func testParseClarificationQuestionsSupportsLevelThreeHeader() {

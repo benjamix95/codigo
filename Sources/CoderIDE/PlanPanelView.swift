@@ -3,12 +3,12 @@ import SwiftUI
 import CoderEngine
 import UniformTypeIdentifiers
 
-func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool) -> Bool {
+func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool, allowIdleRebuild: Bool = false) -> Bool {
     switch phase {
     case .proposalReady, .readyToBuild:
         return true
     case .idle:
-        return hasBuildChoice
+        return allowIdleRebuild && hasBuildChoice
     case .discovery, .awaitingClarification, .building:
         return false
     }
@@ -28,7 +28,7 @@ struct PlanPanelView: View {
     let onClose: () -> Void
     let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
-    let onBuild: (String, String?) -> Void
+    let onBuild: (String, String?, Bool) -> Void
     let onStop: () -> Void
 
     @State private var planText: String = ""
@@ -113,6 +113,13 @@ struct PlanPanelView: View {
         .onAppear {
             planText = ""
             isEditing = false
+            buildHint = nil
+        }
+        .onChange(of: conversationId) { _, _ in
+            // Nuova conversazione => pannello plan deve riflettere subito il nuovo contesto.
+            planText = ""
+            isEditing = false
+            buildHint = nil
         }
     }
 
@@ -198,15 +205,36 @@ struct PlanPanelView: View {
     private var providerPicker: some View {
         Menu {
             ForEach(Array(providerRegistry.providers.enumerated()), id: \.offset) { _, provider in
-                Button {
-                    planProviderId = provider.id
-                } label: {
-                    HStack {
-                        Text(provider.displayName)
-                        if activeProviderId == provider.id {
-                            Image(systemName: "checkmark")
+                if isPlanExecutionProviderIdAllowed(provider.id) {
+                    Button {
+                        planProviderId = provider.id
+                    } label: {
+                        HStack {
+                            Text(provider.displayName)
+                            if !provider.isAuthenticated() {
+                                Text("Not Auth")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            } else if !ProviderSupport.isPlanBuildExecutionCapableProvider(
+                                id: provider.id,
+                                registry: providerRegistry
+                            ) {
+                                Text("Not executable")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                            }
+                            if activeProviderId == provider.id {
+                                Image(systemName: "checkmark")
+                            }
                         }
                     }
+                    .disabled(
+                        !provider.isAuthenticated()
+                            || !ProviderSupport.isPlanBuildExecutionCapableProvider(
+                                id: provider.id,
+                                registry: providerRegistry
+                            )
+                    )
                 }
             }
 
@@ -223,10 +251,11 @@ struct PlanPanelView: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text(activeProviderLabel)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(.secondary)
+                executionCapabilityBadge
                 Image(systemName: "chevron.down")
                     .font(.system(size: 7, weight: .bold))
                     .foregroundStyle(.tertiary)
@@ -243,7 +272,26 @@ struct PlanPanelView: View {
     }
 
     private var activeProviderId: String {
-        planProviderId ?? providerRegistry.selectedProviderId ?? ""
+        if let override = planProviderId,
+           isPlanExecutionProviderIdAllowed(override),
+           ProviderSupport.isPlanBuildExecutionCapableProvider(id: override, registry: providerRegistry),
+           providerRegistry.provider(for: override)?.isAuthenticated() == true {
+            return override
+        }
+        if let selected = providerRegistry.selectedProviderId,
+           isPlanExecutionProviderIdAllowed(selected),
+           ProviderSupport.isPlanBuildExecutionCapableProvider(id: selected, registry: providerRegistry),
+           providerRegistry.provider(for: selected)?.isAuthenticated() == true {
+            return selected
+        }
+        if let firstAuthenticated = providerRegistry.providers.first(where: {
+            isPlanExecutionProviderIdAllowed($0.id)
+                && ProviderSupport.isPlanBuildExecutionCapableProvider(id: $0.id, registry: providerRegistry)
+                && $0.isAuthenticated()
+        }) {
+            return firstAuthenticated.id
+        }
+        return "codex-cli"
     }
 
     private var activeProviderLabel: String {
@@ -252,6 +300,30 @@ struct PlanPanelView: View {
             return p.displayName
         }
         return "Provider"
+    }
+
+    private var isActiveProviderExecutionCapable: Bool {
+        guard isPlanExecutionProviderIdAllowed(activeProviderId) else { return false }
+        guard providerRegistry.provider(for: activeProviderId)?.isAuthenticated() == true else {
+            return false
+        }
+        return ProviderSupport.isPlanBuildExecutionCapableProvider(
+            id: activeProviderId,
+            registry: providerRegistry
+        )
+    }
+
+    @ViewBuilder
+    private var executionCapabilityBadge: some View {
+        Text(isActiveProviderExecutionCapable ? "Execution-capable" : "Not executable")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(isActiveProviderExecutionCapable ? .green : .orange)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill((isActiveProviderExecutionCapable ? Color.green : Color.orange).opacity(0.16))
+            )
     }
 
     // MARK: - Build Button
@@ -266,7 +338,8 @@ struct PlanPanelView: View {
     private var isBuildEnabledByPhase: Bool {
         isPlanBuildEnabled(
             phase: planFlowPhase,
-            hasBuildChoice: resolveBuildChoiceText() != nil
+            hasBuildChoice: resolveBuildChoiceText() != nil,
+            allowIdleRebuild: false
         )
     }
 
@@ -372,7 +445,7 @@ struct PlanPanelView: View {
             return
         }
         buildHint = "Build avviata..."
-        onBuild(choice, planProviderId)
+                                onBuild(choice, planProviderId, false)
     }
 
     // MARK: - Bottom Bar
@@ -531,14 +604,18 @@ struct PlanPanelView: View {
                         .buttonStyle(.plain)
                         .font(.system(size: 10, weight: .medium))
                         Button {
-                            guard isBuildEnabledByPhase else {
+                            guard isPlanBuildEnabled(
+                                phase: planFlowPhase,
+                                hasBuildChoice: true,
+                                allowIdleRebuild: true
+                            ) else {
                                 buildHint = phaseHint ?? "Build non disponibile in questa fase."
                                 return
                             }
                             planHistoryStore.setSelectedEntry(id: entry.id)
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
-                            onBuild(choice, planProviderId)
+                            onBuild(choice, planProviderId, true)
                             planHistoryStore.markRebuilt(id: entry.id)
                             buildHint = "Rebuild avviata..."
                         } label: {

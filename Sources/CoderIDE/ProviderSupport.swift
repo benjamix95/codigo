@@ -22,6 +22,19 @@ enum ProviderSupport {
         return agentProviderIds.contains(id) || agentApiProviderIds.contains(id)
     }
 
+    static func isUserSelectableRealProvider(id: String?) -> Bool {
+        guard let id else { return false }
+        return (agentProviderIds + agentApiProviderIds).contains(id)
+    }
+
+    /// Build del piano richiede provider con capacità operative stabili (CLI locali).
+    static func isPlanBuildExecutionCapableProvider(id: String?, registry: ProviderRegistry) -> Bool {
+        guard let id else { return false }
+        guard isUserSelectableRealProvider(id: id) else { return false }
+        guard registry.provider(for: id) != nil else { return false }
+        return agentProviderIds.contains(id)
+    }
+
     static let preferredIDEProviderIds = [
         "openai-api",
         "anthropic-api",

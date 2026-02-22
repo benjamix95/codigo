@@ -32,6 +32,7 @@ struct ModeControlsBarView: View {
     @Binding var swarmWorkerBackend: String
     @Binding var openaiModel: String
     @Binding var claudeModel: String
+    @Binding var openrouterModel: String
 
     // MARK: - Models
 
@@ -48,6 +49,8 @@ struct ModeControlsBarView: View {
     let onSyncGeminiProvider: () -> Void
     let onSyncSwarmProvider: () -> Void
     let onSyncPlanProvider: () -> Void
+    let onSyncOpenRouterProvider: () -> Void
+    let onUserSelectedProvider: () -> Void
     let onDelegateToAgent: () -> Void
     let onOpenPlanPanel: () -> Void
     let attachedImageURLs: [URL]
@@ -101,25 +104,10 @@ struct ModeControlsBarView: View {
                 formicaButton
             }
 
-        case "agent-swarm":
-            swarmOrchestratorPicker
-            Button {
-                showSwarmHelp = true
-            } label: {
-                Image(systemName: "questionmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.swarmColor)
-            }
-            .buttonStyle(.plain)
+        case "openrouter-api":
+            openRouterModelPicker
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
-                formicaButton
-            }
-
-        case "plan-mode":
-            planBackendPicker
-            Spacer()
-            if coderMode == .plan {
                 formicaButton
             }
 
@@ -140,9 +128,12 @@ struct ModeControlsBarView: View {
     // MARK: - Provider Picker
 
     private var providerPicker: some View {
-        Menu {
-            ForEach(providerRegistry.providers, id: \.id) { provider in
+        let realProviders = providerRegistry.providers
+            .filter { ProviderSupport.isUserSelectableRealProvider(id: $0.id) }
+        return Menu {
+            ForEach(realProviders, id: \.id) { provider in
                 Button {
+                    onUserSelectedProvider()
                     providerRegistry.selectedProviderId = provider.id
                     chatStore.updatePreferredProvider(
                         conversationId: conversationId, providerId: provider.id)
@@ -169,11 +160,17 @@ struct ModeControlsBarView: View {
 
     private var providerLabel: String {
         if let id = providerRegistry.selectedProviderId,
+            ProviderSupport.isUserSelectableRealProvider(id: id),
             let p = providerRegistry.providers.first(where: { $0.id == id })
         {
             return p.displayName
         }
-        return "Seleziona provider"
+        if let fallback = providerRegistry.providers.first(where: {
+            ProviderSupport.isUserSelectableRealProvider(id: $0.id)
+        }) {
+            return fallback.displayName
+        }
+        return "Nessun provider"
     }
 
     // MARK: - Codex Model Picker
@@ -264,6 +261,66 @@ struct ModeControlsBarView: View {
             ? "Default"
             : (geminiModels.first(where: { $0.slug == geminiModelOverride })?.displayName
                 ?? geminiModelOverride)
+    }
+
+    // MARK: - OpenRouter Model Picker
+
+    private var openRouterModelPicker: some View {
+        Menu {
+            if !openRouterPopularModels.isEmpty {
+                Section("Popolari") {
+                    ForEach(openRouterPopularModels, id: \.self) { model in
+                        Button {
+                            openrouterModel = model
+                            onSyncOpenRouterProvider()
+                        } label: {
+                            HStack {
+                                Text(model)
+                                if openrouterModel == model { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                }
+            }
+            if !openRouterFreeModels.isEmpty {
+                Section("Free") {
+                    ForEach(openRouterFreeModels, id: \.self) { model in
+                        Button {
+                            openrouterModel = model
+                            onSyncOpenRouterProvider()
+                        } label: {
+                            HStack {
+                                Text(model)
+                                Text("FREE")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.green)
+                                if openrouterModel == model { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(openRouterModelLabel).font(.caption)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private var openRouterModelLabel: String {
+        let trimmed = openrouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "OpenRouter Model"
+        }
+        let display = trimmed.replacingOccurrences(of: ":free", with: "")
+        if trimmed.hasSuffix(":free") {
+            return "\(display) · FREE"
+        }
+        return display
     }
 
     // MARK: - Codex Reasoning Picker

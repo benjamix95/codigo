@@ -1,8 +1,8 @@
 import Foundation
 
 /// Provider LLM che coordina un swarm di agenti specializzati tramite orchestratore
-public final class AgentSwarmProvider: LLMProvider, @unchecked Sendable {
-    public let id = "agent-swarm"
+public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
+    public let id = "swarm-runtime-internal"
     public let displayName = "Agent Swarm"
 
     private let config: SwarmConfig

@@ -454,7 +454,9 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         )
         out = out.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
         out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
-        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Importante: non fare trim sui chunk streaming.
+        // I delta possono essere solo spazio/newline; se li scartiamo sembra che lo stream si blocchi.
+        return out
     }
     
     private static func titleForType(_ type: String, item: [String: Any]) -> String {
