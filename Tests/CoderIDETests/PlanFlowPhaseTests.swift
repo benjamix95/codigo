@@ -3,12 +3,13 @@ import XCTest
 
 final class PlanFlowPhaseTests: XCTestCase {
     func testBuildBlockedWhenPhaseNotReady() {
-        XCTAssertFalse(canExecutePlanBuild(phase: .discovery, choice: "Opzione 1"))
-        XCTAssertFalse(canExecutePlanBuild(phase: .awaitingClarification, choice: "Opzione 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .analyzing, choice: "Opzione 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .questioning, choice: "Opzione 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .generating, choice: "Opzione 1"))
         XCTAssertFalse(canExecutePlanBuild(phase: .building, choice: "Opzione 1"))
     }
 
-    func testPhaseTransitionsDiscoveryToClarification() {
+    func testPhaseTransitionsAnalyzingToQuestioning() {
         let text = """
         ## Domande di chiarimento
         1. Quale modulo devo modificare?
@@ -16,11 +17,11 @@ final class PlanFlowPhaseTests: XCTestCase {
         """
         let phase = nextPlanFlowPhaseForOutput(
             fullText: text,
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
-        XCTAssertEqual(phase, .awaitingClarification)
+        XCTAssertEqual(phase, .questioning)
     }
 
     func testPhaseTransitionsProposalToReadyToBuildViaGating() {
@@ -39,7 +40,7 @@ final class PlanFlowPhaseTests: XCTestCase {
     func testPhaseTransitionsToProposalReadyOnGenericTextFallback() {
         let phase = nextPlanFlowPhaseForOutput(
             fullText: "Analisi completata, ma servono più informazioni.",
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )

@@ -132,6 +132,8 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
     \(responseBody)
 
     Nota finale obbligatoria utente: \(finalNote)
+
+    After receiving these answers, perform additional codebase analysis based on the responses. If new ambiguities arise, you may ask further clarification questions using the same ## Questions format. Only propose final options (## Opzione with ## Todo) when fully confident.
     """
 }
 
@@ -3117,7 +3119,7 @@ struct ChatPanelView: View {
         chatStore.beginTask(conversationId: targetConversationId)
         Task {
             do {
-                try await runPlanFlowPhase3(
+                try await runPostClarificationFlow(
                     provider: effectiveProvider,
                     ctx: ctx,
                     conversationId: targetConversationId,
@@ -3137,6 +3139,105 @@ struct ChatPanelView: View {
             }
             chatStore.endTask(conversationId: targetConversationId)
         }
+    }
+
+    /// After clarification answers, re-analyze and decide: ask more questions or proceed to plan generation.
+    private func runPostClarificationFlow(
+        provider: any LLMProvider,
+        ctx: WorkspaceContext,
+        conversationId: UUID,
+        shouldRunPlanInline: Bool
+    ) async throws {
+        // Re-analysis phase: LLM analyzes based on the user's answers
+        await MainActor.run {
+            planFlowPhase = .analyzing
+            planStreamingContent = ""
+        }
+
+        // Create new assistant message for re-analysis streaming
+        await MainActor.run {
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: conversationId
+            )
+        }
+
+        let reAnalysisPrompt = buildPostClarificationAnalysisPrompt(
+            userRequest: planUserRequest,
+            analysisContext: planAnalysisContext,
+            clarificationAnswers: planClarificationAnswers
+        )
+
+        let reAnalysisResult = try await flowCoordinator.runStream(
+            provider: provider,
+            prompt: reAnalysisPrompt,
+            context: ctx,
+            imageURLs: nil,
+            onText: { [self] content in
+                planStreamingContent = content
+                applyStreamingUpdate(
+                    content: "📋 **Analisi aggiuntiva in corso…**\n\nApri il pannello Planning per i dettagli.",
+                    conversationId: conversationId
+                )
+            },
+            onRaw: { [self] t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+            },
+            onError: { [self] content in
+                DispatchQueue.main.async {
+                    chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                }
+            },
+            onSignal: nil
+        )
+
+        let reAnalysisText = reAnalysisResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Check if the LLM produced more questions or is ready for plan generation
+        let classification = PlanOutputClassifier.classify(
+            fullText: reAnalysisText,
+            current: .questioning,
+            coderMode: coderMode,
+            shouldRunPlanInline: shouldRunPlanInline
+        )
+
+        if case .awaitingClarification(let q) = classification.planningState {
+            // LLM needs more answers — pause again for user input
+            await MainActor.run {
+                planAnalysisContext += "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
+                planFlowPhase = .questioning
+                planningState = .awaitingClarification(questions: q)
+                planStreamingContent = reAnalysisText
+                chatStore.updateLastAssistantMessage(
+                    content: "❓ **Follow-up — Servono ulteriori chiarimenti.** Apri il pannello Planning per rispondere.",
+                    in: conversationId,
+                    persistImmediately: true
+                )
+                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+            }
+            // STOP — will re-enter via submitPlanClarificationAnswers → continuePlanFlowPhase3
+            return
+        }
+
+        // No more questions — update analysis context and proceed to Phase 3
+        await MainActor.run {
+            planAnalysisContext += "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
+            chatStore.updateLastAssistantMessage(
+                content: "✅ **Analisi completata.** Generazione piano…",
+                in: conversationId,
+                persistImmediately: true
+            )
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
+            planStreamingContent = ""
+        }
+
+        try await runPlanFlowPhase3(
+            provider: provider,
+            ctx: ctx,
+            conversationId: conversationId,
+            shouldRunPlanInline: shouldRunPlanInline
+        )
     }
 
     private func continueIfPrematureStub(
@@ -3290,14 +3391,19 @@ struct ChatPanelView: View {
             case .awaitingClarification(let questions) = planningState
         {
             prompt = """
-            Risposta dell'utente alle domande di chiarimento:
+            The user has answered your clarification questions.
 
-            \(userText.isEmpty ? "[Nessun testo inserito]" : userText)
+            User's answers:
+            \(userText.isEmpty ? "[No text provided]" : userText)
 
-            Le domande poste erano:
+            The original questions were:
             \(questions)
 
-            Procedi con l'analisi del codebase (usa Read, Glob e Grep per esplorare i file rilevanti) e proponi 2-4 opzioni con il formato richiesto, includendo la sezione ## Todo per ogni opzione.
+            Next steps:
+            1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
+            2. If you need MORE information, output ANOTHER ## Questions section (same A/B/C/D format).
+            3. If you have ALL information needed, proceed to propose 2-4 options with ## Opzione and ## Todo sections.
+            CRITICAL: Do NOT skip additional analysis. You are ALLOWED to ask follow-up questions.
             """
         }
 
@@ -3310,29 +3416,45 @@ struct ChatPanelView: View {
             (coderMode == .plan || shouldRunPlanInline)
             && planFlowPhase != .building
 
-        if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
-            if isPlanningDiscoveryFlow {
-                let planningInstructions = """
-                **Workflow Planning (obbligatorio):**
-                1. Prima di proporre qualsiasi opzione, DEVI esplorare il codebase usando Read, Glob e Grep per capire struttura, dipendenze e vincoli. Non proporre opzioni senza aver letto almeno 2-3 file rilevanti o effettuato grep/glob.
-                2. Se mancano informazioni critiche dopo l'analisi, rispondi SOLO con una sezione:
-                   ## Questions
-                   1. Domanda?
-                   A) Opzione 1
-                   B) Opzione 2
-                   C) Opzione 3 (facoltativa)
-                   (2-4 domande al massimo, opzioni mutualmente esclusive)
-                   Usa "Other..." solo quando la domanda è realmente aperta/ambigua.
-                   Evita "Other..." quando le opzioni chiuse coprono già il dominio decisionale.
-                3. Solo dopo aver completato l'analisi: se le informazioni sono sufficienti, proponi 2-4 opzioni concrete. Per ogni opzione includi SEMPRE:
-                   ## Todo
-                   - [ ] task 1
-                   - [ ] task 2
-                4. Non emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead) durante la discovery del piano.
-                5. Mantieni output operativo e compatibile con parser: niente testo ambiguo fuori formato.
-                """
-                prompt = planningInstructions + "\n\n" + prompt
-            } else {
+        if isPlanningDiscoveryFlow {
+            let planningInstructions = """
+            **MANDATORY Planning Workflow — Follow these phases in EXACT order:**
+
+            ## PHASE 1: CODEBASE ANALYSIS (ALWAYS REQUIRED)
+            Before producing ANY output, you MUST:
+            - Use Read, Glob, and Grep to explore at least 3-5 relevant files
+            - Understand the project structure, dependencies, and constraints
+            - DO NOT skip this phase. DO NOT produce questions or options without reading files first.
+
+            ## PHASE 2: CLARIFICATION QUESTIONS (MANDATORY if ANY ambiguity exists)
+            After analysis, if there is ANY uncertainty about scope, approach, or user preference:
+            - Output ONLY a section with this EXACT format:
+
+            ## Questions
+            1. Question text?
+            A) Option A text
+            B) Option B text
+            C) Option C text (optional)
+            D) Altro (specifica)
+
+            Rules: 1-4 questions max, each with 2-4 options A) B) C) D), mutually exclusive.
+            Include "Altro (specifica)" ONLY for genuinely open-ended questions.
+            DO NOT output anything else besides the ## Questions section.
+            NEVER include ## Opzione or ## Todo in a response with ## Questions.
+
+            ## PHASE 3: PLAN PROPOSAL (ONLY after Phases 1+2 resolved)
+            Propose 2-4 concrete options:
+            ## Opzione 1: Title
+            Description, pros/cons.
+            ## Todo
+            - [ ] Step 1
+            - [ ] Step 2
+
+            CRITICAL: NEVER combine ## Questions and ## Opzione in the same response.
+            Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
+            """
+            prompt = planningInstructions + "\n\n" + prompt
+        } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
                 let baseInstructions = """
                     **Workflow Todo (obbligatorio):** All'inizio di ogni task:
                     1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
@@ -3368,7 +3490,6 @@ struct ChatPanelView: View {
                     prompt += "\n\n## Todo correnti\n\(todoSection)"
                 }
             }
-        }
         return prompt
     }
 
@@ -3395,6 +3516,41 @@ struct ChatPanelView: View {
         """
     }
 
+    private func buildPostClarificationAnalysisPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String
+    ) -> String {
+        """
+        **Fase: Analisi post-chiarimento**
+
+        L'utente ha risposto alle tue domande di chiarimento. Basandoti sulle risposte, esegui un'analisi AGGIUNTIVA del codebase.
+
+        Richiesta utente: \(userRequest)
+
+        Analisi codebase precedente:
+        \(analysisContext)
+
+        Risposte chiarimenti utente:
+        \(clarificationAnswers)
+
+        Istruzioni:
+        1. Usa Read, Glob e Grep per esplorare file specifici rilevanti in base alle risposte dell'utente.
+        2. Approfondisci le aree indicate dalle scelte dell'utente.
+        3. Se dopo questa analisi hai NUOVE incertezze, genera ulteriori domande con il formato:
+
+        ## Questions
+        1. Domanda?
+        A) Opzione A
+        B) Opzione B
+        C) Altro (specifica)
+
+        4. Se invece hai informazioni SUFFICIENTI, fornisci un report di analisi senza domande.
+        5. NON generare ## Opzione, ## Todo o proposte di piano in questa fase.
+        6. NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead).
+        """
+    }
+
     private func buildPhase2QuestionPrompt(userRequest: String, analysisContext: String) -> String {
         """
         **Fase: Domande di Chiarimento**
@@ -3408,20 +3564,28 @@ struct ChatPanelView: View {
 
         Istruzioni:
         - Se hai informazioni sufficienti per proporre opzioni di implementazione concrete, rispondi SOLO con: NO_QUESTIONS_NEEDED
-        - Se hai bisogno di chiarimenti, genera 2-4 domande strutturate in questo formato ESATTO:
+        - Se hai bisogno di chiarimenti, genera 1-4 domande strutturate in questo formato ESATTO:
 
-        ## Domande di chiarimento
+        ## Questions
         1. Testo della domanda?
-           A) Opzione 1
-           B) Opzione 2
-           C) Opzione 3 (facoltativa)
+        A) Prima opzione concreta
+        B) Seconda opzione concreta
+        C) Terza opzione (facoltativa, solo se utile)
+        D) Altro (specifica)
 
-        Regole:
-        - Massimo 4 domande
-        - Ogni domanda deve avere 2-3 opzioni mutualmente esclusive
-        - Usa "Altro..." solo quando la domanda è genuinamente aperta
-        - NON proporre soluzioni o opzioni di piano in questa fase
+        2. Seconda domanda?
+        A) Prima opzione
+        B) Seconda opzione
+
+        Regole STRICT per le domande:
+        - Minimo 1, massimo 4 domande
+        - Ogni domanda DEVE avere 2-4 opzioni etichettate A) B) C) D)
+        - Le opzioni devono essere mutualmente esclusive e concrete (non vaghe)
+        - Includi "D) Altro (specifica)" SOLO per domande genuinamente aperte
+        - L'header DEVE essere esattamente "## Questions" (non "## Domande" o altro)
+        - NON includere ## Opzione, ## Option, ## Todo o proposte di piano
         - NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead)
+        - Il formato deve essere ESATTAMENTE come sopra: numero + testo + opzioni A) B) C) su righe separate
         """
     }
 
@@ -4015,6 +4179,7 @@ struct ChatPanelView: View {
         )
     }
 
+    @MainActor
     private func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
         if let fromActivities = TaskActivityStore.streamingDetailText(
@@ -4029,7 +4194,7 @@ struct ChatPanelView: View {
         if convId == streamingReasoningConversationId, let reasoning = streamingReasoningText, !reasoning.isEmpty {
             let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)
                 .last?
-                .trimmingCharacters(in: .whitespaces) ?? ""
+                .trimmingCharacters(in: CharacterSet.whitespaces) ?? ""
             if !lastLine.isEmpty {
                 return lastLine.count > 80 ? String(lastLine.prefix(77)) + "…" : lastLine
             }

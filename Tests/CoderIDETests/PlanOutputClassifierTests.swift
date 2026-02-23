@@ -19,20 +19,21 @@ final class PlanOutputClassifierTests: XCTestCase {
 
         let result = PlanOutputClassifier.classify(
             fullText: input,
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
 
+        // With the priority flip, clarification questions now take precedence over options
         XCTAssertTrue(result.hasClarificationQuestions)
         XCTAssertTrue(result.hasStrictOptions)
-        XCTAssertEqual(result.nextPhase, .proposalReady)
-        guard case .awaitingChoice = result.planningState else {
-            return XCTFail("planningState should be awaitingChoice")
+        XCTAssertEqual(result.nextPhase, .questioning)
+        guard case .awaitingClarification = result.planningState else {
+            return XCTFail("planningState should be awaitingClarification (clarification takes priority)")
         }
     }
 
-    func testClassifyClarificationsOnlySetsAwaitingClarification() {
+    func testClassifyClarificationsOnlySetsQuestioning() {
         let input = """
         ## Domande di chiarimento
         1. Quale modulo?
@@ -40,13 +41,13 @@ final class PlanOutputClassifierTests: XCTestCase {
         """
         let result = PlanOutputClassifier.classify(
             fullText: input,
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
         XCTAssertTrue(result.hasClarificationQuestions)
         XCTAssertFalse(result.hasStrictOptions)
-        XCTAssertEqual(result.nextPhase, .awaitingClarification)
+        XCTAssertEqual(result.nextPhase, .questioning)
         guard case .awaitingClarification = result.planningState else {
             return XCTFail("planningState should be awaitingClarification")
         }
@@ -61,7 +62,7 @@ final class PlanOutputClassifierTests: XCTestCase {
         """
         let result = PlanOutputClassifier.classify(
             fullText: input,
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )

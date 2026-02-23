@@ -28,21 +28,24 @@ enum PlanOutputClassifier {
         let hasClarificationQuestions = !clarifications.isEmpty
         let hasStrictOptions = !options.isEmpty
 
-        if hasStrictOptions {
-            return PlanOutputClassification(
-                hasClarificationQuestions: hasClarificationQuestions,
-                hasStrictOptions: true,
-                nextPhase: .proposalReady,
-                planningState: .awaitingChoice(planContent: fullText, options: options)
-            )
-        }
-
+        // Clarification questions always take priority over options.
+        // LLMs should never combine ## Questions and ## Options in the same
+        // response, but if they do, route to clarification first.
         if hasClarificationQuestions {
             return PlanOutputClassification(
                 hasClarificationQuestions: true,
-                hasStrictOptions: false,
+                hasStrictOptions: hasStrictOptions,
                 nextPhase: .questioning,
                 planningState: .awaitingClarification(questions: fullText)
+            )
+        }
+
+        if hasStrictOptions {
+            return PlanOutputClassification(
+                hasClarificationQuestions: false,
+                hasStrictOptions: true,
+                nextPhase: .proposalReady,
+                planningState: .awaitingChoice(planContent: fullText, options: options)
             )
         }
 

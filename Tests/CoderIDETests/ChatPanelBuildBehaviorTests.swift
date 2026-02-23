@@ -48,19 +48,27 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
     func testPlanBuildDisabledReasonCodes() {
         XCTAssertEqual(
             planBuildDisabledReason(
-                phase: .discovery,
+                phase: .analyzing,
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Analisi in corso: attendi il completamento della discovery."
+            "Analisi codebase in corso: attendi il completamento."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
-                phase: .awaitingClarification,
+                phase: .questioning,
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
             "Servono chiarimenti: rispondi alle domande prima del build."
+        )
+        XCTAssertEqual(
+            planBuildDisabledReason(
+                phase: .generating,
+                hasBuildChoice: true,
+                providerExecutionCapable: true
+            ),
+            "Generazione piano in corso: attendi il completamento."
         )
         XCTAssertEqual(
             planBuildDisabledReason(

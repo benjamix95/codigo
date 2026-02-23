@@ -18,7 +18,7 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
 
         let classification = PlanOutputClassifier.classify(
             fullText: modelResponse,
-            current: .discovery,
+            current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
@@ -46,9 +46,9 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
             canonicalTodos: []
         )
         XCTAssertFalse(result.isResume)
-        XCTAssertTrue(result.prompt.contains("Todo da completare (in ordine):"))
-        XCTAssertTrue(result.prompt.contains("1. Aggiungere test integrazione plan/build"))
-        XCTAssertTrue(result.prompt.contains("2. Eseguire swift test"))
+        XCTAssertTrue(result.prompt.contains("TODO OBBLIGATORI"))
+        XCTAssertTrue(result.prompt.contains("1. [ ] Aggiungere test integrazione plan/build"))
+        XCTAssertTrue(result.prompt.contains("2. [ ] Eseguire swift test"))
         XCTAssertFalse(result.prompt.contains("Todo già completati"))
     }
 
@@ -121,7 +121,7 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
         )
 
         XCTAssertTrue(result.isResume)
-        XCTAssertFalse(result.prompt.contains("Todo da completare (in ordine):"))
+        XCTAssertFalse(result.prompt.contains("TODO OBBLIGATORI"))
         XCTAssertTrue(result.prompt.contains("**Todo già completati:**"))
         XCTAssertTrue(result.prompt.contains("**Todo da completare:**"))
     }
