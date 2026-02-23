@@ -46,6 +46,7 @@ struct ModeControlsBarView: View {
     // MARK: - Callbacks
 
     let onSyncCodexProvider: () -> Void
+    let onSyncClaudeProvider: () -> Void
     let onSyncGeminiProvider: () -> Void
     let onSyncSwarmProvider: () -> Void
     let onSyncPlanProvider: () -> Void
@@ -104,6 +105,7 @@ struct ModeControlsBarView: View {
             }
 
         case "claude-cli":
+            claudeModelPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
@@ -238,6 +240,32 @@ struct ModeControlsBarView: View {
             ? "Default"
             : (codexModels.first(where: { $0.slug == codexModelOverride })?.displayName
                 ?? codexModelOverride)
+    }
+
+    // MARK: - Claude Model Picker
+
+    private var claudeModelPicker: some View {
+        Menu {
+            ForEach(["sonnet", "opus", "haiku"], id: \.self) { model in
+                Button {
+                    claudeModel = model
+                    onSyncClaudeProvider()
+                } label: {
+                    HStack {
+                        Text(model.capitalized)
+                        if claudeModel == model { Image(systemName: "checkmark") }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(claudeModel.capitalized).font(.caption)
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     // MARK: - Gemini Model Picker

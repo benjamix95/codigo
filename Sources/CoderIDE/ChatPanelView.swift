@@ -456,6 +456,7 @@ struct ChatPanelView: View {
     @State private var planAnalysisContext: String = ""
     @State private var planUserRequest: String = ""
     @State private var planClarificationAnswers: String = ""
+    @State private var planStreamingContent: String = ""
     @State private var activeBuildPlanConversationId: UUID?
     @State private var isProviderReady = false
     @State private var attachedImageURLs: [URL] = []
@@ -734,6 +735,7 @@ struct ChatPanelView: View {
             isCurrentConversationLoading: isLoadingForCurrentConversation,
             planningState: planningState,
             planFlowPhase: planFlowPhase,
+            planStreamingContent: planStreamingContent,
             onClose: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showPlanPanel = false
@@ -1683,6 +1685,7 @@ struct ChatPanelView: View {
             geminiModels: geminiModels,
             effectiveModeProviderLabel: effectiveModeProviderLabel,
             onSyncCodexProvider: syncCodexProvider,
+            onSyncClaudeProvider: syncClaudeProvider,
             onSyncGeminiProvider: syncGeminiProvider,
             onSyncSwarmProvider: syncSwarmProvider,
             onSyncPlanProvider: syncPlanProvider,
@@ -2065,6 +2068,15 @@ struct ChatPanelView: View {
         syncPlanProvider()
         checkProviderAuth()
         persistCodexConfigToToml()
+    }
+
+    private func syncClaudeProvider() {
+        let p = ProviderFactory.claudeProvider(
+            config: providerFactoryConfig(), executionController: executionController)
+        reregisterProviderPreservingSelection(id: "claude-cli", provider: p)
+        syncSwarmProvider()
+        syncPlanProvider()
+        checkProviderAuth()
     }
 
     private func syncGeminiProvider() {
@@ -2828,7 +2840,10 @@ struct ChatPanelView: View {
         // ========================
         // PHASE 1: Codebase Analysis
         // ========================
-        await MainActor.run { planFlowPhase = .analyzing }
+        await MainActor.run {
+            planFlowPhase = .analyzing
+            planStreamingContent = ""
+        }
 
         let analysisPrompt = buildPhase1AnalysisPrompt(userRequest: planUserRequest)
         let analysisResult = try await flowCoordinator.runStream(
@@ -2837,8 +2852,11 @@ struct ChatPanelView: View {
             context: ctx,
             imageURLs: imageURLsToSend,
             onText: { [self] content in
+                // Full content → plan panel via planStreamingContent
+                planStreamingContent = content
+                // Chat shows only status summary
                 applyStreamingUpdate(
-                    content: content,
+                    content: "📋 **Fase 1/3 — Analisi codebase in corso…**\n\nApri il pannello Planning per vedere i dettagli.",
                     conversationId: conversationId
                 )
             },
@@ -2855,8 +2873,9 @@ struct ChatPanelView: View {
 
         await MainActor.run {
             planAnalysisContext = analysisResult.fullText
+            planStreamingContent = analysisResult.fullText
             chatStore.updateLastAssistantMessage(
-                content: analysisResult.fullText,
+                content: "✅ **Fase 1/3 — Analisi completata.** Generazione domande…",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -2865,15 +2884,9 @@ struct ChatPanelView: View {
         // ========================
         // PHASE 2: Clarification Questions
         // ========================
-        await MainActor.run { planFlowPhase = .questioning }
-
-        // Create new assistant message for Phase 2
         await MainActor.run {
-            chatStore.setLastAssistantStreaming(false, in: conversationId)
-            chatStore.addMessage(
-                ChatMessage(role: .assistant, content: "", isStreaming: true),
-                to: conversationId
-            )
+            planFlowPhase = .questioning
+            planStreamingContent = ""
         }
 
         let questionPrompt = buildPhase2QuestionPrompt(
@@ -2886,8 +2899,9 @@ struct ChatPanelView: View {
             context: ctx,
             imageURLs: nil,
             onText: { [self] content in
+                planStreamingContent = content
                 applyStreamingUpdate(
-                    content: content,
+                    content: "📋 **Fase 2/3 — Valutazione domande di chiarimento…**\n\nApri il pannello Planning per i dettagli.",
                     conversationId: conversationId
                 )
             },
@@ -2920,7 +2934,8 @@ struct ChatPanelView: View {
                     // Fallback: treat entire text as questions
                     planningState = .awaitingClarification(questions: questionText)
                 }
-                let summaryContent = "Servono chiarimenti per procedere. Apri il pannello Planning per rispondere alle domande."
+                planStreamingContent = questionText
+                let summaryContent = "❓ **Fase 2/3 — Servono chiarimenti.** Apri il pannello Planning per rispondere alle domande."
                 chatStore.updateLastAssistantMessage(
                     content: summaryContent, in: conversationId, persistImmediately: true
                 )
@@ -2934,11 +2949,12 @@ struct ChatPanelView: View {
         // No questions needed — proceed directly to Phase 3
         await MainActor.run {
             chatStore.updateLastAssistantMessage(
-                content: "Informazioni sufficienti. Generazione piano in corso…",
+                content: "✅ **Fase 2/3 — Nessuna domanda necessaria.** Generazione piano…",
                 in: conversationId,
                 persistImmediately: true
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
+            planStreamingContent = ""
         }
         try await runPlanFlowPhase3(
             provider: provider,
@@ -2979,8 +2995,11 @@ struct ChatPanelView: View {
             context: ctx,
             imageURLs: nil,
             onText: { [self] content in
+                // Full content → plan panel via planStreamingContent
+                planStreamingContent = content
+                // Chat shows only status summary
                 applyStreamingUpdate(
-                    content: content,
+                    content: "📋 **Fase 3/3 — Generazione piano in corso…**\n\nApri il pannello Planning per vedere i dettagli.",
                     conversationId: conversationId
                 )
             },
@@ -2997,6 +3016,7 @@ struct ChatPanelView: View {
 
         // Parse options from Phase 3 output
         let full = generationResult.fullText
+        await MainActor.run { planStreamingContent = full }
         chatStore.updateLastAssistantMessage(content: full, in: conversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)

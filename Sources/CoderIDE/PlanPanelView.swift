@@ -54,6 +54,8 @@ struct PlanPanelView: View {
     let isCurrentConversationLoading: Bool
     let planningState: PlanningState
     let planFlowPhase: PlanFlowPhase
+    /// Live streaming content from multi-turn plan flow (displayed during analyzing/questioning/generating phases).
+    let planStreamingContent: String
     let onClose: () -> Void
     let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
@@ -565,8 +567,15 @@ struct PlanPanelView: View {
     // MARK: - Plan Content
 
     /// Contenuto live dalla conversazione durante streaming; altrimenti planText (buffer locale in edit).
+    /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     private var displayPlanContent: String {
         if isEditing { return planText }
+        // During active plan phases, show streaming content from the multi-turn flow
+        if [.analyzing, .questioning, .generating].contains(planFlowPhase),
+           !planStreamingContent.isEmpty
+        {
+            return planStreamingContent
+        }
         if let conv = chatStore.conversation(for: conversationId),
            let last = conv.messages.last(where: { $0.role == .assistant }),
            !last.content.isEmpty

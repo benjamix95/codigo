@@ -39,7 +39,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     }
 
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let fullPrompt = prompt + context.contextPrompt()
+        let fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
         let path = geminiPath
         let workspacePath = context.workspacePath
 

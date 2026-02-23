@@ -50,7 +50,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        var fullPrompt = prompt + context.contextPrompt()
+        var fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
         if let urls = imageURLs, !urls.isEmpty {
             let refs = urls.map { "[Immagine: \($0.path)]" }.joined(separator: "\n")
             fullPrompt = refs + "\n\n" + fullPrompt
@@ -71,7 +71,8 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                     
                     var args = [
                         "-p", fullPrompt,
-                        "--output-format", "stream-json"
+                        "--output-format", "stream-json",
+                        "--verbose"
                     ]
                     if let model {
                         args += ["--model", model]
