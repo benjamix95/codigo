@@ -449,7 +449,6 @@ struct ChatPanelView: View {
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
     @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
-    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
     @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
@@ -484,7 +483,6 @@ struct ChatPanelView: View {
     @State private var ignoreNextConversationChangeReset = false
     @State private var skipNextLoadingCompletedHandling = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
-    @StateObject private var flowDiagnosticsStore = FlowDiagnosticsStore()
     @State private var pendingTaskActivities: [TaskActivity] = []
     @State private var pendingInstantGreps: [InstantGrepResult] = []
     @State private var taskFlushWorkItem: DispatchWorkItem?
@@ -497,6 +495,7 @@ struct ChatPanelView: View {
     private let cliAccountRouter = CLIAccountRouter.shared
 
     private static let imagePastedNotification = Notification.Name("CoderIDE.ImagePasted")
+    static let planBuildShortcutNotification = Notification.Name("CoderIDE.PlanBuildShortcutPressed")
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
     private let topInteractiveInset: CGFloat = 22
@@ -603,12 +602,10 @@ struct ChatPanelView: View {
                 skipNextLoadingCompletedHandling = true
                 interruptTask(for: oldId)
             }
-            // Quando cambi thread (incluso "New thread"), il Plan deve ripartire pulito
-            // anche se il pannello non è visibile in quel momento.
-            planningState = .idle
-            planFlowPhase = .idle
+            // Ripristina lo stato del piano se la conversazione di destinazione ha già un piano.
             activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
+            restorePlanStateIfNeeded(for: newId)
             syncProviderFromConversation()
         }
         .onAppear {
@@ -760,6 +757,11 @@ struct ChatPanelView: View {
             onStop: {
                 lastTaskEndedByManualStop = true
                 interruptTask()
+            },
+            onHistoryEntrySelectedForBuild: {
+                if planFlowPhase == .idle, planningState == .idle {
+                    planFlowPhase = .readyToBuild
+                }
             }
         )
         .id(planPanelConversationId)
@@ -840,6 +842,10 @@ struct ChatPanelView: View {
                 handleShiftTabPlanShortcut()
                 return nil
             }
+            if showPlanPanel && event.modifierFlags.contains(.command) && event.keyCode == 36 {
+                NotificationCenter.default.post(name: Self.planBuildShortcutNotification, object: nil)
+                return nil
+            }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
             else {
                 return event
@@ -875,6 +881,32 @@ struct ChatPanelView: View {
             NSEvent.removeMonitor(m)
             pasteMonitor = nil
         }
+    }
+
+    private func restorePlanStateIfNeeded(for conversationId: UUID?) {
+        guard let conversationId else {
+            planningState = .idle
+            planFlowPhase = .idle
+            return
+        }
+        guard let board = chatStore.planBoard(for: conversationId) else {
+            planningState = .idle
+            planFlowPhase = .idle
+            return
+        }
+        let chosenPath = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !chosenPath.isEmpty, !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty {
+            planFlowPhase = .readyToBuild
+            planningState = .idle
+            return
+        }
+        if !board.options.isEmpty {
+            planFlowPhase = .proposalReady
+            planningState = .awaitingChoice(planContent: board.goal, options: board.options)
+            return
+        }
+        planningState = .idle
+        planFlowPhase = .idle
     }
 
     private func openPlanPanelForCurrentContext(preserveHistorySelection: Bool = false) {
@@ -1048,7 +1080,7 @@ struct ChatPanelView: View {
                                 ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
                                 : nil
                             let hasCheckpointForMessage = userMessageCheckpoint != nil
-                            let canRewindFromMessage = message.role == .user && !isRewinding && index > 0
+                            let canRewindFromMessage = message.role == .user && !isRewinding
 
                             HStack(alignment: .top, spacing: 0) {
                                 if message.role == .user { Spacer(minLength: 0) }
@@ -1181,14 +1213,6 @@ struct ChatPanelView: View {
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
                             .id("plan-board")
-                        }
-                        if flowDiagnosticsEnabled,
-                            let snapshot = flowDiagnosticsStore.snapshot(for: conv.id)
-                        {
-                            diagnosticsCard(snapshot)
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 8)
-                                .id("flow-diagnostics-card")
                         }
                     }
                 }
@@ -2478,7 +2502,6 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
         chatStore.beginTask(conversationId: agentConvId)
-        flowDiagnosticsStore.reset(for: agentConvId)
         taskActivityStore.clear()
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
@@ -2529,9 +2552,7 @@ struct ChatPanelView: View {
                             chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
                         }
                     },
-                    onSignal: { signal in
-                        flowDiagnosticsStore.record(signal: signal, conversationId: agentConvId)
-                    }
+                    onSignal: nil
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 clearStreamingReasoning(for: agentConvId)
@@ -2680,7 +2701,6 @@ struct ChatPanelView: View {
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
         }
         chatStore.beginTask(conversationId: targetConversationId)
-        flowDiagnosticsStore.reset(for: targetConversationId)
         taskActivityStore.clear()
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
@@ -2723,9 +2743,7 @@ struct ChatPanelView: View {
                             chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
                         }
                     },
-                    onSignal: { signal in
-                        flowDiagnosticsStore.record(signal: signal, conversationId: targetConversationId)
-                    }
+                    onSignal: nil
                 )
 
                 let finalizedResult = try await continueIfPrematureStub(
@@ -2808,9 +2826,7 @@ struct ChatPanelView: View {
                     chatStore.updateLastAssistantMessage(content: combined, in: conversationId)
                 }
             },
-            onSignal: { signal in
-                flowDiagnosticsStore.record(signal: signal, conversationId: conversationId)
-            }
+            onSignal: nil
         )
 
         let combinedText = initial.fullText + "\n" + followUp.fullText
@@ -3249,11 +3265,6 @@ struct ChatPanelView: View {
         conversationId: UUID?, workspaceContext: WorkspaceContext
     ) throws {
         guard let conversationId else { return }
-        guard let conv = chatStore.conversation(for: conversationId), !conv.messages.isEmpty else {
-            // Non creare checkpoint per il primo messaggio: non ha senso offrire rewind
-            // verso una chat vuota.
-            return
-        }
         let pathStrings = workspaceContext.workspacePaths.map(\.path)
         do {
             let states = try checkpointGitStore.captureSnapshots(
@@ -3524,46 +3535,6 @@ struct ChatPanelView: View {
         let gitService = GitService()
         openFilesStore.openFileWithDiff(absolutePath, gitRoot: gitRoot, gitService: gitService)
         selectMode(.ide)
-    }
-
-    @ViewBuilder
-    private func diagnosticsCard(_ snapshot: FlowLatencySnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Diagnostics")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            diagnosticsRow("start stream", snapshot.streamStartedAt?.formatted(date: .omitted, time: .standard))
-            diagnosticsRow("first event", formattedLatency(snapshot.firstEventLatencyMs))
-            diagnosticsRow("first text delta", formattedLatency(snapshot.firstTextLatencyMs))
-            diagnosticsRow("completion total", formattedLatency(snapshot.totalLatencyMs))
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
-        )
-    }
-
-    @ViewBuilder
-    private func diagnosticsRow(_ label: String, _ value: String?) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
-            Spacer()
-            Text(value ?? "—")
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func formattedLatency(_ valueMs: Int?) -> String? {
-        guard let valueMs else { return nil }
-        return "\(valueMs) ms"
     }
 
     private func streamingStatusText(for message: ChatMessage) -> String {

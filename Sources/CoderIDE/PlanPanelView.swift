@@ -58,6 +58,8 @@ struct PlanPanelView: View {
     let onSubmitClarificationAnswers: (PlanClarificationSubmission) -> Void
     let onBuild: (String, String?, Bool) -> Void
     let onStop: () -> Void
+    /// Chiamato quando l'utente seleziona una voce della history con contenuto buildabile (per abilitare il pulsante Build principale).
+    var onHistoryEntrySelectedForBuild: (() -> Void)? = nil
 
     @State private var planText: String = ""
     @State private var isEditing = false
@@ -156,6 +158,9 @@ struct PlanPanelView: View {
             planText = ""
             isEditing = false
             buildHint = nil
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
+            performBuild()
         }
     }
 
@@ -424,7 +429,11 @@ struct PlanPanelView: View {
                     } label: {
                         Label("Esegui di nuovo", systemImage: "arrow.clockwise")
                     }
-                    .keyboardShortcut(.return, modifiers: [.command])
+                    Button {
+                        downloadCurrentPlan()
+                    } label: {
+                        Label("Scarica .md", systemImage: "arrow.down.doc")
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark")
@@ -481,8 +490,8 @@ struct PlanPanelView: View {
                     )
                     .opacity(isCurrentConversationLoading ? 0.8 : 1)
                 }
-                .buttonStyle(PlanBuildButtonStyle())
                 .keyboardShortcut(.return, modifiers: [.command])
+                .buttonStyle(PlanBuildButtonStyle())
                 .help(isCurrentConversationLoading ? "Ferma il build (⌘⏎)" : (buildDisabledReason ?? "Esegui il plan (⌘⏎)"))
                 .disabled(!isBuildEnabledByPhase && !isCurrentConversationLoading)
             }
@@ -676,6 +685,11 @@ struct PlanPanelView: View {
                         Spacer()
                         Button("Preview") {
                             planHistoryStore.setSelectedEntry(id: entry.id)
+                            let choice = entry.chosenPath?.isEmpty == false
+                                ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                            if !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
+                                onHistoryEntrySelectedForBuild?()
+                            }
                         }
                         .buttonStyle(.plain)
                         .font(.system(size: 10, weight: .medium))
@@ -992,6 +1006,26 @@ struct PlanPanelView: View {
             return (first.fullText, PlanOptionsParser.isFallbackOption(first))
         }
         return nil
+    }
+
+    private func downloadCurrentPlan() {
+        guard let board = chatStore.planBoard(for: conversationId) else { return }
+        let content: String
+        if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines), !chosen.isEmpty {
+            content = chosen
+        } else if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+            content = first.fullText
+        } else {
+            content = "# \(board.goal)\n\n"
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = planFileName
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? content.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     private func downloadPlan(_ entry: PlanHistoryEntry) {

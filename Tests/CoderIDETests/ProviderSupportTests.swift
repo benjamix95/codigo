@@ -15,7 +15,7 @@ final class ProviderSupportTests: XCTestCase {
         XCTAssertFalse(ProviderSupport.isUserSelectableRealProvider(id: "legacy-provider-id"))
     }
 
-    func testPlanBuildExecutionCapabilityAllowsOnlyCliProviders() {
+    func testPlanBuildExecutionCapabilityAllowsCliAndApiProviders() {
         let registry = ProviderRegistry()
         registry.register(MockTestProvider(id: "codex-cli", authenticated: true))
         registry.register(MockTestProvider(id: "openai-api", authenticated: true))
@@ -23,7 +23,7 @@ final class ProviderSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderSupport.isPlanBuildExecutionCapableProvider(id: "codex-cli", registry: registry)
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             ProviderSupport.isPlanBuildExecutionCapableProvider(id: "openai-api", registry: registry)
         )
     }

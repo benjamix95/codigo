@@ -157,8 +157,6 @@ struct SettingsView: View {
     @AppStorage("full_auto_tools") private var fullAutoTools = true
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
     @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
-    @AppStorage("flow_diagnostics_enabled") private var flowDiagnosticsEnabled = false
-
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var geminiState = GeminiStateStore()
     @StateObject private var cliAccountsStore = CLIAccountsStore.shared
@@ -1285,19 +1283,6 @@ struct SettingsView: View {
                         isOn: $agentAutoDelegateSwarm)
                     hintBox(
                         "Se disattivo, Agent non inietta il marker invoke_swarm e resta in esecuzione singola."
-                    )
-                }
-                .padding(4)
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle(
-                        "Mostra diagnostica latenza in chat",
-                        isOn: $flowDiagnosticsEnabled
-                    )
-                    hintBox(
-                        "Aggiunge un riquadro Diagnostics con timing stream (first event, first text, completion) quando lo stream è attivo."
                     )
                 }
                 .padding(4)
