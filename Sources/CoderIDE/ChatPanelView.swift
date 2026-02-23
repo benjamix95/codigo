@@ -20,8 +20,9 @@ enum PlanningState: Equatable {
 
 enum PlanFlowPhase: Equatable {
     case idle
-    case discovery
-    case awaitingClarification
+    case analyzing          // Phase 1: codebase analysis in progress
+    case questioning        // Phase 2: generating/awaiting clarification questions
+    case generating         // Phase 3: generating structured plan options
     case proposalReady
     case readyToBuild
     case building
@@ -452,6 +453,9 @@ struct ChatPanelView: View {
     @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
+    @State private var planAnalysisContext: String = ""
+    @State private var planUserRequest: String = ""
+    @State private var planClarificationAnswers: String = ""
     @State private var activeBuildPlanConversationId: UUID?
     @State private var isProviderReady = false
     @State private var attachedImageURLs: [URL] = []
@@ -520,8 +524,9 @@ struct ChatPanelView: View {
         let planFlowActive =
             coderMode == .plan
             || planToggleEnabled
-            || planFlowPhase == .discovery
-            || planFlowPhase == .awaitingClarification
+            || planFlowPhase == .analyzing
+            || planFlowPhase == .questioning
+            || planFlowPhase == .generating
             || planFlowPhase == .proposalReady
             || planFlowPhase == .readyToBuild
             || planFlowPhase == .building
@@ -2366,12 +2371,23 @@ struct ChatPanelView: View {
             )
         )
 
+        // Store answers and continue to Phase 3 (don't restart full flow via sendMessage)
+        planClarificationAnswers = prompt
+        planningState = .idle
+
         if coderMode == .agent {
             planToggleEnabled = true
         }
-        inputText = prompt
-        isInputFocused = false
-        sendMessage()
+
+        // Add user message showing clarification answers were submitted
+        if let cid = conversationId {
+            chatStore.addMessage(
+                ChatMessage(role: .user, content: prompt, isStreaming: false),
+                to: cid
+            )
+        }
+
+        continuePlanFlowPhase3()
     }
 
     private func executeWithPlanChoice(
@@ -2623,7 +2639,10 @@ struct ChatPanelView: View {
         // Aprire il pannello plan non deve attivare automaticamente la pianificazione.
         let shouldRunPlanInline = forcePlanInline || (coderMode == .agent && planToggleEnabled)
         if coderMode == .plan || shouldRunPlanInline {
-            planFlowPhase = .discovery
+            planFlowPhase = .analyzing
+            planAnalysisContext = ""
+            planUserRequest = text
+            planClarificationAnswers = ""
             openPlanPanelForCurrentContext()
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
@@ -2718,49 +2737,58 @@ struct ChatPanelView: View {
         let prompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
 
         // 5. Execute async stream
-        let isPlanDiscoveryStreaming = (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .discovery
+        let isPlanMultiTurnFlow = (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .analyzing
         Task {
             do {
-                let streamResult = try await flowCoordinator.runStream(
-                    provider: effectiveRuntimeProvider,
-                    prompt: prompt,
-                    context: ctx,
-                    imageURLs: imageURLsToSend,
-                    onText: { content in
-                        let displayContent = isPlanDiscoveryStreaming
-                            ? "Planning in corso… Apri il pannello Planning per vedere il risultato."
-                            : content
-                        applyStreamingUpdate(
-                            content: displayContent,
-                            conversationId: targetConversationId
-                        )
-                    },
-                    onRaw: { t, p, pid in
-                        handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
-                    },
-                    onError: { content in
-                        DispatchQueue.main.async {
-                            chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
-                        }
-                    },
-                    onSignal: nil
-                )
+                if isPlanMultiTurnFlow {
+                    // Multi-turn forced sequential plan flow
+                    try await runMultiTurnPlanFlow(
+                        provider: effectiveRuntimeProvider,
+                        ctx: ctx,
+                        imageURLsToSend: imageURLsToSend,
+                        conversationId: targetConversationId,
+                        shouldRunPlanInline: shouldRunPlanInline
+                    )
+                } else {
+                    // Standard single-stream flow (non-plan modes + plan build)
+                    let streamResult = try await flowCoordinator.runStream(
+                        provider: effectiveRuntimeProvider,
+                        prompt: prompt,
+                        context: ctx,
+                        imageURLs: imageURLsToSend,
+                        onText: { content in
+                            applyStreamingUpdate(
+                                content: content,
+                                conversationId: targetConversationId
+                            )
+                        },
+                        onRaw: { t, p, pid in
+                            handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
+                        },
+                        onError: { content in
+                            DispatchQueue.main.async {
+                                chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
+                            }
+                        },
+                        onSignal: nil
+                    )
 
-                let finalizedResult = try await continueIfPrematureStub(
-                    initial: streamResult,
-                    provider: effectiveRuntimeProvider,
-                    originalPrompt: prompt,
-                    context: ctx,
-                    conversationId: targetConversationId,
-                    hideContentDuringPlanDiscovery: isPlanDiscoveryStreaming
-                )
+                    let finalizedResult = try await continueIfPrematureStub(
+                        initial: streamResult,
+                        provider: effectiveRuntimeProvider,
+                        originalPrompt: prompt,
+                        context: ctx,
+                        conversationId: targetConversationId,
+                        hideContentDuringPlanDiscovery: false
+                    )
 
-                // 6. Handle stream completion (plan options, swarm delegation)
-                await handleStreamResult(
-                    conversationId: targetConversationId,
-                    finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
-                    ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
-                )
+                    // 6. Handle stream completion (plan options, swarm delegation)
+                    await handleStreamResult(
+                        conversationId: targetConversationId,
+                        finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
+                        ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+                    )
+                }
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
                 clearStreamingReasoning(for: targetConversationId)
@@ -2774,6 +2802,309 @@ struct ChatPanelView: View {
                     await MainActor.run {
                         flowCoordinator.fail()
                     }
+                }
+            }
+            chatStore.endTask(conversationId: targetConversationId)
+        }
+    }
+
+    // MARK: - Multi-Turn Plan Flow
+
+    private func runMultiTurnPlanFlow(
+        provider: any LLMProvider,
+        ctx: WorkspaceContext,
+        imageURLsToSend: [URL]?,
+        conversationId: UUID,
+        shouldRunPlanInline: Bool
+    ) async throws {
+        // ========================
+        // PHASE 1: Codebase Analysis
+        // ========================
+        await MainActor.run { planFlowPhase = .analyzing }
+
+        let analysisPrompt = buildPhase1AnalysisPrompt(userRequest: planUserRequest)
+        let analysisResult = try await flowCoordinator.runStream(
+            provider: provider,
+            prompt: analysisPrompt,
+            context: ctx,
+            imageURLs: imageURLsToSend,
+            onText: { [self] content in
+                applyStreamingUpdate(
+                    content: content,
+                    conversationId: conversationId
+                )
+            },
+            onRaw: { [self] t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+            },
+            onError: { [self] content in
+                DispatchQueue.main.async {
+                    chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                }
+            },
+            onSignal: nil
+        )
+
+        await MainActor.run {
+            planAnalysisContext = analysisResult.fullText
+            chatStore.updateLastAssistantMessage(
+                content: analysisResult.fullText,
+                in: conversationId,
+                persistImmediately: true
+            )
+        }
+
+        // ========================
+        // PHASE 2: Clarification Questions
+        // ========================
+        await MainActor.run { planFlowPhase = .questioning }
+
+        // Create new assistant message for Phase 2
+        await MainActor.run {
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: conversationId
+            )
+        }
+
+        let questionPrompt = buildPhase2QuestionPrompt(
+            userRequest: planUserRequest,
+            analysisContext: analysisResult.fullText
+        )
+        let questionResult = try await flowCoordinator.runStream(
+            provider: provider,
+            prompt: questionPrompt,
+            context: ctx,
+            imageURLs: nil,
+            onText: { [self] content in
+                applyStreamingUpdate(
+                    content: content,
+                    conversationId: conversationId
+                )
+            },
+            onRaw: { [self] t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+            },
+            onError: { [self] content in
+                DispatchQueue.main.async {
+                    chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                }
+            },
+            onSignal: nil
+        )
+
+        let questionText = questionResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let needsQuestions = !questionText.contains("NO_QUESTIONS_NEEDED")
+
+        if needsQuestions {
+            // Parse questions and pause for user input
+            let classification = PlanOutputClassifier.classify(
+                fullText: questionText,
+                current: .questioning,
+                coderMode: coderMode,
+                shouldRunPlanInline: shouldRunPlanInline
+            )
+            await MainActor.run {
+                if case .awaitingClarification(let q) = classification.planningState {
+                    planningState = .awaitingClarification(questions: q)
+                } else {
+                    // Fallback: treat entire text as questions
+                    planningState = .awaitingClarification(questions: questionText)
+                }
+                let summaryContent = "Servono chiarimenti per procedere. Apri il pannello Planning per rispondere alle domande."
+                chatStore.updateLastAssistantMessage(
+                    content: summaryContent, in: conversationId, persistImmediately: true
+                )
+                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+            }
+            // STOP — Phase 3 will be triggered by submitPlanClarificationAnswers() → continuePlanFlowPhase3()
+            return
+        }
+
+        // No questions needed — proceed directly to Phase 3
+        await MainActor.run {
+            chatStore.updateLastAssistantMessage(
+                content: "Informazioni sufficienti. Generazione piano in corso…",
+                in: conversationId,
+                persistImmediately: true
+            )
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
+        }
+        try await runPlanFlowPhase3(
+            provider: provider,
+            ctx: ctx,
+            conversationId: conversationId,
+            shouldRunPlanInline: shouldRunPlanInline
+        )
+    }
+
+    private func runPlanFlowPhase3(
+        provider: any LLMProvider,
+        ctx: WorkspaceContext,
+        conversationId: UUID,
+        shouldRunPlanInline: Bool
+    ) async throws {
+        // ========================
+        // PHASE 3: Plan Generation
+        // ========================
+        await MainActor.run { planFlowPhase = .generating }
+
+        // Create new assistant message for Phase 3 streaming
+        await MainActor.run {
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: conversationId
+            )
+        }
+
+        let generationPrompt = buildPhase3GenerationPrompt(
+            userRequest: planUserRequest,
+            analysisContext: planAnalysisContext,
+            clarificationAnswers: planClarificationAnswers
+        )
+
+        let generationResult = try await flowCoordinator.runStream(
+            provider: provider,
+            prompt: generationPrompt,
+            context: ctx,
+            imageURLs: nil,
+            onText: { [self] content in
+                applyStreamingUpdate(
+                    content: content,
+                    conversationId: conversationId
+                )
+            },
+            onRaw: { [self] t, p, pid in
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+            },
+            onError: { [self] content in
+                DispatchQueue.main.async {
+                    chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                }
+            },
+            onSignal: nil
+        )
+
+        // Parse options from Phase 3 output
+        let full = generationResult.fullText
+        chatStore.updateLastAssistantMessage(content: full, in: conversationId, persistImmediately: true)
+        chatStore.setLastAssistantStreaming(false, in: conversationId)
+        clearStreamingReasoning(for: conversationId)
+
+        var options = PlanOptionsParser.parseStrict(from: full)
+        if options.isEmpty {
+            options = PlanOptionsParser.parse(from: full)
+        }
+
+        if !options.isEmpty {
+            let board = PlanBoard.build(from: full, options: options)
+            chatStore.setPlanBoard(board, for: conversationId)
+            let currentConv = chatStore.conversation(for: conversationId)
+            let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+            let summaryContent = "Piano pronto: \(parsedSummary.title)\n\nApri il pannello Planning per selezionare un'opzione."
+            chatStore.updateLastAssistantMessage(content: summaryContent, in: conversationId, persistImmediately: true)
+
+            let entry = planHistoryStore.createEntry(
+                conversationId: conversationId,
+                contextId: currentConv?.contextId,
+                contextFolderPath: currentConv?.contextFolderPath,
+                title: parsedSummary.title,
+                markdown: full,
+                options: options,
+                chosenPath: board.chosenPath,
+                tags: [],
+                sourceMessageId: nil
+            )
+            let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
+                conversationId: conversationId,
+                entry: entry
+            )
+            planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
+
+            if shouldRunPlanInline {
+                let cid = conversationId
+                inlinePlanSummaries[cid] = {
+                    let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
+                    return InlinePlanSummary(title: parsed.title, body: parsed.body)
+                }()
+                isPlanSummaryCollapsed = false
+                let contextId = currentConv?.contextId
+                let contextFolderPath = currentConv?.contextFolderPath
+                let planConvId = chatStore.getOrCreateConversationForMode(
+                    contextId: contextId, contextFolderPath: contextFolderPath,
+                    mode: .plan)
+                chatStore.setPlanBoard(board, for: planConvId)
+            }
+
+            await MainActor.run {
+                planFlowPhase = .proposalReady
+                planningState = .awaitingChoice(planContent: full, options: options)
+                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+            }
+        } else {
+            // No options parsed — stay in generating state and show raw output
+            await MainActor.run {
+                planFlowPhase = .proposalReady
+                planningState = .idle
+            }
+        }
+    }
+
+    @MainActor
+    private func continuePlanFlowPhase3() {
+        guard let targetConversationId = conversationId else { return }
+
+        let effectiveProvider: any LLMProvider
+        if let selected = providerRegistry.selectedProvider {
+            if selected.isAuthenticated() {
+                effectiveProvider = selected
+            } else if let fallback = preferredRealProvider() {
+                effectiveProvider = fallback
+            } else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Nessun provider autenticato disponibile per continuare.",
+                    in: targetConversationId
+                )
+                return
+            }
+        } else {
+            appendTechnicalErrorMessage(
+                "[Plan] Nessun provider selezionato.",
+                in: targetConversationId
+            )
+            return
+        }
+
+        let ctx = effectiveContext.toWorkspaceContext(
+            openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+            activeSelection: nil,
+            activeFilePath: openFilesStore.openFilePath,
+            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+        )
+
+        let shouldRunPlanInline = (coderMode == .agent && planToggleEnabled)
+
+        chatStore.beginTask(conversationId: targetConversationId)
+        Task {
+            do {
+                try await runPlanFlowPhase3(
+                    provider: effectiveProvider,
+                    ctx: ctx,
+                    conversationId: targetConversationId,
+                    shouldRunPlanInline: shouldRunPlanInline
+                )
+            } catch {
+                chatStore.setLastAssistantStreaming(false, in: targetConversationId)
+                clearStreamingReasoning(for: targetConversationId)
+                if isInterruptedStreamError(error) {
+                    flowCoordinator.interrupt()
+                } else {
+                    chatStore.updateLastAssistantMessage(
+                        content: userFacingStreamError(error), in: targetConversationId
+                    )
+                    flowCoordinator.fail()
                 }
             }
             chatStore.endTask(conversationId: targetConversationId)
@@ -3013,6 +3344,113 @@ struct ChatPanelView: View {
         return prompt
     }
 
+    // MARK: - Phase-Specific Plan Prompts
+
+    private func buildPhase1AnalysisPrompt(userRequest: String) -> String {
+        """
+        **Fase: Analisi Codebase (SOLO ANALISI)**
+
+        Stai analizzando un codebase per preparare un piano. Il tuo UNICO compito è esplorare e comprendere il codebase.
+
+        Richiesta utente: \(userRequest)
+
+        Istruzioni:
+        1. Usa Read, Glob e Grep per esplorare i file rilevanti per questa richiesta.
+        2. Identifica file chiave, dipendenze, architettura attuale e vincoli.
+        3. Riporta le tue scoperte come testo di analisi strutturato.
+        4. NON proporre soluzioni, opzioni o domande di chiarimento.
+        5. NON generare sezioni ## Todo o header ## Opzione.
+        6. Concentrati su COSA ESISTE, non su cosa dovrebbe cambiare.
+        7. Non emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead).
+
+        Formato output: Un report di analisi strutturato delle tue scoperte.
+        """
+    }
+
+    private func buildPhase2QuestionPrompt(userRequest: String, analysisContext: String) -> String {
+        """
+        **Fase: Domande di Chiarimento**
+
+        Basandoti sull'analisi del codebase qui sotto, determina se hai bisogno di chiarimenti dall'utente.
+
+        Richiesta utente: \(userRequest)
+
+        Analisi codebase:
+        \(analysisContext)
+
+        Istruzioni:
+        - Se hai informazioni sufficienti per proporre opzioni di implementazione concrete, rispondi SOLO con: NO_QUESTIONS_NEEDED
+        - Se hai bisogno di chiarimenti, genera 2-4 domande strutturate in questo formato ESATTO:
+
+        ## Domande di chiarimento
+        1. Testo della domanda?
+           A) Opzione 1
+           B) Opzione 2
+           C) Opzione 3 (facoltativa)
+
+        Regole:
+        - Massimo 4 domande
+        - Ogni domanda deve avere 2-3 opzioni mutualmente esclusive
+        - Usa "Altro..." solo quando la domanda è genuinamente aperta
+        - NON proporre soluzioni o opzioni di piano in questa fase
+        - NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead)
+        """
+    }
+
+    private func buildPhase3GenerationPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String
+    ) -> String {
+        var prompt = """
+        **Fase: Generazione Piano**
+
+        Genera 2-4 opzioni di implementazione concrete basate sull'analisi e il contesto qui sotto.
+
+        Richiesta utente: \(userRequest)
+
+        Analisi codebase:
+        \(analysisContext)
+        """
+
+        if !clarificationAnswers.isEmpty {
+            prompt += """
+
+            Risposte chiarimenti utente:
+            \(clarificationAnswers)
+            """
+        }
+
+        prompt += """
+
+        Istruzioni:
+        - Proponi 2-4 opzioni concrete usando questo formato ESATTO per ciascuna:
+
+        ## Opzione 1: Titolo
+        Descrizione dell'approccio...
+
+        **Pro:** ...
+        **Contro:** ...
+        **Complessità:** Bassa/Media/Alta
+
+        ## Todo
+        - [ ] Step 1
+        - [ ] Step 2
+        - [ ] Step 3
+
+        ## Opzione 2: Titolo
+        ...
+
+        Regole:
+        - Ogni opzione DEVE avere una sezione ## Todo con step eseguibili
+        - Gli step devono essere concreti e implementabili
+        - NON fare domande o richiedere chiarimenti
+        - NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead)
+        """
+
+        return prompt
+    }
+
     // MARK: - Handle Raw Stream Events
 
     private func handleRawStreamEvent(
@@ -3085,8 +3523,12 @@ struct ChatPanelView: View {
         clearStreamingReasoning(for: streamConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
 
-        // Handle plan options parsing
-        if coderMode == .plan || shouldRunPlanInline {
+        // Handle plan options parsing (safety net — multi-turn flow handles its own classification)
+        if (coderMode == .plan || shouldRunPlanInline)
+            && planFlowPhase != .analyzing
+            && planFlowPhase != .questioning
+            && planFlowPhase != .generating
+        {
             let classification = PlanOutputClassifier.classify(
                 fullText: full,
                 current: planFlowPhase,

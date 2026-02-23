@@ -41,7 +41,7 @@ enum PlanOutputClassifier {
             return PlanOutputClassification(
                 hasClarificationQuestions: true,
                 hasStrictOptions: false,
-                nextPhase: .awaitingClarification,
+                nextPhase: .questioning,
                 planningState: .awaitingClarification(questions: fullText)
             )
         }

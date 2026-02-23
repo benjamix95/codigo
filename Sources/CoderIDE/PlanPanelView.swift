@@ -9,7 +9,7 @@ func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool, allowIdleReb
         return true
     case .idle:
         return allowIdleRebuild && hasBuildChoice
-    case .discovery, .awaitingClarification, .building:
+    case .analyzing, .questioning, .generating, .building:
         return false
     }
 }
@@ -28,10 +28,12 @@ func planBuildDisabledReason(
     switch phase {
     case .idle:
         return "Build non disponibile in idle: genera o seleziona prima un piano."
-    case .discovery:
-        return "Analisi in corso: attendi il completamento della discovery."
-    case .awaitingClarification:
+    case .analyzing:
+        return "Analisi codebase in corso: attendi il completamento."
+    case .questioning:
         return "Servono chiarimenti: rispondi alle domande prima del build."
+    case .generating:
+        return "Generazione piano in corso: attendi il completamento."
     case .building:
         return "Build in esecuzione..."
     case .proposalReady, .readyToBuild:
@@ -82,6 +84,13 @@ struct PlanPanelView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Phase progress indicator (visible during multi-turn flow)
+                    if planFlowPhase == .analyzing || planFlowPhase == .questioning
+                        || planFlowPhase == .generating
+                    {
+                        PlanPhaseProgressView(phase: planFlowPhase)
+                    }
+
                     if !canonicalPlanTodos.isEmpty {
                         todosSection
                     }
@@ -400,10 +409,12 @@ struct PlanPanelView: View {
         switch planFlowPhase {
         case .idle:
             return buildHint ?? buildDisabledReason
-        case .discovery:
-            return buildDisabledReason
-        case .awaitingClarification:
-            return buildDisabledReason
+        case .analyzing:
+            return "Analisi codebase in corso…"
+        case .questioning:
+            return "In attesa di chiarimenti…"
+        case .generating:
+            return "Generazione piano in corso…"
         case .proposalReady:
             if let reason = buildDisabledReason {
                 return reason
@@ -598,7 +609,7 @@ struct PlanPanelView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
                     )
-            } else if planFlowPhase == .discovery && isCurrentConversationLoading {
+            } else if (planFlowPhase == .analyzing || planFlowPhase == .questioning || planFlowPhase == .generating) && isCurrentConversationLoading {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.regular)
@@ -1047,5 +1058,87 @@ private struct PlanBuildButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .brightness(configuration.isPressed ? -0.06 : 0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// Horizontal 3-step phase progress indicator for the multi-turn plan flow.
+struct PlanPhaseProgressView: View {
+    let phase: PlanFlowPhase
+
+    private let planColor = DesignSystem.Colors.planColor
+
+    private struct PhaseStep {
+        let label: String
+        let isActive: Bool
+        let isCompleted: Bool
+    }
+
+    private var steps: [PhaseStep] {
+        let phaseOrder: [PlanFlowPhase] = [.analyzing, .questioning, .generating]
+        guard let currentIndex = phaseOrder.firstIndex(of: phase) else {
+            return [
+                PhaseStep(label: "Analisi", isActive: false, isCompleted: true),
+                PhaseStep(label: "Domande", isActive: false, isCompleted: true),
+                PhaseStep(label: "Piano", isActive: false, isCompleted: true),
+            ]
+        }
+        return [
+            PhaseStep(
+                label: "Analisi",
+                isActive: currentIndex == 0,
+                isCompleted: currentIndex > 0
+            ),
+            PhaseStep(
+                label: "Domande",
+                isActive: currentIndex == 1,
+                isCompleted: currentIndex > 1
+            ),
+            PhaseStep(
+                label: "Piano",
+                isActive: currentIndex == 2,
+                isCompleted: false
+            ),
+        ]
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                if index > 0 {
+                    Rectangle()
+                        .fill(step.isCompleted || step.isActive
+                              ? planColor.opacity(0.6)
+                              : Color.secondary.opacity(0.2))
+                        .frame(height: 2)
+                        .frame(maxWidth: 24)
+                }
+
+                HStack(spacing: 4) {
+                    if step.isCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(planColor)
+                    } else if step.isActive {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.7)
+                    } else {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.3))
+                            .frame(width: 10, height: 10)
+                    }
+
+                    Text(step.label)
+                        .font(.system(size: 11, weight: step.isActive ? .semibold : .regular))
+                        .foregroundColor(step.isActive ? planColor : .secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        )
     }
 }
