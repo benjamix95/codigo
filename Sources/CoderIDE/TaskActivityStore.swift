@@ -182,21 +182,39 @@ final class TaskActivityStore: ObservableObject {
     }
 
     nonisolated static func streamingStatusText(isPaused: Bool, activities: [TaskActivity]) -> String {
-        if isPaused {
-            return "Pausa"
-        }
+        if isPaused { return "Paused" }
         guard let last = lastConcreteVisibleActivity(in: activities) else {
-            return "In esecuzione"
+            return "Thinking"
+        }
+        // Dynamic label based on actual activity type and phase
+        let normalizedType = last.type.lowercased()
+        if normalizedType.contains("read") || normalizedType.contains("glob") {
+            return "Reading files"
+        }
+        if normalizedType.contains("grep") || normalizedType.contains("search") {
+            return "Searching codebase"
+        }
+        if normalizedType.contains("edit") || normalizedType.contains("write") || normalizedType.contains("file_change") {
+            return "Editing code"
+        }
+        if normalizedType.contains("bash") || normalizedType.contains("command") {
+            return "Running command"
+        }
+        if normalizedType.contains("mcp") {
+            return "Calling MCP tool"
+        }
+        if normalizedType.contains("web_search") {
+            return "Searching web"
+        }
+        if normalizedType.contains("todo") || normalizedType.contains("plan_step") {
+            return "Planning next move"
         }
         switch last.phase {
-        case .executing:
-            return "Esecuzione"
-        case .editing:
-            return "Modifiche"
-        case .searching:
-            return "Ricerca"
-        case .planning, .thinking:
-            return "Operazione"
+        case .executing: return "Running"
+        case .editing: return "Editing"
+        case .searching: return "Searching"
+        case .planning: return "Planning next move"
+        case .thinking: return "Thinking"
         }
     }
 
@@ -205,8 +223,8 @@ final class TaskActivityStore: ObservableObject {
         activeOperationsCount: Int
     ) -> String? {
         guard let last = lastConcreteVisibleActivity(in: activities) else { return nil }
-        if activeOperationsCount > 0 {
-            return "\(last.title) • \(activeOperationsCount) operazioni attive"
+        if activeOperationsCount > 1 {
+            return "\(last.title) • \(activeOperationsCount) operations"
         }
         return last.title
     }

@@ -55,6 +55,37 @@ struct MarkdownContentView: View {
     }
 
     var body: some View {
+        if isStreaming {
+            streamingBody
+        } else {
+            fullMarkdownBody
+        }
+    }
+
+    /// Fast streaming renderer: skips full block parsing, uses lightweight text rendering.
+    private var streamingBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            let text = displayContent
+            if text.isEmpty {
+                StreamingCursorView()
+            } else {
+                (Text(buildStreamingAttributed(text))
+                    + Text(" \u{258C}")
+                        .font(.system(size: bodyFont))
+                        .foregroundColor(textPrimary.opacity(0.5)))
+                    .font(.system(size: bodyFont))
+                    .foregroundStyle(textPrimary)
+                    .lineSpacing(lineHeight)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Full markdown renderer with block-level parsing (used after streaming completes).
+    private var fullMarkdownBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             let blocks = parseBlocks()
             ForEach(Array(blocks.enumerated()), id: \.offset) { idx, block in
@@ -63,6 +94,34 @@ struct MarkdownContentView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Lightweight attributed string builder for streaming (no block parsing, just inline formatting).
+    private func buildStreamingAttributed(_ text: String) -> AttributedString {
+        var result: AttributedString
+        // Attempt basic markdown inline parsing (bold, italic, code)
+        if let markdown = try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .inlineOnlyPreservingWhitespace,
+                failurePolicy: .returnPartiallyParsedIfPossible
+            )
+        ) {
+            result = markdown
+        } else {
+            result = AttributedString(text)
+        }
+        // Style inline code spans
+        for run in result.runs {
+            let range = run.range
+            guard let intent = run.inlinePresentationIntent else { continue }
+            if intent.contains(.code) {
+                result[range].font = .system(size: max(bodyFont - 1, 11), weight: .medium, design: .monospaced)
+                result[range].backgroundColor = NSColor(codeBackground).withAlphaComponent(0.85)
+                result[range].foregroundColor = NSColor(inlineCodeColor)
+            }
+        }
+        return result
     }
 
     // MARK: - Block Types
@@ -176,15 +235,19 @@ struct MarkdownContentView: View {
 
         case .blockquote(let text):
             HStack(spacing: 0) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(bulletColor.opacity(0.6))
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(bulletColor.opacity(0.5))
                     .frame(width: 3)
                 inlineMarkdown(text)
-                    .padding(.leading, 12)
-                    .padding(.vertical, 4)
+                    .padding(.leading, 14)
+                    .padding(.vertical, 8)
             }
-            .padding(.leading, 4)
+            .padding(.horizontal, 6)
             .padding(.top, topPad)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(codeBackground.opacity(0.4))
+            )
 
         case .spacer:
             Spacer().frame(height: 2)
@@ -616,5 +679,20 @@ struct MarkdownContentView: View {
             }
         }
         return t
+    }
+}
+
+// MARK: - Streaming Cursor
+
+/// Blinking block cursor shown while waiting for first token.
+private struct StreamingCursorView: View {
+    @State private var visible = true
+
+    var body: some View {
+        Text("\u{258C}")
+            .font(.system(size: 13.5))
+            .foregroundStyle(Color.primary.opacity(visible ? 0.7 : 0.15))
+            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: visible)
+            .onAppear { visible = false }
     }
 }

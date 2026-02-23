@@ -496,8 +496,15 @@ struct ChatPanelView: View {
     @State private var taskFlushWorkItem: DispatchWorkItem?
     @State private var autoScrollWorkItem: DispatchWorkItem?
     @State private var fallbackTurnStartWorkItem: DispatchWorkItem?
+    @State private var streamContentVersion: Int = 0
     @State private var streamingReasoningText: String?
     @State private var streamingReasoningConversationId: UUID?
+    /// Pending streaming content waiting to be flushed to ChatStore.
+    @State private var pendingStreamContent: String?
+    @State private var pendingStreamConversationId: UUID?
+    @State private var streamThrottleWorkItem: DispatchWorkItem?
+    /// Minimum interval between streaming content updates (≈30fps).
+    private let streamThrottleInterval: TimeInterval = 0.033
     private let checkpointGitStore = ConversationCheckpointGitStore()
     private let cliAccountsStore = CLIAccountsStore.shared
     private let cliAccountRouter = CLIAccountRouter.shared
@@ -507,7 +514,7 @@ struct ChatPanelView: View {
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
     private let topInteractiveInset: CGFloat = 22
-    private let chatColumnMaxWidth: CGFloat = 900
+    private let chatColumnMaxWidth: CGFloat = 960
 
     private var activeModeColor: Color { modeColor(for: coderMode) }
     private var activeModeGradient: LinearGradient { modeGradient(for: coderMode) }
@@ -998,8 +1005,8 @@ struct ChatPanelView: View {
     private var chatHeader: some View {
         HStack(spacing: 8) {
             Text(chatStore.conversation(for: conversationId)?.title ?? "Nuova conversazione")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.7))
                 .lineLimit(1)
             Spacer()
             Button {
@@ -1026,7 +1033,7 @@ struct ChatPanelView: View {
             .accessibilityLabel("Rewind checkpoint chat")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Mode Tab Bar
@@ -1080,7 +1087,7 @@ struct ChatPanelView: View {
     private var messagesArea: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: 22) {
                     if let conv = chatStore.conversation(for: conversationId) {
                         let messages = conv.messages
                         let lastMsg = messages.last
@@ -1095,6 +1102,7 @@ struct ChatPanelView: View {
                                 : nil
                             let hasCheckpointForMessage = userMessageCheckpoint != nil
                             let canRewindFromMessage = message.role == .user && !isRewinding
+                            let needsDivider = message.role == .user && index > 0
 
                             HStack(alignment: .top, spacing: 0) {
                                 if message.role == .user { Spacer(minLength: 0) }
@@ -1166,7 +1174,8 @@ struct ChatPanelView: View {
                                                     ? { rewindToMessage(at: index, conversationId: conv.id) }
                                                     : nil,
                                                 canRewind: canRewindFromMessage,
-                                                hasCheckpointForRestore: hasCheckpointForMessage
+                                                hasCheckpointForRestore: hasCheckpointForMessage,
+                                                showTopDivider: needsDivider
                                             )
                                         }
                                     } else {
@@ -1190,7 +1199,8 @@ struct ChatPanelView: View {
                                                 ? { rewindToMessage(at: index, conversationId: conv.id) }
                                                 : nil,
                                             canRewind: canRewindFromMessage,
-                                            hasCheckpointForRestore: hasCheckpointForMessage
+                                            hasCheckpointForRestore: hasCheckpointForMessage,
+                                            showTopDivider: needsDivider
                                         )
                                     }
                                 }
@@ -1239,31 +1249,36 @@ struct ChatPanelView: View {
                 let conv = chatStore.conversation(for: conversationId)
                 let isEmpty = conv == nil || conv!.messages.isEmpty
                 if isEmpty && !isLoadingForCurrentConversation {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
                            let icon = NSImage(contentsOf: url) {
                             Image(nsImage: icon)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 64, height: 64)
-                                .cornerRadius(14)
+                                .frame(width: 56, height: 56)
+                                .cornerRadius(13)
                                 .saturation(0)
-                                .opacity(0.35)
+                                .opacity(0.3)
                         }
-                        Text("codigo")
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundStyle(.secondary.opacity(0.5))
+                        VStack(spacing: 6) {
+                            Text("codigo")
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary.opacity(0.45))
+                            Text("Ask anything, build anything")
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .offset(y: -40)
                     .allowsHitTesting(false)
                 }
             }
-            .onChange(of: chatStore.conversation(for: conversationId)?.messages.last?.content ?? "")
-            { _, _ in
+            .onChange(of: streamContentVersion) { _, _ in
                 if let last = chatStore.conversation(for: conversationId)?.messages.last,
                     isFollowingLive
                 {
-                    scheduleAutoScroll(proxy: proxy, target: last.id)
+                    scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
                 }
             }
             .onChange(of: planningState) { _, new in
@@ -1280,6 +1295,8 @@ struct ChatPanelView: View {
             }
             .onChange(of: chatStore.isLoading) { _, loading in
                 if loading && isLoadingForCurrentConversation {
+                    isFollowingLive = true
+                    newEventsWhileDetached = 0
                     if let target = liveScrollTarget() {
                         scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
                     }
@@ -3680,6 +3697,8 @@ struct ChatPanelView: View {
     }
 
     private func clearStreamingReasoning(for conversationId: UUID?) {
+        // Flush any pending throttled content before switching away from streaming mode.
+        flushStreamingContent()
         guard let id = conversationId, streamingReasoningConversationId == id else { return }
         streamingReasoningText = nil
         streamingReasoningConversationId = nil
@@ -3689,11 +3708,44 @@ struct ChatPanelView: View {
         content: String,
         conversationId: UUID?
     ) {
+        // Always store the latest content so we never lose data.
+        pendingStreamContent = content
+        pendingStreamConversationId = conversationId
+
+        // If a throttle is already scheduled, let it pick up the latest content.
+        if streamThrottleWorkItem != nil { return }
+
+        // Flush immediately for the first update (so the user sees something right away).
+        flushStreamingContent()
+
+        // Schedule the next flush after the throttle interval.
+        let work = DispatchWorkItem { [self] in
+            streamThrottleWorkItem = nil
+            if let pending = pendingStreamContent {
+                pendingStreamContent = nil
+                chatStore.updateLastAssistantMessage(
+                    content: pending,
+                    in: pendingStreamConversationId,
+                    persistImmediately: false
+                )
+                streamContentVersion &+= 1
+            }
+        }
+        streamThrottleWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + streamThrottleInterval, execute: work)
+    }
+
+    private func flushStreamingContent() {
+        streamThrottleWorkItem?.cancel()
+        streamThrottleWorkItem = nil
+        guard let content = pendingStreamContent else { return }
+        pendingStreamContent = nil
         chatStore.updateLastAssistantMessage(
             content: content,
-            in: conversationId,
+            in: pendingStreamConversationId,
             persistImmediately: false
         )
+        streamContentVersion &+= 1
     }
 
     // MARK: - Handle Stream Result (plan options + swarm delegation)

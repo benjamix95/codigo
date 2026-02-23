@@ -17,15 +17,16 @@ struct MessageRow: View {
     var onRestoreCheckpoint: (() -> Void)? = nil
     var canRewind: Bool = false
     var hasCheckpointForRestore: Bool = false
+    var showTopDivider: Bool = false
     @State private var isHovered = false
-    private let userRowMaxWidth: CGFloat = 560
-    private let assistantRowMaxWidth: CGFloat = 780
+    private let userRowMaxWidth: CGFloat = 580
+    private let assistantRowMaxWidth: CGFloat = 820
 
     /// Only show streaming UI when both the message flag AND the actual loading state agree.
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
     }
-    
+
     /// Mostra la barra streaming durante lo streaming attivo (nascosta se c'è feed attività inline).
     private var shouldShowStreamingBar: Bool {
         showStreamingBar && isActivelyStreaming
@@ -33,12 +34,17 @@ struct MessageRow: View {
 
     private var isUser: Bool { message.role == .user }
     private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
-    private var contentMaxWidth: CGFloat { isUser ? 480 : 680 }
+    private var contentMaxWidth: CGFloat { isUser ? 500 : 720 }
 
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 0) {
+            if showTopDivider {
+                messageDivider
+            }
             if isUser {
                 userHeader
+            } else {
+                assistantHeader
             }
             HStack(alignment: .top, spacing: 0) {
                 if isUser { Spacer(minLength: 0) }
@@ -51,6 +57,27 @@ struct MessageRow: View {
         .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
         .onHover { isHovered = $0 }
+    }
+
+    // MARK: - Message Divider
+
+    private var messageDivider: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        Color.primary.opacity(0.06),
+                        Color.primary.opacity(0.06),
+                        Color.clear,
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(height: 0.5)
+            .frame(maxWidth: rowMaxWidth)
+            .padding(.bottom, 16)
     }
 
     // MARK: - User Header (label + checkpoint)
@@ -78,6 +105,22 @@ struct MessageRow: View {
             .accessibilityLabel("Ripristina checkpoint")
         }
         .padding(.trailing, 14)
+        .padding(.bottom, 4)
+    }
+
+    // MARK: - Assistant Header
+
+    private var assistantHeader: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(modeColor.opacity(0.7))
+            Text("Assistant")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 2)
         .padding(.bottom, 4)
     }
 
@@ -129,17 +172,21 @@ struct MessageRow: View {
 
     private var streamingBar: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                StreamingDots(color: modeColor)
-                Text(streamingStatusText)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(.tertiary)
+            HStack(spacing: 0) {
+                Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .clipShape(Rectangle())
+                    .overlay {
+                        ActivityShimmerTrail()
+                            .allowsHitTesting(false)
+                    }
                 Spacer()
             }
             if let detail = streamingDetailText, !detail.isEmpty {
                 Text(detail)
                     .font(.system(size: 9.5))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
         }
@@ -183,45 +230,60 @@ struct MessageRow: View {
 struct ThinkingBlockView: View {
     let text: String
     @State private var isExpanded = false
-    private let collapsedLineLimit = 8
-    private let contentMaxWidth: CGFloat = 680
+    private let collapsedLineLimit = 6
+    private let contentMaxWidth: CGFloat = 720
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Thinking")
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary.opacity(0.7))
+                Text("Thinking")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(isExpanded ? "Riduci" : "Espandi")
+                            .font(.system(size: 9.5, weight: .medium))
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
             if isExpanded {
                 ScrollView {
                     Text(text)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondary.opacity(0.8))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 200)
+                .frame(maxHeight: 240)
             } else {
                 Text(text)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary.opacity(0.8))
                     .lineLimit(collapsedLineLimit)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
-            } label: {
-                Text(isExpanded ? "Riduci" : "Espandi")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
+                .fill(Color.secondary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.08), lineWidth: 0.5)
         )
     }
 }

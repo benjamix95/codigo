@@ -119,7 +119,7 @@ struct TodoListView: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
-        .background(expanded ? Color.accentColor.opacity(0.10) : Color.clear)
+        .background(expanded ? DesignSystem.Colors.backgroundElevated : Color.clear)
     }
 
     private func drawer(_ todo: TodoItem) -> some View {
@@ -196,18 +196,18 @@ struct TodoListView: View {
 
     private func statusColor(_ status: TodoStatus) -> Color {
         switch status {
-        case .pending: return .secondary
-        case .inProgress: return .orange
-        case .blocked: return .red
-        case .done: return .green
+        case .pending: return DesignSystem.Colors.textSecondary
+        case .inProgress: return DesignSystem.Colors.planColor
+        case .blocked: return DesignSystem.Colors.error
+        case .done: return DesignSystem.Colors.success
         }
     }
 
     private func priorityColor(_ priority: TodoPriority) -> Color {
         switch priority {
-        case .low: return .secondary
-        case .medium: return .blue
-        case .high: return .pink
+        case .low: return DesignSystem.Colors.textTertiary
+        case .medium: return DesignSystem.Colors.info
+        case .high: return DesignSystem.Colors.error
         }
     }
 }
@@ -223,34 +223,88 @@ struct TodoLiveInlineCard: View {
     var body: some View {
         let items = displayedTodos
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Todo Live")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checklist")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.planColor.opacity(0.7))
+                    Text("Todo")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    Spacer()
+                    let doneCount = items.filter { $0.status == .done }.count
+                    if doneCount > 0 {
+                        Text("\(doneCount)/\(items.count)")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.success)
+                    }
+                }
                 ForEach(items) { todo in
-                    HStack(alignment: .top, spacing: 6) {
-                        Circle()
-                            .fill(priorityColor(todo.priority))
-                            .frame(width: 5, height: 5)
-                            .padding(.top, 4)
+                    HStack(alignment: .center, spacing: 8) {
+                        Image(systemName: todoStatusIcon(todo.status))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(todoStatusColor(todo.status))
+                            .frame(width: 14)
                         Text(todo.title)
                             .font(.system(size: 11))
                             .strikethrough(todo.status == .done)
-                            .foregroundStyle(todo.status == .done ? .secondary : .primary)
+                            .foregroundStyle(todo.status == .done ? DesignSystem.Colors.textTertiary : .primary)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        todoPriorityBadge(todo.priority)
                     }
+                    .padding(.vertical, 2)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+            )
         }
     }
 
-    private func priorityColor(_ priority: TodoPriority) -> Color {
+    private func todoStatusIcon(_ status: TodoStatus) -> String {
+        switch status {
+        case .pending: return "circle"
+        case .inProgress: return "play.circle.fill"
+        case .blocked: return "exclamationmark.triangle.fill"
+        case .done: return "checkmark.circle.fill"
+        }
+    }
+
+    private func todoStatusColor(_ status: TodoStatus) -> Color {
+        switch status {
+        case .pending: return DesignSystem.Colors.textTertiary
+        case .inProgress: return DesignSystem.Colors.planColor
+        case .blocked: return DesignSystem.Colors.error
+        case .done: return DesignSystem.Colors.success
+        }
+    }
+
+    @ViewBuilder
+    private func todoPriorityBadge(_ priority: TodoPriority) -> some View {
+        if priority != .low {
+            Text(priority.rawValue.uppercased())
+                .font(.system(size: 7.5, weight: .bold, design: .monospaced))
+                .foregroundStyle(todoPriorityColor(priority))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1.5)
+                .background(todoPriorityColor(priority).opacity(0.12), in: Capsule())
+        }
+    }
+
+    private func todoPriorityColor(_ priority: TodoPriority) -> Color {
         switch priority {
-        case .low: return .secondary
-        case .medium: return .blue
-        case .high: return .pink
+        case .low: return DesignSystem.Colors.textTertiary
+        case .medium: return DesignSystem.Colors.info
+        case .high: return DesignSystem.Colors.error
         }
     }
 }
