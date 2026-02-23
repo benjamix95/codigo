@@ -178,10 +178,10 @@ func buildPlanExecutionPrompt(
         return (prompt, true)
     }
 
-    var prompt = "\(workflowInstructions)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo gli step indicati.\n\n\(executionPlanBase)"
+    var prompt = "\(workflowInstructions)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo ESATTAMENTE i TODO nell'ordine indicato. I TODO sono la tua checklist obbligatoria — non deviare, non saltare, non riordinare.\n\n\(executionPlanBase)"
     if !planTodos.isEmpty {
-        let todoList = planTodos.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-        prompt += "\n\n**Todo da completare (in ordine):**\n\(todoList)"
+        let todoList = planTodos.enumerated().map { "\($0.offset + 1). [ ] \($0.element)" }.joined(separator: "\n")
+        prompt += "\n\n**TODO OBBLIGATORI (segui in ordine, completa TUTTI):**\n\(todoList)\n\nRICORDA: Ogni TODO deve passare da pending → in_progress → done. Non terminare finché TUTTI non sono done."
     }
     return (prompt, false)
 }
@@ -468,6 +468,7 @@ struct ChatPanelView: View {
     @State private var isPlanSummaryCollapsed = false
     @State private var isPlanTabHovered = false
     @State private var planShortcutPrimedUntil: Date?
+    @State private var lastPlanShortcutCycleAt: Date?
     @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State private var hasJustCompletedTask = false
     @State private var showRateLimitAlert = false
@@ -769,7 +770,6 @@ struct ChatPanelView: View {
                 }
             }
         )
-        .id(planPanelConversationId)
         .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
@@ -924,11 +924,16 @@ struct ChatPanelView: View {
     }
 
     private func cyclePlanShortcutState() {
+        // Debounce: skip if called again within 300ms
+        let now = Date()
+        if let last = lastPlanShortcutCycleAt, now.timeIntervalSince(last) < 0.3 { return }
+        lastPlanShortcutCycleAt = now
+
         let transition = evaluateCmdShiftPPlanShortcut(
             currentPlanToggleEnabled: planToggleEnabled,
             currentShowPlanPanel: showPlanPanel
         )
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(.easeInOut(duration: 0.2)) {
             planToggleEnabled = transition.nextPlanToggleEnabled
             if transition.nextShowPlanPanel {
                 openPlanPanelForCurrentContext()
@@ -946,23 +951,23 @@ struct ChatPanelView: View {
     }
 
     private func handleShiftTabPlanShortcut() {
-        let transition = evaluateShiftTabPlanShortcut(
-            now: Date(),
-            primedUntil: planShortcutPrimedUntil,
-            currentInputText: inputText
-        )
-        inputText = transition.nextInputText
-        if transition.shouldFocusInput {
-            isInputFocused = true
-        }
-        planShortcutPrimedUntil = transition.nextPrimedUntil
-        if transition.shouldHighlightPlanToggle {
-            isPlanTabHovered = true
-            isInputFocused = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // Shift+Tab toggles plan mode on/off directly
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            planToggleEnabled.toggle()
+            if planToggleEnabled {
+                // Plan mode activated — show visual feedback
+                isPlanTabHovered = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    isPlanTabHovered = false
+                }
+            } else {
+                // Plan mode deactivated — reset state
                 isPlanTabHovered = false
+                planningState = .idle
+                planFlowPhase = .idle
             }
         }
+        isInputFocused = true
     }
 
     private func downloadPlanEntry(_ entry: PlanHistoryEntry) {
@@ -2522,13 +2527,16 @@ struct ChatPanelView: View {
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
         let planExecutionWorkflow = """
-            **Workflow Todo (obbligatorio):** All'inizio di ogni task:
+            **REGOLA FONDAMENTALE: I TODO del piano sono la tua BIBBIA. Seguili ESATTAMENTE nell'ordine indicato.**
+
+            **Workflow Todo (obbligatorio):**
             1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
-            2. NON creare una nuova lista TODO da zero: usa e aggiorna i TODO canonici del plan già presenti.
-            3. Se emetti \(CoderIDEMarkers.todoWritePrefix), deve aggiornare TODO esistenti; nuovi TODO solo se strettamente necessari.
-            4. Durante l'esecuzione aggiorna lo status a in_progress e poi done.
-            5. Prima di concludere verifica che tutti i todo canonici del plan siano done o spiega i blocchi.
-            6. Non ripetere integralmente il piano in chat: esegui, aggiorna TODO/step, e fornisci feedback operativo.
+            2. I TODO canonici del piano sono IMMUTABILI: NON creare nuovi TODO, NON modificare i titoli, NON riordinare. Esegui ESATTAMENTE quelli presenti nell'ordine dato.
+            3. Per ogni TODO: imposta status=in_progress PRIMA di iniziare, poi status=done DOPO il completamento. Usa \(CoderIDEMarkers.todoWritePrefix) per aggiornare lo status.
+            4. NON saltare nessun TODO. NON procedere al TODO successivo finché quello corrente non è done.
+            5. Se un TODO è bloccato, spiega il motivo e prova a risolverlo prima di passare oltre.
+            6. Prima di concludere: TUTTI i TODO canonici DEVONO essere done. Se qualcuno non è done, NON terminare.
+            7. Non ripetere il piano in chat: esegui, aggiorna status, fornisci feedback operativo minimo.
             """
 
         let executionPlanBase: String
