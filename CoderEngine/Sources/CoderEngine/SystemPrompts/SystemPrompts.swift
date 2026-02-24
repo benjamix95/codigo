@@ -85,15 +85,15 @@ public enum SystemPrompts {
 
         switch config.toolAggressiveness {
         case .conservative:
-            sections.append("Tool aggressiveness: usa tool solo quando strettamente necessario.")
+            sections.append("Tool aggressiveness: use tools only when strictly necessary.")
         case .balanced:
             break
         case .aggressive:
-            sections.append("Tool aggressiveness: usa tool in autonomia quando migliorano qualità/verificabilità.")
+            sections.append("Tool aggressiveness: use tools proactively whenever they improve quality or verifiability.")
         }
 
         if config.requiresFinalOutcome {
-            sections.append("Final outcome obbligatorio: non terminare senza esito finale esplicito.")
+            sections.append("Final outcome is mandatory: do not stop without an explicit final result.")
         }
 
         return compose(sections)

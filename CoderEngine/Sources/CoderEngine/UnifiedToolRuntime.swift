@@ -335,7 +335,7 @@ public actor UnifiedToolRuntime {
     private func executeMCPCall(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
@@ -357,8 +357,8 @@ public actor UnifiedToolRuntime {
 
         guard !toolName.isEmpty else {
             return failure(
-                "Manca il nome tool MCP",
-                errorCode: ToolRuntimeError.validation("Manca il nome tool MCP").errorCode,
+                "Missing MCP tool name",
+                errorCode: ToolRuntimeError.validation("Missing MCP tool name").errorCode,
                 startDate: startDate
             )
         }
@@ -393,7 +393,7 @@ public actor UnifiedToolRuntime {
                 "mcp_latency_ms": "\(max(1, Int(Date().timeIntervalSince(startDate) * 1000)))"
             ]
             if result.isError {
-                payload["detail"] = "Il server MCP ha risposto con isError=true"
+                payload["detail"] = "MCP server responded with isError=true"
             }
             return ToolResult(
                 ok: !result.isError,
@@ -416,7 +416,7 @@ public actor UnifiedToolRuntime {
     private func executeMCPListTools(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
@@ -434,7 +434,7 @@ public actor UnifiedToolRuntime {
                 "tool": "mcp_list_tools",
                 "server_id": serverId ?? "",
                 "output": truncate(lines.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
-                "detail": "\(tools.count) tool trovati"
+                "detail": "\(tools.count) tools discovered"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
@@ -446,7 +446,7 @@ public actor UnifiedToolRuntime {
     private func executeMCPDescribeTool(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
@@ -454,7 +454,7 @@ public actor UnifiedToolRuntime {
         let toolName = (call.args["tool"] ?? call.args["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !toolName.isEmpty else {
             return failure(
-                "Manca il nome tool",
+                "Missing tool name",
                 errorCode: ToolRuntimeError.validation("tool missing").errorCode,
                 startDate: startDate
             )
@@ -465,8 +465,8 @@ public actor UnifiedToolRuntime {
             let desc = try await mcpSessions.describeTool(serverId: serverId, toolName: toolName)
             guard let desc else {
                 return failure(
-                    "Tool MCP non trovato",
-                    errorCode: ToolRuntimeError.mcpUnavailable("Tool MCP non trovato").errorCode,
+                    "MCP tool not found",
+                    errorCode: ToolRuntimeError.mcpUnavailable("MCP tool not found").errorCode,
                     startDate: startDate
                 )
             }
@@ -488,7 +488,7 @@ public actor UnifiedToolRuntime {
     private func executeMCPHealth(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
@@ -501,14 +501,14 @@ public actor UnifiedToolRuntime {
             "tool": "mcp_health",
             "server_id": server ?? "",
             "output": lines.joined(separator: "\n"),
-            "detail": "\(states.count) server"
+            "detail": "\(states.count) servers"
         ], startDate: startDate)
     }
 
     private func executeMCPListServers(context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
@@ -519,21 +519,21 @@ public actor UnifiedToolRuntime {
             "title": "MCP servers",
             "tool": "mcp_list_servers",
             "output": lines.joined(separator: "\n"),
-            "detail": "\(servers.count) server"
+            "detail": "\(servers.count) servers"
         ], startDate: startDate)
     }
 
     private func executeMCPReconnect(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         if !context.policy.enableMCP {
             return failure(
-                "MCP disabilitato dalla policy",
+                "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
                 startDate: startDate
             )
         }
         let serverId = (call.args["server"] ?? call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !serverId.isEmpty else {
-            return failure("server obbligatorio", errorCode: "validation", startDate: startDate)
+            return failure("Missing required server", errorCode: "validation", startDate: startDate)
         }
         do {
             try await mcpSessions.reconnect(serverId: serverId)
@@ -541,7 +541,7 @@ public actor UnifiedToolRuntime {
                 "title": "MCP reconnect",
                 "tool": "mcp_reconnect",
                 "server_id": serverId,
-                "detail": "Connessione ristabilita"
+                "detail": "Connection re-established"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)

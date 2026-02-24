@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showPlanPanel = false
     @State private var showDebugPanel = false
+    @State private var showSwarmPanel = false
     @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
 
@@ -262,6 +263,7 @@ struct ContentView: View {
             effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
             showPlanPanel: $showPlanPanel,
             showDebugPanel: $showDebugPanel,
+            showSwarmPanel: $showSwarmPanel,
             debugStore: debugStore
         )
         .environmentObject(providerRegistry)

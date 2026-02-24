@@ -90,7 +90,7 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Todo aggiornato",
+                        title: "Todo updated",
                         detail: todo.title,
                         payload: payload,
                         timestamp: timestamp,
@@ -107,8 +107,8 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Todo letto",
-                        detail: "Richiesto stato attività corrente",
+                        title: "Todo read",
+                        detail: "Requested current task status",
                         payload: payload,
                         timestamp: timestamp,
                         phase: .planning,
@@ -126,8 +126,8 @@ enum EventNormalizer {
             events.append(.planStepUpdate(stepId: stepId, status: status, title: stepTitle))
             events.append(.taskActivity(TaskActivity(
                 type: "plan_step_update",
-                title: stepTitle ?? "Step piano aggiornato",
-                detail: payload["detail"] ?? "Stato: \(status.rawValue)",
+                title: stepTitle ?? "Plan step updated",
+                detail: payload["detail"] ?? "Status: \(status.rawValue)",
                 payload: payload,
                 timestamp: timestamp,
                 phase: .planning,
@@ -204,12 +204,16 @@ enum EventNormalizer {
         let normalizedType = normalizeSpecialType(type, payload: payload)
         let phase = phaseForType(normalizedType, payload: payload)
         let running = runningStateForType(normalizedType, payload: payload)
-        let baseTitle = payload["title"] ?? defaultTitle(for: normalizedType)
-        let title = withSwarmPrefix(baseTitle, payload: payload)
+        let resolvedTitleDetail: (title: String, detail: String?) = {
+            if normalizedType == "mcp_tool_call" {
+                return mcpTitleAndDetail(payload: payload)
+            }
+            return (payload["title"] ?? defaultTitle(for: normalizedType), payload["detail"])
+        }()
         events.append(.taskActivity(TaskActivity(
             type: normalizedType,
-            title: title,
-            detail: payload["detail"],
+            title: withSwarmPrefix(resolvedTitleDetail.title, payload: payload),
+            detail: resolvedTitleDetail.detail,
             payload: payload,
             timestamp: timestamp,
             phase: phase,
@@ -283,33 +287,75 @@ enum EventNormalizer {
     private static func defaultTitle(for type: String) -> String {
         switch type {
         case "process_paused":
-            return "Processo in pausa"
+            return "Process paused"
         case "process_resumed":
-            return "Processo ripreso"
+            return "Process resumed"
         case "read_batch_started":
-            return "Lettura batch file avviata"
+            return "File batch read started"
         case "read_batch_completed":
-            return "Lettura batch file completata"
+            return "File batch read completed"
         case "turn_started":
-            return "Turno avviato"
+            return "Turn started"
         case "turn_completed":
-            return "Turno completato"
+            return "Turn completed"
         case "web_search_started":
-            return "Ricerca web avviata"
+            return "Web search started"
         case "web_search_completed":
-            return "Ricerca web completata"
+            return "Web search completed"
         case "web_search_failed":
-            return "Ricerca web fallita"
+            return "Web search failed"
         case "tool_execution_error":
-            return "Errore esecuzione tool"
+            return "Tool execution error"
         case "tool_validation_error":
-            return "Errore validazione tool"
+            return "Tool validation error"
         case "tool_timeout":
             return "Timeout tool"
         case "permission_denied":
-            return "Permesso negato"
+            return "Permission denied"
         default:
             return type
+        }
+    }
+
+    private static func mcpTitleAndDetail(payload: [String: String]) -> (title: String, detail: String?) {
+        let rawTool = (payload["tool"] ?? payload["name"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let tool = rawTool.lowercased()
+        let server = (payload["mcp_server"] ?? payload["server_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let mcpTool = (payload["mcp_tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = payload["detail"]
+
+        switch tool {
+        case "mcp_list_servers":
+            return ("MCP discovery • servers", detail ?? "Checking available MCP servers")
+        case "mcp_list_tools":
+            if !server.isEmpty {
+                return ("MCP discovery • tools", detail ?? "Listing tools on \(server)")
+            }
+            return ("MCP discovery • tools", detail ?? "Listing tools on all MCP servers")
+        case "mcp_describe_tool":
+            let target = !mcpTool.isEmpty ? mcpTool : "tool"
+            return ("MCP inspect • \(target)", detail ?? "Inspecting tool schema")
+        case "mcp_health":
+            return ("MCP health check", detail ?? "Checking server health")
+        case "mcp_reconnect":
+            let target = server.isEmpty ? "server" : server
+            return ("MCP reconnect • \(target)", detail ?? "Reconnecting MCP server")
+        default:
+            let isMCPLikeTool = tool.hasPrefix("mcp")
+                || !mcpTool.isEmpty
+                || !server.isEmpty
+            if isMCPLikeTool {
+                var target = !mcpTool.isEmpty ? mcpTool : rawTool
+                if target.isEmpty { target = "tool" }
+                if !server.isEmpty {
+                    return ("MCP call • \(server)/\(target)", detail)
+                }
+                return ("MCP call • \(target)", detail)
+            }
+            return (payload["title"] ?? "MCP operation", detail)
         }
     }
 

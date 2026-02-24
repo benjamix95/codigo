@@ -291,8 +291,10 @@ final class PlanShortcutAndCommandTests: XCTestCase {
     }
 
     func testSwarmModeIsViewOnlyForComposerAndUsageFooterStillVisible() {
-        XCTAssertTrue(shouldShowSwarmViewOnly(for: .agentSwarm))
-        XCTAssertFalse(shouldShowComposer(for: .agentSwarm))
+        // Swarm mode now uses a sidebar panel instead of replacing the main view,
+        // so the composer and footer are always visible.
+        XCTAssertFalse(shouldShowSwarmViewOnly(for: .agentSwarm))
+        XCTAssertTrue(shouldShowComposer(for: .agentSwarm))
         XCTAssertTrue(shouldShowUsageFooter(for: .agentSwarm))
     }
 

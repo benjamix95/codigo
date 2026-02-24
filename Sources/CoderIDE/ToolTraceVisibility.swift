@@ -1,0 +1,118 @@
+import Foundation
+
+enum ToolTraceVisibility {
+    private static let hiddenTypes: Set<String> = [
+        "turn_started",
+        "turn_completed",
+        "coderide_show_task_panel",
+        "todo_read",
+        "todo_write",
+        "plan_step",
+        "plan_step_update",
+        "activate_plan_mode",
+        "activate_debug_mode",
+        "planning_auto_reset",
+        "reasoning",
+        "usage",
+    ]
+
+    private static let operationalTypes: Set<String> = [
+        "agent",
+        "bash",
+        "command_execution",
+        "debug_context",
+        "edit",
+        "error",
+        "file_change",
+        "instant_grep",
+        "mcp_tool_call",
+        "permission_denied",
+        "read_batch_started",
+        "read_batch_completed",
+        "search",
+        "semantic_search",
+        "tool_execution_error",
+        "tool_timeout",
+        "tool_validation_error",
+        "web_search",
+        "web_search_started",
+        "web_search_completed",
+        "web_search_failed",
+    ]
+
+    private static let operationalPayloadKeys: Set<String> = [
+        "command",
+        "query",
+        "path",
+        "file",
+        "files",
+        "tool",
+        "mcp_tool",
+        "mcp_server",
+        "server_id",
+        "name",
+        "pattern",
+        "replacement",
+    ]
+
+    static func shouldInclude(activity: TaskActivity) -> Bool {
+        let type = normalizedType(activity.type)
+        if hiddenTypes.contains(type) { return false }
+        if type == "mcp_tool_call" {
+            return isRealMCPEvent(payload: activity.payload)
+        }
+        if operationalTypes.contains(type) { return true }
+        return hasOperationalPayload(activity.payload)
+    }
+
+    static func shouldDisplay(event: ToolTraceEvent) -> Bool {
+        let type = normalizedType(event.type)
+        if hiddenTypes.contains(type) { return false }
+        if type == "mcp_tool_call" {
+            return isRealMCPEvent(payload: event.payload)
+        }
+        if operationalTypes.contains(type) { return true }
+        return hasOperationalPayload(event.payload)
+    }
+
+    static func isMCPEvent(event: ToolTraceEvent) -> Bool {
+        let type = normalizedType(event.type)
+        guard type == "mcp_tool_call" else { return false }
+        return isRealMCPEvent(payload: event.payload)
+    }
+
+    static func isMCPEvent(activity: TaskActivity) -> Bool {
+        let type = normalizedType(activity.type)
+        guard type == "mcp_tool_call" else { return false }
+        return isRealMCPEvent(payload: activity.payload)
+    }
+
+    private static func hasOperationalPayload(_ payload: [String: String]) -> Bool {
+        for key in operationalPayloadKeys {
+            let value = payload[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !value.isEmpty {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func normalizedType(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func isRealMCPEvent(payload: [String: String]) -> Bool {
+        let tool = normalizedType(payload["tool"] ?? payload["name"] ?? "")
+        if tool.hasPrefix("mcp") { return true }
+        if !(payload["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        if !(payload["mcp_server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        if !(payload["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return false
+    }
+}

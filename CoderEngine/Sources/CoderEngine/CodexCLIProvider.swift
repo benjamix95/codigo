@@ -90,7 +90,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let fullPrompt = prompt + context.contextPrompt()
+        let fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
         let path = codexPath
         let workspacePath = context.workspacePath
         
@@ -636,7 +636,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     .prefix(240)
             )
             var payload: [String: String] = [
-                "title": firstString(in: item, keys: ["title", "label"]) ?? "Ragionamento",
+                "title": firstString(in: item, keys: ["title", "label"]) ?? "Reasoning",
                 "output": output,
                 "detail": detail
             ]
@@ -671,6 +671,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             payload["stderr"] = String(stderr.prefix(3_000))
         }
         if let tool = firstString(in: item, keys: ["tool", "name"]) { payload["tool"] = tool }
+        if let mcpTool = firstString(in: item, keys: ["mcp_tool", "tool_name"]) { payload["mcp_tool"] = mcpTool }
+        if let mcpServer = firstString(in: item, keys: ["mcp_server", "server_id", "server", "server_name"]) {
+            payload["mcp_server"] = mcpServer
+            payload["server_id"] = payload["server_id"] ?? mcpServer
+        }
         if let added = item["additions"] as? Int { payload["linesAdded"] = "\(added)" }
         if let added = item["lines_added"] as? Int { payload["linesAdded"] = "\(added)" }
         if let removed = item["deletions"] as? Int { payload["linesRemoved"] = "\(removed)" }
@@ -696,6 +701,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let count = item["result_count"] as? Int { payload["resultCount"] = "\(count)" }
         if let duration = item["duration_ms"] as? Int { payload["duration_ms"] = "\(duration)" }
         if let edits = item["edit_count"] as? Int { payload["editCount"] = "\(edits)" }
+        if type == "mcp_tool_call" {
+            payload["title"] = mcpEventTitle(from: item)
+            let detail = mcpEventDetail(from: item)
+            if !detail.isEmpty {
+                payload["detail"] = detail
+            }
+        }
         
         return (type, payload)
     }
@@ -904,8 +916,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             let cmd = (item["command"] as? String) ?? (item["command_line"] as? String) ?? "command"
             return "Bash • \(String(cmd.prefix(50)))..."
         case "mcp_tool_call":
-            let tool = (item["tool"] as? String) ?? (item["name"] as? String) ?? "tool"
-            return "\(tool)"
+            return mcpEventTitle(from: item)
         case "web_search":
             return "Search"
         default:
@@ -921,11 +932,52 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         case "command_execution":
             return (item["command"] as? String) ?? (item["command_line"] as? String) ?? ""
         case "mcp_tool_call":
-            return (item["query"] as? String) ?? (item["arguments"] as? String) ?? ""
+            return mcpEventDetail(from: item)
         case "web_search":
             return (item["query"] as? String) ?? ""
         default:
             return ""
         }
+    }
+
+    private static func mcpEventTitle(from item: [String: Any]) -> String {
+        let rawTool = firstString(in: item, keys: ["tool", "name"]) ?? ""
+        let tool = rawTool.lowercased()
+        let server = (firstString(in: item, keys: ["mcp_server", "server_id", "server"]) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let mcpTool = (firstString(in: item, keys: ["mcp_tool", "tool_name"]) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch tool {
+        case "mcp_list_servers":
+            return "MCP discovery • servers"
+        case "mcp_list_tools":
+            return "MCP discovery • tools"
+        case "mcp_describe_tool":
+            return "MCP inspect • \(mcpTool.isEmpty ? "tool" : mcpTool)"
+        case "mcp_health":
+            return "MCP health check"
+        case "mcp_reconnect":
+            return "MCP reconnect • \(server.isEmpty ? "server" : server)"
+        default:
+            if !mcpTool.isEmpty || !server.isEmpty || tool.hasPrefix("mcp") {
+                var target = !mcpTool.isEmpty ? mcpTool : rawTool
+                if target.isEmpty { target = "tool" }
+                if !server.isEmpty {
+                    return "MCP call • \(server)/\(target)"
+                }
+                return "MCP call • \(target)"
+            }
+            return rawTool.isEmpty ? "MCP operation" : rawTool
+        }
+    }
+
+    private static func mcpEventDetail(from item: [String: Any]) -> String {
+        let detail = firstString(in: item, keys: ["detail", "query", "arguments"]) ?? ""
+        if !detail.isEmpty {
+            return detail
+        }
+        let output = firstString(in: item, keys: ["output", "result", "message", "content", "text"]) ?? ""
+        return String(output.prefix(160))
     }
 }

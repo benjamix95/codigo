@@ -207,7 +207,7 @@ struct TaskControlBar: View {
 
 // MARK: - Pulse Animation Modifier
 
-private struct PulseModifier: ViewModifier {
+struct PulseModifier: ViewModifier {
     @State private var isPulsing = false
 
     func body(content: Content) -> some View {

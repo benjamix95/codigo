@@ -39,10 +39,6 @@ struct ModeControlsBarView: View {
     let codexModels: [CodexModel]
     let geminiModels: [GeminiModel]
 
-    // MARK: - Effective mode provider label
-
-    let effectiveModeProviderLabel: String?
-
     // MARK: - Callbacks
 
     let onSyncCodexProvider: () -> Void
@@ -54,29 +50,59 @@ struct ModeControlsBarView: View {
     let onSyncToolRuntimePolicy: () -> Void
     let onUserSelectedProvider: () -> Void
     let onDelegateToAgent: () -> Void
+    let onSelectMode: (CoderMode) -> Void
     let attachedImageURLs: [URL]
     @Binding var planToggleEnabled: Bool
     @Binding var debugToggleEnabled: Bool
+    @Binding var swarmToggleEnabled: Bool
     let highlightPlanButton: Bool
 
     // MARK: - Body
 
     var body: some View {
         HStack(spacing: 6) {
-            providerPicker
+            modeSelector
 
-            if let modeLabel = effectiveModeProviderLabel {
-                Text(modeLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.primary.opacity(0.06))
-                    .clipShape(Capsule())
-            }
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(0.3))
+                .frame(width: 1, height: 16)
+
+            providerPicker
 
             providerSpecificControls
         }
+    }
+
+    // MARK: - Mode Selector
+
+    private var modeSelector: some View {
+        HStack(spacing: 2) {
+            modeSelectorButton("Agent", icon: "brain.head.profile", mode: .agent, color: DesignSystem.Colors.agentColor)
+            modeSelectorButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
+            modeSelectorButton("Review", icon: "doc.text.magnifyingglass", mode: .codeReviewMultiSwarm, color: DesignSystem.Colors.reviewColor)
+        }
+    }
+
+    private func modeSelectorButton(_ title: String, icon: String, mode: CoderMode, color: Color) -> some View {
+        let isSelected = coderMode == mode || (mode == .agent && coderMode == .agentSwarm)
+        return Button {
+            onSelectMode(mode)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                Text(title)
+                    .font(.caption)
+            }
+            .foregroundStyle(isSelected ? color : .secondary.opacity(0.6))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? color.opacity(0.14) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Provider-Specific Controls
@@ -89,64 +115,40 @@ struct ModeControlsBarView: View {
             codexReasoningPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
-                planButton
-                debugButton
-            }
-            if coderMode == .agentSwarm {
-                formicaButton
+                panelToggleButtons
             }
 
         case "gemini-cli":
             geminiModelPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
-                planButton
-                debugButton
-            }
-            if coderMode == .agentSwarm {
-                formicaButton
+                panelToggleButtons
             }
 
         case "claude-cli":
             claudeModelPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
-                planButton
-                debugButton
-            }
-            if coderMode == .agentSwarm {
-                formicaButton
+                panelToggleButtons
             }
 
         case "openrouter-api":
             openRouterModelPicker
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
-                planButton
-                debugButton
-            }
-            if coderMode == .agentSwarm {
-                formicaButton
+                panelToggleButtons
             }
 
         case "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api":
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
-                planButton
-                debugButton
-            }
-            if coderMode == .agentSwarm {
-                formicaButton
+                panelToggleButtons
             }
 
         default:
             if [.agent, .agentSwarm, .plan].contains(coderMode) {
                 Spacer()
-                planButton
-                debugButton
-                if coderMode == .agentSwarm {
-                    formicaButton
-                }
+                panelToggleButtons
             } else if coderMode == .ide {
                 Spacer()
                 delegateAdAgentButton
@@ -154,6 +156,15 @@ struct ModeControlsBarView: View {
                 Spacer()
             }
         }
+    }
+
+    // MARK: - Panel Toggle Buttons Group
+
+    @ViewBuilder
+    private var panelToggleButtons: some View {
+        planButton
+        debugButton
+        swarmButton
     }
 
     // MARK: - Provider Picker
@@ -576,20 +587,37 @@ struct ModeControlsBarView: View {
         .fixedSize()
     }
 
-    // MARK: - Swarm Activity Panel Toggle
+    // MARK: - Swarm Button
 
-    private var formicaButton: some View {
+    private var swarmButton: some View {
         Button {
-            taskPanelEnabled.toggle()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                swarmToggleEnabled.toggle()
+            }
         } label: {
-            Image(systemName: "ant.fill")
-                .font(.caption)
-                .foregroundStyle(
-                    taskPanelEnabled ? DesignSystem.Colors.swarmColor : .secondary
-                )
+            HStack(spacing: 3) {
+                Image(systemName: "ant.fill")
+                    .font(.caption2)
+                Text("Swarm")
+                    .font(.caption)
+            }
+            .foregroundStyle(
+                swarmToggleEnabled
+                    ? DesignSystem.Colors.swarmColor : .secondary
+            )
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(
+                        swarmToggleEnabled
+                            ? DesignSystem.Colors.swarmColor.opacity(0.14)
+                            : Color.clear
+                    )
+            )
         }
         .buttonStyle(.plain)
-        .help("Show/hide swarm activity panel")
+        .help("Toggle Swarm panel")
     }
 
     // MARK: - Debug Button

@@ -155,6 +155,9 @@ final class TaskActivityStore: ObservableObject {
         if isHiddenGenericType(normalized) {
             return false
         }
+        if normalized == "mcp_tool_call" {
+            return ToolTraceVisibility.isMCPEvent(activity: activity)
+        }
         if isConcreteVisibleEventType(activity.type) {
             return true
         }

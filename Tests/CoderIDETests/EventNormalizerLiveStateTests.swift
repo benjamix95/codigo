@@ -37,7 +37,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         }
         XCTAssertEqual(activity.phase, .planning)
         XCTAssertFalse(activity.isRunning)
-        XCTAssertEqual(activity.title, "Processo in pausa")
+        XCTAssertEqual(activity.title, "Process paused")
         XCTAssertNil(activity.groupId)
     }
 
@@ -92,7 +92,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
         XCTAssertTrue(events.contains {
             if case .taskActivity(let activity) = $0 {
-                return activity.type == "todo_write" && activity.title == "Todo aggiornato"
+                return activity.type == "todo_write" && activity.title == "Todo updated"
             }
             return false
         })

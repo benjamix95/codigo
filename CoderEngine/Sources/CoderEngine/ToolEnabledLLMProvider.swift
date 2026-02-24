@@ -698,8 +698,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         8. Use `bash` for git operations, running commands, installing dependencies, builds, tests.
         9. After making changes, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
-        11. When done, provide a clear summary: what changed, which files, outcome.
-        12. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
+        11. If AGENTS.md / SKILL.md / repository runbooks are present in the prompt/context, treat them as mandatory operational policy. Do not skip skill workflows.
+        12. MCP availability verification is mandatory before MCP usage: `mcp_list_servers` first, then `mcp_list_tools`, then `mcp_describe_tool` (for unfamiliar tools), then `mcp_call`.
+        13. When done, provide a clear summary: what changed, which files, outcome, and explicitly list MCP servers/tools used.
+        14. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
 
         ## Available Tools
 

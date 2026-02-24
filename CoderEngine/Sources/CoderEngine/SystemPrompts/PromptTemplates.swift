@@ -14,35 +14,35 @@ enum PromptTemplates {
         case .bugFix:
             return """
             Template bug_fix:
-            1) Riproduci e isola root cause.
-            2) Applica fix minimo completo.
-            3) Verifica con test/build.
-            4) Chiudi con rischio residuo.
+            1) Reproduce and isolate the root cause.
+            2) Apply a minimal complete fix.
+            3) Verify with tests/build.
+            4) Close with residual risk.
             """
         case .featureDelivery:
             return """
             Template feature_delivery:
-            1) Definisci scope e criteri di done.
-            2) Implementa incrementi piccoli verificabili.
-            3) Documenta file toccati e impatto.
+            1) Define scope and done criteria.
+            2) Implement small verifiable increments.
+            3) Document touched files and impact.
             """
         case .codeReview:
             return """
             Template code_review:
-            - Findings prima di tutto, ordinati per severità.
-            - Includi file/linee, impatto e fix suggerito.
+            - Findings first, ordered by severity.
+            - Include file/line, impact, and suggested fix.
             """
         case .incidentResponse:
             return """
             Template incident_response:
-            - Timeline evento, blast radius, containment immediato.
-            - Recovery, verification e prevenzione recidive.
+            - Event timeline, blast radius, immediate containment.
+            - Recovery, verification, and recurrence prevention.
             """
         case .securityAssessment:
             return """
             Template security_assessment:
-            - Threat model sintetico, superfici d'attacco, controlli mancanti.
-            - Priorità mitigazioni e verifica post-fix.
+            - Concise threat model, attack surfaces, missing controls.
+            - Mitigation priorities and post-fix verification.
             """
         }
     }

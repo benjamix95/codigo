@@ -176,6 +176,12 @@ struct SettingsView: View {
             }
         }
         .frame(width: 760, height: 520)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Chiudi") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+        }
         .onAppear {
             normalizeStoredSelections()
             loadCodexAdvanced()

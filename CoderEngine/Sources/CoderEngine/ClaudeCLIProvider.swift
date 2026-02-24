@@ -42,7 +42,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         var fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
         if let urls = imageURLs, !urls.isEmpty {
-            let refs = urls.map { "[Immagine: \($0.path)]" }.joined(separator: "\n")
+            let refs = urls.map { "[Image: \($0.path)]" }.joined(separator: "\n")
             fullPrompt = refs + "\n\n" + fullPrompt
         }
         let path = claudePath
@@ -54,7 +54,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             Task {
                 do {
                     guard FileManager.default.fileExists(atPath: path) else {
-                        continuation.yield(.error("Claude CLI non trovato a \(path). Installa da https://claude.com/code"))
+                        continuation.yield(.error("Claude CLI not found at \(path). Install it from https://claude.com/code"))
                         continuation.finish(throwing: CoderEngineError.cliNotFound("claude"))
                         return
                     }
@@ -109,7 +109,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                 let text = String(accumulatedThinking.prefix(6_000))
                                 continuation.yield(.raw(type: "reasoning", payload: [
                                     "output": text,
-                                    "title": "Ragionamento",
+                                    "title": "Reasoning",
                                     "group_id": "reasoning-stream"
                                 ]))
                             }
@@ -149,7 +149,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                    let thinkingText = (block["thinking"] as? String) ?? (block["text"] as? String), !thinkingText.isEmpty {
                                     continuation.yield(.raw(type: "reasoning", payload: [
                                         "output": String(thinkingText.prefix(6_000)),
-                                        "title": "Ragionamento",
+                                        "title": "Reasoning",
                                         "group_id": "reasoning-stream"
                                     ]))
                                 }
@@ -283,9 +283,44 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             }
             return ("read_batch_completed", payload)
         default:
-            let title = name
-            let detail = (input["query"] as? String) ?? (input["command"] as? String) ?? ""
-            return ("mcp_tool_call", ["title": title, "detail": detail, "tool": name])
+            let rawName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = rawName.lowercased()
+            let detail = (input["query"] as? String)
+                ?? (input["command"] as? String)
+                ?? firstString(in: input, keys: ["detail", "arguments", "args"])
+                ?? ""
+            let mcpTool = firstString(in: input, keys: ["mcp_tool", "tool_name", "tool"]) ?? ""
+            let mcpServer = firstString(in: input, keys: ["mcp_server", "server_id", "server"]) ?? ""
+
+            var title = rawName
+            switch normalized {
+            case "mcp_list_servers":
+                title = "MCP discovery • servers"
+            case "mcp_list_tools":
+                title = "MCP discovery • tools"
+            case "mcp_describe_tool":
+                title = "MCP inspect • \(mcpTool.isEmpty ? "tool" : mcpTool)"
+            case "mcp_health":
+                title = "MCP health check"
+            case "mcp_reconnect":
+                title = "MCP reconnect • \(mcpServer.isEmpty ? "server" : mcpServer)"
+            default:
+                if normalized.hasPrefix("mcp"), !mcpTool.isEmpty || !mcpServer.isEmpty {
+                    if !mcpServer.isEmpty {
+                        title = "MCP call • \(mcpServer)/\(mcpTool.isEmpty ? rawName : mcpTool)"
+                    } else {
+                        title = "MCP call • \(mcpTool.isEmpty ? rawName : mcpTool)"
+                    }
+                }
+            }
+
+            var payload: [String: String] = ["title": title, "detail": detail, "tool": rawName]
+            if !mcpTool.isEmpty { payload["mcp_tool"] = mcpTool }
+            if !mcpServer.isEmpty {
+                payload["mcp_server"] = mcpServer
+                payload["server_id"] = mcpServer
+            }
+            return ("mcp_tool_call", payload)
         }
     }
 

@@ -3,6 +3,7 @@ import Foundation
 enum PromptToolsPolicy {
     static let toolUsage = """
     Tool usage policy:
+    - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
     - Use tools when you need evidence (reading files, searching code) or to make real changes (editing, running commands).
     - ALWAYS read a file before editing it — never edit blind.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
@@ -20,6 +21,13 @@ enum PromptToolsPolicy {
     - Use `attempt_completion` to signal task completion with optional verification command.
     - For multi-step tasks, plan your approach first, then execute systematically.
     - Prefer structured tools (read_range, list_dir, git_diff, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search) over raw bash when available.
+    - If repository/runtime instructions reference AGENTS.md, SKILL.md, runbooks, or local skills, treat them as mandatory operational constraints.
+    - MCP flow is mandatory when MCP tools are available and external/domain actions are involved:
+      1) call `mcp_list_servers` first to verify availability,
+      2) call `mcp_list_tools` for relevant servers,
+      3) call `mcp_describe_tool` before first use of an unfamiliar tool,
+      4) execute with `mcp_call`.
+    - When you use MCP, state explicitly which MCP servers and MCP tools you used.
     - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
 
     Mode auto-activation policy:

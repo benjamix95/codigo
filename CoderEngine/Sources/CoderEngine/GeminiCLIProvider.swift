@@ -189,11 +189,57 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             return ("file_change", payload)
         }
 
+        if type.contains("mcp")
+            || firstString(in: item, keys: ["mcp_tool", "mcp_server", "server_id"]) != nil
+        {
+            let rawTool = firstString(in: item, keys: ["tool", "name"]) ?? "mcp"
+            let normalizedTool = rawTool.lowercased()
+            let mcpTool = firstString(in: item, keys: ["mcp_tool", "tool_name"]) ?? ""
+            let mcpServer = firstString(in: item, keys: ["mcp_server", "server_id", "server"]) ?? ""
+
+            let title: String = {
+                switch normalizedTool {
+                case "mcp_list_servers":
+                    return "MCP discovery • servers"
+                case "mcp_list_tools":
+                    return "MCP discovery • tools"
+                case "mcp_describe_tool":
+                    return "MCP inspect • \(mcpTool.isEmpty ? "tool" : mcpTool)"
+                case "mcp_health":
+                    return "MCP health check"
+                case "mcp_reconnect":
+                    return "MCP reconnect • \(mcpServer.isEmpty ? "server" : mcpServer)"
+                default:
+                    var target = !mcpTool.isEmpty ? mcpTool : rawTool
+                    if target.isEmpty { target = "tool" }
+                    if !mcpServer.isEmpty {
+                        return "MCP call • \(mcpServer)/\(target)"
+                    }
+                    return "MCP call • \(target)"
+                }
+            }()
+
+            var payload: [String: String] = [
+                "title": title,
+                "detail": firstString(in: item, keys: ["detail", "query", "arguments", "args"]) ?? "",
+                "tool": rawTool
+            ]
+            if !mcpTool.isEmpty { payload["mcp_tool"] = mcpTool }
+            if !mcpServer.isEmpty {
+                payload["mcp_server"] = mcpServer
+                payload["server_id"] = mcpServer
+            }
+            if let output = firstString(in: item, keys: ["output", "result", "content"]) {
+                payload["output"] = String(output.prefix(6_000))
+            }
+            return ("mcp_tool_call", payload)
+        }
+
         if type == "reasoning" || type == "thinking" {
             let text = firstString(in: item, keys: ["text", "output", "content", "result", "message"]) ?? ""
             guard !text.isEmpty else { return nil }
             var payload: [String: String] = [
-                "title": "Ragionamento",
+                "title": "Reasoning",
                 "detail": String(text.prefix(200)) + (text.count > 200 ? "…" : ""),
                 "output": String(text.prefix(6_000)),
                 "group_id": "reasoning-stream"

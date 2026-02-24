@@ -206,7 +206,7 @@ func shouldSyncModeOnProviderChange(suppressForUserPicker: Bool) -> Bool {
 }
 
 func shouldShowSwarmViewOnly(for mode: CoderMode) -> Bool {
-    mode == .agentSwarm
+    false
 }
 
 func shouldShowComposer(for mode: CoderMode) -> Bool {
@@ -527,6 +527,7 @@ struct ChatPanelView: View {
     @State private var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
+    @Binding var showSwarmPanel: Bool
     @State private var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
     @State private var planningState: PlanningState = .idle
@@ -581,6 +582,7 @@ struct ChatPanelView: View {
     @State private var streamThrottleTask: Task<Void, Never>?
     @State private var activeToolTraceTurn: ToolTraceTurnContext?
     @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
+    @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
     /// Coalescing flush interval for task activity feed.
@@ -638,12 +640,10 @@ struct ChatPanelView: View {
     private var rootLayout: some View {
         HStack(spacing: 6) {
             VStack(spacing: 0) {
-                // Keep tabs out of macOS titlebar hit-test zone while still using full-height content.
+                // Keep out of macOS titlebar hit-test zone while still using full-height content.
                 Color.clear
                     .frame(height: topInteractiveInset)
                     .allowsHitTesting(false)
-                modeTabBar
-                separator
                 chatHeader
 
                 if coderMode == .agentSwarm
@@ -690,6 +690,9 @@ struct ChatPanelView: View {
             if showDebugPanel {
                 debugPanelSidebar
             }
+            if showSwarmPanel {
+                swarmPanelSidebar
+            }
         }
     }
 
@@ -732,6 +735,14 @@ struct ChatPanelView: View {
 
     private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
         content
+        .onChange(of: showSwarmPanel) { _, isShowing in
+            if isShowing && coderMode != .agentSwarm {
+                selectMode(.agentSwarm)
+            }
+            if !isShowing && coderMode == .agentSwarm {
+                selectMode(.agent)
+            }
+        }
         .onChange(of: effectiveContext.primaryPath) { _, newPath in
             gitPanelStore.refresh(workingDirectory: newPath)
         }
@@ -934,6 +945,29 @@ struct ChatPanelView: View {
             }
         )
         .frame(minWidth: 240, idealWidth: 320, maxWidth: 380)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+
+    @ViewBuilder
+    private var swarmPanelSidebar: some View {
+        SwarmPanelView(
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            chatStore: chatStore,
+            conversationId: conversationId,
+            isTaskRunning: isLoadingForCurrentConversation,
+            swarmOrchestrator: $swarmOrchestrator,
+            swarmWorkerBackend: $swarmWorkerBackend,
+            onClose: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showSwarmPanel = false
+                }
+            },
+            onOpenFile: { openFilesStore.openFile($0) },
+            onSyncSwarmProvider: syncSwarmProvider
+        )
+        .frame(minWidth: 260, idealWidth: 340, maxWidth: 420)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -1179,11 +1213,6 @@ struct ChatPanelView: View {
         }
     }
 
-    private var separator: some View {
-        Rectangle()
-            .fill(DesignSystem.Colors.border.opacity(0.5))
-            .frame(height: 0.5)
-    }
 
     private var chatHeader: some View {
         HStack(spacing: 8) {
@@ -1218,53 +1247,6 @@ struct ChatPanelView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
     }
-
-    // MARK: - Mode Tab Bar
-    private var modeTabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(CoderMode.allCases.filter({ $0 != .plan }), id: \.self) { mode in
-                    modeTabButton(for: mode)
-                }
-                Spacer(minLength: 4)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-        }
-    }
-
-
-    @ViewBuilder
-    private func modeTabButton(for mode: CoderMode) -> some View {
-        let isSelected = coderMode == mode
-        let color = modeColor(for: mode)
-        Button {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                self.selectMode(mode)
-            }
-        } label: {
-            VStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: modeIcon(for: mode))
-                        .font(.system(size: 9.5, weight: .medium))
-                    Text(mode.rawValue)
-                        .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                }
-                .foregroundStyle(isSelected ? color : Color.secondary.opacity(0.5))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-
-                // Underline indicator
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(isSelected ? color : Color.clear)
-                    .frame(height: 2)
-                    .padding(.horizontal, 6)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
 
     // MARK: - Messages Area
     private var messagesArea: some View {
@@ -1465,6 +1447,12 @@ struct ChatPanelView: View {
                     }
                 } else if wasActive && !isActive {
                     cancelFallbackTurnStartEvent()
+                    isFollowingLive = true
+                    newEventsWhileDetached = 0
+                    if let target = latestMessageScrollTarget() {
+                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)
+                    }
                 }
             }
             .onChange(of: taskActivityStore.activities.count) { _, _ in
@@ -1559,6 +1547,13 @@ struct ChatPanelView: View {
 
     private func liveScrollTarget() -> AnyHashable? {
         guard isLoadingForCurrentConversation else { return nil }
+        if let last = chatStore.conversation(for: conversationId)?.messages.last {
+            return AnyHashable(last.id)
+        }
+        return nil
+    }
+
+    private func latestMessageScrollTarget() -> AnyHashable? {
         if let last = chatStore.conversation(for: conversationId)?.messages.last {
             return AnyHashable(last.id)
         }
@@ -1690,6 +1685,7 @@ struct ChatPanelView: View {
                 assistantMessageId: previous.assistantMessageId
             )
             toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
             conversationId: conversationId,
@@ -1698,6 +1694,7 @@ struct ChatPanelView: View {
         )
         activeToolTraceTurn = turn
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
+        toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolTraceStore.startTurn(
             conversationId: conversationId,
             assistantMessageId: assistantMessageId,
@@ -1714,6 +1711,7 @@ struct ChatPanelView: View {
             assistantMessageId: active.assistantMessageId
         )
         toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
+        toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
         activeToolTraceTurn = nil
     }
 
@@ -1751,6 +1749,15 @@ struct ChatPanelView: View {
             let next = (existing.last?.sequence ?? 0) + 1
             toolTraceNextSequenceByMessage[target.assistantMessageId] = max(1, next)
         }
+        if toolTraceOperationalSeenByMessage[target.assistantMessageId] == nil {
+            let existing = toolTraceStore.events(
+                conversationId: target.conversationId,
+                assistantMessageId: target.assistantMessageId
+            )
+            toolTraceOperationalSeenByMessage[target.assistantMessageId] = existing.contains {
+                ToolTraceVisibility.shouldDisplay(event: $0)
+            }
+        }
         toolTraceStore.startTurn(
             conversationId: target.conversationId,
             assistantMessageId: target.assistantMessageId,
@@ -1767,6 +1774,7 @@ struct ChatPanelView: View {
         providerId: String,
         conversationId: UUID?
     ) {
+        guard ToolTraceVisibility.shouldInclude(activity: activity) else { return }
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
@@ -1788,6 +1796,7 @@ struct ChatPanelView: View {
         )
         toolTraceStore.append(event: event)
         toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
+        toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
     }
 
     @MainActor
@@ -1818,6 +1827,7 @@ struct ChatPanelView: View {
                 logTaskBacklogIfNeeded(context: "enqueue_grep")
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
+                guard shouldAcceptTodoWrite(todo, conversationId: conversationId) else { break }
                 enableTaskPanelIfNeeded()
                 if planFlowPhase == .building {
                     _ = todoStore.upsertCanonicalOnlyFromAgent(
@@ -1839,6 +1849,7 @@ struct ChatPanelView: View {
                     )
                 }
             case .todoRead:
+                guard shouldAcceptTodoRead(conversationId: conversationId) else { break }
                 enableTaskPanelIfNeeded()
                 break
             case .planStepUpdate(let stepId, let status, let stepTitle):
@@ -1855,6 +1866,94 @@ struct ChatPanelView: View {
                 handleAutoActivateDebugMode(reason: reason)
             }
         }
+    }
+
+    private func shouldAcceptTodoWrite(_ todo: TodoWritePayload, conversationId: UUID?) -> Bool {
+        if planFlowPhase == .building {
+            return true
+        }
+        if isPlaceholderTodoTitle(todo.title) {
+            return false
+        }
+        let hasExistingAgentTodo = todoStore.todos.contains {
+            $0.source == .agent && !$0.isPlanCanonical
+        }
+        if hasExistingAgentTodo {
+            return true
+        }
+        return hasOperationalActivityInCurrentTurn(conversationId: conversationId)
+    }
+
+    private func shouldAcceptTodoRead(conversationId: UUID?) -> Bool {
+        if planFlowPhase == .building {
+            return true
+        }
+        guard todoStore.todos.contains(where: { $0.source == .agent || $0.isPlanCanonical }) else {
+            return false
+        }
+        return hasOperationalActivityInCurrentTurn(conversationId: conversationId)
+    }
+
+    private func hasOperationalActivityInCurrentTurn(conversationId: UUID?) -> Bool {
+        guard let conversationId,
+              let assistantMessageId = currentAssistantMessageIdForTrace(conversationId: conversationId) else {
+            return false
+        }
+        if let cached = toolTraceOperationalSeenByMessage[assistantMessageId] {
+            return cached
+        }
+        let existing = toolTraceStore.events(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId
+        )
+        let hasOperational = existing.contains { ToolTraceVisibility.shouldDisplay(event: $0) }
+        toolTraceOperationalSeenByMessage[assistantMessageId] = hasOperational
+        return hasOperational
+    }
+
+    private func currentAssistantMessageIdForTrace(conversationId: UUID) -> UUID? {
+        if let active = activeToolTraceTurn, active.conversationId == conversationId {
+            return active.assistantMessageId
+        }
+        return chatStore.conversation(for: conversationId)?
+            .messages
+            .last(where: { $0.role == .assistant })?
+            .id
+    }
+
+    private func isPlaceholderTodoTitle(_ rawTitle: String) -> Bool {
+        let normalized = rawTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return true }
+        let genericTitles: Set<String> = [
+            "task",
+            "tasks",
+            "todo",
+            "todos",
+            "step",
+            "steps",
+            "analysis",
+            "analisi",
+            "workflow",
+            "execution",
+            "implementazione",
+            "plan",
+            "piano",
+        ]
+        if genericTitles.contains(normalized) {
+            return true
+        }
+        if normalized.range(of: #"^(task|step)\s*\d*$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if normalized.contains("task panel")
+            || normalized.contains("todo update")
+            || normalized.contains("turn started")
+        {
+            return true
+        }
+        return false
     }
 
     @MainActor
@@ -2194,7 +2293,6 @@ struct ChatPanelView: View {
             openrouterModel: $openrouterModel,
             codexModels: codexModels,
             geminiModels: geminiModels,
-            effectiveModeProviderLabel: effectiveModeProviderLabel,
             onSyncCodexProvider: syncCodexProvider,
             onSyncClaudeProvider: syncClaudeProvider,
             onSyncGeminiProvider: syncGeminiProvider,
@@ -2204,11 +2302,24 @@ struct ChatPanelView: View {
             onSyncToolRuntimePolicy: syncToolRuntimePolicy,
             onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
             onDelegateToAgent: delegateToAgent,
+            onSelectMode: { mode in
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    selectMode(mode)
+                }
+            },
             attachedImageURLs: attachedComposerAttachments
                 .filter { $0.kind == .image }
                 .map(\.url),
             planToggleEnabled: $planToggleEnabled,
             debugToggleEnabled: $debugToggleEnabled,
+            swarmToggleEnabled: Binding(
+                get: { showSwarmPanel },
+                set: { newValue in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showSwarmPanel = newValue
+                    }
+                }
+            ),
             highlightPlanButton: isPlanTabHovered
         )
     }
@@ -2249,66 +2360,6 @@ struct ChatPanelView: View {
         }
     }
 
-    /// Effective provider used by the current mode, shown as a badge below the provider.
-    private var effectiveModeProviderLabel: String? {
-        if coderMode == .agentSwarm {
-            let workerLabel: String = {
-                switch swarmWorkerBackend {
-                case "codex": return "Codex CLI"
-                case "claude": return "Claude Code"
-                case "gemini": return "Gemini CLI"
-                case "openai", "openai-api": return "OpenAI API"
-                case "anthropic-api": return "Anthropic API"
-                case "google-api": return "Google API"
-                case "openrouter-api", "openrouter": return "OpenRouter"
-                case "minimax-api": return "MiniMax"
-                default: return swarmWorkerBackend
-                }
-            }()
-            return "Swarm → \(workerLabel)"
-        }
-        if coderMode == .codeReviewMultiSwarm {
-            let execLabel: String = {
-                switch codeReviewExecutionBackend {
-                case "claude", "claude-cli": return "Claude CLI"
-                case "codex", "codex-cli": return "Codex CLI"
-                case "gemini", "gemini-cli": return "Gemini CLI"
-                case "anthropic-api": return "Anthropic API"
-                case "openai-api": return "OpenAI API"
-                case "google-api": return "Google API"
-                case "openrouter-api": return "OpenRouter API"
-                case "minimax-api": return "MiniMax API"
-                default: return codeReviewExecutionBackend
-                }
-            }()
-            return "Review → execution: \(execLabel)"
-        }
-        if coderMode == .plan {
-            if let selected = providerRegistry.selectedProviderId,
-               let provider = providerRegistry.provider(for: selected) {
-                return "Plan → \(provider.displayName)"
-            }
-            return "Plan"
-        }
-        if coderMode == .ide {
-            guard let selected = providerRegistry.selectedProviderId,
-                ProviderSupport.isIDEProvider(id: selected),
-                let provider = providerRegistry.provider(for: selected)
-            else {
-                return "IDE → Auto"
-            }
-            return "IDE → \(provider.displayName)"
-        }
-        if coderMode == .agent || coderMode == .codeReviewMultiSwarm {
-            if let selected = providerRegistry.selectedProviderId,
-               let provider = providerRegistry.provider(for: selected),
-               ProviderSupport.isAgentCompatibleProvider(id: selected)
-            {
-                return provider.displayName
-            }
-        }
-        return nil
-    }
 
     private var inputHint: String {
         switch coderMode {
@@ -3083,10 +3134,10 @@ struct ChatPanelView: View {
         let planExecutionWorkflow = """
             **FUNDAMENTAL RULE: The plan TODOs are your BIBLE. Follow them EXACTLY in the order listed.**
 
-            **Todo Workflow (mandatory):**
-            1. Immediately include \(CoderIDEMarkers.showTaskPanel) to show the task panel.
-            2. The canonical plan TODOs are IMMUTABLE: do NOT create new TODOs, do NOT modify titles, do NOT reorder. Execute EXACTLY those present in the given order.
-            3. For each TODO: set status=in_progress BEFORE starting, then status=done AFTER completion. Use \(CoderIDEMarkers.todoWritePrefix) to update the status.
+            **Todo Workflow (strict, no noise):**
+            1. The canonical plan TODOs are IMMUTABLE: do NOT create new TODOs, do NOT modify titles, do NOT reorder. Execute EXACTLY those present in the given order.
+            2. For each TODO: set status=in_progress BEFORE starting, then status=done AFTER completion. Use \(CoderIDEMarkers.todoWritePrefix) to update the status.
+            3. Emit \(CoderIDEMarkers.showTaskPanel) only if useful to visualize a real multi-step execution. Never emit it as a placeholder.
             4. Do NOT skip any TODO. Do NOT proceed to the next TODO until the current one is done.
             5. If a TODO is blocked, explain why and try to resolve it before moving on.
             6. Before finishing: ALL canonical TODOs MUST be done. If any is not done, do NOT terminate.
@@ -4161,14 +4212,16 @@ struct ChatPanelView: View {
             prompt = planningInstructions + "\n\n" + prompt
         } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
                 let baseInstructions = """
-                    **Todo Workflow (mandatory):** At the start of every task:
-                    1. Immediately include \(CoderIDEMarkers.showTaskPanel) to show the task panel.
-                    2. BEFORE reading files, editing or running commands, create the todo list with all necessary tasks using markers:
-                    \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
-                    (use one marker per task; you can include id=uuid for subsequent updates)
-                    3. During execution, update the status: in_progress when working on a task, done when completed.
-                    4. Verify all todos are done before concluding the response.
-                    To check the current todo state, emit \(CoderIDEMarkers.todoRead) — the context includes the list below.
+                    **Todo Workflow (use only when truly needed):**
+                    1. Start with analysis (read/search) first. Do NOT create todos before understanding the task.
+                    2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
+                    3. If the task is genuinely multi-step, create ONE coherent todo list after analysis with only concrete, executable steps.
+                    4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update").
+                    5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
+                    6. During execution, update status only for real todos: in_progress before work, done after completion.
+                    7. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
+                    8. If MCP is available and external/domain capabilities are needed, verify MCP availability first with `mcp_list_servers`, then `mcp_list_tools`, and run calls with `mcp_call`.
+                    9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
                     To update plan steps use marker:
                     \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
                     For code searches with rg, you can emit markers with results:
