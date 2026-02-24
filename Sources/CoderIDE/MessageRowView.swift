@@ -22,12 +22,10 @@ struct MessageRow: View {
     private let userRowMaxWidth: CGFloat = 580
     private let assistantRowMaxWidth: CGFloat = 820
 
-    /// Only show streaming UI when both the message flag AND the actual loading state agree.
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
     }
 
-    /// Mostra la barra streaming durante lo streaming attivo (nascosta se c'è feed attività inline).
     private var shouldShowStreamingBar: Bool {
         showStreamingBar && isActivelyStreaming
     }
@@ -67,8 +65,8 @@ struct MessageRow: View {
                 LinearGradient(
                     colors: [
                         Color.clear,
-                        Color.primary.opacity(0.06),
-                        Color.primary.opacity(0.06),
+                        Color.primary.opacity(0.05),
+                        Color.primary.opacity(0.05),
                         Color.clear,
                     ],
                     startPoint: .leading,
@@ -77,51 +75,52 @@ struct MessageRow: View {
             )
             .frame(height: 0.5)
             .frame(maxWidth: rowMaxWidth)
-            .padding(.bottom, 16)
+            .padding(.bottom, 18)
     }
 
-    // MARK: - User Header (label + checkpoint)
+    // MARK: - User Header
 
     private var userHeader: some View {
         HStack(spacing: 6) {
             Spacer(minLength: 0)
-            Text("Tu")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            Button {
-                onRestoreCheckpoint?()
-            } label: {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 10, weight: .semibold))
+            Text("You")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+            if canRewind {
+                Button {
+                    onRestoreCheckpoint?()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.system(size: 9.5, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .help(
+                    hasCheckpointForRestore
+                        ? "Restore chat and files from this point"
+                        : "Restore chat from this point"
+                )
+                .accessibilityLabel("Restore checkpoint")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(canRewind ? .primary : .tertiary)
-            .disabled(!canRewind)
-            .help(
-                hasCheckpointForRestore
-                    ? "Ripristina chat e file da questo punto"
-                    : "Ripristina chat da questo punto (file non ripristinati)"
-            )
-            .accessibilityLabel("Ripristina checkpoint")
         }
         .padding(.trailing, 14)
-        .padding(.bottom, 4)
+        .padding(.bottom, 5)
     }
 
     // MARK: - Assistant Header
 
     private var assistantHeader: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Image(systemName: "sparkles")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(modeColor.opacity(0.7))
-            Text("Assistant")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(modeColor.opacity(0.55))
+            Text("Codigo")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
             Spacer(minLength: 0)
         }
         .padding(.leading, 2)
-        .padding(.bottom, 4)
+        .padding(.bottom, 5)
     }
 
     // MARK: - Message Content
@@ -132,7 +131,6 @@ struct MessageRow: View {
                 userMessageImagesRow(paths: paths)
             }
             if isUser {
-                // User bubble — clean pill, allineato a destra
                 ClickableMessageContent(
                     content: message.content,
                     context: context,
@@ -147,13 +145,14 @@ struct MessageRow: View {
                 )
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
             } else {
-                // Assistant — flat text, no background (ChatGPT-style)
+                // Thinking block
                 if isActivelyStreaming,
                    let reasoning = streamingReasoningText, !reasoning.isEmpty
                 {
                     ThinkingBlockView(text: reasoning)
                         .padding(.bottom, 8)
                 }
+                // Main content
                 MarkdownContentView(
                     content: message.content,
                     context: context,
@@ -163,6 +162,7 @@ struct MessageRow: View {
                 )
                 .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 .padding(.vertical, 4)
+                // Streaming bar
                 if shouldShowStreamingBar { streamingBar }
             }
         }
@@ -193,7 +193,7 @@ struct MessageRow: View {
         .padding(.top, 2)
     }
 
-    // MARK: - User Message Images Row
+    // MARK: - User Images
 
     @ViewBuilder
     private func userMessageImagesRow(paths: [String]) -> some View {
@@ -220,7 +220,7 @@ struct MessageRow: View {
                 }
             }
         }
-        .fixedSize(horizontal: true, vertical: false) // larghezza solo per contenuto, così VStack .trailing la allinea a destra
+        .fixedSize(horizontal: true, vertical: false)
         .padding(.bottom, 4)
     }
 }
@@ -230,45 +230,56 @@ struct MessageRow: View {
 struct ThinkingBlockView: View {
     let text: String
     @State private var isExpanded = false
-    private let collapsedLineLimit = 6
+    private let collapsedLineLimit = 5
     private let contentMaxWidth: CGFloat = 720
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var bgColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.10, green: 0.10, blue: 0.14)
+            : Color(red: 0.96, green: 0.96, blue: 0.97)
+    }
+    private var borderColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.06)
+            : Color.black.opacity(0.05)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Header
             HStack(spacing: 6) {
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.7))
+                    .foregroundStyle(.secondary.opacity(0.6))
                 Text("Thinking")
                     .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary.opacity(0.7))
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
                 } label: {
-                    HStack(spacing: 3) {
-                        Text(isExpanded ? "Riduci" : "Espandi")
-                            .font(.system(size: 9.5, weight: .medium))
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                    .foregroundStyle(.tertiary)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.quaternary)
                 }
                 .buttonStyle(.plain)
             }
+            // Content
             if isExpanded {
                 ScrollView {
                     Text(text)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary.opacity(0.8))
+                        .foregroundStyle(.secondary.opacity(0.75))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 240)
+                .frame(maxHeight: 260)
             } else {
                 Text(text)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary.opacity(0.8))
+                    .foregroundStyle(.secondary.opacity(0.75))
                     .lineLimit(collapsedLineLimit)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -279,11 +290,11 @@ struct ThinkingBlockView: View {
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.06))
+                .fill(bgColor)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(borderColor, lineWidth: 0.5)
         )
     }
 }
