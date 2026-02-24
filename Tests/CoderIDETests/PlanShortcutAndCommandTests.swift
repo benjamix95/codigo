@@ -231,6 +231,46 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         )
     }
 
+    func testPlanPanelAutoOpenPolicy() {
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .planStepUpdate))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
+        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
+    }
+
+    func testResolveShouldRunPlanInlineOneShotBehaviorForSlashPlan() {
+        let firstSend = resolveShouldRunPlanInline(
+            forcePlanInline: true,
+            coderMode: .agent,
+            planToggleEnabled: false
+        )
+        XCTAssertTrue(firstSend)
+
+        let secondSend = resolveShouldRunPlanInline(
+            forcePlanInline: false,
+            coderMode: .agent,
+            planToggleEnabled: false
+        )
+        XCTAssertFalse(secondSend)
+    }
+
+    func testResolveShouldRunPlanInlineRespectsManualToggle() {
+        XCTAssertTrue(
+            resolveShouldRunPlanInline(
+                forcePlanInline: false,
+                coderMode: .agent,
+                planToggleEnabled: true
+            )
+        )
+        XCTAssertFalse(
+            resolveShouldRunPlanInline(
+                forcePlanInline: false,
+                coderMode: .plan,
+                planToggleEnabled: true
+            )
+        )
+    }
+
     func testSwarmModeIsViewOnlyForComposerAndUsageFooterStillVisible() {
         XCTAssertTrue(shouldShowSwarmViewOnly(for: .agentSwarm))
         XCTAssertFalse(shouldShowComposer(for: .agentSwarm))

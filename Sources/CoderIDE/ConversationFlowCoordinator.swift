@@ -91,8 +91,9 @@ final class ConversationFlowCoordinator: ObservableObject {
         onError: @escaping (String) -> Void,
         onSignal: ((StreamSignal) -> Void)? = nil
     ) async throws -> (fullText: String, pendingSwarmTask: String?) {
+        let streamStartedAt = Date()
         startStreaming()
-        onSignal?(.streamStarted(.now))
+        onSignal?(.streamStarted(streamStartedAt))
         var full = ""
         var pendingSwarmTask: String?
         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
@@ -110,18 +111,27 @@ final class ConversationFlowCoordinator: ObservableObject {
             }
             guard let ev = maybeEvent else { break }
             if !hasReceivedAnyEvent {
-                onSignal?(.firstEvent(.now))
+                let firstEventAt = Date()
+                let firstEventDelay = firstEventAt.timeIntervalSince(streamStartedAt)
+                logStreamDiagnostic(
+                    "provider=\(provider.id) first_event_ms=\(Int(firstEventDelay * 1_000))"
+                )
+                onSignal?(.firstEvent(firstEventAt))
             }
             hasReceivedAnyEvent = true
             switch ev {
             case .textDelta(let d):
                 if !emittedFirstText {
                     emittedFirstText = true
-                    onSignal?(.firstTextDelta(.now))
+                    let firstTextAt = Date()
+                    let firstTextDelay = firstTextAt.timeIntervalSince(streamStartedAt)
+                    logStreamDiagnostic(
+                        "provider=\(provider.id) first_text_ms=\(Int(firstTextDelay * 1_000))"
+                    )
+                    onSignal?(.firstTextDelta(firstTextAt))
                 }
                 full += d
                 onText(full)
-                await Task.yield()
             case .error(let e):
                 full += "\n\n[Errore: \(e)]"
                 onError(full)
@@ -133,8 +143,13 @@ final class ConversationFlowCoordinator: ObservableObject {
             default:
                 break
             }
+            // Fairness: cedi il turno anche quando arrivano molti raw/eventi non testuali.
+            await Task.yield()
         }
-        onSignal?(.streamCompleted(.now))
+        let completedAt = Date()
+        let totalMs = Int(completedAt.timeIntervalSince(streamStartedAt) * 1_000)
+        logStreamDiagnostic("provider=\(provider.id) stream_completed_ms=\(totalMs)")
+        onSignal?(.streamCompleted(completedAt))
         finish()
         return (full, pendingSwarmTask)
     }
@@ -179,6 +194,8 @@ final class ConversationFlowCoordinator: ObservableObject {
             let swarmStream = try await swarmProvider.send(prompt: task, context: context, imageURLs: imageURLs)
             let swarmIteratorHolder = IteratorHolder(swarmStream)
             var swarmReceivedAny = false
+            let swarmStartedAt = Date()
+            var swarmFirstTextLogged = false
             let swarmFirstEventTimeout = swarmProvider.id == "gemini-cli" ? 120 : 60
             while true {
                 let timeout = swarmReceivedAny ? 300 : swarmFirstEventTimeout
@@ -186,9 +203,22 @@ final class ConversationFlowCoordinator: ObservableObject {
                     try await swarmIteratorHolder.next()
                 }
                 guard let ev = maybeEvent else { break }
+                if !swarmReceivedAny {
+                    let firstEventMs = Int(Date().timeIntervalSince(swarmStartedAt) * 1_000)
+                    logStreamDiagnostic(
+                        "provider=\(swarmProvider.id) delegated_swarm_first_event_ms=\(firstEventMs)"
+                    )
+                }
                 swarmReceivedAny = true
                 switch ev {
                 case .textDelta(let d):
+                    if !swarmFirstTextLogged {
+                        swarmFirstTextLogged = true
+                        let firstTextMs = Int(Date().timeIntervalSince(swarmStartedAt) * 1_000)
+                        logStreamDiagnostic(
+                            "provider=\(swarmProvider.id) delegated_swarm_first_text_ms=\(firstTextMs)"
+                        )
+                    }
                     swarmFull += d
                     onSwarmText(swarmFull)
                 case .error(let e):
@@ -199,6 +229,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 default:
                     break
                 }
+                await Task.yield()
             }
 
             guard let agentProvider = agentFollowUpProvider else {
@@ -221,6 +252,8 @@ final class ConversationFlowCoordinator: ObservableObject {
             let followStream = try await agentProvider.send(prompt: followUpPrompt, context: context, imageURLs: nil)
             let followIteratorHolder = IteratorHolder(followStream)
             var followReceivedAny = false
+            let followStartedAt = Date()
+            var followFirstTextLogged = false
             let followFirstEventTimeout = agentProvider.id == "gemini-cli" ? 120 : 60
             while true {
                 let timeout = followReceivedAny ? 300 : followFirstEventTimeout
@@ -228,9 +261,22 @@ final class ConversationFlowCoordinator: ObservableObject {
                     try await followIteratorHolder.next()
                 }
                 guard let ev = maybeEvent else { break }
+                if !followReceivedAny {
+                    let firstEventMs = Int(Date().timeIntervalSince(followStartedAt) * 1_000)
+                    logStreamDiagnostic(
+                        "provider=\(agentProvider.id) delegated_followup_first_event_ms=\(firstEventMs)"
+                    )
+                }
                 followReceivedAny = true
                 switch ev {
                 case .textDelta(let d):
+                    if !followFirstTextLogged {
+                        followFirstTextLogged = true
+                        let firstTextMs = Int(Date().timeIntervalSince(followStartedAt) * 1_000)
+                        logStreamDiagnostic(
+                            "provider=\(agentProvider.id) delegated_followup_first_text_ms=\(firstTextMs)"
+                        )
+                    }
                     follow += d
                     onFollowUpText(follow)
                 case .error(let e):
@@ -241,11 +287,16 @@ final class ConversationFlowCoordinator: ObservableObject {
                 default:
                     break
                 }
+                await Task.yield()
             }
             finish()
         } catch {
             onError("[Errore swarm/follow-up: \(error.localizedDescription)]")
             fail()
         }
+    }
+
+    private func logStreamDiagnostic(_ message: String) {
+        NSLog("[StreamDiag] %@", message)
     }
 }

@@ -480,6 +480,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     }
 
     static func rawDedupKey(type: String, payload: [String: String]) -> String {
+        if type == "reasoning" {
+            let group = payload["group_id"] ?? ""
+            let preview = String((payload["output"] ?? "").suffix(160))
+            return "\(type)|\(group)|\(preview)"
+        }
         let identityKeys = [
             "id", "group_id", "queryId", "query_id",
             "tool_call_id", "call_id", "swarm_id", "step_id"
@@ -587,6 +592,42 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         let eventType = normalizedEventType((json["type"] as? String) ?? "")
         let item = (json["item"] as? [String: Any]) ?? json
         guard let type = (item["type"] as? String) ?? (eventType.hasPrefix("item.") ? nil : eventType) else { return nil }
+
+        if type == "reasoning" {
+            let rawOutput =
+                firstString(in: item, keys: ["output", "text", "reasoning", "content", "message"])
+                ?? extractTextPayload(from: item)
+                ?? ""
+            let trimmedOutput = rawOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedOutput.isEmpty else { return nil }
+
+            let output = String(rawOutput.prefix(12_000))
+            let detail = String(
+                output
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(240)
+            )
+            var payload: [String: String] = [
+                "title": firstString(in: item, keys: ["title", "label"]) ?? "Ragionamento",
+                "output": output,
+                "detail": detail
+            ]
+
+            let reasoningId =
+                firstString(in: item, keys: ["group_id", "id", "reasoning_id"])
+                ?? firstString(in: json, keys: ["turn_id", "id"])
+                ?? ""
+            if !reasoningId.isEmpty {
+                payload["group_id"] = reasoningId.hasPrefix("reasoning-")
+                    ? reasoningId
+                    : "reasoning-\(reasoningId)"
+            } else {
+                payload["group_id"] = "reasoning-stream"
+            }
+            return ("reasoning", payload)
+        }
+
         let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed"]
         guard activityTypes.contains(type) else { return nil }
         

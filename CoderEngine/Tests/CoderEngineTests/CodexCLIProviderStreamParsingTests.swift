@@ -67,11 +67,54 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
             }
             return nil
         }
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
 
         XCTAssertEqual(assistantText, "Risposta finale pulita")
         XCTAssertFalse(assistantText.contains("approccio migliore"))
-        XCTAssertTrue(rawReasoningEvents.isEmpty)
+        XCTAssertEqual(rawReasoningEvents.count, 1)
+        XCTAssertEqual(reasoningPayloads.first?["title"], "Ragionamento")
+        XCTAssertEqual(reasoningPayloads.first?["output"], "Sto valutando l'approccio migliore")
+        XCTAssertEqual(reasoningPayloads.first?["group_id"], "reasoning-1")
         XCTAssertEqual(rawTurnEvents, ["turn_started", "turn_completed"])
+    }
+
+    func testReasoningUpdatesAreNotDedupedWhenOutputGrows() {
+        let events = runParser(events: [
+            ["type": "turn.started"],
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "reasoning-1",
+                    "type": "reasoning",
+                    "text": "Step 1"
+                ],
+            ],
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "reasoning-1",
+                    "type": "reasoning",
+                    "text": "Step 1\nStep 2"
+                ],
+            ],
+            ["type": "turn.completed"],
+        ])
+
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
+
+        XCTAssertEqual(reasoningPayloads.count, 2)
+        XCTAssertEqual(reasoningPayloads.first?["output"], "Step 1")
+        XCTAssertEqual(reasoningPayloads.last?["output"], "Step 1\nStep 2")
     }
 
     func testCommandExecutionEmitsStartedAndCompletedStatuses() {

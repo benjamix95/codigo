@@ -41,6 +41,27 @@ func planBuildDisabledReason(
     }
 }
 
+func hasPlanContext(
+    phase: PlanFlowPhase,
+    planningState: PlanningState,
+    hasPlanBoard: Bool,
+    hasSelectedHistoryEntry: Bool
+) -> Bool {
+    if [.analyzing, .questioning, .generating, .proposalReady, .readyToBuild, .building]
+        .contains(phase)
+    {
+        return true
+    }
+    if planningState != .idle {
+        return true
+    }
+    return hasPlanBoard || hasSelectedHistoryEntry
+}
+
+func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
+    hasPlanContext
+}
+
 /// Pannello laterale stile Cursor per il piano.
 /// Top bar fissa (breadcrumb, model picker, Build), contenuto scrollabile sotto.
 struct PlanPanelView: View {
@@ -576,10 +597,21 @@ struct PlanPanelView: View {
         {
             return planStreamingContent
         }
-        if let conv = chatStore.conversation(for: conversationId),
+        let hasBoard = chatStore.planBoard(for: conversationId) != nil
+        let hasSelectedHistoryEntry = planHistoryStore.selectedEntryId != nil
+        let hasContext = hasPlanContext(
+            phase: planFlowPhase,
+            planningState: planningState,
+            hasPlanBoard: hasBoard,
+            hasSelectedHistoryEntry: hasSelectedHistoryEntry
+        )
+        if shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: hasContext),
+           let conv = chatStore.conversation(for: conversationId),
            let last = conv.messages.last(where: { $0.role == .assistant }),
            !last.content.isEmpty
-        { return last.content }
+        {
+            return last.content
+        }
         return planText
     }
 

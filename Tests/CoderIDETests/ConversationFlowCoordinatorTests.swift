@@ -55,6 +55,39 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.pendingSwarmTask, "Analizza bug streaming")
         XCTAssertEqual(coordinator.state, .completed)
     }
+
+    func testRunStreamHandlesRawHeavyBurstWithoutBlockingTextPropagation() async throws {
+        var events: [StreamEvent] = [.started]
+        for idx in 0..<250 {
+            events.append(.raw(type: "command_execution", payload: [
+                "id": "cmd-\(idx)",
+                "status": "in_progress"
+            ]))
+        }
+        events.append(.textDelta("Output finale"))
+        events.append(.completed)
+
+        let provider = MockStreamingProvider(events: events)
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var snapshots: [String] = []
+        var rawCount = 0
+        let result = try await coordinator.runStream(
+            provider: provider,
+            prompt: "test",
+            context: ctx,
+            imageURLs: nil,
+            onText: { snapshots.append($0) },
+            onRaw: { _, _, _ in rawCount += 1 },
+            onError: { _ in }
+        )
+
+        XCTAssertEqual(rawCount, 250)
+        XCTAssertEqual(snapshots.last, "Output finale")
+        XCTAssertEqual(result.fullText, "Output finale")
+        XCTAssertEqual(coordinator.state, .completed)
+    }
 }
 
 private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {

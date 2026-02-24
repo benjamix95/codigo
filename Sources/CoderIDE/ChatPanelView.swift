@@ -378,6 +378,30 @@ func evaluateCmdShiftPPlanShortcut(
     )
 }
 
+enum PlanPanelAutoOpenTrigger: Equatable {
+    case flowStarted
+    case planStepUpdate
+    case awaitingClarification
+    case awaitingChoice
+}
+
+func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
+    switch trigger {
+    case .awaitingClarification, .awaitingChoice:
+        return true
+    case .flowStarted, .planStepUpdate:
+        return false
+    }
+}
+
+func resolveShouldRunPlanInline(
+    forcePlanInline: Bool,
+    coderMode: CoderMode,
+    planToggleEnabled: Bool
+) -> Bool {
+    forcePlanInline || (coderMode == .agent && planToggleEnabled)
+}
+
 private struct InlinePlanSummary: Equatable {
     let title: String
     let body: String
@@ -451,7 +475,7 @@ struct ChatPanelView: View {
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
-    @AppStorage("plan_toggle_enabled") private var planToggleEnabled = false
+    @State private var planToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
@@ -505,6 +529,10 @@ struct ChatPanelView: View {
     @State private var streamThrottleWorkItem: DispatchWorkItem?
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
+    /// Coalescing flush interval for task activity feed.
+    private let taskActivityFlushInterval: TimeInterval = 0.1
+    /// Backlog threshold used only for lightweight stream diagnostics.
+    private let taskBacklogDiagnosticThreshold = 40
     private let checkpointGitStore = ConversationCheckpointGitStore()
     private let cliAccountsStore = CLIAccountsStore.shared
     private let cliAccountRouter = CLIAccountRouter.shared
@@ -547,6 +575,15 @@ struct ChatPanelView: View {
     private var planPanelConversationId: UUID? { conversationId }
 
     var body: some View {
+        applyNotificationAndImporterModifiers(
+            to: applyRuntimeLifecycleModifiers(
+                to: applyProviderSelectionModifiers(to: rootLayout)
+            )
+        )
+    }
+
+    @ViewBuilder
+    private var rootLayout: some View {
         HStack(spacing: 6) {
             VStack(spacing: 0) {
                 // Keep tabs out of macOS titlebar hit-test zone while still using full-height content.
@@ -598,7 +635,11 @@ struct ChatPanelView: View {
                 planPanelSidebar
             }
         }
-        .onChange(of: providerRegistry.selectedProviderId) { _, newId in
+    }
+
+    private func applyProviderSelectionModifiers<Content: View>(to content: Content) -> some View {
+        content
+            .onChange(of: providerRegistry.selectedProviderId) { _, newId in
             if shouldSyncModeOnProviderChange(suppressForUserPicker: suppressModeSyncForNextProviderChange) {
                 syncCoderModeToProvider(newId)
             } else {
@@ -634,6 +675,10 @@ struct ChatPanelView: View {
             checkProviderAuth()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
+    }
+
+    private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
+        content
         .onChange(of: effectiveContext.primaryPath) { _, newPath in
             gitPanelStore.refresh(workingDirectory: newPath)
         }
@@ -697,6 +742,10 @@ struct ChatPanelView: View {
         .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReviewRuntimeConfig() }
         .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
         .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
+    }
+
+    private func applyNotificationAndImporterModifiers<Content: View>(to content: Content) -> some View {
+        content
         .sheet(isPresented: $showSwarmHelp) { AgentSwarmHelpView() }
         .fileImporter(
             isPresented: $isSelectingImage,
@@ -709,6 +758,7 @@ struct ChatPanelView: View {
         }
         .onDisappear {
             taskFlushWorkItem?.cancel()
+            taskFlushWorkItem = nil
             autoScrollWorkItem?.cancel()
             composerTimerAutoHideTask?.cancel()
             composerTimerAutoHideTask = nil
@@ -1429,6 +1479,9 @@ struct ChatPanelView: View {
         let scope = executionScopeForCurrentMode()
         executionController.terminate(scope: scope)
         flowCoordinator.interrupt()
+        taskFlushWorkItem?.cancel()
+        taskFlushWorkItem = nil
+        flushPendingTaskActivities()
         if let cid = targetConversationId {
             let cur =
                 chatStore.conversation(for: cid)?.messages.last(where: {
@@ -1527,6 +1580,7 @@ struct ChatPanelView: View {
             case .instantGrep(let grep):
                 enableTaskPanelIfNeeded()
                 pendingInstantGreps.append(grep)
+                logTaskBacklogIfNeeded(context: "enqueue_grep")
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
                 enableTaskPanelIfNeeded()
@@ -1558,9 +1612,6 @@ struct ChatPanelView: View {
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
                     chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
                 }
-                if !showPlanPanel {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
-                }
             }
         }
     }
@@ -1568,22 +1619,27 @@ struct ChatPanelView: View {
     @MainActor
     private func enqueueTaskActivity(_ activity: TaskActivity) {
         pendingTaskActivities.append(activity)
+        logTaskBacklogIfNeeded(context: "enqueue_activity")
         scheduleTaskActivityFlush()
     }
 
     @MainActor
     private func scheduleTaskActivityFlush() {
-        taskFlushWorkItem?.cancel()
+        if taskFlushWorkItem != nil { return }
         let work = DispatchWorkItem { @MainActor in
+            taskFlushWorkItem = nil
             flushPendingTaskActivities()
         }
         taskFlushWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + taskActivityFlushInterval, execute: work)
     }
 
     @MainActor
     private func flushPendingTaskActivities() {
-        guard !pendingTaskActivities.isEmpty || !pendingInstantGreps.isEmpty else { return }
+        let backlogBefore = pendingTaskActivities.count + pendingInstantGreps.count
+        guard backlogBefore > 0 else { return }
+        logTaskBacklogIfNeeded(context: "flush_start")
+
         let activities = pendingTaskActivities
         let greps = pendingInstantGreps
         pendingTaskActivities.removeAll(keepingCapacity: true)
@@ -1609,6 +1665,19 @@ struct ChatPanelView: View {
         for grep in greps {
             taskActivityStore.addInstantGrep(grep)
         }
+
+        let backlogAfter = pendingTaskActivities.count + pendingInstantGreps.count
+        if backlogAfter > 0 {
+            logTaskBacklogIfNeeded(context: "flush_reschedule")
+            scheduleTaskActivityFlush()
+        }
+    }
+
+    @MainActor
+    private func logTaskBacklogIfNeeded(context: String) {
+        let backlog = pendingTaskActivities.count + pendingInstantGreps.count
+        guard backlog >= taskBacklogDiagnosticThreshold else { return }
+        NSLog("[StreamDiag] task_backlog_high count=%d context=%@", backlog, context)
     }
 
     // MARK: - Composer
@@ -1649,12 +1718,7 @@ struct ChatPanelView: View {
                     inputText = text
                     isInputFocused = true
                 },
-                onInputTextChanged: { newValue in
-                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if hasStrictPlanCommandPrefix(trimmed) {
-                        planToggleEnabled = true
-                    }
-                },
+                onInputTextChanged: { _ in },
                 onRunQuickCommand: { text in
                     inputText = text
                     isInputFocused = true
@@ -2676,13 +2740,16 @@ struct ChatPanelView: View {
         }
 
         // Aprire il pannello plan non deve attivare automaticamente la pianificazione.
-        let shouldRunPlanInline = forcePlanInline || (coderMode == .agent && planToggleEnabled)
+        let shouldRunPlanInline = resolveShouldRunPlanInline(
+            forcePlanInline: forcePlanInline,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled
+        )
         if coderMode == .plan || shouldRunPlanInline {
             planFlowPhase = .analyzing
             planAnalysisContext = ""
             planUserRequest = text
             planClarificationAnswers = ""
-            openPlanPanelForCurrentContext()
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
         }
@@ -2871,11 +2938,9 @@ struct ChatPanelView: View {
             context: ctx,
             imageURLs: imageURLsToSend,
             onText: { [self] content in
-                // Full content → plan panel via planStreamingContent
                 planStreamingContent = content
-                // Chat shows only status summary
                 applyStreamingUpdate(
-                    content: "📋 **Fase 1/3 — Analisi codebase in corso…**\n\nApri il pannello Planning per vedere i dettagli.",
+                    content: content,
                     conversationId: conversationId
                 )
             },
@@ -2898,6 +2963,7 @@ struct ChatPanelView: View {
                 in: conversationId,
                 persistImmediately: true
             )
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
         }
 
         // ========================
@@ -2906,6 +2972,10 @@ struct ChatPanelView: View {
         await MainActor.run {
             planFlowPhase = .questioning
             planStreamingContent = ""
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: conversationId
+            )
         }
 
         let questionPrompt = buildPhase2QuestionPrompt(
@@ -2920,7 +2990,7 @@ struct ChatPanelView: View {
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
-                    content: "📋 **Fase 2/3 — Valutazione domande di chiarimento…**\n\nApri il pannello Planning per i dettagli.",
+                    content: content,
                     conversationId: conversationId
                 )
             },
@@ -2954,12 +3024,13 @@ struct ChatPanelView: View {
                     planningState = .awaitingClarification(questions: questionText)
                 }
                 planStreamingContent = questionText
-                let summaryContent = "❓ **Fase 2/3 — Servono chiarimenti.** Apri il pannello Planning per rispondere alle domande."
                 chatStore.updateLastAssistantMessage(
-                    content: summaryContent, in: conversationId, persistImmediately: true
+                    content: questionText, in: conversationId, persistImmediately: true
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
-                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                }
             }
             // STOP — Phase 3 will be triggered by submitPlanClarificationAnswers() → continuePlanFlowPhase3()
             return
@@ -3014,11 +3085,9 @@ struct ChatPanelView: View {
             context: ctx,
             imageURLs: nil,
             onText: { [self] content in
-                // Full content → plan panel via planStreamingContent
                 planStreamingContent = content
-                // Chat shows only status summary
                 applyStreamingUpdate(
-                    content: "📋 **Fase 3/3 — Generazione piano in corso…**\n\nApri il pannello Planning per vedere i dettagli.",
+                    content: content,
                     conversationId: conversationId
                 )
             },
@@ -3088,7 +3157,9 @@ struct ChatPanelView: View {
             await MainActor.run {
                 planFlowPhase = .proposalReady
                 planningState = .awaitingChoice(planContent: full, options: options)
-                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                }
             }
         } else {
             // No options parsed — stay in generating state and show raw output
@@ -3193,7 +3264,7 @@ struct ChatPanelView: View {
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
-                    content: "📋 **Analisi aggiuntiva in corso…**\n\nApri il pannello Planning per i dettagli.",
+                    content: content,
                     conversationId: conversationId
                 )
             },
@@ -3226,12 +3297,14 @@ struct ChatPanelView: View {
                 planningState = .awaitingClarification(questions: q)
                 planStreamingContent = reAnalysisText
                 chatStore.updateLastAssistantMessage(
-                    content: "❓ **Follow-up — Servono ulteriori chiarimenti.** Apri il pannello Planning per rispondere.",
+                    content: q,
                     in: conversationId,
                     persistImmediately: true
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
-                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                }
             }
             // STOP — will re-enter via submitPlanClarificationAnswers → continuePlanFlowPhase3
             return
@@ -3667,7 +3740,14 @@ struct ChatPanelView: View {
         conversationId convId: UUID?
     ) {
         if t == "reasoning", let output = p["output"], !output.isEmpty {
-            streamingReasoningText = output
+            let existing =
+                streamingReasoningConversationId == convId
+                ? streamingReasoningText
+                : nil
+            streamingReasoningText = Self.mergeReasoningText(
+                existing: existing,
+                incoming: output
+            )
             streamingReasoningConversationId = convId
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
@@ -3694,6 +3774,50 @@ struct ChatPanelView: View {
                 model: p["model"] ?? "gpt-4o-mini")
         }
         recordTaskActivity(type: t, payload: p, providerId: pid)
+    }
+
+    static func mergeReasoningText(existing: String?, incoming: String) -> String {
+        let incomingTrimmed = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !incomingTrimmed.isEmpty else { return existing ?? "" }
+        guard let existing, !existing.isEmpty else {
+            return String(incoming.prefix(24_000))
+        }
+
+        if incoming == existing { return existing }
+        if incoming.hasPrefix(existing) {
+            return String(incoming.prefix(24_000))
+        }
+        if existing.hasPrefix(incoming) || existing.contains(incoming) {
+            return existing
+        }
+        if incoming.contains(existing) {
+            return String(incoming.prefix(24_000))
+        }
+
+        let overlap = reasoningSuffixPrefixOverlapLength(lhs: existing, rhs: incoming)
+        if overlap > 0 {
+            let suffixStart = incoming.index(incoming.startIndex, offsetBy: overlap)
+            let merged = existing + String(incoming[suffixStart...])
+            return String(merged.suffix(24_000))
+        }
+
+        let separator =
+            existing.hasSuffix("\n") || incoming.hasPrefix("\n")
+            ? "\n"
+            : "\n\n"
+        let merged = existing + separator + incoming
+        return String(merged.suffix(24_000))
+    }
+
+    private static func reasoningSuffixPrefixOverlapLength(lhs: String, rhs: String) -> Int {
+        let maxOverlap = min(lhs.count, rhs.count, 1_024)
+        guard maxOverlap > 0 else { return 0 }
+        for size in stride(from: maxOverlap, through: 1, by: -1) {
+            if lhs.suffix(size) == rhs.prefix(size) {
+                return size
+            }
+        }
+        return 0
     }
 
     private func clearStreamingReasoning(for conversationId: UUID?) {
@@ -3789,7 +3913,9 @@ struct ChatPanelView: View {
                 let summaryContent = "Servono chiarimenti per procedere con il piano. Apri il pannello Planning per rispondere alle domande."
                 chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 await MainActor.run {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    }
                 }
             }
             if case .awaitingChoice(_, let opts) = classification.planningState {
@@ -3830,7 +3956,9 @@ struct ChatPanelView: View {
                     chatStore.setPlanBoard(board, for: planConvId)
                 }
                 await MainActor.run {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
+                        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    }
                 }
             }
         }
