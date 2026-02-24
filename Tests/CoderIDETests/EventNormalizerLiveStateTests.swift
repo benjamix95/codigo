@@ -114,6 +114,33 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testPlanStepUpdateAlsoEmitsTaskActivityForRealtimeVisibility() {
+        let events = EventNormalizer.normalize(
+            type: "plan_step_update",
+            payload: [
+                "step_id": "1",
+                "status": "running",
+                "title": "Aggiorna parser"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planStepUpdate(let stepId, let status, let title) = $0 {
+                return stepId == "1" && status == .running && title == "Aggiorna parser"
+            }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_step_update"
+                    && activity.title == "Aggiorna parser"
+                    && activity.phase == .planning
+                    && activity.isRunning
+            }
+            return false
+        })
+    }
+
     func testReasoningEventsAreIgnored() {
         let events = EventNormalizer.normalize(
             type: "reasoning",

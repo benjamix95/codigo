@@ -1,21 +1,21 @@
 # CoderIDE
 
-IDE Cursor-like nativo in Swift per macOS, con un assistente AI ("Coder") che supporta multipli provider LLM.
+Native Cursor-like IDE for macOS built in Swift, with an integrated AI assistant ("Coder") that supports multiple LLM providers.
 
-## Funzionalità
+## Features
 
-- **Coder**: assistente AI integrato nel pannello chat
-- **Provider multipli**: OpenAI API, Codex CLI, Claude Code CLI
-- **Workspace**: apertura cartelle, contesto file inviato al Coder
-- **MCP**: supporto Model Context Protocol (SDK Swift)
-- **Cronologia**: conversazioni salvate in modo persistente
+- **Coder**: integrated AI assistant in the chat panel
+- **Multiple providers**: OpenAI API, Codex CLI, Claude Code CLI
+- **Workspace**: open folders and send file context to Coder
+- **MCP**: Model Context Protocol support (Swift SDK)
+- **History**: persistently saved conversations
 
-## Requisiti
+## Requirements
 
 - macOS 14+ (Sonoma)
 - Xcode 16+ (Swift 5.9/6)
 
-## Installazione
+## Installation
 
 ```bash
 cd codigo
@@ -23,28 +23,28 @@ swift build
 swift run Codigo
 ```
 
-**Input vocale (microfono)**: per il riconoscimento vocale TCC richiede un bundle .app. Usa:
+**Voice input (microphone):** Speech recognition TCC requires an app bundle. Use:
 
 ```bash
 ./build-app.sh
 open Codigo.app
 ```
 
-## Configurazione
+## Configuration
 
-1. **OpenAI API**: Imposta la tua API key in Impostazioni (icona ingranaggio)
-2. **Codex CLI**: Installa con `brew install codex`, poi "Login Codex" nelle impostazioni
-3. **Claude Code CLI**: Installa da [claude.com/code](https://claude.com/code)
+1. **OpenAI API**: Set your API key in Settings (gear icon)
+2. **Codex CLI**: Install with `brew install codex`, then use "Login Codex" in Settings
+3. **Claude Code CLI**: Install from [claude.com/code](https://claude.com/code)
 
-## Struttura
+## Structure
 
-- `CoderEngine/`: libreria con provider LLM, MCP, protocolli
-- `Sources/CoderIDE/`: app macOS SwiftUI
+- `CoderEngine/`: library with LLM providers, MCP, and shared protocols
+- `Sources/CoderIDE/`: macOS SwiftUI app
 
-## Provider
+## Providers
 
-| Provider      | Auth                      | Note                          |
-|---------------|---------------------------|-------------------------------|
-| OpenAI API    | API Key                   | gpt-4o-mini (default)        |
-| Codex CLI     | `codex login` o API key   | Richiede Codex installato    |
-| Claude CLI    | Config Claude Code        | `claude -p` in modalità headless |
+| Provider      | Auth                      | Notes                          |
+|---------------|---------------------------|--------------------------------|
+| OpenAI API    | API Key                   | `gpt-4o-mini` (default)        |
+| Codex CLI     | `codex login` or API key  | Requires Codex installation    |
+| Claude CLI    | Claude Code configuration | `claude -p` in headless mode   |

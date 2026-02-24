@@ -90,7 +90,7 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Todo updated",
+                        title: "Todo aggiornato",
                         detail: todo.title,
                         payload: payload,
                         timestamp: timestamp,
@@ -107,8 +107,8 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Todo read",
-                        detail: "Requested current task status",
+                        title: "Todo letto",
+                        detail: "Richiesto stato attività corrente",
                         payload: payload,
                         timestamp: timestamp,
                         phase: .planning,
@@ -124,6 +124,16 @@ enum EventNormalizer {
            let status = PlanStepStatus(rawValue: statusRaw) {
             let stepTitle = payload["title"] ?? payload["detail"]
             events.append(.planStepUpdate(stepId: stepId, status: status, title: stepTitle))
+            events.append(.taskActivity(TaskActivity(
+                type: "plan_step_update",
+                title: stepTitle ?? "Step piano aggiornato",
+                detail: payload["detail"] ?? "Stato: \(status.rawValue)",
+                payload: payload,
+                timestamp: timestamp,
+                phase: .planning,
+                isRunning: status == .running,
+                groupId: payload["group_id"] ?? stepId
+            )))
             return events
         }
 
@@ -273,31 +283,31 @@ enum EventNormalizer {
     private static func defaultTitle(for type: String) -> String {
         switch type {
         case "process_paused":
-            return "Process paused"
+            return "Processo in pausa"
         case "process_resumed":
-            return "Process resumed"
+            return "Processo ripreso"
         case "read_batch_started":
-            return "Batch file read started"
+            return "Lettura batch file avviata"
         case "read_batch_completed":
-            return "Batch file read completed"
+            return "Lettura batch file completata"
         case "turn_started":
-            return "Turn started"
+            return "Turno avviato"
         case "turn_completed":
-            return "Turn completed"
+            return "Turno completato"
         case "web_search_started":
-            return "Web search started"
+            return "Ricerca web avviata"
         case "web_search_completed":
-            return "Web search completed"
+            return "Ricerca web completata"
         case "web_search_failed":
-            return "Web search failed"
+            return "Ricerca web fallita"
         case "tool_execution_error":
-            return "Tool execution error"
+            return "Errore esecuzione tool"
         case "tool_validation_error":
-            return "Tool validation error"
+            return "Errore validazione tool"
         case "tool_timeout":
-            return "Tool timeout"
+            return "Timeout tool"
         case "permission_denied":
-            return "Permission denied"
+            return "Permesso negato"
         default:
             return type
         }

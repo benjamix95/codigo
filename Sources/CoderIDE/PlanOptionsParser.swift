@@ -1,6 +1,6 @@
 import Foundation
 
-/// Opzione estratta da un piano AI
+/// Option extracted from an AI plan.
 struct PlanOption: Identifiable, Equatable, Codable {
     let id: Int
     let title: String
@@ -37,7 +37,7 @@ struct PlanClarificationSubmission: Equatable {
     let finalMandatoryNote: String
 }
 
-/// Estrae opzioni numerate da un testo di piano (es. "## Opzione 1: ...", "Opzione 2:", ecc.)
+/// Extracts numbered options from plan text (e.g. "## Option 1: ...", "Option 2:", etc.).
 enum PlanOptionsParser {
     private static let optionHeaderPattern =
         #"(?i)(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
@@ -169,15 +169,15 @@ enum PlanOptionsParser {
         return PlanClarificationQuestionnaire(questions: parsedQuestions)
     }
 
-    /// Estrae le domande di chiarimento dal blocco "## Domande di chiarimento".
-    /// Restituisce nil se il blocco non è presente (→ procedere con parsing opzioni).
+    /// Extracts clarification questions from the "## Questions" block.
+    /// Returns nil if no clarification block is found (then proceed with option parsing).
     static func parseClarificationQuestions(from text: String) -> [String]? {
         if let structured = parseClarificationQuestionnaire(from: text) {
             return structured.questions.map(\.prompt)
         }
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
-        // Cerca heading Markdown "#/##/### Domande di chiarimento" o variazioni.
+        // Search for Markdown heading "#/##/### Questions" or variants.
         guard normalized.range(of: clarificationHeaderPattern, options: .regularExpression) != nil else {
             return nil
         }
@@ -193,7 +193,7 @@ enum PlanOptionsParser {
                 continue
             }
             if inBlock {
-                // Esci dal blocco se incontriamo un altro heading Markdown.
+                // Exit the block if another Markdown heading is found.
                 if trimmed.hasPrefix("#") {
                     break
                 }
@@ -224,10 +224,10 @@ enum PlanOptionsParser {
         var i = 0
         while i < lines.count {
             let line = lines[i]
-            // Match "Opzione 1:" / "Option 1:" / "Approccio A:" o con heading markdown.
+            // Match "Option 1:" / "Approach A:" or with Markdown heading.
             if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
-                var title = "Opzione"
+                var title = "Option"
                 if let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#),
                    let digitMatch = digitsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
                    let digitRange = Range(digitMatch.range, in: line),
@@ -329,7 +329,7 @@ enum PlanOptionsParser {
         option.id == 1 && option.title == "Full plan"
     }
 
-    /// Estrae gli step todo dalla sezione "## Todo" di un'opzione di piano.
+    /// Extracts todo steps from the "## Todo" section of a plan option.
     /// Cerca righe "- [ ] step" o "- step" e restituisce i titoli.
     static func extractTodosFromOptionText(_ optionText: String) -> [String] {
         let lines = optionText.components(separatedBy: .newlines)

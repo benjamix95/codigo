@@ -238,6 +238,25 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
     }
 
+    func testShouldEnableTaskPanelForOperationalModes() {
+        XCTAssertTrue(shouldEnableTaskPanelForMode(.agent))
+        XCTAssertTrue(shouldEnableTaskPanelForMode(.plan))
+        XCTAssertTrue(shouldEnableTaskPanelForMode(.codeReviewMultiSwarm))
+        XCTAssertTrue(shouldEnableTaskPanelForMode(.agentSwarm))
+        XCTAssertFalse(shouldEnableTaskPanelForMode(.ide))
+        XCTAssertFalse(shouldEnableTaskPanelForMode(.mcpServer))
+    }
+
+    func testResolveDebugFlowPhaseAliasSupportsLegacyPhaseNames() {
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("analyzing"), .describing)
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("reproduce"), .reproducing)
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("fix"), .fixing)
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("instrument"), .instrumenting)
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("verify"), .verifying)
+        XCTAssertEqual(resolveDebugFlowPhaseAlias("resolve"), .resolved)
+        XCTAssertNil(resolveDebugFlowPhaseAlias("unexpected_phase"))
+    }
+
     func testResolveShouldRunPlanInlineOneShotBehaviorForSlashPlan() {
         let firstSend = resolveShouldRunPlanInline(
             forcePlanInline: true,

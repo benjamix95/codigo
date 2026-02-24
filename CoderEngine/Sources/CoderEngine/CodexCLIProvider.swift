@@ -609,7 +609,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     .prefix(240)
             )
             var payload: [String: String] = [
-                "title": firstString(in: item, keys: ["title", "label"]) ?? "Reasoning",
+                "title": firstString(in: item, keys: ["title", "label"]) ?? "Ragionamento",
                 "output": output,
                 "detail": detail
             ]
@@ -734,7 +734,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return payload.contains("compaction")
     }
 
-    private static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
+    static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
         var events: [(type: String, payload: [String: String])] = []
         let markers = CoderIDEMarkerParser.parseStreamingChunk(text, carry: &carry)
         for marker in markers {
@@ -747,6 +747,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "instant_grep", payload: marker.payload))
             case "plan_step":
                 events.append((type: "plan_step_update", payload: marker.payload))
+            case "debug_panel":
+                events.append((type: "debug_panel_update", payload: marker.payload))
             case "read_batch":
                 events.append((type: "read_batch_started", payload: marker.payload))
             case "web_search":

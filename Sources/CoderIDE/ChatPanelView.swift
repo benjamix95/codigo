@@ -116,11 +116,11 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
         .map { answer in
             var lines: [String] = [
                 "\(answer.questionId). \(answer.question)",
-                "   Selected answer: \(answer.optionId)) \(answer.optionText)",
+                "   Risposta selezionata: \(answer.optionId)) \(answer.optionText)",
             ]
             let custom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !custom.isEmpty {
-                lines.append("   Custom answer (takes precedence): \(custom)")
+                lines.append("   Risposta personalizzata (precedenza): \(custom)")
             }
             return lines.joined(separator: "\n")
         }
@@ -128,12 +128,12 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
 
     let finalNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
     return """
-    Answers to plan clarification questions:
+    Risposte alle domande di chiarimento del piano:
     \(responseBody)
 
-    User mandatory final note: \(finalNote)
+    Nota finale obbligatoria utente: \(finalNote)
 
-    After receiving these answers, perform additional codebase analysis based on the responses. If new ambiguities arise, you may ask further clarification questions using the same ## Questions format. Only propose final options (## Option with ## Todo) when fully confident.
+    Dopo queste risposte, esegui analisi aggiuntiva del codebase in base ai vincoli indicati. Se emergono nuove ambiguità puoi fare ulteriori domande nello stesso formato ## Questions. Proponi opzioni finali (## Option con ## Todo) solo quando sei pienamente confidente.
     """
 }
 
@@ -165,25 +165,25 @@ func buildPlanExecutionPrompt(
         let prompt = """
         \(workflowInstructions)
 
-        **RESUME IMPLEMENTATION** — Continue from where you left off.
+        **RIPRESA IMPLEMENTAZIONE** — Continua da dove eri rimasto.
 
         \(executionPlanBase)
 
-        **Already completed todos:** Verify that the corresponding changes are present in the files. If missing or reverted, re-apply them.
+        **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
         \(doneList.isEmpty ? "(none)" : doneList)
 
-        **Todos to complete:**
-        \(pendingList.isEmpty ? "(all completed)" : pendingList)
+        **Todo da completare:**
+        \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
 
-        Proceed by verifying the done items, re-applying any missing changes, then complete the remaining todos.
+        Procedi verificando i task completati, riapplicando quelli mancanti, poi completa i rimanenti.
         """
         return (prompt, true)
     }
 
-    var prompt = "\(workflowInstructions)\n\nThe user selected an approach from a plan. Implement it following the TODOs EXACTLY in the order listed. The TODOs are your mandatory checklist — do not deviate, skip, or reorder.\n\n\(executionPlanBase)"
+    var prompt = "\(workflowInstructions)\n\nL'utente ha scelto un'opzione del piano. Implementala seguendo i TODO ESATTAMENTE nell'ordine indicato. I TODO sono la checklist obbligatoria: non deviare, non saltare e non riordinare.\n\n\(executionPlanBase)"
     if !planTodos.isEmpty {
         let todoList = planTodos.enumerated().map { "\($0.offset + 1). [ ] \($0.element)" }.joined(separator: "\n")
-        prompt += "\n\n**MANDATORY TODOs (follow in order, complete ALL):**\n\(todoList)\n\nREMEMBER: Every TODO must go from pending → in_progress → done. Do not finish until ALL are done."
+        prompt += "\n\n**TODO OBBLIGATORI (segui in ordine, completa TUTTI):**\n\(todoList)\n\nRICORDA: ogni TODO deve passare da pending -> in_progress -> done. Non concludere finché non sono tutti done."
     }
     return (prompt, false)
 }
@@ -209,6 +209,41 @@ func shouldShowComposer(for mode: CoderMode) -> Bool {
 
 func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
     true
+}
+
+func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
+    switch mode {
+    case .agent, .plan, .codeReviewMultiSwarm, .agentSwarm:
+        return true
+    case .ide, .mcpServer:
+        return false
+    }
+}
+
+func resolveDebugFlowPhaseAlias(_ rawValue: String?) -> DebugFlowPhase? {
+    guard let rawValue else { return nil }
+    let normalized = rawValue
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if let exact = DebugFlowPhase(rawValue: normalized) {
+        return exact
+    }
+    switch normalized {
+    case "analyze", "analyzing", "analysis", "describe":
+        return .describing
+    case "reproduce", "reproducing":
+        return .reproducing
+    case "fix", "fixing":
+        return .fixing
+    case "instrument", "instrumenting":
+        return .instrumenting
+    case "verify", "verifying":
+        return .verifying
+    case "resolve", "resolved":
+        return .resolved
+    default:
+        return nil
+    }
 }
 
 struct ComposerFrozenTimerState: Equatable {
@@ -269,7 +304,7 @@ func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     }
     let remainder = String(text.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
     let prompt = remainder.isEmpty
-        ? "Generate a structured plan with alternative options, pros/cons and complexity."
+        ? "Genera un planning strutturato con opzioni alternative, pro/contro e complessità."
         : remainder
     return PlanCommandParseResult(
         displayedInput: prompt,
@@ -1470,7 +1505,7 @@ struct ChatPanelView: View {
     }
 
     private func enableTaskPanelIfNeeded() {
-        guard coderMode == .agentSwarm else { return }
+        guard shouldEnableTaskPanelForMode(coderMode) else { return }
         if !taskPanelEnabled {
             taskPanelEnabled = true
         }
@@ -1689,7 +1724,7 @@ struct ChatPanelView: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 showDebugPanel = true
             }
-            if let phaseStr = phase, let debugPhase = DebugFlowPhase(rawValue: phaseStr) {
+            if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
                 debugStore.phase = debugPhase
             }
         case "close":
@@ -1698,7 +1733,7 @@ struct ChatPanelView: View {
             }
             debugStore.phase = .idle
         case "phase":
-            if let phaseStr = phase, let debugPhase = DebugFlowPhase(rawValue: phaseStr) {
+            if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
                 debugStore.setPhase(debugPhase)
             }
         case "stream":

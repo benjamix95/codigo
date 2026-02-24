@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Card che mostra le domande di chiarimento e invita l'utente a rispondere nel composer.
+/// Card showing clarification questions and asking the user to answer in the composer.
 struct PlanClarificationView: View {
     let questions: String
     let planColor: Color
@@ -11,7 +11,7 @@ struct PlanClarificationView: View {
                 Image(systemName: "questionmark.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(planColor)
-                Text("Domande di chiarimento")
+                Text("Clarification questions")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -24,7 +24,7 @@ struct PlanClarificationView: View {
             )
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("Rispondi alle domande qui sotto per continuare con l'analisi e il piano.")
+            Text("Answer the questions below to continue analysis and planning.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -78,7 +78,7 @@ struct PlanClarificationWizardView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if !isConfirmStep {
-                    Text("\(min(currentQuestionIndex + 1, orderedQuestions.count)) di \(orderedQuestions.count)")
+                    Text("\(min(currentQuestionIndex + 1, orderedQuestions.count)) of \(orderedQuestions.count)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
                 }
@@ -89,7 +89,7 @@ struct PlanClarificationWizardView: View {
             } else if let question = currentQuestion {
                 questionContent(question)
             } else {
-                Text("Questionario non disponibile.")
+                Text("Questionnaire unavailable.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -163,11 +163,11 @@ struct PlanClarificationWizardView: View {
 
         if shouldShowCustomField(for: question) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Risposta personalizzata (prevale)")
+                Text("Custom response (overrides selection)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
-                    "Scrivi qui la risposta personalizzata...",
+                    "Write your custom response here...",
                     text: customTextBinding(for: question.id),
                     axis: .vertical
                 )
@@ -179,7 +179,7 @@ struct PlanClarificationWizardView: View {
                     advanceFromQuestion(question)
                 }
                 if isCustomFieldRequiredButEmpty(question) {
-                    Text("Risposta personalizzata obbligatoria per questa opzione.")
+                    Text("Custom response is required for this option.")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -194,7 +194,7 @@ struct PlanClarificationWizardView: View {
         let canContinue = isQuestionAnswered(question)
         let isLastQuestion = isLastQuestion(question)
         HStack(spacing: 8) {
-            Button("Indietro") {
+            Button("Back") {
                 if currentQuestionIndex > 0 {
                     currentQuestionIndex -= 1
                 }
@@ -205,7 +205,7 @@ struct PlanClarificationWizardView: View {
 
             Spacer()
 
-            Button(isLastQuestion ? "Vai a conferma" : "Continua") {
+            Button(isLastQuestion ? "Go to confirmation" : "Continue") {
                 advanceFromQuestion(question)
             }
             .buttonStyle(.borderedProminent)
@@ -217,7 +217,7 @@ struct PlanClarificationWizardView: View {
 
     private var confirmContent: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Conferma finale")
+            Text("Final confirmation")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
 
@@ -229,18 +229,18 @@ struct PlanClarificationWizardView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                     if let selected {
-                        Text("Risposta selezionata: \(selected.id)) \(selected.text)")
+                        Text("Selected answer: \(selected.id)) \(selected.text)")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.primary)
                         let custom = customTextByQuestionId[question.id]?
                             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                         if !custom.isEmpty {
-                            Text("Risposta personalizzata (prevale): \(custom)")
+                            Text("Custom response (overrides selection): \(custom)")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(planColor)
                         }
                     } else {
-                        Text("Risposta: non selezionata")
+                        Text("Answer: not selected")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
@@ -248,11 +248,11 @@ struct PlanClarificationWizardView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Nota finale obbligatoria")
+                Text("Mandatory final note")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
-                    "Aggiungi dettagli finali indispensabili per il piano...",
+                    "Add essential final details for the plan...",
                     text: $finalMandatoryNote,
                     axis: .vertical
                 )
@@ -264,14 +264,14 @@ struct PlanClarificationWizardView: View {
                     submitIfPossible()
                 }
                 if trimmedFinalMandatoryNote.isEmpty {
-                    Text("Campo obbligatorio per inviare il wizard.")
+                    Text("This field is required to submit the wizard.")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
             }
 
             HStack(spacing: 8) {
-                Button("Torna alle domande") {
+                Button("Back to questions") {
                     isConfirmStep = false
                     if let question = currentQuestion, shouldShowCustomField(for: question) {
                         focusedField = .customQuestion(question.id)
@@ -284,7 +284,7 @@ struct PlanClarificationWizardView: View {
 
                 Spacer()
 
-                Button("Conferma finale") {
+                Button("Final confirmation") {
                     submitIfPossible()
                 }
                 .buttonStyle(.borderedProminent)
@@ -408,7 +408,7 @@ struct PlanOptionsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Scegli un'opzione o aggiungi una risposta")
+            Text("Choose an option or add a custom response")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
 
@@ -451,12 +451,12 @@ struct PlanOptionsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Altra risposta")
+                Text("Custom response")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 HStack(alignment: .bottom, spacing: 6) {
-                    TextField("Scrivi la tua risposta...", text: $customText, axis: .vertical)
+                    TextField("Write your response...", text: $customText, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(1...4)
                         .focused($isCustomFocused)

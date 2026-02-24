@@ -27,15 +27,15 @@ func planBuildDisabledReason(
     }
     switch phase {
     case .idle:
-        return "Build non disponibile in idle: genera o seleziona prima un piano."
+        return "Build non disponibile in stato idle: genera o seleziona prima un piano."
     case .analyzing:
-        return "Codebase analysis in progress: please wait for completion."
+        return "Analisi codebase in corso: attendi il completamento."
     case .questioning:
         return "Servono chiarimenti: rispondi alle domande prima del build."
     case .generating:
-        return "Plan generation in progress: please wait for completion."
+        return "Generazione piano in corso: attendi il completamento."
     case .building:
-        return "Build in esecuzione..."
+        return "Build in corso..."
     case .proposalReady, .readyToBuild:
         return nil
     }
@@ -62,8 +62,8 @@ func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
     hasPlanContext
 }
 
-/// Pannello laterale stile Cursor per il piano.
-/// Top bar fissa (breadcrumb, model picker, Build), contenuto scrollabile sotto.
+/// Cursor-style side panel for planning.
+/// Fixed top bar (breadcrumb, model picker, Build), with scrollable content below.
 struct PlanPanelView: View {
     @ObservedObject var todoStore: TodoStore
     @ObservedObject var chatStore: ChatStore
@@ -71,7 +71,7 @@ struct PlanPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     let conversationId: UUID?
-    /// True solo quando il task in corso appartiene a questa conversazione (evita "Building…" su thread diverso).
+    /// True only when the current task belongs to this conversation (prevents "Building…" on other threads).
     let isCurrentConversationLoading: Bool
     let planningState: PlanningState
     let planFlowPhase: PlanFlowPhase
@@ -83,7 +83,7 @@ struct PlanPanelView: View {
     let onSubmitClarificationAnswers: (PlanClarificationSubmission) -> Void
     let onBuild: (String, String?, Bool) -> Void
     let onStop: () -> Void
-    /// Chiamato quando l'utente seleziona una voce della history con contenuto buildabile (per abilitare il pulsante Build principale).
+    /// Called when the user selects a history entry with executable content (enables main Build button).
     var onHistoryEntrySelectedForBuild: (() -> Void)? = nil
 
     @State private var planText: String = ""
@@ -122,7 +122,7 @@ struct PlanPanelView: View {
                         )
                     }
 
-                    // ── 2. Domande di chiarimento (se in attesa) ──
+                    // ── 2. Clarification questions (if waiting) ──
                     if case .awaitingClarification(let questions) = planningState {
                         if let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
                             PlanClarificationWizardView(
@@ -167,7 +167,7 @@ struct PlanPanelView: View {
                         walkthroughSection(wt)
                     }
 
-                    // ── 8. History persistente ──
+                    // ── 8. Persistent history ──
                     historySection
 
                     // ── 9. Live activity trace (task activities at the bottom) ──
@@ -195,7 +195,7 @@ struct PlanPanelView: View {
             buildHint = nil
         }
         .onChange(of: conversationId) { _, _ in
-            // Nuova conversazione => pannello plan deve riflettere subito il nuovo contesto.
+            // New conversation => plan panel should immediately reflect the new context.
             planText = ""
             isEditing = false
             buildHint = nil
@@ -233,7 +233,7 @@ struct PlanPanelView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .help("Chiudi (Shift+Tab)")
+                .help("Close (Shift+Tab)")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -326,7 +326,7 @@ struct PlanPanelView: View {
                 planProviderId = nil
             } label: {
                 HStack {
-                    Text("Usa default")
+                    Text("Use default")
                     if planProviderId == nil {
                         Image(systemName: "checkmark")
                     }
@@ -442,23 +442,23 @@ struct PlanPanelView: View {
         case .idle:
             return buildHint ?? buildDisabledReason
         case .analyzing:
-            return "Analisi codebase in corso…"
+            return "Codebase analysis in progress…"
         case .questioning:
-            return "In attesa di chiarimenti…"
+            return "Waiting for clarifications…"
         case .generating:
-            return "Generazione piano in corso…"
+            return "Plan generation in progress…"
         case .proposalReady:
             if let reason = buildDisabledReason {
                 return reason
             }
-            return "Proposta pronta: seleziona/conferma l'opzione e avvia Build."
+            return "Proposal ready: select/confirm an option and start Build."
         case .readyToBuild:
             if let reason = buildDisabledReason {
                 return reason
             }
-            return "Piano pronto: puoi avviare Build."
+            return "Plan ready: you can start Build."
         case .building:
-            return "Build in esecuzione..."
+            return "Build in progress..."
         }
     }
 
@@ -470,12 +470,12 @@ struct PlanPanelView: View {
                     Button {
                         performBuild()
                     } label: {
-                        Label("Esegui di nuovo", systemImage: "arrow.clockwise")
+                        Label("Run again", systemImage: "arrow.clockwise")
                     }
                     Button {
                         downloadCurrentPlan()
                     } label: {
-                        Label("Scarica .md", systemImage: "arrow.down.doc")
+                        Label("Download .md", systemImage: "arrow.down.doc")
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -503,7 +503,7 @@ struct PlanPanelView: View {
                 Button {
                     if isCurrentConversationLoading {
                         onStop()
-                        buildHint = "Build interrotto"
+                        buildHint = "Build interrupted"
                     } else {
                         performBuild()
                     }
@@ -535,7 +535,7 @@ struct PlanPanelView: View {
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
                 .buttonStyle(PlanBuildButtonStyle())
-                .help(isCurrentConversationLoading ? "Ferma il build (⌘⏎)" : (buildDisabledReason ?? "Esegui il plan (⌘⏎)"))
+                .help(isCurrentConversationLoading ? "Stop build (⌘⏎)" : (buildDisabledReason ?? "Run plan (⌘⏎)"))
                 .disabled(!isBuildEnabledByPhase && !isCurrentConversationLoading)
             }
         }
@@ -543,16 +543,16 @@ struct PlanPanelView: View {
 
     private func performBuild() {
         guard isBuildEnabledByPhase else {
-            buildHint = buildDisabledReason ?? phaseHint ?? "Build non disponibile in questa fase."
+            buildHint = buildDisabledReason ?? phaseHint ?? "Build unavailable in this phase."
             return
         }
         guard let choice = resolvedBuildChoice?.text else {
-            buildHint = "Nessuna opzione disponibile da eseguire."
+            buildHint = "No executable option available."
             return
         }
         let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
         guard !extractedTodos.isEmpty else {
-            buildHint = "Build bloccata: il piano selezionato non contiene la sezione ## Todo."
+            buildHint = "Build blocked: selected plan does not include a ## Todo section."
             return
         }
         buildHint = "Build started..."
@@ -596,7 +596,7 @@ struct PlanPanelView: View {
 
     // MARK: - Plan Content
 
-    /// Contenuto live dalla conversazione durante streaming; altrimenti planText (buffer locale in edit).
+    /// Live conversation content while streaming; otherwise planText (local edit buffer).
     /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     private var displayPlanContent: String {
         if isEditing { return planText }
@@ -638,7 +638,7 @@ struct PlanPanelView: View {
                     }
                     isEditing.toggle()
                 } label: {
-                    Text(isEditing ? "Fine" : "Modifica")
+                    Text(isEditing ? "Done" : "Edit")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(planColor)
                 }
@@ -665,10 +665,10 @@ struct PlanPanelView: View {
                         .controlSize(.regular)
                         .scaleEffect(0.8)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Analisi in corso")
+                        Text("Analysis in progress")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text("Il provider sta esplorando il codebase…")
+                        Text("The provider is exploring the codebase…")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(.tertiary)
                     }
@@ -689,7 +689,7 @@ struct PlanPanelView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 16))
                         .foregroundStyle(.quaternary)
-                    Text("Workspace vuoto. Seleziona un planning dallo storico o genera un nuovo plan.")
+                    Text("Workspace is empty. Select a plan from history or generate a new one.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -724,11 +724,11 @@ struct PlanPanelView: View {
                             .font(.system(size: 10, weight: .semibold))
                     }
                     .buttonStyle(.plain)
-                    .help("Elimina tutta la history")
+                    .help("Delete all history")
                 }
             }
             if items.isEmpty {
-                Text("Nessun planning salvato per questo contesto.")
+                Text("No saved plans for this context.")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .padding(.vertical, 6)
@@ -760,7 +760,7 @@ struct PlanPanelView: View {
                                 hasBuildChoice: true,
                                 allowIdleRebuild: true
                             ) else {
-                                buildHint = phaseHint ?? "Build non disponibile in questa fase."
+                                buildHint = phaseHint ?? "Build unavailable in this phase."
                                 return
                             }
                             planHistoryStore.setSelectedEntry(id: entry.id)
@@ -768,7 +768,7 @@ struct PlanPanelView: View {
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
                             let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
                             guard !extractedTodos.isEmpty else {
-                                buildHint = "Build bloccata: il piano selezionato non contiene la sezione ## Todo."
+                                buildHint = "Build blocked: selected plan does not include a ## Todo section."
                                 return
                             }
                             onBuild(choice, planProviderId, true)
