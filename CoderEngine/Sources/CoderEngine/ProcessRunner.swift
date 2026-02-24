@@ -1,6 +1,10 @@
 import Foundation
 
-/// Esegue un comando in subprocess e restituisce l'output line-by-line
+/// Esegue un comando in subprocess e restituisce l'output line-by-line.
+///
+/// Usa `readabilityHandler` per stdout in modo che le righe vengano emesse
+/// immediatamente appena il processo le scrive, senza aspettare il buffer
+/// della Pipe / FileHandle.bytes di Foundation.
 struct ProcessRunner {
     private static let stdoutTailCapacity = 50
     private static let lineFeed: UInt8 = 10
@@ -20,6 +24,19 @@ struct ProcessRunner {
         }
     }
 
+    // MARK: - Shared mutable state for readabilityHandler callbacks
+
+    /// Thread-safe holder for the mutable buffers accessed from readabilityHandler callbacks.
+    /// readabilityHandler fires on a dispatch queue — all access is serialised by that queue,
+    /// so the `@unchecked Sendable` conformance is safe.
+    private final class StdoutReadState: @unchecked Sendable {
+        var lineBuffer: [UInt8] = []
+        var tailBuffer: [String] = []
+        var firstChunkReceived = false
+    }
+
+    // MARK: - run (streaming, real-time)
+
     static func run(
         executable: String,
         arguments: [String],
@@ -37,20 +54,22 @@ struct ProcessRunner {
         if let env = environment {
             process.environment = (ProcessInfo.processInfo.environment).merging(env) { _, new in new }
         }
-        
+
         let stdoutPipe = Pipe()
         process.standardOutput = stdoutPipe
         let stderrPipe = Pipe()
         process.standardError = stderrPipe
         process.standardInput = nil
-        
+
         try process.run()
         executionController?.beginScope(scope)
         executionController?.setCurrentProcess(process)
-        
+
         return AsyncThrowingStream { continuation in
             Task {
                 defer { executionController?.clearCurrentProcess() }
+
+                // ---------- stderr: collect in background (unchanged) ----------
                 let stderrTask = Task { () -> String in
                     var stderrBuffer = [UInt8]()
                     var stderrLines: [String] = []
@@ -61,7 +80,7 @@ struct ProcessRunner {
                             }
                         }
                     } catch {
-                        // In caso di stream interrotto, usa comunque quanto raccolto.
+                        // Stream interrotto — usa quanto raccolto.
                     }
                     flushLineBuffer(&stderrBuffer) { line in
                         stderrLines.append(line)
@@ -69,43 +88,56 @@ struct ProcessRunner {
                     return stderrLines.suffix(10).joined(separator: "\n")
                 }
 
-                var buffer = [UInt8]()
-                var stdoutTailBuffer: [String] = []
-                do {
-                    for try await byte in stdoutPipe.fileHandleForReading.bytes {
-                        consumeLineByte(byte, buffer: &buffer) { line in
-                            continuation.yield(line)
-                            stdoutTailBuffer.append(line)
-                            if stdoutTailBuffer.count > Self.stdoutTailCapacity {
-                                stdoutTailBuffer.removeFirst()
+                // ---------- stdout: readabilityHandler for REAL-TIME delivery ----------
+                // readabilityHandler fires on a serial dispatch queue immediately when the
+                // kernel detects data in the pipe buffer (kevent/kqueue). This bypasses any
+                // internal buffering that FileHandle.bytes might apply.
+                let state = StdoutReadState()
+                let tailCap = stdoutTailCapacity
+
+                await withCheckedContinuation { (stdoutDone: CheckedContinuation<Void, Never>) in
+                    stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                        let data = handle.availableData
+                        if data.isEmpty {
+                            // EOF — pipe closed (process exited or closed stdout).
+                            NSLog("[ProcessRunner] stdout EOF — total lines yielded: %d", state.tailBuffer.count)
+                            flushLineBuffer(&state.lineBuffer) { line in
+                                continuation.yield(line)
+                                state.tailBuffer.append(line)
+                                if state.tailBuffer.count > tailCap {
+                                    state.tailBuffer.removeFirst()
+                                }
+                            }
+                            handle.readabilityHandler = nil
+                            stdoutDone.resume()
+                            return
+                        }
+                        if !state.firstChunkReceived {
+                            state.firstChunkReceived = true
+                            NSLog("[ProcessRunner] first stdout chunk: %d bytes", data.count)
+                        }
+                        // Process every byte in the chunk — yields lines on \n or \r.
+                        for byte in data {
+                            consumeLineByte(byte, buffer: &state.lineBuffer) { line in
+                                continuation.yield(line)
+                                state.tailBuffer.append(line)
+                                if state.tailBuffer.count > tailCap {
+                                    state.tailBuffer.removeFirst()
+                                }
                             }
                         }
                     }
-                } catch {
-                    flushLineBuffer(&buffer) { line in
-                        continuation.yield(line)
-                        stdoutTailBuffer.append(line)
-                        if stdoutTailBuffer.count > Self.stdoutTailCapacity {
-                            stdoutTailBuffer.removeFirst()
-                        }
-                    }
-                }
-                flushLineBuffer(&buffer) { line in
-                    continuation.yield(line)
-                    stdoutTailBuffer.append(line)
-                    if stdoutTailBuffer.count > Self.stdoutTailCapacity {
-                        stdoutTailBuffer.removeFirst()
-                    }
                 }
 
+                // ---------- Process termination ----------
                 process.waitUntilExit()
                 let stderrTail = await stderrTask.value
+
                 if process.terminationStatus == 0 {
                     continuation.finish()
                     return
                 }
                 // SIGTERM (15) viene spesso usato per stop intenzionale dal controller/UI.
-                // Trattiamolo come cancellazione anche se lo stato non e` piu` osservabile qui.
                 if process.terminationStatus == 15 {
                     continuation.finish(throwing: CancellationError())
                     return
@@ -115,17 +147,21 @@ struct ProcessRunner {
                     return
                 }
                 let message = stderrTail.isEmpty ? "nessun output stderr disponibile" : stderrTail
-                let stdoutTail: String? = stderrTail.isEmpty && !stdoutTailBuffer.isEmpty
-                    ? stdoutTailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
+                let stdoutTail: String? = stderrTail.isEmpty && !state.tailBuffer.isEmpty
+                    ? state.tailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
                     : nil
-                continuation.finish(throwing: ProcessRunnerError(exitCode: process.terminationStatus, message: message, stdoutTail: stdoutTail))
+                continuation.finish(throwing: ProcessRunnerError(
+                    exitCode: process.terminationStatus,
+                    message: message,
+                    stdoutTail: stdoutTail
+                ))
             }
         }
     }
 
+    // MARK: - runCollecting (non-streaming)
+
     /// Esegue un comando e restituisce tutte le linee di output più il codice di uscita.
-    /// Se executionController è fornito, il processo viene registrato e può essere terminato
-    /// quando l'utente preme "Ferma" o quando il flusso si interrompe.
     static func runCollecting(
         executable: String,
         arguments: [String],
@@ -165,6 +201,8 @@ struct ProcessRunner {
         }
         return (lines, process.terminationStatus)
     }
+
+    // MARK: - Line Parsing Helpers
 
     private static func consumeLineByte(
         _ byte: UInt8,
