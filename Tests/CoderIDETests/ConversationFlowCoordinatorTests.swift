@@ -88,6 +88,40 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.fullText, "Output finale")
         XCTAssertEqual(coordinator.state, .completed)
     }
+
+    func testRunStreamCanExecuteOffMainActorWhileDispatchingCallbacksOnMain() async throws {
+        let result = try await Task.detached { () throws -> (String, ConversationFlowCoordinator.State) in
+            let provider = MockStreamingProvider(events: [
+                .started,
+                .raw(type: "command_execution", payload: ["id": "cmd-1", "status": "started"]),
+                .textDelta("ok"),
+                .completed,
+            ])
+            let coordinator = ConversationFlowCoordinator()
+            let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+            let streamResult = try await coordinator.runStream(
+                provider: provider,
+                prompt: "test",
+                context: ctx,
+                imageURLs: nil,
+                onText: { _ in
+                    XCTAssertTrue(Thread.isMainThread)
+                },
+                onRaw: { _, _, _ in
+                    XCTAssertTrue(Thread.isMainThread)
+                },
+                onError: { _ in
+                    XCTFail("onError non atteso")
+                }
+            )
+            let state = await MainActor.run { coordinator.state }
+            return (streamResult.fullText, state)
+        }.value
+
+        XCTAssertEqual(result.0, "ok")
+        XCTAssertEqual(result.1, .completed)
+    }
 }
 
 private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {

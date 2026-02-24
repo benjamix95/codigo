@@ -234,6 +234,34 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(debugEvents.first?["phase"], "analyzing")
     }
 
+    func testRawDedupKeyDiffersWhenPayloadChangesWithSameIdentifierAndStatus() {
+        let base: [String: String] = [
+            "id": "cmd-1",
+            "status": "started",
+            "output": "line-1"
+        ]
+        let changed: [String: String] = [
+            "id": "cmd-1",
+            "status": "started",
+            "output": "line-2"
+        ]
+
+        let key1 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: base)
+        let key2 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: changed)
+        XCTAssertNotEqual(key1, key2)
+    }
+
+    func testRawDedupKeyRemainsStableForIdenticalPayload() {
+        let payload: [String: String] = [
+            "id": "cmd-1",
+            "status": "completed",
+            "output": "ok"
+        ]
+        let key1 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: payload)
+        let key2 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: payload)
+        XCTAssertEqual(key1, key2)
+    }
+
     private func runParser(events input: [[String: Any]]) -> [StreamEvent] {
         var state = CodexCLIProvider.CodexStreamParserState()
         var out: [StreamEvent] = []

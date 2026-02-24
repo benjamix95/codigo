@@ -442,12 +442,19 @@ private struct InlinePlanSummary: Equatable {
     let body: String
 }
 
+private struct ToolTraceTurnContext: Equatable {
+    let conversationId: UUID
+    let assistantMessageId: UUID
+    let providerId: String
+}
+
 struct ChatPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var taskActivityStore: TaskActivityStore
+    @EnvironmentObject var toolTraceStore: ToolTraceStore
     @EnvironmentObject var todoStore: TodoStore
     @EnvironmentObject var swarmProgressStore: SwarmProgressStore
     @EnvironmentObject var executionController: ExecutionController
@@ -555,7 +562,7 @@ struct ChatPanelView: View {
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
     @State private var pendingTaskActivities: [TaskActivity] = []
     @State private var pendingInstantGreps: [InstantGrepResult] = []
-    @State private var taskFlushWorkItem: DispatchWorkItem?
+    @State private var taskFlushTask: Task<Void, Never>?
     @State private var autoScrollWorkItem: DispatchWorkItem?
     @State private var fallbackTurnStartWorkItem: DispatchWorkItem?
     @State private var streamContentVersion: Int = 0
@@ -564,7 +571,9 @@ struct ChatPanelView: View {
     /// Pending streaming content waiting to be flushed to ChatStore.
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
-    @State private var streamThrottleWorkItem: DispatchWorkItem?
+    @State private var streamThrottleTask: Task<Void, Never>?
+    @State private var activeToolTraceTurn: ToolTraceTurnContext?
+    @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
     /// Coalescing flush interval for task activity feed.
@@ -595,9 +604,6 @@ struct ChatPanelView: View {
     }
     private var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
     private var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }
-    private var supportsInlineActivityMode: Bool {
-        coderMode == .agent || coderMode == .plan || coderMode == .codeReviewMultiSwarm
-    }
     private var shouldShowTaskPanelTodoSection: Bool {
         let planFlowActive =
             coderMode == .plan
@@ -799,8 +805,10 @@ struct ChatPanelView: View {
             installPasteMonitor()
         }
         .onDisappear {
-            taskFlushWorkItem?.cancel()
-            taskFlushWorkItem = nil
+            taskFlushTask?.cancel()
+            taskFlushTask = nil
+            streamThrottleTask?.cancel()
+            streamThrottleTask = nil
             autoScrollWorkItem?.cancel()
             composerTimerAutoHideTask?.cancel()
             composerTimerAutoHideTask = nil
@@ -1289,47 +1297,13 @@ struct ChatPanelView: View {
                                         && message.isStreaming)
                                         ? streamingReasoningText
                                         : nil
-                                    let showInlineActivityFeed =
-                                        isLastAssistant
+                                    let shouldHideStreamingBarOnPreviousAssistant =
+                                        message.role == .assistant
+                                        && !isLastAssistant
+                                        && lastMsg?.role == .assistant
+                                        && (lastMsg?.isStreaming ?? false)
                                         && isLoadingForCurrentConversation
-                                        && supportsInlineActivityMode
-                                        && conv.id == chatStore.activeTaskConversationId
-                                    let llmOrActivityStatus: String? = {
-                                        if executionController.runState == .paused { return "Paused" }
-                                        return streamingDetailText(for: message, conversationId: conv.id)
-                                    }()
-                                    if showInlineActivityFeed {
-                                        VStack(alignment: .leading, spacing: 14) {
-                                            InlineActivityFeedView(
-                                                activities: taskActivityStore.concreteRecentActivities(limit: 20),
-                                                modeColor: activeModeColor,
-                                                statusFromLLMOrActivity: llmOrActivityStatus
-                                            )
-                                            MessageRow(
-                                                message: message,
-                                                context: effectiveContext.context,
-                                                modeColor: activeModeColor,
-                                                isActuallyLoading: isLoadingForCurrentConversation,
-                                                streamingStatusText: streamingStatusText(for: message),
-                                                streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
-                                                streamingReasoningText: effectiveReasoning,
-                                                showStreamingBar: false,
-                                                onFileClicked: { openFilesStore.openFile($0) },
-                                                onRestoreCheckpoint: message.role == .user
-                                                    ? { rewindToMessage(at: index, conversationId: conv.id) }
-                                                    : nil,
-                                                canRewind: canRewindFromMessage,
-                                                hasCheckpointForRestore: hasCheckpointForMessage,
-                                                showTopDivider: needsDivider
-                                            )
-                                        }
-                                    } else {
-                                        let shouldHideStreamingBarOnPreviousAssistant =
-                                            message.role == .assistant
-                                            && !isLastAssistant
-                                            && lastMsg?.role == .assistant
-                                            && (lastMsg?.isStreaming ?? false)
-                                            && isLoadingForCurrentConversation
+                                    VStack(alignment: .leading, spacing: 10) {
                                         MessageRow(
                                             message: message,
                                             context: effectiveContext.context,
@@ -1347,6 +1321,15 @@ struct ChatPanelView: View {
                                             hasCheckpointForRestore: hasCheckpointForMessage,
                                             showTopDivider: needsDivider
                                         )
+                                        if message.role == .assistant {
+                                            let traceEvents = toolTraceStore.events(
+                                                conversationId: conv.id,
+                                                assistantMessageId: message.id
+                                            )
+                                            if !traceEvents.isEmpty {
+                                                MessageToolTraceView(events: traceEvents)
+                                            }
+                                        }
                                     }
                                 }
                                 if message.role == .assistant { Spacer(minLength: 0) }
@@ -1525,7 +1508,8 @@ struct ChatPanelView: View {
                         "status": "started",
                         "group_id": "ui-fallback-\(conversationId.uuidString)",
                     ],
-                    providerId: providerId
+                    providerId: providerId,
+                    conversationId: conversationId
                 )
             }
         }
@@ -1574,8 +1558,8 @@ struct ChatPanelView: View {
         let scope = executionScopeForCurrentMode()
         executionController.terminate(scope: scope)
         flowCoordinator.interrupt()
-        taskFlushWorkItem?.cancel()
-        taskFlushWorkItem = nil
+        taskFlushTask?.cancel()
+        taskFlushTask = nil
         flushPendingTaskActivities()
         if let cid = targetConversationId {
             let cur =
@@ -1589,6 +1573,7 @@ struct ChatPanelView: View {
             chatStore.setLastAssistantStreaming(false, in: cid)
             clearStreamingReasoning(for: cid)
         }
+        finalizeToolTraceTurn(conversationId: targetConversationId)
         cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: targetConversationId)
         activeBuildPlanConversationId = nil
@@ -1662,7 +1647,121 @@ struct ChatPanelView: View {
     }
 
     @MainActor
-    private func recordTaskActivity(type: String, payload: [String: String], providerId: String) {
+    private func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
+        if let previous = activeToolTraceTurn,
+           previous.assistantMessageId != assistantMessageId {
+            toolTraceStore.finalizeTurn(
+                conversationId: previous.conversationId,
+                assistantMessageId: previous.assistantMessageId
+            )
+            toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
+        }
+        let turn = ToolTraceTurnContext(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            providerId: providerId
+        )
+        activeToolTraceTurn = turn
+        toolTraceNextSequenceByMessage[assistantMessageId] = 1
+        toolTraceStore.startTurn(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            providerId: providerId
+        )
+    }
+
+    @MainActor
+    private func finalizeToolTraceTurn(conversationId: UUID?) {
+        guard let active = activeToolTraceTurn else { return }
+        guard conversationId == nil || active.conversationId == conversationId else { return }
+        toolTraceStore.finalizeTurn(
+            conversationId: active.conversationId,
+            assistantMessageId: active.assistantMessageId
+        )
+        toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
+        activeToolTraceTurn = nil
+    }
+
+    @MainActor
+    private func resolveToolTraceTurn(conversationId: UUID?, providerId: String) -> ToolTraceTurnContext? {
+        let activeTarget = activeToolTraceTurn.map {
+            ToolTraceBindingTarget(
+                conversationId: $0.conversationId,
+                assistantMessageId: $0.assistantMessageId
+            )
+        }
+        let fallbackAssistantMessageId = conversationId.flatMap { id in
+            chatStore.conversation(for: id)?
+                .messages
+                .last(where: { $0.role == .assistant })?
+                .id
+        }
+        guard let target = ToolTraceBindingResolver.resolve(
+            activeTurn: activeTarget,
+            requestedConversationId: conversationId,
+            fallbackAssistantMessageId: fallbackAssistantMessageId
+        ) else {
+            return nil
+        }
+        let fallbackTurn = ToolTraceTurnContext(
+            conversationId: target.conversationId,
+            assistantMessageId: target.assistantMessageId,
+            providerId: providerId
+        )
+        if toolTraceNextSequenceByMessage[target.assistantMessageId] == nil {
+            let existing = toolTraceStore.events(
+                conversationId: target.conversationId,
+                assistantMessageId: target.assistantMessageId
+            )
+            let next = (existing.last?.sequence ?? 0) + 1
+            toolTraceNextSequenceByMessage[target.assistantMessageId] = max(1, next)
+        }
+        toolTraceStore.startTurn(
+            conversationId: target.conversationId,
+            assistantMessageId: target.assistantMessageId,
+            providerId: providerId
+        )
+        activeToolTraceTurn = fallbackTurn
+        return fallbackTurn
+    }
+
+    @MainActor
+    private func appendToolTraceEvent(
+        activity: TaskActivity,
+        rawKind: EventKind,
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+        let sequence = toolTraceNextSequenceByMessage[turn.assistantMessageId] ?? 1
+        let event = ToolTraceEvent(
+            sequence: sequence,
+            timestamp: activity.timestamp,
+            providerId: providerId,
+            conversationId: turn.conversationId,
+            assistantMessageId: turn.assistantMessageId,
+            type: activity.type,
+            title: activity.title,
+            detail: activity.detail,
+            payload: activity.payload,
+            phase: activity.phase,
+            isRunning: activity.isRunning,
+            groupId: activity.groupId,
+            rawKind: rawKind.rawValue
+        )
+        toolTraceStore.append(event: event)
+        toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
+    }
+
+    @MainActor
+    private func recordTaskActivity(
+        type: String,
+        payload: [String: String],
+        providerId: String,
+        conversationId: UUID?
+    ) {
         cancelFallbackTurnStartEvent()
         let envelope = flowCoordinator.normalizeRawEvent(
             providerId: providerId, type: type, payload: payload)
@@ -1672,6 +1771,12 @@ struct ChatPanelView: View {
             switch event {
             case .taskActivity(let activity):
                 enqueueTaskActivity(activity)
+                appendToolTraceEvent(
+                    activity: activity,
+                    rawKind: envelope.kind,
+                    providerId: providerId,
+                    conversationId: conversationId
+                )
             case .instantGrep(let grep):
                 enableTaskPanelIfNeeded()
                 pendingInstantGreps.append(grep)
@@ -1907,13 +2012,16 @@ struct ChatPanelView: View {
 
     @MainActor
     private func scheduleTaskActivityFlush() {
-        if taskFlushWorkItem != nil { return }
-        let work = DispatchWorkItem { @MainActor in
-            taskFlushWorkItem = nil
-            flushPendingTaskActivities()
+        if taskFlushTask != nil { return }
+        taskFlushTask = Task {
+            let delay = UInt64(taskActivityFlushInterval * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                taskFlushTask = nil
+                flushPendingTaskActivities()
+            }
         }
-        taskFlushWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + taskActivityFlushInterval, execute: work)
     }
 
     @MainActor
@@ -2898,8 +3006,21 @@ struct ChatPanelView: View {
                 isStreaming: false
             ),
             to: agentConvId)
+        let planBuildAssistantMessageId = UUID()
         chatStore.addMessage(
-            ChatMessage(role: .assistant, content: "", isStreaming: true), to: agentConvId)
+            ChatMessage(
+                id: planBuildAssistantMessageId,
+                role: .assistant,
+                content: "",
+                isStreaming: true
+            ),
+            to: agentConvId
+        )
+        startToolTraceTurn(
+            conversationId: agentConvId,
+            assistantMessageId: planBuildAssistantMessageId,
+            providerId: provider.id
+        )
         chatStore.beginTask(conversationId: agentConvId)
         taskActivityStore.clear()
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
@@ -2979,6 +3100,7 @@ struct ChatPanelView: View {
                     }
                 }
             }
+            finalizeToolTraceTurn(conversationId: agentConvId)
             chatStore.endTask(conversationId: agentConvId)
             await MainActor.run { activeBuildPlanConversationId = nil }
         }
@@ -3102,8 +3224,21 @@ struct ChatPanelView: View {
                 imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore),
             to: targetConversationId
         )
+        let standardAssistantMessageId = UUID()
         chatStore.addMessage(
-            ChatMessage(role: .assistant, content: "", isStreaming: true), to: targetConversationId)
+            ChatMessage(
+                id: standardAssistantMessageId,
+                role: .assistant,
+                content: "",
+                isStreaming: true
+            ),
+            to: targetConversationId
+        )
+        startToolTraceTurn(
+            conversationId: targetConversationId,
+            assistantMessageId: standardAssistantMessageId,
+            providerId: effectiveRuntimeProvider.id
+        )
         if let conv = chatStore.conversation(for: targetConversationId), let ctxId = conv.contextId {
             projectContextStore.setLastActiveConversation(
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
@@ -3193,6 +3328,7 @@ struct ChatPanelView: View {
                     }
                 }
             }
+            finalizeToolTraceTurn(conversationId: targetConversationId)
             chatStore.endTask(conversationId: targetConversationId)
         }
     }
@@ -3255,9 +3391,15 @@ struct ChatPanelView: View {
         await MainActor.run {
             planFlowPhase = .questioning
             planStreamingContent = ""
+            let questionAssistantMessageId = UUID()
             chatStore.addMessage(
-                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                ChatMessage(id: questionAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: conversationId
+            )
+            startToolTraceTurn(
+                conversationId: conversationId,
+                assistantMessageId: questionAssistantMessageId,
+                providerId: provider.id
             )
         }
 
@@ -3350,9 +3492,15 @@ struct ChatPanelView: View {
 
         // Create new assistant message for Phase 3 streaming
         await MainActor.run {
+            let generationAssistantMessageId = UUID()
             chatStore.addMessage(
-                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                ChatMessage(id: generationAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: conversationId
+            )
+            startToolTraceTurn(
+                conversationId: conversationId,
+                assistantMessageId: generationAssistantMessageId,
+                providerId: provider.id
             )
         }
 
@@ -3508,6 +3656,7 @@ struct ChatPanelView: View {
                     flowCoordinator.fail()
                 }
             }
+            finalizeToolTraceTurn(conversationId: targetConversationId)
             chatStore.endTask(conversationId: targetConversationId)
         }
     }
@@ -3527,9 +3676,15 @@ struct ChatPanelView: View {
 
         // Create new assistant message for re-analysis streaming
         await MainActor.run {
+            let reanalysisAssistantMessageId = UUID()
             chatStore.addMessage(
-                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                ChatMessage(id: reanalysisAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: conversationId
+            )
+            startToolTraceTurn(
+                conversationId: conversationId,
+                assistantMessageId: reanalysisAssistantMessageId,
+                providerId: provider.id
             )
         }
 
@@ -4050,7 +4205,7 @@ struct ChatPanelView: View {
                 inputTokens: inp, outputTokens: out,
                 model: p["model"] ?? "gpt-4o-mini")
         }
-        recordTaskActivity(type: t, payload: p, providerId: pid)
+        recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
     }
 
     static func mergeReasoningText(existing: String?, incoming: String) -> String {
@@ -4114,31 +4269,34 @@ struct ChatPanelView: View {
         pendingStreamConversationId = conversationId
 
         // If a throttle is already scheduled, let it pick up the latest content.
-        if streamThrottleWorkItem != nil { return }
+        if streamThrottleTask != nil { return }
 
         // Flush immediately for the first update (so the user sees something right away).
         flushStreamingContent()
 
         // Schedule the next flush after the throttle interval.
-        let work = DispatchWorkItem { [self] in
-            streamThrottleWorkItem = nil
-            if let pending = pendingStreamContent {
-                pendingStreamContent = nil
-                chatStore.updateLastAssistantMessage(
-                    content: pending,
-                    in: pendingStreamConversationId,
-                    persistImmediately: false
-                )
-                streamContentVersion &+= 1
+        streamThrottleTask = Task {
+            let delay = UInt64(streamThrottleInterval * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                streamThrottleTask = nil
+                if let pending = pendingStreamContent {
+                    pendingStreamContent = nil
+                    chatStore.updateLastAssistantMessage(
+                        content: pending,
+                        in: pendingStreamConversationId,
+                        persistImmediately: false
+                    )
+                    streamContentVersion &+= 1
+                }
             }
         }
-        streamThrottleWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + streamThrottleInterval, execute: work)
     }
 
     private func flushStreamingContent() {
-        streamThrottleWorkItem?.cancel()
-        streamThrottleWorkItem = nil
+        streamThrottleTask?.cancel()
+        streamThrottleTask = nil
         guard let content = pendingStreamContent else { return }
         pendingStreamContent = nil
         chatStore.updateLastAssistantMessage(
@@ -4286,9 +4444,17 @@ struct ChatPanelView: View {
             ChatMessage(
                 role: .user, content: "[Delegated to swarm] \(task)",
                 isStreaming: false), to: conversationId)
+        let swarmAssistantMessageId = UUID()
         chatStore.addMessage(
-            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            ChatMessage(id: swarmAssistantMessageId, role: .assistant, content: "", isStreaming: true),
             to: conversationId)
+        if let conversationId {
+            startToolTraceTurn(
+                conversationId: conversationId,
+                assistantMessageId: swarmAssistantMessageId,
+                providerId: swarm.id
+            )
+        }
         chatStore.beginTask(conversationId: conversationId)
         taskActivityStore.clear()
         if let activeConversationId = conversationId {
@@ -4311,9 +4477,17 @@ struct ChatPanelView: View {
                 ChatMessage(
                     role: .user, content: "[Agent follow-up after swarm]",
                     isStreaming: false), to: conversationId)
+            let followUpAssistantMessageId = UUID()
             chatStore.addMessage(
-                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                ChatMessage(id: followUpAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: conversationId)
+            if let conversationId {
+                startToolTraceTurn(
+                    conversationId: conversationId,
+                    assistantMessageId: followUpAssistantMessageId,
+                    providerId: agentProvider.id
+                )
+            }
             return agentProvider
         }()
 
@@ -4348,6 +4522,7 @@ struct ChatPanelView: View {
         )
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
+        finalizeToolTraceTurn(conversationId: conversationId)
         chatStore.endTask(conversationId: conversationId)
         await trySummarizeIfNeeded(ctx: ctx)
     }
@@ -4462,6 +4637,7 @@ struct ChatPanelView: View {
                         executionController.terminate(scope: .agent)
                     }
                     flowCoordinator.interrupt()
+                    finalizeToolTraceTurn(conversationId: convId)
                     chatStore.endTask(conversationId: convId)
                 }
             }
@@ -4549,6 +4725,7 @@ struct ChatPanelView: View {
                         executionController.terminate(scope: .agent)
                     }
                     flowCoordinator.interrupt()
+                    finalizeToolTraceTurn(conversationId: conversationId)
                     chatStore.endTask(conversationId: conversationId)
                 }
             }

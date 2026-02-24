@@ -15,7 +15,9 @@ struct MarkdownContentView: View {
     }
 
     private var displayContent: String {
-        ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
+        Self.normalizeAssistantDisplayLayout(
+            ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
+        )
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
     }
 
@@ -166,6 +168,7 @@ struct MarkdownContentView: View {
         case bulletItem(text: String, indent: Int)
         case numberedItem(number: String, text: String, indent: Int)
         case codeBlock(language: String, code: String)
+        case mermaid(code: String)
         case horizontalRule
         case blockquote(text: String)
         case table(headers: [String], rows: [[String]])
@@ -193,13 +196,15 @@ struct MarkdownContentView: View {
             }
         case .bulletItem, .numberedItem:
             switch prev {
-            case .heading: return 8
-            case .paragraph: return 6
-            case .bulletItem, .numberedItem: return 0
-            case .codeBlock: return 10
-            default: return 6
+            case .heading: return 10
+            case .paragraph: return 8
+            case .bulletItem, .numberedItem: return 3
+            case .codeBlock, .mermaid: return 10
+            default: return 8
             }
         case .codeBlock:
+            return 14
+        case .mermaid:
             return 14
         case .horizontalRule:
             return 16
@@ -237,6 +242,10 @@ struct MarkdownContentView: View {
 
         case .codeBlock(let language, let code):
             codeBlockView(language: language, code: code)
+                .padding(.top, topPad)
+
+        case .mermaid(let code):
+            mermaidBlockView(code: code)
                 .padding(.top, topPad)
 
         case .table(let headers, let rows):
@@ -332,7 +341,7 @@ struct MarkdownContentView: View {
             inlineMarkdown(text)
         }
         .padding(.leading, 4 + CGFloat(indent) * 22)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Numbered Item
@@ -346,7 +355,7 @@ struct MarkdownContentView: View {
             inlineMarkdown(text)
         }
         .padding(.leading, CGFloat(indent) * 22)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Horizontal Rule
@@ -473,6 +482,13 @@ struct MarkdownContentView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(codeBorder, lineWidth: 0.5)
+        )
+    }
+
+    private func mermaidBlockView(code: String) -> some View {
+        MermaidDiagramView(
+            mermaidCode: code,
+            accentColor: accentColor
         )
     }
 
@@ -609,7 +625,12 @@ struct MarkdownContentView: View {
                     codeLines.append(lines[i])
                     i += 1
                 }
-                blocks.append(.codeBlock(language: lang, code: codeLines.joined(separator: "\n")))
+                let code = codeLines.joined(separator: "\n")
+                if lang.lowercased() == "mermaid" {
+                    blocks.append(.mermaid(code: code))
+                } else {
+                    blocks.append(.codeBlock(language: lang, code: code))
+                }
                 continue
             }
 
@@ -785,6 +806,149 @@ struct MarkdownContentView: View {
             }
         }
         return t
+    }
+
+    static func normalizeAssistantDisplayLayout(_ input: String) -> String {
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedInput.isEmpty else { return trimmedInput }
+
+        let parts = splitByCodeFence(trimmedInput)
+        let normalized = parts.map { part -> String in
+            guard !part.isCodeFence else { return part.text }
+            return normalizePlainMarkdownSegment(part.text)
+        }.joined()
+
+        return normalized
+            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func splitByCodeFence(_ input: String) -> [(text: String, isCodeFence: Bool)] {
+        var segments: [(String, Bool)] = []
+        var cursor = input.startIndex
+        var inFence = false
+
+        while cursor < input.endIndex {
+            guard let fenceRange = input[cursor...].range(of: "```") else {
+                let rest = String(input[cursor...])
+                if !rest.isEmpty {
+                    segments.append((rest, inFence))
+                }
+                break
+            }
+
+            let before = String(input[cursor..<fenceRange.lowerBound])
+            if !before.isEmpty {
+                segments.append((before, inFence))
+            }
+
+            if let nextFence = input[fenceRange.upperBound...].range(of: "```") {
+                let fenceChunk = String(input[fenceRange.lowerBound..<nextFence.upperBound])
+                segments.append((fenceChunk, true))
+                cursor = nextFence.upperBound
+                inFence = false
+            } else {
+                let remainder = String(input[fenceRange.lowerBound...])
+                segments.append((remainder, true))
+                break
+            }
+        }
+
+        return segments
+    }
+
+    private static func normalizePlainMarkdownSegment(_ segment: String) -> String {
+        var out = segment
+
+        // Separate inline numbered/bullet sections from previous prose.
+        out = out.replacingOccurrences(
+            of: #"([.!?])\s+(?=\d+\.\s+)"#,
+            with: "$1\n\n",
+            options: .regularExpression
+        )
+        out = out.replacingOccurrences(
+            of: #"([.!?])\s+(?=[-*+]\s+)"#,
+            with: "$1\n\n",
+            options: .regularExpression
+        )
+
+        // Dense single-line paragraphs become multiple readable paragraphs.
+        let lines = out.components(separatedBy: .newlines)
+        let rebuilt = lines.map { line in
+            normalizeDenseLine(line)
+        }.joined(separator: "\n")
+
+        return rebuilt
+    }
+
+    private static func normalizeDenseLine(_ line: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return line }
+
+        // Keep already-structured markdown lines untouched.
+        if isStructuredMarkdownLine(trimmed) {
+            return line
+        }
+
+        guard !trimmed.contains("\n"), trimmed.count > 320 else {
+            return line
+        }
+
+        let sentenceSplitPattern = #"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Ý0-9])"#
+        guard let regex = try? NSRegularExpression(pattern: sentenceSplitPattern, options: []) else {
+            return line
+        }
+        let ns = trimmed as NSString
+        let matches = regex.matches(in: trimmed, range: NSRange(location: 0, length: ns.length))
+        guard !matches.isEmpty else { return line }
+
+        var sentences: [String] = []
+        var cursor = trimmed.startIndex
+        for match in matches {
+            guard let range = Range(match.range, in: trimmed) else { continue }
+            let sentence = String(trimmed[cursor..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if !sentence.isEmpty {
+                sentences.append(sentence)
+            }
+            cursor = range.upperBound
+        }
+        let last = String(trimmed[cursor...]).trimmingCharacters(in: .whitespaces)
+        if !last.isEmpty { sentences.append(last) }
+        guard sentences.count >= 4 else { return line }
+
+        var chunks: [String] = []
+        var current: [String] = []
+        var currentLen = 0
+        for sentence in sentences {
+            let projected = currentLen + sentence.count + (current.isEmpty ? 0 : 1)
+            if !current.isEmpty && projected > 220 {
+                chunks.append(current.joined(separator: " "))
+                current = [sentence]
+                currentLen = sentence.count
+            } else {
+                current.append(sentence)
+                currentLen = projected
+            }
+        }
+        if !current.isEmpty {
+            chunks.append(current.joined(separator: " "))
+        }
+        return chunks.joined(separator: "\n\n")
+    }
+
+    private static func isStructuredMarkdownLine(_ line: String) -> Bool {
+        if line.hasPrefix("#") || line.hasPrefix(">") { return true }
+        if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") { return true }
+        if line.hasPrefix("|"), line.hasSuffix("|") { return true }
+        if line == "---" || line == "***" || line == "___" { return true }
+
+        let numberedPattern = #"^\d+\.\s+"#
+        if let regex = try? NSRegularExpression(pattern: numberedPattern, options: []) {
+            let ns = line as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            return regex.firstMatch(in: line, options: [], range: range) != nil
+        }
+        return false
     }
 }
 

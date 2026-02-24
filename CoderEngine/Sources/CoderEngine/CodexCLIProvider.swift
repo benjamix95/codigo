@@ -489,15 +489,37 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             "id", "group_id", "queryId", "query_id",
             "tool_call_id", "call_id", "swarm_id", "step_id"
         ]
+        let identityKeySet = Set(identityKeys)
         let identifier = identityKeys.compactMap { payload[$0] }.first(where: { !$0.isEmpty }) ?? ""
         let status = (payload["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !identifier.isEmpty || !status.isEmpty {
+            let fingerprint = payloadFingerprint(
+                payload,
+                excluding: identityKeySet.union(["status"])
+            )
+            if !fingerprint.isEmpty {
+                return "\(type)|\(identifier)|\(status)|\(fingerprint)"
+            }
             return "\(type)|\(identifier)|\(status)"
         }
         let canonicalPayload = payload.keys.sorted().map { key in
             "\(key)=\(payload[key] ?? "")"
         }.joined(separator: "|")
         return "\(type)|\(canonicalPayload)"
+    }
+
+    private static func payloadFingerprint(_ payload: [String: String], excluding ignored: Set<String>) -> String {
+        let entries = payload.keys.sorted().compactMap { key -> String? in
+            guard !ignored.contains(key) else { return nil }
+            let value = String((payload[key] ?? "").prefix(256))
+            return "\(key)=\(value)"
+        }
+        guard !entries.isEmpty else { return "" }
+        var hasher = Hasher()
+        for entry in entries {
+            hasher.combine(entry)
+        }
+        return String(hasher.finalize(), radix: 16)
     }
 
     static func extractAgentMessageChunk(from json: [String: Any]) -> (text: String, isDelta: Bool)? {

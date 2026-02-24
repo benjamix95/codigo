@@ -28,7 +28,6 @@ private enum StreamWatchdogError: LocalizedError {
     }
 }
 
-@MainActor
 final class ConversationFlowCoordinator: ObservableObject {
     enum StreamSignal {
         case streamStarted(Date)
@@ -49,36 +48,49 @@ final class ConversationFlowCoordinator: ObservableObject {
 
     @Published private(set) var state: State = .idle
 
+    @MainActor
     func startStreaming() {
         state = .streaming
     }
 
+    @MainActor
     func markDelegatedSwarm() {
         state = .delegatedSwarm
     }
 
+    @MainActor
     func markFollowUp() {
         state = .followUp
     }
 
+    @MainActor
     func finish() {
         state = .completed
     }
 
+    @MainActor
     func fail() {
         state = .error
     }
 
+    @MainActor
     func interrupt() {
         state = .interrupted
     }
 
+    @MainActor
     func reset() {
         state = .idle
     }
 
     func normalizeRawEvent(providerId: String, type: String, payload: [String: String], timestamp: Date = .now) -> NormalizedEventEnvelope {
         EventNormalizer.normalizeEnvelope(sourceProvider: providerId, type: type, payload: payload, timestamp: timestamp)
+    }
+
+    private func setState(_ newState: State) async {
+        await MainActor.run {
+            state = newState
+        }
     }
 
     func runStream(
@@ -92,8 +104,10 @@ final class ConversationFlowCoordinator: ObservableObject {
         onSignal: ((StreamSignal) -> Void)? = nil
     ) async throws -> (fullText: String, pendingSwarmTask: String?) {
         let streamStartedAt = Date()
-        startStreaming()
-        onSignal?(.streamStarted(streamStartedAt))
+        await setState(.streaming)
+        await MainActor.run {
+            onSignal?(.streamStarted(streamStartedAt))
+        }
         var full = ""
         var pendingSwarmTask: String?
         let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
@@ -116,7 +130,9 @@ final class ConversationFlowCoordinator: ObservableObject {
                 logStreamDiagnostic(
                     "provider=\(provider.id) first_event_ms=\(Int(firstEventDelay * 1_000))"
                 )
-                onSignal?(.firstEvent(firstEventAt))
+                await MainActor.run {
+                    onSignal?(.firstEvent(firstEventAt))
+                }
             }
             hasReceivedAnyEvent = true
             switch ev {
@@ -128,18 +144,28 @@ final class ConversationFlowCoordinator: ObservableObject {
                     logStreamDiagnostic(
                         "provider=\(provider.id) first_text_ms=\(Int(firstTextDelay * 1_000))"
                     )
-                    onSignal?(.firstTextDelta(firstTextAt))
+                    await MainActor.run {
+                        onSignal?(.firstTextDelta(firstTextAt))
+                    }
                 }
                 full += d
-                onText(full)
+                let snapshot = full
+                await MainActor.run {
+                    onText(snapshot)
+                }
             case .error(let e):
                 full += "\n\n[Error: \(e)]"
-                onError(full)
+                let snapshot = full
+                await MainActor.run {
+                    onError(snapshot)
+                }
             case .raw(let t, let p):
                 if t == "coderide_invoke_swarm", let task = p["task"], !task.isEmpty {
                     pendingSwarmTask = task
                 }
-                onRaw(t, p, provider.id)
+                await MainActor.run {
+                    onRaw(t, p, provider.id)
+                }
             default:
                 break
             }
@@ -149,8 +175,10 @@ final class ConversationFlowCoordinator: ObservableObject {
         let completedAt = Date()
         let totalMs = Int(completedAt.timeIntervalSince(streamStartedAt) * 1_000)
         logStreamDiagnostic("provider=\(provider.id) stream_completed_ms=\(totalMs)")
-        onSignal?(.streamCompleted(completedAt))
-        finish()
+        await MainActor.run {
+            onSignal?(.streamCompleted(completedAt))
+        }
+        await setState(.completed)
         return (full, pendingSwarmTask)
     }
 
@@ -188,7 +216,7 @@ final class ConversationFlowCoordinator: ObservableObject {
         onFollowUpText: @escaping (String) -> Void,
         onError: @escaping (String) -> Void
     ) async {
-        markDelegatedSwarm()
+        await setState(.delegatedSwarm)
         do {
             var swarmFull = ""
             let swarmStream = try await swarmProvider.send(prompt: task, context: context, imageURLs: imageURLs)
@@ -220,12 +248,20 @@ final class ConversationFlowCoordinator: ObservableObject {
                         )
                     }
                     swarmFull += d
-                    onSwarmText(swarmFull)
+                    let snapshot = swarmFull
+                    await MainActor.run {
+                        onSwarmText(snapshot)
+                    }
                 case .error(let e):
                     swarmFull += "\n\n[Error: \(e)]"
-                    onError(swarmFull)
+                    let snapshot = swarmFull
+                    await MainActor.run {
+                        onError(snapshot)
+                    }
                 case .raw(let t, let p):
-                    onRaw(t, p, swarmProvider.id)
+                    await MainActor.run {
+                        onRaw(t, p, swarmProvider.id)
+                    }
                 default:
                     break
                 }
@@ -233,11 +269,11 @@ final class ConversationFlowCoordinator: ObservableObject {
             }
 
             guard let agentProvider = agentFollowUpProvider else {
-                finish()
+                await setState(.completed)
                 return
             }
 
-            markFollowUp()
+            await setState(.followUp)
             let followUpPrompt = """
             Original request: \(originalPrompt)
 
@@ -278,21 +314,31 @@ final class ConversationFlowCoordinator: ObservableObject {
                         )
                     }
                     follow += d
-                    onFollowUpText(follow)
+                    let snapshot = follow
+                    await MainActor.run {
+                        onFollowUpText(snapshot)
+                    }
                 case .error(let e):
                     follow += "\n\n[Error: \(e)]"
-                    onError(follow)
+                    let snapshot = follow
+                    await MainActor.run {
+                        onError(snapshot)
+                    }
                 case .raw(let t, let p):
-                    onRaw(t, p, agentProvider.id)
+                    await MainActor.run {
+                        onRaw(t, p, agentProvider.id)
+                    }
                 default:
                     break
                 }
                 await Task.yield()
             }
-            finish()
+            await setState(.completed)
         } catch {
-            onError("[Error swarm/follow-up: \(error.localizedDescription)]")
-            fail()
+            await MainActor.run {
+                onError("[Error swarm/follow-up: \(error.localizedDescription)]")
+            }
+            await setState(.error)
         }
     }
 
