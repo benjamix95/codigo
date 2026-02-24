@@ -16,7 +16,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         policy: ToolRuntimePolicy = ToolRuntimePolicy(),
         executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
-        maxToolRounds: Int = 20
+        maxToolRounds: Int = 40
     ) {
         self.base = base
         self.id = base.id
@@ -359,7 +359,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
                 let name = (summary["name"] ?? "").lowercased()
                 if let output = payload["output"], !output.isEmpty, name != "bash" && name != "command_execution" {
-                    summary["output"] = String(output.prefix(1200))
+                    summary["output"] = String(output.prefix(8000))
                 }
                 if let path = payload["path"] ?? payload["file"], !path.isEmpty {
                     summary["path"] = path
@@ -374,10 +374,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         let resultsSection: String
         if toolResults.isEmpty {
             resultsSection = """
-            (Nessun tool usato nel round precedente.)
+            (No tools used in the previous round.)
 
-            Continua il task. Se servono altri tool emetti [CODERIDE:read|...], [CODERIDE:glob|...], [CODERIDE:grep|...], [CODERIDE:tool_call|...].
-            Se hai finito: OBBLIGATORIO fornire un riepilogo finale all'utente: cosa hai fatto, quali file/comandi hai usato, esito. Non concludere mai senza questo riepilogo.
+            Continue the task. If you need more tools, emit [CODERIDE:tool_call|...] markers.
+            When finished: you MUST provide a final summary to the user — what changed, which files, outcome. Never end without this summary.
             """
         } else {
             let formatted = toolResults.map { result in
@@ -396,11 +396,11 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
             }.joined(separator: "\n")
             resultsSection = """
-            Risultati tool appena eseguiti:
+            Tool results from previous round:
             \(formatted)
 
-            Continua usando questi risultati. Se servono altri tool emetti nuovi marker [CODERIDE:tool_call|...].
-            Quando hai finito: OBBLIGATORIO fornire un riepilogo finale all'utente (cosa fatto, file usati, esito). Non concludere senza riepilogo.
+            Continue using these results. If you need more tools, emit new [CODERIDE:tool_call|...] markers.
+            When finished: you MUST provide a final summary to the user — what changed, which files, outcome. Never end without a summary.
             """
         }
 
@@ -409,10 +409,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         \(toolProtocolPrompt)
 
-        Prompt utente iniziale:
+        Original user prompt:
         \(originalPrompt)
 
-        Transcript parziale:
+        Conversation transcript:
         \(transcript)
 
         \(resultsSection)
@@ -512,6 +512,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             let name = candidate?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
             if [
                 "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search",
+                "str_replace", "create_file",
                 "read_range", "list_dir", "git_diff", "search_symbols", "run_tests", "build_project",
                 "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
                 "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
@@ -545,16 +546,23 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         guard !trimmed.isEmpty else { return false }
         let lower = trimmed.lowercased()
         return lower.contains("inizierò") || lower.contains("sto esplorando") || lower.contains("analizzo la struttura")
+            || lower.contains("let me ") || lower.contains("i'll start") || lower.contains("i will ")
+            || lower.contains("exploring the") || lower.contains("analyzing the")
     }
 
     private func sanitizeVisibleDelta(_ delta: String) -> String {
         if delta.isEmpty { return "" }
         let blockedSnippets = [
             "Prompt utente iniziale:",
+            "Original user prompt:",
             "Transcript parziale:",
+            "Conversation transcript:",
             "Risultati tool appena eseguiti:",
+            "Tool results from previous round:",
             "Quando hai finito: OBBLIGATORIO",
+            "When finished: you MUST provide",
             "(Nessun tool usato nel round precedente.)",
+            "(No tools used in the previous round.)",
             "[assistant]",
         ]
         for snippet in blockedSnippets where delta.contains(snippet) {
@@ -577,8 +585,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         guard !lines.isEmpty else { return "" }
         return """
 
-        Riepilogo finale automatico:
-        Ho completato i tool richiesti e questi sono gli esiti principali:
+        **Summary:**
         \(lines.joined(separator: "\n"))
 
         """
@@ -596,19 +603,19 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return "- \(name): \(status) \(detail)"
         }.joined(separator: "\n")
         return """
-        Hai già eseguito i tool necessari. Ora DEVI produrre SOLO l'esito finale per l'utente.
-        Regole obbligatorie:
-        1) Non emettere altri marker tool.
-        2) Non fermarti finché non scrivi un riepilogo finale completo.
-        3) Se manca qualche dato, dichiara cosa manca e proponi il prossimo passo concreto.
+        You have already executed the required tools. Now you MUST produce ONLY the final outcome for the user.
+        Mandatory rules:
+        1) Do NOT emit any more tool markers.
+        2) Do NOT stop until you write a complete final summary.
+        3) If any data is missing, state what's missing and propose a concrete next step.
 
-        Prompt utente iniziale:
+        Original user prompt:
         \(originalPrompt)
 
         Transcript:
         \(transcript)
 
-        Risultati tool:
+        Tool results:
         \(compactResults)
         """
     }
@@ -619,8 +626,11 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         let lower = trimmed.lowercased()
         let blocked = [
             "risultati tool appena eseguiti",
+            "tool results from previous round",
             "prompt utente iniziale",
+            "original user prompt:",
             "transcript parziale",
+            "conversation transcript:",
             "codieride:tool_call",
             "[assistant]",
         ]
@@ -632,21 +642,92 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
     private var toolProtocolPrompt: String {
         """
-        Se devi usare strumenti, emetti marker strutturati CoderIDE.
-        Non fermarti finché il task non è risolto o finché non hai dichiarato chiaramente un blocco con prossimo passo.
-        Quando concludi un task, OBBLIGATORIO fornisci un riepilogo finale all'utente: cosa hai fatto, file/comandi usati, esito. Mai concludere senza questo riepilogo.
-        Formato:
-        [CODERIDE:tool_call|id=<uuid>|name=<read|glob|grep|edit|write|bash|mcp|web_search|read_range|list_dir|git_diff|search_symbols|run_tests|build_project|list_processes|read_json|write_json|workspace_stats|dependency_audit|tail_log|mcp_list_tools|mcp_call|mcp_describe_tool|mcp_health|mcp_list_servers|mcp_reconnect>|path=...|query=...|command=...|content=...|swarm_id=...]
-        Marker supportati anche:
-        - Quando costruisci un piano operativo multi-step, emetti SEMPRE anche marker plan step:
-          [CODERIDE:plan_step|step_id=1|status=running|title=Analisi]
-          [CODERIDE:plan_step|step_id=1|status=done|title=Analisi]
-        [CODERIDE:todo_write|title=...|status=pending|priority=medium|notes=...|files=a.swift,b.swift]
-        [CODERIDE:todo_read]
-        [CODERIDE:instant_grep|query=...|pathScope=...|matchesCount=...|previewLines=...]
-        [CODERIDE:plan_step|step_id=...|status=running]
-        [CODERIDE:read_batch|count=...|files=...|group_id=...]
-        [CODERIDE:web_search|queryId=...|query=...|status=started|group_id=...]
+        # Tool Protocol
+
+        You have access to powerful tools via CoderIDE markers. Emit them inline in your response.
+
+        ## Core Principles
+        1. ALWAYS read a file before editing it — understand current content first.
+        2. Use `str_replace` for surgical edits (search-and-replace). ONLY use `write` for brand new files or complete rewrites.
+        3. Use `grep` to find code before editing. Use `glob` to find files by name pattern.
+        4. Use `bash` for git operations, running commands, installing dependencies, builds, tests.
+        5. After making changes, verify by reading the result or running build/tests.
+        6. For multi-file changes, work file by file with `str_replace`.
+        7. When done, provide a clear summary: what changed, which files, outcome.
+        8. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
+
+        ## Available Tools
+
+        ### File Operations
+        - **read** — Read a file with line numbers. Args: `path`.
+        - **str_replace** — Replace exact text in a file. Args: `path`, `old_string`, `new_string`.
+          The `old_string` MUST match EXACTLY (including whitespace/indentation).
+          If it appears multiple times, add more surrounding context lines to make it unique.
+          ALWAYS prefer `str_replace` over `write` for editing existing files.
+        - **write** — Write entire file content. ONLY for new files or complete rewrites. Args: `path`, `content`.
+        - **create_file** — Create a new file (fails if file exists). Args: `path`, `content`.
+        - **read_range** — Read specific line range. Args: `path`, `start`, `end`.
+        - **list_dir** — List directory contents. Args: `path`.
+
+        ### Search & Navigation
+        - **grep** — Search with regex (powered by ripgrep). Args: `query`, `pathScope` (dir), `fileType` (e.g. swift/ts/py), `context_lines` (0-10).
+        - **glob** — Find files by name pattern (powered by ripgrep). Args: `pattern` (e.g. `*.swift`, `**/*Test*`), `path` (scope dir).
+        - **search_symbols** — Search code symbols (class, struct, func, etc). Args: `query`, `kind`.
+
+        ### Execution
+        - **bash** — Run shell command. Args: `command`, `cwd`.
+        - **git_diff** — Show git diff. Args: `path`.
+        - **run_tests** — Run tests. Args: `target`, `filter`.
+        - **build_project** — Build project. Args: `configuration`, `target`.
+
+        ### Data
+        - **read_json** — Read and pretty-print JSON. Args: `path`.
+        - **write_json** — Merge patch into JSON file. Args: `path`, `patch`.
+
+        ### MCP (Model Context Protocol)
+        - **mcp_call** — Call an MCP tool. Args: `server`, `tool`, plus tool-specific args.
+        - **mcp_list_tools** — List available MCP tools. Args: `server` (optional).
+        - **mcp_describe_tool** — Get MCP tool schema. Args: `server`, `tool`.
+        - **mcp_list_servers** — List connected MCP servers.
+        - **mcp_health** — Check MCP server health.
+        - **mcp_reconnect** — Reconnect to an MCP server. Args: `server`.
+
+        ### Utility
+        - **workspace_stats** — Get file/dir counts and size.
+        - **dependency_audit** — Audit dependencies. Args: `manager` (swift/npm/pnpm/yarn).
+        - **tail_log** — Read last N lines of a file. Args: `path`, `lines`.
+        - **list_processes** — List running processes. Args: `filter`.
+
+        ## Marker Format
+        ```
+        [CODERIDE:tool_call|id=<uuid>|name=<tool_name>|arg1=value1|arg2=value2]
+        ```
+
+        ## Examples
+
+        Read a file:
+        [CODERIDE:tool_call|id=abc123|name=read|path=Sources/App/main.swift]
+
+        Edit a file (surgical replace):
+        [CODERIDE:tool_call|id=def456|name=str_replace|path=Sources/App/main.swift|old_string=let x = 5|new_string=let x = 10]
+
+        Search for code:
+        [CODERIDE:tool_call|id=ghi789|name=grep|query=func viewDidLoad|fileType=swift|context_lines=3]
+
+        Find files:
+        [CODERIDE:tool_call|id=jkl012|name=glob|pattern=*ViewController.swift]
+
+        Run a command:
+        [CODERIDE:tool_call|id=mno345|name=bash|command=swift build]
+
+        Create a new file:
+        [CODERIDE:tool_call|id=pqr678|name=create_file|path=Sources/App/NewFile.swift|content=import Foundation]
+
+        ## Additional Markers
+        - Plan steps: [CODERIDE:plan_step|step_id=1|status=running|title=Analysis]
+        - Todo: [CODERIDE:todo_write|title=...|status=pending|priority=medium]
+        - Read batch: [CODERIDE:read_batch|files=a.swift,b.swift|group_id=...]
+        - Web search: [CODERIDE:web_search|query=...|status=started]
         """
     }
 }

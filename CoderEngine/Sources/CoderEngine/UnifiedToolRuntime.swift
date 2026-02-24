@@ -62,14 +62,14 @@ public struct ToolRuntimePolicy: Sendable {
     public init(
         sandboxMode: String = "workspace-write",
         askForApproval: String = "never",
-        timeoutMs: Int = 30_000,
-        maxToolCallsPerRound: Int = 6,
-        maxRepeatedSameToolPerRound: Int = 2,
-        maxBashOutputBytes: Int = 64_000,
-        maxReadBytesPerFile: Int = 128_000,
+        timeoutMs: Int = 60_000,
+        maxToolCallsPerRound: Int = 15,
+        maxRepeatedSameToolPerRound: Int = 8,
+        maxBashOutputBytes: Int = 128_000,
+        maxReadBytesPerFile: Int = 256_000,
         allowDangerousShellPatterns: Bool = false,
         enableMCP: Bool = true,
-        mcpPerCallTimeoutMs: Int = 20_000,
+        mcpPerCallTimeoutMs: Int = 30_000,
         mcpSessionIdleTTLSeconds: Int = 300
     ) {
         self.sandboxMode = sandboxMode
@@ -178,7 +178,8 @@ public actor UnifiedToolRuntime {
                 return await executeTailLog(call: call, context: context, startDate: startDate)
             case "glob":
                 let pattern = call.args["pattern"] ?? "*"
-                let cmd = "find . -name '\(shellEscaped(pattern))' | head -n 200"
+                let scopePath = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "."
+                let cmd = "rg --files -g '\(shellEscaped(pattern))' '\(shellEscaped(scopePath))' 2>/dev/null | head -n 500"
                 return await runBash(
                     command: cmd,
                     cwd: context.workspaceContext.workspacePath,
@@ -190,8 +191,17 @@ public actor UnifiedToolRuntime {
                 )
             case "grep":
                 let query = call.args["query"] ?? ""
-                let scope = call.args["pathScope"] ?? "."
-                let cmd = "rg -n '\(shellEscaped(query))' '\(shellEscaped(scope))' | head -n 200"
+                let scope = call.args["pathScope"] ?? call.args["path"] ?? "."
+                let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let contextLines = Int(call.args["context_lines"] ?? "") ?? 0
+                var cmd = "rg -n --no-heading"
+                if !fileType.isEmpty {
+                    cmd += " --type '\(shellEscaped(fileType))'"
+                }
+                if contextLines > 0 {
+                    cmd += " -C \(min(contextLines, 10))"
+                }
+                cmd += " '\(shellEscaped(query))' '\(shellEscaped(scope))' | head -n 500"
                 return await runBash(
                     command: cmd,
                     cwd: context.workspaceContext.workspacePath,
@@ -201,7 +211,15 @@ public actor UnifiedToolRuntime {
                     maxOutputBytes: context.policy.maxBashOutputBytes,
                     policy: context.policy
                 )
+            case "str_replace":
+                return try executeStrReplace(call: call, context: context, startDate: startDate)
+            case "create_file":
+                return try executeCreateFile(call: call, context: context, startDate: startDate)
             case "edit", "write":
+                // If old_string is present, behave like str_replace for backward compatibility
+                if let oldStr = call.args["old_string"], !oldStr.isEmpty {
+                    return try executeStrReplace(call: call, context: context, startDate: startDate)
+                }
                 return try executeWrite(call: call, context: context, startDate: startDate)
             case "bash":
                 let command = call.args["command"] ?? ""
@@ -512,15 +530,25 @@ public actor UnifiedToolRuntime {
     private func executeRead(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
         let path = try resolveRequiredPath(call.args["path"], context: context)
         guard let handle = FileHandle(forReadingAtPath: path) else {
-            throw ToolRuntimeError.validation("Impossibile aprire file: \(path)")
+            throw ToolRuntimeError.validation("File not found: \(path)")
         }
         defer { try? handle.close() }
         let data = try handle.read(upToCount: context.policy.maxReadBytesPerFile) ?? Data()
-        let content = String(data: data, encoding: .utf8) ?? ""
+        let rawContent = String(data: data, encoding: .utf8) ?? ""
+        // Add line numbers for better readability (like cat -n)
+        let lines = rawContent.components(separatedBy: "\n")
+        let digitCount = max(1, String(lines.count).count)
+        let numberedLines = lines.enumerated().map { idx, line in
+            let num = String(idx + 1)
+            let padding = String(repeating: " ", count: max(0, digitCount - num.count))
+            return "\(padding)\(num)│\(line)"
+        }
+        let content = numberedLines.joined(separator: "\n")
         return success([
             "title": "Read \(path)",
             "path": path,
-            "output": content
+            "output": content,
+            "detail": "\(lines.count) lines"
         ], startDate: startDate)
     }
 
@@ -583,6 +611,123 @@ public actor UnifiedToolRuntime {
             "linesAdded": "\(added)",
             "linesRemoved": "\(removed)",
             "diffPreview": diffPreview
+        ], startDate: startDate)
+    }
+
+    private func executeStrReplace(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
+        guard let pathArg = call.args["path"] else {
+            throw ToolRuntimeError.validation("path is required")
+        }
+        let path = try resolveRequiredPath(pathArg, context: context)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw ToolRuntimeError.validation("File not found: \(path). Use create_file for new files.")
+        }
+        let oldString = call.args["old_string"] ?? ""
+        let newString = call.args["new_string"] ?? ""
+
+        guard !oldString.isEmpty else {
+            throw ToolRuntimeError.validation("old_string is required and cannot be empty")
+        }
+
+        let content = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+
+        // Count occurrences
+        let occurrences = content.components(separatedBy: oldString).count - 1
+
+        if occurrences == 0 {
+            // Try to find the closest match to help the user
+            let oldLines = oldString.components(separatedBy: "\n")
+            let firstLine = oldLines.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            var hint = ""
+            if !firstLine.isEmpty {
+                let contentLines = content.components(separatedBy: "\n")
+                for (idx, line) in contentLines.enumerated() {
+                    if line.contains(firstLine) {
+                        let start = max(0, idx - 1)
+                        let end = min(contentLines.count, idx + 4)
+                        let snippet = contentLines[start..<end].enumerated().map { i, l in
+                            "\(start + i + 1)│\(l)"
+                        }.joined(separator: "\n")
+                        hint = "\n\nClosest match found near line \(idx + 1):\n\(snippet)\n\nMake sure old_string matches EXACTLY including whitespace and indentation."
+                        break
+                    }
+                }
+            }
+            throw ToolRuntimeError.validation("old_string not found in \(path).\(hint)")
+        }
+
+        if occurrences > 1 {
+            // Find all locations to help user add context
+            let contentLines = content.components(separatedBy: "\n")
+            let firstOldLine = oldString.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? oldString
+            var locations: [Int] = []
+            for (idx, line) in contentLines.enumerated() {
+                if line.contains(firstOldLine) {
+                    locations.append(idx + 1)
+                }
+            }
+            let locationStr = locations.prefix(5).map { "line \($0)" }.joined(separator: ", ")
+            throw ToolRuntimeError.validation("old_string is not unique — found \(occurrences) occurrences at \(locationStr). Add more surrounding context to make it unique.")
+        }
+
+        // Perform the replacement (exactly 1 match)
+        let newContent = content.replacingOccurrences(of: oldString, with: newString)
+        try newContent.write(toFile: path, atomically: true, encoding: .utf8)
+
+        // Build a nice diff preview
+        let oldLines = oldString.components(separatedBy: "\n")
+        let newLines = newString.components(separatedBy: "\n")
+        var diffPreview = ""
+        for line in oldLines.prefix(15) {
+            diffPreview += "- \(line)\n"
+        }
+        for line in newLines.prefix(15) {
+            diffPreview += "+ \(line)\n"
+        }
+
+        // Find the line number where the change was made
+        let lineNumber: Int
+        if let range = content.range(of: oldString) {
+            let beforeReplacement = content[content.startIndex..<range.lowerBound]
+            lineNumber = beforeReplacement.filter { $0 == "\n" }.count + 1
+        } else {
+            lineNumber = 1
+        }
+
+        return success([
+            "title": "str_replace \((path as NSString).lastPathComponent):\(lineNumber)",
+            "path": path,
+            "file": path,
+            "detail": "Replaced at line \(lineNumber) (\(oldLines.count) lines → \(newLines.count) lines)",
+            "diffPreview": diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+        ], startDate: startDate)
+    }
+
+    private func executeCreateFile(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
+        guard let pathArg = call.args["path"] else {
+            throw ToolRuntimeError.validation("path is required")
+        }
+        let path = try resolveRequiredPath(pathArg, context: context)
+        let content = call.args["content"] ?? ""
+
+        if FileManager.default.fileExists(atPath: path) {
+            throw ToolRuntimeError.validation("File already exists: \(path). Use str_replace to edit or write to overwrite.")
+        }
+
+        // Create intermediate directories if needed
+        let dirPath = (path as NSString).deletingLastPathComponent
+        if !FileManager.default.fileExists(atPath: dirPath) {
+            try FileManager.default.createDirectory(atPath: dirPath, withIntermediateDirectories: true)
+        }
+
+        try content.write(toFile: path, atomically: true, encoding: .utf8)
+        let lineCount = content.components(separatedBy: "\n").count
+        return success([
+            "title": "Created \((path as NSString).lastPathComponent)",
+            "path": path,
+            "file": path,
+            "detail": "Created \(lineCount) lines",
+            "linesAdded": "\(lineCount)"
         ], startDate: startDate)
     }
 
@@ -873,25 +1018,26 @@ public actor UnifiedToolRuntime {
 
     private func validate(call: ToolCall, normalizedName: String) throws {
         switch normalizedName {
-        case "read", "write", "edit", "read_range", "list_dir", "read_json", "write_json", "tail_log":
+        case "read", "write", "edit", "read_range", "list_dir", "read_json", "write_json", "tail_log",
+             "str_replace", "create_file":
             let path = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if path.isEmpty && normalizedName != "list_dir" {
-                throw ToolRuntimeError.validation("Path obbligatorio")
+                throw ToolRuntimeError.validation("path is required")
             }
         case "grep", "web_search", "search_symbols":
             let query = call.args["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if query.isEmpty {
-                throw ToolRuntimeError.validation("Query obbligatoria")
+                throw ToolRuntimeError.validation("query is required")
             }
         case "bash":
             let command = call.args["command"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if command.isEmpty {
-                throw ToolRuntimeError.validation("Command obbligatorio")
+                throw ToolRuntimeError.validation("command is required")
             }
         case "mcp_reconnect":
             let server = (call.args["server"] ?? call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if server.isEmpty {
-                throw ToolRuntimeError.validation("Server obbligatorio")
+                throw ToolRuntimeError.validation("server is required")
             }
         default:
             break
@@ -948,7 +1094,14 @@ public actor UnifiedToolRuntime {
             let head = lower.split(separator: " ").first.map(String.init) ?? ""
             let allowlist: Set<String> = [
                 "rg", "find", "git", "ls", "cat", "head", "tail", "sed", "awk", "wc", "echo", "pwd", "stat", "which",
-                "swift", "ps", "du", "printf", "npm", "pnpm", "yarn"
+                "swift", "ps", "du", "printf", "npm", "pnpm", "yarn", "node", "python", "python3",
+                "cargo", "rustc", "go", "make", "cmake", "mkdir", "cp", "mv", "touch", "chmod",
+                "curl", "tar", "unzip", "zip", "diff", "sort", "uniq", "xargs", "tee", "env",
+                "xcodebuild", "xcrun", "swiftformat", "swiftlint", "prettier", "eslint",
+                "fd", "tree", "jq", "gh", "brew", "pip", "pip3", "pod", "bundle", "ruby",
+                "docker", "docker-compose", "kubectl", "terraform", "deno", "bun",
+                "test", "[", "true", "false", "date", "basename", "dirname", "realpath", "readlink",
+                "grep", "egrep", "fgrep", "tr", "cut", "paste", "column", "comm", "join",
             ]
             if !head.isEmpty && !allowlist.contains(head) {
                 throw ToolRuntimeError.sandboxViolation("Comando non consentito in strict mode: \(head)")
@@ -990,7 +1143,7 @@ public actor UnifiedToolRuntime {
              "run_tests", "build_project", "list_processes", "read_json", "write_json",
              "workspace_stats", "dependency_audit", "tail_log":
             return ok ? "read_batch_completed" : "tool_execution_error"
-        case "edit", "write":
+        case "edit", "write", "str_replace", "create_file":
             return ok ? "file_change" : "tool_execution_error"
         case "bash":
             return ok ? "command_execution" : "tool_execution_error"

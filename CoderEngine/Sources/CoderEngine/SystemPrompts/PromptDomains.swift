@@ -2,32 +2,32 @@ import Foundation
 
 enum PromptDomains {
     static let iosSwift = """
-    Dominio iOS/Swift:
-    - Segui convenzioni SwiftUI/AppKit del progetto.
-    - Evita regressioni UI e race su main actor; privilegia fix deterministici.
+    Domain: iOS/Swift
+    - Follow the project's SwiftUI/AppKit conventions.
+    - Avoid UI regressions and main actor races; prefer deterministic fixes.
     """
 
     static let backend = """
-    Dominio backend:
-    - Mantieni contratti API stabili e gestione errori uniforme.
-    - Progetta per osservabilità e failure mode espliciti.
+    Domain: Backend
+    - Maintain stable API contracts and uniform error handling.
+    - Design for observability and explicit failure modes.
     """
 
     static let devopsRepo = """
-    Dominio DevOps/Repo:
-    - Prediligi automazione ripetibile e comandi idempotenti.
-    - Riporta sempre impatto su build/test/release pipeline.
+    Domain: DevOps/Repo
+    - Prefer repeatable automation and idempotent commands.
+    - Always report impact on build/test/release pipeline.
     """
 
     static let securityAuthorized = """
-    Dominio security autorizzato:
-    - Operatività avanzata solo in scope consentito.
-    - Output con evidenze, IOC, mitigazioni e priorità remediation.
+    Domain: Security (authorized)
+    - Advanced operations only within authorized scope.
+    - Output with evidence, IOCs, mitigations, and remediation priorities.
     """
 
     static let data = """
-    Dominio data:
-    - Convalida schema/input, gestisci errori e edge case.
-    - Evita assunzioni implicite su qualità e forma dei dati.
+    Domain: Data
+    - Validate schema/input, handle errors and edge cases.
+    - Avoid implicit assumptions about data quality and shape.
     """
 }

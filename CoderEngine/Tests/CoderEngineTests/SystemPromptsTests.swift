@@ -15,14 +15,72 @@ final class SystemPromptsTests: XCTestCase {
         )
 
         XCTAssertTrue(prompt.contains("Persona: Senior Engineer"))
-        XCTAssertTrue(prompt.contains("Dominio iOS/Swift"))
-        XCTAssertTrue(prompt.contains("Security policy (red+blue autorizzato)"))
-        XCTAssertTrue(prompt.contains("Stile output audit"))
-        XCTAssertTrue(prompt.contains("Final outcome obbligatorio"))
+        XCTAssertTrue(prompt.contains("Domain: iOS/Swift"))
+        XCTAssertTrue(prompt.contains("Security policy (red+blue authorized)"))
+        XCTAssertTrue(prompt.contains("Output style — audit"))
+        XCTAssertTrue(prompt.contains("Final outcome"))
     }
 
     func testOptimizedProfileBackwardCompatibility() {
         let prompt = SystemPrompts.optimized(profile: .planner)
-        XCTAssertTrue(prompt.contains("Modalità Planner"))
+        XCTAssertTrue(prompt.contains("Planner mode"))
+    }
+
+    func testCursorDefaultContainsCoreSections() {
+        let prompt = SystemPrompts.cursorDefault
+        XCTAssertTrue(prompt.contains("Codigo"))
+        XCTAssertTrue(prompt.contains("Core rules"))
+        XCTAssertTrue(prompt.contains("Completion contract"))
+        XCTAssertTrue(prompt.contains("Execution discipline"))
+        XCTAssertTrue(prompt.contains("Tool usage policy"))
+        XCTAssertTrue(prompt.contains("Planning policy"))
+        XCTAssertTrue(prompt.contains("Finisher mode"))
+    }
+
+    func testTaskCompletionStrictContainsIdentity() {
+        let prompt = SystemPrompts.taskCompletionStrict
+        XCTAssertTrue(prompt.contains("Codigo"))
+        XCTAssertTrue(prompt.contains("str_replace"))
+    }
+
+    func testAllProfilesCompile() {
+        let profiles: [PromptProfile] = [
+            .cursorDefault, .planner, .implementer, .debugger, .reviewer, .finisher,
+            .seniorEngineer, .staffArchitect, .principalReviewer,
+            .incidentResponder, .securityRedBlueAuthorized
+        ]
+        for profile in profiles {
+            let prompt = SystemPrompts.optimized(profile: profile)
+            XCTAssertFalse(prompt.isEmpty, "Profile \(profile) should produce non-empty prompt")
+            XCTAssertTrue(prompt.count > 50, "Profile \(profile) prompt too short: \(prompt.count)")
+        }
+    }
+
+    func testAllDomainsAreEnglish() {
+        let prompt = SystemPrompts.optimized(
+            config: PromptConfig(
+                profile: .cursorDefault,
+                domain: .iosSwift,
+                safetyMode: .standard,
+                verbosity: .normal
+            )
+        )
+        XCTAssertTrue(prompt.contains("Domain: iOS/Swift"))
+        XCTAssertFalse(prompt.contains("Dominio"))
+    }
+
+    func testAllModesAreEnglish() {
+        let planner = SystemPrompts.planner
+        XCTAssertTrue(planner.contains("Planner mode"))
+        XCTAssertFalse(planner.contains("Modalità"))
+
+        let implementer = SystemPrompts.implementer
+        XCTAssertTrue(implementer.contains("Implementer mode"))
+
+        let debugger = SystemPrompts.debugger
+        XCTAssertTrue(debugger.contains("Debugger mode"))
+
+        let reviewer = SystemPrompts.reviewer
+        XCTAssertTrue(reviewer.contains("Reviewer mode"))
     }
 }

@@ -34,7 +34,8 @@ struct InlineActivityFeedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if visibleActivities.isEmpty {
-                statusPlaceholder
+                // Nessun placeholder — il contenuto streaming è sufficiente.
+                EmptyView()
             } else {
                 ForEach(visibleActivities) { activity in
                     let isExpanded = expandedActivityIds.contains(activity.id)

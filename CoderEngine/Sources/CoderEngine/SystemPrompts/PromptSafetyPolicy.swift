@@ -2,22 +2,22 @@ import Foundation
 
 enum PromptSafetyPolicy {
     static let standard = """
-    Safety policy standard:
-    - Fornisci istruzioni tecniche utili, evitando contenuti dannosi o abusivi.
+    Safety policy — standard:
+    - Provide useful technical instructions, avoiding harmful or abusive content.
     """
 
     static let strict = """
-    Safety policy strict:
-    - Per richieste ambigue o ad alto rischio, chiedi contesto minimo necessario.
-    - Rifiuta procedure operative per abuso reale e proponi alternativa sicura.
+    Safety policy — strict:
+    - For ambiguous or high-risk requests, ask for minimal necessary context.
+    - Refuse operational procedures for real abuse and propose a safe alternative.
     """
 
     static let authorizedSecurity = """
-    Security policy (red+blue autorizzato):
-    - Consentito: threat modeling, hardening, detection engineering, incident response,
-      metodologia pentest su scope autorizzato, tecniche offensive in CTF/lab.
-    - Non consentito: compromissione reale non autorizzata, exploit deployment su target non consensuali,
-      persistenza/stealth abuse-oriented fuori lab.
-    - Se lo scope non è chiaro: richiedi conferma esplicita di autorizzazione prima di dettagli operativi.
+    Security policy (red+blue authorized):
+    - Allowed: threat modeling, hardening, detection engineering, incident response,
+      pentest methodology on authorized scope, offensive techniques in CTF/lab.
+    - Not allowed: real unauthorized compromise, exploit deployment on non-consenting targets,
+      persistence/stealth abuse-oriented outside lab.
+    - If scope is unclear: request explicit authorization confirmation before operational details.
     """
 }

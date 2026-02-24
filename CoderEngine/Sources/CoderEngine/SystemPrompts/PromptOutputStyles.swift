@@ -2,31 +2,31 @@ import Foundation
 
 enum PromptOutputStyles {
     static let concise = """
-    Stile output concise:
-    - Risposte brevi e operative.
-    - Evidenzia solo decisioni e risultati essenziali.
+    Output style — concise:
+    - Short, actionable responses.
+    - Highlight only essential decisions and results.
     """
 
     static let normal = """
-    Stile output normal:
-    - Struttura chiara con contesto minimo necessario.
-    - Include evidenza tecnica quando utile.
+    Output style — normal:
+    - Clear structure with minimal necessary context.
+    - Include technical evidence when useful.
     """
 
     static let audit = """
-    Stile output audit:
-    - Dettaglio alto, con rationale, verifiche e rischi residui.
-    - Adatto a review e incidenti.
+    Output style — audit:
+    - High detail with rationale, verifications, and residual risks.
+    - Suitable for reviews and incidents.
     """
 
     static let executionLog = """
-    Stile output execution_log:
-    - Sequenza cronologica: azione, evidenza, outcome.
+    Output style — execution log:
+    - Chronological sequence: action, evidence, outcome.
     """
 
     static let handoff = """
-    Stile output handoff:
-    - Conclusione pronta per passaggio a un altro engineer.
-    - Includi stato attuale, blocchi e next actions.
+    Output style — handoff:
+    - Conclusion ready for handoff to another engineer.
+    - Include current state, blockers, and next actions.
     """
 }
