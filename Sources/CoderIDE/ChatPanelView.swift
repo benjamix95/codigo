@@ -747,6 +747,17 @@ struct ChatPanelView: View {
                 selectMode(.agent)
             }
         }
+        .onChange(of: showDebugPanel) { _, isShowing in
+            if debugToggleEnabled != isShowing {
+                debugToggleEnabled = isShowing
+            }
+        }
+        .onChange(of: debugToggleEnabled) { _, isEnabled in
+            guard showDebugPanel != isEnabled else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                showDebugPanel = isEnabled
+            }
+        }
         .onChange(of: effectiveContext.primaryPath) { _, newPath in
             gitPanelStore.refresh(workingDirectory: newPath)
         }
@@ -917,6 +928,7 @@ struct ChatPanelView: View {
             todoStore: todoStore,
             onClose: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    debugToggleEnabled = false
                     showDebugPanel = false
                 }
             },
@@ -1071,7 +1083,7 @@ struct ChatPanelView: View {
                event.charactersIgnoringModifiers?.lowercased() == "d" {
                 DispatchQueue.main.async {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showDebugPanel.toggle()
+                        debugToggleEnabled.toggle()
                     }
                 }
                 return nil
@@ -1990,6 +2002,7 @@ struct ChatPanelView: View {
         switch action.lowercased() {
         case "open":
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled = true
                 showDebugPanel = true
             }
             if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
@@ -1997,6 +2010,7 @@ struct ChatPanelView: View {
             }
         case "close":
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled = false
                 showDebugPanel = false
             }
             debugStore.phase = .idle
@@ -2014,12 +2028,14 @@ struct ChatPanelView: View {
                 debugStore.clarificationQuestions = phaseStr
                 debugStore.phase = .describing
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    debugToggleEnabled = true
                     showDebugPanel = true
                 }
             }
         case "reproduce":
             debugStore.setPhase(.reproducing)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled = true
                 showDebugPanel = true
             }
         case "resolve":
@@ -2361,7 +2377,8 @@ struct ChatPanelView: View {
             planModeBackend: planModeBackend,
             swarmWorkerBackend: swarmWorkerBackend,
             openaiModel: openaiModel,
-            claudeModel: claudeModel
+            claudeModel: claudeModel,
+            contextRefreshTick: streamContentVersion
         )
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)

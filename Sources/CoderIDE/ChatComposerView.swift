@@ -469,9 +469,7 @@ struct ChatComposerView: View {
             HStack(spacing: 8) {
                 ForEach(Array(attachedAttachments.enumerated()), id: \.element.id) { index, item in
                     HStack(spacing: 8) {
-                        Image(systemName: iconForAttachment(item.kind))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                        attachmentPreview(for: item)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(item.originalName)
                                 .font(.system(size: 10.5, weight: .semibold))
@@ -484,7 +482,7 @@ struct ChatComposerView: View {
                                     .lineLimit(1)
                             }
                         }
-                        .frame(maxWidth: 190, alignment: .leading)
+                        .frame(maxWidth: item.kind == .image ? 140 : 190, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                         Text(kindLabel(item.kind))
                             .font(.system(size: 10.5, weight: .semibold))
@@ -503,8 +501,8 @@ struct ChatComposerView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(0.06))
@@ -515,6 +513,34 @@ struct ChatComposerView: View {
                     )
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func attachmentPreview(for item: ComposerAttachment) -> some View {
+        if item.kind == .image {
+            Group {
+                if let img = NSImage(contentsOf: item.url) {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    Image(systemName: "photo")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: 42, height: 28)
+            .background(Color.white.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+            )
+        } else {
+            Image(systemName: iconForAttachment(item.kind))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
         }
     }
 

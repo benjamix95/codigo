@@ -19,8 +19,11 @@ struct MessageRow: View {
     var hasCheckpointForRestore: Bool = false
     var showTopDivider: Bool = false
     @State private var isHovered = false
+    @State private var didCopyMessage = false
     private let userRowMaxWidth: CGFloat = 620
     private let assistantRowMaxWidth: CGFloat = 920
+    private let userImageThumbWidth: CGFloat = 52
+    private let userImageThumbHeight: CGFloat = 34
 
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
@@ -148,6 +151,9 @@ struct MessageRow: View {
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
                 )
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
+                if !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    userActionsRow
+                }
             } else {
                 // Thinking block
                 if isActivelyStreaming,
@@ -215,6 +221,44 @@ struct MessageRow: View {
 
     // MARK: - Streaming Bar
 
+    private var userActionsRow: some View {
+        HStack(spacing: 6) {
+            Button {
+                copyUserMessageToClipboard()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: didCopyMessage ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 9.5, weight: .semibold))
+                    Text(didCopyMessage ? "Copied" : "Copy")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Copia il messaggio")
+            .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
+            .animation(.easeOut(duration: 0.15), value: didCopyMessage)
+        }
+        .padding(.trailing, 6)
+    }
+
+    private func copyUserMessageToClipboard() {
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.content, forType: .string)
+        didCopyMessage = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            didCopyMessage = false
+        }
+    }
+
     private var streamingBar: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
@@ -259,9 +303,9 @@ struct MessageRow: View {
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
-                    .frame(width: 60, height: 60)
+                    .frame(width: userImageThumbWidth, height: userImageThumbHeight)
                     .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
                 }
             }
         }

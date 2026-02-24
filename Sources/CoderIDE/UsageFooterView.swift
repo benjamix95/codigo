@@ -12,18 +12,70 @@ struct UsageFooterView: View {
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
+    @AppStorage("openai_model") private var openaiModelSetting = "gpt-4o-mini"
+    @AppStorage("anthropic_model") private var anthropicModelSetting = "claude-sonnet-4-6"
+    @AppStorage("google_model") private var googleModelSetting = "gemini-2.5-pro"
+    @AppStorage("openrouter_model") private var openrouterModelSetting = "anthropic/claude-sonnet-4-6"
+    @AppStorage("minimax_model") private var minimaxModelSetting = "MiniMax-M2.5"
+    @AppStorage("grok_model") private var grokModelSetting = "grok-4-1-fast-reasoning"
+    @AppStorage("codex_model_override") private var codexModelOverride = ""
+    @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     let effectiveContext: EffectiveContext
     let planModeBackend: String
     let swarmWorkerBackend: String
     let openaiModel: String
     let claudeModel: String
+    let contextRefreshTick: Int
     @State private var usageRefreshTask: Task<Void, Never>?
 
     private var effectiveProviderId: String? {
-        providerRegistry.selectedProviderId ?? ""
+        providerRegistry.selectedProviderId
+    }
+
+    private var effectiveContextModel: String {
+        let providerId = effectiveProviderId ?? ""
+        switch providerId {
+        case "codex-cli":
+            return codexModelOverride.isEmpty ? "gpt-5-codex" : codexModelOverride
+        case "claude-cli":
+            return claudeModel
+        case "gemini-cli":
+            return geminiModelOverride.isEmpty ? googleModelSetting : geminiModelOverride
+        case "openai-api":
+            return openaiModelSetting
+        case "anthropic-api":
+            return anthropicModelSetting
+        case "google-api":
+            return googleModelSetting
+        case "openrouter-api":
+            return normalizeOpenRouterModelId(openrouterModelSetting)
+        case "minimax-api":
+            return minimaxModelSetting
+        case "grok-api":
+            return grokModelSetting
+        default:
+            if providerId.contains("claude") { return claudeModel }
+            return openaiModelSetting.isEmpty ? openaiModel : openaiModelSetting
+        }
+    }
+
+    private func resolvedContextWindowSize(providerId: String?, model: String) -> Int {
+        let normalized = model.lowercased()
+        if normalized.contains("gemini") {
+            // Gemini modern models typically expose ~1M context windows.
+            return 1_048_576
+        }
+        if normalized.contains("gpt-5") || normalized.contains("codex") {
+            return 200_000
+        }
+        if normalized.contains("claude") {
+            return 200_000
+        }
+        return ContextEstimator.contextSize(for: providerId, model: model)
     }
 
     private var contextEstimate: (tokens: Int, size: Int, pct: Double) {
+        _ = contextRefreshTick
         guard let conv = chatStore.conversation(for: selectedConversationId) else {
             return (0, 128_000, 0)
         }
@@ -34,8 +86,8 @@ struct UsageFooterView: View {
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
         let ctxPrompt = ctx.contextPrompt()
-        let model = effectiveProviderId?.contains("claude") == true ? claudeModel : openaiModel
-        let size = ContextEstimator.contextSize(for: effectiveProviderId, model: model)
+        let model = effectiveContextModel
+        let size = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
         let (tokens, ctxSize, pct) = ContextEstimator.estimate(
             messages: conv.messages,
             contextPrompt: ctxPrompt,
@@ -356,6 +408,10 @@ struct UsageFooterView: View {
         let (tokens, size, pct) = contextEstimate
         return HStack(spacing: 6) {
             CircularProgressView(progress: pct, lineWidth: 1.5, size: 14)
+                .animation(.easeOut(duration: 0.18), value: pct)
+            Text("\(Int((pct * 100).rounded()))%")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
             Text("\(tokens.formatted()) / \((size / 1000).formatted())k")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
