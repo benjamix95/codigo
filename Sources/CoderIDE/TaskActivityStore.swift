@@ -8,7 +8,7 @@ enum ActivityPhase: String, Codable {
     case planning
 }
 
-/// Attività singola nel pannello task (Edit, Bash, Search, Agent role, ecc.)
+/// Single activity in the task panel (Edit, Bash, Search, Agent role, etc.)
 struct TaskActivity: Identifiable {
     let id: UUID
     let type: String
@@ -109,6 +109,10 @@ final class TaskActivityStore: ObservableObject {
         "plan_step",
         "plan_step_update",
         "planning_auto_reset",
+        "activate_plan_mode",
+        "activate_debug_mode",
+        "debug_panel",
+        "debug_panel_update",
         "process_paused",
         "process_resumed",
         "read_batch_started",
@@ -123,6 +127,9 @@ final class TaskActivityStore: ObservableObject {
         "web_search_started",
         "web_search_completed",
         "web_search_failed",
+        "semantic_search",
+        "read_lints",
+        "debug_context",
     ]
 
     nonisolated static func isConcreteVisibleEventType(_ type: String) -> Bool {
@@ -272,8 +279,8 @@ final class TaskActivityStore: ObservableObject {
         addActivity(
             TaskActivity(
                 type: "planning_auto_reset",
-                title: "Planning completato automaticamente",
-                detail: "Plan attivo disattivato: nessun todo aperto e streaming terminato",
+                title: "Planning auto-completed",
+                detail: "Active plan deactivated: no open todos and streaming finished",
                 payload: [
                     "status": "completed",
                     "reason": reason,
@@ -381,7 +388,7 @@ final class TaskActivityStore: ObservableObject {
             || title.contains("failed")
             || detail.contains("completed")
             || detail.contains("failed")
-            || detail.contains("errore")
+            || detail.contains("error")
     }
 
     func clear() {
@@ -441,6 +448,9 @@ final class TaskActivityStore: ObservableObject {
                  "mcp_tool_call",
                  "process_paused", "process_resumed",
                  "plan_step", "plan_step_update", "planning_auto_reset",
+                 "activate_plan_mode", "activate_debug_mode",
+                 "debug_panel", "debug_panel_update",
+                 "semantic_search", "read_lints", "debug_context",
                  "file_change", "edit":
                 return true
             default:
@@ -587,7 +597,7 @@ final class TaskActivityStore: ObservableObject {
         }
         let t = activity.title.lowercased()
         let d = (activity.detail ?? "").lowercased()
-        return t.contains("errore") || t.contains("failed") || d.contains("errore") || d.contains("failed")
+        return t.contains("error") || t.contains("failed") || d.contains("error") || d.contains("failed")
     }
 
     private func ingestSwarmCard(activity: TaskActivity) {

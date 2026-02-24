@@ -30,10 +30,10 @@ struct CodexLoginView: View {
                 .font(.system(size: 36))
                 .foregroundStyle(Color.accentColor)
 
-            Text("Accedi a Codex")
+            Text("Sign in to Codex")
                 .font(.title3)
 
-            Text("Autenticati per usare Codex CLI")
+            Text("Authenticate to use Codex CLI")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -48,7 +48,7 @@ struct CodexLoginView: View {
             Text(loginMessage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Attendere...")
+            Text("Please wait...")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -62,9 +62,9 @@ struct CodexLoginView: View {
                     Image(systemName: "safari")
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Accedi con ChatGPT")
+                        Text("Sign in with ChatGPT")
                             .font(.subheadline.weight(.medium))
-                        Text("Apri il browser per autenticarti")
+                        Text("Open the browser to authenticate")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.8))
                     }
@@ -79,7 +79,7 @@ struct CodexLoginView: View {
 
             HStack {
                 Divider().frame(height: 1)
-                Text("oppure").font(.caption).foregroundStyle(.secondary)
+                Text("or").font(.caption).foregroundStyle(.secondary)
                 Divider().frame(height: 1)
             }
 
@@ -89,9 +89,9 @@ struct CodexLoginView: View {
                         .font(.title3)
                         .foregroundStyle(Color.accentColor)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Codice dispositivo")
+                        Text("Device code")
                             .font(.subheadline.weight(.medium))
-                        Text("Mostra codice nel terminale")
+                        Text("Show code in terminal")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -109,7 +109,7 @@ struct CodexLoginView: View {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Oppure usa API Key")
+                Text("Or use API Key")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -117,12 +117,12 @@ struct CodexLoginView: View {
                 SecureField("openai_api_key", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
 
-                Button("Accedi con API Key") { loginWithAPIKey() }
+                Button("Sign in with API Key") { loginWithAPIKey() }
                     .buttonStyle(.borderedProminent)
                     .disabled(apiKey.isEmpty)
             }
 
-            Button("Annulla", role: .cancel) {
+            Button("Cancel", role: .cancel) {
                 dismiss()
                 onDismiss()
             }
@@ -135,20 +135,20 @@ struct CodexLoginView: View {
 
     private func loginWithBrowser() {
         isPolling = true
-        loginMessage = "Aprendo il browser..."
+        loginMessage = "Opening the browser..."
         runLogin(args: [])
     }
 
     private func loginWithDeviceCode() {
         isPolling = true
-        loginMessage = "Mostra il codice nel terminale..."
+        loginMessage = "Showing the code in terminal..."
         runLogin(args: ["--device-auth"])
     }
 
     private func loginWithAPIKey() {
         guard !apiKey.isEmpty else { return }
         isPolling = true
-        loginMessage = "Autenticazione in corso..."
+        loginMessage = "Authenticating..."
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: codexPath)
@@ -175,7 +175,7 @@ struct CodexLoginView: View {
                     startPolling(codexPath: capturedPath)
                 } else {
                     isPolling = false
-                    loginMessage = "Login fallito. Verifica API key e riprova."
+                    loginMessage = "Login failed. Verify API key and try again."
                 }
             }
         }
@@ -217,7 +217,7 @@ struct CodexLoginView: View {
                     startPolling(codexPath: capturedPath)
                 } else {
                     isPolling = false
-                    loginMessage = "Login non completato. Riprova."
+                    loginMessage = "Login not completed. Try again."
                 }
             }
         }
@@ -238,7 +238,7 @@ struct CodexLoginView: View {
                 }
             }
             isPolling = false
-            loginMessage = "Timeout. Riprova."
+            loginMessage = "Timeout. Try again."
         }
     }
 }

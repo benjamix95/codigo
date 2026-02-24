@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider che usa Gemini CLI (`gemini -p`)
+/// Provider that uses Gemini CLI (`gemini -p`)
 public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "gemini-cli"
     public let displayName = "Gemini CLI"
@@ -47,7 +47,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             Task {
                 do {
                     guard FileManager.default.fileExists(atPath: path) else {
-                        continuation.yield(.error("Gemini CLI non trovato a \(path)."))
+                        continuation.yield(.error("Gemini CLI not found at \(path)."))
                         continuation.finish(throwing: CoderEngineError.cliNotFound("gemini"))
                         return
                     }
@@ -128,7 +128,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                             continue
                         }
 
-                        // Evita di mostrare rumore JSON parziale (es. output pretty-printed multilinea).
+                        // Avoid showing partial JSON noise (e.g. multiline pretty-printed output).
                         if !jsonCarry.isEmpty || Self.looksLikeJSONFragment(line) {
                             continue
                         }
@@ -188,7 +188,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             let text = firstString(in: item, keys: ["text", "output", "content", "result", "message"]) ?? ""
             guard !text.isEmpty else { return nil }
             var payload: [String: String] = [
-                "title": "Ragionamento",
+                "title": "Reasoning",
                 "detail": String(text.prefix(200)) + (text.count > 200 ? "…" : ""),
                 "output": String(text.prefix(6_000)),
                 "group_id": "reasoning-stream"
@@ -224,8 +224,8 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             return [direct]
         }
 
-        // Gestisci oggetti concatenati/noisy solo quando la riga sembra contenere
-        // oggetti JSON top-level, evitando oggetti annidati di righe pretty-printed.
+        // Handle concatenated/noisy objects only when the line appears to contain
+        // top-level JSON objects, avoiding nested objects from pretty-printed lines.
         if let first = cleaned.first, first == "{" {
             let inlinePayloads = extractJSONObjectStrings(from: cleaned).compactMap { decodeJSONDictionary($0) }
             if !inlinePayloads.isEmpty {
@@ -244,7 +244,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                 return [full]
             }
 
-            // Safety valve: evita crescita indefinita del buffer su output inatteso.
+            // Safety valve: prevent unbounded buffer growth on unexpected output.
             if carry.count > 200_000 {
                 carry = String(carry.suffix(50_000))
             }
@@ -270,7 +270,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
 
     static func extractText(from obj: Any) -> String? {
         if let dict = obj as? [String: Any] {
-            // Preferisci i campi canonici di risposta Gemini ed evita metadata.
+            // Prefer canonical Gemini response fields and avoid metadata.
             for key in ["response", "result", "output", "text"] {
                 if let value = dict[key], let txt = nonEmptyString(value) {
                     return txt
@@ -545,9 +545,9 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
 
         if raw.contains("[object Object]"), let http = firstHTTPStatusCode(in: raw) {
             if http == 404 {
-                return "Gemini CLI: errore HTTP 404 (risorsa/modello non trovato). Verifica il modello selezionato o aggiorna la CLI."
+                return "Gemini CLI: HTTP 404 error (resource/model not found). Check the selected model or update the CLI."
             }
-            return "Gemini CLI: errore HTTP \(http)."
+            return "Gemini CLI: HTTP error \(http)."
         }
 
         return nil
@@ -566,16 +566,16 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
 
         if let code = httpCode, code == 404 {
             if let cleanedMessage, !cleanedMessage.isEmpty {
-                return "Gemini CLI: errore HTTP 404 — \(cleanedMessage)"
+                return "Gemini CLI: HTTP 404 error — \(cleanedMessage)"
             }
-            return "Gemini CLI: errore HTTP 404 (risorsa/modello non trovato). Verifica il modello selezionato o aggiorna la CLI."
+            return "Gemini CLI: HTTP 404 error (resource/model not found). Check the selected model or update the CLI."
         }
 
         if let code = httpCode {
             if let cleanedMessage, !cleanedMessage.isEmpty {
-                return "Gemini CLI: errore HTTP \(code) — \(cleanedMessage)"
+                return "Gemini CLI: HTTP error \(code) — \(cleanedMessage)"
             }
-            return "Gemini CLI: errore HTTP \(code)."
+            return "Gemini CLI: HTTP error \(code)."
         }
 
         if let cleanedMessage, !cleanedMessage.isEmpty {
@@ -583,7 +583,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         }
 
         if raw.contains("[object Object]") {
-            return "Gemini CLI: richiesta fallita (errore non dettagliato). Verifica configurazione account e modello."
+            return "Gemini CLI: request failed (no detailed error). Check account and model configuration."
         }
 
         return nil

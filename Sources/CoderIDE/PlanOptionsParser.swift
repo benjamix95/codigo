@@ -322,11 +322,11 @@ enum PlanOptionsParser {
         }
 
         // Ultimo fallback: intero testo come unica opzione
-        return [PlanOption(id: 1, title: "Piano completo", fullText: trimmed)]
+        return [PlanOption(id: 1, title: "Full plan", fullText: trimmed)]
     }
 
     static func isFallbackOption(_ option: PlanOption) -> Bool {
-        option.id == 1 && option.title == "Piano completo"
+        option.id == 1 && option.title == "Full plan"
     }
 
     /// Estrae gli step todo dalla sezione "## Todo" di un'opzione di piano.

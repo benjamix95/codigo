@@ -75,26 +75,26 @@ struct AgentSwarmHelpView: View {
 
     private var italianContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Cos'è Agent Swarm?")
-            bodyText("Agent Swarm è un sistema multi-agente che coordina sette agenti AI specializzati per risolvere compiti complessi. Un orchestratore analizza la richiesta, crea un piano strutturato e assegna task ad agenti esperti (Planner, Coder, Debugger, Reviewer, DocWriter, SecurityAuditor, TestWriter).")
+            sectionTitle("What is Agent Swarm?")
+            bodyText("Agent Swarm is a multi-agent system that coordinates seven specialized AI agents to solve complex tasks. An orchestrator analyzes the request, creates a structured plan and assigns tasks to expert agents (Planner, Coder, Debugger, Reviewer, DocWriter, SecurityAuditor, TestWriter).")
 
-            sectionTitle("Come funziona")
-            bodyText("1. Invii un messaggio in modalità Agent Swarm.\n2. L'orchestratore (OpenAI o Codex) produce un piano JSON: lista ordinata di task con ruoli assegnati.\n3. I worker eseguono i task in sequenza come istanze Codex con prompt specializzati.\n4. La chat streama l'output combinato con intestazioni per agente.")
+            sectionTitle("How It Works")
+            bodyText("1. You send a message in Agent Swarm mode.\n2. The orchestrator (OpenAI or Codex) produces a JSON plan: an ordered list of tasks with assigned roles.\n3. Workers execute tasks sequentially as Codex instances with specialized prompts.\n4. The chat streams the combined output with headers per agent.")
 
-            sectionTitle("I sette ruoli specializzati")
-            roleRow("Planner", "Scompone il compito in passi chiari senza scrivere codice.")
-            roleRow("Coder", "Implementa le modifiche al codice secondo il piano.")
-            roleRow("Debugger", "Identifica bug e risolve problemi.")
-            roleRow("Reviewer", "Revisiona il codice per stile e best practice.")
-            roleRow("DocWriter", "Scrive documentazione: README, commenti, docstring.")
-            roleRow("SecurityAuditor", "Analizza per vulnerabilità e dipendenze insicure.")
-            roleRow("TestWriter", "Scrive test unitari e di integrazione.")
+            sectionTitle("The Seven Specialist Roles")
+            roleRow("Planner", "Breaks down the task into clear steps without writing code.")
+            roleRow("Coder", "Implements code changes according to the plan.")
+            roleRow("Debugger", "Identifies bugs and resolves issues.")
+            roleRow("Reviewer", "Reviews code for style and best practices.")
+            roleRow("DocWriter", "Writes documentation: README, comments, docstrings.")
+            roleRow("SecurityAuditor", "Analyzes for vulnerabilities and insecure dependencies.")
+            roleRow("TestWriter", "Writes unit and integration tests.")
 
-            sectionTitle("Backend dell'orchestratore")
-            bodyText("L'orchestratore decide quali agenti eseguire. Puoi scegliere:\n- **OpenAI** (default): Veloce e leggero.\n- **Codex**: Nessuna API key extra, ma più lento.")
+            sectionTitle("Orchestrator Backend")
+            bodyText("The orchestrator decides which agents to run. You can choose:\n- **OpenAI** (default): Fast and lightweight.\n- **Codex**: No extra API key needed, but slower.")
 
-            sectionTitle("Configurazione")
-            bodyText("- **Chat**: Seleziona Orchestrator sotto il campo input in modalità Agent Swarm.\n- **Impostazioni**: Tab Agent Swarm per cambiare backend.")
+            sectionTitle("Configuration")
+            bodyText("- **Chat**: Select Orchestrator under the input field in Agent Swarm mode.\n- **Settings**: Agent Swarm tab to change backend.")
         }
     }
 

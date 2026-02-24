@@ -45,7 +45,7 @@ struct PlanSummaryCardView: View {
                     Spacer()
                     Button(action: onExpandPlan) {
                         HStack(spacing: 6) {
-                            Text("Apri piano completo")
+                            Text("Open full plan")
                                 .font(.system(size: 12, weight: .semibold))
                             Image(systemName: "arrow.up.right.square")
                                 .font(.system(size: 11, weight: .semibold))

@@ -9,6 +9,12 @@ final class WorkspaceStore: ObservableObject {
     @Published var workspaces: [Workspace] = []
     @Published var activeWorkspaceId: UUID?
 
+    /// Shared codebase index — available to all providers
+    let codebaseIndex = CodebaseIndex()
+
+    /// File watcher for real-time index updates
+    private var fileWatcher: FileWatcher?
+
     init() {
         load()
     }
@@ -16,6 +22,42 @@ final class WorkspaceStore: ObservableObject {
     var activeWorkspace: Workspace? {
         guard let id = activeWorkspaceId else { return nil }
         return workspaces.first { $0.id == id }
+    }
+
+    /// Workspace folder URLs for the active workspace
+    var activeWorkspacePaths: [URL] {
+        guard let ws = activeWorkspace else { return [] }
+        return ws.folderPaths.map { URL(fileURLWithPath: $0) }
+    }
+
+    /// Active workspace excluded paths
+    var activeExcludedPaths: [String] {
+        activeWorkspace?.excludedPaths ?? []
+    }
+
+    /// Index the active workspace (called on workspace change)
+    func indexActiveWorkspace() {
+        let paths = activeWorkspacePaths
+        let excluded = activeExcludedPaths
+        guard !paths.isEmpty else { return }
+
+        // Stop existing file watcher
+        if let watcher = fileWatcher {
+            Task { await watcher.stop() }
+            fileWatcher = nil
+        }
+
+        let index = codebaseIndex
+        Task.detached(priority: .utility) {
+            let _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
+
+            // Start file watcher for real-time updates
+            let watcher = FileWatcher(index: index, workspacePaths: paths)
+            await watcher.start()
+            await MainActor.run { [weak self] in
+                self?.fileWatcher = watcher
+            }
+        }
     }
 
     func load() {
@@ -27,6 +69,13 @@ final class WorkspaceStore: ObservableObject {
            let id = UUID(uuidString: idStr) {
             activeWorkspaceId = workspaces.contains { $0.id == id } ? id : nil
         }
+        indexActiveWorkspace()
+    }
+
+    func setActive(id: UUID?) {
+        activeWorkspaceId = id
+        save()
+        indexActiveWorkspace()
     }
 
     func save() {
@@ -67,6 +116,7 @@ final class WorkspaceStore: ObservableObject {
         if !workspaces[idx].folderPaths.contains(pathNorm) {
             workspaces[idx].folderPaths.append(pathNorm)
             save()
+            if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
         }
     }
     

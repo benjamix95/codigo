@@ -15,8 +15,8 @@ public enum ExecutionRunState: String, Sendable {
     case stopping
 }
 
-/// Controller per terminare il processo in esecuzione (Codex CLI, Claude CLI, ecc.)
-/// Usato dal pulsante "Ferma" per interrompere l'agente.
+/// Controller for terminating the running process (Codex CLI, Claude CLI, etc.)
+/// Used by the "Stop" button to interrupt the agent.
 public final class ExecutionController: ObservableObject, @unchecked Sendable {
     private var currentProcess: Process?
     private var currentScope: ExecutionScope?
@@ -27,7 +27,7 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
 
     public init() {}
 
-    /// Registra il processo corrente (chiamato da ProcessRunner)
+    /// Registers the current process (called by ProcessRunner)
     public func setCurrentProcess(_ process: Process) {
         lock.withLock {
             currentProcess = process
@@ -42,7 +42,7 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Rimuove il riferimento al processo (chiamato quando il processo termina)
+    /// Clears the process reference (called when the process terminates)
     public func clearCurrentProcess() {
         lock.withLock {
             currentProcess = nil
@@ -51,7 +51,7 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Termina il processo corrente. Chiamato dal pulsante Ferma.
+    /// Terminates the current process. Called by the Stop button.
     public func terminateCurrent() {
         lock.withLock {
             guard let process = currentProcess else {
@@ -66,9 +66,9 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
                 return
             }
 
-            // Mantieni lo stato "stopping" finché ProcessRunner non osserva la terminazione
-            // e richiama clearCurrentProcess(). Questo evita che uno stop utente venga
-            // classificato come errore runtime (es. exit code 15).
+            // Keep the "stopping" state until ProcessRunner observes the termination
+            // and calls clearCurrentProcess(). This prevents a user stop from being
+            // classified as a runtime error (e.g. exit code 15).
             _runState = .stopping
             process.terminate()
         }
@@ -118,12 +118,12 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Richiesta di stop per lo Swarm: non avviare nuovi agenti. Chiamato da Ferma quando in Swarm.
+    /// Stop request for the Swarm: do not start new agents. Called by Stop when in Swarm.
     public func requestSwarmStop() {
         lock.withLock { _swarmStopRequested = true }
     }
 
-    /// Resetta la richiesta di stop (chiamato all'inizio di ogni esecuzione Swarm)
+    /// Resets the stop request (called at the start of each Swarm execution)
     public func clearSwarmStopRequested() {
         lock.withLock { _swarmStopRequested = false }
     }
@@ -132,7 +132,7 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         lock.withLock { _swarmPauseRequested = false }
     }
 
-    /// Indica se è stata richiesta l'interruzione dello Swarm
+    /// Indicates whether Swarm interruption has been requested
     public var swarmStopRequested: Bool { lock.withLock { _swarmStopRequested } }
     public var swarmPauseRequested: Bool { lock.withLock { _swarmPauseRequested } }
     public var activeScope: ExecutionScope? { lock.withLock { currentScope } }

@@ -1,19 +1,19 @@
 import Foundation
 
-/// Eventi emessi durante lo streaming delle risposte LLM
+/// Events emitted during LLM response streaming
 public enum StreamEvent: Sendable {
-    /// Inizio di un messaggio
+    /// Message start
     case started
     
-    /// Delta di testo (token)
+    /// Text delta (token)
     case textDelta(String)
     
-    /// Fine del messaggio
+    /// Message end
     case completed
     
-    /// Errore durante lo streaming
+    /// Error during streaming
     case error(String)
     
-    /// Evento generico da provider CLI (es. Codex JSONL)
+    /// Generic event from CLI provider (e.g. Codex JSONL)
     case raw(type: String, payload: [String: String])
 }

@@ -55,6 +55,8 @@ struct DesignSystem {
         static let reviewColorLight = reviewColor.opacity(0.8)
         static let planColor = Color(red: 0.95, green: 0.55, blue: 0.18)
         static let planColorLight = planColor.opacity(0.8)
+        static let debugColor = Color(red: 0.94, green: 0.22, blue: 0.22)
+        static let debugColorLight = debugColor.opacity(0.8)
 
         // Background layers — rich blue-black in dark, system in light
         static let backgroundDeep = codigoAdaptive(
@@ -154,6 +156,10 @@ struct DesignSystem {
         )
         static let planGradient = LinearGradient(
             colors: [planColor, Color(red: 0.98, green: 0.68, blue: 0.32)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let debugGradient = LinearGradient(
+            colors: [debugColor, Color(red: 0.98, green: 0.35, blue: 0.28)],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
         static let glassGradient = LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)

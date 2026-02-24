@@ -1,9 +1,9 @@
 import CoderEngine
 import SwiftUI
 
-/// Vista inline della timeline attività durante lo streaming dell'assistant.
-/// Mostra la lista di step operativi (comandi, modifiche file, web search, ecc.)
-/// che l'LLM invoca tramite lo stream. Ogni riga è espandibile per vedere i dettagli.
+/// Inline activity timeline view displayed during assistant streaming.
+/// Shows the list of operational steps (commands, file changes, web search, etc.)
+/// invoked by the LLM via the stream. Each row is expandable to see details.
 struct InlineActivityFeedView: View {
     let activities: [TaskActivity]
     let modeColor: Color
@@ -34,7 +34,7 @@ struct InlineActivityFeedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if visibleActivities.isEmpty {
-                // Nessun placeholder — il contenuto streaming è sufficiente.
+                // No placeholder — the streaming content is sufficient.
                 EmptyView()
             } else {
                 ForEach(visibleActivities) { activity in
@@ -335,7 +335,7 @@ struct InlineActivityFeedView: View {
     }
 }
 
-// MARK: - Shimmer Trail (Cursor-style silver scia)
+// MARK: - Shimmer Trail (Cursor-style silver trail)
 
 struct ActivityShimmerTrail: View {
     @State private var phase: CGFloat = 0

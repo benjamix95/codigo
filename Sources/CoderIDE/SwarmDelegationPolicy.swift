@@ -32,9 +32,9 @@ struct SwarmDelegationPolicyEvaluator {
         "cross-modulo",
         "cross modulo",
         "piu aree",
-        "più aree",
+        "multiple areas",
         "piu moduli",
-        "più moduli",
+        "multiple modules",
         "ampia area"
     ]
 
@@ -72,14 +72,14 @@ struct SwarmDelegationPolicyEvaluator {
         guard mode == .agent else {
             return SwarmDelegationEvaluation(
                 decision: .noDelegate,
-                reason: "delega disattivata fuori dalla modalità Agent"
+                reason: "delegation disabled outside Agent mode"
             )
         }
 
         guard isAutoDelegateEnabled else {
             return SwarmDelegationEvaluation(
                 decision: .noDelegate,
-                reason: "auto-delega swarm disattivata nelle impostazioni"
+                reason: "swarm auto-delegation disabled in settings"
             )
         }
 

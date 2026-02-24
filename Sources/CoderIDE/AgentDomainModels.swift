@@ -106,7 +106,7 @@ struct PlanBoard: Codable, Equatable {
         }
 
         if steps.isEmpty {
-            steps.append(PlanStep(id: "1", title: "Esecuzione piano", description: "Seguire il piano proposto", targetFile: nil, status: .pending))
+            steps.append(PlanStep(id: "1", title: "Plan execution", description: "Follow the proposed plan", targetFile: nil, status: .pending))
         }
         return steps
     }

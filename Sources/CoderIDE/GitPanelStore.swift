@@ -127,7 +127,7 @@ final class GitPanelStore: ObservableObject {
             do {
                 try gitService.createAndCheckoutBranch(name: name, gitRoot: gitRoot)
                 await MainActor.run {
-                    successMessage = "Branch creato: \(name)"
+                    successMessage = "Branch created: \(name)"
                     showCreateBranch = false
                     newBranchName = ""
                     refresh(workingDirectory: gitRoot)
@@ -207,7 +207,7 @@ final class GitPanelStore: ObservableObject {
             do {
                 try gitService.push(gitRoot: gitRoot, branch: currentBranch)
                 await MainActor.run {
-                    successMessage = "Push completato su \(currentBranch)"
+                    successMessage = "Push completed on \(currentBranch)"
                     refresh(workingDirectory: gitRoot)
                     isBusy = false
                 }
@@ -234,7 +234,7 @@ final class GitPanelStore: ObservableObject {
                     body: nil
                 )
                 await MainActor.run {
-                    successMessage = "PR creata: \(result.url)"
+                    successMessage = "PR created: \(result.url)"
                     isBusy = false
                 }
             } catch {

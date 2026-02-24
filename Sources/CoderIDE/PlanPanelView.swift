@@ -29,11 +29,11 @@ func planBuildDisabledReason(
     case .idle:
         return "Build non disponibile in idle: genera o seleziona prima un piano."
     case .analyzing:
-        return "Analisi codebase in corso: attendi il completamento."
+        return "Codebase analysis in progress: please wait for completion."
     case .questioning:
         return "Servono chiarimenti: rispondi alle domande prima del build."
     case .generating:
-        return "Generazione piano in corso: attendi il completamento."
+        return "Plan generation in progress: please wait for completion."
     case .building:
         return "Build in esecuzione..."
     case .proposalReady, .readyToBuild:
@@ -114,16 +114,15 @@ struct PlanPanelView: View {
                         PlanPhaseProgressView(phase: planFlowPhase)
                     }
 
-                    if !canonicalPlanTodos.isEmpty {
-                        todosSection
+                    // ── 1. Mermaid Flow Diagram (extracted from plan content) ──
+                    if let firstMermaid = extractedMermaidBlocks.first {
+                        MermaidDiagramView(
+                            mermaidCode: firstMermaid,
+                            accentColor: planColor
+                        )
                     }
 
-                    // Plan Board (steps overview)
-                    if let board = chatStore.planBoard(for: conversationId) {
-                        planBoardSection(board)
-                    }
-
-                    // Domande di chiarimento (se in attesa)
+                    // ── 2. Domande di chiarimento (se in attesa) ──
                     if case .awaitingClarification(let questions) = planningState {
                         if let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
                             PlanClarificationWizardView(
@@ -137,7 +136,7 @@ struct PlanPanelView: View {
                         }
                     }
 
-                    // Plan Options (if awaiting choice)
+                    // ── 3. Plan Options (if awaiting choice) ──
                     if case .awaitingChoice(_, let options) = planningState {
                         PlanOptionsView(
                             options: options,
@@ -149,19 +148,29 @@ struct PlanPanelView: View {
                         )
                     }
 
-                    // New workspace sempre vuoto
+                    // ── 4. Todo list ──
+                    if !canonicalPlanTodos.isEmpty {
+                        todosSection
+                    }
+
+                    // ── 5. Plan Board (steps overview) ──
+                    if let board = chatStore.planBoard(for: conversationId) {
+                        planBoardSection(board)
+                    }
+
+                    // ── 6. Full plan content (workspace) ──
                     planContentSection
 
-                    // History persistente
-                    historySection
-
-                    // Walkthrough (appears when plan completes)
+                    // ── 7. Walkthrough (appears when plan completes) ──
                     if let board = chatStore.planBoard(for: conversationId),
                        let wt = board.walkthroughMarkdown, !wt.isEmpty {
                         walkthroughSection(wt)
                     }
 
-                    // Live activity trace
+                    // ── 8. History persistente ──
+                    historySection
+
+                    // ── 9. Live activity trace (task activities at the bottom) ──
                     if !taskActivityStore.activities.isEmpty {
                         traceSection
                     }
@@ -488,7 +497,7 @@ struct PlanPanelView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Plan completato. Clicca per eseguire di nuovo (⌘⏎)")
+                .help("Plan completed. Click to execute again (⌘⏎)")
                 .disabled(!isBuildEnabledByPhase)
             } else {
                 Button {
@@ -546,7 +555,7 @@ struct PlanPanelView: View {
             buildHint = "Build bloccata: il piano selezionato non contiene la sezione ## Todo."
             return
         }
-        buildHint = "Build avviata..."
+        buildHint = "Build started..."
         onBuild(choice, planProviderId, false)
     }
 
@@ -764,7 +773,7 @@ struct PlanPanelView: View {
                             }
                             onBuild(choice, planProviderId, true)
                             planHistoryStore.markRebuilt(id: entry.id)
-                            buildHint = "Rebuild avviata..."
+                            buildHint = "Rebuild started..."
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 11, weight: .semibold))
@@ -875,6 +884,15 @@ struct PlanPanelView: View {
 
     // MARK: - Todos Section
 
+    // MARK: - Mermaid Blocks
+
+    /// Extract mermaid diagram blocks from the current plan content.
+    private var extractedMermaidBlocks: [String] {
+        let content = displayPlanContent
+        guard !content.isEmpty else { return [] }
+        return MermaidExtractor.extractMermaidBlocks(from: content)
+    }
+
     private var canonicalPlanTodos: [TodoItem] {
         let canonical = todoStore.todos.filter { $0.isPlanCanonical }
         return todoStore.sortedCanonicalFirstTodos(canonical)
@@ -936,17 +954,11 @@ struct PlanPanelView: View {
     // MARK: - Trace Section
 
     private var traceSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "chart.bar.doc.horizontal")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                Text("Attività")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            PlanLiveTraceView(activities: taskActivityStore.activities)
-        }
+        CompactActivityTraceView(
+            activities: taskActivityStore.activities,
+            accentColor: planColor,
+            title: "Activity"
+        )
     }
 
     // MARK: - Walkthrough Section
@@ -967,7 +979,7 @@ struct PlanPanelView: View {
                     Text("Walkthrough")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(.primary)
-                    Text("Riepilogo completamento")
+                    Text("Completion summary")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }

@@ -2,29 +2,29 @@ import Foundation
 
 // MARK: - CodebaseIndex
 
-/// Actor principale che costruisce e mantiene l'indice del codebase.
-/// Scansiona il workspace, estrae simboli da ogni file sorgente,
-/// costruisce l'albero dei file e offre API di query veloci.
+/// Main actor that builds and maintains the codebase index.
+/// Scans the workspace, extracts symbols from each source file,
+/// builds the file tree and provides fast query APIs.
 public actor CodebaseIndex {
 
     // MARK: - State
 
-    /// Albero dei file per ogni root del workspace
+    /// File tree for each workspace root
     private var fileTrees: [String: FileNode] = [:]  // rootPath -> FileNode tree
 
-    /// File indicizzati (relativePath -> IndexedFile)
+    /// Indexed files (relativePath -> IndexedFile)
     private var indexedFiles: [String: IndexedFile] = [:]
 
-    /// Lookup simboli per nome (lowercase name -> [IndexedSymbol])
+    /// Symbol lookup by name (lowercase name -> [IndexedSymbol])
     private var symbolsByName: [String: [IndexedSymbol]] = [:]
 
-    /// Lookup simboli per file (relativePath -> [IndexedSymbol])
+    /// Symbol lookup by file (relativePath -> [IndexedSymbol])
     private var symbolsByFile: [String: [IndexedSymbol]] = [:]
 
-    /// Lookup simboli per kind
+    /// Symbol lookup by kind
     private var symbolsByKind: [SymbolKind: [IndexedSymbol]] = [:]
 
-    /// Tutti i nodi file (relativePath -> FileNode)
+    /// All file nodes (relativePath -> FileNode)
     private var allFileNodes: [String: FileNode] = [:]
 
     /// Import graph: file -> [imported modules]
@@ -33,29 +33,32 @@ public actor CodebaseIndex {
     /// Reverse import graph: module -> [files that import it]
     private var reverseImportGraph: [String: [String]] = [:]
 
-    /// Content hashes per invalidazione cache (absolutePath -> hash)
+    /// Content hashes for cache invalidation (absolutePath -> hash)
     private var contentHashes: [String: UInt64] = [:]
 
-    /// Timestamp dell'ultima indicizzazione completa
+    /// Timestamp of the last full indexing
     private var lastFullIndexAt: Date?
 
-    /// Workspace paths attualmente indicizzati
+    /// Currently indexed workspace paths
     private var currentWorkspacePaths: [URL] = []
 
     /// Excluded path patterns
     private var excludedPaths: [String] = []
 
-    /// Status dell'indice
+    /// Index status
     private var _status: IndexStatus = .idle
 
-    /// Contatori
+    /// Semantic search index (BM25 + AST chunking + Merkle tree)
+    public let semanticIndex = SemanticIndex()
+
+    /// Counters
     private var totalFilesScanned: Int = 0
     private var totalSymbolsExtracted: Int = 0
     private var indexDurationMs: Int = 0
 
     // MARK: - Configuration
 
-    /// Directory escluse di default
+    /// Default excluded directories
     private static let defaultExcludedDirs: Set<String> = [
         "node_modules", ".git", ".svn", ".hg",
         ".build", "build", "Build", "DerivedData",
@@ -70,7 +73,7 @@ public actor CodebaseIndex {
         ".terraform",
     ]
 
-    /// Estensioni file sorgente indicizzabili
+    /// Indexable source file extensions
     private static let indexableExtensions: Set<String> = [
         "swift", "m", "mm", "c", "cpp", "cc", "cxx", "h", "hpp", "hxx",
         "py", "pyw", "pyi",
@@ -103,10 +106,10 @@ public actor CodebaseIndex {
         "zig",
     ]
 
-    /// Dimensione massima file da indicizzare (1 MB)
+    /// Maximum file size to index (1 MB)
     private static let maxFileSize: UInt64 = 1_048_576
 
-    /// Massimo numero di file indicizzabili
+    /// Maximum number of indexable files
     private static let maxFiles: Int = 50_000
 
     // MARK: - Init
@@ -115,7 +118,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: Indexing
 
-    /// Indicizza il workspace completo (full scan)
+    /// Index the complete workspace (full scan)
     public func indexWorkspace(
         paths: [URL],
         excludedPaths: [String] = []
@@ -173,6 +176,12 @@ public actor CodebaseIndex {
         // 3. Build import graph
         buildImportGraph()
 
+        // 4. Build semantic index (BM25 + AST chunking)
+        let allIndexed = Array(indexedFiles.values)
+        if let firstRoot = paths.first {
+            await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
+        }
+
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
         lastFullIndexAt = Date()
@@ -190,7 +199,7 @@ public actor CodebaseIndex {
         )
     }
 
-    /// Indicizzazione incrementale: ri-indicizza solo i file modificati
+    /// Incremental indexing: re-indexes only modified files
     public func incrementalUpdate() async -> IndexResult {
         let startTime = Date()
         _status = .indexing
@@ -260,7 +269,7 @@ public actor CodebaseIndex {
         )
     }
 
-    /// Indicizza un singolo file (per aggiornamento in tempo reale)
+    /// Index a single file (for real-time updates)
     public func indexSingleFile(absolutePath: String, relativePath: String) {
         // Remove old entry
         removeIndexedFile(relativePath)
@@ -271,12 +280,14 @@ public actor CodebaseIndex {
             relativePath: relativePath
         ) {
             addIndexedFile(indexed)
+            // Update semantic index for this file
+            Task { await semanticIndex.updateFile(indexed) }
         }
     }
 
     // MARK: - Public API: Symbol Search
 
-    /// Cerca simboli per nome (fuzzy match)
+    /// Search symbols by name (fuzzy match)
     public func findSymbols(
         query: String,
         kind: SymbolKind? = nil,
@@ -352,7 +363,7 @@ public actor CodebaseIndex {
         return Array(results.prefix(limit))
     }
 
-    /// Cerca un simbolo per nome esatto e tipo
+    /// Search for a symbol by exact name and type
     public func findExactSymbol(name: String, kind: SymbolKind? = nil) -> [IndexedSymbol] {
         let key = name.lowercased()
         guard let candidates = symbolsByName[key] else { return [] }
@@ -362,12 +373,12 @@ public actor CodebaseIndex {
         return candidates
     }
 
-    /// Elenca tutti i simboli in un file
+    /// List all symbols in a file
     public func symbolsInFile(_ relativePath: String) -> [IndexedSymbol] {
         return symbolsByFile[relativePath] ?? []
     }
 
-    /// Elenca tutti i tipi (class, struct, enum, protocol, interface, trait) nel codebase
+    /// List all types (class, struct, enum, protocol, interface, trait) in the codebase
     public func allTypes(limit: Int = 200) -> [IndexedSymbol] {
         let typeKinds: [SymbolKind] = [.class, .struct, .enum, .protocol, .interface, .trait]
         var results: [IndexedSymbol] = []
@@ -380,7 +391,7 @@ public actor CodebaseIndex {
         return Array(results.prefix(limit))
     }
 
-    /// Elenca tutti i test nel codebase
+    /// List all tests in the codebase
     public func allTests(limit: Int = 200) -> [IndexedSymbol] {
         let tests = symbolsByKind[.test] ?? []
         return Array(tests.prefix(limit))
@@ -388,7 +399,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: File Search
 
-    /// Cerca file per nome (fuzzy)
+    /// Search files by name (fuzzy)
     public func findFiles(
         query: String,
         extensionFilter: String? = nil,
@@ -448,7 +459,7 @@ public actor CodebaseIndex {
         return results.prefix(limit).map(\.node)
     }
 
-    /// Glob pattern matching (semplificato)
+    /// Glob pattern matching (simplified)
     public func glob(pattern: String, limit: Int = 200) -> [FileNode] {
         let patternLower = pattern.lowercased()
         var results: [FileNode] = []
@@ -467,7 +478,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: References
 
-    /// Trova tutti i riferimenti a un simbolo nel codebase (grep-based)
+    /// Find all references to a symbol in the codebase (grep-based)
     public func findReferences(
         symbolName: String,
         limit: Int = 100
@@ -531,7 +542,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: File Outline
 
-    /// Restituisce l'outline di un file (simboli gerarchici con numeri di riga)
+    /// Returns the outline of a file (hierarchical symbols with line numbers)
     public func fileOutline(relativePath: String) -> String {
         guard let indexed = indexedFiles[relativePath] else {
             return "(file not indexed: \(relativePath))"
@@ -596,7 +607,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: Project Structure
 
-    /// Restituisce l'albero del progetto come stringa (per contesto LLM)
+    /// Returns the project tree as a string (for LLM context)
     public func projectTree(
         maxDepth: Int = 4,
         maxFiles: Int = 500,
@@ -622,7 +633,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: Dependency Graph
 
-    /// Restituisce le dipendenze di un file (imports e file che lo importano)
+    /// Returns the dependencies of a file (imports and files that import it)
     public func fileDependencies(_ relativePath: String) -> (
         imports: [String], importedBy: [String]
     ) {
@@ -643,7 +654,7 @@ public actor CodebaseIndex {
         return (imports: imports, importedBy: importedBy)
     }
 
-    /// Restituisce il grafo delle dipendenze tra moduli
+    /// Returns the dependency graph between modules
     public func moduleGraph() -> [DependencyEdge] {
         var edges: [DependencyEdge] = []
         for (file, imports) in importGraph {
@@ -661,7 +672,7 @@ public actor CodebaseIndex {
 
     // MARK: - Public API: Statistics
 
-    /// Statistiche complete del codebase
+    /// Complete codebase statistics
     public func stats() -> FileStats {
         let files = allFileNodes.values.filter { $0.kind == .file }
         let dirs = allFileNodes.values.filter { $0.kind == .directory }
@@ -697,7 +708,7 @@ public actor CodebaseIndex {
         )
     }
 
-    /// Stato corrente dell'indice
+    /// Current index status
     public func status() -> IndexStatusInfo {
         return IndexStatusInfo(
             status: _status,
@@ -710,7 +721,7 @@ public actor CodebaseIndex {
         )
     }
 
-    /// Sommario dell'indice in formato testo (per contesto LLM)
+    /// Index summary in text format (for LLM context)
     public func summaryText() -> String {
         let info = IndexStatusInfo(
             status: _status,
@@ -751,22 +762,22 @@ public actor CodebaseIndex {
         return lines.joined(separator: "\n")
     }
 
-    /// Restituisce la lista di tutti i file indicizzati
+    /// Returns the list of all indexed files
     public func allIndexedFilePaths() -> [String] {
         return Array(indexedFiles.keys).sorted()
     }
 
-    /// Restituisce un IndexedFile specifico
+    /// Returns a specific IndexedFile
     public func getIndexedFile(_ relativePath: String) -> IndexedFile? {
         return indexedFiles[relativePath]
     }
 
-    /// Restituisce un FileNode specifico
+    /// Returns a specific FileNode
     public func getFileNode(_ relativePath: String) -> FileNode? {
         return allFileNodes[relativePath]
     }
 
-    /// Ricerca avanzata: grep semantico usando l'indice
+    /// Advanced search: semantic grep using the index
     public func semanticGrep(
         query: String,
         filePattern: String? = nil,
@@ -930,7 +941,7 @@ public actor CodebaseIndex {
         }
     }
 
-    /// Appiattisce tutti i nodi nell'indice allFileNodes
+    /// Flattens all nodes into the allFileNodes index
     private func flattenNodes(_ node: FileNode) {
         if node.kind == .file {
             allFileNodes[node.relativePath] = node
@@ -1121,7 +1132,7 @@ public actor CodebaseIndex {
 
 // MARK: - Result Types
 
-/// Risultato dell'indicizzazione
+/// Indexing result
 public struct IndexResult: Sendable {
     public let totalFiles: Int
     public let totalSourceFiles: Int
@@ -1149,7 +1160,7 @@ public struct IndexResult: Sendable {
         self.updatedFiles = updatedFiles
     }
 
-    /// Sommario testuale
+    /// Text summary
     public var summary: String {
         var lines: [String] = []
         lines.append("✅ Index complete in \(durationMs)ms")
@@ -1170,7 +1181,7 @@ public struct IndexResult: Sendable {
     }
 }
 
-/// Stato dell'indice
+/// Index status
 public enum IndexStatus: String, Sendable {
     case idle
     case indexing
@@ -1178,7 +1189,7 @@ public enum IndexStatus: String, Sendable {
     case error
 }
 
-/// Informazioni sullo stato dell'indice
+/// Index status information
 public struct IndexStatusInfo: Sendable {
     public let status: IndexStatus
     public let totalFiles: Int

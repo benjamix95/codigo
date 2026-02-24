@@ -128,7 +128,9 @@ enum ProviderFactory {
     static func resolveSwarmBackendProvider(
         backendId: String,
         config: ProviderFactoryConfig,
-        executionController: ExecutionController?
+        executionController: ExecutionController?,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> (any LLMProvider)? {
         switch backendId {
         case "codex":
@@ -139,22 +141,22 @@ enum ProviderFactory {
             return geminiProvider(config: config, executionController: executionController)
         case "openai":
             guard !config.openaiApiKey.isEmpty else { return nil }
-            return openAIAPIProvider(config: config, executionController: executionController)
+            return openAIAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         case "openai-api":
             guard !config.openaiApiKey.isEmpty else { return nil }
-            return openAIAPIProvider(config: config, executionController: executionController)
+            return openAIAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         case "anthropic-api":
             guard !config.anthropicApiKey.isEmpty else { return nil }
-            return anthropicAPIProvider(config: config, executionController: executionController)
+            return anthropicAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         case "google-api":
             guard !config.googleApiKey.isEmpty else { return nil }
-            return googleAPIProvider(config: config, executionController: executionController)
+            return googleAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         case "openrouter-api", "openrouter":
             guard !config.openrouterApiKey.isEmpty else { return nil }
-            return openRouterAPIProvider(config: config, executionController: executionController)
+            return openRouterAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         case "minimax-api":
             guard !config.minimaxApiKey.isEmpty else { return nil }
-            return miniMaxAPIProvider(config: config, executionController: executionController)
+            return miniMaxAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         default:
             return nil
         }
@@ -253,10 +255,27 @@ enum ProviderFactory {
         }
     }
 
+    /// Build a UnifiedToolRuntime with optional codebase index
+    private static func buildRuntime(
+        executionController: ExecutionController?,
+        executionScope: ExecutionScope,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
+    ) -> UnifiedToolRuntime {
+        UnifiedToolRuntime(
+            executionController: executionController,
+            executionScope: executionScope,
+            index: codebaseIndex,
+            workspacePaths: workspacePaths
+        )
+    }
+
     static func openAIAPIProvider(
         config: ProviderFactoryConfig, reasoningEffort: String? = nil,
         executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openaiApiKey,
@@ -265,6 +284,12 @@ enum ProviderFactory {
         )
         return ToolEnabledLLMProvider(
             base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
             executionController: executionController
@@ -273,7 +298,9 @@ enum ProviderFactory {
 
     static func anthropicAPIProvider(
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> any LLMProvider {
         let base = AnthropicAPIProvider(
             apiKey: config.anthropicApiKey,
@@ -282,6 +309,12 @@ enum ProviderFactory {
         )
         return ToolEnabledLLMProvider(
             base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
             executionController: executionController
@@ -290,7 +323,9 @@ enum ProviderFactory {
 
     static func googleAPIProvider(
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.googleApiKey,
@@ -301,6 +336,12 @@ enum ProviderFactory {
         )
         return ToolEnabledLLMProvider(
             base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
             executionController: executionController
@@ -310,7 +351,9 @@ enum ProviderFactory {
     static func miniMaxAPIProvider(
         config: ProviderFactoryConfig,
         executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.minimaxApiKey,
@@ -321,6 +364,12 @@ enum ProviderFactory {
         )
         return ToolEnabledLLMProvider(
             base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
             executionController: executionController
@@ -329,7 +378,9 @@ enum ProviderFactory {
 
     static func openRouterAPIProvider(
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openrouterApiKey,
@@ -341,6 +392,12 @@ enum ProviderFactory {
         )
         return ToolEnabledLLMProvider(
             base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
             executionController: executionController

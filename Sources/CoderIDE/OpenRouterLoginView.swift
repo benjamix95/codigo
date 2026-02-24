@@ -34,10 +34,10 @@ struct OpenRouterLoginView: View {
                 .font(.system(size: 36))
                 .foregroundStyle(Color.orange)
 
-            Text("Accedi a OpenRouter")
+            Text("Sign in to OpenRouter")
                 .font(.title3.weight(.semibold))
 
-            Text("Autentica per usare 400+ modelli AI senza API key manuale")
+            Text("Authenticate to use 400+ AI models without a manual API key")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -63,7 +63,7 @@ struct OpenRouterLoginView: View {
                     .padding(.horizontal)
                     .multilineTextAlignment(.center)
 
-                Button("Riprova") {
+                Button("Retry") {
                     isAuthenticating = false
                     errorMessage = nil
                 }
@@ -82,9 +82,9 @@ struct OpenRouterLoginView: View {
                     Image(systemName: "safari")
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Accedi con OpenRouter")
+                        Text("Sign in with OpenRouter")
                             .font(.subheadline.weight(.medium))
-                        Text("Login sicuro via browser (OAuth PKCE)")
+                        Text("Secure login via browser (OAuth PKCE)")
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.8))
                     }
@@ -99,12 +99,12 @@ struct OpenRouterLoginView: View {
 
             HStack {
                 Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
-                Text("oppure").font(.caption).foregroundStyle(.secondary)
+                Text("or").font(.caption).foregroundStyle(.secondary)
                 Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Inserisci API Key manualmente")
+                Text("Enter API Key manually")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -112,13 +112,13 @@ struct OpenRouterLoginView: View {
                 SecureField("sk-or-...", text: $manualKey)
                     .textFieldStyle(.roundedBorder)
 
-                Button("Salva API Key") { saveManualKey() }
+                Button("Save API Key") { saveManualKey() }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                     .disabled(manualKey.isEmpty)
             }
 
-            Button("Annulla", role: .cancel) { dismiss() }
+            Button("Cancel", role: .cancel) { dismiss() }
                 .padding(.top, 8)
         }
         .padding(24)
@@ -128,12 +128,12 @@ struct OpenRouterLoginView: View {
 
     private func loginWithOAuth() {
         isAuthenticating = true
-        authMessage = "Apertura browser..."
+        authMessage = "Opening browser..."
         errorMessage = nil
 
         let verifier = generateCodeVerifier()
         guard let challenge = generateCodeChallenge(from: verifier) else {
-            errorMessage = "Errore generazione code challenge"
+            errorMessage = "Error generating code challenge"
             isAuthenticating = false
             return
         }
@@ -149,7 +149,7 @@ struct OpenRouterLoginView: View {
         ]
 
         guard let authURL = components.url else {
-            errorMessage = "URL autenticazione non valido"
+            errorMessage = "Invalid authentication URL"
             isAuthenticating = false
             return
         }
@@ -169,7 +169,7 @@ struct OpenRouterLoginView: View {
             if let error = error {
                 DispatchQueue.main.async {
                     errorMessage = error.localizedDescription
-                    authMessage = "Errore"
+                    authMessage = "Error"
                     isAuthenticating = false
                     authSession = nil
                 }
@@ -179,8 +179,8 @@ struct OpenRouterLoginView: View {
                   let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
                     .queryItems?.first(where: { $0.name == "code" })?.value else {
                 DispatchQueue.main.async {
-                    errorMessage = "Codice di autorizzazione non ricevuto"
-                    authMessage = "Errore"
+                    errorMessage = "Authorization code not received"
+                    authMessage = "Error"
                     isAuthenticating = false
                     authSession = nil
                 }
@@ -188,7 +188,7 @@ struct OpenRouterLoginView: View {
             }
 
             DispatchQueue.main.async {
-                authMessage = "Scambio codice per API key..."
+                authMessage = "Exchanging code for API key..."
             }
             exchangeCodeForKey(code: code, verifier: verifier)
         }
@@ -198,7 +198,7 @@ struct OpenRouterLoginView: View {
         authSession = session
 
         if !session.start() {
-            errorMessage = "Impossibile avviare sessione di autenticazione"
+            errorMessage = "Unable to start authentication session"
             isAuthenticating = false
             authSession = nil
         }
@@ -227,7 +227,7 @@ struct OpenRouterLoginView: View {
                 guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let key = json["key"] as? String else {
                     throw URLError(.cannotParseResponse, userInfo: [
-                        NSLocalizedDescriptionKey: "Risposta non contiene 'key'"
+                        NSLocalizedDescriptionKey: "Response does not contain 'key'"
                     ])
                 }
 
@@ -240,8 +240,8 @@ struct OpenRouterLoginView: View {
                 }
             } catch {
                 await MainActor.run {
-                    errorMessage = "Scambio fallito: \(error.localizedDescription)"
-                    authMessage = "Errore"
+                    errorMessage = "Exchange failed: \(error.localizedDescription)"
+                    authMessage = "Error"
                     isAuthenticating = false
                     authSession = nil
                 }

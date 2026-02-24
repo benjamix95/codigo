@@ -12,9 +12,9 @@ public struct CoderRuleDocument: Sendable {
     }
 }
 
-/// Gestione rules stile Cursor:
-/// - globali: ~/.codigo/rules/global/*.md
-/// - progetto: <workspace>/.codigo/rules/project/*.md
+/// Cursor-style rules management:
+/// - global: ~/.codigo/rules/global/*.md
+/// - project: <workspace>/.codigo/rules/project/*.md
 public enum CoderRulesFile {
     private static var homeDir: String { NSHomeDirectory() }
 
@@ -69,7 +69,7 @@ public enum CoderRulesFile {
         guard !global.isEmpty || !project.isEmpty else { return "" }
 
         var lines: [String] = []
-        lines.append("## Rules attive")
+        lines.append("## Active rules")
         if !global.isEmpty {
             lines.append("### Global rules (.codigo/rules/global)")
             for rule in global {

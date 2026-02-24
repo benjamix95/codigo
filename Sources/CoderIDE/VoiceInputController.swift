@@ -15,21 +15,21 @@ enum VoiceInputError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphonePermissionDenied:
-            return "Permesso microfono negato. Abilitalo nelle impostazioni di macOS."
+            return "Microphone permission denied. Enable it in macOS settings."
         case .speechPermissionDenied:
-            return "Permesso Speech Recognition negato. Abilitalo nelle impostazioni di macOS."
+            return "Speech Recognition permission denied. Enable it in macOS settings."
         case .missingPrivacyUsageDescription(let key):
-            return "Configurazione privacy mancante (\(key)) nel bundle app. Avvia come app bundle (es. `open Codigo.app`), non con `swift run`."
+            return "Missing privacy configuration (\(key)) in app bundle. Launch as app bundle (e.g. `open Codigo.app`), not with `swift run`."
         case .unsupportedExecutionContext:
-            return "Contesto di esecuzione non supportato per l'input vocale."
+            return "Unsupported execution context for voice input."
         case .recognizerUnavailable:
-            return "Speech recognizer non disponibile sul dispositivo."
+            return "Speech recognizer not available on this device."
         case .recognizerUnavailableForLocale(let locale):
-            return "Speech recognizer non disponibile per la lingua \(locale)."
+            return "Speech recognizer not available for locale \(locale)."
         case .audioEngineFailure(let message):
-            return "Errore audio: \(message)"
+            return "Audio error: \(message)"
         case .noSpeechDetected:
-            return "Nessuna voce rilevata. Riprova avvicinando il microfono."
+            return "No speech detected. Try again closer to the microphone."
         }
     }
 }
@@ -152,7 +152,7 @@ final class VoiceInputController: ObservableObject {
             return message
         }
         let localized = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        return localized.isEmpty ? "Errore voce non previsto." : localized
+        return localized.isEmpty ? "Unexpected voice error." : localized
     }
 }
 

@@ -26,7 +26,7 @@ public enum ToolRuntimeError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .validation(let msg): return msg
-        case .timeout(let tool, let ms): return "Timeout su \(tool) (\(ms)ms)"
+        case .timeout(let tool, let ms): return "Timeout on \(tool) (\(ms)ms)"
         case .budgetExceeded(let msg): return msg
         case .mcpUnavailable(let msg): return msg
         case .transport(let msg): return msg
@@ -107,14 +107,56 @@ public actor UnifiedToolRuntime {
     private let executionScope: ExecutionScope
     private let mcpSessions: MCPSessionManager
 
+    /// Codebase index tools (nil when no index is available)
+    private let indexTools: CodebaseIndexTools?
+    /// Direct reference to CodebaseIndex for SemanticIndex access
+    private let codebaseIndex: CodebaseIndex?
+    private let workspacePaths: [URL]
+    private let excludedPaths: [String]
+
+    /// Debug log server for structured debug logging
+    public let debugLogServer = DebugLogServer()
+
     public init(
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
-        mcpSessions: MCPSessionManager = MCPSessionManager()
+        mcpSessions: MCPSessionManager = MCPSessionManager(),
+        index: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
+        excludedPaths: [String] = []
     ) {
         self.executionController = executionController
         self.executionScope = executionScope
         self.mcpSessions = mcpSessions
+        self.codebaseIndex = index
+        self.indexTools = index.map { CodebaseIndexTools(index: $0) }
+        self.workspacePaths = workspacePaths
+        self.excludedPaths = excludedPaths
+    }
+
+    /// Run an external process and return (stdout, stderr, exitCode).
+    /// A lightweight wrapper around ProcessRunner for tools that need simple exec.
+    private func shellExec(
+        args: [String],
+        cwd: String,
+        timeout: Int = 30_000
+    ) async -> (String, String, Int32) {
+        guard !args.isEmpty else { return ("", "argument list is empty", 1) }
+        let executable = args[0]
+        let arguments = Array(args.dropFirst())
+        do {
+            let result = try await ProcessRunner.runCollecting(
+                executable: executable,
+                arguments: arguments,
+                workingDirectory: URL(fileURLWithPath: cwd),
+                executionController: executionController,
+                scope: executionScope
+            )
+            let stdout = result.output.joined(separator: "\n")
+            return (stdout, "", result.terminationStatus)
+        } catch {
+            return ("", error.localizedDescription, 1)
+        }
     }
 
     public func execute(_ call: ToolCall, context: ToolExecutionContext) async -> [StreamEvent] {
@@ -177,40 +219,9 @@ public actor UnifiedToolRuntime {
             case "tail_log":
                 return await executeTailLog(call: call, context: context, startDate: startDate)
             case "glob":
-                let pattern = call.args["pattern"] ?? "*"
-                let scopePath = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "."
-                let cmd = "rg --files -g '\(shellEscaped(pattern))' '\(shellEscaped(scopePath))' 2>/dev/null | head -n 500"
-                return await runBash(
-                    command: cmd,
-                    cwd: context.workspaceContext.workspacePath,
-                    startDate: startDate,
-                    title: "Glob \(pattern)",
-                    timeoutMs: context.policy.timeoutMs,
-                    maxOutputBytes: context.policy.maxBashOutputBytes,
-                    policy: context.policy
-                )
+                return await executeGlob(call: call, context: context, startDate: startDate)
             case "grep":
-                let query = call.args["query"] ?? ""
-                let scope = call.args["pathScope"] ?? call.args["path"] ?? "."
-                let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let contextLines = Int(call.args["context_lines"] ?? "") ?? 0
-                var cmd = "rg -n --no-heading"
-                if !fileType.isEmpty {
-                    cmd += " --type '\(shellEscaped(fileType))'"
-                }
-                if contextLines > 0 {
-                    cmd += " -C \(min(contextLines, 10))"
-                }
-                cmd += " '\(shellEscaped(query))' '\(shellEscaped(scope))' | head -n 500"
-                return await runBash(
-                    command: cmd,
-                    cwd: context.workspaceContext.workspacePath,
-                    startDate: startDate,
-                    title: "Grep \(query)",
-                    timeoutMs: context.policy.timeoutMs,
-                    maxOutputBytes: context.policy.maxBashOutputBytes,
-                    policy: context.policy
-                )
+                return await executeGrep(call: call, context: context, startDate: startDate)
             case "str_replace":
                 return try executeStrReplace(call: call, context: context, startDate: startDate)
             case "create_file":
@@ -239,6 +250,54 @@ public actor UnifiedToolRuntime {
                     "query": query,
                     "detail": "Delegato al provider web"
                 ], startDate: startDate)
+            // New Cursor-style tools
+            case "parallel_apply":
+                return try await executeParallelApply(call: call, context: context, startDate: startDate)
+            case "regex_replace":
+                return try executeRegexReplace(call: call, context: context, startDate: startDate)
+            case "attempt_completion":
+                return await executeAttemptCompletion(call: call, context: context, startDate: startDate)
+            case "diagnostics":
+                return await executeDiagnostics(call: call, context: context, startDate: startDate)
+
+            // New powerful tools
+            case "rename_symbol":
+                return await executeRenameSymbol(call: call, context: context, startDate: startDate)
+            case "find_and_replace_all":
+                return await executeFindAndReplaceAll(call: call, context: context, startDate: startDate)
+            case "undo_edit":
+                return await executeUndoEdit(call: call, context: context, startDate: startDate)
+            case "run_single_test":
+                return await executeRunSingleTest(call: call, context: context, startDate: startDate)
+
+            // Debug tools
+            case "debug_log":
+                return await executeDebugLog(call: call, context: context, startDate: startDate)
+            case "debug_query":
+                return await executeDebugQuery(call: call, context: context, startDate: startDate)
+            case "debug_session":
+                return await executeDebugSession(call: call, context: context, startDate: startDate)
+            case "debug_hypothesize":
+                return await executeDebugHypothesize(call: call, context: context, startDate: startDate)
+            case "debug_mark":
+                return await executeDebugMark(call: call, context: context, startDate: startDate)
+            case "debug_clean":
+                return await executeDebugClean(call: call, context: context, startDate: startDate)
+
+            // Cursor-style semantic tools
+            case "semantic_search":
+                return await executeSemanticSearch(call: call, context: context, startDate: startDate)
+            case "read_lints":
+                return await executeReadLints(call: call, context: context, startDate: startDate)
+            case "debug_context":
+                return await executeDebugContext(call: call, context: context, startDate: startDate)
+
+            // Codebase index tools (13 tools)
+            case "codebase_search", "find_symbol", "list_symbols", "find_references",
+                 "project_structure", "file_outline", "find_files", "codebase_stats",
+                 "dependency_graph", "list_types", "list_tests", "index_status", "reindex":
+                return await executeIndexTool(name: normalizedName, call: call, context: context, startDate: startDate)
+
             case "mcp", "mcp_call":
                 return await executeMCPCall(call: call, context: context, startDate: startDate)
             case "mcp_list_tools":
@@ -750,17 +809,35 @@ public actor UnifiedToolRuntime {
         if query.isEmpty {
             return failure("query mancante", errorCode: "validation", startDate: startDate)
         }
+
+        // Prefer index-powered search if available (supports all languages)
+        if let indexTools {
+            let events = await indexTools.execute(
+                toolName: "codebase_search",
+                args: call.args,
+                callId: call.id,
+                workspacePaths: workspacePaths,
+                excludedPaths: excludedPaths
+            )
+            let result = toolResultFromIndexEvents(events, startDate: startDate)
+            if result.ok, let output = result.payload["output"], !output.contains("No symbols found") {
+                return result
+            }
+        }
+
+        // Fallback to multi-language regex-based ripgrep search
         let kind = (call.args["kind"] ?? "all").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let kindPattern: String
         switch kind {
-        case "class": kindPattern = "class\\s+"
-        case "struct": kindPattern = "struct\\s+"
-        case "enum": kindPattern = "enum\\s+"
-        case "protocol": kindPattern = "protocol\\s+"
-        case "function", "func": kindPattern = "func\\s+"
-        default: kindPattern = "(class|struct|enum|protocol|func)\\s+"
+        case "class": kindPattern = "(class|Class)\\s+"
+        case "struct": kindPattern = "(struct|Struct)\\s+"
+        case "enum": kindPattern = "(enum|Enum)\\s+"
+        case "protocol": kindPattern = "(protocol|Protocol|interface|Interface|trait)\\s+"
+        case "function", "func": kindPattern = "(func|function|def|fn)\\s+"
+        default: kindPattern = "(class|struct|enum|protocol|func|function|def|fn|type|trait|interface|const|let|var)\\s+"
         }
-        let cmd = "rg -n \"\(kindPattern)\(shellEscaped(query))\" --glob '*.swift' . | head -n 200"
+        // Search across all source file types, not just Swift
+        let cmd = "rg -n \"\(kindPattern)\(shellEscaped(query))\" --type-add 'src:*.{swift,ts,tsx,js,jsx,py,go,rs,java,kt,rb,cs,php}' --type src . | head -n 200"
         return await runBash(
             command: cmd,
             cwd: context.workspaceContext.workspacePath,
@@ -1024,10 +1101,16 @@ public actor UnifiedToolRuntime {
             if path.isEmpty && normalizedName != "list_dir" {
                 throw ToolRuntimeError.validation("path is required")
             }
-        case "grep", "web_search", "search_symbols":
+        case "grep", "web_search", "search_symbols", "codebase_search", "find_symbol", "find_references",
+             "rename_symbol", "semantic_search":
             let query = call.args["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if query.isEmpty {
                 throw ToolRuntimeError.validation("query is required")
+            }
+        case "list_symbols", "file_outline", "dependency_graph":
+            let path = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if path.isEmpty {
+                throw ToolRuntimeError.validation("path is required")
             }
         case "bash":
             let command = call.args["command"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1141,9 +1224,17 @@ public actor UnifiedToolRuntime {
         switch name {
         case "read", "glob", "grep", "read_range", "list_dir", "git_diff", "search_symbols",
              "run_tests", "build_project", "list_processes", "read_json", "write_json",
-             "workspace_stats", "dependency_audit", "tail_log":
+             "workspace_stats", "dependency_audit", "tail_log",
+             "codebase_search", "find_symbol", "list_symbols", "find_references",
+             "project_structure", "file_outline", "find_files", "codebase_stats",
+             "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
+             "diagnostics", "attempt_completion",
+             "debug_log", "debug_query", "debug_session", "debug_hypothesize",
+             "debug_mark", "debug_clean", "run_single_test",
+             "semantic_search", "read_lints", "debug_context":
             return ok ? "read_batch_completed" : "tool_execution_error"
-        case "edit", "write", "str_replace", "create_file":
+        case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
+             "rename_symbol", "find_and_replace_all", "undo_edit":
             return ok ? "file_change" : "tool_execution_error"
         case "bash":
             return ok ? "command_execution" : "tool_execution_error"
@@ -1215,6 +1306,439 @@ public actor UnifiedToolRuntime {
         return try JSONSerialization.jsonObject(with: data)
     }
 
+    // MARK: - Codebase Index Tool Execution
+
+    private func executeIndexTool(
+        name: String,
+        call: ToolCall,
+        context: ToolExecutionContext,
+        startDate: Date
+    ) async -> ToolResult {
+        guard let indexTools else {
+            return failure(
+                "Codebase index not available. Run 'reindex' or open a workspace first.",
+                errorCode: "validation",
+                startDate: startDate
+            )
+        }
+        let events = await indexTools.execute(
+            toolName: name,
+            args: call.args,
+            callId: call.id,
+            workspacePaths: workspacePaths,
+            excludedPaths: excludedPaths
+        )
+        return toolResultFromIndexEvents(events, startDate: startDate)
+    }
+
+    private func toolResultFromIndexEvents(_ events: [StreamEvent], startDate: Date) -> ToolResult {
+        for event in events {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_execution_error" || payload["status"] == "failed" {
+                return failure(
+                    payload["detail"] ?? payload["output"] ?? "Index tool failed",
+                    errorCode: "transport",
+                    startDate: startDate,
+                    payload: payload
+                )
+            }
+            if payload["status"] == "completed" {
+                return ToolResult(
+                    ok: true,
+                    payload: payload,
+                    durationMs: max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+                )
+            }
+        }
+        return failure("No result from index tool", errorCode: "transport", startDate: startDate)
+    }
+
+    // MARK: - Improved Grep
+
+    private func executeGrep(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let query = call.args["query"] ?? ""
+        let scope = call.args["pathScope"] ?? call.args["path"] ?? "."
+        let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let contextLines = Int(call.args["context_lines"] ?? "") ?? 2
+        let caseSensitive = (call.args["case_sensitive"] ?? "false").lowercased() == "true"
+        let multiline = (call.args["multiline"] ?? "false").lowercased() == "true"
+
+        // If query looks like a symbol name (no regex chars) and index is available, try index first
+        if let indexTools, !query.isEmpty, !containsRegexChars(query) {
+            let indexEvents = await indexTools.execute(
+                toolName: "codebase_search",
+                args: ["query": query, "kind": "all"],
+                callId: call.id,
+                workspacePaths: workspacePaths,
+                excludedPaths: excludedPaths
+            )
+            let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
+            if indexResult.ok,
+               let output = indexResult.payload["output"],
+               !output.isEmpty,
+               !output.contains("No symbols found") {
+                // Merge with ripgrep results for completeness
+                var payload = indexResult.payload
+                payload["title"] = "Grep \(query) (index + rg)"
+                return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
+            }
+        }
+
+        // Full ripgrep search
+        var cmd = "rg -n --no-heading --max-count 200"
+        if !caseSensitive { cmd += " -i" }
+        if multiline { cmd += " -U" }
+        if !fileType.isEmpty { cmd += " --type '\(shellEscaped(fileType))'" }
+        if contextLines > 0 { cmd += " -C \(min(contextLines, 10))" }
+        cmd += " '\(shellEscaped(query))' '\(shellEscaped(scope))' | head -n 500"
+
+        let rawResult = await runBash(
+            command: cmd,
+            cwd: context.workspaceContext.workspacePath,
+            startDate: startDate,
+            title: "Grep \(query)",
+            timeoutMs: context.policy.timeoutMs,
+            maxOutputBytes: context.policy.maxBashOutputBytes,
+            policy: context.policy
+        )
+
+        // Post-process: rank results by file importance
+        if rawResult.ok, let output = rawResult.payload["output"], !output.isEmpty {
+            let ranked = rankGrepResults(output, query: query)
+            var payload = rawResult.payload
+            payload["output"] = ranked
+            return ToolResult(ok: true, payload: payload, durationMs: rawResult.durationMs)
+        }
+        return rawResult
+    }
+
+    private func containsRegexChars(_ s: String) -> Bool {
+        let regexSpecial = CharacterSet(charactersIn: ".*+?[](){}^$|\\")
+        return s.unicodeScalars.contains { regexSpecial.contains($0) }
+    }
+
+    private func rankGrepResults(_ output: String, query: String) -> String {
+        let lines = output.components(separatedBy: "\n")
+        guard lines.count > 5 else { return output }
+
+        // Group results by file
+        struct FileResults {
+            var path: String
+            var lines: [String]
+            var score: Int
+        }
+
+        var fileGroups: [String: [String]] = [:]
+        var currentFile: String?
+
+        for line in lines {
+            if line.contains(":") && !line.hasPrefix("-") && !line.hasPrefix(" ") {
+                let parts = line.split(separator: ":", maxSplits: 2)
+                if parts.count >= 2, let _ = Int(parts[1]) {
+                    currentFile = String(parts[0])
+                }
+            }
+            if let file = currentFile {
+                fileGroups[file, default: []].append(line)
+            }
+        }
+
+        if fileGroups.isEmpty { return output }
+
+        // Score files: source files > config > docs, shorter paths > deeper
+        let sourceExts: Set<String> = ["swift", "ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "rb"]
+        let scored = fileGroups.map { (path, resultLines) -> FileResults in
+            var score = 0
+            let ext = (path as NSString).pathExtension.lowercased()
+            if sourceExts.contains(ext) { score += 100 }
+            let depth = path.components(separatedBy: "/").count
+            score += max(0, 20 - depth * 2)
+            // Exact match bonus
+            if resultLines.contains(where: { $0.lowercased().contains(query.lowercased()) }) {
+                score += 50
+            }
+            return FileResults(path: path, lines: resultLines, score: score)
+        }.sorted { $0.score > $1.score }
+
+        return scored.flatMap(\.lines).joined(separator: "\n")
+    }
+
+    // MARK: - Improved Glob
+
+    private func executeGlob(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let pattern = call.args["pattern"] ?? "*"
+        let scopePath = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "."
+
+        // Try index-powered file finder first for fuzzy name matching
+        if let indexTools, !pattern.contains("*") {
+            let indexEvents = await indexTools.execute(
+                toolName: "find_files",
+                args: ["query": pattern],
+                callId: call.id,
+                workspacePaths: workspacePaths,
+                excludedPaths: excludedPaths
+            )
+            let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
+            if indexResult.ok,
+               let output = indexResult.payload["output"],
+               !output.isEmpty,
+               !output.contains("No files found") {
+                var payload = indexResult.payload
+                payload["title"] = "Glob \(pattern) (index)"
+                return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
+            }
+        }
+
+        // Fallback to ripgrep file search
+        let cmd = "rg --files -g '\(shellEscaped(pattern))' '\(shellEscaped(scopePath))' 2>/dev/null | head -n 500"
+        return await runBash(
+            command: cmd,
+            cwd: context.workspaceContext.workspacePath,
+            startDate: startDate,
+            title: "Glob \(pattern)",
+            timeoutMs: context.policy.timeoutMs,
+            maxOutputBytes: context.policy.maxBashOutputBytes,
+            policy: context.policy
+        )
+    }
+
+    // MARK: - New Tool: parallel_apply (multi-edit)
+
+    private func executeParallelApply(call: ToolCall, context: ToolExecutionContext, startDate: Date) async throws -> ToolResult {
+        guard let editsRaw = call.args["edits"], !editsRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ToolRuntimeError.validation("edits (JSON array) is required for parallel_apply")
+        }
+        guard let editsData = editsRaw.data(using: .utf8),
+              let editsArray = try? JSONSerialization.jsonObject(with: editsData) as? [[String: String]] else {
+            throw ToolRuntimeError.validation("edits must be a JSON array of objects with path, old_string, new_string")
+        }
+        guard !editsArray.isEmpty else {
+            throw ToolRuntimeError.validation("edits array is empty")
+        }
+
+        var results: [(path: String, ok: Bool, detail: String)] = []
+        for edit in editsArray {
+            let editCall = ToolCall(
+                id: UUID().uuidString,
+                name: "str_replace",
+                args: edit,
+                sourceProvider: call.sourceProvider,
+                swarmId: call.swarmId,
+                scope: call.scope
+            )
+            do {
+                let result = try executeStrReplace(call: editCall, context: context, startDate: Date())
+                results.append((
+                    path: edit["path"] ?? "?",
+                    ok: result.ok,
+                    detail: result.payload["detail"] ?? (result.ok ? "ok" : "failed")
+                ))
+            } catch {
+                results.append((path: edit["path"] ?? "?", ok: false, detail: error.localizedDescription))
+            }
+        }
+
+        let summary = results.map { "\($0.ok ? "OK" : "FAIL") \($0.path): \($0.detail)" }.joined(separator: "\n")
+        let allOk = results.allSatisfy(\.ok)
+        let successCount = results.filter(\.ok).count
+        return ToolResult(
+            ok: allOk,
+            payload: [
+                "title": "parallel_apply (\(results.count) edits)",
+                "output": summary,
+                "detail": "\(successCount)/\(results.count) edits succeeded"
+            ],
+            durationMs: max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+        )
+    }
+
+    // MARK: - New Tool: regex_replace
+
+    private func executeRegexReplace(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
+        guard let pathArg = call.args["path"] else {
+            throw ToolRuntimeError.validation("path is required")
+        }
+        let path = try resolveRequiredPath(pathArg, context: context)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw ToolRuntimeError.validation("File not found: \(path)")
+        }
+
+        let pattern = call.args["pattern"] ?? ""
+        let replacement = call.args["replacement"] ?? ""
+        guard !pattern.isEmpty else {
+            throw ToolRuntimeError.validation("pattern (regex) is required")
+        }
+
+        let flags = call.args["flags"] ?? ""
+        var options: NSRegularExpression.Options = []
+        if flags.contains("i") { options.insert(.caseInsensitive) }
+        if flags.contains("m") { options.insert(.anchorsMatchLines) }
+        if flags.contains("s") { options.insert(.dotMatchesLineSeparators) }
+
+        let regex: NSRegularExpression
+        do {
+            regex = try NSRegularExpression(pattern: pattern, options: options)
+        } catch {
+            throw ToolRuntimeError.validation("Invalid regex pattern: \(error.localizedDescription)")
+        }
+
+        let content = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        let range = NSRange(content.startIndex..., in: content)
+        let matchCount = regex.numberOfMatches(in: content, range: range)
+
+        guard matchCount > 0 else {
+            return success([
+                "title": "regex_replace (0 matches)",
+                "path": path,
+                "detail": "Pattern '\(pattern)' not found in \(path)"
+            ], startDate: startDate)
+        }
+
+        let newContent = regex.stringByReplacingMatches(in: content, range: range, withTemplate: replacement)
+        try newContent.write(toFile: path, atomically: true, encoding: .utf8)
+
+        return success([
+            "title": "regex_replace \((path as NSString).lastPathComponent)",
+            "path": path,
+            "file": path,
+            "detail": "Replaced \(matchCount) match(es) of /\(pattern)/\(flags)"
+        ], startDate: startDate)
+    }
+
+    // MARK: - New Tool: attempt_completion
+
+    private func executeAttemptCompletion(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let result = call.args["result"] ?? "Task completed"
+        let command = call.args["command"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if !command.isEmpty {
+            // Run verification command
+            let verifyResult = await runBash(
+                command: command,
+                cwd: context.workspaceContext.workspacePath,
+                startDate: startDate,
+                title: "Verification",
+                timeoutMs: context.policy.timeoutMs,
+                maxOutputBytes: context.policy.maxBashOutputBytes,
+                policy: context.policy
+            )
+            if !verifyResult.ok {
+                let output = verifyResult.payload["output"] ?? ""
+                return failure(
+                    "Verification failed: \(truncate(output, maxBytes: 2000))",
+                    errorCode: "transport",
+                    startDate: startDate,
+                    payload: [
+                        "title": "attempt_completion (verification failed)",
+                        "command": command,
+                        "output": output
+                    ]
+                )
+            }
+        }
+
+        return success([
+            "title": "Task completed",
+            "output": result,
+            "detail": command.isEmpty ? "Completion signaled" : "Verified with: \(command)"
+        ], startDate: startDate)
+    }
+
+    // MARK: - New Tool: diagnostics
+
+    private func executeDiagnostics(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let manager = (call.args["manager"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // Auto-detect project type if not specified
+        let buildCommand: String
+        let projectType: String
+        if !manager.isEmpty {
+            switch manager {
+            case "swift": buildCommand = "swift build 2>&1"; projectType = "Swift"
+            case "npm": buildCommand = "npm run build 2>&1 || true"; projectType = "Node/npm"
+            case "cargo": buildCommand = "cargo check 2>&1"; projectType = "Rust/Cargo"
+            case "go": buildCommand = "go build ./... 2>&1"; projectType = "Go"
+            default: buildCommand = "swift build 2>&1"; projectType = manager
+            }
+        } else {
+            // Auto-detect
+            let wsPath = context.workspaceContext.workspacePath.path
+            if FileManager.default.fileExists(atPath: (wsPath as NSString).appendingPathComponent("Package.swift")) {
+                buildCommand = "swift build 2>&1"
+                projectType = "Swift"
+            } else if FileManager.default.fileExists(atPath: (wsPath as NSString).appendingPathComponent("package.json")) {
+                buildCommand = "npm run build 2>&1 || true"
+                projectType = "Node/npm"
+            } else if FileManager.default.fileExists(atPath: (wsPath as NSString).appendingPathComponent("Cargo.toml")) {
+                buildCommand = "cargo check 2>&1"
+                projectType = "Rust/Cargo"
+            } else if FileManager.default.fileExists(atPath: (wsPath as NSString).appendingPathComponent("go.mod")) {
+                buildCommand = "go build ./... 2>&1"
+                projectType = "Go"
+            } else {
+                buildCommand = "swift build 2>&1"
+                projectType = "Swift (default)"
+            }
+        }
+
+        let buildResult = await runBash(
+            command: buildCommand,
+            cwd: context.workspaceContext.workspacePath,
+            startDate: startDate,
+            title: "Diagnostics",
+            timeoutMs: max(context.policy.timeoutMs, 120_000),
+            maxOutputBytes: context.policy.maxBashOutputBytes,
+            policy: context.policy
+        )
+
+        let rawOutput = buildResult.payload["output"] ?? ""
+
+        // Parse diagnostics from output
+        var errors: [(file: String, line: String, col: String, severity: String, message: String)] = []
+        let diagnosticPattern = try? NSRegularExpression(pattern: #"^(.+?):(\d+):(\d+):\s*(error|warning|note):\s*(.+)$"#, options: .anchorsMatchLines)
+
+        if let regex = diagnosticPattern {
+            let matches = regex.matches(in: rawOutput, range: NSRange(rawOutput.startIndex..., in: rawOutput))
+            for match in matches.prefix(100) {
+                guard match.numberOfRanges >= 6 else { continue }
+                func extract(_ i: Int) -> String {
+                    guard let r = Range(match.range(at: i), in: rawOutput) else { return "" }
+                    return String(rawOutput[r])
+                }
+                errors.append((file: extract(1), line: extract(2), col: extract(3), severity: extract(4), message: extract(5)))
+            }
+        }
+
+        let errorCount = errors.filter { $0.severity == "error" }.count
+        let warningCount = errors.filter { $0.severity == "warning" }.count
+
+        var output = "Project: \(projectType)\n"
+        output += "Status: \(buildResult.ok ? "BUILD SUCCESS" : "BUILD FAILED")\n"
+        output += "Errors: \(errorCount), Warnings: \(warningCount)\n\n"
+
+        if !errors.isEmpty {
+            for diag in errors.prefix(50) {
+                let icon = diag.severity == "error" ? "ERROR" : diag.severity == "warning" ? "WARN" : "NOTE"
+                output += "[\(icon)] \(diag.file):\(diag.line):\(diag.col) \(diag.message)\n"
+            }
+            if errors.count > 50 {
+                output += "... and \(errors.count - 50) more diagnostics\n"
+            }
+        } else if !buildResult.ok {
+            output += rawOutput
+        }
+
+        return ToolResult(
+            ok: true,
+            payload: [
+                "title": "Diagnostics (\(projectType))",
+                "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+                "detail": buildResult.ok ? "Build OK" : "\(errorCount) errors, \(warningCount) warnings"
+            ],
+            durationMs: max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+        )
+    }
+
     private func prettyJSON(_ obj: Any) -> String {
         guard JSONSerialization.isValidJSONObject(obj),
               let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
@@ -1249,5 +1773,834 @@ public actor UnifiedToolRuntime {
             }
         }
         return out
+    }
+
+    // MARK: - New Powerful Tools
+
+    private func executeRenameSymbol(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let query = call.args["query"] ?? ""
+        let newName = call.args["new_name"] ?? ""
+        guard !query.isEmpty, !newName.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "Both query and new_name are required"], durationMs: 0)
+        }
+        let workspace = context.workspaceContext.workspacePath.path
+
+        // Use index to find all references
+        var files: [(path: String, line: Int, content: String)] = []
+        if indexTools != nil {
+            let refCall = ToolCall(id: UUID().uuidString, name: "find_references", args: ["query": query], sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope)
+            let refResult = await executeIndexTool(name: "find_references", call: refCall, context: context, startDate: startDate)
+            if refResult.ok, let output = refResult.payload["output"] {
+                // Parse references output
+                for line in output.components(separatedBy: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty { continue }
+                    // Format: "file.swift:42: content..."
+                    let parts = trimmed.components(separatedBy: ":")
+                    if parts.count >= 2, let lineNum = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                        let filePath = parts[0].trimmingCharacters(in: .whitespaces)
+                        let absPath = (filePath as NSString).isAbsolutePath ? filePath : (workspace as NSString).appendingPathComponent(filePath)
+                        files.append((path: absPath, line: lineNum, content: trimmed))
+                    }
+                }
+            }
+        }
+
+        // Fallback to ripgrep if no index results
+        if files.isEmpty {
+            let rgArgs = ["-rn", "--no-heading", query, workspace]
+            let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: workspace, timeout: 15_000)
+            for line in output.components(separatedBy: "\n") {
+                let parts = line.components(separatedBy: ":")
+                if parts.count >= 3, let lineNum = Int(parts[1]) {
+                    files.append((path: parts[0], line: lineNum, content: line))
+                }
+            }
+        }
+
+        guard !files.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "Symbol '\(query)' not found in codebase"], durationMs: Int(Date().timeIntervalSince(startDate) * 1000))
+        }
+
+        // Get unique file paths and perform replacements
+        let uniquePaths = Set(files.map(\.path))
+        var replaced = 0
+        var errors: [String] = []
+
+        for filePath in uniquePaths {
+            guard FileManager.default.fileExists(atPath: filePath) else { continue }
+            do {
+                var content = try String(contentsOfFile: filePath, encoding: .utf8)
+                let originalContent = content
+                content = content.replacingOccurrences(of: query, with: newName)
+                if content != originalContent {
+                    try content.write(toFile: filePath, atomically: true, encoding: .utf8)
+                    replaced += 1
+                }
+            } catch {
+                errors.append("\(filePath): \(error.localizedDescription)")
+            }
+        }
+
+        let detail = "Renamed '\(query)' → '\(newName)' in \(replaced) files (\(files.count) references)"
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: errors.isEmpty, payload: [
+            "title": "rename_symbol",
+            "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.joined(separator: "; "))",
+            "output": detail
+        ], durationMs: ms)
+    }
+
+    private func executeFindAndReplaceAll(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let pattern = call.args["pattern"] ?? call.args["query"] ?? ""
+        let replacement = call.args["replacement"] ?? call.args["new_string"] ?? ""
+        let fileType = call.args["file_type"] ?? call.args["fileType"] ?? ""
+        let isRegex = (call.args["regex"] ?? "false").lowercased() == "true"
+        let workspace = context.workspaceContext.workspacePath.path
+
+        guard !pattern.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "pattern is required"], durationMs: 0)
+        }
+
+        // Use ripgrep to find matching files
+        var rgArgs = ["-l", "--no-heading"]
+        if !fileType.isEmpty { rgArgs += ["-t", fileType] }
+        rgArgs.append(pattern)
+        rgArgs.append(workspace)
+
+        let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: workspace, timeout: 15_000)
+        let matchingFiles = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+
+        guard !matchingFiles.isEmpty else {
+            return ToolResult(ok: true, payload: ["detail": "No matches found for '\(pattern)'", "output": "0 files changed"], durationMs: Int(Date().timeIntervalSince(startDate) * 1000))
+        }
+
+        var totalReplacements = 0
+        var errors: [String] = []
+
+        for filePath in matchingFiles {
+            do {
+                var content = try String(contentsOfFile: filePath, encoding: .utf8)
+                let original = content
+                if isRegex {
+                    let regex = try NSRegularExpression(pattern: pattern)
+                    content = regex.stringByReplacingMatches(in: content, range: NSRange(content.startIndex..., in: content), withTemplate: replacement)
+                } else {
+                    content = content.replacingOccurrences(of: pattern, with: replacement)
+                }
+                if content != original {
+                    try content.write(toFile: filePath, atomically: true, encoding: String.Encoding.utf8)
+                    totalReplacements += 1
+                }
+            } catch {
+                errors.append("\((filePath as NSString).lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        let detail = "Replaced '\(pattern)' → '\(replacement)' in \(totalReplacements)/\(matchingFiles.count) files"
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: errors.isEmpty, payload: [
+            "title": "find_and_replace_all",
+            "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.prefix(5).joined(separator: "; "))",
+            "output": detail
+        ], durationMs: ms)
+    }
+
+    private func executeUndoEdit(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let rawPath = call.args["path"] ?? ""
+        guard !rawPath.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "path is required"], durationMs: 0)
+        }
+        let workspace = context.workspaceContext.workspacePath.path
+        let path: String
+        if (rawPath as NSString).isAbsolutePath {
+            path = rawPath
+        } else {
+            path = (workspace as NSString).appendingPathComponent(rawPath)
+        }
+
+        // git checkout -- <file> to revert to last committed state
+        let (output, stderr, exitCode) = await shellExec(args: ["/usr/bin/git", "checkout", "--", path], cwd: workspace, timeout: 10_000)
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        if exitCode == 0 {
+            return ToolResult(ok: true, payload: [
+                "title": "undo_edit",
+                "detail": "Reverted \((path as NSString).lastPathComponent) to last committed state",
+                "path": path,
+                "output": output.isEmpty ? "File reverted successfully" : output
+            ], durationMs: ms)
+        } else {
+            return ToolResult(ok: false, payload: [
+                "title": "undo_edit",
+                "detail": "Failed to revert: \(stderr.isEmpty ? output : stderr)",
+                "path": path
+            ], durationMs: ms)
+        }
+    }
+
+    private func executeRunSingleTest(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let testName = call.args["test"] ?? call.args["name"] ?? call.args["filter"] ?? ""
+        let target = call.args["target"] ?? ""
+        let workspace = context.workspaceContext.workspacePath.path
+
+        guard !testName.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "test name/filter is required"], durationMs: 0)
+        }
+
+        // Detect project type and build command
+        let fm = FileManager.default
+        var cmd: [String]
+        if fm.fileExists(atPath: (workspace as NSString).appendingPathComponent("Package.swift")) {
+            cmd = ["/usr/bin/swift", "test", "--filter", testName]
+            if !target.isEmpty { cmd += ["--target", target] }
+        } else if fm.fileExists(atPath: (workspace as NSString).appendingPathComponent("package.json")) {
+            cmd = ["/usr/bin/env", "npx", "jest", "--testPathPattern", testName, "--no-coverage"]
+        } else if fm.fileExists(atPath: (workspace as NSString).appendingPathComponent("Cargo.toml")) {
+            cmd = ["/usr/bin/env", "cargo", "test", testName, "--", "--nocapture"]
+        } else if fm.fileExists(atPath: (workspace as NSString).appendingPathComponent("go.mod")) {
+            cmd = ["/usr/bin/env", "go", "test", "-run", testName, "-v", "./..."]
+        } else {
+            cmd = ["/usr/bin/swift", "test", "--filter", testName]
+        }
+
+        let (output, stderr, exitCode) = await shellExec(args: cmd, cwd: workspace, timeout: 120_000)
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        let combined = (output + "\n" + stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Also log to debug server
+        await debugLogServer.logTestOutput(combined, source: "run_single_test:\(testName)")
+
+        if exitCode == 0 {
+            return ToolResult(ok: true, payload: [
+                "title": "run_single_test",
+                "detail": "Test '\(testName)' passed",
+                "output": String(combined.suffix(8000))
+            ], durationMs: ms)
+        } else {
+            return ToolResult(ok: false, payload: [
+                "title": "run_single_test",
+                "detail": "Test '\(testName)' failed (exit \(exitCode))",
+                "output": String(combined.suffix(8000))
+            ], durationMs: ms)
+        }
+    }
+
+    // MARK: - Debug Tools
+
+    private func executeDebugLog(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let severity = call.args["severity"] ?? "info"
+        let source = call.args["source"] ?? "agent"
+        let message = call.args["message"] ?? ""
+        let detail = call.args["detail"]
+        let category = call.args["category"]
+
+        guard !message.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "message is required"], durationMs: 0)
+        }
+
+        await debugLogServer.log(severity: severity, source: source, message: message, detail: detail, category: category)
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: true, payload: [
+            "title": "debug_log",
+            "detail": "[\(severity.uppercased())] \(message)",
+            "output": "Logged: [\(severity)] \(source): \(message)"
+        ], durationMs: ms)
+    }
+
+    private func executeDebugQuery(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let severity = call.args["severity"]
+        let category = call.args["category"]
+        let search = call.args["search"] ?? call.args["query"]
+        let limitStr = call.args["limit"] ?? "50"
+        let limit = Int(limitStr) ?? 50
+        let format = call.args["format"] ?? "summary" // summary or full
+
+        if format == "summary" {
+            let summary = await debugLogServer.sessionSummary()
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(ok: true, payload: [
+                "title": "debug_query",
+                "detail": "Debug session summary",
+                "output": summary
+            ], durationMs: ms)
+        }
+
+        let result = await debugLogServer.query(severity: severity, category: category, search: search, limit: limit)
+        let formatted = await debugLogServer.recentFormatted(limit: limit)
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: true, payload: [
+            "title": "debug_query",
+            "detail": "\(result.totalCount) entries (\(result.errorCount) errors, \(result.warningCount) warnings)",
+            "output": formatted
+        ], durationMs: ms)
+    }
+
+    private func executeDebugSession(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let action = call.args["action"] ?? "start"
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        switch action {
+        case "start":
+            let sessionId = await debugLogServer.startSession()
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Debug session started (id: \(sessionId.prefix(8)))",
+                "output": "Session \(sessionId) started"
+            ], durationMs: ms)
+        case "end", "stop":
+            await debugLogServer.endSession()
+            let summary = await debugLogServer.sessionSummary()
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Debug session ended",
+                "output": summary
+            ], durationMs: ms)
+        case "clear":
+            await debugLogServer.clearSession()
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Session logs cleared",
+                "output": "Session logs cleared"
+            ], durationMs: ms)
+        default:
+            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, or clear."], durationMs: ms)
+        }
+    }
+
+    private func executeDebugHypothesize(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let title = call.args["title"] ?? ""
+        let description = call.args["description"] ?? ""
+        let action = call.args["action"] ?? "propose" // propose, update
+        let hypothesisId = call.args["hypothesis_id"]
+        let status = call.args["status"]
+        let evidence = call.args["evidence"]
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        switch action {
+        case "propose":
+            guard !title.isEmpty else {
+                return ToolResult(ok: false, payload: ["detail": "title is required for new hypothesis"], durationMs: ms)
+            }
+            // Log the hypothesis to the debug server
+            await debugLogServer.log(
+                severity: "info",
+                source: "hypothesis",
+                message: "Hypothesis: \(title)",
+                detail: description,
+                category: "debug"
+            )
+            return ToolResult(ok: true, payload: [
+                "title": "debug_hypothesize",
+                "detail": "Hypothesis proposed: \(title)",
+                "output": "Proposed hypothesis: \(title)\n\(description)"
+            ], durationMs: ms)
+        case "update":
+            guard let hid = hypothesisId, !hid.isEmpty else {
+                return ToolResult(ok: false, payload: ["detail": "hypothesis_id is required for update"], durationMs: ms)
+            }
+            let statusStr = status ?? "investigating"
+            await debugLogServer.log(
+                severity: "info",
+                source: "hypothesis",
+                message: "Hypothesis \(hid.prefix(8)) updated to \(statusStr)",
+                detail: evidence,
+                category: "debug"
+            )
+            return ToolResult(ok: true, payload: [
+                "title": "debug_hypothesize",
+                "detail": "Hypothesis updated to \(statusStr)",
+                "output": "Updated hypothesis \(hid.prefix(8)) → \(statusStr)\(evidence.map { ". Evidence: \($0)" } ?? "")"
+            ], durationMs: ms)
+        default:
+            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use propose or update."], durationMs: ms)
+        }
+    }
+
+    // MARK: - debug_mark: Insert a debug marker comment into a file
+
+    private func executeDebugMark(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let rawPath = call.args["path"] ?? ""
+        let lineStr = call.args["line"] ?? ""
+        let comment = call.args["comment"] ?? "DEBUG"
+        let code = call.args["code"] ?? ""
+        let workspace = context.workspaceContext.workspacePath.path
+
+        guard !rawPath.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "path is required"], durationMs: 0)
+        }
+        guard let lineNum = Int(lineStr), lineNum > 0 else {
+            return ToolResult(ok: false, payload: ["detail": "valid line number is required"], durationMs: 0)
+        }
+
+        let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            var lines = content.components(separatedBy: "\n")
+
+            let insertIdx = min(lineNum, lines.count)
+            let markerLine = code.isEmpty
+                ? "// \u{1F41B} DEBUG: \(comment)"
+                : code + " // \u{1F41B} DEBUG: \(comment)"
+
+            lines.insert(markerLine, at: insertIdx)
+            try lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: String.Encoding.utf8)
+
+            await debugLogServer.log(
+                severity: "info",
+                source: "debug_mark",
+                message: "Marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
+                detail: markerLine,
+                category: "debug"
+            )
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_mark",
+                "detail": "Debug marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
+                "output": "Inserted: \(markerLine)",
+                "marker_info": "\(path)|\(lineNum)|\(comment)"
+            ], durationMs: ms)
+        } catch {
+            return ToolResult(ok: false, payload: [
+                "title": "debug_mark",
+                "detail": "Failed to insert marker: \(error.localizedDescription)"
+            ], durationMs: ms)
+        }
+    }
+
+    // MARK: - debug_clean: Remove all debug markers from files
+
+    private func executeDebugClean(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let rawPath = call.args["path"] ?? ""
+        let workspace = context.workspaceContext.workspacePath.path
+        let debugTag = "\u{1F41B} DEBUG:"
+        var cleanedCount = 0
+        var errors: [String] = []
+
+        // If path is specified, clean only that file; otherwise search workspace
+        let filesToClean: [String]
+        if !rawPath.isEmpty {
+            let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+            filesToClean = [path]
+        } else {
+            // Use ripgrep to find all files with debug markers
+            let (output, _, _) = await shellExec(args: ["/usr/bin/rg", "-l", "--no-heading", debugTag, workspace], cwd: workspace, timeout: 15_000)
+            filesToClean = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        }
+
+        for filePath in filesToClean {
+            do {
+                let content = try String(contentsOfFile: filePath, encoding: .utf8)
+                let lines = content.components(separatedBy: "\n")
+                let filtered = lines.filter { !$0.contains(debugTag) }
+
+                if filtered.count < lines.count {
+                    let removed = lines.count - filtered.count
+                    try filtered.joined(separator: "\n").write(toFile: filePath, atomically: true, encoding: String.Encoding.utf8)
+                    cleanedCount += removed
+                }
+            } catch {
+                errors.append("\((filePath as NSString).lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        let detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files"
+
+        await debugLogServer.log(severity: "info", source: "debug_clean", message: detail, category: "debug")
+
+        return ToolResult(ok: errors.isEmpty, payload: [
+            "title": "debug_clean",
+            "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.prefix(3).joined(separator: "; "))",
+            "output": detail
+        ], durationMs: ms)
+    }
+
+    // MARK: - semantic_search: Search code by meaning using index + heuristic ranking
+
+    private func executeSemanticSearch(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return failure("query is required", errorCode: "validation", startDate: startDate)
+        }
+        let targetDirs = (call.args["target_directories"] ?? "")
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let numResults = min(max(Int(call.args["num_results"] ?? "25") ?? 25, 1), 50)
+        let workspace = context.workspaceContext.workspacePath.path
+
+        // Primary: BM25 SemanticIndex (AST-aware chunks + inverted index)
+        if let index = codebaseIndex {
+            let results = await index.semanticIndex.search(
+                query: query,
+                targetDirectories: targetDirs,
+                numResults: numResults
+            )
+
+            if !results.isEmpty {
+                var output = ""
+                for (i, result) in results.enumerated() {
+                    let chunk = result.chunk
+                    let lineRange = chunk.startLine == chunk.endLine
+                        ? ":\(chunk.startLine)"
+                        : ":\(chunk.startLine)-\(chunk.endLine)"
+                    let scopeInfo = chunk.scope.isEmpty ? "" : " [\(chunk.scope)]"
+                    output += "\(i + 1). \(chunk.filePath)\(lineRange)\(scopeInfo) (score: \(String(format: "%.2f", result.score)))\n"
+
+                    // Include a compact code preview (first 3 meaningful lines)
+                    let previewLines = chunk.content
+                        .components(separatedBy: "\n")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                        .prefix(3)
+                    for line in previewLines {
+                        let trimmed = line.count > 120 ? String(line.prefix(120)) + "…" : line
+                        output += "   \(trimmed)\n"
+                    }
+                }
+
+                return success([
+                    "title": "semantic_search",
+                    "query": query,
+                    "detail": "\(results.count) results (BM25 index)",
+                    "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+                    "count": "\(results.count)"
+                ], startDate: startDate)
+            }
+        }
+
+        // Fallback: grep-based search when SemanticIndex is empty or unavailable
+        let queryTokens = query.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+
+        guard !queryTokens.isEmpty else {
+            return success([
+                "title": "semantic_search",
+                "query": query,
+                "detail": "No results found",
+                "output": "No matches found for: \(query)",
+                "count": "0"
+            ], startDate: startDate)
+        }
+
+        // Generate grep patterns from query tokens (camelCase, snake_case, raw)
+        var patterns: [String] = []
+        if queryTokens.count >= 2 {
+            patterns.append(queryTokens.joined(separator: ".*"))
+            let camel = queryTokens[0] + queryTokens.dropFirst().map { $0.capitalized }.joined()
+            patterns.append(camel)
+            let pascal = queryTokens.map { $0.capitalized }.joined()
+            patterns.append(pascal)
+            patterns.append(queryTokens.joined(separator: "_"))
+        }
+        for token in queryTokens where token.count >= 3 {
+            patterns.append(token)
+        }
+
+        struct FallbackResult: Comparable {
+            let file: String; let line: Int; let snippet: String; let score: Double
+            static func < (lhs: FallbackResult, rhs: FallbackResult) -> Bool { lhs.score > rhs.score }
+        }
+
+        var grepResults: [FallbackResult] = []
+        for pattern in patterns.prefix(5) {
+            let searchPath: String
+            if let dir = targetDirs.first {
+                searchPath = (dir as NSString).isAbsolutePath ? dir : (workspace as NSString).appendingPathComponent(dir)
+            } else {
+                searchPath = workspace
+            }
+            var grepArgs = ["/usr/bin/rg", "--no-heading", "-n", "--max-count=10", "-i"]
+            grepArgs.append(contentsOf: [pattern, searchPath])
+            grepArgs.append(contentsOf: ["--glob", "!.build", "--glob", "!node_modules", "--glob", "!.git"])
+
+            let (output, _, exitCode) = await shellExec(args: grepArgs, cwd: workspace, timeout: 10_000)
+            if exitCode == 0 {
+                for line in output.components(separatedBy: "\n") where !line.isEmpty {
+                    let parts = line.split(separator: ":", maxSplits: 2).map(String.init)
+                    guard parts.count >= 3 else { continue }
+                    let filePath = parts[0]
+                    let lineNum = Int(parts[1]) ?? 0
+                    let content = parts[2].trimmingCharacters(in: .whitespaces)
+                    let contentLower = content.lowercased()
+                    var score = 0.5
+                    for token in queryTokens where contentLower.contains(token) { score += 0.8 }
+                    if contentLower.contains("func ") || contentLower.contains("class ") ||
+                       contentLower.contains("struct ") || contentLower.contains("protocol ") ||
+                       contentLower.contains("enum ") || contentLower.contains("def ") ||
+                       contentLower.contains("function ") {
+                        score += 1.5
+                    }
+                    let relPath = filePath.hasPrefix(workspace) ? String(filePath.dropFirst(workspace.count + 1)) : filePath
+                    grepResults.append(FallbackResult(file: relPath, line: lineNum, snippet: content, score: score))
+                }
+            }
+        }
+
+        var seen = Set<String>()
+        let deduped = grepResults.sorted().filter { r in
+            let key = "\(r.file):\(r.line)"
+            guard !seen.contains(key) else { return false }
+            seen.insert(key)
+            return true
+        }
+        let top = Array(deduped.prefix(numResults))
+
+        if top.isEmpty {
+            return success([
+                "title": "semantic_search",
+                "query": query,
+                "detail": "No results found",
+                "output": "No matches found for: \(query)",
+                "count": "0"
+            ], startDate: startDate)
+        }
+
+        var output = ""
+        for (i, r) in top.enumerated() {
+            let lineInfo = r.line > 0 ? ":\(r.line)" : ""
+            output += "\(i + 1). \(r.file)\(lineInfo) (score: \(String(format: "%.1f", r.score)))\n"
+            if !r.snippet.isEmpty {
+                let trimmed = r.snippet.count > 120 ? String(r.snippet.prefix(120)) + "…" : r.snippet
+                output += "   \(trimmed)\n"
+            }
+        }
+
+        return success([
+            "title": "semantic_search",
+            "query": query,
+            "detail": "\(top.count) results (grep fallback)",
+            "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+            "count": "\(top.count)"
+        ], startDate: startDate)
+    }
+
+    // MARK: - read_lints: Read current linter/diagnostic state without running a build
+
+    private func executeReadLints(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let workspace = context.workspaceContext.workspacePath.path
+        let rawPath = call.args["path"] ?? ""
+        let severity = call.args["severity"] ?? "all"  // all, error, warning
+        let maxCount = Int(call.args["limit"] ?? "50") ?? 50
+
+        // Strategy: Detect project type and use the fastest lint-only command
+        var lintOutput = ""
+        var lintErrors: [String] = []
+        var toolUsed = ""
+
+        // Check for Swift project
+        let packageSwift = (workspace as NSString).appendingPathComponent("Package.swift")
+        let xcodeproj = try? FileManager.default.contentsOfDirectory(atPath: workspace).first { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") }
+
+        if FileManager.default.fileExists(atPath: packageSwift) || xcodeproj != nil {
+            // Swift: use `swift build --skip-link` for fast compile-only check, or swiftc -typecheck for single file
+            toolUsed = "swift"
+            if !rawPath.isEmpty {
+                let filePath = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+                let (out, err, _) = await shellExec(
+                    args: ["/usr/bin/xcrun", "swiftc", "-typecheck", filePath],
+                    cwd: workspace, timeout: 30_000
+                )
+                lintOutput = out
+                if !err.isEmpty { lintErrors.append(err) }
+            } else {
+                let (out, err, _) = await shellExec(
+                    args: ["/usr/bin/swift", "build", "--skip-link", "2>&1"],
+                    cwd: workspace, timeout: 60_000
+                )
+                lintOutput = out + "\n" + err
+            }
+        }
+
+        // Check for Node/TS project
+        let packageJson = (workspace as NSString).appendingPathComponent("package.json")
+        if FileManager.default.fileExists(atPath: packageJson) && toolUsed.isEmpty {
+            // Try eslint first, then tsc --noEmit
+            let eslintPath = (workspace as NSString).appendingPathComponent("node_modules/.bin/eslint")
+            if FileManager.default.fileExists(atPath: eslintPath) {
+                toolUsed = "eslint"
+                var args = [eslintPath, "--format", "compact", "--no-color"]
+                if !rawPath.isEmpty { args.append(rawPath) } else { args.append(".") }
+                let (out, err, _) = await shellExec(args: args, cwd: workspace, timeout: 30_000)
+                lintOutput = out
+                if !err.isEmpty { lintErrors.append(err) }
+            } else {
+                // tsc --noEmit
+                let tscPath = (workspace as NSString).appendingPathComponent("node_modules/.bin/tsc")
+                if FileManager.default.fileExists(atPath: tscPath) {
+                    toolUsed = "tsc"
+                    let (out, err, _) = await shellExec(
+                        args: [tscPath, "--noEmit", "--pretty", "false"],
+                        cwd: workspace, timeout: 30_000
+                    )
+                    lintOutput = out
+                    if !err.isEmpty { lintErrors.append(err) }
+                }
+            }
+        }
+
+        // Check for Cargo (Rust)
+        let cargoToml = (workspace as NSString).appendingPathComponent("Cargo.toml")
+        if FileManager.default.fileExists(atPath: cargoToml) && toolUsed.isEmpty {
+            toolUsed = "cargo"
+            let (out, err, _) = await shellExec(
+                args: ["/usr/bin/env", "cargo", "check", "--message-format=short", "2>&1"],
+                cwd: workspace, timeout: 60_000
+            )
+            lintOutput = out + "\n" + err
+        }
+
+        // Check for Go
+        let goMod = (workspace as NSString).appendingPathComponent("go.mod")
+        if FileManager.default.fileExists(atPath: goMod) && toolUsed.isEmpty {
+            toolUsed = "go"
+            let target = rawPath.isEmpty ? "./..." : rawPath
+            let (out, err, _) = await shellExec(
+                args: ["/usr/bin/env", "go", "vet", target],
+                cwd: workspace, timeout: 30_000
+            )
+            lintOutput = out + "\n" + err
+        }
+
+        // Fallback: no recognized project type
+        if toolUsed.isEmpty {
+            return failure(
+                "No recognized linter found. Supported: Swift (Package.swift/xcodeproj), Node (eslint/tsc), Cargo, Go.",
+                errorCode: "validation", startDate: startDate
+            )
+        }
+
+        // Parse and filter diagnostics
+        let allLines = lintOutput.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        let filtered: [String]
+        switch severity {
+        case "error":
+            filtered = allLines.filter { line in
+                let lower = line.lowercased()
+                return lower.contains("error") || lower.contains("fatal")
+            }
+        case "warning":
+            filtered = allLines.filter { line in
+                let lower = line.lowercased()
+                return lower.contains("warning") || lower.contains("warn")
+            }
+        default:
+            filtered = allLines
+        }
+
+        let limited = Array(filtered.prefix(maxCount))
+        let errorCount = limited.filter { $0.lowercased().contains("error") }.count
+        let warningCount = limited.filter { $0.lowercased().contains("warning") }.count
+
+        let summary = "\(errorCount) errors, \(warningCount) warnings (via \(toolUsed))"
+
+        return success([
+            "title": "read_lints",
+            "linter": toolUsed,
+            "error_count": "\(errorCount)",
+            "warning_count": "\(warningCount)",
+            "detail": summary,
+            "output": truncate(limited.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
+            "total_diagnostics": "\(filtered.count)"
+        ], startDate: startDate)
+    }
+
+    // MARK: - debug_context: Gather full debug context (git, open files, lints, terminal state)
+
+    private func executeDebugContext(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let workspace = context.workspaceContext.workspacePath.path
+        var sections: [String] = []
+
+        // 1. Git status
+        let (gitStatus, _, gitExit) = await shellExec(
+            args: ["/usr/bin/git", "status", "--short", "--branch"],
+            cwd: workspace, timeout: 5_000
+        )
+        if gitExit == 0 {
+            sections.append("## Git Status\n\(gitStatus)")
+        }
+
+        // 2. Git diff (staged + unstaged, compact)
+        let (gitDiff, _, _) = await shellExec(
+            args: ["/usr/bin/git", "diff", "--stat", "HEAD"],
+            cwd: workspace, timeout: 5_000
+        )
+        if !gitDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sections.append("## Git Diff (stat)\n\(gitDiff)")
+        }
+
+        // 3. Recent git log (last 5 commits)
+        let (gitLog, _, _) = await shellExec(
+            args: ["/usr/bin/git", "log", "--oneline", "-5"],
+            cwd: workspace, timeout: 5_000
+        )
+        if !gitLog.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sections.append("## Recent Commits\n\(gitLog)")
+        }
+
+        // 4. Open files from workspace context
+        let openFiles = context.workspaceContext.openFiles
+        if !openFiles.isEmpty {
+            var fileSection = "## Open Files (\(openFiles.count))\n"
+            for file in openFiles {
+                let lineCount = file.content.components(separatedBy: "\n").count
+                fileSection += "- \(file.path) (\(lineCount) lines)\n"
+            }
+            sections.append(fileSection)
+        }
+
+        // 5. Active file and selection
+        if let activeFile = context.workspaceContext.activeFilePath {
+            sections.append("## Active File\n\(activeFile)")
+        }
+        if let selection = context.workspaceContext.activeSelection, !selection.isEmpty {
+            let preview = selection.count > 200 ? String(selection.prefix(200)) + "..." : selection
+            sections.append("## Active Selection\n```\n\(preview)\n```")
+        }
+
+        // 6. Quick lint check (errors only, fast)
+        let lintCall = ToolCall(
+            id: UUID().uuidString, name: "read_lints",
+            args: ["severity": "error", "limit": "10"],
+            sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
+        )
+        let lintResult = await executeReadLints(call: lintCall, context: context, startDate: startDate)
+        if lintResult.ok {
+            let errorCount = lintResult.payload["error_count"] ?? "0"
+            let warningCount = lintResult.payload["warning_count"] ?? "0"
+            let linter = lintResult.payload["linter"] ?? "unknown"
+            var lintSection = "## Linter Diagnostics (\(linter))\nErrors: \(errorCount), Warnings: \(warningCount)"
+            if let output = lintResult.payload["output"], !output.isEmpty, errorCount != "0" {
+                lintSection += "\n```\n\(output.prefix(1000))\n```"
+            }
+            sections.append(lintSection)
+        }
+
+        // 7. Debug log summary (if any active session)
+        let queryCall = ToolCall(
+            id: UUID().uuidString, name: "debug_query",
+            args: ["format": "summary", "limit": "5"],
+            sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
+        )
+        let queryResult = await executeDebugQuery(call: queryCall, context: context, startDate: startDate)
+        if queryResult.ok, let output = queryResult.payload["output"], !output.isEmpty,
+           output != "0 log entries" {
+            sections.append("## Debug Log Summary\n\(output)")
+        }
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        let fullContext = sections.joined(separator: "\n\n")
+
+        return ToolResult(ok: true, payload: [
+            "title": "debug_context",
+            "detail": "Debug context gathered: \(sections.count) sections",
+            "output": truncate(fullContext, maxBytes: context.policy.maxBashOutputBytes),
+            "sections": "\(sections.count)"
+        ], durationMs: ms)
     }
 }

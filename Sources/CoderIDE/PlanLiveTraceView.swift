@@ -55,14 +55,18 @@ private struct PlanTraceItem: Identifiable {
 
     private static func title(for activity: TaskActivity) -> String {
         switch activity.type {
-        case "command_execution", "bash": return "Eseguo comando"
-        case "read_batch_started", "read_batch_completed": return "Leggo file in batch"
-        case "mcp_tool_call": return "Invoco tool MCP"
-        case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "Ricerca web"
-        case "process_paused": return "Processo in pausa"
-        case "process_resumed": return "Processo ripreso"
-        case "plan_step_update": return "Step piano aggiornato"
-        case "file_change", "edit": return "Aggiorno file"
+        case "command_execution", "bash": return "Running command"
+        case "read_batch_started", "read_batch_completed": return "Reading files (batch)"
+        case "mcp_tool_call": return "Invoking MCP tool"
+        case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "Web search"
+        case "process_paused": return "Process paused"
+        case "process_resumed": return "Process resumed"
+        case "plan_step_update": return "Plan step updated"
+        case "debug_panel", "debug_panel_update": return "Debug panel"
+        case "semantic_search": return "Semantic search"
+        case "read_lints": return "Reading diagnostics"
+        case "debug_context": return "Debug context"
+        case "file_change", "edit": return "Updating file"
         default: return activity.title
         }
     }
@@ -127,6 +131,10 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
+        case "debug_panel", "debug_panel_update": return "ladybug.fill"
+        case "semantic_search": return "brain"
+        case "read_lints": return "exclamationmark.triangle.fill"
+        case "debug_context": return "list.clipboard.fill"
         case "file_change", "edit": return "doc.text.fill"
         default: return "circle.fill"
         }
@@ -141,6 +149,10 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "plan_step_update": return DesignSystem.Colors.planColor
+        case "debug_panel", "debug_panel_update": return DesignSystem.Colors.debugColor
+        case "semantic_search": return DesignSystem.Colors.info
+        case "read_lints": return DesignSystem.Colors.warning
+        case "debug_context": return DesignSystem.Colors.debugColor
         case "file_change", "edit": return DesignSystem.Colors.agentColor
         default: return .secondary
         }
@@ -162,7 +174,7 @@ struct PlanLiveTraceView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(traceItems.count) eventi")
+                Text("\(traceItems.count) events")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
@@ -215,7 +227,7 @@ struct PlanLiveTraceView: View {
                         expandedRawById.insert(item.id)
                     }
                 } label: {
-                    Text(isExpanded ? "Nascondi output" : "Mostra output")
+                    Text(isExpanded ? "Hide output" : "Show output")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(DesignSystem.Colors.info)
                 }
@@ -244,6 +256,6 @@ struct PlanLiveTraceView: View {
     private func truncated(_ text: String, maxChars: Int = 6000) -> String {
         if text.count <= maxChars { return text }
         let end = text.index(text.startIndex, offsetBy: maxChars)
-        return String(text[..<end]) + "\n\n… output troncato (\(text.count - maxChars) caratteri nascosti)"
+        return String(text[..<end]) + "\n\n… output truncated (\(text.count - maxChars) characters hidden)"
     }
 }

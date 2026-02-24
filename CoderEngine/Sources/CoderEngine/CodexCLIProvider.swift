@@ -1,13 +1,13 @@
 import Foundation
 
-/// Modalità sandbox Codex: read-only, workspace-write, danger-full-access
+/// Codex sandbox mode: read-only, workspace-write, danger-full-access
 public enum CodexSandboxMode: String, CaseIterable, Sendable {
     case readOnly = "read-only"
     case workspaceWrite = "workspace-write"
     case dangerFullAccess = "danger-full-access"
 }
 
-/// Marker che il modello può emettere per attivare il Task Activity Panel (formica)
+/// Markers the model can emit to activate the Task Activity Panel
 public enum CoderIDEMarkers {
     public static let showTaskPanel = "[CODERIDE:show_task_panel]"
     public static let invokeSwarmPrefix = "[CODERIDE:invoke_swarm:"
@@ -20,7 +20,7 @@ public enum CoderIDEMarkers {
     public static let webSearchPrefix = "[CODERIDE:web_search|"
 }
 
-/// Provider che usa Codex CLI (`codex exec`)
+/// Provider that uses Codex CLI (`codex exec`)
 public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "codex-cli"
     public let displayName = "Codex CLI"
@@ -94,7 +94,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 do {
                     let execPath = path
                     guard FileManager.default.fileExists(atPath: execPath) else {
-                        continuation.yield(.error("Codex CLI non trovato a \(execPath). Installa con: brew install codex"))
+                        continuation.yield(.error("Codex CLI not found at \(execPath). Install with: brew install codex"))
                         continuation.finish(throwing: CoderEngineError.cliNotFound("codex"))
                         return
                     }
@@ -107,7 +107,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                         args += ["exec"]
                     }
                     args += ["--json"]
-                    // Codex CLI non accetta --full-auto insieme a --yolo/--dangerously-bypass-approvals-and-sandbox.
+                    // Codex CLI does not accept --full-auto together with --yolo/--dangerously-bypass-approvals-and-sandbox.
                     if !yoloMode {
                         args += ["--full-auto"]
                     }
@@ -178,7 +178,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         guard FileManager.default.isExecutableFile(atPath: scriptPath) else {
             return (executable, arguments)
         }
-        // Usa PTY per ridurre i casi di stdout buffered fino a EOF.
+        // Use PTY to reduce cases of stdout buffered until EOF.
         return (scriptPath, ["-q", "/dev/null", executable] + arguments)
     }
 
@@ -190,7 +190,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return [direct]
         }
 
-        // Fallback: estrai eventuali oggetti JSON annidati in linee rumorose/concatenate.
+        // Fallback: extract any nested JSON objects from noisy/concatenated lines.
         let extracted = extractJSONObjectStrings(from: cleaned)
         if extracted.isEmpty {
             return []
@@ -200,7 +200,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
 
     private static func cleanedJSONCandidateLine(_ raw: String) -> String {
         let scalars = raw.unicodeScalars.filter { scalar in
-            // Mantieni tab e caratteri stampabili; rimuovi controlli (\0, \b, ^D, ecc).
+            // Keep tab and printable characters; remove control chars (\0, \b, ^D, etc).
             scalar.value == 0x09 || scalar.value >= 0x20
         }
         return String(String.UnicodeScalarView(scalars))
@@ -297,8 +297,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
             state.resetTurn()
             var payload: [String: String] = [
-                "title": "Turno avviato",
-                "detail": "Esecuzione richiesta in corso",
+                "title": "Turn started",
+                "detail": "Request execution in progress",
                 "status": "started",
             ]
             if let turnId = firstString(in: json, keys: ["turn_id", "id"]), !turnId.isEmpty {
@@ -330,8 +330,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
         if eventType == "turn.completed" {
             var payload: [String: String] = [
-                "title": "Turno completato",
-                "detail": "Esecuzione richiesta completata",
+                "title": "Turn completed",
+                "detail": "Request execution completed",
                 "status": "completed",
             ]
             if let turnId = firstString(in: json, keys: ["turn_id", "id"]), !turnId.isEmpty {
@@ -361,7 +361,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 type: "context_compacted",
                 payload: [
                     "title": "Automatically compacting context",
-                    "detail": "Codex ha compattato il contesto nativamente.",
+                    "detail": "Codex compacted the context natively.",
                 ],
                 state: &state,
                 events: &events
@@ -609,7 +609,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     .prefix(240)
             )
             var payload: [String: String] = [
-                "title": firstString(in: item, keys: ["title", "label"]) ?? "Ragionamento",
+                "title": firstString(in: item, keys: ["title", "label"]) ?? "Reasoning",
                 "output": output,
                 "detail": detail
             ]
@@ -729,7 +729,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let type = json["type"] as? String, type.lowercased().contains("compaction") {
             return true
         }
-        // Fallback difensivo: intercetta eventuali payload text-based che includono la keyword.
+        // Defensive fallback: intercept any text-based payloads that include the keyword.
         let payload = String(describing: json).lowercased()
         return payload.contains("compaction")
     }

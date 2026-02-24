@@ -1,7 +1,7 @@
 import Foundation
 import CoderEngine
 
-/// Wrapper Sendable per iterator di AsyncSequence, usato per evitare cattura di `var` in closure concorrenti.
+/// Sendable wrapper for AsyncSequence iterator, used to avoid capturing `var` in concurrent closures.
 private final class IteratorHolder<Stream: AsyncSequence>: @unchecked Sendable {
     private var iterator: Stream.AsyncIterator
 
@@ -21,9 +21,9 @@ private enum StreamWatchdogError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noEvents(let timeout):
-            return "Nessun evento ricevuto dal provider entro \(timeout)s."
+            return "No events received from provider within \(timeout)s."
         case .stalled(let timeout):
-            return "Stream bloccato: nessun aggiornamento da \(timeout)s."
+            return "Stream stalled: no updates for \(timeout)s."
         }
     }
 }
@@ -100,7 +100,7 @@ final class ConversationFlowCoordinator: ObservableObject {
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
         var emittedFirstText = false
-        // Gemini CLI può impiegare più tempo per il primo token (modello lento, rete)
+        // Gemini CLI may take longer for the first token (slow model, network)
         let firstEventTimeout = provider.id == "gemini-cli" ? 120 : 60
         let inactivityTimeout = 300
 
@@ -133,7 +133,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 full += d
                 onText(full)
             case .error(let e):
-                full += "\n\n[Errore: \(e)]"
+                full += "\n\n[Error: \(e)]"
                 onError(full)
             case .raw(let t, let p):
                 if t == "coderide_invoke_swarm", let task = p["task"], !task.isEmpty {
@@ -143,7 +143,7 @@ final class ConversationFlowCoordinator: ObservableObject {
             default:
                 break
             }
-            // Fairness: cedi il turno anche quando arrivano molti raw/eventi non testuali.
+            // Fairness: yield the turn even when many raw/non-text events arrive.
             await Task.yield()
         }
         let completedAt = Date()
@@ -222,7 +222,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                     swarmFull += d
                     onSwarmText(swarmFull)
                 case .error(let e):
-                    swarmFull += "\n\n[Errore: \(e)]"
+                    swarmFull += "\n\n[Error: \(e)]"
                     onError(swarmFull)
                 case .raw(let t, let p):
                     onRaw(t, p, swarmProvider.id)
@@ -239,14 +239,14 @@ final class ConversationFlowCoordinator: ObservableObject {
 
             markFollowUp()
             let followUpPrompt = """
-            Richiesta originale: \(originalPrompt)
+            Original request: \(originalPrompt)
 
-            Hai delegato allo swarm: \(task)
+            You delegated to swarm: \(task)
 
-            Risultato swarm:
+            Swarm result:
             \(swarmFull)
 
-            Integra quanto fatto nel contesto della conversazione e prosegui.
+            Integrate what was done into the conversation context and continue.
             """
             var follow = ""
             let followStream = try await agentProvider.send(prompt: followUpPrompt, context: context, imageURLs: nil)
@@ -280,7 +280,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                     follow += d
                     onFollowUpText(follow)
                 case .error(let e):
-                    follow += "\n\n[Errore: \(e)]"
+                    follow += "\n\n[Error: \(e)]"
                     onError(follow)
                 case .raw(let t, let p):
                     onRaw(t, p, agentProvider.id)
@@ -291,7 +291,7 @@ final class ConversationFlowCoordinator: ObservableObject {
             }
             finish()
         } catch {
-            onError("[Errore swarm/follow-up: \(error.localizedDescription)]")
+            onError("[Error swarm/follow-up: \(error.localizedDescription)]")
             fail()
         }
     }

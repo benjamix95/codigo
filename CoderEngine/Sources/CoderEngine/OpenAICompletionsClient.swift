@@ -1,6 +1,6 @@
 import Foundation
 
-/// Client OpenAI per chiamate one-shot (completions non-streaming)
+/// OpenAI client for one-shot calls (non-streaming completions)
 public struct OpenAICompletionsClient: Sendable {
     private let apiKey: String
     private let model: String
@@ -10,7 +10,7 @@ public struct OpenAICompletionsClient: Sendable {
         self.model = model
     }
 
-    /// Messaggio per Chat Completions API
+    /// Message for Chat Completions API
     public struct Message: Sendable {
         public let role: String
         public let content: String
@@ -29,7 +29,7 @@ public struct OpenAICompletionsClient: Sendable {
         }
     }
 
-    /// Esegue una completion one-shot e restituisce il contenuto della risposta
+    /// Executes a one-shot completion and returns the response content
     public func complete(messages: [Message]) async throws -> String {
         let url = URL(string: "https://api.openai.com/v1/chat/completions")!
         var request = URLRequest(url: url)

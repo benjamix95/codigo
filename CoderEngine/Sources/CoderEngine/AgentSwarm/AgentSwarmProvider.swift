@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider LLM che coordina un swarm di agenti specializzati tramite orchestratore
+/// LLM provider that coordinates a swarm of specialized agents via orchestrator
 public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
     public let id = "swarm-runtime-internal"
     public let displayName = "Agent Swarm"
@@ -31,7 +31,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
     {
         var userPrompt = prompt
         if let urls = imageURLs, !urls.isEmpty {
-            let refs = urls.map { "[Immagine: \($0.path)]" }.joined(separator: "\n")
+            let refs = urls.map { "[Image: \($0.path)]" }.joined(separator: "\n")
             userPrompt = refs + "\n\n" + userPrompt
         }
         let config = self.config
@@ -67,7 +67,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                                 AgentTask(
                                     role: .reviewer,
                                     taskDescription:
-                                        "Revisiona tutto il codice modificato. Cerca bug, problemi di stile, ottimizzazioni possibili.",
+                                        "Review all modified code. Look for bugs, style issues, and possible optimizations.",
                                     order: postOrder
                                 ))
                         }
@@ -76,7 +76,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                                 AgentTask(
                                     role: .testWriter,
                                     taskDescription:
-                                        "Crea file di test per il codice modificato. Usa XCTest per Swift, Jest/Vitest per Node, pytest per Python. Includi unit test, smoke test e integration test dove appropriato.",
+                                        "Create test files for the modified code. Use XCTest for Swift, Jest/Vitest for Node, pytest for Python. Include unit tests, smoke tests, and integration tests where appropriate.",
                                     order: postOrder
                                 ))
                         }
@@ -85,7 +85,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
 
                     if tasks.isEmpty {
                         continuation.yield(
-                            .textDelta("Nessun task da eseguire. Prova a riformulare la richiesta.")
+                            .textDelta("No tasks to execute. Try rephrasing the request.")
                         )
                         continuation.yield(.completed)
                         continuation.finish()
@@ -118,7 +118,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                             if execController?.swarmStopRequested == true { break }
                             continuation.yield(
                                 .textDelta(
-                                    "\n\n## Esecuzione test\(attempt > 0 ? " (tentativo \(attempt + 1)/\(maxRetries + 1))" : "")\n\n"
+                                    "\n\n## Running tests\(attempt > 0 ? " (attempt \(attempt + 1)/\(maxRetries + 1))" : "")\n\n"
                                 ))
                             do {
                                 let (output, status) = try await ProcessRunner.runCollecting(
@@ -137,7 +137,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                                 if allPassed {
                                     continuation.yield(
                                         .textDelta(
-                                            "\n**Test completati con successo. Nessun errore o warning.**\n"
+                                            "\n**Tests completed successfully. No errors or warnings.**\n"
                                         ))
                                     break
                                 }
@@ -145,25 +145,25 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                                 if attempt >= maxRetries {
                                     continuation.yield(
                                         .textDelta(
-                                            "\n**Raggiunto il limite di \(maxRetries + 1) tentativi.**\n"
+                                            "\n**Reached the limit of \(maxRetries + 1) attempts.**\n"
                                         ))
                                     break
                                 }
 
                                 let failureReason =
                                     status != 0
-                                    ? "I test sono falliti (exit code \(status))."
-                                    : "Ci sono warning nel build/output."
+                                    ? "Tests failed (exit code \(status))."
+                                    : "There are warnings in the build/output."
                                 continuation.yield(
-                                    .textDelta("\n**\(failureReason) Esecuzione Debugger...**\n\n"))
+                                    .textDelta("\n**\(failureReason) Running Debugger...**\n\n"))
 
                                 let debugTask = AgentTask(
                                     role: .debugger,
                                     taskDescription: """
                                         \(failureReason)
-                                        Output completo:
+                                        Full output:
                                         \(output.joined(separator: "\n"))
-                                        Correggi tutti i problemi (errori, warning, test falliti). Il codice deve compilare senza warning e tutti i test devono passare.
+                                        Fix all issues (errors, warnings, failing tests). The code must compile without warnings and all tests must pass.
                                         """,
                                     order: 1
                                 )
@@ -176,7 +176,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                             } catch {
                                 continuation.yield(
                                     .textDelta(
-                                        "\n**Impossibile eseguire i test: \(error.localizedDescription)**\n"
+                                        "\n**Unable to run tests: \(error.localizedDescription)**\n"
                                     ))
                                 break
                             }
@@ -186,7 +186,7 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                     {
                         continuation.yield(
                             .textDelta(
-                                "\n**Tipo progetto non riconosciuto per esecuzione test automatica.**\n"
+                                "\n**Project type not recognized for automatic test execution.**\n"
                             ))
                     }
 
@@ -200,12 +200,12 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                             reviewLoop += 1
                             continuation.yield(
                                 .textDelta(
-                                    "\n\n## Review loop \(reviewLoop)/\(config.maxReviewLoops): Verifica qualità\n\n"
+                                    "\n\n## Review loop \(reviewLoop)/\(config.maxReviewLoops): Quality check\n\n"
                                 ))
                             let reviewTask = AgentTask(
                                 role: .reviewer,
                                 taskDescription:
-                                    "Revisiona tutto il codice nel workspace. Elenca eventuali bug residui, problemi di stile, ottimizzazioni mancanti. Se tutto è ok, rispondi solo: 'Nessun problema rilevato.'",
+                                    "Review all code in the workspace. List any remaining bugs, style issues, missing optimizations. If everything is fine, respond only: 'No issues found.'",
                                 order: 1
                             )
                             var reviewOutput = ""
@@ -216,22 +216,22 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
                                 if case .textDelta(let d) = event { reviewOutput += d }
                             }
                             let hasIssues =
-                                reviewOutput.lowercased().contains("priorità")
+                                reviewOutput.lowercased().contains("priority")
                                 || reviewOutput.lowercased().contains("bug")
-                                || reviewOutput.lowercased().contains("correggere")
-                                || reviewOutput.lowercased().contains("problema")
+                                || reviewOutput.lowercased().contains("fix")
+                                || reviewOutput.lowercased().contains("issue")
                                 || (reviewOutput.count > 100
                                     && !reviewOutput.lowercased().contains(
-                                        "nessun problema rilevato"))
+                                        "no issues found"))
                             if !hasIssues { break }
                             continuation.yield(
                                 .textDelta(
-                                    "\n**Reviewer ha trovato issue. Esecuzione Coder per correzioni...**\n\n"
+                                    "\n**Reviewer found issues. Running Coder for fixes...**\n\n"
                                 ))
                             let fixTask = AgentTask(
                                 role: .coder,
                                 taskDescription:
-                                    "In base al report del Reviewer precedente, correggi tutti i problemi indicati (bug, stile, ottimizzazioni).",
+                                    "Based on the previous Reviewer report, fix all indicated issues (bugs, style, optimizations).",
                                 order: 1
                             )
                             for try await event in runner.run(tasks: [fixTask], context: context) {

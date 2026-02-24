@@ -51,8 +51,8 @@ final class TaskActivityVisibilityTests: XCTestCase {
             activeOperationsCount: 2
         )
 
-        XCTAssertEqual(status, "Esecuzione")
-        XCTAssertEqual(detail, "Eseguo test • 2 operazioni attive")
+        XCTAssertEqual(status, "Running command")
+        XCTAssertEqual(detail, "Eseguo test • 2 operations")
     }
 
     func testStreamingStatusAndDetailFallbackWhenOnlyGenericEvents() {
@@ -70,7 +70,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
             activeOperationsCount: 0
         )
 
-        XCTAssertEqual(status, "In esecuzione")
+        XCTAssertEqual(status, "Thinking")
         XCTAssertNil(detail)
     }
 

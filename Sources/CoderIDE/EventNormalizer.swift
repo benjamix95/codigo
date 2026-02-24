@@ -15,6 +15,11 @@ enum NormalizedEvent {
     case todoWrite(TodoWritePayload)
     case todoRead
     case planStepUpdate(stepId: String, status: PlanStepStatus, title: String?)
+    case debugPanelUpdate(action: String, phase: String?)
+    /// LLM requests to auto-activate plan mode panel
+    case activatePlanMode(reason: String?)
+    /// LLM requests to auto-activate debug mode panel
+    case activateDebugMode(reason: String?)
 }
 
 enum EventKind: String, Codable {
@@ -23,6 +28,8 @@ enum EventKind: String, Codable {
     case instantGrep = "instant_grep"
     case todoUpdate = "todo_update"
     case planStepUpdate = "plan_step_update"
+    case debugPanelUpdate = "debug_panel_update"
+    case modeActivation = "mode_activation"
     case swarmProgress = "swarm_progress"
     case usageUpdate = "usage_update"
     case errorDiagnostic = "error_diagnostic"
@@ -54,6 +61,8 @@ enum EventNormalizer {
         case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
+        case "debug_panel", "debug_panel_update": kind = .debugPanelUpdate
+        case "activate_plan_mode", "activate_debug_mode": kind = .modeActivation
         case "swarm_steps", "agent": kind = .swarmProgress
         case "usage": kind = .usageUpdate
         case "error": kind = .errorDiagnostic
@@ -81,7 +90,7 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Todo aggiornato",
+                        title: "Todo updated",
                         detail: todo.title,
                         payload: payload,
                         timestamp: timestamp,
@@ -98,8 +107,8 @@ enum EventNormalizer {
                 .taskActivity(
                     TaskActivity(
                         type: type,
-                        title: "Lettura Todo",
-                        detail: "Richiesto stato corrente dei task",
+                        title: "Todo read",
+                        detail: "Requested current task status",
                         payload: payload,
                         timestamp: timestamp,
                         phase: .planning,
@@ -118,12 +127,58 @@ enum EventNormalizer {
             return events
         }
 
+        if type == "debug_panel" || type == "debug_panel_update" {
+            let action = payload["action"] ?? "open"
+            let phase = payload["phase"]
+            events.append(.debugPanelUpdate(action: action, phase: phase))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: "Debug: \(action)",
+                detail: phase.map { "Phase: \($0)" },
+                payload: payload,
+                timestamp: timestamp,
+                phase: .executing,
+                isRunning: action != "close"
+            )))
+            return events
+        }
+
+        if type == "activate_plan_mode" {
+            let reason = payload["reason"]
+            events.append(.activatePlanMode(reason: reason))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: "Plan mode auto-activated",
+                detail: reason,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .planning,
+                isRunning: false
+            )))
+            return events
+        }
+
+        if type == "activate_debug_mode" {
+            let reason = payload["reason"]
+            events.append(.activateDebugMode(reason: reason))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: "Debug mode auto-activated",
+                detail: reason,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .executing,
+                isRunning: false
+            )))
+            return events
+        }
+
         if type == "instant_grep", let grep = parseInstantGrep(payload: payload, timestamp: timestamp) {
             events.append(.instantGrep(grep))
             events.append(.taskActivity(TaskActivity(
                 type: type,
                 title: "Instant Grep • \(grep.query)",
-                detail: "\(grep.matchesCount) risultati",
+                detail: "\(grep.matchesCount) results",
                 payload: payload,
                 timestamp: timestamp,
                 phase: .searching,
@@ -185,6 +240,8 @@ enum EventNormalizer {
             return .searching
         case "plan_step", "plan_step_update":
             return .planning
+        case "debug_panel", "debug_panel_update":
+            return .executing
         default:
             return .planning
         }
@@ -216,31 +273,31 @@ enum EventNormalizer {
     private static func defaultTitle(for type: String) -> String {
         switch type {
         case "process_paused":
-            return "Processo in pausa"
+            return "Process paused"
         case "process_resumed":
-            return "Processo ripreso"
+            return "Process resumed"
         case "read_batch_started":
-            return "Lettura file in batch avviata"
+            return "Batch file read started"
         case "read_batch_completed":
-            return "Lettura file in batch completata"
+            return "Batch file read completed"
         case "turn_started":
-            return "Turno avviato"
+            return "Turn started"
         case "turn_completed":
-            return "Turno completato"
+            return "Turn completed"
         case "web_search_started":
-            return "Ricerca web avviata"
+            return "Web search started"
         case "web_search_completed":
-            return "Ricerca web completata"
+            return "Web search completed"
         case "web_search_failed":
-            return "Ricerca web fallita"
+            return "Web search failed"
         case "tool_execution_error":
-            return "Errore esecuzione tool"
+            return "Tool execution error"
         case "tool_validation_error":
-            return "Errore validazione tool"
+            return "Tool validation error"
         case "tool_timeout":
-            return "Timeout tool"
+            return "Tool timeout"
         case "permission_denied":
-            return "Permesso negato"
+            return "Permission denied"
         default:
             return type
         }

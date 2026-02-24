@@ -1,6 +1,6 @@
 import Foundation
 
-/// Configurazione di un MCP server (come in Cursor/Codex)
+/// Configuration for an MCP server (as in Cursor/Codex)
 public struct MCPServerConfig: Codable, Identifiable {
     public let id: UUID
     public var name: String
@@ -11,7 +11,7 @@ public struct MCPServerConfig: Codable, Identifiable {
     
     public init(
         id: UUID = UUID(),
-        name: String = "Nuovo server",
+        name: String = "New server",
         command: String = "",
         args: [String] = [],
         env: [String: String] = [:],

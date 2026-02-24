@@ -91,8 +91,8 @@ struct TaskControlBar: View {
                     taskActivityStore.addActivity(
                         TaskActivity(
                             type: "process_resumed",
-                            title: "Processo ripreso",
-                            detail: "Esecuzione ripresa dall'utente",
+                            title: "Process resumed",
+                            detail: "Execution resumed by user",
                             payload: [:],
                             phase: .executing,
                             isRunning: true
@@ -102,7 +102,7 @@ struct TaskControlBar: View {
                     HStack(spacing: 4) {
                         Image(systemName: "play.fill")
                             .font(.system(size: 9))
-                        Text("Riprendi")
+                        Text("Resume")
                             .font(.system(size: 11, weight: .medium))
                     }
                 }
@@ -115,8 +115,8 @@ struct TaskControlBar: View {
                     taskActivityStore.addActivity(
                         TaskActivity(
                             type: "process_paused",
-                            title: "Processo in pausa",
-                            detail: "Esecuzione sospesa dall'utente",
+                            title: "Process paused",
+                            detail: "Execution paused by user",
                             payload: [:],
                             phase: .planning,
                             isRunning: false
@@ -126,7 +126,7 @@ struct TaskControlBar: View {
                     HStack(spacing: 4) {
                         Image(systemName: "pause.fill")
                             .font(.system(size: 9))
-                        Text("Pausa")
+                        Text("Pause")
                             .font(.system(size: 11, weight: .medium))
                     }
                 }
@@ -140,7 +140,7 @@ struct TaskControlBar: View {
                 HStack(spacing: 4) {
                     Image(systemName: "stop.fill")
                         .font(.system(size: 9))
-                    Text("Ferma")
+                    Text("Stop")
                         .font(.system(size: 11, weight: .medium))
                 }
             }
@@ -155,7 +155,7 @@ struct TaskControlBar: View {
     private var summarizingBanner: some View {
         HStack(spacing: 8) {
             ProgressView().controlSize(.small)
-            Text("Compressione contesto…")
+            Text("Compressing context…")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             Spacer()
@@ -294,10 +294,10 @@ struct TaskActivityPanel: View {
             )
         }
 
-        // Attività live (expandable)
+        // Live activity (expandable)
         if !concreteActivities.isEmpty {
             expandableSection(
-                title: "Attività live",
+                title: "Live activity",
                 count: concreteActivities.count,
                 icon: "list.bullet.rectangle",
                 color: .secondary,
@@ -326,7 +326,7 @@ struct TaskActivityPanel: View {
         }
         if !terminalActivities.isEmpty {
             expandableSection(
-                title: "Terminali",
+                title: "Terminals",
                 count: terminalActivities.count,
                 icon: "terminal",
                 color: .secondary,
@@ -421,7 +421,7 @@ struct TaskActivityPanel: View {
 
         if let swarmId = effectiveSwarmId, !selectedLaneActivities.isEmpty {
             HStack {
-                Text("Dettagli live • Swarm \(swarmId)")
+                Text("Live details • Swarm \(swarmId)")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -429,7 +429,7 @@ struct TaskActivityPanel: View {
             .padding(.top, 6)
 
             expandableSection(
-                title: "Attività live",
+                title: "Live activity",
                 count: selectedLaneActivities.count,
                 icon: "list.bullet.rectangle",
                 color: .secondary,
@@ -448,7 +448,7 @@ struct TaskActivityPanel: View {
             }
             if !swarmTerminals.isEmpty {
                 expandableSection(
-                    title: "Terminali",
+                    title: "Terminals",
                     count: swarmTerminals.count,
                     icon: "terminal",
                     color: .secondary,
@@ -476,7 +476,7 @@ struct TaskActivityPanel: View {
         }()
         let text: String = {
             if isPaused {
-                return "Esecuzione in pausa"
+                return "Execution paused"
             }
             switch coderMode {
             case .plan:
@@ -485,37 +485,37 @@ struct TaskActivityPanel: View {
                     $0.type == "command_execution" || $0.type == "file_change"
                 }
                 if hasExecutionSignal || hasStepUpdate {
-                    return "Plan: esecuzione del piano in corso"
+                    return "Plan: executing plan"
                 }
-                return "Plan: analisi opzioni in corso"
+                return "Plan: analyzing options"
             case .codeReviewMultiSwarm:
                 let hasExecutionSignal = taskActivityStore.activities.contains {
                     $0.type == "command_execution" || $0.type == "file_change"
                 }
                 if hasExecutionSignal {
-                    return "Code Review: Fase 2 (applicazione correzioni)"
+                    return "Code Review: Phase 2 (applying fixes)"
                 }
-                return "Code Review: Fase 1 (analisi multi-swarm)"
+                return "Code Review: Phase 1 (multi-swarm analysis)"
             case .agentSwarm:
-                return "Swarm: orchestrazione agenti in corso"
+                return "Swarm: orchestrating agents"
             default:
-                return "Agent: task in esecuzione"
+                return "Agent: task running"
             }
         }()
         let hint: String? = {
-            guard !isPaused else { return "Premi Riprendi per continuare l'esecuzione." }
+            guard !isPaused else { return "Press Resume to continue execution." }
             if coderMode == .codeReviewMultiSwarm {
                 let hasExecutionSignal = taskActivityStore.activities.contains {
                     $0.type == "command_execution" || $0.type == "file_change"
                 }
                 if !hasExecutionSignal {
-                    return "Per applicare fix: invia \"procedi con le correzioni\" oppure abilita yolo."
+                    return "To apply fixes: send \"proceed with corrections\" or enable yolo."
                 }
             }
             if coderMode == .plan {
                 let hasStepUpdate = taskActivityStore.activities.contains { $0.type == "plan_step_update" }
                 if !hasStepUpdate {
-                    return "Quando il piano è pronto, scegli un'opzione per avviare l'implementazione."
+                    return "When the plan is ready, choose an option to start the implementation."
                 }
             }
             return nil

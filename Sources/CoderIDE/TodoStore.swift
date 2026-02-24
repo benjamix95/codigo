@@ -114,7 +114,7 @@ struct TodoItem: Identifiable, Codable {
 enum TodoFilter: String, CaseIterable {
     case open = "Aperti"
     case inProgress = "In corso"
-    case completed = "Completati"
+    case completed = "Completed"
 }
 
 private let todosStorageKey = "CoderIDE.todos"

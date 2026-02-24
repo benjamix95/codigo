@@ -58,7 +58,7 @@ struct Conversation: Identifiable, Codable {
 
     init(
         id: UUID = UUID(),
-        title: String = "Nuova conversazione",
+        title: String = "New conversation",
         messages: [ChatMessage] = [],
         createdAt: Date = .now,
         contextId: UUID? = nil,
@@ -367,15 +367,15 @@ final class ChatStore: ObservableObject {
             "- Thread: \($0.title)\n  Match: \($0.matchCount)\n  Snippet: \($0.snippet)"
         }.joined(separator: "\n")
         return """
-        Usa esclusivamente il contesto dei thread trovati qui sotto per rispondere alla mia domanda.
-        Se il contesto non basta, dillo chiaramente.
+        Use exclusively the context of the threads found below to answer my question.
+        If the context is not enough, state it clearly.
 
-        Query di ricerca: \(query)
+        Search query: \(query)
 
-        Risultati thread:
+        Thread results:
         \(items)
 
-        Domanda:
+        Question:
         """
     }
 
@@ -429,8 +429,8 @@ final class ChatStore: ObservableObject {
         return lastAssistant.isStreaming
     }
 
-    /// Imposta isStreaming=false su tutti i messaggi assistant. Chiamare prima di aggiungere
-    /// un nuovo assistant placeholder per evitare doppi indicatori di caricamento.
+    /// Sets isStreaming=false on all assistant messages. Call before adding
+    /// a new assistant placeholder to avoid duplicate loading indicators.
     func clearStaleAssistantStreaming(conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         var conv = conversations[idx]
@@ -455,26 +455,26 @@ final class ChatStore: ObservableObject {
             clearStaleAssistantStreaming(conversationId: conversationId)
         }
         conversations[idx].messages.append(message)
-        if conversations[idx].title == "Nuova conversazione", case .user = message.role {
+        if conversations[idx].title == "New conversation", case .user = message.role {
             conversations[idx].title = String(message.content.prefix(40))
             if message.content.count > 40 { conversations[idx].title += "…" }
         }
         saveConversations()
     }
 
-    /// - Parameter persistImmediately: se false, salta saveConversations (usare durante streaming per non bloccare il main thread con I/O).
+    /// - Parameter persistImmediately: if false, skips saveConversations (use during streaming to avoid blocking the main thread with I/O).
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        // Durante lo streaming usa una sanitizzazione conservativa:
-        // evita di eliminare frasi "operative" legittime che altrimenti fanno sembrare
-        // il testo bloccato dopo il primo chunk.
+        // During streaming use a conservative sanitization:
+        // avoid removing legitimate "operational" phrases that otherwise make
+        // the text appear stuck after the first chunk.
         let stripped = Self.stripCoderideMarkers(content, aggressive: persistImmediately)
         let rawTrimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedContent: String
         if stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !rawTrimmed.isEmpty {
-            // Fallback difensivo: non perdere mai il contenuto assistant su provider non-Codex.
-            // Se la sanitizzazione aggressiva svuota tutto, riprova in modalita` conservativa.
+            // Defensive fallback: never lose assistant content on non-Codex providers.
+            // If aggressive sanitization empties everything, retry in conservative mode.
             let conservative = Self.stripCoderideMarkers(content, aggressive: false)
             resolvedContent = conservative.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? content
@@ -494,7 +494,7 @@ final class ChatStore: ObservableObject {
         if persistImmediately { saveConversations() }
     }
 
-    /// Rimuove marker CODERIDE alla sorgente per evitare flash durante lo streaming.
+    /// Removes CODERIDE markers from source to avoid flashes during streaming.
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
         var out = content
         // 1. Standard [CODERIDE:...] markers (regex)
@@ -512,9 +512,9 @@ final class ChatStore: ObservableObject {
             }
         }
         // 2. Fallback for incomplete [CODERIDE markers
-        // Durante lo streaming possono arrivare frammenti marker non ancora chiusi.
-        // Rimuoviamo solo la porzione di riga "sporca" per evitare di cancellare
-        // anche il testo assistant valido che segue nelle righe successive.
+        // During streaming, incomplete marker fragments may arrive.
+        // We only remove the "dirty" portion of the line to avoid deleting
+        // valid assistant text that follows in subsequent lines.
         while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
             if let end = out[start.upperBound...].firstIndex(of: "]") {
                 out.removeSubrange(start.lowerBound..<out.index(after: end))
@@ -549,7 +549,7 @@ final class ChatStore: ObservableObject {
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
-            // 4b. Rimuove boilerplate operativi iniziali prima della risposta utile.
+            // 4b. Removes initial operational boilerplate before the useful response.
             if let bugReviewRegex = try? NSRegularExpression(
                 pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
                 options: [.caseInsensitive, .anchorsMatchLines]
@@ -559,8 +559,8 @@ final class ChatStore: ObservableObject {
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
-            // 4b-1. Se la riga contiene prefisso operativo + contenuto utile sulla stessa riga,
-            // rimuove solo il prefisso iniziale e preserva il testo che segue.
+            // 4b-1. If the line contains an operational prefix + useful content on the same line,
+            // remove only the initial prefix and preserve the text that follows.
             if let inlineOperationalPrefixRegex = try? NSRegularExpression(
                 pattern: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
                 options: [.caseInsensitive, .anchorsMatchLines]
@@ -579,7 +579,7 @@ final class ChatStore: ObservableObject {
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
-            // 4c. Rimuove heading/righe operative di "progress commentary" trapelate nello stream.
+            // 4c. Removes operational heading/lines of "progress commentary" leaked into the stream.
             if let progressHeadingRegex = try? NSRegularExpression(
                 pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
                 options: [.caseInsensitive, .anchorsMatchLines]
@@ -589,7 +589,7 @@ final class ChatStore: ObservableObject {
                     in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
                 )
             }
-            // 4d. Rimuove righe di progress tecnico non utili al testo utente finale.
+            // 4d. Removes technical progress lines not useful to the final user text.
             if let cliTraceRegex = try? NSRegularExpression(
                 pattern: #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
                 options: [.caseInsensitive, .anchorsMatchLines]
@@ -600,7 +600,7 @@ final class ChatStore: ObservableObject {
                 )
             }
         }
-        // Marker inline "markers:todo_write|..." o "todo_write|..."
+        // Inline marker "markers:todo_write|..." or "todo_write|..."
         out = out.replacingOccurrences(
             of: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#,
             with: "",
@@ -611,42 +611,42 @@ final class ChatStore: ObservableObject {
             with: "",
             options: .regularExpression
         )
-        // Varianti spezzate/troncate dei marker operativi (es. "do_write|", "markersdo_write|").
+        // Broken/truncated variants of operational markers (e.g. "do_write|", "markersdo_write|").
         out = out.replacingOccurrences(
             of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
             with: "",
             options: .regularExpression
         )
-        // Eventi tecnici che non devono mai apparire nel testo utente.
+        // Technical events that must never appear in user-facing text.
         out = out.replacingOccurrences(
             of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#,
             with: "",
             options: .regularExpression
         )
         if aggressive {
-            // Se un marker si incolla al testo, separa il token key=value prima della rimozione.
+            // If a marker sticks to the text, separate the key=value token before removal.
             out = out.replacingOccurrences(
                 of: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#,
                 with: "$1 $2",
                 options: .regularExpression
             )
-            // Rimuove singoli frammenti key=value tipici dei marker operativi.
+            // Removes single key=value fragments typical of operational markers.
             out = out.replacingOccurrences(
                 of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
                 with: "",
                 options: .regularExpression
             )
-            // Fallback key=value con chiusura ] (es. files=Sources/..]).
+            // Fallback key=value with closing ] (e.g. files=Sources/..]).
             out = out.replacingOccurrences(
                 of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#,
                 with: "",
                 options: .regularExpression
             )
-            // Fallback robusto: rimuove payload marker "grezzi" trapelati nel testo
-            // (es. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
+            // Robust fallback: removes "raw" marker payloads leaked into the text
+            // (e.g. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
             out = stripStructuredMarkerPayloads(out)
         }
-        // Cleanup formattazione leggibile (stile chat): spazi, punteggiatura, line breaks.
+        // Cleanup readable formatting (chat style): spaces, punctuation, line breaks.
         out = out.replacingOccurrences(of: #"\s+\n"#, with: "\n", options: .regularExpression)
         out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
         out = out.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
@@ -699,8 +699,8 @@ final class ChatStore: ObservableObject {
         return out
     }
 
-    /// Estrae l'ultima riga "operativa" dal contenuto durante lo streaming (es. "Planning next moves", "Explored lints").
-    /// Usata per mostrare il thinking dell'LLM come su Cursor.
+    /// Extracts the last "operational" line from content during streaming (e.g. "Planning next moves", "Explored lints").
+    /// Used to show LLM thinking like Cursor does.
     static func extractLastOperationalThinkingLine(from content: String) -> String? {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -745,13 +745,13 @@ final class ChatStore: ObservableObject {
         activeTaskConversationId = conversationId
     }
 
-    // Compat legacy call sites.
+    // Legacy call site compatibility.
     func beginTask() {
         beginTask(conversationId: activeTaskConversationId)
     }
 
     func endTask(conversationId: UUID?) {
-        // Evita che uno stop fuori contesto resetti task ancora attivo in altro thread.
+        // Prevent an out-of-context stop from resetting a task still active in another thread.
         if let active = activeTaskConversationId,
             let conversationId,
             active != conversationId
@@ -904,7 +904,7 @@ final class ChatStore: ObservableObject {
     ) {
         guard let conversationId else { return }
         var board = planBoards[conversationId] ?? PlanBoard(
-            goal: "Piano operativo in corso",
+            goal: "Operational plan in progress",
             options: [],
             chosenPath: nil,
             steps: [],
@@ -957,17 +957,17 @@ final class ChatStore: ObservableObject {
         let toSummarize = Array(msgs.prefix(msgs.count - keepLast))
         let recent = Array(msgs.suffix(keepLast))
         let textToSummarize = toSummarize.map { message in
-            let roleLabel = message.role == .user ? "Utente" : "Assistant"
+            let roleLabel = message.role == .user ? "User" : "Assistant"
             return "\(roleLabel): \(message.content)"
         }.joined(separator: "\n\n")
         let prompt = """
-        Riassumi questa conversazione mantenendo: obiettivi, decisioni prese, file modificati, errori rilevati, passi completati.
-        Non includere dettagli di codice non necessari.
+        Summarize this conversation keeping: objectives, decisions made, files modified, errors detected, steps completed.
+        Do not include unnecessary code details.
 
-        Conversazione:
+        Conversation:
         \(textToSummarize)
 
-        Rispondi solo con il riassunto, senza premesse.
+        Reply only with the summary, without preamble.
         """
         let ctx = CoderEngine.WorkspaceContext(
             workspacePaths: context.workspacePaths,
@@ -983,12 +983,12 @@ final class ChatStore: ObservableObject {
         var summary = ""
         for try await ev in stream {
             if case .textDelta(let d) = ev { summary += d }
-            if case .error(let e) = ev { summary += "\n[Errore: \(e)]" }
+            if case .error(let e) = ev { summary += "\n[Error: \(e)]" }
         }
         guard !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         let summaryMsg = ChatMessage(
             role: .assistant,
-            content: "[Riassunto precedente]\n\n\(summary.trimmingCharacters(in: .whitespacesAndNewlines))",
+            content: "[Previous summary]\n\n\(summary.trimmingCharacters(in: .whitespacesAndNewlines))",
             isStreaming: false
         )
         conversations[idx].messages = [summaryMsg] + recent

@@ -56,6 +56,7 @@ struct ModeControlsBarView: View {
     let onDelegateToAgent: () -> Void
     let attachedImageURLs: [URL]
     @Binding var planToggleEnabled: Bool
+    @Binding var debugToggleEnabled: Bool
     let highlightPlanButton: Bool
 
     // MARK: - Body
@@ -89,6 +90,7 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+                debugButton
             }
             if coderMode == .agentSwarm {
                 formicaButton
@@ -99,6 +101,7 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+                debugButton
             }
             if coderMode == .agentSwarm {
                 formicaButton
@@ -109,6 +112,7 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+                debugButton
             }
             if coderMode == .agentSwarm {
                 formicaButton
@@ -119,6 +123,7 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+                debugButton
             }
             if coderMode == .agentSwarm {
                 formicaButton
@@ -128,6 +133,7 @@ struct ModeControlsBarView: View {
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
+                debugButton
             }
             if coderMode == .agentSwarm {
                 formicaButton
@@ -137,6 +143,7 @@ struct ModeControlsBarView: View {
             if [.agent, .agentSwarm, .plan].contains(coderMode) {
                 Spacer()
                 planButton
+                debugButton
                 if coderMode == .agentSwarm {
                     formicaButton
                 }
@@ -582,7 +589,40 @@ struct ModeControlsBarView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help("Mostra/nascondi pannello attività swarm")
+        .help("Show/hide swarm activity panel")
+    }
+
+    // MARK: - Debug Button
+
+    private var debugButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "ladybug.fill")
+                    .font(.caption2)
+                Text("Debug")
+                    .font(.caption)
+            }
+            .foregroundStyle(
+                debugToggleEnabled
+                    ? DesignSystem.Colors.debugColor : .secondary
+            )
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(
+                        debugToggleEnabled
+                            ? DesignSystem.Colors.debugColor.opacity(0.14)
+                            : Color.clear
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Debug mode (Cmd+Shift+D)")
     }
 
     // MARK: - Plan Button

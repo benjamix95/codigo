@@ -15,12 +15,14 @@ struct ContentView: View {
     @EnvironmentObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
+    @StateObject private var debugStore = DebugStore()
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
     @State private var terminalHeight: CGFloat = 200
     @State private var showSettings = false
     @State private var showPlanPanel = false
+    @State private var showDebugPanel = false
     @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
 
@@ -57,17 +59,17 @@ struct ContentView: View {
             .ignoresSafeArea(.container, edges: .top)
         }
         .onAppear {
-            // Inizializza la selezione SOLO al primo avvio, altrimenti onAppear sovrascriverebbe
-            // la conversazione scelta dall'utente (es. dopo "New thread") ogni volta che la view riappare.
+            // Initialize selection ONLY on first launch, otherwise onAppear would overwrite
+            // the conversation chosen by the user (e.g. after "New thread") every time the view reappears.
             guard selectedConversationId == nil else {
                 return
             }
-            // Preferisce projectContextStore: è l'ultimo contesto effettivamente usato.
+            // Prefer projectContextStore: it is the last context actually used.
             let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
             let ctx = projectContextStore.context(id: defaultContextId)
             let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
-            // Un solo thread per contesto: usa lastActive o riusa un thread esistente, creando
-            // un nuovo thread solo quando non esiste nessun candidato.
+            // One thread per context: use lastActive or reuse an existing thread, creating
+            // a new thread only when no candidate exists.
             if let contextId = defaultContextId,
                let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
@@ -117,14 +119,14 @@ struct ContentView: View {
                 !selected.isArchived,
                 selected.messages.isEmpty
             {
-                // Se l'utente ha appena creato manualmente un thread vuoto, non sovrascrivere la selezione.
+                // If the user just manually created an empty thread, do not overwrite the selection.
                 return
             }
             let conv = chatStore.conversation(for: selectedConversationId)
             guard conv?.contextId != newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
             let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
-            // Se c'è un thread su cui avevi lavorato in questo tab, mostralo; altrimenti nuovo thread
+            // If there's a thread you worked on in this tab, show it; otherwise new thread
             if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
                lastConv.contextId == newContextId,
@@ -147,7 +149,7 @@ struct ContentView: View {
     // MARK: - IDE Panel
     private var idePanel: some View {
         VStack(spacing: 0) {
-            // Allinea la barra editor alla stessa quota interattiva del pannello chat.
+            // Align the editor bar to the same interactive level as the chat panel.
             Color.clear
                 .frame(height: 22)
                 .allowsHitTesting(false)
@@ -199,7 +201,7 @@ struct ContentView: View {
                     .background(showTerminal ? DesignSystem.Colors.agentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
-            .help("Mostra/nascondi terminale")
+            .help("Show/hide terminal")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
@@ -253,7 +255,9 @@ struct ContentView: View {
         ChatPanelView(
             selectedConversationId: $selectedConversationId,
             effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
-            showPlanPanel: $showPlanPanel
+            showPlanPanel: $showPlanPanel,
+            showDebugPanel: $showDebugPanel,
+            debugStore: debugStore
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)

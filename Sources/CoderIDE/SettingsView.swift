@@ -1203,7 +1203,7 @@ struct SettingsView: View {
                                   {
                                     "slash": "/review-fix-tests",
                                     "label": "Fix + tests",
-                                    "prompt": "Trova bug nelle modifiche correnti, applica fix, aggiungi/aggiorna test e valida con build/test completi."
+                                    "prompt": "Find bugs in current changes, apply fixes, add/update tests and validate with full build/tests."
                                   }
                                 ]
                                 """
@@ -1257,12 +1257,12 @@ struct SettingsView: View {
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             sectionHeader(
-                title: "Comportamento", subtitle: "Procedi senza conferma su tutte le modalità",
+                title: "Behavior", subtitle: "Proceed without confirmation on all modes",
                 icon: "bolt.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Yolo: procedi senza conferma (tutte le modalità)", isOn: $globalYolo)
+                    Toggle("Yolo: proceed without confirmation (all modes)", isOn: $globalYolo)
                         .onChange(of: globalYolo) { _, _ in
                             syncCodex()
                             syncPlanProvider()
@@ -1466,7 +1466,7 @@ struct SettingsView: View {
                                 )
                                 .toggleStyle(.checkbox)
                                 Stepper(
-                                    "Priorità \(account.priority)",
+                                    "Priority \(account.priority)",
                                     value: Binding(
                                         get: { account.priority },
                                         set: { newValue in
@@ -1643,7 +1643,7 @@ struct SettingsView: View {
         case .notInstalled:
             return "CLI non installato"
         case .error(let message):
-            return "Errore auth: \(message)"
+            return "Auth error: \(message)"
         }
     }
 
@@ -1732,11 +1732,11 @@ struct SettingsView: View {
                 let ok = process.terminationStatus == 0
                 await MainActor.run {
                     accountTestResultById[account.id] =
-                        ok ? "OK" : "Errore exit \(process.terminationStatus)"
+                        ok ? "OK" : "Error exit \(process.terminationStatus)"
                 }
             } catch {
                 await MainActor.run {
-                    accountTestResultById[account.id] = "Errore: \(error.localizedDescription)"
+                    accountTestResultById[account.id] = "Error: \(error.localizedDescription)"
                 }
             }
         }

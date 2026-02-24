@@ -116,11 +116,11 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
         .map { answer in
             var lines: [String] = [
                 "\(answer.questionId). \(answer.question)",
-                "   Risposta selezionata: \(answer.optionId)) \(answer.optionText)",
+                "   Selected answer: \(answer.optionId)) \(answer.optionText)",
             ]
             let custom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !custom.isEmpty {
-                lines.append("   Risposta personalizzata (precedenza): \(custom)")
+                lines.append("   Custom answer (takes precedence): \(custom)")
             }
             return lines.joined(separator: "\n")
         }
@@ -128,12 +128,12 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
 
     let finalNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
     return """
-    Risposte alle domande di chiarimento del piano:
+    Answers to plan clarification questions:
     \(responseBody)
 
-    Nota finale obbligatoria utente: \(finalNote)
+    User mandatory final note: \(finalNote)
 
-    After receiving these answers, perform additional codebase analysis based on the responses. If new ambiguities arise, you may ask further clarification questions using the same ## Questions format. Only propose final options (## Opzione with ## Todo) when fully confident.
+    After receiving these answers, perform additional codebase analysis based on the responses. If new ambiguities arise, you may ask further clarification questions using the same ## Questions format. Only propose final options (## Option with ## Todo) when fully confident.
     """
 }
 
@@ -165,25 +165,25 @@ func buildPlanExecutionPrompt(
         let prompt = """
         \(workflowInstructions)
 
-        **RIPRESA IMPLEMENTAZIONE** — Continua da dove hai lasciato.
+        **RESUME IMPLEMENTATION** — Continue from where you left off.
 
         \(executionPlanBase)
 
-        **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
-        \(doneList.isEmpty ? "(nessuno)" : doneList)
+        **Already completed todos:** Verify that the corresponding changes are present in the files. If missing or reverted, re-apply them.
+        \(doneList.isEmpty ? "(none)" : doneList)
 
-        **Todo da completare:**
-        \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
+        **Todos to complete:**
+        \(pendingList.isEmpty ? "(all completed)" : pendingList)
 
-        Procedi verificando i done, riapplicando eventuali modifiche mancanti, poi completa i todo rimanenti.
+        Proceed by verifying the done items, re-applying any missing changes, then complete the remaining todos.
         """
         return (prompt, true)
     }
 
-    var prompt = "\(workflowInstructions)\n\nL'utente ha selezionato un approccio da un piano. Implementalo seguendo ESATTAMENTE i TODO nell'ordine indicato. I TODO sono la tua checklist obbligatoria — non deviare, non saltare, non riordinare.\n\n\(executionPlanBase)"
+    var prompt = "\(workflowInstructions)\n\nThe user selected an approach from a plan. Implement it following the TODOs EXACTLY in the order listed. The TODOs are your mandatory checklist — do not deviate, skip, or reorder.\n\n\(executionPlanBase)"
     if !planTodos.isEmpty {
         let todoList = planTodos.enumerated().map { "\($0.offset + 1). [ ] \($0.element)" }.joined(separator: "\n")
-        prompt += "\n\n**TODO OBBLIGATORI (segui in ordine, completa TUTTI):**\n\(todoList)\n\nRICORDA: Ogni TODO deve passare da pending → in_progress → done. Non terminare finché TUTTI non sono done."
+        prompt += "\n\n**MANDATORY TODOs (follow in order, complete ALL):**\n\(todoList)\n\nREMEMBER: Every TODO must go from pending → in_progress → done. Do not finish until ALL are done."
     }
     return (prompt, false)
 }
@@ -269,7 +269,7 @@ func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     }
     let remainder = String(text.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
     let prompt = remainder.isEmpty
-        ? "Genera un planning strutturato con opzioni alternative, pro/contro e complessità."
+        ? "Generate a structured plan with alternative options, pros/cons and complexity."
         : remainder
     return PlanCommandParseResult(
         displayedInput: prompt,
@@ -363,7 +363,7 @@ func evaluateCmdShiftPPlanShortcut(
         )
     }
 
-    // 2) on/off -> apri pannello plan
+    // 2) on/off -> open plan panel
     if currentPlanToggleEnabled && !currentShowPlanPanel {
         return CmdShiftPPlanShortcutTransition(
             nextPlanToggleEnabled: true,
@@ -371,7 +371,7 @@ func evaluateCmdShiftPPlanShortcut(
         )
     }
 
-    // 3) qualunque stato con pannello aperto -> spegni tutto
+    // 3) any state with panel open -> turn off everything
     return CmdShiftPPlanShortcutTransition(
         nextPlanToggleEnabled: false,
         nextShowPlanPanel: false
@@ -424,7 +424,7 @@ struct ChatPanelView: View {
 
     private var conversationId: UUID? { selectedConversationId }
 
-    /// Loading state solo per il thread attualmente visualizzato (evita di mostrare loading di altri thread).
+    /// Loading state only for the currently displayed thread (avoids showing loading for other threads).
     private var isLoadingForCurrentConversation: Bool {
         chatStore.isLoading && chatStore.activeTaskConversationId == conversationId
     }
@@ -476,7 +476,10 @@ struct ChatPanelView: View {
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
     @State private var planToggleEnabled = false
+    @State private var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
+    @Binding var showDebugPanel: Bool
+    @ObservedObject var debugStore: DebugStore
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
     @State private var planAnalysisContext: String = ""
@@ -539,6 +542,7 @@ struct ChatPanelView: View {
 
     private static let imagePastedNotification = Notification.Name("CoderIDE.ImagePasted")
     static let planBuildShortcutNotification = Notification.Name("CoderIDE.PlanBuildShortcutPressed")
+    static let debugPanelToggleNotification = Notification.Name("CoderIDE.DebugPanelToggle")
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
     private let topInteractiveInset: CGFloat = 22
@@ -611,7 +615,7 @@ struct ChatPanelView: View {
                     messagesArea
                 }
 
-                // Mantieni la task bar legacy solo quando il composer non è visibile (es. Swarm).
+                // Keep the legacy task bar only when the composer is not visible (e.g. Swarm).
                 if !shouldShowComposer(for: coderMode) && (isLoadingForCurrentConversation || isSummarizing) {
                     TaskControlBar(
                         chatStore: chatStore,
@@ -634,6 +638,9 @@ struct ChatPanelView: View {
             if showPlanPanel {
                 planPanelSidebar
             }
+            if showDebugPanel {
+                debugPanelSidebar
+            }
         }
     }
 
@@ -654,12 +661,12 @@ struct ChatPanelView: View {
                 userModeOverrideUntilConversationChange = false
             }
             planShortcutPrimedUntil = nil
-            // Se c'è un task attivo sul thread che si sta lasciando, interrompilo.
+            // If there's an active task on the thread being left, interrupt it.
             if let oldId, chatStore.activeTaskConversationId == oldId {
                 skipNextLoadingCompletedHandling = true
                 interruptTask(for: oldId)
             }
-            // Ripristina lo stato del piano se la conversazione di destinazione ha già un piano.
+            // Restore the plan state if the destination conversation already has a plan.
             activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
             restorePlanStateIfNeeded(for: newId)
@@ -836,6 +843,49 @@ struct ChatPanelView: View {
     }
 
     @ViewBuilder
+    private var debugPanelSidebar: some View {
+        DebugPanelView(
+            debugStore: debugStore,
+            taskActivityStore: taskActivityStore,
+            todoStore: todoStore,
+            onClose: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showDebugPanel = false
+                }
+            },
+            onSubmitQuestion: { question in
+                let debugPrompt = "[DEBUG] \(question)"
+                inputText = debugPrompt
+                sendMessage()
+            },
+            onStop: {
+                debugStore.resetSession()
+            },
+            onProceed: {
+                debugStore.confirmReproduced()
+                // Tell the agent to proceed with investigation
+                inputText = "[DEBUG] Bug reproduced. Proceed with investigation."
+                sendMessage()
+            },
+            onFixed: {
+                let result = debugStore.markFixed(summary: debugStore.resolutionSummary)
+                // Tell agent to clean up debug artifacts from files
+                let allFiles = Set(
+                    result.markers.map(\.filePath)
+                    + result.instrumentation.map(\.filePath)
+                )
+                if !allFiles.isEmpty {
+                    let fileList = allFiles.sorted().joined(separator: ", ")
+                    inputText = "[DEBUG] Marked as fixed. Clean all debug markers and instrumentation from: \(fileList)"
+                    sendMessage()
+                }
+            }
+        )
+        .frame(minWidth: 300, idealWidth: 360, maxWidth: 420)
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+
+    @ViewBuilder
     private var swarmDashboardArea: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -856,13 +906,13 @@ struct ChatPanelView: View {
                             showTodoSection: shouldShowTaskPanelTodoSection
                         )
                     } else {
-                        Text("Nessuna attività swarm disponibile.")
+                        Text("No swarm activity available.")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
                             .padding(16)
                     }
                 } else {
-                    Text("Pannello attività swarm nascosto.")
+                    Text("Swarm activity panel hidden.")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(16)
@@ -910,6 +960,16 @@ struct ChatPanelView: View {
             }
             if showPlanPanel && event.modifierFlags.contains(.command) && event.keyCode == 36 {
                 NotificationCenter.default.post(name: Self.planBuildShortcutNotification, object: nil)
+                return nil
+            }
+            // Cmd+Shift+D toggles debug panel
+            if event.modifierFlags.contains([.command, .shift]),
+               event.charactersIgnoringModifiers?.lowercased() == "d" {
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showDebugPanel.toggle()
+                    }
+                }
                 return nil
             }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
@@ -976,7 +1036,7 @@ struct ChatPanelView: View {
     }
 
     private func openPlanPanelForCurrentContext(preserveHistorySelection: Bool = false) {
-        // Il toggle Plan deve aprire sempre un workspace vuoto.
+        // The Plan toggle should always open an empty workspace.
         if !preserveHistorySelection {
             planHistoryStore.setSelectedEntry(id: nil)
         }
@@ -1054,7 +1114,7 @@ struct ChatPanelView: View {
 
     private var chatHeader: some View {
         HStack(spacing: 8) {
-            Text(chatStore.conversation(for: conversationId)?.title ?? "Nuova conversazione")
+            Text(chatStore.conversation(for: conversationId)?.title ?? "New conversation")
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.7))
                 .lineLimit(1)
@@ -1079,7 +1139,7 @@ struct ChatPanelView: View {
                 !chatStore.canRewind(conversationId: conversationId) || isLoadingForCurrentConversation
                     || isRewinding
             )
-            .help("Torna al checkpoint precedente (ripristina chat e file)")
+            .help("Rewind to previous checkpoint (restore chat and files)")
             .accessibilityLabel("Rewind checkpoint chat")
         }
         .padding(.horizontal, 14)
@@ -1200,7 +1260,7 @@ struct ChatPanelView: View {
                                         && supportsInlineActivityMode
                                         && conv.id == chatStore.activeTaskConversationId
                                     let llmOrActivityStatus: String? = {
-                                        if executionController.runState == .paused { return "Pausa" }
+                                        if executionController.runState == .paused { return "Paused" }
                                         return streamingDetailText(for: message, conversationId: conv.id)
                                     }()
                                     if showInlineActivityFeed {
@@ -1385,7 +1445,7 @@ struct ChatPanelView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.down.circle.fill")
                                 .font(.system(size: 12, weight: .semibold))
-                            Text("Torna al live")
+                            Text("Back to live")
                                 .font(.system(size: 11, weight: .semibold))
                             if newEventsWhileDetached > 0 {
                                 Text("\(newEventsWhileDetached)")
@@ -1425,8 +1485,8 @@ struct ChatPanelView: View {
                 recordTaskActivity(
                     type: "turn_started",
                     payload: [
-                        "title": "Turno avviato",
-                        "detail": "Esecuzione richiesta in corso",
+                        "title": "Turn started",
+                        "detail": "Request execution in progress",
                         "status": "started",
                         "group_id": "ui-fallback-\(conversationId.uuidString)",
                     ],
@@ -1489,8 +1549,8 @@ struct ChatPanelView: View {
                 })?.content ?? ""
             chatStore.updateLastAssistantMessage(
                 content: cur.isEmpty
-                    ? "[Interrotto dall'utente]"
-                    : cur + "\n\n[Interrotto dall'utente]", in: cid)
+                    ? "[Interrupted by user]"
+                    : cur + "\n\n[Interrupted by user]", in: cid)
             chatStore.setLastAssistantStreaming(false, in: cid)
             clearStreamingReasoning(for: cid)
         }
@@ -1519,8 +1579,8 @@ struct ChatPanelView: View {
             taskActivityStore.addActivity(
                 TaskActivity(
                     type: "process_resumed",
-                    title: "Processo ripreso",
-                    detail: "Esecuzione ripresa dall'utente",
+                    title: "Process resumed",
+                    detail: "Execution resumed by user",
                     payload: [:],
                     phase: .executing,
                     isRunning: true
@@ -1534,8 +1594,8 @@ struct ChatPanelView: View {
         taskActivityStore.addActivity(
             TaskActivity(
                 type: "process_paused",
-                title: "Processo in pausa",
-                detail: "Esecuzione sospesa dall'utente",
+                title: "Process paused",
+                detail: "Execution paused by user",
                 payload: [:],
                 phase: .planning,
                 isRunning: false
@@ -1612,7 +1672,194 @@ struct ChatPanelView: View {
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
                     chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
                 }
+            case .debugPanelUpdate(let action, let phase):
+                handleDebugPanelUpdate(action: action, phase: phase)
+            case .activatePlanMode(let reason):
+                handleAutoActivatePlanMode(reason: reason)
+            case .activateDebugMode(let reason):
+                handleAutoActivateDebugMode(reason: reason)
             }
+        }
+    }
+
+    @MainActor
+    private func handleDebugPanelUpdate(action: String, phase: String?) {
+        switch action.lowercased() {
+        case "open":
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                showDebugPanel = true
+            }
+            if let phaseStr = phase, let debugPhase = DebugFlowPhase(rawValue: phaseStr) {
+                debugStore.phase = debugPhase
+            }
+        case "close":
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                showDebugPanel = false
+            }
+            debugStore.phase = .idle
+        case "phase":
+            if let phaseStr = phase, let debugPhase = DebugFlowPhase(rawValue: phaseStr) {
+                debugStore.setPhase(debugPhase)
+            }
+        case "stream":
+            // Append streaming content from agent
+            if let phaseStr = phase {
+                debugStore.streamingContent += phaseStr
+            }
+        case "question":
+            if let phaseStr = phase {
+                debugStore.clarificationQuestions = phaseStr
+                debugStore.phase = .describing
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showDebugPanel = true
+                }
+            }
+        case "reproduce":
+            debugStore.setPhase(.reproducing)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                showDebugPanel = true
+            }
+        case "resolve":
+            debugStore.phase = .resolved
+            if let phaseStr = phase {
+                debugStore.resolutionSummary = phaseStr
+            }
+        case "marker":
+            // Agent inserted a debug marker — track it
+            if let phaseStr = phase {
+                // Format: "filePath|lineNumber|comment"
+                let parts = phaseStr.split(separator: "|", maxSplits: 2).map(String.init)
+                if parts.count >= 2, let line = Int(parts[1]) {
+                    let comment = parts.count >= 3 ? parts[2] : "debug marker"
+                    debugStore.addDebugMarker(DebugMarker(
+                        filePath: parts[0],
+                        lineNumber: line,
+                        markerComment: comment
+                    ))
+                }
+            }
+        case "instrument":
+            // Agent inserted instrumentation — track it
+            // Format: "filePath|lineNumber|type|code|hypothesisId"
+            if let phaseStr = phase {
+                let parts = phaseStr.split(separator: "|", maxSplits: 4).map(String.init)
+                if parts.count >= 4, let line = Int(parts[1]) {
+                    let typeStr = parts[2].lowercased()
+                    let instrumentType: InstrumentationPoint.InstrumentationType
+                    switch typeStr {
+                    case "assertion":  instrumentType = .assertion
+                    case "timing":     instrumentType = .timing
+                    case "variable":   instrumentType = .variable
+                    default:           instrumentType = .logging
+                    }
+                    let code = parts[3]
+                    let hypothesisId = parts.count >= 5 ? parts[4] : nil
+                    debugStore.addInstrumentation(
+                        filePath: parts[0],
+                        lineNumber: line,
+                        type: instrumentType,
+                        code: code,
+                        hypothesisId: hypothesisId
+                    )
+                    // Also transition to instrumenting sub-phase if in fixing
+                    if debugStore.phase == .fixing {
+                        debugStore.phase = .instrumenting
+                    }
+                }
+            }
+        case "runtime_log":
+            // Agent reports a runtime log entry
+            // Format: "location|message|key1=val1,key2=val2|hypothesisId"
+            if let phaseStr = phase {
+                let parts = phaseStr.split(separator: "|", maxSplits: 3).map(String.init)
+                if parts.count >= 2 {
+                    let location = parts[0]
+                    let message = parts[1]
+                    var data: [String: String] = [:]
+                    if parts.count >= 3 {
+                        for pair in parts[2].split(separator: ",") {
+                            let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                            if kv.count == 2 {
+                                data[kv[0].trimmingCharacters(in: .whitespaces)] = kv[1].trimmingCharacters(in: .whitespaces)
+                            }
+                        }
+                    }
+                    let hypothesisId = parts.count >= 4 ? parts[3] : nil
+                    debugStore.addRuntimeLog(
+                        location: location,
+                        message: message,
+                        data: data,
+                        hypothesisId: hypothesisId
+                    )
+                }
+            }
+        case "loop_back":
+            // Verify failed → loop back to instrument phase
+            let reason = phase ?? "Verification failed"
+            debugStore.loopBackToInstrument(reason: reason)
+        case "new_run":
+            // Start a new reproduce run
+            debugStore.startNewRun()
+        case "hypothesize":
+            // Agent proposes a hypothesis
+            // Format: "title|description"
+            if let phaseStr = phase {
+                let parts = phaseStr.split(separator: "|", maxSplits: 1).map(String.init)
+                if parts.count >= 2 {
+                    _ = debugStore.addHypothesis(title: parts[0], description: parts[1])
+                } else if !phaseStr.isEmpty {
+                    _ = debugStore.addHypothesis(title: phaseStr, description: "")
+                }
+            }
+        case "hypothesis_update":
+            // Update hypothesis status
+            // Format: "hypothesisId|status|evidence"
+            if let phaseStr = phase {
+                let parts = phaseStr.split(separator: "|", maxSplits: 2).map(String.init)
+                if parts.count >= 2, let uuid = UUID(uuidString: parts[0]) {
+                    let status: DebugHypothesis.HypothesisStatus
+                    switch parts[1].lowercased() {
+                    case "investigating": status = .investigating
+                    case "confirmed":    status = .confirmed
+                    case "rejected":     status = .rejected
+                    default:             status = .proposed
+                    }
+                    let evidence = parts.count >= 3 ? parts[2] : nil
+                    debugStore.updateHypothesis(id: uuid, status: status, evidence: evidence)
+                }
+            }
+        case "diagram":
+            // Agent sends a custom mermaid diagram for the debug flow
+            if let phaseStr = phase, !phaseStr.isEmpty {
+                debugStore.debugFlowDiagram = phaseStr
+            }
+        default:
+            break
+        }
+    }
+
+    // MARK: - LLM Auto-Activation Handlers
+
+    @MainActor
+    private func handleAutoActivatePlanMode(reason: String?) {
+        guard !showPlanPanel else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            planToggleEnabled = true
+        }
+        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+    }
+
+    @MainActor
+    private func handleAutoActivateDebugMode(reason: String?) {
+        guard !showDebugPanel else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            debugToggleEnabled = true
+            showDebugPanel = true
+        }
+        if let reason = reason, !reason.isEmpty {
+            debugStore.startDebugSession(errorContext: reason)
+        } else {
+            debugStore.startDebugSession()
         }
     }
 
@@ -1736,7 +1983,7 @@ struct ChatPanelView: View {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 20)
-        .alert("Rate Limit Raggiunto", isPresented: $showRateLimitAlert) {
+        .alert("Rate Limit Reached", isPresented: $showRateLimitAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(rateLimitAlertText)
@@ -1778,6 +2025,7 @@ struct ChatPanelView: View {
             onDelegateToAgent: delegateToAgent,
             attachedImageURLs: attachedImageURLs,
             planToggleEnabled: $planToggleEnabled,
+            debugToggleEnabled: $debugToggleEnabled,
             highlightPlanButton: isPlanTabHovered
         )
     }
@@ -1799,26 +2047,26 @@ struct ChatPanelView: View {
 
     private var providerNotReadyMessage: String {
         guard let id = providerRegistry.selectedProviderId else {
-            return "Nessun provider selezionato. Vai nelle Impostazioni per configurare."
+            return "No provider selected. Go to Settings to configure."
         }
         switch id {
-        case "openai-api": return "API Key OpenAI mancante. Configurala nelle Impostazioni."
-        case "anthropic-api": return "API Key Anthropic mancante. Configurala nelle Impostazioni."
-        case "google-api": return "API Key Google Gemini mancante. Configurala nelle Impostazioni."
+        case "openai-api": return "OpenAI API Key missing. Configure it in Settings."
+        case "anthropic-api": return "Anthropic API Key missing. Configure it in Settings."
+        case "google-api": return "Google Gemini API Key missing. Configure it in Settings."
         case "codex-cli":
-            return "Codex CLI non connesso. Configuralo nelle Impostazioni → Codex CLI."
+            return "Codex CLI not connected. Configure it in Settings → Codex CLI."
         case "claude-cli":
-            return "Claude Code non trovato. Configuralo nelle Impostazioni → Claude Code."
+            return "Claude Code not found. Configure it in Settings → Claude Code."
         case "gemini-cli":
-            return "Gemini CLI non trovato/non autenticato. Configuralo nelle Impostazioni."
-        case "openrouter-api": return "API Key OpenRouter mancante. Configurala nelle Impostazioni."
-        case "minimax-api": return "API Key MiniMax mancante. Configurala nelle Impostazioni."
+            return "Gemini CLI not found/not authenticated. Configure it in Settings."
+        case "openrouter-api": return "OpenRouter API Key missing. Configure it in Settings."
+        case "minimax-api": return "MiniMax API Key missing. Configure it in Settings."
         default:
-            return "Provider \"\(id)\" non autenticato. Vai nelle Impostazioni per configurare."
+            return "Provider \"\(id)\" not authenticated. Go to Settings to configure."
         }
     }
 
-    /// Provider effettivo usato dalla modalità corrente, mostrato come badge sotto al provider.
+    /// Effective provider used by the current mode, shown as a badge below the provider.
     private var effectiveModeProviderLabel: String? {
         if coderMode == .agentSwarm {
             let workerLabel: String = {
@@ -1850,7 +2098,7 @@ struct ChatPanelView: View {
                 default: return codeReviewExecutionBackend
                 }
             }()
-            return "Review → esecuzione: \(execLabel)"
+            return "Review → execution: \(execLabel)"
         }
         if coderMode == .plan {
             if let selected = providerRegistry.selectedProviderId,
@@ -1881,14 +2129,14 @@ struct ChatPanelView: View {
 
     private var inputHint: String {
         switch coderMode {
-        case .agent: return "L'agente può modificare file ed eseguire comandi"
-        case .agentSwarm: return "Swarm di agenti specializzati"
+        case .agent: return "Agent can modify files and run commands"
+        case .agentSwarm: return "Swarm of specialized agents"
         case .codeReviewMultiSwarm:
             return
-                "Stai usando Code Review Multi-Swarm: la richiesta verrà suddivisa in partizioni."
-        case .plan: return "Piano con opzioni + risposta custom"
-        case .ide: return "Modalità IDE: chat API + modifica manuale nell'editor"
-        case .mcpServer: return "Invia al server MCP configurato"
+                "Using Code Review Multi-Swarm: the request will be split into partitions."
+        case .plan: return "Plan with options + custom response"
+        case .ide: return "IDE mode: API chat + manual editing in the editor"
+        case .mcpServer: return "Send to configured MCP server"
         }
     }
 
@@ -1898,36 +2146,36 @@ struct ChatPanelView: View {
             .init(
                 id: "review-uncommitted",
                 slash: "/review-uncommitted",
-                label: "Audit completo non committato",
+                label: "Full uncommitted audit",
                 prompt:
                     """
-                    Esegui code review ultra-deep su tutte le modifiche non committate (staged, unstaged, untracked).
-                    Output richiesto:
-                    1) findings prioritizzati (P0-P3),
-                    2) aree impattate file-per-file,
-                    3) rischi regressione,
-                    4) verdetto finale correttezza patch.
+                    Run ultra-deep code review on all uncommitted changes (staged, unstaged, untracked).
+                    Required output:
+                    1) prioritized findings (P0-P3),
+                    2) impacted areas file-by-file,
+                    3) regression risks,
+                    4) final verdict on patch correctness.
                     """
             ),
             .init(
                 id: "review-staged-only",
                 slash: "/review-staged-only",
-                label: "Solo staged diff",
+                label: "Staged diff only",
                 prompt:
                     """
-                    Esegui review SOLO sulle modifiche staged.
-                    Ignora unstaged e untracked.
-                    Restituisci findings severi e azionabili con priorità/confidenza.
+                    Review ONLY staged changes.
+                    Ignore unstaged and untracked.
+                    Return severe and actionable findings with priority/confidence.
                     """
             ),
             .init(
                 id: "review-autofix",
                 slash: "/review-autofix",
-                label: "Review + fix automatico",
+                label: "Review + auto fix",
                 prompt:
                     """
-                    Fai review deep delle modifiche non committate e correggi direttamente tutti i bug confermati.
-                    Dopo i fix esegui build/test pertinenti e riporta il changelog tecnico.
+                    Deep review uncommitted changes and directly fix all confirmed bugs.
+                    After fixes, run relevant build/tests and report the technical changelog.
                     """
             ),
             .init(
@@ -1936,8 +2184,8 @@ struct ChatPanelView: View {
                 label: "Review + fix + commit",
                 prompt:
                     """
-                    Esegui review completa su staged/unstaged/untracked, applica i fix necessari e crea commit atomico finale.
-                    Requisiti: niente modifiche superflue, build/test verdi, messaggio commit specifico.
+                    Run full review on staged/unstaged/untracked, apply necessary fixes and create final atomic commit.
+                    Requirements: no superfluous changes, green build/tests, specific commit message.
                     """
             ),
             .init(
@@ -1946,11 +2194,11 @@ struct ChatPanelView: View {
                 label: "Focus UI realtime",
                 prompt:
                     """
-                    Focus su flussi realtime della review:
-                    - stream step-by-step visibile,
-                    - card read/tool/terminal aggiornate live,
-                    - todo coerente e senza glitch layout.
-                    Correggi i problemi trovati e valida con test/build.
+                    Focus on review realtime flows:
+                    - visible step-by-step stream,
+                    - live updated read/tool/terminal cards,
+                    - consistent todos without layout glitches.
+                    Fix any issues found and validate with tests/build.
                     """
             ),
         ]
@@ -1990,8 +2238,8 @@ struct ChatPanelView: View {
 
     private func selectMode(_ mode: CoderMode) {
         userModeOverrideUntilConversationChange = true
-        // Un solo thread per contesto: non si cambia conversazione al cambio tab.
-        // Resta selectedConversationId, si aggiorna solo coderMode e provider.
+        // One thread per context: conversation does not change on tab switch.
+        // selectedConversationId stays, only coderMode and provider are updated.
         let currentConv = chatStore.conversation(for: selectedConversationId)
         switch mode {
         case .ide:
@@ -2013,7 +2261,7 @@ struct ChatPanelView: View {
             } else if let current = providerRegistry.selectedProviderId,
                 ProviderSupport.isAgentCompatibleProvider(id: current)
             {
-                // Mantieni provider attuale se già valido per Agent
+                // Keep current provider if already valid for Agent
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
@@ -2096,7 +2344,7 @@ struct ChatPanelView: View {
             let preferred = ProviderSupport.preferredIDEProvider(in: providerRegistry)
             if providerRegistry.selectedProviderId != preferred {
                 DispatchQueue.main.async {
-                    // Evita mutazioni re-entrant durante transazioni SwiftUI/AppKit (Picker/Menu).
+                    // Avoid re-entrant mutations during SwiftUI/AppKit transactions (Picker/Menu).
                     if coderMode == .ide, providerRegistry.selectedProviderId != preferred {
                         providerRegistry.selectedProviderId = preferred
                     }
@@ -2267,7 +2515,7 @@ struct ChatPanelView: View {
             } else if let current = providerRegistry.selectedProviderId,
                 ProviderSupport.isAgentCompatibleProvider(id: current)
             {
-                // Mantieni provider attuale se già valido per Agent
+                // Keep current provider if already valid for Agent
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
@@ -2357,7 +2605,7 @@ struct ChatPanelView: View {
     }
 
     private func trySummarizeIfNeeded(ctx: WorkspaceContext) async {
-        // Con Codex CLI preferiamo il compact nativo del provider rispetto al riassunto custom.
+        // With Codex CLI we prefer the native compact from the provider over the custom summary.
         if summarizeProvider == "codex-cli" {
             return
         }
@@ -2385,11 +2633,11 @@ struct ChatPanelView: View {
             _ = try await chatStore.summarizeConversation(
                 id: conversationId, keepLast: summarizeKeepLast, provider: provider, context: ctx)
         } catch {
-            // Non bloccare su errore
+            // Do not block on error
         }
     }
 
-    // MARK: - Delega ad Agent (da IDE)
+    // MARK: - Delegate to Agent (from IDE)
     private func delegateToAgent() {
         var msg = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         if msg.isEmpty {
@@ -2442,7 +2690,7 @@ struct ChatPanelView: View {
             return provider
         }
         appendTechnicalErrorMessage(
-            "[Provider] Nessun provider execution-capable autenticato disponibile.",
+            "[Provider] No authenticated execution-capable provider available.",
             in: conversationId
         )
         return nil
@@ -2505,7 +2753,7 @@ struct ChatPanelView: View {
             allowIdleRebuild: allowIdleRebuild
         ) else {
             appendTechnicalErrorMessage(
-                "[Plan] Build non disponibile: completa discovery/chiarimenti e genera un piano valido prima di eseguire.",
+                "[Plan] Build not available: complete discovery/clarifications and generate a valid plan before executing.",
                 in: conversationId
             )
             return
@@ -2513,7 +2761,7 @@ struct ChatPanelView: View {
         let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
         guard !planTodos.isEmpty else {
             appendTechnicalErrorMessage(
-                "[Plan] Build bloccata: l'opzione selezionata non contiene la sezione ## Todo.",
+                "[Plan] Build blocked: the selected option does not contain a ## Todo section.",
                 in: conversationId
             )
             if !showPlanPanel {
@@ -2527,14 +2775,14 @@ struct ChatPanelView: View {
         if let overrideId = normalizedOverride, !overrideId.isEmpty {
             guard isPlanExecutionProviderIdAllowed(overrideId) else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Provider non valido per il build (\(overrideId)).",
+                    "[Plan] Invalid provider for build (\(overrideId)).",
                     in: conversationId
                 )
                 return
             }
             guard isPlanBuildExecutionCapableProvider(overrideId, registry: providerRegistry) else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Provider non idoneo al build operativo (\(overrideId)). Seleziona un provider execution-capable.",
+                    "[Plan] Provider not suitable for operational build (\(overrideId)). Select an execution-capable provider.",
                     in: conversationId
                 )
                 return
@@ -2544,7 +2792,7 @@ struct ChatPanelView: View {
                     provider = overrideProvider
                 } else {
                     appendTechnicalErrorMessage(
-                        "[Plan] Provider selezionato nel pannello non autenticato (\(overrideProvider.displayName)). Uso provider reale di fallback.",
+                        "[Plan] Selected panel provider not authenticated (\(overrideProvider.displayName)). Using fallback real provider.",
                         in: conversationId
                     )
                     guard let backendProvider = resolvePreferredRealProvider() else {
@@ -2554,7 +2802,7 @@ struct ChatPanelView: View {
                 }
             } else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Provider selezionato nel pannello non disponibile (\(overrideId)). Uso provider reale di fallback.",
+                    "[Plan] Selected panel provider not available (\(overrideId)). Using fallback real provider.",
                     in: conversationId
                 )
                 guard let backendProvider = resolvePreferredRealProvider() else {
@@ -2585,7 +2833,7 @@ struct ChatPanelView: View {
             try createCheckpointBeforeTurn(conversationId: agentConvId, workspaceContext: ctx)
         } catch {
             appendTechnicalErrorMessage(
-                "[Errore checkpoint: \(error.localizedDescription)]", in: conversationId)
+                "[Checkpoint error: \(error.localizedDescription)]", in: conversationId)
             return
         }
 
@@ -2611,7 +2859,7 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(
                 role: .user,
-                content: isResume ? "Build piano ripresa: esegui i task rimanenti." : "Build piano avviata: esegui il piano selezionato.",
+                content: isResume ? "Plan build resumed: execute remaining tasks." : "Plan build started: execute the selected plan.",
                 isStreaming: false
             ),
             to: agentConvId)
@@ -2622,28 +2870,28 @@ struct ChatPanelView: View {
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
         let planExecutionWorkflow = """
-            **REGOLA FONDAMENTALE: I TODO del piano sono la tua BIBBIA. Seguili ESATTAMENTE nell'ordine indicato.**
+            **FUNDAMENTAL RULE: The plan TODOs are your BIBLE. Follow them EXACTLY in the order listed.**
 
-            **Workflow Todo (obbligatorio):**
-            1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
-            2. I TODO canonici del piano sono IMMUTABILI: NON creare nuovi TODO, NON modificare i titoli, NON riordinare. Esegui ESATTAMENTE quelli presenti nell'ordine dato.
-            3. Per ogni TODO: imposta status=in_progress PRIMA di iniziare, poi status=done DOPO il completamento. Usa \(CoderIDEMarkers.todoWritePrefix) per aggiornare lo status.
-            4. NON saltare nessun TODO. NON procedere al TODO successivo finché quello corrente non è done.
-            5. Se un TODO è bloccato, spiega il motivo e prova a risolverlo prima di passare oltre.
-            6. Prima di concludere: TUTTI i TODO canonici DEVONO essere done. Se qualcuno non è done, NON terminare.
-            7. Non ripetere il piano in chat: esegui, aggiorna status, fornisci feedback operativo minimo.
+            **Todo Workflow (mandatory):**
+            1. Immediately include \(CoderIDEMarkers.showTaskPanel) to show the task panel.
+            2. The canonical plan TODOs are IMMUTABLE: do NOT create new TODOs, do NOT modify titles, do NOT reorder. Execute EXACTLY those present in the given order.
+            3. For each TODO: set status=in_progress BEFORE starting, then status=done AFTER completion. Use \(CoderIDEMarkers.todoWritePrefix) to update the status.
+            4. Do NOT skip any TODO. Do NOT proceed to the next TODO until the current one is done.
+            5. If a TODO is blocked, explain why and try to resolve it before moving on.
+            6. Before finishing: ALL canonical TODOs MUST be done. If any is not done, do NOT terminate.
+            7. Do not repeat the plan in chat: execute, update status, provide minimal operational feedback.
             """
 
         let executionPlanBase: String
         if let board = chatStore.planBoard(for: planConversationId), !board.goal.isEmpty {
             executionPlanBase = """
-            **Obiettivo:** \(board.goal)
+            **Objective:** \(board.goal)
 
-            **Piano (opzione scelta):**
+            **Plan (selected option):**
             \(choice)
             """
         } else {
-            executionPlanBase = "**Piano da implementare:**\n\(choice)"
+            executionPlanBase = "**Plan to implement:**\n\(choice)"
         }
 
         let prompt = buildPlanExecutionPrompt(
@@ -2710,20 +2958,20 @@ struct ChatPanelView: View {
         let displayedInput = parsedInput.displayedInput
         let forcePlanInline = parsedInput.forcePlanInline
         if forcePlanInline {
-            // /plan deve solo guidare il prompt LLM, senza aprire il pannello.
+            // /plan should only guide the LLM prompt, without opening the panel.
             showPlanPanel = false
         }
         guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
         guard let targetConversationId = conversationId else {
             appendTechnicalErrorMessage(
-                "[Errore] Nessuna conversazione selezionata. Crea o seleziona un thread e riprova.",
+                "[Error] No conversation selected. Create or select a thread and try again.",
                 in: nil
             )
             return
         }
         guard let selectedProvider = providerRegistry.selectedProvider else {
             appendTechnicalErrorMessage(
-                "[Errore] Nessun provider selezionato. Configura un provider nelle Impostazioni.",
+                "[Error] No provider selected. Configure a provider in Settings.",
                 in: targetConversationId
             )
             return
@@ -2739,7 +2987,7 @@ struct ChatPanelView: View {
             return
         }
 
-        // Aprire il pannello plan non deve attivare automaticamente la pianificazione.
+        // Opening the plan panel should not automatically activate planning.
         let shouldRunPlanInline = resolveShouldRunPlanInline(
             forcePlanInline: forcePlanInline,
             coderMode: coderMode,
@@ -2763,7 +3011,7 @@ struct ChatPanelView: View {
             )
         else {
             appendTechnicalErrorMessage(
-                "[Errore] Impossibile risolvere il provider runtime per questa modalità.",
+                "[Error] Unable to resolve runtime provider for this mode.",
                 in: targetConversationId
             )
             return
@@ -2780,13 +3028,13 @@ struct ChatPanelView: View {
         {
             effectiveRuntimeProvider = fallbackProvider
             appendTechnicalErrorMessage(
-                "[Provider] \(runtimeProvider.displayName) non autenticato. Uso fallback: \(fallbackProvider.displayName).",
+                "[Provider] \(runtimeProvider.displayName) not authenticated. Using fallback: \(fallbackProvider.displayName).",
                 in: targetConversationId
             )
         } else if !selectedProviderAuthenticated {
             let providerName = runtimeProvider.displayName
             appendTechnicalErrorMessage(
-                "[Errore] Provider \(providerName) non autenticato e nessun fallback disponibile. Apri Impostazioni e autentica un provider execution-capable.",
+                "[Error] Provider \(providerName) not authenticated and no fallback available. Open Settings and authenticate an execution-capable provider.",
                 in: targetConversationId
             )
             return
@@ -2803,7 +3051,7 @@ struct ChatPanelView: View {
             try createCheckpointBeforeTurn(conversationId: targetConversationId, workspaceContext: ctx)
         } catch {
             appendTechnicalErrorMessage(
-                "[Errore checkpoint: \(error.localizedDescription)]", in: targetConversationId)
+                "[Checkpoint error: \(error.localizedDescription)]", in: targetConversationId)
             return
         }
 
@@ -2812,7 +3060,7 @@ struct ChatPanelView: View {
         inputText = ""
         let userVisibleText = displayedInput
         let contentToStore =
-            userVisibleText.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Immagine allegata]") : userVisibleText
+            userVisibleText.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Attached image]") : userVisibleText
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: contentToStore, isStreaming: false,
@@ -2959,7 +3207,7 @@ struct ChatPanelView: View {
             planAnalysisContext = analysisResult.fullText
             planStreamingContent = analysisResult.fullText
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Fase 1/3 — Analisi completata.** Generazione domande…",
+                content: "✅ **Phase 1/3 — Analysis complete.** Generating questions…",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -3039,7 +3287,7 @@ struct ChatPanelView: View {
         // No questions needed — proceed directly to Phase 3
         await MainActor.run {
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Fase 2/3 — Nessuna domanda necessaria.** Generazione piano…",
+                content: "✅ **Phase 2/3 — No questions needed.** Generating plan...",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -3119,7 +3367,7 @@ struct ChatPanelView: View {
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
             let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-            let summaryContent = "Piano pronto: \(parsedSummary.title)\n\nApri il pannello Planning per selezionare un'opzione."
+            let summaryContent = "Plan ready: \(parsedSummary.title)\n\nOpen the Planning panel to select an option."
             chatStore.updateLastAssistantMessage(content: summaryContent, in: conversationId, persistImmediately: true)
 
             let entry = planHistoryStore.createEntry(
@@ -3182,14 +3430,14 @@ struct ChatPanelView: View {
                 effectiveProvider = fallback
             } else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Nessun provider autenticato disponibile per continuare.",
+                    "[Plan] No authenticated provider available to continue.",
                     in: targetConversationId
                 )
                 return
             }
         } else {
             appendTechnicalErrorMessage(
-                "[Plan] Nessun provider selezionato.",
+                "[Plan] No provider selected.",
                 in: targetConversationId
             )
             return
@@ -3314,7 +3562,7 @@ struct ChatPanelView: View {
         await MainActor.run {
             planAnalysisContext += "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Analisi completata.** Generazione piano…",
+                content: "✅ **Analysis complete.** Generating plan…",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -3342,13 +3590,13 @@ struct ChatPanelView: View {
         guard shouldAutoContinueStub(initial.fullText) else { return initial }
 
         let continuationPrompt = """
-        Continua immediatamente la tua risposta precedente e completala fino a un risultato utile e concreto.
-        Non fermarti a descrivere cosa farai: esegui il ragionamento e fornisci l'output finale.
+        Immediately continue your previous response and complete it to a useful and concrete result.
+        Do not stop at describing what you will do: carry out the reasoning and provide the final output.
 
-        Richiesta originale:
+        Original request:
         \(originalPrompt)
 
-        Testo già inviato:
+        Text already sent:
         \(initial.fullText)
         """
 
@@ -3360,7 +3608,7 @@ struct ChatPanelView: View {
             onText: { deltaFull in
                 let combined = initial.fullText + "\n" + deltaFull
                 let displayContent = hideContentDuringPlanDiscovery
-                    ? "Planning in corso… Apri il pannello Planning per vedere il risultato."
+                    ? "Planning in progress… Open the Planning panel to see the result."
                     : combined
                 applyStreamingUpdate(
                     content: displayContent,
@@ -3391,20 +3639,14 @@ struct ChatPanelView: View {
         guard wordCount <= 40 else { return false }
         let low = trimmed.lowercased()
         let stubSignals = [
-            "inizierò",
-            "iniziero",
-            "comincerò",
-            "comincero",
-            "esplorerò",
-            "esplorero",
-            "cercherò",
-            "cerchero",
             "i'll start",
             "i will start",
             "i'll begin",
             "i will begin",
             "first, i'll",
             "first i will",
+            "let me start",
+            "let me begin",
         ]
         return stubSignals.contains { low.contains($0) }
     }
@@ -3416,7 +3658,7 @@ struct ChatPanelView: View {
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool
     ) -> (any LLMProvider)? {
-        // Plan/Review/Swarm usano provider reali selezionati, senza provider virtuali.
+        // Plan/Review/Swarm use real selected providers, without virtual providers.
         if forcePlanInline || shouldRunPlanInline || coderMode == .plan || coderMode == .codeReviewMultiSwarm || coderMode == .agentSwarm {
             return selectedProvider
         }
@@ -3429,7 +3671,7 @@ struct ChatPanelView: View {
                 provider: kind)
             {
                 appendTechnicalErrorMessage(
-                    "[Multi-account \(kind.displayName): \(reason). Configura account o resetta i limiti nelle Impostazioni.]",
+                    "[Multi-account \(kind.displayName): \(reason). Configure accounts or reset limits in Settings.]",
                     in: conversationId)
                 return nil
             }
@@ -3470,9 +3712,9 @@ struct ChatPanelView: View {
     private func buildPrompt(userText: String, shouldRunPlanInline: Bool) -> String {
         var prompt =
             userText.isEmpty
-            ? "[L'utente ha allegato un'immagine. Analizzala e rispondi.]" : userText
+            ? "[The user attached an image. Analyze it and respond.]" : userText
 
-        // Plan mode: risposta a domande di chiarimento → includi contesto per proseguire
+        // Plan mode: response to clarification questions → include context to proceed
         if shouldUseClarificationPrompt(
             coderMode: coderMode,
             planningState: planningState,
@@ -3492,14 +3734,14 @@ struct ChatPanelView: View {
             Next steps:
             1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
             2. If you need MORE information, output ANOTHER ## Questions section (same A/B/C/D format).
-            3. If you have ALL information needed, proceed to propose 2-4 options with ## Opzione and ## Todo sections.
+            3. If you have ALL information needed, proceed to propose 2-4 options with ## Option and ## Todo sections.
             CRITICAL: Do NOT skip additional analysis. You are ALLOWED to ask follow-up questions.
             """
         }
 
         if coderMode == .ide {
             prompt =
-                "Rispondi solo con testo. Non modificare file né eseguire comandi.\n\n" + prompt
+                "Reply with text only. Do not modify files or run commands.\n\n" + prompt
         }
         if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
         let isPlanningDiscoveryFlow =
@@ -3525,47 +3767,47 @@ struct ChatPanelView: View {
             A) Option A text
             B) Option B text
             C) Option C text (optional)
-            D) Altro (specifica)
+            D) Other (specify)
 
             Rules: 1-4 questions max, each with 2-4 options A) B) C) D), mutually exclusive.
-            Include "Altro (specifica)" ONLY for genuinely open-ended questions.
+            Include "Other (specify)" ONLY for genuinely open-ended questions.
             DO NOT output anything else besides the ## Questions section.
-            NEVER include ## Opzione or ## Todo in a response with ## Questions.
+            NEVER include ## Option or ## Todo in a response with ## Questions.
 
             ## PHASE 3: PLAN PROPOSAL (ONLY after Phases 1+2 resolved)
             Propose 2-4 concrete options:
-            ## Opzione 1: Title
+            ## Option 1: Title
             Description, pros/cons.
             ## Todo
             - [ ] Step 1
             - [ ] Step 2
 
-            CRITICAL: NEVER combine ## Questions and ## Opzione in the same response.
+            CRITICAL: NEVER combine ## Questions and ## Option in the same response.
             Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
             """
             prompt = planningInstructions + "\n\n" + prompt
         } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
                 let baseInstructions = """
-                    **Workflow Todo (obbligatorio):** All'inizio di ogni task:
-                    1. Includi subito \(CoderIDEMarkers.showTaskPanel) per mostrare il pannello attività.
-                    2. PRIMA di leggere file, modificare o eseguire comandi, crea la lista di todo con tutti i task necessari usando marker:
+                    **Todo Workflow (mandatory):** At the start of every task:
+                    1. Immediately include \(CoderIDEMarkers.showTaskPanel) to show the task panel.
+                    2. BEFORE reading files, editing or running commands, create the todo list with all necessary tasks using markers:
                     \(CoderIDEMarkers.todoWritePrefix)title=TASK|status=pending|priority=medium|notes=...|files=file1.swift]
-                    (usa un marker per ogni task; puoi includere id=uuid per aggiornamenti successivi)
-                    3. Durante l'esecuzione, aggiorna lo status: in_progress quando lavori su un task, done quando è completato.
-                    4. Verifica che tutti i todo siano done prima di concludere la risposta.
-                    Se devi sapere lo stato attuale dei todo, emetti \(CoderIDEMarkers.todoRead) — il contesto include la lista sotto.
-                    Per aggiornare step del piano usa marker:
+                    (use one marker per task; you can include id=uuid for subsequent updates)
+                    3. During execution, update the status: in_progress when working on a task, done when completed.
+                    4. Verify all todos are done before concluding the response.
+                    To check the current todo state, emit \(CoderIDEMarkers.todoRead) — the context includes the list below.
+                    To update plan steps use marker:
                     \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
-                    Se fai ricerche codice con rg, puoi emettere marker con risultati:
-                    \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:linea]
-                    Leggi i file in batch paralleli (max 8 per batch) quando serve contesto ampio. Per tracciare il batch puoi emettere:
+                    For code searches with rg, you can emit markers with results:
+                    \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:line]
+                    Read files in parallel batches (max 8 per batch) when broad context is needed. To track the batch you can emit:
                     \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
-                    Per ricerche web concorrenti (max 4 query in parallelo), emetti marker stato:
+                    For concurrent web searches (max 4 queries in parallel), emit status markers:
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
                 if agentAutoDelegateSwarm {
                     let swarmInstructions =
-                        "Per task semplici o lineari resta in single-agent e non delegare. Usa la delega swarm solo quando l'effort richiede parallelizzazione reale o ruoli multipli (planner, coder, reviewer, debugger, testWriter, ecc.), scrivendo: \(CoderIDEMarkers.invokeSwarmPrefix)DESCRIZIONE_TASK\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
+                        "For simple or linear tasks stay in single-agent mode and do not delegate. Use swarm delegation only when the effort requires real parallelization or multiple roles (planner, coder, reviewer, debugger, testWriter, etc.), by writing: \(CoderIDEMarkers.invokeSwarmPrefix)TASK_DESCRIPTION\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
                     prompt = baseInstructions + swarmInstructions + prompt
                 } else {
                     prompt = baseInstructions + "\n" + prompt
@@ -3577,7 +3819,7 @@ struct ChatPanelView: View {
                             return "- [\(check)] \(t.title) (\(t.status.rawValue))"
                         }
                         .joined(separator: "\n")
-                    prompt += "\n\n## Todo correnti\n\(todoSection)"
+                    prompt += "\n\n## Current todos\n\(todoSection)"
                 }
             }
         return prompt
@@ -3587,22 +3829,22 @@ struct ChatPanelView: View {
 
     private func buildPhase1AnalysisPrompt(userRequest: String) -> String {
         """
-        **Fase: Analisi Codebase (SOLO ANALISI)**
+        **Phase: Codebase Analysis (ANALYSIS ONLY)**
 
-        Stai analizzando un codebase per preparare un piano. Il tuo UNICO compito è esplorare e comprendere il codebase.
+        You are analyzing a codebase to prepare a plan. Your ONLY task is to explore and understand the codebase.
 
-        Richiesta utente: \(userRequest)
+        User request: \(userRequest)
 
-        Istruzioni:
-        1. Usa Read, Glob e Grep per esplorare i file rilevanti per questa richiesta.
-        2. Identifica file chiave, dipendenze, architettura attuale e vincoli.
-        3. Riporta le tue scoperte come testo di analisi strutturato.
-        4. NON proporre soluzioni, opzioni o domande di chiarimento.
-        5. NON generare sezioni ## Todo o header ## Opzione.
-        6. Concentrati su COSA ESISTE, non su cosa dovrebbe cambiare.
-        7. Non emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead).
+        Instructions:
+        1. Use Read, Glob, and Grep to explore files relevant to this request.
+        2. Identify key files, dependencies, current architecture, and constraints.
+        3. Report your findings as structured analysis text.
+        4. Do NOT propose solutions, options, or clarification questions.
+        5. Do NOT generate ## Todo sections or ## Option headers.
+        6. Focus on WHAT EXISTS, not what should change.
+        7. Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
 
-        Formato output: Un report di analisi strutturato delle tue scoperte.
+        Output format: A structured analysis report of your findings.
         """
     }
 
@@ -3612,70 +3854,70 @@ struct ChatPanelView: View {
         clarificationAnswers: String
     ) -> String {
         """
-        **Fase: Analisi post-chiarimento**
+        **Phase: Post-clarification Analysis**
 
-        L'utente ha risposto alle tue domande di chiarimento. Basandoti sulle risposte, esegui un'analisi AGGIUNTIVA del codebase.
+        The user answered your clarification questions. Based on the answers, perform ADDITIONAL codebase analysis.
 
-        Richiesta utente: \(userRequest)
+        User request: \(userRequest)
 
-        Analisi codebase precedente:
+        Previous codebase analysis:
         \(analysisContext)
 
-        Risposte chiarimenti utente:
+        User clarification answers:
         \(clarificationAnswers)
 
-        Istruzioni:
-        1. Usa Read, Glob e Grep per esplorare file specifici rilevanti in base alle risposte dell'utente.
-        2. Approfondisci le aree indicate dalle scelte dell'utente.
-        3. Se dopo questa analisi hai NUOVE incertezze, genera ulteriori domande con il formato:
+        Instructions:
+        1. Use Read, Glob, and Grep to explore specific files relevant based on the user's answers.
+        2. Deep-dive into the areas indicated by the user's choices.
+        3. If after this analysis you have NEW uncertainties, generate additional questions using the format:
 
         ## Questions
-        1. Domanda?
-        A) Opzione A
-        B) Opzione B
-        C) Altro (specifica)
+        1. Question?
+        A) Option A
+        B) Option B
+        C) Other (specify)
 
-        4. Se invece hai informazioni SUFFICIENTI, fornisci un report di analisi senza domande.
-        5. NON generare ## Opzione, ## Todo o proposte di piano in questa fase.
-        6. NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead).
+        4. If you have SUFFICIENT information, provide an analysis report without questions.
+        5. Do NOT generate ## Option, ## Todo or plan proposals in this phase.
+        6. Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
         """
     }
 
     private func buildPhase2QuestionPrompt(userRequest: String, analysisContext: String) -> String {
         """
-        **Fase: Domande di Chiarimento**
+        **Phase: Clarification Questions**
 
-        Basandoti sull'analisi del codebase qui sotto, determina se hai bisogno di chiarimenti dall'utente.
+        Based on the codebase analysis below, determine if you need clarifications from the user.
 
-        Richiesta utente: \(userRequest)
+        User request: \(userRequest)
 
-        Analisi codebase:
+        Codebase analysis:
         \(analysisContext)
 
-        Istruzioni:
-        - Se hai informazioni sufficienti per proporre opzioni di implementazione concrete, rispondi SOLO con: NO_QUESTIONS_NEEDED
-        - Se hai bisogno di chiarimenti, genera 1-4 domande strutturate in questo formato ESATTO:
+        Instructions:
+        - If you have sufficient information to propose concrete implementation options, respond ONLY with: NO_QUESTIONS_NEEDED
+        - If you need clarifications, generate 1-4 structured questions in this EXACT format:
 
         ## Questions
-        1. Testo della domanda?
-        A) Prima opzione concreta
-        B) Seconda opzione concreta
-        C) Terza opzione (facoltativa, solo se utile)
-        D) Altro (specifica)
+        1. Question text?
+        A) First concrete option
+        B) Second concrete option
+        C) Third option (optional, only if useful)
+        D) Other (specify)
 
-        2. Seconda domanda?
-        A) Prima opzione
-        B) Seconda opzione
+        2. Second question?
+        A) First option
+        B) Second option
 
-        Regole STRICT per le domande:
-        - Minimo 1, massimo 4 domande
-        - Ogni domanda DEVE avere 2-4 opzioni etichettate A) B) C) D)
-        - Le opzioni devono essere mutualmente esclusive e concrete (non vaghe)
-        - Includi "D) Altro (specifica)" SOLO per domande genuinamente aperte
-        - L'header DEVE essere esattamente "## Questions" (non "## Domande" o altro)
-        - NON includere ## Opzione, ## Option, ## Todo o proposte di piano
-        - NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead)
-        - Il formato deve essere ESATTAMENTE come sopra: numero + testo + opzioni A) B) C) su righe separate
+        STRICT rules for questions:
+        - Minimum 1, maximum 4 questions
+        - Each question MUST have 2-4 options labeled A) B) C) D)
+        - Options must be mutually exclusive and concrete (not vague)
+        - Include "D) Other (specify)" ONLY for genuinely open-ended questions
+        - The header MUST be exactly "## Questions" (not "## Domande" or other)
+        - Do NOT include ## Option, ## Todo or plan proposals
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        - The format must be EXACTLY as above: number + text + options A) B) C) on separate lines
         """
     }
 
@@ -3685,49 +3927,49 @@ struct ChatPanelView: View {
         clarificationAnswers: String
     ) -> String {
         var prompt = """
-        **Fase: Generazione Piano**
+        **Phase: Plan Generation**
 
-        Genera 2-4 opzioni di implementazione concrete basate sull'analisi e il contesto qui sotto.
+        Generate 2-4 concrete implementation options based on the analysis and context below.
 
-        Richiesta utente: \(userRequest)
+        User request: \(userRequest)
 
-        Analisi codebase:
+        Codebase analysis:
         \(analysisContext)
         """
 
         if !clarificationAnswers.isEmpty {
             prompt += """
 
-            Risposte chiarimenti utente:
+            User clarification answers:
             \(clarificationAnswers)
             """
         }
 
         prompt += """
 
-        Istruzioni:
-        - Proponi 2-4 opzioni concrete usando questo formato ESATTO per ciascuna:
+        Instructions:
+        - Propose 2-4 concrete options using this EXACT format for each:
 
-        ## Opzione 1: Titolo
-        Descrizione dell'approccio...
+        ## Option 1: Title
+        Description of the approach...
 
-        **Pro:** ...
-        **Contro:** ...
-        **Complessità:** Bassa/Media/Alta
+        **Pros:** ...
+        **Cons:** ...
+        **Complexity:** Low/Medium/High
 
         ## Todo
         - [ ] Step 1
         - [ ] Step 2
         - [ ] Step 3
 
-        ## Opzione 2: Titolo
+        ## Option 2: Title
         ...
 
-        Regole:
-        - Ogni opzione DEVE avere una sezione ## Todo con step eseguibili
-        - Gli step devono essere concreti e implementabili
-        - NON fare domande o richiedere chiarimenti
-        - NON emettere marker \(CoderIDEMarkers.todoWritePrefix) o \(CoderIDEMarkers.todoRead)
+        Rules:
+        - Each option MUST have a ## Todo section with executable steps
+        - Steps must be concrete and implementable
+        - Do NOT ask questions or request clarifications
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         """
 
         return prompt
@@ -3910,7 +4152,7 @@ struct ChatPanelView: View {
                 }
             }
             if case .awaitingClarification = classification.planningState {
-                let summaryContent = "Servono chiarimenti per procedere con il piano. Apri il pannello Planning per rispondere alle domande."
+                let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."
                 chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 await MainActor.run {
                     if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
@@ -3923,7 +4165,7 @@ struct ChatPanelView: View {
                 chatStore.setPlanBoard(board, for: streamConversationId)
                 let currentConv = chatStore.conversation(for: streamConversationId)
                 let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-                let summaryContent = "Piano pronto: \(parsedSummary.title)\n\nApri il pannello Planning per selezionare un'opzione."
+                let summaryContent = "Plan ready: \(parsedSummary.title)\n\nOpen the Planning panel to select an option."
                 chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 let entry = planHistoryStore.createEntry(
                     conversationId: streamConversationId,
@@ -4007,7 +4249,7 @@ struct ChatPanelView: View {
         let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
         chatStore.addMessage(
             ChatMessage(
-                role: .user, content: "[Delegato allo swarm] \(task)",
+                role: .user, content: "[Delegated to swarm] \(task)",
                 isStreaming: false), to: conversationId)
         chatStore.addMessage(
             ChatMessage(role: .assistant, content: "", isStreaming: true),
@@ -4032,7 +4274,7 @@ struct ChatPanelView: View {
             clearStreamingReasoning(for: conversationId)
             chatStore.addMessage(
                 ChatMessage(
-                    role: .user, content: "[Seguito agent dopo swarm]",
+                    role: .user, content: "[Agent follow-up after swarm]",
                     isStreaming: false), to: conversationId)
             chatStore.addMessage(
                 ChatMessage(role: .assistant, content: "", isStreaming: true),
@@ -4085,7 +4327,7 @@ struct ChatPanelView: View {
                 conversationId: conversationId, workspacePaths: pathStrings)
             chatStore.createCheckpoint(for: conversationId, gitStates: states)
         } catch {
-            // Fallback cursor-style: checkpoint chat valido anche fuori da repository Git.
+            // Cursor-style fallback: valid chat checkpoint even outside a Git repository.
             if let gitError = error as? ConversationCheckpointGitStore.GitStoreError {
                 switch gitError {
                 case .notGitRepository:
@@ -4117,14 +4359,14 @@ struct ChatPanelView: View {
     private func normalizeTechnicalErrorMessage(_ message: String) -> String {
         let raw = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else {
-            return "[Errore] Operazione non completata. Riprova."
+            return "[Error] Operation not completed. Try again."
         }
         let lower = raw.lowercased()
         if lower.contains("coderengine.coderengineerror error 0")
             || (lower.contains("operation couldn") && lower.contains("coderengine"))
         {
             return
-                "[Errore runtime] Operazione non completata dal provider CLI. Verifica autenticazione e limiti di utilizzo, poi riprova."
+                "[Runtime error] Operation not completed by CLI provider. Check authentication and usage limits, then try again."
         }
         return raw
     }
@@ -4133,7 +4375,7 @@ struct ChatPanelView: View {
         let detail = String(describing: error)
         let normalized = normalizeTechnicalErrorMessage(detail)
         if normalized == detail.trimmingCharacters(in: .whitespacesAndNewlines) {
-            return "[Errore] \(error.localizedDescription)"
+            return "[Error] \(error.localizedDescription)"
         }
         return normalized
     }
@@ -4189,8 +4431,8 @@ struct ChatPanelView: View {
                 }
             }
 
-            // Prova restore file solo se abbiamo snapshot git; in caso di errore continua
-            // comunque con rewind chat-only (comportamento sempre disponibile).
+            // Try file restore only if we have git snapshots; on error continue
+            // with chat-only rewind anyway (always-available behavior).
             if let checkpoint {
                 for state in checkpoint.gitStates {
                     do {
@@ -4199,7 +4441,7 @@ struct ChatPanelView: View {
                     } catch {
                         await MainActor.run {
                             appendTechnicalErrorMessage(
-                                "[Rewind file parziale] \(error.localizedDescription)",
+                                "[Partial file rewind] \(error.localizedDescription)",
                                 in: convId
                             )
                         }
@@ -4213,25 +4455,25 @@ struct ChatPanelView: View {
                     rewound = chatStore.rewindConversationState(
                         to: checkpoint.id, conversationId: convId)
                     if rewound {
-                        // Assicurati che il messaggio utente sia rimosso dalla chat
-                        // (rimane solo nell'input per modifica).
+                        // Make sure the user message is removed from the chat
+                        // (it remains only in the input for editing).
                         rewound = chatStore.rewindConversationToMessageCount(
                             lastUserIndex, conversationId: convId)
                     }
                 } else {
-                    // Fallback senza checkpoint: rimuove ultimo turno utente+risposta.
+                    // Fallback without checkpoint: remove last user turn + response.
                     rewound = chatStore.rewindConversationToMessageCount(
                         lastUserIndex, conversationId: convId)
                 }
                 guard rewound else {
                     appendTechnicalErrorMessage(
-                        "[Errore rewind: impossibile ripristinare lo stato chat.]", in: convId)
+                        "[Rewind error: unable to restore chat state.]", in: convId)
                     isRewinding = false
                     return
                 }
 
-                // Cursor-style: riporta l'ultimo prompt utente nel composer in modifica.
-                let placeholderImageOnly = "[Immagine allegata]"
+                // Cursor-style: bring the last user prompt back into the composer for editing.
+                let placeholderImageOnly = "[Attached image]"
                 inputText =
                     (lastUserMessage.content == placeholderImageOnly) ? "" : lastUserMessage.content
                 attachedImageURLs = (lastUserMessage.imagePaths ?? []).map {
@@ -4284,7 +4526,7 @@ struct ChatPanelView: View {
                     } catch {
                         await MainActor.run {
                             appendTechnicalErrorMessage(
-                                "[Rewind file parziale] \(error.localizedDescription)",
+                                "[Partial file rewind] \(error.localizedDescription)",
                                 in: conversationId
                             )
                         }
@@ -4293,18 +4535,18 @@ struct ChatPanelView: View {
             }
 
             await MainActor.run {
-                // Rimuove il messaggio user dalla chat (e tutto ciò che segue) così può essere
-                // modificato nell'input e reinviato senza duplicati.
+                // Remove the user message from the chat (and everything after it) so it can be
+                // edited in the input and resent without duplicates.
                 let rewound = chatStore.rewindConversationToMessageCount(
                     messageIndex, conversationId: conversationId)
                 guard rewound else {
                     appendTechnicalErrorMessage(
-                        "[Errore rewind: impossibile ripristinare lo stato chat.]", in: conversationId)
+                        "[Rewind error: unable to restore chat state.]", in: conversationId)
                     isRewinding = false
                     return
                 }
 
-                let placeholderImageOnly = "[Immagine allegata]"
+                let placeholderImageOnly = "[Attached image]"
                 inputText =
                     (userMessage.content == placeholderImageOnly) ? "" : userMessage.content
                 attachedImageURLs = (userMessage.imagePaths ?? []).map {

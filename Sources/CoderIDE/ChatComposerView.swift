@@ -139,7 +139,7 @@ struct ChatComposerView: View {
 
     private var slashAutocompletePanel: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Comandi rapidi")
+            Text("Quick commands")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
             ForEach(slashMatches) { preset in
@@ -154,7 +154,7 @@ struct ChatComposerView: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
-                    Button("Inserisci") {
+                    Button("Insert") {
                         onApplyQuickCommand("\(preset.slash)\n\n\(preset.prompt)")
                     }
                     .buttonStyle(.borderless)
@@ -195,8 +195,8 @@ struct ChatComposerView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text(codeReviewAutofixEnabled
-                    ? "Autofix (YOLO): analisi + applicazione fix automatica"
-                    : "Discovery: solo analisi, nessun fix automatico")
+                    ? "Autofix (YOLO): analysis + automatic fix application"
+                    : "Discovery: analysis only, no automatic fix")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -372,7 +372,7 @@ struct ChatComposerView: View {
                     .background(Color.white.opacity(0.12), in: Circle())
             }
             .buttonStyle(.plain)
-            .help(runtimeRunState == .paused ? "Riprendi" : "Pausa")
+            .help(runtimeRunState == .paused ? "Resume" : "Pause")
 
             Button {
                 onStop()
@@ -384,7 +384,7 @@ struct ChatComposerView: View {
                     .background(Color.white, in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Ferma")
+            .help("Stop")
         }
     }
 
@@ -412,7 +412,7 @@ struct ChatComposerView: View {
                         .background(Color.white.opacity(0.08), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .help("Nascondi timer")
+                .help("Hide timer")
             } else {
                 Text(frozenTimerText)
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -430,11 +430,11 @@ struct ChatComposerView: View {
         case .idle:
             EmptyView()
         case .requestingPermission:
-            voiceStatusBadge(icon: "lock.open.fill", text: "Richiesta permessi microfono/speech…", color: .secondary)
+            voiceStatusBadge(icon: "lock.open.fill", text: "Requesting microphone/speech permissions...", color: .secondary)
         case .listening:
-            voiceStatusBadge(icon: "waveform", text: "In ascolto… clicca il microfono per fermare", color: DesignSystem.Colors.info)
+            voiceStatusBadge(icon: "waveform", text: "Listening... click the microphone to stop", color: DesignSystem.Colors.info)
         case .transcribing:
-            voiceStatusBadge(icon: "waveform.badge.magnifyingglass", text: "Trascrizione in corso…", color: .secondary)
+            voiceStatusBadge(icon: "waveform.badge.magnifyingglass", text: "Transcribing...", color: .secondary)
         case .failed:
             EmptyView()
         }
@@ -497,7 +497,7 @@ struct ChatComposerView: View {
         }
     }
 
-    /// Grigio scuro più profondo (~#2a2a2a), come nell’immagine di riferimento.
+    /// Deeper dark gray (~#2a2a2a), as in the reference image.
     private var composerSurfaceGradient: LinearGradient {
         let gray = Color(red: 42 / 255, green: 42 / 255, blue: 42 / 255)
         return LinearGradient(
@@ -531,7 +531,7 @@ struct ChatComposerView: View {
                 .frame(width: 24, height: 24)
         }
         .buttonStyle(.plain)
-        .help("Allega immagine (⌘V per incollare)")
+        .help("Attach image (⌘V to paste)")
     }
 
     // MARK: - Voice Button
@@ -573,7 +573,7 @@ struct ChatComposerView: View {
         }
         .buttonStyle(.plain)
         .disabled(voiceState == .requestingPermission || voiceState == .transcribing)
-        .help(voiceState == .listening ? "Ferma registrazione" : "Dettatura vocale")
+        .help(voiceState == .listening ? "Stop recording" : "Voice dictation")
     }
 
     // MARK: - Send Button

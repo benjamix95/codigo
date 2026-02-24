@@ -1,10 +1,10 @@
 import Foundation
 
-/// Esegue un comando in subprocess e restituisce l'output line-by-line.
+/// Runs a command in a subprocess and returns the output line-by-line.
 ///
-/// Usa `readabilityHandler` per stdout in modo che le righe vengano emesse
-/// immediatamente appena il processo le scrive, senza aspettare il buffer
-/// della Pipe / FileHandle.bytes di Foundation.
+/// Uses `readabilityHandler` for stdout so that lines are emitted
+/// immediately as the process writes them, without waiting for the
+/// Pipe / FileHandle.bytes Foundation buffer.
 struct ProcessRunner {
     private static let stdoutTailCapacity = 50
     private static let lineFeed: UInt8 = 10
@@ -16,9 +16,9 @@ struct ProcessRunner {
         let stdoutTail: String?
 
         var errorDescription: String? {
-            var desc = "Processo terminato con exit code \(exitCode): \(message)"
+            var desc = "Process terminated with exit code \(exitCode): \(message)"
             if let tail = stdoutTail, !tail.isEmpty {
-                desc += "\n\nUltime righe stdout:\n\(tail)"
+                desc += "\n\nLast stdout lines:\n\(tail)"
             }
             return desc
         }
@@ -80,7 +80,7 @@ struct ProcessRunner {
                             }
                         }
                     } catch {
-                        // Stream interrotto — usa quanto raccolto.
+                        // Stream interrupted — use what was collected.
                     }
                     flushLineBuffer(&stderrBuffer) { line in
                         stderrLines.append(line)
@@ -137,7 +137,7 @@ struct ProcessRunner {
                     continuation.finish()
                     return
                 }
-                // SIGTERM (15) viene spesso usato per stop intenzionale dal controller/UI.
+                // SIGTERM (15) is often used for intentional stop from the controller/UI.
                 if process.terminationStatus == 15 {
                     continuation.finish(throwing: CancellationError())
                     return
@@ -146,7 +146,7 @@ struct ProcessRunner {
                     continuation.finish(throwing: CancellationError())
                     return
                 }
-                let message = stderrTail.isEmpty ? "nessun output stderr disponibile" : stderrTail
+                let message = stderrTail.isEmpty ? "no stderr output available" : stderrTail
                 let stdoutTail: String? = stderrTail.isEmpty && !state.tailBuffer.isEmpty
                     ? state.tailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
                     : nil
@@ -161,7 +161,7 @@ struct ProcessRunner {
 
     // MARK: - runCollecting (non-streaming)
 
-    /// Esegue un comando e restituisce tutte le linee di output più il codice di uscita.
+    /// Runs a command and returns all output lines plus the exit code.
     static func runCollecting(
         executable: String,
         arguments: [String],

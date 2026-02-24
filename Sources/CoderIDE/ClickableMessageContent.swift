@@ -6,8 +6,8 @@ struct ClickableMessageContent: View {
     let onFileClicked: (String) -> Void
     var textAlignment: TextAlignment = .leading
 
-    /// Rimuove marker CODERIDE (completi, incompleti, con spazi/newline). Durante lo streaming
-    /// il modello emette token per token; possono comparire varianti come [ CODERIDE: o [CODERIDE\n:
+    /// Removes CODERIDE markers (complete, incomplete, with spaces/newlines). During streaming
+    /// the model emits token by token; variants like [ CODERIDE: or [CODERIDE\n: may appear.
     private var displayContent: String {
         ChatStore.stripCoderideMarkers(content)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)

@@ -167,7 +167,7 @@ enum SwarmLiveReducer {
 
     private static func summary(for events: [TaskActivity]) -> String {
         let titles = events.suffix(6).map(\.title).filter { !$0.isEmpty }
-        guard !titles.isEmpty else { return "Swarm completato." }
+        guard !titles.isEmpty else { return "Swarm completed." }
         var seen = Set<String>()
         var compact: [String] = []
         for title in titles where seen.insert(title).inserted {

@@ -36,8 +36,8 @@ struct SidebarView: View {
         let pid = providerRegistry.selectedProviderId
         return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
     }
-    /// Contesto del progetto/workspace attuale. Con nessun thread selezionato, mantiene activeContextId
-    /// così il progetto non "si chiude" quando si eliminano tutte le conversazioni.
+    /// Current project/workspace context. With no thread selected, keeps activeContextId
+    /// so the project doesn't "close" when all conversations are deleted.
     private var currentContext: ProjectContext? {
         let ctxId = selectedConversation?.contextId ?? projectContextStore.activeContextId
         return projectContextStore.context(id: ctxId)
@@ -148,10 +148,10 @@ struct SidebarView: View {
             actionRow("New thread", icon: "plus.message.fill") {
                 createThread(contextId: currentContext?.id)
             }
-            actionRow("Apri progetto", icon: "folder.badge.plus") {
+            actionRow("Open project", icon: "folder.badge.plus") {
                 isSelectingProjectFolders = true
             }
-            actionRow("Nuovo workspace", icon: "folder.badge.gearshape") {
+            actionRow("New workspace", icon: "folder.badge.gearshape") {
                 showCreateWorkspace = true
             }
 
@@ -159,7 +159,7 @@ struct SidebarView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
-                TextField("Cerca", text: $sidebarQuery)
+                TextField("Search", text: $sidebarQuery)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                 if !sidebarQuery.isEmpty {
@@ -194,7 +194,7 @@ struct SidebarView: View {
     private var contextSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Contesto")
+                Text("Context")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -232,7 +232,7 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
-                .help("Cambia progetto o workspace")
+                .help("Switch project or workspace")
             }
 
             if let context = currentContext {
@@ -243,7 +243,7 @@ struct SidebarView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(context.name)
                             .font(.system(size: 12, weight: .semibold))
-                        Text(context.activeFolderPath.map { ($0 as NSString).lastPathComponent } ?? "Nessuna cartella")
+                        Text(context.activeFolderPath.map { ($0 as NSString).lastPathComponent } ?? "No folder")
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
@@ -258,21 +258,21 @@ struct SidebarView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
-                        .help("Aggiungi cartella al workspace")
+                        .help("Add folder to workspace")
                     }
                     Menu {
                         if let ws = workspaceStore.workspaces.first(where: { $0.id == context.id }) {
-                            Button("Rinomina workspace") { workspaceToRename = ws }
+                            Button("Rename workspace") { workspaceToRename = ws }
                             Divider()
-                            Button(role: .destructive) { deleteWorkspace(ws) } label: { Text("Elimina workspace") }
+                            Button(role: .destructive) { deleteWorkspace(ws) } label: { Text("Delete workspace") }
                         } else {
                             Button(role: .destructive) {
                                 projectContextStore.remove(id: context.id)
                                 clearConversationContext()
-                            } label: { Text("Rimuovi progetto") }
+                            } label: { Text("Remove project") }
                         }
                         Divider()
-                        Button("Chiudi contesto") { clearConversationContext() }
+                        Button("Close context") { clearConversationContext() }
                     } label: {
                         Image(systemName: "ellipsis")
                             .rotationEffect(.degrees(90))
@@ -285,14 +285,14 @@ struct SidebarView: View {
 
                 if context.kind == .workspace {
                     if context.folderPaths.isEmpty {
-                        Text("Nessuna cartella nel workspace")
+                        Text("No folders in workspace")
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                             .padding(.leading, 24)
                             .padding(.top, 2)
                     } else {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Cartelle workspace")
+                            Text("Workspace folders")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.tertiary)
                                 .padding(.leading, 24)
@@ -328,7 +328,7 @@ struct SidebarView: View {
                     }
                 }
             } else {
-                SidebarEmptyState(title: "Nessun contesto", subtitle: "Apri un progetto o crea un workspace.", actionTitle: "Apri progetto") {
+                SidebarEmptyState(title: "No context", subtitle: "Open a project or create a workspace.", actionTitle: "Open project") {
                     isSelectingProjectFolders = true
                 }
             }
@@ -350,7 +350,7 @@ struct SidebarView: View {
                         .foregroundStyle(favoritesOnly ? .yellow : .secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Solo preferiti")
+                .help("Favorites only")
                 Button {
                     showArchived.toggle()
                 } label: {
@@ -359,7 +359,7 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Mostra archiviati")
+                .help("Show archived")
                 Button {
                     createThread(contextId: currentContext?.id)
                 } label: {
@@ -375,12 +375,12 @@ struct SidebarView: View {
                                 chatStore.setArchived(conversationId: conv.id, archived: true)
                             }
                         } label: {
-                            Label("Archivia tutti i thread", systemImage: "archivebox")
+                            Label("Archive all threads", systemImage: "archivebox")
                         }
                         Button(role: .destructive) {
                             deleteAllVisibleThreads()
                         } label: {
-                            Label("Elimina tutti i thread", systemImage: "trash")
+                            Label("Delete all threads", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis")
@@ -389,32 +389,32 @@ struct SidebarView: View {
                             .foregroundStyle(.secondary)
                     }
                     .menuStyle(.borderlessButton)
-                    .help("Azioni su tutti i thread")
+                    .help("Actions on all threads")
                 }
             }
 
             if let context = currentContext {
-                Text("Contesto: \(context.name)")
+                Text("Context: \(context.name)")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
             } else {
-                Text("Thread globali")
+                Text("Global threads")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
 
             if visibleThreads.isEmpty {
                 SidebarEmptyState(
-                    title: "Nessun thread",
-                    subtitle: currentContext == nil ? "Apri un thread globale o seleziona un contesto." : "Crea un thread per questo contesto.",
-                    actionTitle: "Nuovo thread"
+                    title: "No threads",
+                    subtitle: currentContext == nil ? "Open a global thread or select a context." : "Create a thread for this context.",
+                    actionTitle: "New thread"
                 ) {
                     createThread(contextId: currentContext?.id)
                 }
             } else {
                 if let context = currentContext, context.kind == .workspace {
                     ForEach(groupedThreadsByFolder, id: \.folder) { group in
-                        Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "Generale")
+                        Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 6)
@@ -437,7 +437,7 @@ struct SidebarView: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
-                            Text("Chiedi AI su \(hits.count) thread trovati")
+                            Text("Ask AI about \(hits.count) threads found")
                                 .lineLimit(1)
                             Spacer()
                         }
@@ -470,7 +470,7 @@ struct SidebarView: View {
                 .foregroundStyle(.tertiary)
             if let context = currentContext, context.kind == .workspace, !context.folderPaths.isEmpty {
                 Menu {
-                    Button("Generale") {
+                    Button("General") {
                         chatStore.setContextFolder(conversationId: conv.id, folderPath: nil)
                     }
                     Divider()
@@ -485,7 +485,7 @@ struct SidebarView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .menuStyle(.borderlessButton)
-                .help("Sposta in cartella…")
+                .help("Move to folder...")
             }
             Button {
                 chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
@@ -495,7 +495,7 @@ struct SidebarView: View {
                     .foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
-            .help(conv.isArchived ? "Ripristina thread" : "Archivia thread")
+            .help(conv.isArchived ? "Restore thread" : "Archive thread")
             Button {
                 let wasSelected = selectedConversationId == conv.id
                 cleanupCheckpointSnapshots(for: conv)
@@ -509,7 +509,7 @@ struct SidebarView: View {
                     .foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
-            .help("Elimina thread")
+            .help("Delete thread")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -524,22 +524,22 @@ struct SidebarView: View {
             Button {
                 conversationToRename = conv
             } label: {
-                Label("Rinomina", systemImage: "pencil")
+                Label("Rename", systemImage: "pencil")
             }
             Button {
                 chatStore.setFavorite(conversationId: conv.id, favorite: !conv.isFavorite)
             } label: {
-                Label(conv.isFavorite ? "Rimuovi preferito" : "Aggiungi preferito", systemImage: conv.isFavorite ? "star.fill" : "star")
+                Label(conv.isFavorite ? "Remove favorite" : "Add favorite", systemImage: conv.isFavorite ? "star.fill" : "star")
             }
             Button {
                 chatStore.setPinned(conversationId: conv.id, pinned: !conv.isPinned)
             } label: {
-                Label(conv.isPinned ? "Rimuovi pin" : "Pin thread", systemImage: conv.isPinned ? "pin.fill" : "pin")
+                Label(conv.isPinned ? "Unpin thread" : "Pin thread", systemImage: conv.isPinned ? "pin.fill" : "pin")
             }
             Button {
                 chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
             } label: {
-                Label(conv.isArchived ? "Ripristina thread" : "Archivia thread", systemImage: conv.isArchived ? "archivebox.fill" : "archivebox")
+                Label(conv.isArchived ? "Restore thread" : "Archive thread", systemImage: conv.isArchived ? "archivebox.fill" : "archivebox")
             }
             Divider()
             Button(role: .destructive) {
@@ -550,7 +550,7 @@ struct SidebarView: View {
                     selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
                 }
             } label: {
-                Label("Elimina thread", systemImage: "trash")
+                Label("Delete thread", systemImage: "trash")
             }
         }
         .onTapGesture {
@@ -601,12 +601,12 @@ struct SidebarView: View {
     }
 
     private func nextConversationSelectionAfterDelete(deletedConversation: Conversation) -> UUID? {
-        // Mantieni il focus nello stesso contesto/cartella quando possibile.
+        // Keep focus in the same context/folder when possible.
         if let replacement = visibleThreads.first(where: { $0.id != deletedConversation.id }) {
             return replacement.id
         }
 
-        // Fallback: thread non archiviato più recente nello stesso contesto.
+        // Fallback: most recent non-archived thread in the same context.
         if let sameContext = chatStore.conversations.first(where: {
             !$0.isArchived
                 && $0.id != deletedConversation.id
@@ -616,7 +616,7 @@ struct SidebarView: View {
             return sameContext.id
         }
 
-        // Ultimo fallback: primo thread disponibile.
+        // Last fallback: first available thread.
         return chatStore.conversations.first?.id
     }
 
@@ -738,7 +738,7 @@ struct SidebarView: View {
             }
 
             if isLoadingTasks {
-                Text("Caricamento...")
+                Text("Loading...")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             } else if let first = codexTasks.first {
@@ -768,7 +768,7 @@ struct SidebarView: View {
 
     private func relativeDate(_ date: Date) -> String {
         let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "it_IT")
+        f.locale = Locale(identifier: "en_US")
         f.unitsStyle = .short
         return f.localizedString(for: date, relativeTo: Date())
     }
@@ -777,7 +777,7 @@ struct SidebarView: View {
         projectContextStore.activeContextId = contextId
         syncActiveWorkspaceIfNeeded(contextId: contextId)
         let folderScope = (currentContext?.kind == .workspace) ? currentContext?.activeFolderPath : nil
-        // Se c'è un thread su cui avevi lavorato in questo tab, mostralo; altrimenti nuovo thread
+        // If there's a thread you worked on in this tab, show it; otherwise new thread
         if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
            let lastConv = chatStore.conversation(for: lastId),
            lastConv.contextId == contextId,
@@ -892,13 +892,13 @@ private struct RenameWorkspaceSheet: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Rinomina Workspace")
+            Text("Rename Workspace")
                 .font(.title3)
-            TextField("Nome", text: $newName)
+            TextField("Name", text: $newName)
                 .textFieldStyle(.roundedBorder)
             HStack(spacing: 12) {
-                Button("Annulla", role: .cancel, action: onDismiss)
-                Button("Salva") {
+                Button("Cancel", role: .cancel, action: onDismiss)
+                Button("Save") {
                     var updated = workspace
                     updated.name = newName.trimmingCharacters(in: .whitespaces)
                     workspaceStore.update(updated)
@@ -927,13 +927,13 @@ private struct RenameConversationSheet: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Rinomina thread")
+            Text("Rename thread")
                 .font(.title3)
-            TextField("Titolo", text: $newTitle)
+            TextField("Title", text: $newTitle)
                 .textFieldStyle(.roundedBorder)
             HStack(spacing: 12) {
-                Button("Annulla", role: .cancel, action: onDismiss)
-                Button("Salva") {
+                Button("Cancel", role: .cancel, action: onDismiss)
+                Button("Save") {
                     chatStore.setTitle(conversationId: conversation.id, title: newTitle)
                     onDismiss()
                 }
@@ -957,21 +957,21 @@ private struct CreateWorkspaceSheetView: View {
             Image(systemName: "folder.badge.plus")
                 .font(.largeTitle)
                 .foregroundStyle(Color.accentColor)
-            Text("Nuovo Workspace")
+            Text("New Workspace")
                 .font(.title3)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Nome")
+                Text("Name")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                TextField("Nome del workspace", text: $newWorkspaceName)
+                TextField("Workspace name", text: $newWorkspaceName)
                     .textFieldStyle(.roundedBorder)
             }
             HStack(spacing: 12) {
-                Button("Annulla", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     newWorkspaceName = ""
                     showCreateWorkspace = false
                 }
-                Button("Crea") {
+                Button("Create") {
                     workspaceStore.createEmpty(name: newWorkspaceName)
                     if let ws = workspaceStore.workspaces.last { onCreated(ws.id) }
                     newWorkspaceName = ""

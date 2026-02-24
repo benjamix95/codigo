@@ -399,6 +399,12 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
         case "todo_write", "todo_read": return "checklist"
         case "plan_step_update": return "list.bullet.rectangle"
+        case "debug_panel", "debug_panel_update": return "ladybug.fill"
+        case "activate_plan_mode": return "list.bullet.rectangle"
+        case "activate_debug_mode": return "ladybug.fill"
+        case "semantic_search": return "brain"
+        case "read_lints": return "exclamationmark.triangle.fill"
+        case "debug_context": return "list.clipboard.fill"
         case "mcp_tool_call": return "wrench.and.screwdriver.fill"
         case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied": return "exclamationmark.triangle.fill"
         case "process_paused": return "pause.circle.fill"
@@ -416,6 +422,12 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return .secondary
         case "todo_write", "todo_read": return .secondary
         case "plan_step_update": return .secondary
+        case "debug_panel", "debug_panel_update": return DesignSystem.Colors.debugColor
+        case "activate_plan_mode": return DesignSystem.Colors.planColor
+        case "activate_debug_mode": return DesignSystem.Colors.debugColor
+        case "semantic_search": return DesignSystem.Colors.info
+        case "read_lints": return DesignSystem.Colors.warning
+        case "debug_context": return DesignSystem.Colors.debugColor
         case "mcp_tool_call": return .secondary
         case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied": return DesignSystem.Colors.error
         case "process_paused": return .secondary

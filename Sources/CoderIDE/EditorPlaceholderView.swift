@@ -43,7 +43,7 @@ struct EditorPlaceholderView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle)
                 if openFilesStore.isDirty(path: path) {
-                    Text("Modificato")
+                    Text("Modified")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.warning)
                         .padding(.horizontal, 6)
@@ -63,22 +63,22 @@ struct EditorPlaceholderView: View {
 
                 Button {
                     openFilesStore.reload(path: path)
-                    saveFeedback = "Ricaricato da disco"
+                    saveFeedback = "Reloaded from disk"
                     saveFeedbackIsError = false
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11, weight: .medium))
                 }
                 .buttonStyle(.plain)
-                .help("Ricarica file da disco")
+                .help("Reload file from disk")
 
-                Button("Salva") {
+                Button("Save") {
                     let saved = openFilesStore.save(path: path)
                     if saved {
-                        saveFeedback = "Salvato"
+                        saveFeedback = "Saved"
                         saveFeedbackIsError = false
                     } else {
-                        saveFeedback = openFilesStore.error(for: path) ?? "Errore nel salvataggio"
+                        saveFeedback = openFilesStore.error(for: path) ?? "Error saving file"
                         saveFeedbackIsError = true
                     }
                 }
@@ -192,12 +192,12 @@ struct EditorPlaceholderView: View {
                     .foregroundStyle(.primary)
 
                 if displayPath.isEmpty {
-                    Text("Apri un progetto o workspace dalla sidebar per iniziare")
+                    Text("Open a project or workspace from the sidebar to get started")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(spacing: 8) {
-                        Text(folderPaths.count > 1 ? "PROGETTO ATTIVO" : "WORKSPACE ATTIVO")
+                        Text(folderPaths.count > 1 ? "ACTIVE PROJECT" : "ACTIVE WORKSPACE")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.tertiary)
                             .tracking(1.2)
@@ -217,7 +217,7 @@ struct EditorPlaceholderView: View {
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5))
                     }
 
-                    Text("Seleziona un file dalla sidebar per visualizzarlo")
+                    Text("Select a file from the sidebar to view it")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                         .padding(.top, 4)
@@ -226,9 +226,9 @@ struct EditorPlaceholderView: View {
 
             if !displayPath.isEmpty {
                 HStack(spacing: 20) {
-                    featureHint("Naviga file", "folder")
-                    featureHint("Cerca", "magnifyingglass")
-                    featureHint("Modifica", "pencil")
+                    featureHint("Browse files", "folder")
+                    featureHint("Search", "magnifyingglass")
+                    featureHint("Edit", "pencil")
                 }
             }
         }
@@ -291,7 +291,7 @@ struct EditorPlaceholderView: View {
                             .foregroundStyle(.secondary)
                             .padding(12)
                     } else if diff.chunks.isEmpty {
-                        Text("Nessuna diff disponibile per questo file")
+                        Text("No diff available for this file")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.secondary)
                             .padding(12)
@@ -314,7 +314,7 @@ struct EditorPlaceholderView: View {
                         }
                     }
                 } else {
-                    Text("Diff non caricata")
+                    Text("Diff not loaded")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                         .padding(12)

@@ -27,13 +27,13 @@ final class CLIAccountLoginCoordinator: ObservableObject {
     func startLogin(account: CLIAccount, providerPath: String?, method: LoginMethod, apiKey: String?) {
         let executable = CLIAccountAuthDetector.resolveExecutable(provider: account.provider, providerPath: providerPath)
         guard let executable, FileManager.default.isExecutableFile(atPath: executable) else {
-            statusByAccount[account.id] = "CLI non installato o path non valido"
+            statusByAccount[account.id] = "CLI not installed or invalid path"
             isRunningByAccount[account.id] = false
             return
         }
 
         isRunningByAccount[account.id] = true
-        statusByAccount[account.id] = "Avvio login..."
+        statusByAccount[account.id] = "Starting login..."
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -52,7 +52,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             process.arguments = loginArgs(provider: account.provider, method: .deviceCode)
         case .apiKey:
             guard let apiKey, !apiKey.isEmpty else {
-                statusByAccount[account.id] = "API key mancante"
+                statusByAccount[account.id] = "API key missing"
                 isRunningByAccount[account.id] = false
                 return
             }
@@ -70,11 +70,11 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                let url = URL(string: String(text[range])) {
                 DispatchQueue.main.async {
                     NSWorkspace.shared.open(url)
-                    self.statusByAccount[account.id] = "Browser aperto, completa il login..."
+                    self.statusByAccount[account.id] = "Browser opened, complete the login..."
                 }
             }
             DispatchQueue.main.async {
-                if self.statusByAccount[account.id]?.contains("Browser aperto") != true {
+                if self.statusByAccount[account.id]?.contains("Browser opened") != true {
                     self.statusByAccount[account.id] = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
             }
@@ -98,7 +98,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             }
             Task { await pollLoginStatus(account: account, providerPath: providerPath) }
         } catch {
-            statusByAccount[account.id] = "Errore login: \(error.localizedDescription)"
+            statusByAccount[account.id] = "Login error: \(error.localizedDescription)"
             isRunningByAccount[account.id] = false
         }
     }
@@ -110,15 +110,15 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             if status.isLoggedIn {
                 await MainActor.run {
                     isRunningByAccount[account.id] = false
-                    statusByAccount[account.id] = "Connesso"
+                    statusByAccount[account.id] = "Connected"
                 }
                 return
             }
         }
         await MainActor.run {
             isRunningByAccount[account.id] = false
-            if statusByAccount[account.id] == nil || statusByAccount[account.id] == "Avvio login..." {
-                statusByAccount[account.id] = "Timeout login"
+            if statusByAccount[account.id] == nil || statusByAccount[account.id] == "Starting login..." {
+                statusByAccount[account.id] = "Login timeout"
             }
         }
     }
@@ -127,7 +127,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
         loginProcesses[accountId]?.terminate()
         loginProcesses[accountId] = nil
         isRunningByAccount[accountId] = false
-        statusByAccount[accountId] = "Login annullato"
+        statusByAccount[accountId] = "Login cancelled"
     }
 
     func disconnect(account: CLIAccount) {
@@ -138,9 +138,9 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                 try? FileManager.default.removeItem(at: file)
             }
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            statusByAccount[account.id] = "Disconnesso"
+            statusByAccount[account.id] = "Disconnected"
         } catch {
-            statusByAccount[account.id] = "Errore disconnessione: \(error.localizedDescription)"
+            statusByAccount[account.id] = "Logout error: \(error.localizedDescription)"
         }
     }
 
