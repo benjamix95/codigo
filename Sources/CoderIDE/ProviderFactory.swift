@@ -126,6 +126,100 @@ enum ProviderFactory {
         return roles
     }
 
+    private static func normalizedBackendId(_ backendId: String) -> String {
+        backendId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    /// Maps a selected real provider id to the corresponding swarm backend id.
+    private static func swarmBackendIdForAgentProvider(_ providerId: String?) -> String? {
+        switch normalizedBackendId(providerId ?? "") {
+        case "codex-cli", "codex":
+            return "codex"
+        case "claude-cli", "claude":
+            return "claude"
+        case "gemini-cli", "gemini":
+            return "gemini"
+        case "openai-api", "openai":
+            return "openai-api"
+        case "anthropic-api":
+            return "anthropic-api"
+        case "google-api":
+            return "google-api"
+        case "openrouter-api", "openrouter":
+            return "openrouter-api"
+        case "minimax-api":
+            return "minimax-api"
+        case "grok-api":
+            return "grok-api"
+        default:
+            return nil
+        }
+    }
+
+    private static func resolveSwarmBackendId(
+        configuredBackendId: String,
+        agentProviderId: String?
+    ) -> String {
+        let normalized = normalizedBackendId(configuredBackendId)
+        if normalized.isEmpty || normalized == "auto" {
+            if let inherited = swarmBackendIdForAgentProvider(agentProviderId) {
+                return inherited
+            }
+            return "codex"
+        }
+        return normalized
+    }
+
+    private static func orchestratorBackend(for backendId: String) -> OrchestratorBackend {
+        switch normalizedBackendId(backendId) {
+        case "codex", "codex-cli":
+            return .codex
+        case "claude", "claude-cli":
+            return .claude
+        case "gemini", "gemini-cli":
+            return .gemini
+        case "anthropic-api":
+            return .anthropicAPI
+        case "google-api":
+            return .googleAPI
+        case "openrouter-api", "openrouter":
+            return .openrouterAPI
+        case "minimax-api":
+            return .minimaxAPI
+        case "grok-api":
+            return .grokAPI
+        default:
+            return .openai
+        }
+    }
+
+    private static func workerBackend(for backendId: String) -> WorkerBackend {
+        switch normalizedBackendId(backendId) {
+        case "codex", "codex-cli":
+            return .codex
+        case "claude", "claude-cli":
+            return .claude
+        case "gemini", "gemini-cli":
+            return .gemini
+        case "openai", "openai-api":
+            return .openaiAPI
+        case "anthropic-api":
+            return .anthropicAPI
+        case "google-api":
+            return .googleAPI
+        case "openrouter-api", "openrouter":
+            return .openrouterAPI
+        case "minimax-api":
+            return .minimaxAPI
+        case "grok-api":
+            return .grokAPI
+        default:
+            return .codex
+        }
+    }
+
     /// Resolve any backend identifier to a concrete LLMProvider.
     static func resolveSwarmBackendProvider(
         backendId: String,
@@ -135,11 +229,11 @@ enum ProviderFactory {
         workspacePaths: [URL] = []
     ) -> (any LLMProvider)? {
         switch backendId {
-        case "codex":
+        case "codex", "codex-cli":
             return codexProvider(config: config, executionController: executionController)
-        case "claude":
+        case "claude", "claude-cli":
             return claudeProvider(config: config, executionController: executionController)
-        case "gemini":
+        case "gemini", "gemini-cli":
             return geminiProvider(config: config, executionController: executionController)
         case "openai":
             guard !config.openaiApiKey.isEmpty else { return nil }
@@ -168,14 +262,24 @@ enum ProviderFactory {
     }
 
     static func swarmProvider(
-        config: ProviderFactoryConfig, executionController: ExecutionController?
+        config: ProviderFactoryConfig,
+        executionController: ExecutionController?,
+        agentProviderId: String?
     ) -> SwarmRuntimeProvider? {
-        let orchBackend = OrchestratorBackend(rawValue: config.swarmOrchestrator) ?? .openai
-        let workerBackend = WorkerBackend(rawValue: config.swarmWorkerBackend) ?? .codex
+        let resolvedOrchestratorId = resolveSwarmBackendId(
+            configuredBackendId: config.swarmOrchestrator,
+            agentProviderId: agentProviderId
+        )
+        let resolvedWorkerId = resolveSwarmBackendId(
+            configuredBackendId: config.swarmWorkerBackend,
+            agentProviderId: agentProviderId
+        )
+        let orchBackend = orchestratorBackend(for: resolvedOrchestratorId)
+        let workerBackend = workerBackend(for: resolvedWorkerId)
 
         guard
             let orchProvider = resolveSwarmBackendProvider(
-                backendId: config.swarmOrchestrator,
+                backendId: resolvedOrchestratorId,
                 config: config,
                 executionController: executionController
             )
@@ -183,7 +287,7 @@ enum ProviderFactory {
 
         guard
             let workerProvider = resolveSwarmBackendProvider(
-                backendId: config.swarmWorkerBackend,
+                backendId: resolvedWorkerId,
                 config: config,
                 executionController: executionController
             )

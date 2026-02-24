@@ -485,8 +485,9 @@ struct ChatPanelView: View {
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
-    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
-    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
+    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
+    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
+    @AppStorage("swarm_provider_auto_migrated_v1") private var swarmProviderAutoMigrated = false
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
@@ -572,6 +573,8 @@ struct ChatPanelView: View {
     @State private var pendingInstantGreps: [InstantGrepResult] = []
     @State private var taskFlushTask: Task<Void, Never>?
     @State private var autoScrollWorkItem: DispatchWorkItem?
+    @State private var lastAutoScrollTarget: AnyHashable?
+    @State private var lastAutoScrollAt: Date = .distantPast
     @State private var fallbackTurnStartWorkItem: DispatchWorkItem?
     @State private var streamContentVersion: Int = 0
     @State private var streamingReasoningText: String?
@@ -722,6 +725,7 @@ struct ChatPanelView: View {
             syncProviderFromConversation()
         }
         .onAppear {
+            migrateSwarmProviderDefaultsIfNeeded()
             syncProviderFromConversation()
             codexModels = CodexModelsCache.loadModels()
             geminiModels = GeminiModelsCache.loadModels()
@@ -1423,6 +1427,12 @@ struct ChatPanelView: View {
                     scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
                 }
             }
+            .onChange(of: liveTraceEventCount) { _, _ in
+                guard isLoadingForCurrentConversation, isFollowingLive else { return }
+                if let target = liveScrollTarget() {
+                    scheduleAutoScroll(proxy: proxy, target: target, delay: 0.02)
+                }
+            }
             .onChange(of: planningState) { _, new in
                 if case .awaitingChoice = new {
                     scheduleAutoScroll(proxy: proxy, target: "plan-options", animated: true, delay: 0)
@@ -1471,7 +1481,8 @@ struct ChatPanelView: View {
                     if isLoadingForCurrentConversation {
                         isFollowingLive = false
                     }
-                }
+                },
+                including: isLoadingForCurrentConversation ? .gesture : .subviews
             )
             .overlay(alignment: .bottomTrailing) {
                 if !isFollowingLive && isLoadingForCurrentConversation {
@@ -1553,6 +1564,17 @@ struct ChatPanelView: View {
         return nil
     }
 
+    private var liveTraceEventCount: Int {
+        guard let conv = chatStore.conversation(for: conversationId),
+              let lastAssistant = conv.messages.last(where: { $0.role == .assistant }) else {
+            return 0
+        }
+        return toolTraceStore.events(
+            conversationId: conv.id,
+            assistantMessageId: lastAssistant.id
+        ).count
+    }
+
     private func latestMessageScrollTarget() -> AnyHashable? {
         if let last = chatStore.conversation(for: conversationId)?.messages.last {
             return AnyHashable(last.id)
@@ -1566,6 +1588,13 @@ struct ChatPanelView: View {
         animated: Bool = false,
         delay: TimeInterval = 0.08
     ) {
+        let now = Date()
+        if lastAutoScrollTarget == target,
+           now.timeIntervalSince(lastAutoScrollAt) < 0.06 {
+            return
+        }
+        lastAutoScrollTarget = target
+        lastAutoScrollAt = now
         autoScrollWorkItem?.cancel()
         let work = DispatchWorkItem {
             if animated {
@@ -2715,6 +2744,15 @@ struct ChatPanelView: View {
     private func syncSwarmProvider() {
         // Swarm provider is created on-demand at runtime using real providers.
         checkProviderAuth()
+    }
+
+    private func migrateSwarmProviderDefaultsIfNeeded() {
+        guard !swarmProviderAutoMigrated else { return }
+        if swarmOrchestrator == "openai" && swarmWorkerBackend == "codex" {
+            swarmOrchestrator = "auto"
+            swarmWorkerBackend = "auto"
+        }
+        swarmProviderAutoMigrated = true
     }
     private func syncCodeReviewRuntimeConfig() {
         // Review provider is created on-demand at runtime using real providers.
@@ -4010,49 +4048,58 @@ struct ChatPanelView: View {
         conversationId: UUID,
         hideContentDuringPlanDiscovery: Bool = false
     ) async throws -> (fullText: String, pendingSwarmTask: String?) {
-        guard initial.pendingSwarmTask == nil else { return initial }
-        guard shouldAutoContinueStub(initial.fullText) else { return initial }
+        var combinedText = initial.fullText
+        var combinedSwarmTask = initial.pendingSwarmTask
+        let maxAutoContinuationRounds = 3
+        var round = 0
 
-        let continuationPrompt = """
-        Immediately continue your previous response and complete it to a useful and concrete result.
-        Do not stop at describing what you will do: carry out the reasoning and provide the final output.
+        while combinedSwarmTask == nil,
+              shouldAutoContinueStub(combinedText),
+              round < maxAutoContinuationRounds {
+            round += 1
+            let continuationPrompt = """
+            Immediately continue your previous response and complete the task to a concrete outcome.
+            Execute needed steps autonomously (analyze, act, verify, fix if needed) and do not stop at intentions.
 
-        Original request:
-        \(originalPrompt)
+            Original request:
+            \(originalPrompt)
 
-        Text already sent:
-        \(initial.fullText)
-        """
+            Text already sent:
+            \(combinedText)
+            """
 
-        let followUp = try await flowCoordinator.runStream(
-            provider: provider,
-            prompt: continuationPrompt,
-            context: context,
-            attachments: nil,
-            onText: { deltaFull in
-                let combined = initial.fullText + "\n" + deltaFull
-                let displayContent = hideContentDuringPlanDiscovery
-                    ? "Planning in progress… Open the Planning panel to see the result."
-                    : combined
-                applyStreamingUpdate(
-                    content: displayContent,
-                    conversationId: conversationId
-                )
-            },
-            onRaw: { t, p, pid in
-                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
-            },
-            onError: { content in
-                DispatchQueue.main.async {
-                    let combined = initial.fullText + "\n" + content
-                    chatStore.updateLastAssistantMessage(content: combined, in: conversationId)
-                }
-            },
-            onSignal: nil
-        )
+            let prior = combinedText
+            let followUp = try await flowCoordinator.runStream(
+                provider: provider,
+                prompt: continuationPrompt,
+                context: context,
+                attachments: nil,
+                onText: { deltaFull in
+                    let combined = prior + "\n" + deltaFull
+                    let displayContent = hideContentDuringPlanDiscovery
+                        ? "Planning in progress… Open the Planning panel to see the result."
+                        : combined
+                    applyStreamingUpdate(
+                        content: displayContent,
+                        conversationId: conversationId
+                    )
+                },
+                onRaw: { t, p, pid in
+                    handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+                },
+                onError: { content in
+                    DispatchQueue.main.async {
+                        let combined = prior + "\n" + content
+                        chatStore.updateLastAssistantMessage(content: combined, in: conversationId)
+                    }
+                },
+                onSignal: nil
+            )
 
-        let combinedText = initial.fullText + "\n" + followUp.fullText
-        let combinedSwarmTask = initial.pendingSwarmTask ?? followUp.pendingSwarmTask
+            combinedText = prior + "\n" + followUp.fullText
+            combinedSwarmTask = combinedSwarmTask ?? followUp.pendingSwarmTask
+        }
+
         return (fullText: combinedText, pendingSwarmTask: combinedSwarmTask)
     }
 
@@ -4060,7 +4107,7 @@ struct ChatPanelView: View {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
-        guard wordCount <= 40 else { return false }
+        guard wordCount <= 260 else { return false }
         let low = trimmed.lowercased()
         let stubSignals = [
             "i'll start",
@@ -4071,8 +4118,20 @@ struct ChatPanelView: View {
             "first i will",
             "let me start",
             "let me begin",
+            "let me check",
+            "i can continue",
+            "would you like me to",
+            "if you want i can",
+            "next i'll",
+            "next i will",
         ]
-        return stubSignals.contains { low.contains($0) }
+        if stubSignals.contains(where: { low.contains($0) }) {
+            return true
+        }
+        if low.hasSuffix("...") || low.hasSuffix(":") {
+            return true
+        }
+        return false
     }
 
     // MARK: - Resolve Runtime Provider
@@ -4233,7 +4292,15 @@ struct ChatPanelView: View {
                     """
                 if agentAutoDelegateSwarm {
                     let swarmInstructions =
-                        "For simple or linear tasks stay in single-agent mode and do not delegate. Use swarm delegation only when the effort requires real parallelization or multiple roles (planner, coder, reviewer, debugger, testWriter, etc.), by writing: \(CoderIDEMarkers.invokeSwarmPrefix)TASK_DESCRIPTION\(CoderIDEMarkers.invokeSwarmSuffix)\n\n"
+                        """
+                        Swarm delegation is optional and must be conservative.
+                        - Do NOT delegate if you can complete the task yourself in one linear flow (roughly <=2 concrete operations).
+                        - Delegate only when there are independent workstreams or clearly different specialist roles that benefit from parallel execution.
+                        - Do not delegate for basic read/search/edit/command sequences that a single agent can handle.
+                        - If you delegate, provide a precise objective with concrete workstreams using:
+                        \(CoderIDEMarkers.invokeSwarmPrefix)TASK_DESCRIPTION\(CoderIDEMarkers.invokeSwarmSuffix)
+
+                        """
                     prompt = baseInstructions + swarmInstructions + prompt
                 } else {
                     prompt = baseInstructions + "\n" + prompt
@@ -4248,7 +4315,34 @@ struct ChatPanelView: View {
                     prompt += "\n\n## Current todos\n\(todoSection)"
                 }
             }
+
+        let convoContext = recentConversationContextForPrompt()
+        if !convoContext.isEmpty {
+            prompt += "\n\n## Conversation context (recent)\n\(convoContext)\nUse this context to answer follow-ups consistently."
+        }
         return prompt
+    }
+
+    private func recentConversationContextForPrompt(maxMessages: Int = 8, maxCharsPerMessage: Int = 700) -> String {
+        guard let conv = chatStore.conversation(for: conversationId) else { return "" }
+        let cleaned = conv.messages
+            .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .suffix(maxMessages)
+
+        guard !cleaned.isEmpty else { return "" }
+        var lines: [String] = []
+        for msg in cleaned {
+            let roleLabel = msg.role == .user ? "User" : "Assistant"
+            let normalized = ChatStore.stripCoderideMarkers(msg.content)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+            let excerpt = normalized.count > maxCharsPerMessage
+                ? String(normalized.prefix(maxCharsPerMessage)) + "…"
+                : normalized
+            lines.append("- \(roleLabel): \(excerpt)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Phase-Specific Plan Prompts
@@ -4679,12 +4773,13 @@ struct ChatPanelView: View {
         imageURLsToSend: [URL]?,
         prompt: String
     ) async {
+        let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
         guard let swarm = ProviderFactory.swarmProvider(
             config: providerFactoryConfig(),
-            executionController: executionController
+            executionController: executionController,
+            agentProviderId: agentProviderIdBeforeSwarm
         ), swarm.isAuthenticated() else { return }
 
-        let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: "[Delegated to swarm] \(task)",

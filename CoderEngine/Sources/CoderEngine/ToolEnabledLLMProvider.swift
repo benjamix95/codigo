@@ -12,6 +12,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     private let policy: ToolRuntimePolicy
     private let executionScope: ExecutionScope
     private let maxToolRounds: Int
+    private let maxAutonomousContinuationRounds = 4
 
     public init(
         base: any LLMProvider,
@@ -19,7 +20,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         policy: ToolRuntimePolicy = ToolRuntimePolicy(),
         executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
-        maxToolRounds: Int = 40
+        maxToolRounds: Int = 160
     ) {
         self.base = base
         self.id = base.id
@@ -177,7 +178,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             emittedVisibleTextAfterToolRound = false
                         }
                         var shouldContinue = !roundToolResults.isEmpty || sawExecutableSuggestion
-                        if !shouldContinue, shouldForceSingleContinuation(roundText), extraContinuationRounds < 1 {
+                        if !shouldContinue,
+                           shouldForceAutonomousContinuation(
+                            roundText,
+                            roundIndex: extraContinuationRounds
+                           ),
+                           extraContinuationRounds < maxAutonomousContinuationRounds {
                             shouldContinue = true
                             extraContinuationRounds += 1
                         }
@@ -385,8 +391,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             resultsSection = """
             (No tools used in the previous round.)
 
-            Continue the task. If you need more tools, emit [CODERIDE:tool_call|...] markers.
-            When finished: you MUST provide a final summary to the user — what changed, which files, outcome. Never end without this summary.
+            Continue the task autonomously until completion.
+            If you need more tools, emit [CODERIDE:tool_call|...] markers and execute/verify/fix loops as needed.
+            Do not stop at a plan or intention statement.
+            When finished: you MUST provide a final summary to the user — what changed, which files, outcome, verification.
             """
         } else {
             let formatted = toolResults.map { result in
@@ -408,8 +416,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             Tool results from previous round:
             \(formatted)
 
-            Continue using these results. If you need more tools, emit new [CODERIDE:tool_call|...] markers.
-            When finished: you MUST provide a final summary to the user — what changed, which files, outcome. Never end without a summary.
+            Continue using these results autonomously.
+            If you need more tools, emit new [CODERIDE:tool_call|...] markers and keep iterating until done.
+            If a check fails, fix and re-check before finalizing.
+            When finished: you MUST provide a final summary to the user — what changed, which files, outcome, verification.
             """
         }
 
@@ -582,13 +592,40 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return ""
     }
 
-    private func shouldForceSingleContinuation(_ text: String) -> Bool {
+    private func shouldForceAutonomousContinuation(_ text: String, roundIndex: Int) -> Bool {
+        if roundIndex >= maxAutonomousContinuationRounds { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
+        if isMeaningfulAssistantCompletion(trimmed) {
+            return false
+        }
+        let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
+        guard wordCount <= 260 else { return false }
         let lower = trimmed.lowercased()
-        return lower.contains("inizier\u{00F2}") || lower.contains("sto esplorando") || lower.contains("analizzo la struttura")
-            || lower.contains("let me ") || lower.contains("i'll start") || lower.contains("i will ")
-            || lower.contains("exploring the") || lower.contains("analyzing the")
+        let explicitSignals = [
+            "inizier\u{00F2}",
+            "sto esplorando",
+            "analizzo la struttura",
+            "let me ",
+            "i'll start",
+            "i will start",
+            "i'll begin",
+            "i will begin",
+            "exploring the",
+            "analyzing the",
+            "next i'll",
+            "next i will",
+            "would you like me to",
+            "if you want i can",
+            "i can continue by"
+        ]
+        if explicitSignals.contains(where: { lower.contains($0) }) {
+            return true
+        }
+        if lower.hasSuffix("...") || lower.hasSuffix(":") {
+            return true
+        }
+        return false
     }
 
     private func sanitizeVisibleDelta(_ delta: String) -> String {

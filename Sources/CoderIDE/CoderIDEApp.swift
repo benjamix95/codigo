@@ -36,8 +36,8 @@ struct CodigoApp: App {
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
         "Read,Edit,Bash,Write,Search"
-    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
-    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
+    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
+    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2

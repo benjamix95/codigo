@@ -1062,21 +1062,57 @@ final class ChatStore: ObservableObject {
     ) async throws -> Bool {
         guard let cid = id, let idx = conversations.firstIndex(where: { $0.id == cid }) else { return false }
         let msgs = conversations[idx].messages
-        guard msgs.count > keepLast + 2 else { return false }
-        let toSummarize = Array(msgs.prefix(msgs.count - keepLast))
-        let recent = Array(msgs.suffix(keepLast))
+        let safeKeepLast = max(2, keepLast)
+        guard msgs.count > safeKeepLast + 2 else { return false }
+
+        let toSummarize = Array(msgs.prefix(msgs.count - safeKeepLast))
+        let recent = Array(msgs.suffix(safeKeepLast))
+        let previousSummary = msgs.first(where: {
+            $0.role == .assistant
+                && ($0.content.contains("[Conversation summary]")
+                    || $0.content.contains("[Previous summary]"))
+        })
+
         let textToSummarize = toSummarize.map { message in
             let roleLabel = message.role == .user ? "User" : "Assistant"
-            return "\(roleLabel): \(message.content)"
+            let cleaned = ChatStore.stripCoderideMarkers(message.content)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return "\(roleLabel): \(cleaned)"
         }.joined(separator: "\n\n")
+
+        let previousSummaryBlock: String = {
+            guard let previousSummary else { return "" }
+            let cleaned = ChatStore.stripCoderideMarkers(previousSummary.content)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return "" }
+            return """
+            Existing summary (update and preserve stable facts):
+            \(cleaned)
+
+            """
+        }()
+
         let prompt = """
-        Summarize this conversation keeping: objectives, decisions made, files modified, errors detected, steps completed.
-        Do not include unnecessary code details.
+        Create an updated compact conversation memory for a coding assistant.
 
-        Conversation:
+        Rules:
+        - Preserve objectives, constraints, decisions, current status, unresolved issues.
+        - Preserve user preferences (language/style/tooling), and important environment assumptions.
+        - Preserve modified files and verification outcomes (tests/build).
+        - Remove noise, repetition, and transient tool chatter.
+        - Keep it concise but complete enough for high-quality follow-ups.
+        - Output in English.
+        - Output ONLY markdown with these sections in this exact order:
+          1) ## Objectives
+          2) ## Decisions
+          3) ## Progress
+          4) ## Open items
+          5) ## User preferences
+
+        \(previousSummaryBlock)Conversation to summarize:
         \(textToSummarize)
-
-        Reply only with the summary, without preamble.
         """
         let ctx = CoderEngine.WorkspaceContext(
             workspacePaths: context.workspacePaths,
@@ -1097,7 +1133,7 @@ final class ChatStore: ObservableObject {
         guard !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         let summaryMsg = ChatMessage(
             role: .assistant,
-            content: "[Previous summary]\n\n\(summary.trimmingCharacters(in: .whitespacesAndNewlines))",
+            content: "[Conversation summary]\n\n\(summary.trimmingCharacters(in: .whitespacesAndNewlines))",
             isStreaming: false
         )
         conversations[idx].messages = [summaryMsg] + recent

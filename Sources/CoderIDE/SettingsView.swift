@@ -78,8 +78,8 @@ struct SettingsView: View {
 
     // MARK: - Hidden runtime keys (no UI, consumed by ProviderFactoryConfig)
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
-    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
-    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
+    @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
+    @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
@@ -1169,4 +1169,3 @@ struct SettingsView: View {
         await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
     }
 }
-

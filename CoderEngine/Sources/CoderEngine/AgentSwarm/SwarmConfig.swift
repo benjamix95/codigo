@@ -10,6 +10,7 @@ public enum OrchestratorBackend: String, CaseIterable, Codable, Sendable {
     case openrouterAPI = "openrouter-api"
     case gemini
     case minimaxAPI = "minimax-api"
+    case grokAPI = "grok-api"
 }
 
 /// Backend dei worker
@@ -22,6 +23,7 @@ public enum WorkerBackend: String, CaseIterable, Codable, Sendable {
     case googleAPI = "google-api"
     case openrouterAPI = "openrouter-api"
     case minimaxAPI = "minimax-api"
+    case grokAPI = "grok-api"
 }
 
 /// Configurazione del swarm di agenti

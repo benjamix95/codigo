@@ -176,8 +176,9 @@ public struct SwarmWorkerRunner: Sendable {
 
         parts.append("""
 
-        **Multi-agent:** Se il task è complesso, usa i tuoi strumenti multi-agent interni \
-        (subagent, Task tool, parallel execution) per scomporlo e risolverlo in parallelo. \
+        **Sub-agent policy:** usa sub-agent/Task tool/parallel execution solo quando il task
+        richiede davvero workstream indipendenti o ruoli specialistici distinti.
+        Non avviare sub-agent per operazioni lineari o brevi che puoi completare direttamente.
         Rispetta le istruzioni in AGENTS.md / CLAUDE.md se presenti nel workspace.
         """)
         return parts.joined()

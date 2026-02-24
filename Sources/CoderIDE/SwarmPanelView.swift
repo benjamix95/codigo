@@ -690,6 +690,7 @@ struct SwarmPanelView: View {
 
     private var orchestratorLabel: String {
         switch swarmOrchestrator {
+        case "auto": return "Auto"
         case "codex": return "Codex"
         case "claude": return "Claude"
         case "gemini": return "Gemini"
@@ -697,18 +698,22 @@ struct SwarmPanelView: View {
         case "google-api": return "Google"
         case "openrouter-api": return "OpenRouter"
         case "minimax-api": return "MiniMax"
+        case "grok-api": return "Grok"
         default: return "OpenAI"
         }
     }
 
     private var orchestratorPicker: some View {
         Menu {
+            orchButton("auto", "Auto (same as Agent)")
+            Divider()
             Section("API") {
                 orchButton("openai", "OpenAI API")
                 orchButton("anthropic-api", "Anthropic API")
                 orchButton("google-api", "Google API")
                 orchButton("openrouter-api", "OpenRouter")
                 orchButton("minimax-api", "MiniMax API")
+                orchButton("grok-api", "Grok API")
             }
             Section("CLI") {
                 orchButton("codex", "Codex CLI")
@@ -743,36 +748,24 @@ struct SwarmPanelView: View {
 
     private var workerPicker: some View {
         Menu {
-            Button {
-                swarmWorkerBackend = "codex"
-                onSyncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Codex CLI")
-                    if swarmWorkerBackend == "codex" { Image(systemName: "checkmark") }
-                }
+            workerButton("auto", "Auto (same as Agent)")
+            Divider()
+            Section("API") {
+                workerButton("openai-api", "OpenAI API")
+                workerButton("anthropic-api", "Anthropic API")
+                workerButton("google-api", "Google API")
+                workerButton("openrouter-api", "OpenRouter")
+                workerButton("minimax-api", "MiniMax API")
+                workerButton("grok-api", "Grok API")
             }
-            Button {
-                swarmWorkerBackend = "claude"
-                onSyncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Claude Code")
-                    if swarmWorkerBackend == "claude" { Image(systemName: "checkmark") }
-                }
-            }
-            Button {
-                swarmWorkerBackend = "gemini"
-                onSyncSwarmProvider()
-            } label: {
-                HStack {
-                    Text("Gemini CLI")
-                    if swarmWorkerBackend == "gemini" { Image(systemName: "checkmark") }
-                }
+            Section("CLI") {
+                workerButton("codex", "Codex CLI")
+                workerButton("claude", "Claude Code")
+                workerButton("gemini", "Gemini CLI")
             }
         } label: {
             HStack(spacing: 3) {
-                Text("Worker: \(swarmWorkerBackend == "claude" ? "Claude" : swarmWorkerBackend == "gemini" ? "Gemini" : "Codex")")
+                Text("Worker: \(workerLabel)")
                     .font(.system(size: 10))
                 Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
             }
@@ -780,6 +773,33 @@ struct SwarmPanelView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+    }
+
+    private func workerButton(_ id: String, _ label: String) -> some View {
+        Button {
+            swarmWorkerBackend = id
+            onSyncSwarmProvider()
+        } label: {
+            HStack {
+                Text(label)
+                if swarmWorkerBackend == id { Image(systemName: "checkmark") }
+            }
+        }
+    }
+
+    private var workerLabel: String {
+        switch swarmWorkerBackend {
+        case "auto": return "Auto"
+        case "claude": return "Claude"
+        case "gemini": return "Gemini"
+        case "openai-api", "openai": return "OpenAI"
+        case "anthropic-api": return "Anthropic"
+        case "google-api": return "Google"
+        case "openrouter-api", "openrouter": return "OpenRouter"
+        case "minimax-api": return "MiniMax"
+        case "grok-api": return "Grok"
+        default: return "Codex"
+        }
     }
 
     // MARK: - Helpers

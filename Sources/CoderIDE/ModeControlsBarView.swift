@@ -517,12 +517,15 @@ struct ModeControlsBarView: View {
 
     private var swarmOrchestratorPicker: some View {
         Menu {
+            orchPickerButton("auto", "Auto (same as Agent)")
+            Divider()
             Section("API") {
                 orchPickerButton("openai", "OpenAI API")
                 orchPickerButton("anthropic-api", "Anthropic API")
                 orchPickerButton("google-api", "Google API")
                 orchPickerButton("openrouter-api", "OpenRouter")
                 orchPickerButton("minimax-api", "MiniMax API")
+                orchPickerButton("grok-api", "Grok API")
             }
             Section("CLI") {
                 orchPickerButton("codex", "Codex CLI")
@@ -534,6 +537,7 @@ struct ModeControlsBarView: View {
                 Image(systemName: "ant.fill").font(.caption2)
                 let orchLabel: String = {
                     switch swarmOrchestrator {
+                    case "auto": return "Auto"
                     case "codex": return "Codex"
                     case "claude": return "Claude"
                     case "gemini": return "Gemini"
@@ -541,6 +545,7 @@ struct ModeControlsBarView: View {
                     case "google-api": return "Google"
                     case "openrouter-api": return "OpenRouter"
                     case "minimax-api": return "MiniMax"
+                    case "grok-api": return "Grok"
                     default: return "OpenAI"
                     }
                 }()

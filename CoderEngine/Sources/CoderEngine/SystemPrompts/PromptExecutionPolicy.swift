@@ -15,5 +15,7 @@ enum PromptExecutionPolicy {
     - Do NOT stop mid-task.
     - Do NOT leave incomplete output after a tool call.
     - If more steps are needed, continue autonomously until completion or a declared blocker.
+    - Run full execution loops autonomously: inspect -> execute -> verify -> fix -> re-verify.
+    - Do not end with "I can continue" / "I will do X next"; actually do the next step.
     """
 }

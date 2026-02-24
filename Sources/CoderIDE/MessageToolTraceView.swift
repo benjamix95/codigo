@@ -10,12 +10,13 @@ struct MessageToolTraceView: View {
     private let runningCompactLimit = 6
 
     private var orderedEvents: [ToolTraceEvent] {
-        events
+        let filtered = events
             .filter { ToolTraceVisibility.shouldDisplay(event: $0) }
             .sorted { lhs, rhs in
                 if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
                 return lhs.timestamp < rhs.timestamp
             }
+        return collapseSupersededToolStates(filtered)
     }
 
     private var hasRunningEvent: Bool {
@@ -493,6 +494,27 @@ struct MessageToolTraceView: View {
 
     private func pluralized(_ noun: String, count: Int) -> String {
         count == 1 ? noun : "\(noun)s"
+    }
+
+    private func collapseSupersededToolStates(_ input: [ToolTraceEvent]) -> [ToolTraceEvent] {
+        var latestByToolCall: [String: ToolTraceEvent] = [:]
+        var passthrough: [ToolTraceEvent] = []
+
+        for event in input {
+            let toolCallId = (event.payload["tool_call_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if toolCallId.isEmpty {
+                passthrough.append(event)
+                continue
+            }
+            latestByToolCall[toolCallId] = event
+        }
+
+        let collapsed = Array(latestByToolCall.values)
+        let merged = passthrough + collapsed
+        return merged.sorted {
+            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+            return $0.timestamp < $1.timestamp
+        }
     }
 
     private func syncAutoPresentationState() {

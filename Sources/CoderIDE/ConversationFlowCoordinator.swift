@@ -29,6 +29,14 @@ private enum StreamWatchdogError: LocalizedError {
 }
 
 final class ConversationFlowCoordinator: ObservableObject {
+    private enum StreamTimeoutPolicy {
+        static let firstEventTimeoutSecDefault = 90
+        static let firstEventTimeoutSecGemini = 180
+        static let inactivityTimeoutSec = 1800
+        static let maxInitialNoEventRetries = 4
+        static let maxInactivityStallRetries = 12
+    }
+
     enum StreamSignal {
         case streamStarted(Date)
         case firstEvent(Date)
@@ -114,14 +122,46 @@ final class ConversationFlowCoordinator: ObservableObject {
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
         var emittedFirstText = false
-        // Gemini CLI may take longer for the first token (slow model, network)
-        let firstEventTimeout = provider.id == "gemini-cli" ? 120 : 60
-        let inactivityTimeout = 300
+        // Keep watchdog permissive for long multi-agent/tool runs.
+        let firstEventTimeout = provider.id == "gemini-cli"
+            ? StreamTimeoutPolicy.firstEventTimeoutSecGemini
+            : StreamTimeoutPolicy.firstEventTimeoutSecDefault
+        let inactivityTimeout = StreamTimeoutPolicy.inactivityTimeoutSec
+        var initialNoEventRetries = 0
+        var inactivityStallRetries = 0
 
         while true {
             let timeout = hasReceivedAnyEvent ? inactivityTimeout : firstEventTimeout
-            let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                try await iteratorHolder.next()
+            let maybeEvent: StreamEvent?
+            do {
+                maybeEvent = try await nextEvent(withinSeconds: timeout) {
+                    try await iteratorHolder.next()
+                }
+                // Reset retry budgets after any successful poll.
+                initialNoEventRetries = 0
+                inactivityStallRetries = 0
+            } catch let timeoutError as StreamWatchdogError {
+                switch timeoutError {
+                case .noEvents:
+                    initialNoEventRetries += 1
+                    if initialNoEventRetries <= StreamTimeoutPolicy.maxInitialNoEventRetries {
+                        logStreamDiagnostic(
+                            "provider=\(provider.id) watchdog=no_events retry=\(initialNoEventRetries)"
+                        )
+                        continue
+                    }
+                    throw timeoutError
+                case .stalled:
+                    inactivityStallRetries += 1
+                    if inactivityStallRetries <= StreamTimeoutPolicy.maxInactivityStallRetries {
+                        logStreamDiagnostic(
+                            "provider=\(provider.id) watchdog=stalled retry=\(inactivityStallRetries)"
+                        )
+                        await Task.yield()
+                        continue
+                    }
+                    throw timeoutError
+                }
             }
             guard let ev = maybeEvent else { break }
             if !hasReceivedAnyEvent {
@@ -224,11 +264,42 @@ final class ConversationFlowCoordinator: ObservableObject {
             var swarmReceivedAny = false
             let swarmStartedAt = Date()
             var swarmFirstTextLogged = false
-            let swarmFirstEventTimeout = swarmProvider.id == "gemini-cli" ? 120 : 60
+            let swarmFirstEventTimeout = swarmProvider.id == "gemini-cli"
+                ? StreamTimeoutPolicy.firstEventTimeoutSecGemini
+                : StreamTimeoutPolicy.firstEventTimeoutSecDefault
+            var swarmNoEventRetries = 0
+            var swarmStallRetries = 0
             while true {
-                let timeout = swarmReceivedAny ? 300 : swarmFirstEventTimeout
-                let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                    try await swarmIteratorHolder.next()
+                let timeout = swarmReceivedAny ? StreamTimeoutPolicy.inactivityTimeoutSec : swarmFirstEventTimeout
+                let maybeEvent: StreamEvent?
+                do {
+                    maybeEvent = try await nextEvent(withinSeconds: timeout) {
+                        try await swarmIteratorHolder.next()
+                    }
+                    swarmNoEventRetries = 0
+                    swarmStallRetries = 0
+                } catch let timeoutError as StreamWatchdogError {
+                    switch timeoutError {
+                    case .noEvents:
+                        swarmNoEventRetries += 1
+                        if swarmNoEventRetries <= StreamTimeoutPolicy.maxInitialNoEventRetries {
+                            logStreamDiagnostic(
+                                "provider=\(swarmProvider.id) delegated_swarm_watchdog=no_events retry=\(swarmNoEventRetries)"
+                            )
+                            continue
+                        }
+                        throw timeoutError
+                    case .stalled:
+                        swarmStallRetries += 1
+                        if swarmStallRetries <= StreamTimeoutPolicy.maxInactivityStallRetries {
+                            logStreamDiagnostic(
+                                "provider=\(swarmProvider.id) delegated_swarm_watchdog=stalled retry=\(swarmStallRetries)"
+                            )
+                            await Task.yield()
+                            continue
+                        }
+                        throw timeoutError
+                    }
                 }
                 guard let ev = maybeEvent else { break }
                 if !swarmReceivedAny {
@@ -290,11 +361,42 @@ final class ConversationFlowCoordinator: ObservableObject {
             var followReceivedAny = false
             let followStartedAt = Date()
             var followFirstTextLogged = false
-            let followFirstEventTimeout = agentProvider.id == "gemini-cli" ? 120 : 60
+            let followFirstEventTimeout = agentProvider.id == "gemini-cli"
+                ? StreamTimeoutPolicy.firstEventTimeoutSecGemini
+                : StreamTimeoutPolicy.firstEventTimeoutSecDefault
+            var followNoEventRetries = 0
+            var followStallRetries = 0
             while true {
-                let timeout = followReceivedAny ? 300 : followFirstEventTimeout
-                let maybeEvent = try await nextEvent(withinSeconds: timeout) {
-                    try await followIteratorHolder.next()
+                let timeout = followReceivedAny ? StreamTimeoutPolicy.inactivityTimeoutSec : followFirstEventTimeout
+                let maybeEvent: StreamEvent?
+                do {
+                    maybeEvent = try await nextEvent(withinSeconds: timeout) {
+                        try await followIteratorHolder.next()
+                    }
+                    followNoEventRetries = 0
+                    followStallRetries = 0
+                } catch let timeoutError as StreamWatchdogError {
+                    switch timeoutError {
+                    case .noEvents:
+                        followNoEventRetries += 1
+                        if followNoEventRetries <= StreamTimeoutPolicy.maxInitialNoEventRetries {
+                            logStreamDiagnostic(
+                                "provider=\(agentProvider.id) delegated_followup_watchdog=no_events retry=\(followNoEventRetries)"
+                            )
+                            continue
+                        }
+                        throw timeoutError
+                    case .stalled:
+                        followStallRetries += 1
+                        if followStallRetries <= StreamTimeoutPolicy.maxInactivityStallRetries {
+                            logStreamDiagnostic(
+                                "provider=\(agentProvider.id) delegated_followup_watchdog=stalled retry=\(followStallRetries)"
+                            )
+                            await Task.yield()
+                            continue
+                        }
+                        throw timeoutError
+                    }
                 }
                 guard let ev = maybeEvent else { break }
                 if !followReceivedAny {
