@@ -129,7 +129,7 @@ struct ModeControlsBarView: View {
                 formicaButton
             }
 
-        case "openai-api", "anthropic-api", "google-api", "minimax-api":
+        case "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api":
             accessLevelMenu
             if coderMode == .agent || coderMode == .agentSwarm {
                 planButton
@@ -253,20 +253,20 @@ struct ModeControlsBarView: View {
 
     private var claudeModelPicker: some View {
         Menu {
-            ForEach(["sonnet", "opus", "haiku"], id: \.self) { model in
+            ForEach(ClaudeModelsCache.loadModels(), id: \.slug) { model in
                 Button {
-                    claudeModel = model
+                    claudeModel = model.slug
                     onSyncClaudeProvider()
                 } label: {
                     HStack {
-                        Text(model.capitalized)
-                        if claudeModel == model { Image(systemName: "checkmark") }
+                        Text(model.displayName)
+                        if claudeModel == model.slug { Image(systemName: "checkmark") }
                     }
                 }
             }
         } label: {
             HStack(spacing: 4) {
-                Text(claudeModel.capitalized).font(.caption)
+                Text(ClaudeModelsCache.displayName(for: claudeModel)).font(.caption)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -668,7 +668,7 @@ struct ModeControlsBarView: View {
             .content ?? ""
         let canDelegate =
             (!msg.isEmpty || !lastUser.isEmpty || !attachedImageURLs.isEmpty)
-            && !chatStore.isLoading
+            && !chatStore.isTaskActive(for: conversationId)
         let agentOk = isAnyAgentProviderReady
 
         return Button {

@@ -3,6 +3,9 @@ import Foundation
 public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
+    public var attachmentCapabilities: ProviderAttachmentCapabilities {
+        base.attachmentCapabilities
+    }
 
     private let base: any LLMProvider
     private let runtime: UnifiedToolRuntime

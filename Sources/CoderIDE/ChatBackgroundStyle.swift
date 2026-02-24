@@ -6,6 +6,13 @@ enum ChatBackgroundStyle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var label: String {
+        switch self {
+        case .solidNeutral: return "Solido neutro"
+        case .transparentLegacy: return "Trasparente"
+        }
+    }
+
     static var defaultRawValue: String { ChatBackgroundStyle.solidNeutral.rawValue }
 
     static func normalizedRawValue(_ raw: String) -> String {

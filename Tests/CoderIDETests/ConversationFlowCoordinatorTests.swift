@@ -19,7 +19,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             provider: provider,
             prompt: "test",
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { snapshots.append($0) },
             onRaw: { _, _, _ in },
             onError: { _ in }
@@ -45,7 +45,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             provider: provider,
             prompt: "test",
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { _ in },
             onRaw: { _, _, _ in },
             onError: { _ in }
@@ -77,7 +77,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             provider: provider,
             prompt: "test",
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { snapshots.append($0) },
             onRaw: { _, _, _ in rawCount += 1 },
             onError: { _ in }
@@ -104,7 +104,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 provider: provider,
                 prompt: "test",
                 context: ctx,
-                imageURLs: nil,
+                attachments: nil,
                 onText: { _ in
                     XCTAssertTrue(Thread.isMainThread)
                 },

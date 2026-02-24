@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 // MARK: - Chat Composer View
 /// Contains the text input, inline controls, runtime controls, voice input,
-/// and drag-and-drop / paste image handling.
+/// and drag-and-drop / paste attachments handling.
 
 struct ChatComposerView: View {
     struct QuickCommandPreset: Identifiable {
@@ -18,7 +18,7 @@ struct ChatComposerView: View {
     // MARK: - Bindings & Environment
 
     @Binding var inputText: String
-    @Binding var attachedImageURLs: [URL]
+    @Binding var attachedAttachments: [ComposerAttachment]
     @Binding var isSelectingImage: Bool
     @Binding var isComposerDropTargeted: Bool
     @Binding var isConvertingHeic: Bool
@@ -261,25 +261,29 @@ struct ChatComposerView: View {
                 voiceStatusView
             }
 
-            if !attachedImageURLs.isEmpty {
-                attachedImagesRow
+            if !attachedAttachments.isEmpty {
+                attachedAttachmentsRow
             }
 
-            TextField(inputHint, text: $inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .lineLimit(1...8)
-                .focused($focusState)
-                .onSubmit { onSend() }
-                .onChange(of: inputText) { _, newValue in
-                    onInputTextChanged(newValue)
+            ZStack(alignment: .topLeading) {
+                if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(inputHint)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary.opacity(0.9))
+                        .padding(.top, 2)
                 }
-                .onChange(of: isInputFocused) { _, newValue in
-                    focusState = newValue
-                }
-                .onChange(of: focusState) { _, newValue in
-                    isInputFocused = newValue
-                }
+
+                ComposerTextView(
+                    text: $inputText,
+                    isFocused: $isInputFocused,
+                    minHeight: 22,
+                    maxHeight: 140,
+                    onSubmit: onSend
+                )
+            }
+            .onChange(of: inputText) { _, newValue in
+                onInputTextChanged(newValue)
+            }
 
             bottomControlsRow
         }
@@ -294,23 +298,27 @@ struct ChatComposerView: View {
                 .strokeBorder(
                     isComposerDropTargeted
                         ? Color.white.opacity(0.35)
-                        : (focusState
+                        : (isInputFocused
                             ? Color.white.opacity(0.22)
                             : Color.white.opacity(0.12)),
                     lineWidth: isComposerDropTargeted ? 1.2 : 0.8
                 )
         )
         .shadow(color: Color.black.opacity(0.25), radius: 12, y: 3)
-        .animation(.easeOut(duration: 0.2), value: focusState)
+        .animation(.easeOut(duration: 0.2), value: isInputFocused)
         .onDrop(
-            of: [.image, .fileURL, .png, .jpeg, .gif],
+            of: [.item, .fileURL, .image, .png, .jpeg, .gif, .pdf],
             isTargeted: $isComposerDropTargeted
         ) { providers in
             Task {
+                var incoming: [ComposerAttachment] = []
                 for provider in providers {
-                    if let url = await ImageAttachmentHelper.imageURLFromDropProvider(provider) {
-                        await MainActor.run { attachedImageURLs.append(url) }
+                    if let attachment = await AttachmentIntakeService.attachmentFromDropProvider(provider) {
+                        incoming.append(attachment)
                     }
+                }
+                await MainActor.run {
+                    appendAttachments(incoming)
                 }
             }
             return true
@@ -454,25 +462,38 @@ struct ChatComposerView: View {
         .background(color.opacity(0.14), in: Capsule())
     }
 
-    // MARK: - Focus
-    @FocusState private var focusState: Bool
+    // MARK: - Attached Attachments Row
 
-    // MARK: - Attached Images Row
-
-    private var attachedImagesRow: some View {
+    private var attachedAttachmentsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Array(attachedImageURLs.enumerated()), id: \.offset) { index, url in
+                ForEach(Array(attachedAttachments.enumerated()), id: \.element.id) { index, item in
                     HStack(spacing: 8) {
-                        Image(systemName: "photo")
+                        Image(systemName: iconForAttachment(item.kind))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        Text(attachmentDisplayName(for: url))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(item.originalName)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            if let size = item.sizeBytes {
+                                Text(readableBytes(size))
+                                    .font(.system(size: 9.5, weight: .regular))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .frame(maxWidth: 190, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        Text(kindLabel(item.kind))
                             .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
+                            .foregroundStyle(.secondary.opacity(0.85))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.07), in: Capsule())
                         Button {
-                            attachedImageURLs.remove(at: index)
+                            attachedAttachments.remove(at: index)
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 9, weight: .bold))
@@ -511,15 +532,42 @@ struct ChatComposerView: View {
         )
     }
 
-    private func attachmentDisplayName(for url: URL) -> String {
-        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if ext.isEmpty {
-            return url.lastPathComponent.isEmpty ? "image" : url.lastPathComponent
-        }
-        return "image.\(ext)"
+    private func readableBytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 
-    // MARK: - Image Attach Button
+    private func iconForAttachment(_ kind: ChatAttachmentKind) -> String {
+        switch kind {
+        case .image: return "photo"
+        case .document: return "doc.text"
+        case .file: return "paperclip"
+        }
+    }
+
+    private func kindLabel(_ kind: ChatAttachmentKind) -> String {
+        switch kind {
+        case .image: return "Image"
+        case .document: return "Doc"
+        case .file: return "File"
+        }
+    }
+
+    private func appendAttachments(_ incoming: [ComposerAttachment]) {
+        guard !incoming.isEmpty else { return }
+        var uniqueByPath = Set(attachedAttachments.map { $0.url.standardizedFileURL.path })
+        for item in incoming {
+            guard attachedAttachments.count < AttachmentIntakeService.maxAttachmentsPerMessage else { break }
+            if let size = item.sizeBytes, size > AttachmentIntakeService.maxAttachmentSizeBytes {
+                continue
+            }
+            let path = item.url.standardizedFileURL.path
+            if uniqueByPath.insert(path).inserted {
+                attachedAttachments.append(item)
+            }
+        }
+    }
+
+    // MARK: - Attachment Button
 
     private var imageAttachButton: some View {
         Button {
@@ -531,7 +579,7 @@ struct ChatComposerView: View {
                 .frame(width: 24, height: 24)
         }
         .buttonStyle(.plain)
-        .help("Attach image (⌘V to paste)")
+        .help("Attach file or image (⌘V to incollare)")
     }
 
     // MARK: - Voice Button
@@ -581,7 +629,7 @@ struct ChatComposerView: View {
     private var sendButton: some View {
         let awaitingChoice = if case .awaitingChoice = planningState { true } else { false }
         let canSend =
-            (!inputText.isEmpty || !attachedImageURLs.isEmpty)
+            (!inputText.isEmpty || !attachedAttachments.isEmpty)
             && !isLoading
             && !awaitingChoice
             && isProviderReady

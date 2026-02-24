@@ -34,7 +34,7 @@ struct PlanClarificationAnswer: Identifiable, Equatable {
 
 struct PlanClarificationSubmission: Equatable {
     let answers: [PlanClarificationAnswer]
-    let finalMandatoryNote: String
+    let finalNote: String
 }
 
 /// Extracts numbered options from plan text (e.g. "## Option 1: ...", "Option 2:", etc.).
@@ -329,13 +329,13 @@ enum PlanOptionsParser {
         option.id == 1 && option.title == "Full plan"
     }
 
-    /// Extracts todo steps from the "## Todo" section of a plan option.
-    /// Cerca righe "- [ ] step" o "- step" e restituisce i titoli.
+    /// Extracts todo steps from a plan option.
+    /// Supports headings like "## Todo", "### Todo", plain "Todo", and checklist fallbacks.
     static func extractTodosFromOptionText(_ optionText: String) -> [String] {
         let lines = optionText.components(separatedBy: .newlines)
         var inTodoSection = false
         var todos: [String] = []
-        let todoHeaderPattern = #"(?i)##\s*Todo"#
+        let todoHeaderPattern = #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do)\b"#
         let checklistPattern = #"^\s*-\s*\[\s*\]\s*(.+)$"#
         let bulletPattern = #"^\s*-\s+(.+)$"#
         for line in lines {
@@ -360,6 +360,22 @@ enum PlanOptionsParser {
                 }
             }
         }
+        if !todos.isEmpty { return todos }
+
+        // Fallback: if no Todo heading is present, still accept explicit checklists.
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard let regex = try? NSRegularExpression(pattern: checklistPattern),
+                  let match = regex.firstMatch(
+                    in: trimmed,
+                    range: NSRange(trimmed.startIndex..., in: trimmed)
+                  ),
+                  let r1 = Range(match.range(at: 1), in: trimmed) else {
+                continue
+            }
+            let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { todos.append(title) }
+        }
         return todos
     }
 
@@ -377,5 +393,177 @@ enum PlanOptionsParser {
         let bodyLines = Array(lines.dropFirst().prefix(20))
         let body = bodyLines.joined(separator: "\n")
         return (title.isEmpty ? "Piano" : title, body)
+    }
+
+    static func extractMermaidBlocksForDisplay(_ text: String) -> [String] {
+        MermaidExtractor.extractMermaidBlocks(from: text)
+    }
+
+    static func extractPlanCauseSections(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let causeHeaders = [
+            "cause",
+            "causa",
+            "root cause",
+            "analysis",
+            "analisi",
+            "approach",
+            "approccio",
+            "rationale",
+            "trade-off",
+            "tradeoff",
+            "vincoli",
+            "constraints",
+            "assunzioni",
+            "assumptions",
+        ]
+        let lines = trimmed.components(separatedBy: .newlines)
+        var collected: [String] = []
+        var current: [String] = []
+        var collecting = false
+        var inFence = false
+
+        func flushCurrent() {
+            let block = current
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !block.isEmpty {
+                collected.append(block)
+            }
+            current.removeAll(keepingCapacity: true)
+        }
+
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if trimmedLine.hasPrefix("```") {
+                inFence.toggle()
+                if collecting {
+                    current.append(line)
+                }
+                continue
+            }
+            if !inFence, trimmedLine.hasPrefix("#") {
+                if collecting {
+                    flushCurrent()
+                    collecting = false
+                }
+                let title = trimmedLine
+                    .drop(while: { $0 == "#" || $0 == " " || $0 == "\t" })
+                    .lowercased()
+                if causeHeaders.contains(where: { title.contains($0) }) {
+                    collecting = true
+                    current.append(line)
+                }
+                continue
+            }
+            if collecting {
+                current.append(line)
+            }
+        }
+
+        if collecting {
+            flushCurrent()
+        }
+        return collected
+            .joined(separator: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func extractFinalPlanBodyExcludingQuestionsOptionsTodos(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+
+        let causeSections = extractPlanCauseSections(trimmed)
+        if !causeSections.isEmpty {
+            return causeSections
+        }
+
+        let lines = trimmed.components(separatedBy: .newlines)
+        var output: [String] = []
+        var inFence = false
+        var skippingSection = false
+
+        func isSkippableHeader(_ line: String) -> Bool {
+            let normalized = line
+                .lowercased()
+                .trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: ":", with: "")
+            guard normalized.hasPrefix("#") else { return false }
+            let title = normalized
+                .drop(while: { $0 == "#" || $0 == " " || $0 == "\t" })
+            return title.hasPrefix("questions")
+                || title.hasPrefix("domande")
+                || title.hasPrefix("clarification")
+                || title.hasPrefix("option")
+                || title.hasPrefix("opzione")
+                || title.hasPrefix("approach")
+                || title.hasPrefix("approccio")
+                || title.hasPrefix("todo")
+                || title.hasPrefix("to-do")
+        }
+
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if trimmedLine.hasPrefix("```") {
+                if trimmedLine.lowercased().hasPrefix("```mermaid") {
+                    // Mermaid is rendered in a dedicated section in the panel.
+                    inFence = true
+                    skippingSection = true
+                    continue
+                }
+                inFence.toggle()
+                if skippingSection {
+                    if !inFence {
+                        skippingSection = false
+                    }
+                    continue
+                }
+                output.append(line)
+                continue
+            }
+
+            if inFence {
+                if !skippingSection {
+                    output.append(line)
+                }
+                continue
+            }
+
+            if trimmedLine.hasPrefix("#") {
+                if isSkippableHeader(trimmedLine) {
+                    skippingSection = true
+                    continue
+                }
+                skippingSection = false
+                output.append(line)
+                continue
+            }
+
+            if skippingSection {
+                continue
+            }
+            output.append(line)
+        }
+
+        let cleaned = output
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if !cleaned.isEmpty {
+            return cleaned
+        }
+
+        // Fallback: keep original text but remove mermaid fences to avoid duplication.
+        let withoutMermaid = trimmed.replacingOccurrences(
+            of: #"(?is)```mermaid\s+.*?```"#,
+            with: "",
+            options: .regularExpression
+        )
+        return withoutMermaid
+            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

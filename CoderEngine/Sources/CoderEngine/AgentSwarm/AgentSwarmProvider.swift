@@ -4,6 +4,9 @@ import Foundation
 public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
     public let id = "swarm-runtime-internal"
     public let displayName = "Agent Swarm"
+    public var attachmentCapabilities: ProviderAttachmentCapabilities {
+        workerProvider.attachmentCapabilities
+    }
 
     private let config: SwarmConfig
     private let orchestratorProvider: any LLMProvider

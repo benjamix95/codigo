@@ -24,6 +24,11 @@ public enum CoderIDEMarkers {
 public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "codex-cli"
     public let displayName = "Codex CLI"
+    public let attachmentCapabilities = ProviderAttachmentCapabilities(
+        nativeImage: true,
+        nativeDocument: false,
+        nativeFile: false
+    )
     
     private let codexPath: String
     private let sandboxMode: CodexSandboxMode

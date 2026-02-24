@@ -12,6 +12,8 @@ struct ProviderFactoryConfig {
     var minimaxModel: String
     var openrouterApiKey: String
     var openrouterModel: String
+    var grokApiKey: String
+    var grokModel: String
 
     var codexPath: String
     var codexSandbox: String
@@ -157,6 +159,9 @@ enum ProviderFactory {
         case "minimax-api":
             guard !config.minimaxApiKey.isEmpty else { return nil }
             return miniMaxAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
+        case "grok-api":
+            guard !config.grokApiKey.isEmpty else { return nil }
+            return grokAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)
         default:
             return nil
         }
@@ -250,6 +255,9 @@ enum ProviderFactory {
         case "minimax-api":
             guard !config.minimaxApiKey.isEmpty else { return nil }
             return miniMaxAPIProvider(config: config, executionScope: .review, executionController: nil)
+        case "grok-api":
+            guard !config.grokApiKey.isEmpty else { return nil }
+            return grokAPIProvider(config: config, executionScope: .review, executionController: nil)
         default:
             return codex
         }
@@ -389,6 +397,33 @@ enum ProviderFactory {
             displayName: "OpenRouter",
             baseURL: "https://openrouter.ai/api/v1/chat/completions",
             extraHeaders: ["HTTP-Referer": "https://codigo.app", "X-Title": "Codigo"]
+        )
+        return ToolEnabledLLMProvider(
+            base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            ),
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
+        )
+    }
+
+    static func grokAPIProvider(
+        config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
+        executionController: ExecutionController? = nil,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
+    ) -> any LLMProvider {
+        let base = OpenAIAPIProvider(
+            apiKey: config.grokApiKey,
+            model: config.grokModel,
+            id: "grok-api",
+            displayName: "Grok (xAI)",
+            baseURL: "https://api.x.ai/v1/chat/completions"
         )
         return ToolEnabledLLMProvider(
             base: base,

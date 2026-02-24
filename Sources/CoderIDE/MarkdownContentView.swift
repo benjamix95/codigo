@@ -11,7 +11,7 @@ struct MarkdownContentView: View {
     var aggressiveSanitization: Bool? = nil
 
     private var shouldUseAggressiveSanitization: Bool {
-        aggressiveSanitization ?? !isStreaming
+        aggressiveSanitization ?? true
     }
 
     private var displayContent: String {
@@ -826,27 +826,25 @@ struct MarkdownContentView: View {
     private static func splitByCodeFence(_ input: String) -> [(text: String, isCodeFence: Bool)] {
         var segments: [(String, Bool)] = []
         var cursor = input.startIndex
-        var inFence = false
 
         while cursor < input.endIndex {
             guard let fenceRange = input[cursor...].range(of: "```") else {
                 let rest = String(input[cursor...])
                 if !rest.isEmpty {
-                    segments.append((rest, inFence))
+                    segments.append((rest, false))
                 }
                 break
             }
 
             let before = String(input[cursor..<fenceRange.lowerBound])
             if !before.isEmpty {
-                segments.append((before, inFence))
+                segments.append((before, false))
             }
 
             if let nextFence = input[fenceRange.upperBound...].range(of: "```") {
                 let fenceChunk = String(input[fenceRange.lowerBound..<nextFence.upperBound])
                 segments.append((fenceChunk, true))
                 cursor = nextFence.upperBound
-                inFence = false
             } else {
                 let remainder = String(input[fenceRange.lowerBound...])
                 segments.append((remainder, true))

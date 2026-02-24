@@ -97,7 +97,7 @@ final class ConversationFlowCoordinator: ObservableObject {
         provider: any LLMProvider,
         prompt: String,
         context: WorkspaceContext,
-        imageURLs: [URL]?,
+        attachments: [LLMAttachment]?,
         onText: @escaping (String) -> Void,
         onRaw: @escaping (String, [String: String], String) -> Void,
         onError: @escaping (String) -> Void,
@@ -110,7 +110,7 @@ final class ConversationFlowCoordinator: ObservableObject {
         }
         var full = ""
         var pendingSwarmTask: String?
-        let stream = try await provider.send(prompt: prompt, context: context, imageURLs: imageURLs)
+        let stream = try await provider.send(prompt: prompt, context: context, attachments: attachments)
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
         var emittedFirstText = false

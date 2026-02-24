@@ -126,12 +126,18 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
         }
         .joined(separator: "\n")
 
-    let finalNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+    let finalNote = submission.finalNote.trimmingCharacters(in: .whitespacesAndNewlines)
+    let finalNoteLine: String
+    if finalNote.isEmpty {
+        finalNoteLine = "Nota finale utente: (omessa)"
+    } else {
+        finalNoteLine = "Nota finale utente (opzionale): \(finalNote)"
+    }
     return """
     Risposte alle domande di chiarimento del piano:
     \(responseBody)
 
-    Nota finale obbligatoria utente: \(finalNote)
+    \(finalNoteLine)
 
     Dopo queste risposte, esegui analisi aggiuntiva del codebase in base ai vincoli indicati. Se emergono nuove ambiguità puoi fare ulteriori domande nello stesso formato ## Questions. Proponi opzioni finali (## Option con ## Todo) solo quando sei pienamente confidente.
     """
@@ -468,7 +474,7 @@ struct ChatPanelView: View {
 
     /// Loading state only for the currently displayed thread (avoids showing loading for other threads).
     private var isLoadingForCurrentConversation: Bool {
-        chatStore.isLoading && chatStore.activeTaskConversationId == conversationId
+        chatStore.isTaskActive(for: conversationId)
     }
 
     @State private var coderMode: CoderMode = .agent
@@ -509,7 +515,7 @@ struct ChatPanelView: View {
     @AppStorage("task_panel_enabled") private var taskPanelEnabled = true
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
-    @AppStorage("claude_model") private var claudeModel = "sonnet"
+    @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     @AppStorage("multi_cli_account_enabled") private var multiCLIAccountEnabled = false
@@ -521,6 +527,7 @@ struct ChatPanelView: View {
     @State private var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
+    @State private var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
     @State private var planningState: PlanningState = .idle
     @State private var planFlowPhase: PlanFlowPhase = .idle
@@ -530,7 +537,7 @@ struct ChatPanelView: View {
     @State private var planStreamingContent: String = ""
     @State private var activeBuildPlanConversationId: UUID?
     @State private var isProviderReady = false
-    @State private var attachedImageURLs: [URL] = []
+    @State private var attachedComposerAttachments: [ComposerAttachment] = []
     @State private var isSelectingImage = false
     @State private var isComposerDropTargeted = false
     @State private var isConvertingHeic = false
@@ -584,7 +591,7 @@ struct ChatPanelView: View {
     private let cliAccountsStore = CLIAccountsStore.shared
     private let cliAccountRouter = CLIAccountRouter.shared
 
-    private static let imagePastedNotification = Notification.Name("CoderIDE.ImagePasted")
+    private static let attachmentPastedNotification = Notification.Name("CoderIDE.AttachmentPasted")
     static let planBuildShortcutNotification = Notification.Name("CoderIDE.PlanBuildShortcutPressed")
     static let debugPanelToggleNotification = Notification.Name("CoderIDE.DebugPanelToggle")
     private static let threadSearchAskAINotification = Notification.Name(
@@ -600,7 +607,7 @@ struct ChatPanelView: View {
     }
     private var composerRuntimeStartDate: Date? {
         guard isLoadingForCurrentConversation else { return nil }
-        return chatStore.taskStartDate ?? composerTaskStartDate
+        return chatStore.taskStartDate(for: conversationId) ?? composerTaskStartDate
     }
     private var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
     private var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }
@@ -662,6 +669,7 @@ struct ChatPanelView: View {
                         chatStore: chatStore,
                         taskActivityStore: taskActivityStore,
                         executionController: executionController,
+                        conversationId: conversationId,
                         coderMode: coderMode,
                         isSummarizing: isSummarizing,
                         activeModeColor: activeModeColor,
@@ -702,11 +710,8 @@ struct ChatPanelView: View {
                 userModeOverrideUntilConversationChange = false
             }
             planShortcutPrimedUntil = nil
-            // If there's an active task on the thread being left, interrupt it.
-            if let oldId, chatStore.activeTaskConversationId == oldId {
-                skipNextLoadingCompletedHandling = true
-                interruptTask(for: oldId)
-            }
+            // Allow the previous thread to keep running in the background —
+            // no longer interrupt it when switching conversations.
             // Restore the plan state if the destination conversation already has a plan.
             activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
@@ -738,15 +743,18 @@ struct ChatPanelView: View {
             composerTimerAutoHideTask = nil
             lastTaskEndedByManualStop = false
         }
-        .onChange(of: chatStore.isLoading) { oldValue, newValue in
-            if !oldValue && newValue {
-                composerTaskStartDate = chatStore.taskStartDate ?? Date()
+        .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+            guard let cid = conversationId else { return }
+            let wasActive = oldSet.contains(cid)
+            let isActive = newSet.contains(cid)
+            if !wasActive && isActive {
+                composerTaskStartDate = chatStore.taskStartDate(for: cid) ?? Date()
                 composerFrozenTimerState = nil
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
                 lastTaskEndedByManualStop = false
             }
-            if oldValue && !newValue {
+            if wasActive && !isActive {
                 if skipNextLoadingCompletedHandling {
                     skipNextLoadingCompletedHandling = false
                     return
@@ -769,7 +777,7 @@ struct ChatPanelView: View {
                     composerTimerAutoHideTask = Task { @MainActor in
                         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                         guard !Task.isCancelled else { return }
-                        if !chatStore.isLoading {
+                        if !self.isLoadingForCurrentConversation {
                             composerFrozenTimerState = nil
                         }
                     }
@@ -797,9 +805,9 @@ struct ChatPanelView: View {
         .sheet(isPresented: $showSwarmHelp) { AgentSwarmHelpView() }
         .fileImporter(
             isPresented: $isSelectingImage,
-            allowedContentTypes: [.image, .png, .jpeg, .gif, .heic], allowsMultipleSelection: true
+            allowedContentTypes: [.item], allowsMultipleSelection: true
         ) { result in
-            handleImageSelection(result: result)
+            handleAttachmentSelection(result: result)
         }
         .onAppear {
             installPasteMonitor()
@@ -816,10 +824,10 @@ struct ChatPanelView: View {
             flushPendingTaskActivities()
             removePasteMonitor()
         }
-        .onReceive(NotificationCenter.default.publisher(for: Self.imagePastedNotification)) {
+        .onReceive(NotificationCenter.default.publisher(for: Self.attachmentPastedNotification)) {
             notification in
-            if let url = notification.userInfo?["url"] as? URL {
-                attachedImageURLs.append(url)
+            if let attachments = notification.userInfo?["attachments"] as? [ComposerAttachment] {
+                appendComposerAttachments(attachments)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Self.threadSearchAskAINotification)) {
@@ -845,16 +853,17 @@ struct ChatPanelView: View {
             planningState: planningState,
             planFlowPhase: planFlowPhase,
             planStreamingContent: planStreamingContent,
+            showHistorySection: shouldShowPlanPanelHistory(source: planPanelPresentationSource),
+            workspaceSource: planPanelPresentationSource,
             onClose: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     showPlanPanel = false
                 }
             },
-            onSelectOption: { option, providerId in
-                executeWithPlanChoice(
+            onSelectOption: { option, _ in
+                selectPlanChoice(
                     option.fullText,
-                    fromPlanConversationId: planPanelConversationId,
-                    providerOverrideId: providerId
+                    fromPlanConversationId: planPanelConversationId
                 )
             },
             onCustomResponse: { response in
@@ -881,7 +890,7 @@ struct ChatPanelView: View {
                 }
             }
         )
-        .frame(minWidth: 280, idealWidth: 340, maxWidth: 400)
+        .frame(minWidth: 220, idealWidth: 300, maxWidth: 360)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -924,7 +933,7 @@ struct ChatPanelView: View {
                 }
             }
         )
-        .frame(minWidth: 300, idealWidth: 360, maxWidth: 420)
+        .frame(minWidth: 240, idealWidth: 320, maxWidth: 380)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -943,6 +952,7 @@ struct ChatPanelView: View {
                             chatStore: chatStore,
                             taskActivityStore: taskActivityStore,
                             todoStore: todoStore,
+                            conversationId: conversationId,
                             coderMode: coderMode,
                             onOpenFile: { openFilesStore.openFile($0) },
                             effectivePrimaryPath: effectiveContext.primaryPath,
@@ -970,22 +980,35 @@ struct ChatPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func handleImageSelection(result: Result<[URL], Error>) {
+    private func appendComposerAttachments(_ incoming: [ComposerAttachment]) {
+        guard !incoming.isEmpty else { return }
+        var current = attachedComposerAttachments
+        var seenPaths = Set(current.map { $0.url.standardizedFileURL.path })
+
+        for item in incoming {
+            guard current.count < AttachmentIntakeService.maxAttachmentsPerMessage else { break }
+            if let size = item.sizeBytes, size > AttachmentIntakeService.maxAttachmentSizeBytes {
+                continue
+            }
+            let path = item.url.standardizedFileURL.path
+            if seenPaths.insert(path).inserted {
+                current.append(item)
+            }
+        }
+        attachedComposerAttachments = current
+    }
+
+    private func handleAttachmentSelection(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             let hasHeic = urls.contains { ImageAttachmentHelper.isHeic(url: $0) }
-            if hasHeic {
-                isConvertingHeic = true
-            }
-            Task {
-                let valid = urls.compactMap {
-                    ImageAttachmentHelper.normalizeToPngIfNeeded(url: $0)
-                }
-                await MainActor.run {
-                    attachedImageURLs.append(contentsOf: valid)
-                    if hasHeic { isConvertingHeic = false }
-                }
-            }
+            if hasHeic { isConvertingHeic = true }
+            let imported = AttachmentIntakeService.importURLs(
+                urls,
+                existingCount: attachedComposerAttachments.count
+            )
+            appendComposerAttachments(imported.accepted)
+            if hasHeic { isConvertingHeic = false }
         case .failure:
             break
         }
@@ -1019,10 +1042,14 @@ struct ChatPanelView: View {
             else {
                 return event
             }
-            if let url = ImageAttachmentHelper.imageURLFromPasteboard() {
+            let attachments = AttachmentIntakeService.attachmentsFromPasteboard()
+            if !attachments.isEmpty {
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
-                        name: Self.imagePastedNotification, object: nil, userInfo: ["url": url])
+                        name: Self.attachmentPastedNotification,
+                        object: nil,
+                        userInfo: ["attachments": attachments]
+                    )
                 }
                 return nil
             }
@@ -1078,9 +1105,12 @@ struct ChatPanelView: View {
         planFlowPhase = .idle
     }
 
-    private func openPlanPanelForCurrentContext(preserveHistorySelection: Bool = false) {
-        // The Plan toggle should always open an empty workspace.
-        if !preserveHistorySelection {
+    private func openPlanPanelForCurrentContext(
+        preserveHistorySelection: Bool = false,
+        source: PlanPanelPresentationSource = .manualDeepLink
+    ) {
+        planPanelPresentationSource = source
+        if source == .automaticFlow || !preserveHistorySelection {
             planHistoryStore.setSelectedEntry(id: nil)
         }
         planShortcutPrimedUntil = nil
@@ -1100,7 +1130,7 @@ struct ChatPanelView: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             planToggleEnabled = transition.nextPlanToggleEnabled
             if transition.nextShowPlanPanel {
-                openPlanPanelForCurrentContext()
+                openPlanPanelForCurrentContext(source: .manualShortcut)
             } else {
                 showPlanPanel = false
                 planShortcutPrimedUntil = nil
@@ -1280,14 +1310,16 @@ struct ChatPanelView: View {
                                         onOpenInPanel: {
                                             planHistoryStore.setSelectedEntry(id: entry.id)
                                             openPlanPanelForCurrentContext(
-                                                preserveHistorySelection: true
+                                                preserveHistorySelection: true,
+                                                source: .manualDeepLink
                                             )
                                         },
                                         onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
                                         onExpandPlan: {
                                             planHistoryStore.setSelectedEntry(id: entry.id)
                                             openPlanPanelForCurrentContext(
-                                                preserveHistorySelection: true
+                                                preserveHistorySelection: true,
+                                                source: .manualDeepLink
                                             )
                                         }
                                     )
@@ -1347,12 +1379,12 @@ struct ChatPanelView: View {
                                 summaryMarkdown: summary.body,
                                 isCollapsed: isPlanSummaryCollapsed,
                                 onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
-                                onExpandPlan: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        openPlanPanelForCurrentContext()
-                                    }
-                                }
-                            )
+                                        onExpandPlan: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                openPlanPanelForCurrentContext(source: .manualDeepLink)
+                                            }
+                                        }
+                                    )
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
                             .id("plan-summary-card")
@@ -1360,7 +1392,7 @@ struct ChatPanelView: View {
                         if coderMode == .plan, let board = chatStore.planBoard(for: conversationId) {
                             PlanBoardView(
                                 board: board,
-                                onSelectOption: { executeWithPlanChoice($0.fullText) }
+                                onSelectOption: { selectPlanChoice($0.fullText) }
                             )
                             .padding(.horizontal, 16)
                             .padding(.bottom, 8)
@@ -1421,14 +1453,17 @@ struct ChatPanelView: View {
                     )
                 }
             }
-            .onChange(of: chatStore.isLoading) { _, loading in
-                if loading && isLoadingForCurrentConversation {
+            .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+                guard let cid = conversationId else { return }
+                let isActive = newSet.contains(cid)
+                let wasActive = oldSet.contains(cid)
+                if !wasActive && isActive {
                     isFollowingLive = true
                     newEventsWhileDetached = 0
                     if let target = liveScrollTarget() {
                         scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
                     }
-                } else if !loading {
+                } else if wasActive && !isActive {
                     cancelFallbackTurnStartEvent()
                 }
             }
@@ -1498,7 +1533,7 @@ struct ChatPanelView: View {
         fallbackTurnStartWorkItem?.cancel()
         let work = DispatchWorkItem {
             Task { @MainActor in
-                guard chatStore.isLoading, chatStore.activeTaskConversationId == conversationId else { return }
+                guard chatStore.isTaskActive(for: conversationId) else { return }
                 guard taskActivityStore.activities.isEmpty else { return }
                 recordTaskActivity(
                     type: "turn_started",
@@ -1624,7 +1659,7 @@ struct ChatPanelView: View {
     }
 
     private func handleVoiceAction() {
-        if chatStore.isLoading {
+        if isLoadingForCurrentConversation {
             return
         }
         switch voiceInputController.state {
@@ -1986,7 +2021,10 @@ struct ChatPanelView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             planToggleEnabled = true
         }
-        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+        openPlanPanelForCurrentContext(
+            preserveHistorySelection: false,
+            source: .automaticFlow
+        )
     }
 
     @MainActor
@@ -2076,7 +2114,7 @@ struct ChatPanelView: View {
         VStack(spacing: 0) {
             ChatComposerView(
                 inputText: $inputText,
-                attachedImageURLs: $attachedImageURLs,
+                attachedAttachments: $attachedComposerAttachments,
                 isSelectingImage: $isSelectingImage,
                 isComposerDropTargeted: $isComposerDropTargeted,
                 isConvertingHeic: $isConvertingHeic,
@@ -2166,7 +2204,9 @@ struct ChatPanelView: View {
             onSyncToolRuntimePolicy: syncToolRuntimePolicy,
             onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
             onDelegateToAgent: delegateToAgent,
-            attachedImageURLs: attachedImageURLs,
+            attachedImageURLs: attachedComposerAttachments
+                .filter { $0.kind == .image }
+                .map(\.url),
             planToggleEnabled: $planToggleEnabled,
             debugToggleEnabled: $debugToggleEnabled,
             highlightPlanButton: isPlanTabHovered
@@ -2720,6 +2760,8 @@ struct ChatPanelView: View {
             minimaxModel: "",
             openrouterApiKey: openrouterApiKey,
             openrouterModel: openrouterModel,
+            grokApiKey: "",
+            grokModel: "",
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
             codexSessionFullAccess: false,
@@ -2789,7 +2831,7 @@ struct ChatPanelView: View {
                     $0.role == .user
                 })?.content ?? ""
         }
-        guard !msg.isEmpty || !attachedImageURLs.isEmpty else { return }
+        guard !msg.isEmpty || !attachedComposerAttachments.isEmpty else { return }
         let codex = providerRegistry.provider(for: "codex-cli")
         let claude = providerRegistry.provider(for: "claude-cli")
         let agentProvider: (any LLMProvider)? =
@@ -2843,8 +2885,7 @@ struct ChatPanelView: View {
     private func submitPlanClarificationAnswers(_ submission: PlanClarificationSubmission) {
         let orderedAnswers = submission.answers.sorted(by: { $0.questionId < $1.questionId })
         guard !orderedAnswers.isEmpty else { return }
-        let finalMandatoryNote = submission.finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !finalMandatoryNote.isEmpty else { return }
+        let finalNote = submission.finalNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedAnswers = orderedAnswers.map { answer in
             let normalizedCustom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines)
             return PlanClarificationAnswer(
@@ -2858,7 +2899,7 @@ struct ChatPanelView: View {
         let prompt = buildPlanClarificationPrompt(
             PlanClarificationSubmission(
                 answers: normalizedAnswers,
-                finalMandatoryNote: finalMandatoryNote
+                finalNote: finalNote
             )
         )
 
@@ -2869,16 +2910,35 @@ struct ChatPanelView: View {
         if coderMode == .agent {
             planToggleEnabled = true
         }
-
-        // Add user message showing clarification answers were submitted
-        if let cid = conversationId {
-            chatStore.addMessage(
-                ChatMessage(role: .user, content: prompt, isStreaming: false),
-                to: cid
-            )
-        }
+        recordTaskActivity(
+            type: "plan_answers_submitted",
+            payload: [
+                "title": "Plan answers submitted",
+                "detail": "Le risposte di chiarimento sono state confermate nel Plan Panel.",
+                "status": "completed",
+            ],
+            providerId: providerRegistry.selectedProviderId ?? "plan-ui",
+            conversationId: conversationId
+        )
 
         continuePlanFlowPhase3()
+    }
+
+    @MainActor
+    private func selectPlanChoice(
+        _ choice: String,
+        fromPlanConversationId explicitPlanConversationId: UUID? = nil
+    ) {
+        let normalized = choice.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        let planConversationId = explicitPlanConversationId ?? conversationId
+        chatStore.choosePlanPath(normalized, for: planConversationId)
+        if let selected = planHistoryStore.selectedEntryId {
+            planHistoryStore.updateChosenPath(id: selected, chosenPath: normalized)
+        }
+        if planFlowPhase == .proposalReady || planFlowPhase == .idle {
+            planFlowPhase = .readyToBuild
+        }
     }
 
     private func executeWithPlanChoice(
@@ -2908,7 +2968,10 @@ struct ChatPanelView: View {
                 in: conversationId
             )
             if !showPlanPanel {
-                openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                openPlanPanelForCurrentContext(
+                    preserveHistorySelection: true,
+                    source: .manualDeepLink
+                )
             }
             return
         }
@@ -2986,7 +3049,6 @@ struct ChatPanelView: View {
 
         todoStore.upsertCanonicalPlanTodos(planTodos)
         let canonicalTodos = todoStore.todos.filter { $0.isPlanCanonical }
-        let isResume = isPlanResumeBuild(canonicalTodos: canonicalTodos)
 
         if let selected = planHistoryStore.selectedEntryId {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
@@ -2999,13 +3061,6 @@ struct ChatPanelView: View {
         planFlowPhase = .building
         activeBuildPlanConversationId = planConversationId
 
-        chatStore.addMessage(
-            ChatMessage(
-                role: .user,
-                content: isResume ? "Plan build resumed: execute remaining tasks." : "Plan build started: execute the selected plan.",
-                isStreaming: false
-            ),
-            to: agentConvId)
         let planBuildAssistantMessageId = UUID()
         chatStore.addMessage(
             ChatMessage(
@@ -3063,7 +3118,7 @@ struct ChatPanelView: View {
                     provider: provider,
                     prompt: prompt,
                     context: ctx,
-                    imageURLs: nil,
+                    attachments: nil,
                     onText: { content in
                         applyStreamingUpdate(content: content, conversationId: agentConvId)
                     },
@@ -3109,6 +3164,111 @@ struct ChatPanelView: View {
     // MARK: - Send Message
     // MARK: - Send Message (orchestrator)
 
+    private func mapAttachmentKindToLLM(_ kind: ChatAttachmentKind) -> LLMAttachmentKind {
+        switch kind {
+        case .image: return .image
+        case .document: return .document
+        case .file: return .file
+        }
+    }
+
+    private func prepareRuntimeAttachmentURL(
+        sourceURL: URL,
+        workspaceURL: URL,
+        turnId: UUID
+    ) -> URL {
+        let standardizedSource = sourceURL.standardizedFileURL
+        let standardizedWorkspace = workspaceURL.standardizedFileURL
+        if standardizedSource.path.hasPrefix(standardizedWorkspace.path) {
+            return standardizedSource
+        }
+
+        let runtimeDir = standardizedWorkspace
+            .appendingPathComponent(".codigo_attachments", isDirectory: true)
+            .appendingPathComponent(turnId.uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: runtimeDir, withIntermediateDirectories: true)
+
+        let ext = standardizedSource.pathExtension
+        let baseName = standardizedSource.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: " ", with: "_")
+            .prefix(40)
+        let runtimeFileName = ext.isEmpty
+            ? "\(UUID().uuidString)_\(baseName)"
+            : "\(UUID().uuidString)_\(baseName).\(ext)"
+        let runtimeURL = runtimeDir.appendingPathComponent(String(runtimeFileName))
+        if !FileManager.default.fileExists(atPath: runtimeURL.path) {
+            try? FileManager.default.copyItem(at: standardizedSource, to: runtimeURL)
+        }
+        return runtimeURL
+    }
+
+    private func buildAttachmentBundle(
+        attachments: [ComposerAttachment],
+        workspaceURL: URL,
+        turnId: UUID,
+        capabilities: ProviderAttachmentCapabilities
+    ) -> (chat: [ChatAttachment], llm: [LLMAttachment], fallbackPreamble: String) {
+        guard !attachments.isEmpty else { return ([], [], "") }
+
+        var chatAttachments: [ChatAttachment] = []
+        var llmAttachments: [LLMAttachment] = []
+        var fallbackLines: [String] = []
+
+        for item in attachments {
+            let runtimeURL = prepareRuntimeAttachmentURL(
+                sourceURL: item.url,
+                workspaceURL: workspaceURL,
+                turnId: turnId
+            )
+            let chatAttachment = ChatAttachment(
+                kind: item.kind,
+                originalName: item.originalName,
+                mimeType: item.mimeType,
+                localPath: item.url.path,
+                sizeBytes: item.sizeBytes
+            )
+            chatAttachments.append(chatAttachment)
+            llmAttachments.append(
+                LLMAttachment(
+                    kind: mapAttachmentKindToLLM(item.kind),
+                    url: runtimeURL,
+                    mimeType: item.mimeType,
+                    filename: item.originalName,
+                    sizeBytes: item.sizeBytes
+                )
+            )
+
+            let isNativeSupported: Bool
+            switch item.kind {
+            case .image:
+                isNativeSupported = capabilities.nativeImage
+            case .document:
+                isNativeSupported = capabilities.nativeDocument
+            case .file:
+                isNativeSupported = capabilities.nativeFile
+            }
+            if !isNativeSupported {
+                let sizeText = item.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "n/a"
+                fallbackLines.append("- \(item.originalName) [\(item.kind.rawValue)] path=\(runtimeURL.path) size=\(sizeText)")
+            }
+        }
+
+        let preamble: String
+        if fallbackLines.isEmpty {
+            preamble = ""
+        } else {
+            preamble = """
+            ## Allegati disponibili per questa richiesta
+            I seguenti file NON sono supportati nativamente dal provider e sono disponibili via path locale:
+            \(fallbackLines.joined(separator: "\n"))
+
+            Se necessario, usa i tool di lettura file per analizzarli.
+            """
+        }
+
+        return (chatAttachments, llmAttachments, preamble)
+    }
+
     private func sendMessage() {
         let parsedInput = parsePlanCommandInput(inputText)
         let text = parsedInput.llmPromptInput
@@ -3118,7 +3278,7 @@ struct ChatPanelView: View {
             // /plan should only guide the LLM prompt, without opening the panel.
             showPlanPanel = false
         }
-        guard !text.isEmpty || !attachedImageURLs.isEmpty else { return }
+        guard !text.isEmpty || !attachedComposerAttachments.isEmpty else { return }
         guard let targetConversationId = conversationId else {
             appendTechnicalErrorMessage(
                 "[Error] No conversation selected. Create or select a thread and try again.",
@@ -3213,15 +3373,26 @@ struct ChatPanelView: View {
         }
 
         // 3. Prepare messages in chat store
-        let imagePathsToStore = attachedImageURLs.map { $0.path }
+        let turnId = UUID()
+        let attachmentBundle = buildAttachmentBundle(
+            attachments: attachedComposerAttachments,
+            workspaceURL: ctx.workspacePath,
+            turnId: turnId,
+            capabilities: effectiveRuntimeProvider.attachmentCapabilities
+        )
+        let imagePathsToStore = attachmentBundle.chat
+            .filter { $0.kind == .image }
+            .map(\.localPath)
         inputText = ""
         let userVisibleText = displayedInput
         let contentToStore =
-            userVisibleText.isEmpty ? (attachedImageURLs.isEmpty ? "" : "[Attached image]") : userVisibleText
+            userVisibleText.isEmpty ? (attachmentBundle.chat.isEmpty ? "" : "[Attached files]") : userVisibleText
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: contentToStore, isStreaming: false,
-                imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore),
+                imagePaths: imagePathsToStore.isEmpty ? nil : imagePathsToStore,
+                attachments: attachmentBundle.chat.isEmpty ? nil : attachmentBundle.chat
+            ),
             to: targetConversationId
         )
         let standardAssistantMessageId = UUID()
@@ -3254,11 +3425,14 @@ struct ChatPanelView: View {
         )
         if coderMode == .agentSwarm { swarmProgressStore.clear() }
 
-        let imageURLsToSend = attachedImageURLs.isEmpty ? nil : attachedImageURLs
-        attachedImageURLs = []
+        let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
+        attachedComposerAttachments = []
 
         // 4. Build the prompt with mode-specific instructions
-        let prompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
+        let basePrompt = buildPrompt(userText: text, shouldRunPlanInline: shouldRunPlanInline)
+        let prompt = attachmentBundle.fallbackPreamble.isEmpty
+            ? basePrompt
+            : "\(attachmentBundle.fallbackPreamble)\n\n\(basePrompt)"
 
         // 5. Execute async stream
         let isPlanMultiTurnFlow = (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .analyzing
@@ -3269,7 +3443,7 @@ struct ChatPanelView: View {
                     try await runMultiTurnPlanFlow(
                         provider: effectiveRuntimeProvider,
                         ctx: ctx,
-                        imageURLsToSend: imageURLsToSend,
+                        attachmentsToSend: attachmentsToSend,
                         conversationId: targetConversationId,
                         shouldRunPlanInline: shouldRunPlanInline
                     )
@@ -3279,7 +3453,7 @@ struct ChatPanelView: View {
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,
                         context: ctx,
-                        imageURLs: imageURLsToSend,
+                        attachments: attachmentsToSend,
                         onText: { content in
                             applyStreamingUpdate(
                                 content: content,
@@ -3310,7 +3484,7 @@ struct ChatPanelView: View {
                     await handleStreamResult(
                         conversationId: targetConversationId,
                         finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
-                        ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+                        ctx: ctx, attachmentsToSend: attachmentsToSend, prompt: prompt
                     )
                 }
             } catch {
@@ -3338,7 +3512,7 @@ struct ChatPanelView: View {
     private func runMultiTurnPlanFlow(
         provider: any LLMProvider,
         ctx: WorkspaceContext,
-        imageURLsToSend: [URL]?,
+        attachmentsToSend: [LLMAttachment]?,
         conversationId: UUID,
         shouldRunPlanInline: Bool
     ) async throws {
@@ -3355,7 +3529,7 @@ struct ChatPanelView: View {
             provider: provider,
             prompt: analysisPrompt,
             context: ctx,
-            imageURLs: imageURLsToSend,
+            attachments: attachmentsToSend,
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
@@ -3411,7 +3585,7 @@ struct ChatPanelView: View {
             provider: provider,
             prompt: questionPrompt,
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
@@ -3454,7 +3628,10 @@ struct ChatPanelView: View {
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
                 }
             }
             // STOP — Phase 3 will be triggered by submitPlanClarificationAnswers() → continuePlanFlowPhase3()
@@ -3514,7 +3691,7 @@ struct ChatPanelView: View {
             provider: provider,
             prompt: generationPrompt,
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
@@ -3589,7 +3766,10 @@ struct ChatPanelView: View {
                 planFlowPhase = .proposalReady
                 planningState = .awaitingChoice(planContent: full, options: options)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
                 }
             }
         } else {
@@ -3698,7 +3878,7 @@ struct ChatPanelView: View {
             provider: provider,
             prompt: reAnalysisPrompt,
             context: ctx,
-            imageURLs: nil,
+            attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
                 applyStreamingUpdate(
@@ -3741,7 +3921,10 @@ struct ChatPanelView: View {
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
-                    openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
                 }
             }
             // STOP — will re-enter via submitPlanClarificationAnswers → continuePlanFlowPhase3
@@ -3794,7 +3977,7 @@ struct ChatPanelView: View {
             provider: provider,
             prompt: continuationPrompt,
             context: context,
-            imageURLs: nil,
+            attachments: nil,
             onText: { deltaFull in
                 let combined = initial.fullText + "\n" + deltaFull
                 let displayContent = hideContentDuringPlanDiscovery
@@ -4314,7 +4497,7 @@ struct ChatPanelView: View {
         _ streamResult: (fullText: String, pendingSwarmTask: String?),
         shouldRunPlanInline: Bool,
         ctx: WorkspaceContext,
-        imageURLsToSend: [URL]?,
+        attachmentsToSend: [LLMAttachment]?,
         prompt: String
     ) async {
         let full = (planFlowPhase == .building)
@@ -4349,7 +4532,10 @@ struct ChatPanelView: View {
                 chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 await MainActor.run {
                     if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
-                        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                        openPlanPanelForCurrentContext(
+                            preserveHistorySelection: false,
+                            source: .automaticFlow
+                        )
                     }
                 }
             }
@@ -4392,7 +4578,10 @@ struct ChatPanelView: View {
                 }
                 await MainActor.run {
                     if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
-                        openPlanPanelForCurrentContext(preserveHistorySelection: true)
+                        openPlanPanelForCurrentContext(
+                            preserveHistorySelection: false,
+                            source: .automaticFlow
+                        )
                     }
                 }
             }
@@ -4408,6 +4597,9 @@ struct ChatPanelView: View {
             )
             switch evaluation.decision {
             case .autoDelegate:
+                let imageURLsToSend = attachmentsToSend?
+                    .filter { $0.kind == .image }
+                    .map(\.url)
                 await handleDelegatedSwarm(
                     task: task, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
                 )
@@ -4684,12 +4876,10 @@ struct ChatPanelView: View {
                 }
 
                 // Cursor-style: bring the last user prompt back into the composer for editing.
-                let placeholderImageOnly = "[Attached image]"
+                let placeholderImageOnly = "[Attached files]"
                 inputText =
                     (lastUserMessage.content == placeholderImageOnly) ? "" : lastUserMessage.content
-                attachedImageURLs = (lastUserMessage.imagePaths ?? []).map {
-                    URL(fileURLWithPath: $0)
-                }
+                attachedComposerAttachments = composerAttachments(from: lastUserMessage)
                 isInputFocused = true
                 planningState = .idle
                 planFlowPhase = .idle
@@ -4698,6 +4888,36 @@ struct ChatPanelView: View {
                 activeBuildPlanConversationId = nil
                 isRewinding = false
             }
+        }
+    }
+
+    private func composerAttachments(from message: ChatMessage) -> [ComposerAttachment] {
+        let baseAttachments: [ChatAttachment]
+        if let attachments = message.attachments, !attachments.isEmpty {
+            baseAttachments = attachments
+        } else if let imagePaths = message.imagePaths, !imagePaths.isEmpty {
+            baseAttachments = imagePaths.map { path in
+                ChatAttachment(
+                    kind: .image,
+                    originalName: URL(fileURLWithPath: path).lastPathComponent,
+                    mimeType: nil,
+                    localPath: path
+                )
+            }
+        } else {
+            return []
+        }
+
+        return baseAttachments.compactMap { item in
+            let url = URL(fileURLWithPath: item.localPath)
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return ComposerAttachment(
+                kind: item.kind,
+                url: url,
+                originalName: item.originalName,
+                mimeType: item.mimeType,
+                sizeBytes: item.sizeBytes
+            )
         }
     }
 
@@ -4758,12 +4978,10 @@ struct ChatPanelView: View {
                     return
                 }
 
-                let placeholderImageOnly = "[Attached image]"
+                let placeholderImageOnly = "[Attached files]"
                 inputText =
                     (userMessage.content == placeholderImageOnly) ? "" : userMessage.content
-                attachedImageURLs = (userMessage.imagePaths ?? []).map {
-                    URL(fileURLWithPath: $0)
-                }
+                attachedComposerAttachments = composerAttachments(from: userMessage)
                 isInputFocused = true
                 planningState = .idle
                 planFlowPhase = .idle

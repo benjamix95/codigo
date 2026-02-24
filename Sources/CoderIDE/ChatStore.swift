@@ -8,12 +8,47 @@ struct PlanAttachment: Codable, Equatable {
     var snapshotTitle: String
 }
 
+enum ChatAttachmentKind: String, Codable {
+    case image
+    case document
+    case file
+}
+
+struct ChatAttachment: Identifiable, Codable, Equatable {
+    var id: UUID
+    var kind: ChatAttachmentKind
+    var originalName: String
+    var mimeType: String?
+    var localPath: String
+    var sizeBytes: Int64?
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        kind: ChatAttachmentKind,
+        originalName: String,
+        mimeType: String? = nil,
+        localPath: String,
+        sizeBytes: Int64? = nil,
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.kind = kind
+        self.originalName = originalName
+        self.mimeType = mimeType
+        self.localPath = localPath
+        self.sizeBytes = sizeBytes
+        self.createdAt = createdAt
+    }
+}
+
 struct ChatMessage: Identifiable, Codable {
     var id: UUID
     var role: Role
     var content: String
     var isStreaming: Bool
     var imagePaths: [String]?
+    var attachments: [ChatAttachment]?
     var planAttachment: PlanAttachment?
 
     enum Role: String, Codable {
@@ -27,6 +62,7 @@ struct ChatMessage: Identifiable, Codable {
         content: String,
         isStreaming: Bool = false,
         imagePaths: [String]? = nil,
+        attachments: [ChatAttachment]? = nil,
         planAttachment: PlanAttachment? = nil
     ) {
         self.id = id
@@ -34,7 +70,64 @@ struct ChatMessage: Identifiable, Codable {
         self.content = content
         self.isStreaming = isStreaming
         self.imagePaths = imagePaths
+        if let attachments {
+            self.attachments = attachments
+        } else if let imagePaths, !imagePaths.isEmpty {
+            self.attachments = imagePaths.map { path in
+                ChatAttachment(
+                    kind: .image,
+                    originalName: URL(fileURLWithPath: path).lastPathComponent,
+                    mimeType: nil,
+                    localPath: path
+                )
+            }
+        } else {
+            self.attachments = nil
+        }
         self.planAttachment = planAttachment
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, role, content, isStreaming, imagePaths, attachments, planAttachment
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        role = try c.decode(Role.self, forKey: .role)
+        content = try c.decode(String.self, forKey: .content)
+        isStreaming = (try? c.decode(Bool.self, forKey: .isStreaming)) ?? false
+        imagePaths = try? c.decode([String].self, forKey: .imagePaths)
+        let decodedAttachments = try? c.decode([ChatAttachment].self, forKey: .attachments)
+        if let decodedAttachments, !decodedAttachments.isEmpty {
+            attachments = decodedAttachments
+        } else if let imagePaths, !imagePaths.isEmpty {
+            attachments = imagePaths.map { path in
+                ChatAttachment(
+                    kind: .image,
+                    originalName: URL(fileURLWithPath: path).lastPathComponent,
+                    mimeType: nil,
+                    localPath: path
+                )
+            }
+        } else {
+            attachments = nil
+        }
+        planAttachment = try? c.decode(PlanAttachment.self, forKey: .planAttachment)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(role, forKey: .role)
+        try c.encode(content, forKey: .content)
+        try c.encode(isStreaming, forKey: .isStreaming)
+        try c.encodeIfPresent(planAttachment, forKey: .planAttachment)
+        try c.encodeIfPresent(attachments, forKey: .attachments)
+        let legacyImagePaths = imagePaths ?? attachments?
+            .filter { $0.kind == .image }
+            .map(\.localPath)
+        try c.encodeIfPresent(legacyImagePaths, forKey: .imagePaths)
     }
 }
 
@@ -168,10 +261,33 @@ private let planBoardsStorageKey = "CoderIDE.planBoards"
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var conversations: [Conversation] = []
-    @Published var isLoading = false
-    @Published var taskStartDate: Date?
-    @Published var activeTaskConversationId: UUID?
+    @Published var activeTaskConversationIds: Set<UUID> = []
+    @Published var taskStartDates: [UUID: Date] = [:]
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
+
+    /// True when any conversation has an active task.
+    var isLoading: Bool { !activeTaskConversationIds.isEmpty }
+
+    /// Convenience for callers that only need the single-active-task ID.
+    var activeTaskConversationId: UUID? { activeTaskConversationIds.first }
+
+    /// Per-conversation convenience (legacy compat).
+    var taskStartDate: Date? {
+        guard let first = activeTaskConversationIds.first else { return nil }
+        return taskStartDates[first]
+    }
+
+    /// Check whether a specific conversation has an active task.
+    func isTaskActive(for conversationId: UUID?) -> Bool {
+        guard let id = conversationId else { return false }
+        return activeTaskConversationIds.contains(id)
+    }
+
+    /// Start date for a specific conversation's active task.
+    func taskStartDate(for conversationId: UUID?) -> Date? {
+        guard let id = conversationId else { return nil }
+        return taskStartDates[id]
+    }
 
     init() {
         loadConversations()
@@ -740,9 +856,9 @@ final class ChatStore: ObservableObject {
     }
 
     func beginTask(conversationId: UUID?) {
-        isLoading = true
-        taskStartDate = Date()
-        activeTaskConversationId = conversationId
+        guard let id = conversationId else { return }
+        activeTaskConversationIds.insert(id)
+        taskStartDates[id] = Date()
     }
 
     // Legacy call site compatibility.
@@ -751,16 +867,9 @@ final class ChatStore: ObservableObject {
     }
 
     func endTask(conversationId: UUID?) {
-        // Prevent an out-of-context stop from resetting a task still active in another thread.
-        if let active = activeTaskConversationId,
-            let conversationId,
-            active != conversationId
-        {
-            return
-        }
-        isLoading = false
-        taskStartDate = nil
-        activeTaskConversationId = nil
+        guard let id = conversationId else { return }
+        activeTaskConversationIds.remove(id)
+        taskStartDates.removeValue(forKey: id)
     }
 
     // Compat legacy call sites.

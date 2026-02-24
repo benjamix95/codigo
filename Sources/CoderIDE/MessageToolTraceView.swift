@@ -18,7 +18,7 @@ struct MessageToolTraceView: View {
                 Image(systemName: "list.bullet.rectangle")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text("Tool trace (\(orderedEvents.count) step)")
+                Text("Tool trace (\(orderedEvents.count) step\(orderedEvents.count == 1 ? "" : "s"))")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Spacer(minLength: 0)
@@ -63,9 +63,15 @@ struct MessageToolTraceView: View {
                 Spacer(minLength: 0)
 
                 HStack(spacing: 6) {
-                    Text(event.isRunning ? "RUN" : "DONE")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundStyle(event.isRunning ? DesignSystem.Colors.agentColor : DesignSystem.Colors.textTertiary)
+                    if event.isRunning {
+                        Text("RUN")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.agentColor)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    }
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(DesignSystem.Colors.textQuaternary)

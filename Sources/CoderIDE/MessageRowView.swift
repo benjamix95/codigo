@@ -19,8 +19,8 @@ struct MessageRow: View {
     var hasCheckpointForRestore: Bool = false
     var showTopDivider: Bool = false
     @State private var isHovered = false
-    private let userRowMaxWidth: CGFloat = 580
-    private let assistantRowMaxWidth: CGFloat = 820
+    private let userRowMaxWidth: CGFloat = 620
+    private let assistantRowMaxWidth: CGFloat = 920
 
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
@@ -32,7 +32,7 @@ struct MessageRow: View {
 
     private var isUser: Bool { message.role == .user }
     private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
-    private var contentMaxWidth: CGFloat { isUser ? 500 : 720 }
+    private var contentMaxWidth: CGFloat { isUser ? 560 : 860 }
 
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 0) {
@@ -127,8 +127,12 @@ struct MessageRow: View {
 
     private var messageContent: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-            if let paths = message.imagePaths, !paths.isEmpty {
-                userMessageImagesRow(paths: paths)
+            if isUser {
+                if let attachments = message.attachments, !attachments.isEmpty {
+                    userAttachmentsRow(attachments: attachments)
+                } else if let paths = message.imagePaths, !paths.isEmpty {
+                    userMessageImagesRow(paths: paths)
+                }
             }
             if isUser {
                 ClickableMessageContent(
@@ -165,6 +169,47 @@ struct MessageRow: View {
                 // Streaming bar
                 if shouldShowStreamingBar { streamingBar }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func userAttachmentsRow(attachments: [ChatAttachment]) -> some View {
+        let imagePaths = attachments
+            .filter { $0.kind == .image }
+            .map(\.localPath)
+        if !imagePaths.isEmpty {
+            userMessageImagesRow(paths: imagePaths)
+        }
+        let nonImage = attachments.filter { $0.kind != .image }
+        if !nonImage.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(nonImage) { attachment in
+                        HStack(spacing: 6) {
+                            Image(systemName: attachment.kind == .document ? "doc.text" : "paperclip")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text(attachment.originalName)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            if let size = attachment.sizeBytes {
+                                Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                                    .font(.system(size: 9.5, weight: .regular))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+                        )
+                    }
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.bottom, 4)
         }
     }
 

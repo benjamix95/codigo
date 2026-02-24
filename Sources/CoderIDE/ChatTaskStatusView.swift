@@ -10,6 +10,7 @@ struct TaskControlBar: View {
     @ObservedObject var taskActivityStore: TaskActivityStore
     @ObservedObject var executionController: ExecutionController
 
+    let conversationId: UUID?
     let coderMode: CoderMode
     let isSummarizing: Bool
     let activeModeColor: Color
@@ -21,7 +22,8 @@ struct TaskControlBar: View {
                 .fill(DesignSystem.Colors.border)
                 .frame(height: 0.5)
 
-            if chatStore.isLoading, let startDate = chatStore.taskStartDate {
+            if chatStore.isTaskActive(for: conversationId),
+               let startDate = chatStore.taskStartDate(for: conversationId) {
                 taskTimerBar(startDate: startDate)
             } else if isSummarizing {
                 summarizingBanner
@@ -228,6 +230,7 @@ struct TaskActivityPanel: View {
     @ObservedObject var taskActivityStore: TaskActivityStore
     @ObservedObject var todoStore: TodoStore
 
+    let conversationId: UUID?
     let coderMode: CoderMode
     let onOpenFile: (String) -> Void
     let effectivePrimaryPath: String?
@@ -249,8 +252,9 @@ struct TaskActivityPanel: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .onChange(of: chatStore.isLoading) { _, loading in
-            if !loading {
+        .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+            guard let cid = conversationId else { return }
+            if oldSet.contains(cid) && !newSet.contains(cid) {
                 isActivitiesExpanded = false
                 isTerminalsExpanded = false
                 isGrepExpanded = false
@@ -283,7 +287,7 @@ struct TaskActivityPanel: View {
         let concreteActivities = taskActivityStore.activities.filter {
             TaskActivityStore.isConcreteVisibleEvent($0)
         }
-        if chatStore.isLoading {
+        if chatStore.isTaskActive(for: conversationId) {
             liveModeBanner
         }
 
@@ -396,7 +400,7 @@ struct TaskActivityPanel: View {
 
     @ViewBuilder
     private var swarmActivityContent: some View {
-        if chatStore.isLoading {
+        if chatStore.isTaskActive(for: conversationId) {
             liveModeBanner
         }
 
@@ -409,7 +413,7 @@ struct TaskActivityPanel: View {
 
         SwarmLiveBoardView(
             cards: cards,
-            isTaskRunning: chatStore.isLoading,
+            isTaskRunning: chatStore.isTaskActive(for: conversationId),
             selectedSwarmId: effectiveSwarmId,
             onSelectSwarm: { selected in
                 selectedSwarmLaneId = selected

@@ -122,68 +122,115 @@ struct ChatTerminalSessionsView: View {
 
     var body: some View {
         if !sessions.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
+            if runningSession != nil {
+                liveTerminalCards
+            } else {
                 HStack(spacing: 8) {
-                    Image(systemName: "terminal.fill")
+                    Image(systemName: "terminal")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(terminalAccent)
-                    Text("Terminale Live")
-                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    Text("\(sessions.count) session\(sessions.count == 1 ? "" : "i")")
-                        .font(.system(size: 10, design: .rounded))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(terminalHeaderFill, in: Capsule())
+                    Text(completedTerminalSummaryLine)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                     Spacer()
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(maxWidth: 860, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .background(
+                    Color(nsColor: .controlBackgroundColor).opacity(0.22),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(terminalCardBorder.opacity(0.7), lineWidth: 0.6)
+                        .strokeBorder(terminalCardBorder.opacity(0.65), lineWidth: 0.6)
                 )
+            }
+        }
+    }
 
-                if let running = runningSession {
-                    TimelineView(.periodic(from: running.timestamp, by: 1.0)) { context in
-                        let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
-                            Text("Comando in esecuzione da \(elapsed)s")
-                                .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text("LIVE")
-                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                                .foregroundStyle(terminalAccent)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(terminalAccent.opacity(0.16), in: Capsule())
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .strokeBorder(terminalCardBorder, lineWidth: 0.6)
-                        )
+    private var liveTerminalCards: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(terminalAccent)
+                Text("Terminale Live")
+                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+                Text("\(sessions.count) session\(sessions.count == 1 ? "" : "i")")
+                    .font(.system(size: 10, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(terminalHeaderFill, in: Capsule())
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(terminalCardBorder.opacity(0.7), lineWidth: 0.6)
+            )
+
+            if let running = runningSession {
+                TimelineView(.periodic(from: running.timestamp, by: 1.0)) { context in
+                    let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Comando in esecuzione da \(elapsed)s")
+                            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text("LIVE")
+                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(terminalAccent)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(terminalAccent.opacity(0.16), in: Capsule())
                     }
-                }
-                ForEach(sessions.prefix(6)) { session in
-                    terminalSessionCard(session)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(terminalHeaderFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .strokeBorder(terminalCardBorder, lineWidth: 0.6)
+                    )
                 }
             }
-            .padding(10)
-            .frame(maxWidth: 860, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .background(terminalCardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(terminalCardBorder.opacity(0.72), lineWidth: 0.7)
-            )
+            ForEach(sessions.prefix(6)) { session in
+                terminalSessionCard(session)
+            }
         }
+        .padding(10)
+        .frame(maxWidth: 860, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .background(terminalCardFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(terminalCardBorder.opacity(0.72), lineWidth: 0.7)
+        )
+    }
+
+    private var completedTerminalSummaryLine: String {
+        let completed = sessions.filter { !$0.isRunning }
+        guard !completed.isEmpty else { return "Nessuna sessione terminale attiva." }
+        let snippets = completed.prefix(3).map { summarizeCommand($0.command) }
+        let suffix = completed.count > 3 ? " +\(completed.count - 3) altre" : ""
+        if completed.count == 1 {
+            return "Terminale completato: \(snippets.first ?? "")"
+        }
+        return "Terminali completati (\(completed.count)): \(snippets.joined(separator: " • "))\(suffix)"
+    }
+
+    private func summarizeCommand(_ command: String) -> String {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= 48 { return trimmed }
+        return String(trimmed.prefix(45)) + "..."
     }
 
     private func terminalSessionCard(_ session: TerminalActivitySession) -> some View {

@@ -2,73 +2,36 @@ import AppKit
 import CoderEngine
 import SwiftUI
 
-// MARK: - Model Lists
-
-let openAIModels = [
-    "gpt-5.3-codex", "gpt-5.2-instant", "gpt-5.2-thinking",
-    "o3", "o3-pro", "o4-mini",
-    "gpt-4o", "gpt-4o-mini", "gpt-4.5",
-]
-
-let anthropicModels = [
-    "claude-opus-4-6", "claude-sonnet-4-6",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4", "claude-sonnet-4",
-]
-
-let googleModels = [
-    "gemini-3-pro", "gemini-3-flash-preview",
-    "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
-]
-
-let minimaxModels = [
-    "MiniMax-M2.5", "MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2",
-]
-
 // MARK: - Settings Navigation
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case openai = "OpenAI"
-    case anthropic = "Anthropic"
-    case google = "Google Gemini"
-    case minimax = "MiniMax"
-    case openrouter = "OpenRouter"
-    case codex = "Codex CLI"
-    case claudeCli = "Claude Code"
-    case geminiCli = "Gemini CLI"
-    case swarm = "Agent Swarm"
-    case codeReview = "Code Review"
-    case terminal = "Terminale"
-    case behavior = "Comportamento"
-    case appearance = "Aspetto"
-    case mcp = "MCP"
+    case apiKeys = "API Keys"
+    case cliTools = "CLI Tools"
+    case mcp = "MCP Servers"
+    case skillsPlugins = "Skills & Plugins"
+    case rules = "Rules"
+    case codebaseIndex = "Codebase Index"
+    case behavior = "Behavior"
+    case appearance = "Appearance"
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
-        case .openai: return "brain.head.profile"
-        case .anthropic: return "sparkle"
-        case .google: return "globe"
-        case .minimax: return "bolt.horizontal.fill"
-        case .openrouter: return "arrow.triangle.branch"
-        case .codex: return "terminal"
-        case .claudeCli: return "sparkles"
-        case .geminiCli: return "globe"
-        case .swarm: return "ant.fill"
-        case .codeReview: return "doc.text.magnifyingglass"
-        case .terminal: return "terminal.fill"
+        case .apiKeys: return "key.fill"
+        case .cliTools: return "terminal"
+        case .mcp: return "server.rack"
+        case .skillsPlugins: return "puzzlepiece.fill"
+        case .rules: return "doc.text.fill"
+        case .codebaseIndex: return "text.magnifyingglass"
         case .behavior: return "bolt.fill"
         case .appearance: return "paintbrush.fill"
-        case .mcp: return "server.rack"
         }
     }
 
-    static var providers: [SettingsSection] {
-        [.openai, .anthropic, .google, .minimax, .openrouter]
-    }
-    static var tools: [SettingsSection] { [.codex, .claudeCli, .geminiCli, .swarm, .codeReview] }
-    static var general: [SettingsSection] { [.terminal, .behavior, .appearance, .mcp] }
+    static var providerAI: [SettingsSection] { [.apiKeys] }
+    static var tools: [SettingsSection] { [.cliTools, .mcp, .skillsPlugins] }
+    static var general: [SettingsSection] { [.rules, .codebaseIndex, .behavior, .appearance] }
 }
 
 // MARK: - Settings View
@@ -79,89 +42,83 @@ struct SettingsView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
-    @State private var selectedSection: SettingsSection = .openai
+    @State private var selectedSection: SettingsSection = .apiKeys
 
-    // OpenAI
+    // MARK: - Provider API Keys
     @AppStorage("openai_api_key") private var openaiApiKey = ""
     @AppStorage("openai_model") private var openaiModel = "gpt-4o-mini"
     @AppStorage("reasoning_effort") private var reasoningEffort = "medium"
-
-    // Anthropic
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
     @AppStorage("anthropic_model") private var anthropicModel = "claude-sonnet-4-6"
-
-    // Google
     @AppStorage("google_api_key") private var googleApiKey = ""
     @AppStorage("google_model") private var googleModel = "gemini-2.5-pro"
-
-    // MiniMax
     @AppStorage("minimax_api_key") private var minimaxApiKey = ""
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
-
-    // OpenRouter
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
     @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
+    @AppStorage("grok_api_key") private var grokApiKey = ""
+    @AppStorage("grok_model") private var grokModel = "grok-4-1-fast-reasoning"
 
-    // Codex
+    // MARK: - CLI Tools
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = "workspace-write"
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
     @AppStorage("codex_session_full_access") private var codexSessionFullAccess = false
-    @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
-
-    // Codex advanced (config.toml)
-    @AppStorage("codex_reasoning_summary") private var codexReasoningSummary = "auto"
-    @AppStorage("codex_verbosity") private var codexVerbosity = "medium"
-    @AppStorage("codex_personality") private var codexPersonality = "none"
     @AppStorage("codex_network_access") private var codexNetworkAccess = false
     @AppStorage("codex_additional_write_roots") private var codexAdditionalWriteRoots = ""
-    @AppStorage("codex_developer_instructions") private var codexDeveloperInstructions = ""
     @AppStorage("codex_check_update") private var codexCheckUpdate = true
-
-    // Claude CLI
+    @AppStorage("codex_developer_instructions") private var codexDeveloperInstructions = ""
     @AppStorage("claude_path") private var claudePath = ""
-    @AppStorage("claude_model") private var claudeModel = "sonnet"
-    @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
-        "Read,Edit,Bash,Write,Search"
+    @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
 
-    // Swarm
+    // MARK: - Hidden runtime keys (no UI, consumed by ProviderFactoryConfig)
+    @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "codex"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
     @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
     @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
-    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
-        "planner,coder,debugger,reviewer,testWriter"
-
-    // Code Review
-    @AppStorage("global_yolo") private var globalYolo = false
-    @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
-    @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
-    @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
+    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
     @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
-    @AppStorage("code_review_quick_commands_custom_json")
-    private var codeReviewQuickCommandsCustomJSON = ""
+    @AppStorage("code_review_quick_commands_custom_json") private var codeReviewQuickCommandsCustomJSON = ""
+    @AppStorage("codex_reasoning_summary") private var codexReasoningSummary = "auto"
+    @AppStorage("codex_verbosity") private var codexVerbosity = "medium"
+    @AppStorage("codex_personality") private var codexPersonality = "none"
 
-    // General
-    @AppStorage("appearance") private var appearance = "system"
-    @AppStorage("chat_background_style") private var chatBackgroundStyle =
-        ChatBackgroundStyle.defaultRawValue
-    @AppStorage("full_auto_tools") private var fullAutoTools = true
+    // MARK: - Behavior
+    @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
     @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
+    @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
+    @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
+    @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
+    @AppStorage("full_auto_tools") private var fullAutoTools = true
+
+    // MARK: - Appearance
+    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
+
+    // MARK: - Codebase Index
+    @AppStorage("codebase_index_enabled") private var codebaseIndexEnabled = true
+    @AppStorage("codebase_index_excluded_paths") private var codebaseIndexExcludedPaths = ""
+
+    // MARK: - State Objects
     @StateObject private var codexState = CodexStateStore()
     @StateObject private var geminiState = GeminiStateStore()
     @StateObject private var cliAccountsStore = CLIAccountsStore.shared
     @StateObject private var cliUsageLedger = CLIAccountUsageLedgerStore.shared
     @StateObject private var accountLoginCoordinator = CLIAccountLoginCoordinator()
+
+    // MARK: - UI State
     @State private var showCodexLogin = false
     @State private var showOpenRouterLogin = false
     @State private var codexAgentsMd = ""
@@ -181,78 +138,89 @@ struct SettingsView: View {
     @State private var newMonthlyLimitByProvider: [CLIProviderKind: String] = [:]
     @State private var accountTestResultById: [UUID: String] = [:]
     @State private var loginMethodByAccount: [UUID: CLIAccountLoginCoordinator.LoginMethod] = [:]
+    @State private var indexStatusText: String = "Caricamento..."
+    @State private var indexStatsText: String = ""
+
+    // MARK: - Body
 
     var body: some View {
+        applyBehaviorSyncs(applyCLISyncs(applyProviderSyncs(settingsContent)))
+    }
+
+    private var settingsContent: some View {
         NavigationSplitView {
             List(selection: $selectedSection) {
                 Section("Provider AI") {
-                    ForEach(SettingsSection.providers) { section in
-                        Label(section.rawValue, systemImage: section.icon)
-                            .tag(section)
+                    ForEach(SettingsSection.providerAI) { section in
+                        Label(section.rawValue, systemImage: section.icon).tag(section)
                     }
                 }
                 Section("Strumenti") {
                     ForEach(SettingsSection.tools) { section in
-                        Label(section.rawValue, systemImage: section.icon)
-                            .tag(section)
+                        Label(section.rawValue, systemImage: section.icon).tag(section)
                     }
                 }
                 Section("Generale") {
                     ForEach(SettingsSection.general) { section in
-                        Label(section.rawValue, systemImage: section.icon)
-                            .tag(section)
+                        Label(section.rawValue, systemImage: section.icon).tag(section)
                     }
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+            .frame(minWidth: 180)
         } detail: {
             ScrollView {
                 detailContent
-                    .frame(maxWidth: 560)
+                    .frame(maxWidth: 560, alignment: .leading)
                     .padding(24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .windowBackgroundColor))
         }
         .frame(width: 760, height: 520)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Chiudi") { dismiss() }
-                    .keyboardShortcut(.escape, modifiers: [])
-            }
-        }
         .onAppear {
             normalizeStoredSelections()
-            codexState.refresh()
-            geminiState.refresh()
+            loadCodexAdvanced()
             syncProviders()
-            Task { await refreshUsageSnapshotsForSettings() }
+            reloadRulesFromDisk()
         }
-        .sheet(isPresented: $showCodexLogin) {
-            if let path = codexState.status.path
-                ?? CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath)
-            {
-                CodexLoginView(codexPath: path) {
-                    codexState.refresh()
-                    syncCodex()
-                }
-            }
-        }
-        .onChange(of: openaiApiKey) { _, _ in syncOpenAI() }
-        .onChange(of: openaiModel) { _, _ in syncOpenAI() }
-        .onChange(of: anthropicApiKey) { _, _ in syncAnthropic() }
-        .onChange(of: anthropicModel) { _, _ in syncAnthropic() }
-        .onChange(of: googleApiKey) { _, _ in syncGoogle() }
-        .onChange(of: googleModel) { _, _ in syncGoogle() }
-        .onChange(of: minimaxApiKey) { _, _ in syncMiniMax() }
-        .onChange(of: minimaxModel) { _, _ in syncMiniMax() }
-        .onChange(of: openrouterApiKey) { _, _ in syncOpenRouter() }
-        .onChange(of: openrouterModel) { _, _ in syncOpenRouter() }
-        .onChange(of: claudePath) { _, _ in syncClaude() }
-        .onChange(of: claudeModel) { _, _ in syncClaude() }
-        .onChange(of: claudeAllowedTools) { _, _ in syncClaude() }
-        .onChange(of: geminiCliPath) { _, _ in syncGemini() }
+    }
+
+    // MARK: - onChange Handlers (split to help type-checker)
+
+    private func applyProviderSyncs<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: openaiApiKey) { _, _ in syncOpenAI() }
+            .onChange(of: openaiModel) { _, _ in syncOpenAI() }
+            .onChange(of: anthropicApiKey) { _, _ in syncAnthropic() }
+            .onChange(of: anthropicModel) { _, _ in syncAnthropic() }
+            .onChange(of: googleApiKey) { _, _ in syncGoogle() }
+            .onChange(of: googleModel) { _, _ in syncGoogle() }
+            .onChange(of: minimaxApiKey) { _, _ in syncMiniMax() }
+            .onChange(of: minimaxModel) { _, _ in syncMiniMax() }
+            .onChange(of: openrouterApiKey) { _, _ in syncOpenRouter() }
+            .onChange(of: openrouterModel) { _, _ in syncOpenRouter() }
+            .onChange(of: grokApiKey) { _, _ in syncGrok() }
+            .onChange(of: grokModel) { _, _ in syncGrok() }
+    }
+
+    private func applyCLISyncs<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: codexPath) { _, _ in codexState.refresh(); syncCodex() }
+            .onChange(of: codexSandbox) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexAskForApproval) { _, _ in syncCodex() }
+            .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexNetworkAccess) { _, _ in saveCodexToml() }
+            .onChange(of: codexAdditionalWriteRoots) { _, _ in saveCodexToml() }
+            .onChange(of: codexCheckUpdate) { _, _ in saveCodexToml() }
+            .onChange(of: codexDeveloperInstructions) { _, _ in saveCodexToml() }
+            .onChange(of: claudePath) { _, _ in syncClaude() }
+            .onChange(of: claudeModel) { _, _ in syncClaude() }
+            .onChange(of: claudeAllowedTools) { _, _ in syncClaude() }
+            .onChange(of: geminiCliPath) { _, _ in syncGemini() }
+    }
+
+    private func applyBehaviorSyncs<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: globalYolo) { _, _ in syncCodex(); syncPlanProvider(); syncCodeReview() }
     }
 
     // MARK: - Detail Router
@@ -260,1068 +228,386 @@ struct SettingsView: View {
     @ViewBuilder
     private var detailContent: some View {
         switch selectedSection {
-        case .openai: openAISection
-        case .anthropic: anthropicSection
-        case .google: googleSection
-        case .minimax: minimaxSection
-        case .openrouter: openRouterSection
-        case .codex: codexSection
-        case .claudeCli: claudeSection
-        case .geminiCli: geminiSection
-        case .swarm: swarmSection
-        case .codeReview: codeReviewSection
-        case .terminal: terminalSection
+        case .apiKeys: apiKeysSection
+        case .cliTools: cliToolsSection
+        case .mcp: mcpSection
+        case .skillsPlugins: SkillsPluginsSection()
+        case .rules: rulesSection
+        case .codebaseIndex: codebaseIndexSection
         case .behavior: behaviorSection
         case .appearance: appearanceSection
-        case .mcp: mcpSection
         }
     }
 
-    // MARK: - OpenAI
+    // MARK: - API Keys
 
-    private var openAISection: some View {
+    private var apiKeysSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "OpenAI", subtitle: "GPT-5, o3, o4-mini e modelli reasoning",
-                icon: "brain.head.profile")
+            sectionHeader(title: "API Keys", subtitle: "Chiavi API per i provider AI", icon: "key.fill")
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("API Key")
-                    SecureField("sk-...", text: $openaiApiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    fieldLabel("Modello")
-                    Picker("", selection: $openaiModel) {
-                        ForEach(openAIModels, id: \.self) { m in Text(m).tag(m) }
+            GroupBox("OpenAI") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("sk-...", text: $openaiApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !openaiApiKey.isEmpty, label: openaiApiKey.isEmpty ? "Non configurato" : "Configurato")
                     }
-                    .labelsHidden()
-
-                    if OpenAIAPIProvider.isReasoningModel(openaiModel) {
-                        fieldLabel("Reasoning Effort")
-                        Picker("", selection: $reasoningEffort) {
-                            Text("Low").tag("low")
-                            Text("Medium").tag("medium")
-                            Text("High").tag("high")
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                    }
-                }
-                .padding(4)
+                }.padding(4)
             }
 
-            statusBadge(
-                connected: !openaiApiKey.isEmpty,
-                label: openaiApiKey.isEmpty
-                    ? "API Key non configurata" : "Configurato — \(openaiModel)"
-            )
-        }
-    }
-
-    // MARK: - Anthropic
-
-    private var anthropicSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Anthropic", subtitle: "Claude Opus 4.6, Sonnet 4.6, Haiku 4.5",
-                icon: "sparkle")
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("API Key")
-                    SecureField("sk-ant-...", text: $anthropicApiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    fieldLabel("Modello")
-                    Picker("", selection: $anthropicModel) {
-                        ForEach(anthropicModels, id: \.self) { m in Text(m).tag(m) }
+            GroupBox("Anthropic") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("sk-ant-...", text: $anthropicApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !anthropicApiKey.isEmpty, label: anthropicApiKey.isEmpty ? "Non configurato" : "Configurato")
                     }
-                    .labelsHidden()
-                }
-                .padding(4)
+                }.padding(4)
             }
 
-            statusBadge(
-                connected: !anthropicApiKey.isEmpty,
-                label: anthropicApiKey.isEmpty
-                    ? "API Key non configurata" : "Configurato — \(anthropicModel)"
-            )
-
-            hintBox(
-                "Per usare Claude direttamente via API. Per Claude Code CLI, vedi la sezione Strumenti → Claude Code."
-            )
-        }
-    }
-
-    // MARK: - Google Gemini
-
-    private var googleSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Google Gemini", subtitle: "Gemini 3 Pro, 2.5 Pro/Flash", icon: "globe")
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("API Key")
-                    SecureField("AIza...", text: $googleApiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    fieldLabel("Modello")
-                    Picker("", selection: $googleModel) {
-                        ForEach(googleModels, id: \.self) { m in Text(m).tag(m) }
+            GroupBox("Google Gemini") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("AIza...", text: $googleApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !googleApiKey.isEmpty, label: googleApiKey.isEmpty ? "Non configurato" : "Configurato")
                     }
-                    .labelsHidden()
-                }
-                .padding(4)
+                }.padding(4)
             }
 
-            statusBadge(
-                connected: !googleApiKey.isEmpty,
-                label: googleApiKey.isEmpty
-                    ? "API Key non configurata" : "Configurato — \(googleModel)"
-            )
-        }
-    }
-
-    // MARK: - MiniMax
-
-    private var minimaxSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "MiniMax", subtitle: "M2.5 — SWE-Bench 80.2%, agent coding avanzato",
-                icon: "bolt.horizontal.fill")
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("API Key")
-                    SecureField("Ottieni da platform.minimax.io", text: $minimaxApiKey)
-                        .textFieldStyle(.roundedBorder)
-
-                    fieldLabel("Modello")
-                    Picker("", selection: $minimaxModel) {
-                        ForEach(minimaxModels, id: \.self) { m in Text(m).tag(m) }
+            GroupBox("MiniMax") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("API Key", text: $minimaxApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !minimaxApiKey.isEmpty, label: minimaxApiKey.isEmpty ? "Non configurato" : "Configurato")
                     }
-                    .labelsHidden()
-                }
-                .padding(4)
+                }.padding(4)
             }
 
-            statusBadge(
-                connected: !minimaxApiKey.isEmpty,
-                label: minimaxApiKey.isEmpty
-                    ? "API Key non configurata" : "Configurato — \(minimaxModel)"
-            )
+            GroupBox("OpenRouter") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("sk-or-...", text: $openrouterApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !openrouterApiKey.isEmpty, label: openrouterApiKey.isEmpty ? "Non configurato" : "Configurato")
+                    }
+                    hintBox("OpenRouter permette di usare modelli di diversi provider con una sola API key. I modelli si selezionano nella chat.")
+                }.padding(4)
+            }
 
-            hintBox(
-                "Registrati su platform.minimax.io per ottenere una API key. MiniMax M2.5 offre performance top su coding e agentic tasks a costi molto bassi ($0.30/M input)."
-            )
+            GroupBox("Grok (xAI)") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        SecureField("xai-...", text: $grokApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(connected: !grokApiKey.isEmpty, label: grokApiKey.isEmpty ? "Non configurato" : "Configurato")
+                    }
+                }.padding(4)
+            }
+
+            hintBox("I modelli si selezionano direttamente dalla barra della chat, non dalle impostazioni.")
         }
     }
 
-    // MARK: - OpenRouter
+    // MARK: - CLI Tools
 
-    private var openRouterSection: some View {
+    private var cliToolsSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "OpenRouter", subtitle: "Gateway unificato per 400+ modelli AI",
-                icon: "arrow.triangle.branch")
+            sectionHeader(title: "CLI Tools", subtitle: "Codex, Claude Code e Gemini CLI", icon: "terminal")
 
-            GroupBox("Accesso") {
+            // Codex CLI
+            GroupBox("Codex CLI") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Button(action: { showOpenRouterLogin = true }) {
-                            Label(
-                                openrouterApiKey.isEmpty ? "Accedi con OpenRouter" : "Connesso",
-                                systemImage: openrouterApiKey.isEmpty
-                                    ? "bolt.fill" : "checkmark.circle.fill"
-                            )
+                        fieldLabel("Path")
+                        TextField("Auto-detect", text: $codexPath).textFieldStyle(.roundedBorder)
+                        statusBadge(
+                            connected: codexState.status.isLoggedIn,
+                            label: codexState.status.isLoggedIn ? "Connesso" : "Non connesso"
+                        )
+                    }
+                    Button("Connetti a Codex") { connectToCodex() }
+                        .buttonStyle(.borderedProminent).controlSize(.small)
+                        .sheet(isPresented: $showCodexLogin) {
+                            CodexLoginView(codexPath: codexPath, onDismiss: { syncCodex() })
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(openrouterApiKey.isEmpty ? .orange : .green)
 
-                        if !openrouterApiKey.isEmpty {
-                            Text("API key configurata")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                            Spacer()
-                            Button("Disconnetti") {
-                                openrouterApiKey = ""
+                    Divider()
+                    fieldLabel("Sandbox")
+                    Picker("", selection: $codexSandbox) {
+                        Text("Read Only").tag("read-only")
+                        Text("Workspace Write").tag("workspace-write")
+                        Text("Full Access").tag("danger-full-access")
+                    }.labelsHidden().pickerStyle(.segmented)
+
+                    fieldLabel("Approvazione")
+                    Picker("", selection: $codexAskForApproval) {
+                        Text("Mai").tag("never")
+                        Text("Su richiesta").tag("on-request")
+                        Text("Non fidato").tag("untrusted")
+                    }.labelsHidden().pickerStyle(.segmented)
+
+                    Toggle("Accesso rete", isOn: $codexNetworkAccess)
+                    Toggle("Controlla aggiornamenti", isOn: $codexCheckUpdate)
+                }.padding(4)
+            }
+
+            multiAccountProviderSection(.codex)
+
+            // Claude Code
+            GroupBox("Claude Code") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        fieldLabel("Path")
+                        TextField("Auto-detect", text: $claudePath).textFieldStyle(.roundedBorder)
+                        let claudeInstalled = !claudePath.isEmpty || PathFinder.find(executable: "claude") != nil
+                        statusBadge(connected: claudeInstalled, label: claudeInstalled ? "Installato" : "Non trovato")
+                    }
+
+                    Divider()
+                    fieldLabel("Strumenti consentiti")
+                    let allTools = ["Read", "Edit", "Bash", "Write", "Search", "Glob", "Grep", "TodoRead", "TodoWrite"]
+                    let selectedTools = parseClaudeAllowedTools()
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 6) {
+                        ForEach(allTools, id: \.self) { tool in
+                            let isOn = selectedTools.contains(tool)
+                            Button {
+                                var set = Set(selectedTools)
+                                if isOn { set.remove(tool) } else { set.insert(tool) }
+                                claudeAllowedTools = allTools.filter { set.contains($0) }.joined(separator: ",")
+                            } label: {
+                                Text(tool)
+                                    .font(.system(size: 10, weight: isOn ? .semibold : .regular))
+                                    .padding(.horizontal, 8).padding(.vertical, 4)
+                                    .background(isOn ? Color.accentColor.opacity(0.15) : Color.clear, in: Capsule())
+                                    .overlay(Capsule().strokeBorder(isOn ? Color.accentColor : Color.secondary.opacity(0.3)))
                             }
-                            .font(.caption)
-                            .foregroundStyle(.red)
                             .buttonStyle(.plain)
                         }
                     }
-                }
-                .padding(4)
-            }
-            .sheet(isPresented: $showOpenRouterLogin) {
-                OpenRouterLoginView(apiKey: $openrouterApiKey) {}
-            }
-
-            GroupBox("Modello") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Picker("", selection: $openrouterModel) {
-                        ForEach(openRouterPickerModels, id: \.self) { m in Text(m).tag(m) }
-                    }
-                    .labelsHidden()
-
-                    TextField(
-                        "Oppure inserisci manualmente (es. meta-llama/llama-4-scout)",
-                        text: $openrouterModel
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11))
-                }
-                .padding(4)
-            }
-
-            GroupBox("Modelli Gratuiti") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Seleziona un modello gratuito (20 req/min, 200 req/giorno)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(openRouterFreeModels, id: \.self) { model in
-                        Button {
-                            openrouterModel = model
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(
-                                    systemName: openrouterModel == model
-                                        ? "checkmark.circle.fill" : "circle"
-                                )
-                                .foregroundStyle(openrouterModel == model ? .green : .secondary)
-                                .font(.system(size: 12))
-                                Text(model.replacingOccurrences(of: ":free", with: ""))
-                                    .font(.system(size: 12, weight: .medium))
-                                Spacer()
-                                Text("FREE")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.green)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(.green.opacity(0.12), in: Capsule())
-                            }
-                            .padding(.vertical, 3)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(4)
-            }
-
-            statusBadge(
-                connected: !openrouterApiKey.isEmpty,
-                label: openrouterApiKey.isEmpty
-                    ? "Non connesso" : "Configurato — \(openrouterModel)"
-            )
-
-            hintBox(
-                "Accedi con il tuo account OpenRouter per usare 400+ modelli. I modelli gratuiti non richiedono credito, basta un account."
-            )
-        }
-    }
-
-    // MARK: - Codex CLI
-
-    private var codexSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Codex CLI", subtitle: "Agente di coding locale con sandbox",
-                icon: "terminal")
-
-            GroupBox("Connessione") {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Button(action: connectToCodex) {
-                            Label(
-                                codexState.status.isLoggedIn ? "Connesso" : "Connetti",
-                                systemImage: codexState.status.isLoggedIn
-                                    ? "checkmark.circle.fill" : "bolt.fill"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(codexState.status.isLoggedIn ? .green : .accentColor)
-                        .disabled(codexState.status.isLoggedIn)
-
-                        if codexState.status.isLoggedIn {
-                            Text("Codex CLI connesso").font(.caption).foregroundStyle(.green)
-                        }
-                    }
-
-                    if !codexState.status.isInstalled {
-                        Label(
-                            "Non installato — brew install codex",
-                            systemImage: "exclamationmark.circle.fill"
-                        )
-                        .font(.caption).foregroundStyle(.red)
-                    }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Configurazione") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Path (vuoto per auto-detect)")
-                    TextField("/usr/local/bin/codex", text: $codexPath)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: codexPath) { _, _ in
-                            codexState.refresh()
-                            syncCodex()
-                        }
-
-                    fieldLabel("Sandbox")
-                    Picker("", selection: $codexSandbox) {
-                        Text("Read-only").tag("read-only")
-                        Text("Workspace write").tag("workspace-write")
-                        Text("Full access").tag("danger-full-access")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .onChange(of: codexSandbox) { _, _ in
-                        syncCodex()
-                        saveCodexToml()
-                    }
-
-                    fieldLabel("Ask for approval")
-                    Picker("", selection: $codexAskForApproval) {
-                        Text("Mai").tag("never")
-                        Text("On request").tag("on-request")
-                        Text("Untrusted").tag("untrusted")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .onChange(of: codexAskForApproval) { _, _ in syncCodex() }
-
-                    fieldLabel("Modello Override")
-                    TextField("es. o3, o4-mini", text: $codexModelOverride)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: codexModelOverride) { _, _ in
-                            syncCodex()
-                            saveCodexToml()
-                        }
-
-                    fieldLabel("Backend Plan Mode")
-                    Picker("", selection: $planModeBackend) {
-                        Text("Codex").tag("codex")
-                        Text("Claude").tag("claude")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                }
-                .padding(4)
-            }
-
-            GroupBox("Modello Avanzato") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Reasoning Summary")
-                    Picker("", selection: $codexReasoningSummary) {
-                        Text("Auto").tag("auto")
-                        Text("Concise").tag("concise")
-                        Text("Detailed").tag("detailed")
-                        Text("None").tag("none")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .onChange(of: codexReasoningSummary) { _, _ in saveCodexToml() }
-
-                    fieldLabel("Verbosity")
-                    Picker("", selection: $codexVerbosity) {
-                        Text("Low").tag("low")
-                        Text("Medium").tag("medium")
-                        Text("High").tag("high")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .onChange(of: codexVerbosity) { _, _ in saveCodexToml() }
-
-                    fieldLabel("Personality")
-                    Picker("", selection: $codexPersonality) {
-                        Text("None").tag("none")
-                        Text("Friendly").tag("friendly")
-                        Text("Pragmatic").tag("pragmatic")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .onChange(of: codexPersonality) { _, _ in saveCodexToml() }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Sandbox Avanzato") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Network access", isOn: $codexNetworkAccess)
-                        .onChange(of: codexNetworkAccess) { _, _ in saveCodexToml() }
-
-                    fieldLabel("Additional write roots (uno per riga)")
-                    TextField("/tmp, /var/data", text: $codexAdditionalWriteRoots)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: codexAdditionalWriteRoots) { _, _ in saveCodexToml() }
-
-                    Toggle("Controlla aggiornamenti all'avvio", isOn: $codexCheckUpdate)
-                        .onChange(of: codexCheckUpdate) { _, _ in saveCodexToml() }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Istruzioni") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Developer Instructions")
-                    TextEditor(text: $codexDeveloperInstructions)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6).strokeBorder(
-                                Color(nsColor: .separatorColor))
-                        )
-                        .onChange(of: codexDeveloperInstructions) { _, _ in saveCodexToml() }
-
-                    fieldLabel("AGENTS.md (globale — ~/.codex/AGENTS.md)")
-                    TextEditor(text: $codexAgentsMd)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6).strokeBorder(
-                                Color(nsColor: .separatorColor))
-                        )
-                        .onChange(of: codexAgentsMd) { _, _ in
-                            CodexAgentsFile.saveGlobal(codexAgentsMd)
-                        }
-                }
-                .padding(4)
-            }
-
-            globalRulesGroup
-            projectRulesGroup
-
-            multiAccountProviderSection(.codex)
-        }
-        .onAppear { loadCodexAdvanced() }
-    }
-
-    private var globalRulesGroup: some View {
-        GroupBox("Rules globali (.codigo/rules/global)") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    TextField("nome-regola.md", text: $newGlobalRuleName)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Crea") { createGlobalRule() }
-                        .buttonStyle(.borderedProminent)
-                    Button("Ricarica") { reloadRulesFromDisk() }
-                        .buttonStyle(.bordered)
-                }
-
-                if globalRuleDocs.isEmpty {
-                    Text(
-                        "Nessuna regola globale. Puoi crearla qui o manualmente in ~/.codigo/rules/global/"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                } else {
-                    Picker(
-                        "Regola globale",
-                        selection: Binding(
-                            get: { selectedGlobalRuleName },
-                            set: { newValue in
-                                selectedGlobalRuleName = newValue
-                                globalRuleContentDraft =
-                                    globalRuleDocs.first(where: { $0.name == newValue })?.content
-                                    ?? ""
-                            }
-                        )
-                    ) {
-                        ForEach(globalRuleDocs, id: \.name) { doc in
-                            Text(doc.name).tag(doc.name)
-                        }
-                    }
-                    .labelsHidden()
-                }
-
-                TextEditor(text: $globalRuleContentDraft)
-                    .font(.system(size: 11, design: .monospaced))
-                    .frame(height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6).strokeBorder(
-                            Color(nsColor: .separatorColor)))
-
-                HStack(spacing: 8) {
-                    Button("Salva") { saveSelectedGlobalRule() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(selectedGlobalRuleName.isEmpty)
-                    Button("Elimina", role: .destructive) { deleteSelectedGlobalRule() }
-                        .buttonStyle(.bordered)
-                        .disabled(selectedGlobalRuleName.isEmpty)
-                }
-            }
-            .padding(4)
-        }
-    }
-
-    private var projectRulesGroup: some View {
-        GroupBox("Rules progetto (.codigo/rules/project)") {
-            VStack(alignment: .leading, spacing: 10) {
-                if let root = currentProjectRootPath {
-                    Text("Root progetto attiva: \(root)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack(spacing: 8) {
-                        TextField("nome-regola.md", text: $newProjectRuleName)
-                            .textFieldStyle(.roundedBorder)
-                        Button("Crea") { createProjectRule() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Ricarica") { reloadRulesFromDisk() }
-                            .buttonStyle(.bordered)
-                    }
-
-                    if projectRuleDocs.isEmpty {
-                        Text(
-                            "Nessuna regola progetto. Crea qui o manualmente in .codigo/rules/project/"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    } else {
-                        Picker(
-                            "Regola progetto",
-                            selection: Binding(
-                                get: { selectedProjectRuleName },
-                                set: { newValue in
-                                    selectedProjectRuleName = newValue
-                                    projectRuleContentDraft =
-                                        projectRuleDocs.first(where: { $0.name == newValue })?
-                                        .content ?? ""
-                                }
-                            )
-                        ) {
-                            ForEach(projectRuleDocs, id: \.name) { doc in
-                                Text(doc.name).tag(doc.name)
-                            }
-                        }
-                        .labelsHidden()
-                    }
-
-                    TextEditor(text: $projectRuleContentDraft)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6).strokeBorder(
-                                Color(nsColor: .separatorColor)))
-
-                    HStack(spacing: 8) {
-                        Button("Salva") { saveSelectedProjectRule() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(selectedProjectRuleName.isEmpty)
-                        Button("Elimina", role: .destructive) { deleteSelectedProjectRule() }
-                            .buttonStyle(.bordered)
-                            .disabled(selectedProjectRuleName.isEmpty)
-                    }
-                } else {
-                    Text(
-                        "Nessun progetto attivo. Apri/seleziona un workspace per gestire le project rules."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-            }
-            .padding(4)
-        }
-    }
-
-    // MARK: - Claude CLI
-
-    private var claudeSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Claude Code CLI", subtitle: "Agente Anthropic locale", icon: "sparkles")
-
-            GroupBox("Connessione") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Path (vuoto per auto-detect)")
-                    TextField("/usr/local/bin/claude", text: $claudePath)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: claudePath) { _, _ in syncClaude() }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Configurazione") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Modello")
-                    Picker("", selection: $claudeModel) {
-                        Text("Opus").tag("opus")
-                        Text("Sonnet").tag("sonnet")
-                        Text("Haiku").tag("haiku")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    fieldLabel("Allowed Tools")
-                    let allTools = [
-                        "Read", "Edit", "Bash", "Write", "Search", "Glob", "Grep", "TodoRead",
-                        "TodoWrite",
-                    ]
-                    let selectedTools = Set(
-                        claudeAllowedTools.components(separatedBy: ",").map {
-                            $0.trimmingCharacters(in: .whitespaces)
-                        })
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 6) {
-                        ForEach(allTools, id: \.self) { tool in
-                            Toggle(
-                                tool,
-                                isOn: Binding(
-                                    get: { selectedTools.contains(tool) },
-                                    set: { isOn in
-                                        var current = selectedTools
-                                        if isOn {
-                                            current.insert(tool)
-                                        } else {
-                                            current.remove(tool)
-                                        }
-                                        claudeAllowedTools = current.sorted().joined(separator: ",")
-                                    }
-                                )
-                            )
-                            .toggleStyle(.checkbox)
-                            .font(.system(size: 11))
-                        }
-                    }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Istruzioni") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("CLAUDE.md (globale — ~/.claude/CLAUDE.md)")
-                    TextEditor(text: $claudeMdContent)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(height: 140)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6).strokeBorder(
-                                Color(nsColor: .separatorColor))
-                        )
-                        .onChange(of: claudeMdContent) { _, _ in
-                            ClaudeConfigLoader.saveClaudeMd(claudeMdContent)
-                        }
-                }
-                .padding(4)
+                }.padding(4)
             }
 
             multiAccountProviderSection(.claude)
-        }
-        .onAppear {
-            claudeMdContent = ClaudeConfigLoader.loadClaudeMd()
-        }
-    }
 
-    // MARK: - Gemini CLI
-
-    private var geminiSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Gemini CLI", subtitle: "Provider CLI Google Gemini locale", icon: "globe")
-
-            GroupBox("Connessione") {
+            // Gemini CLI
+            GroupBox("Gemini CLI") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Button(action: connectToGemini) {
-                            Label(
-                                geminiState.status.isLoggedIn ? "Connesso" : "Connetti",
-                                systemImage: geminiState.status.isLoggedIn
-                                    ? "checkmark.circle.fill" : "bolt.fill"
-                            )
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(geminiState.status.isLoggedIn ? .green : .accentColor)
-                        .disabled(geminiState.status.isLoggedIn)
-
-                        if geminiState.status.isLoggedIn {
-                            Text("Gemini CLI connesso").font(.caption).foregroundStyle(.green)
-                        }
-                    }
-
-                    if !geminiState.status.isInstalled {
-                        Label(
-                            "Non installato — brew install gemini-cli",
-                            systemImage: "exclamationmark.circle.fill"
+                        fieldLabel("Path")
+                        TextField("Auto-detect", text: $geminiCliPath).textFieldStyle(.roundedBorder)
+                        statusBadge(
+                            connected: geminiState.status.isInstalled,
+                            label: geminiState.status.isInstalled ? "Installato" : "Non trovato"
                         )
-                        .font(.caption).foregroundStyle(.red)
                     }
-
-                    fieldLabel("Path (vuoto per auto-detect)")
-                    TextField("/opt/homebrew/bin/gemini", text: $geminiCliPath)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: geminiCliPath) { _, _ in
+                    if !geminiState.status.isInstalled {
+                        Button("Connetti a Gemini") {
                             geminiState.refresh()
-                            syncGemini()
+                            if geminiState.status.isInstalled { syncGemini() }
                         }
-
-                    fieldLabel("Modello")
-                    Picker("", selection: $geminiModelOverride) {
-                        Text("Default (auto)").tag("")
-                        ForEach(GeminiModelsCache.loadModels(), id: \.slug) { m in
-                            Text(m.displayName).tag(m.slug)
-                        }
-                        if !geminiModelOverride.isEmpty
-                            && !GeminiModelsCache.loadModels().contains(where: {
-                                $0.slug == geminiModelOverride
-                            })
-                        {
-                            Text(geminiModelOverride).tag(geminiModelOverride)
-                        }
+                        .buttonStyle(.borderedProminent).controlSize(.small)
                     }
-                    .labelsHidden()
-                    .onChange(of: geminiModelOverride) { _, _ in syncGemini() }
-                }
-                .padding(4)
+                }.padding(4)
             }
+            .onAppear { geminiState.refresh() }
 
             multiAccountProviderSection(.gemini)
         }
     }
 
-    private func connectToGemini() {
-        geminiState.refresh()
-        syncGemini()
-    }
+    // MARK: - MCP
 
-    // MARK: - Agent Swarm
-
-    private var swarmSection: some View {
+    private var mcpSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Agent Swarm",
-                subtitle: "Orchestratore multi-agente: Planner, Coder, Reviewer, Debugger",
-                icon: "ant.fill")
-
-            GroupBox("Orchestratore") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Backend che genera il piano di task")
-                    Picker("", selection: $swarmOrchestrator) {
-                        Text("API").foregroundStyle(.secondary).disabled(true)
-                        Text("OpenAI API").tag("openai")
-                        Text("Anthropic API").tag("anthropic-api")
-                        Text("Google API").tag("google-api")
-                        Text("OpenRouter").tag("openrouter-api")
-                        Text("MiniMax API").tag("minimax-api")
-                        Text("CLI").foregroundStyle(.secondary).disabled(true)
-                        Text("Codex CLI").tag("codex")
-                        Text("Claude Code").tag("claude")
-                        Text("Gemini CLI").tag("gemini")
-                    }
-                    .labelsHidden()
-                    .onChange(of: swarmOrchestrator) { _, _ in syncSwarm() }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Worker") {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Backend che esegue i task")
-                    Picker("", selection: $swarmWorkerBackend) {
-                        Text("CLI").foregroundStyle(.secondary).disabled(true)
-                        Text("Codex CLI").tag("codex")
-                        Text("Claude Code").tag("claude")
-                        Text("Gemini CLI").tag("gemini")
-                        Text("API").foregroundStyle(.secondary).disabled(true)
-                        Text("OpenAI API").tag("openai-api")
-                        Text("Anthropic API").tag("anthropic-api")
-                        Text("Google API").tag("google-api")
-                        Text("OpenRouter").tag("openrouter-api")
-                        Text("MiniMax API").tag("minimax-api")
-                    }
-                    .labelsHidden()
-                    .onChange(of: swarmWorkerBackend) { _, _ in syncSwarm() }
-
-                    hintBox(
-                        "I worker usano internamente i propri subagent nativi (multi-agent Codex / Claude) per task complessi. I provider API usano tool calling integrato CoderIDE."
-                    )
-                }
-                .padding(4)
-            }
-
-            GroupBox("Ruoli abilitati") {
-                VStack(alignment: .leading, spacing: 8) {
-                    let allRoles = AgentRole.allCases
-                    let selected = Set(
-                        swarmEnabledRoles.components(separatedBy: ",").map {
-                            $0.trimmingCharacters(in: .whitespaces)
-                        })
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 6) {
-                        ForEach(allRoles, id: \.self) { role in
-                            let isOn = selected.contains(role.rawValue)
-                            Button {
-                                var roles = Set(selected)
-                                if isOn {
-                                    roles.remove(role.rawValue)
-                                } else {
-                                    roles.insert(role.rawValue)
-                                }
-                                swarmEnabledRoles = roles.sorted().joined(separator: ",")
-                                syncSwarm()
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                                    Text(role.displayName).font(.caption)
-                                }
-                                .foregroundStyle(isOn ? Color.accentColor : .secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Pipeline QA") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle(
-                        "Pipeline QA dopo Coder (Reviewer + TestWriter + test)",
-                        isOn: $swarmAutoPostCodePipeline
-                    )
-                    .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarm() }
-
-                    if swarmAutoPostCodePipeline {
-                        Stepper(
-                            "Max tentativi correzione test: \(swarmMaxPostCodeRetries)",
-                            value: $swarmMaxPostCodeRetries, in: 1...50
-                        )
-                        .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarm() }
-                    }
-                    Stepper(
-                        "Max loop Reviewer→Coder: \(swarmMaxReviewLoops)",
-                        value: $swarmMaxReviewLoops, in: 0...5
-                    )
-                    .onChange(of: swarmMaxReviewLoops) { _, _ in syncSwarm() }
-                }
-                .padding(4)
-            }
+            sectionHeader(title: "MCP Servers", subtitle: "Model Context Protocol — server e strumenti", icon: "server.rack")
+            MCPSettingsSection()
         }
     }
 
-    // MARK: - Code Review
+    // MARK: - Rules
 
-    private var codeReviewSection: some View {
+    private var rulesSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Code Review",
-                subtitle: "Analisi parallela multi-swarm con report aggregato",
-                icon: "doc.text.magnifyingglass")
+            sectionHeader(title: "Rules", subtitle: "Istruzioni e regole per tutti i provider", icon: "doc.text.fill")
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Backend analisi Fase 1")
-                    Picker("", selection: $codeReviewAnalysisBackend) {
-                        Text("Codex CLI").tag("codex-cli")
-                        Text("Claude CLI").tag("claude-cli")
-                        Text("Gemini CLI").tag("gemini-cli")
-                        Text("Anthropic API").tag("anthropic-api")
-                        Text("OpenAI API").tag("openai-api")
-                        Text("Google API").tag("google-api")
-                        Text("OpenRouter API").tag("openrouter-api")
-                        Text("MiniMax API").tag("minimax-api")
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReview() }
+            hintBox("Le regole vengono applicate automaticamente a TUTTI i provider AI (API e CLI). Usa le regole globali per istruzioni generali e quelle di progetto per regole specifiche al workspace attivo.")
 
-                    fieldLabel("Backend esecuzione Fase 2 (modifiche file)")
-                    Picker("", selection: $codeReviewExecutionBackend) {
-                        Text("Codex CLI").tag("codex-cli")
-                        Text("Claude CLI").tag("claude-cli")
-                        Text("Gemini CLI").tag("gemini-cli")
-                        Text("Anthropic API").tag("anthropic-api")
-                        Text("OpenAI API").tag("openai-api")
-                        Text("Google API").tag("google-api")
-                        Text("OpenRouter API").tag("openrouter-api")
-                        Text("MiniMax API").tag("minimax-api")
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReview() }
-
-                    Stepper(
-                        "Max agenti contemporanei: \(codeReviewPartitions)",
-                        value: $codeReviewPartitions, in: 2...12
-                    )
-                    .onChange(of: codeReviewPartitions) { _, _ in syncCodeReview() }
-
-                    Stepper(
-                        "Max iterazioni analisi→fix: \(codeReviewMaxRounds)",
-                        value: $codeReviewMaxRounds, in: 1...10
-                    )
-                    .onChange(of: codeReviewMaxRounds) { _, _ in syncCodeReview() }
-
-                    Toggle(
-                        "Solo analisi (disabilita Fase 2 — esecuzione)",
-                        isOn: $codeReviewAnalysisOnly
-                    )
-                    .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReview() }
-                }
-                .padding(4)
-            }
-
-            GroupBox("Quick Commands /review-* (custom)") {
+            // Global rules
+            GroupBox("Regole globali (~/.codigo/rules/global/)") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(
-                        "Inserisci un JSON array di preset custom. Ogni voce richiede: slash, label, prompt."
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    TextEditor(text: $codeReviewQuickCommandsCustomJSON)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(minHeight: 140, maxHeight: 220)
-                        .padding(6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(nsColor: .textBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.6)
-                        )
-
-                    HStack(spacing: 10) {
-                        Button("Inserisci template") {
-                            if codeReviewQuickCommandsCustomJSON.trimmingCharacters(
-                                in: .whitespacesAndNewlines
-                            ).isEmpty {
-                                codeReviewQuickCommandsCustomJSON = """
-                                [
-                                  {
-                                    "slash": "/review-risk-focus",
-                                    "label": "Risk focus",
-                                    "prompt": "Fai review solo su rischi di regressione ad alto impatto (runtime, data loss, security). Riporta findings P0/P1 con prove."
-                                  },
-                                  {
-                                    "slash": "/review-fix-tests",
-                                    "label": "Fix + tests",
-                                    "prompt": "Find bugs in current changes, apply fixes, add/update tests and validate with full build/tests."
-                                  }
-                                ]
-                                """
+                    if globalRuleDocs.isEmpty {
+                        Text("Nessuna regola globale. Creane una per iniziare.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Picker("Regola", selection: $selectedGlobalRuleName) {
+                            ForEach(globalRuleDocs, id: \.name) { doc in
+                                Text(doc.name).tag(doc.name)
                             }
                         }
-                        Button("Reset custom") {
-                            codeReviewQuickCommandsCustomJSON = ""
+                        .onChange(of: selectedGlobalRuleName) { _, name in
+                            globalRuleContentDraft = globalRuleDocs.first(where: { $0.name == name })?.content ?? ""
+                        }
+                        TextEditor(text: $globalRuleContentDraft)
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(height: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                        HStack(spacing: 8) {
+                            Button("Salva") { saveSelectedGlobalRule() }.buttonStyle(.borderedProminent).controlSize(.small)
+                            Button("Elimina", role: .destructive) { deleteSelectedGlobalRule() }.buttonStyle(.bordered).controlSize(.small)
                         }
                     }
-                    .buttonStyle(.bordered)
-                }
-                .padding(4)
+
+                    Divider()
+                    fieldLabel("Nuova regola globale")
+                    HStack(spacing: 8) {
+                        TextField("Nome (es: coding-style.md)", text: $newGlobalRuleName).textFieldStyle(.roundedBorder)
+                        Button("Crea") { createGlobalRule() }.buttonStyle(.borderedProminent).controlSize(.small)
+                    }
+                }.padding(4)
+            }
+
+            // Project rules
+            GroupBox("Regole progetto (.codigo/rules/project/)") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if currentProjectRootPath == nil {
+                        Text("Nessun workspace attivo. Apri un progetto per gestire le regole di progetto.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else if projectRuleDocs.isEmpty {
+                        Text("Nessuna regola di progetto. Creane una per iniziare.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Picker("Regola", selection: $selectedProjectRuleName) {
+                            ForEach(projectRuleDocs, id: \.name) { doc in
+                                Text(doc.name).tag(doc.name)
+                            }
+                        }
+                        .onChange(of: selectedProjectRuleName) { _, name in
+                            projectRuleContentDraft = projectRuleDocs.first(where: { $0.name == name })?.content ?? ""
+                        }
+                        TextEditor(text: $projectRuleContentDraft)
+                            .font(.system(size: 11, design: .monospaced))
+                            .frame(height: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                        HStack(spacing: 8) {
+                            Button("Salva") { saveSelectedProjectRule() }.buttonStyle(.borderedProminent).controlSize(.small)
+                            Button("Elimina", role: .destructive) { deleteSelectedProjectRule() }.buttonStyle(.bordered).controlSize(.small)
+                        }
+                    }
+
+                    if currentProjectRootPath != nil {
+                        Divider()
+                        fieldLabel("Nuova regola progetto")
+                        HStack(spacing: 8) {
+                            TextField("Nome (es: api-guidelines.md)", text: $newProjectRuleName).textFieldStyle(.roundedBorder)
+                            Button("Crea") { createProjectRule() }.buttonStyle(.borderedProminent).controlSize(.small)
+                        }
+                    }
+                }.padding(4)
             }
         }
     }
 
-    // MARK: - Terminal
+    // MARK: - Codebase Index
 
-    private var terminalSection: some View {
+    private var codebaseIndexSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Terminale", subtitle: "Terminale integrato nell'editor",
-                icon: "terminal.fill")
+            sectionHeader(title: "Codebase Index", subtitle: "Indicizzazione simboli e ricerca semantica", icon: "text.magnifyingglass")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Auto-follow output live", isOn: $terminalAutoFollowOutput)
-                    hintBox(
-                        "Quando attivo, il terminale integrato resta agganciato all'ultima riga durante build/test/command output."
-                    )
-
-                    Text("Per il terminale integrato serve accesso Full Disk Access.")
-                        .font(.callout).foregroundStyle(.secondary)
-
-                    Button(action: openFullDiskAccessPreferences) {
-                        Label("Apri Impostazioni: Full Disk Access", systemImage: "lock.open")
-                    }
-
-                    Text(
-                        "Aggiungi Codigo all'elenco e attiva l'interruttore. Riavvia dopo la modifica."
-                    )
-                    .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Indicizzazione automatica", isOn: $codebaseIndexEnabled).toggleStyle(.switch)
+                    hintBox("Quando abilitato, il workspace attivo viene indicizzato automaticamente all'avvio. L'indice fornisce ricerca simboli, navigazione e contesto ai provider AI.")
                 }
-                .padding(4)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Stato indice")
+                    Text(indexStatusText)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !indexStatsText.isEmpty {
+                        Text(indexStatsText)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Button("Reindicizza") {
+                        Task {
+                            indexStatusText = "Reindicizzazione in corso..."
+                            let index = workspaceStore.codebaseIndex
+                            let paths = workspaceStore.activeWorkspace.map {
+                                $0.folderPaths.map { URL(fileURLWithPath: $0) }
+                            } ?? []
+                            let excluded = codebaseIndexExcludedPaths
+                                .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
+                            await refreshIndexStatus()
+                        }
+                    }.buttonStyle(.borderedProminent).controlSize(.small)
+                }
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Percorsi esclusi")
+                    TextField("node_modules, .git, build, dist", text: $codebaseIndexExcludedPaths).textFieldStyle(.roundedBorder)
+                    hintBox("Lista di directory da escludere (separate da virgola). Le directory predefinite (node_modules, .git, build, ecc.) sono sempre escluse.")
+                }
             }
         }
+        .onAppear { Task { await refreshIndexStatus() } }
     }
 
     // MARK: - Behavior
 
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Behavior", subtitle: "Proceed without confirmation on all modes",
-                icon: "bolt.fill")
+            sectionHeader(title: "Behavior", subtitle: "Comportamento dell'agente e del terminale", icon: "bolt.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Yolo: proceed without confirmation (all modes)", isOn: $globalYolo)
-                        .onChange(of: globalYolo) { _, _ in
-                            syncCodex()
-                            syncPlanProvider()
-                            syncCodeReview()
-                        }
-
-                    hintBox(
-                        "Quando attivo: Plan execute, Code Review Fase 2, Agent e Swarm procedono senza chiedere conferma."
-                    )
+                    Toggle("YOLO Mode (full auto)", isOn: $globalYolo)
+                    hintBox("Quando attivo, l'agente esegue comandi e modifica file senza chiedere conferma. Utile per task automatizzati ma potenzialmente distruttivo.")
                 }
-                .padding(4)
             }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle(
-                        "Consenti delega automatica allo swarm in Agent",
-                        isOn: $agentAutoDelegateSwarm)
-                    hintBox(
-                        "Se disattivo, Agent non inietta il marker invoke_swarm e resta in esecuzione singola."
-                    )
+                    Toggle("Auto-delega a Agent Swarm", isOn: $agentAutoDelegateSwarm)
+                    hintBox("Permette all'agente singolo di delegare automaticamente task complessi allo swarm multi-agente.")
                 }
-                .padding(4)
             }
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    fieldLabel("Summarize chat automatico (stile Cursor)")
-                    Toggle(
-                        "Abilita",
-                        isOn: Binding(
-                            get: { summarizeThreshold < 1.0 },
-                            set: { summarizeThreshold = $0 ? 0.8 : 1.0 }
-                        ))
+                    Toggle("Auto-follow output terminale", isOn: $terminalAutoFollowOutput)
+                    hintBox("Scorre automaticamente l'output del terminale durante l'esecuzione dei comandi.")
+                }
+            }
+
+            GroupBox("Riassunto chat automatico") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Abilita riassunto automatico", isOn: Binding(
+                        get: { summarizeThreshold < 1.0 },
+                        set: { summarizeThreshold = $0 ? 0.8 : 1.0 }
+                    ))
                     if summarizeThreshold < 1.0 {
                         HStack {
-                            Text("Soglia contesto")
-                            Slider(value: $summarizeThreshold, in: 0.5...0.95, step: 0.05)
-                            Text("\(Int(summarizeThreshold * 100))%")
-                                .frame(width: 36, alignment: .trailing)
-                                .foregroundStyle(.secondary)
+                            fieldLabel("Soglia contesto")
+                            Slider(value: $summarizeThreshold, in: 0.3...0.95, step: 0.05)
+                            Text("\(Int(summarizeThreshold * 100))%").font(.caption).foregroundStyle(.secondary)
                         }
-                        Stepper(value: $summarizeKeepLast, in: 4...12) {
-                            Text("Messaggi da mantenere: \(summarizeKeepLast)")
-                        }
-                        Picker("Provider per riassunto", selection: $summarizeProvider) {
-                            Text("OpenAI API").tag("openai-api")
-                            Text("Codex CLI").tag("codex-cli")
-                            Text("Claude CLI").tag("claude-cli")
-                        }
+                        Stepper("Mantieni ultimi \(summarizeKeepLast) messaggi", value: $summarizeKeepLast, in: 2...20)
                     }
-                    hintBox(
-                        "Quando il contesto supera la soglia, i messaggi vecchi vengono compressi in un riassunto per liberare spazio."
-                    )
-                    hintBox(
-                        "Se selezioni Codex CLI come provider riassunto, viene usato il compact nativo di Codex (niente riscrittura custom della chat)."
-                    )
+                    hintBox("Riassume automaticamente la chat quando il contesto supera la soglia, mantenendo gli ultimi messaggi intatti.")
+                }.padding(4)
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Auto-approvazione strumenti", isOn: $fullAutoTools)
+                    hintBox("Approva automaticamente le chiamate a strumenti (file, terminale, ecc.) senza conferma interattiva.")
                 }
-                .padding(4)
             }
         }
     }
@@ -1330,45 +616,29 @@ struct SettingsView: View {
 
     private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "Aspetto", subtitle: "Tema e comportamento generale", icon: "paintbrush.fill"
-            )
+            sectionHeader(title: "Appearance", subtitle: "Tema e aspetto dell'interfaccia", icon: "paintbrush.fill")
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Tema")
                     Picker("", selection: $appearance) {
-                        Label("Sistema", systemImage: "circle.lefthalf.filled").tag("system")
-                        Label("Chiaro", systemImage: "sun.max").tag("light")
-                        Label("Scuro", systemImage: "moon").tag("dark")
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                        Text("Sistema").tag("system")
+                        Text("Chiaro").tag("light")
+                        Text("Scuro").tag("dark")
+                    }.labelsHidden().pickerStyle(.segmented)
+                }
+            }
 
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Sfondo chat")
                     Picker("", selection: $chatBackgroundStyle) {
-                        Text("Opaco neutro").tag(ChatBackgroundStyle.solidNeutral.rawValue)
-                        Text("Trasparente (legacy)").tag(ChatBackgroundStyle.transparentLegacy.rawValue)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    Toggle("Auto-approvazione strumenti (Codex/Claude)", isOn: $fullAutoTools)
+                        ForEach(ChatBackgroundStyle.allCases) { (style: ChatBackgroundStyle) in
+                            Text(style.label).tag(style.rawValue)
+                        }
+                    }.labelsHidden()
                 }
-                .padding(4)
             }
-        }
-    }
-
-    // MARK: - MCP
-
-    private var mcpSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            sectionHeader(
-                title: "MCP", subtitle: "Model Context Protocol — server e strumenti",
-                icon: "server.rack")
-
-            MCPSettingsSection()
         }
     }
 
@@ -1380,9 +650,7 @@ struct SettingsView: View {
                 .font(.system(size: 22, weight: .medium))
                 .foregroundStyle(Color.accentColor)
                 .frame(width: 36, height: 36)
-                .background(
-                    Color.accentColor.opacity(0.1),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.title3.weight(.semibold))
                 Text(subtitle).font(.caption).foregroundStyle(.secondary)
@@ -1391,297 +659,157 @@ struct SettingsView: View {
     }
 
     private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
+        Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
     }
 
     private func statusBadge(connected: Bool, label: String) -> some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(connected ? Color.green : Color.orange)
-                .frame(width: 7, height: 7)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Circle().fill(connected ? Color.green : Color.orange).frame(width: 7, height: 7)
+            Text(label).font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func hintBox(_ text: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(.secondary)
-                .font(.caption)
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Image(systemName: "info.circle").foregroundStyle(.secondary).font(.caption)
+            Text(text).font(.caption).foregroundStyle(.secondary)
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.5),
-            in: RoundedRectangle(cornerRadius: 8))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
+
+    // MARK: - Multi-Account
 
     @ViewBuilder
     private func multiAccountProviderSection(_ provider: CLIProviderKind) -> some View {
         GroupBox("Multi-account \(provider.displayName)") {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Abilita multi-account CLI", isOn: $cliAccountsStore.multiAccountEnabled)
-                Text(
-                    "Auto-switch su quota/rate limit e limiti locali giornalieri/settimanali/mensili."
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("Auto-switch su quota/rate limit e limiti locali giornalieri/settimanali/mensili.")
+                    .font(.caption).foregroundStyle(.secondary)
 
                 let providerAccounts = cliAccountsStore.accounts(for: provider)
                 if providerAccounts.isEmpty {
                     Text("Nessun account configurato per \(provider.displayName).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(providerAccounts) { account in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                TextField(
-                                    "Label",
-                                    text: Binding(
-                                        get: { account.label },
-                                        set: { newValue in
-                                            var updated = account
-                                            updated.label = newValue
-                                            cliAccountsStore.update(updated)
-                                        }
-                                    ))
-                                Toggle(
-                                    "Attivo",
-                                    isOn: Binding(
-                                        get: { account.isEnabled },
-                                        set: { newValue in
-                                            var updated = account
-                                            updated.isEnabled = newValue
-                                            cliAccountsStore.update(updated)
-                                        }
-                                    )
-                                )
-                                .toggleStyle(.checkbox)
-                                Stepper(
-                                    "Priority \(account.priority)",
-                                    value: Binding(
-                                        get: { account.priority },
-                                        set: { newValue in
-                                            var updated = account
-                                            updated.priority = max(0, newValue)
-                                            cliAccountsStore.update(updated)
-                                        }
-                                    ), in: 0...99)
-                            }
-
-                            HStack(spacing: 10) {
-                                statusBadge(
-                                    connected: accountAuthStatus(account).isLoggedIn,
-                                    label: accountStatusLabel(account)
-                                )
-                                let day = cliUsageLedger.totals(accountId: account.id, period: .day)
-                                let week = cliUsageLedger.totals(
-                                    accountId: account.id, period: .weekOfYear)
-                                let month = cliUsageLedger.totals(
-                                    accountId: account.id, period: .month)
-                                Text("Oggi $\(day.cost, specifier: "%.2f")")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text("W $\(week.cost, specifier: "%.2f")")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text("M $\(month.cost, specifier: "%.2f")")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                TextField("Label", text: Binding(
+                                    get: { account.label },
+                                    set: { var u = account; u.label = $0; cliAccountsStore.update(u) }
+                                ))
+                                Toggle("Attivo", isOn: Binding(
+                                    get: { account.isEnabled },
+                                    set: { var u = account; u.isEnabled = $0; cliAccountsStore.update(u) }
+                                )).toggleStyle(.checkbox)
+                                Stepper("Priority \(account.priority)", value: Binding(
+                                    get: { account.priority },
+                                    set: { var u = account; u.priority = max(0, $0); cliAccountsStore.update(u) }
+                                ), in: 0...99)
                             }
                             HStack(spacing: 10) {
+                                statusBadge(connected: accountAuthStatus(account).isLoggedIn, label: accountStatusLabel(account))
                                 let day = cliUsageLedger.totals(accountId: account.id, period: .day)
-                                let week = cliUsageLedger.totals(
-                                    accountId: account.id, period: .weekOfYear)
-                                let month = cliUsageLedger.totals(
-                                    accountId: account.id, period: .month)
-                                Text("Tok D \(day.tokens)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                Text("W \(week.tokens)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                Text("M \(month.tokens)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                if provider == .codex {
-                                    Text(codexCreditsLabel())
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
+                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
+                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                                Text("Oggi $\(day.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
+                                Text("W $\(week.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
+                                Text("M $\(month.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
                             }
-
                             HStack(spacing: 8) {
-                                Picker(
-                                    "",
-                                    selection: Binding(
-                                        get: { loginMethodByAccount[account.id] ?? .browserOAuth },
-                                        set: { loginMethodByAccount[account.id] = $0 }
-                                    )
-                                ) {
-                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) {
-                                        method in
+                                Picker("", selection: Binding(
+                                    get: { loginMethodByAccount[account.id] ?? .browserOAuth },
+                                    set: { loginMethodByAccount[account.id] = $0 }
+                                )) {
+                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) { method in
                                         Text(method.title).tag(method)
                                     }
-                                }
-                                .labelsHidden()
-                                .frame(width: 160)
-                                Button("Connetti account") {
-                                    connectAccount(account)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(
-                                    accountLoginCoordinator.isRunningByAccount[account.id] == true)
-                                Button("Disconnetti account") {
-                                    disconnectAccount(account)
-                                }
-                                .buttonStyle(.bordered)
-                                Button("Test account") {
-                                    testAccount(account)
-                                }
-                                .buttonStyle(.bordered)
-                                Button("Elimina", role: .destructive) {
-                                    cliAccountsStore.delete(accountId: account.id)
-                                }
-                                .buttonStyle(.bordered)
+                                }.labelsHidden().frame(width: 160)
+                                Button("Connetti") { connectAccount(account) }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(accountLoginCoordinator.isRunningByAccount[account.id] == true)
+                                Button("Disconnetti") { disconnectAccount(account) }.buttonStyle(.bordered)
+                                Button("Test") { testAccount(account) }.buttonStyle(.bordered)
+                                Button("Elimina", role: .destructive) { cliAccountsStore.delete(accountId: account.id) }.buttonStyle(.bordered)
                                 if let result = accountTestResultById[account.id] {
-                                    Text(result)
-                                        .font(.caption)
-                                        .foregroundStyle(result.contains("OK") ? .green : .red)
-                                }
-                                if let status = accountLoginCoordinator.statusByAccount[account.id],
-                                    !status.isEmpty
-                                {
-                                    Text(status)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                    Text(result).font(.caption).foregroundStyle(result.contains("OK") ? .green : .red)
                                 }
                             }
                         }
                         .padding(10)
-                        .background(
-                            Color(nsColor: .controlBackgroundColor).opacity(0.45),
-                            in: RoundedRectangle(cornerRadius: 8))
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
 
                 Divider()
                 fieldLabel("Aggiungi account")
                 HStack(spacing: 8) {
-                    TextField(
-                        "Label",
-                        text: Binding(
-                            get: { newAccountLabelByProvider[provider, default: ""] },
-                            set: { newAccountLabelByProvider[provider] = $0 }
-                        ))
-                    SecureField(
-                        "API key (opzionale)",
-                        text: Binding(
-                            get: { newAccountKeyByProvider[provider, default: ""] },
-                            set: { newAccountKeyByProvider[provider] = $0 }
-                        ))
+                    TextField("Label", text: Binding(
+                        get: { newAccountLabelByProvider[provider, default: ""] },
+                        set: { newAccountLabelByProvider[provider] = $0 }
+                    ))
+                    SecureField("API key (opzionale)", text: Binding(
+                        get: { newAccountKeyByProvider[provider, default: ""] },
+                        set: { newAccountKeyByProvider[provider] = $0 }
+                    ))
                 }
                 HStack(spacing: 8) {
-                    TextField(
-                        "Limit giornaliero $",
-                        text: Binding(
-                            get: { newDailyLimitByProvider[provider, default: ""] },
-                            set: { newDailyLimitByProvider[provider] = $0 }
-                        ))
-                    TextField(
-                        "Limit settimanale $",
-                        text: Binding(
-                            get: { newWeeklyLimitByProvider[provider, default: ""] },
-                            set: { newWeeklyLimitByProvider[provider] = $0 }
-                        ))
-                    TextField(
-                        "Limit mensile $",
-                        text: Binding(
-                            get: { newMonthlyLimitByProvider[provider, default: ""] },
-                            set: { newMonthlyLimitByProvider[provider] = $0 }
-                        ))
+                    TextField("Limit giornaliero $", text: Binding(
+                        get: { newDailyLimitByProvider[provider, default: ""] },
+                        set: { newDailyLimitByProvider[provider] = $0 }
+                    ))
+                    TextField("Limit settimanale $", text: Binding(
+                        get: { newWeeklyLimitByProvider[provider, default: ""] },
+                        set: { newWeeklyLimitByProvider[provider] = $0 }
+                    ))
+                    TextField("Limit mensile $", text: Binding(
+                        get: { newMonthlyLimitByProvider[provider, default: ""] },
+                        set: { newMonthlyLimitByProvider[provider] = $0 }
+                    ))
                 }
                 HStack(spacing: 8) {
-                    Button("Aggiungi account") {
-                        addAccount(provider)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    Button("Reset stato limiti/salute") {
-                        cliAccountsStore.resetHealth(provider: provider)
-                    }
-                    .buttonStyle(.bordered)
+                    Button("Aggiungi account") { addAccount(provider) }.buttonStyle(.borderedProminent)
+                    Button("Reset stato limiti") { cliAccountsStore.resetHealth(provider: provider) }.buttonStyle(.bordered)
                 }
-            }
-            .padding(4)
+            }.padding(4)
         }
     }
 
-    // MARK: - Actions
+    // MARK: - Account Actions
 
     private func accountStatusLabel(_ account: CLIAccount) -> String {
         let auth = accountAuthStatus(account)
-        if account.health.isExhaustedLocally {
-            return "Exhausted (limite locale)"
-        }
+        if account.health.isExhaustedLocally { return "Exhausted (limite locale)" }
         if let until = account.health.cooldownUntil, until > Date() {
             return "Cooldown fino alle \(until.formatted(date: .omitted, time: .shortened))"
         }
         switch auth {
-        case .loggedIn(let method):
-            return "Connesso (\(method.rawValue))"
-        case .notLoggedIn:
-            return "Non connesso"
-        case .notInstalled:
-            return "CLI non installato"
-        case .error(let message):
-            return "Auth error: \(message)"
+        case .loggedIn(let method): return "Connesso (\(method.rawValue))"
+        case .notLoggedIn: return "Non connesso"
+        case .notInstalled: return "CLI non installato"
+        case .error(let message): return "Auth error: \(message)"
         }
     }
 
     private func codexCreditsLabel() -> String {
-        guard let usage = providerUsageStore.codexUsage,
-            let balance = usage.creditsBalance
-        else {
-            return "Crediti: N/D"
-        }
+        guard let usage = providerUsageStore.codexUsage, let balance = usage.creditsBalance else { return "Crediti: N/D" }
         let currency = usage.creditsCurrency ?? "USD"
         return String(format: "Crediti: %.2f %@", balance, currency)
     }
 
     private func addAccount(_ provider: CLIProviderKind) {
-        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(
-            in: .whitespacesAndNewlines)
+        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
         let quota = CLIAccountQuotaPolicy(
-            dailyLimitUSD: Double(
-                newDailyLimitByProvider[provider, default: ""].replacingOccurrences(
-                    of: ",", with: ".")),
-            weeklyLimitUSD: Double(
-                newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(
-                    of: ",", with: ".")),
-            monthlyLimitUSD: Double(
-                newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(
-                    of: ",", with: ".")),
-            dailyTokenLimit: nil,
-            weeklyTokenLimit: nil,
-            monthlyTokenLimit: nil
+            dailyLimitUSD: Double(newDailyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            weeklyLimitUSD: Double(newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            monthlyLimitUSD: Double(newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
+            dailyTokenLimit: nil, weeklyTokenLimit: nil, monthlyTokenLimit: nil
         )
-        cliAccountsStore.addAccount(
-            provider: provider,
-            label: label,
-            apiKey: secret.isEmpty ? nil : secret,
-            quota: quota
-        )
+        cliAccountsStore.addAccount(provider: provider, label: label, apiKey: secret.isEmpty ? nil : secret, quota: quota)
         newAccountLabelByProvider[provider] = ""
         newAccountKeyByProvider[provider] = ""
         newDailyLimitByProvider[provider] = ""
@@ -1691,34 +819,20 @@ struct SettingsView: View {
 
     private func testAccount(_ account: CLIAccount) {
         let secret = cliAccountsStore.secret(for: account.id)
-        let env = CLIProfileProvisioner.environmentOverrides(
-            provider: account.provider,
-            profilePath: account.profilePath,
-            secret: secret
-        )
-
+        let env = CLIProfileProvisioner.environmentOverrides(provider: account.provider, profilePath: account.profilePath, secret: secret)
         let executable: String
         let args: [String]
         switch account.provider {
         case .codex:
-            executable =
-                codexPath.isEmpty
-                ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex")
-                : codexPath
+            executable = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex") : codexPath
             args = ["--version"]
         case .claude:
-            executable =
-                claudePath.isEmpty
-                ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
+            executable = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
             args = ["--version"]
         case .gemini:
-            executable =
-                geminiCliPath.isEmpty
-                ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini")
-                : geminiCliPath
+            executable = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini") : geminiCliPath
             args = ["--version"]
         }
-
         Task.detached {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executable)
@@ -1727,37 +841,24 @@ struct SettingsView: View {
             shell.merge(env) { _, new in new }
             process.environment = shell
             do {
-                try process.run()
-                process.waitUntilExit()
+                try process.run(); process.waitUntilExit()
                 let ok = process.terminationStatus == 0
-                await MainActor.run {
-                    accountTestResultById[account.id] =
-                        ok ? "OK" : "Error exit \(process.terminationStatus)"
-                }
+                await MainActor.run { accountTestResultById[account.id] = ok ? "OK" : "Error exit \(process.terminationStatus)" }
             } catch {
-                await MainActor.run {
-                    accountTestResultById[account.id] = "Error: \(error.localizedDescription)"
-                }
+                await MainActor.run { accountTestResultById[account.id] = "Error: \(error.localizedDescription)" }
             }
         }
     }
 
     private func connectAccount(_ account: CLIAccount) {
         let method = loginMethodByAccount[account.id] ?? .browserOAuth
-        let providerPath = providerPath(for: account.provider)
+        let path = providerPath(for: account.provider)
         let apiKey = cliAccountsStore.secret(for: account.id)
-        accountLoginCoordinator.startLogin(
-            account: account,
-            providerPath: providerPath,
-            method: method,
-            apiKey: apiKey
-        )
+        accountLoginCoordinator.startLogin(account: account, providerPath: path, method: method, apiKey: apiKey)
         Task {
             try? await Task.sleep(for: .seconds(1))
             let status = accountAuthStatus(account)
-            await MainActor.run {
-                cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
-            }
+            await MainActor.run { cliAccountsStore.updateAuthStatus(accountId: account.id, status: status) }
         }
     }
 
@@ -1768,233 +869,159 @@ struct SettingsView: View {
     }
 
     private func accountAuthStatus(_ account: CLIAccount) -> CLIAccountAuthStatus {
-        CLIAccountAuthDetector.detect(
-            account: account, providerPath: providerPath(for: account.provider))
+        CLIAccountAuthDetector.detect(account: account, providerPath: providerPath(for: account.provider))
     }
 
     private func providerPath(for provider: CLIProviderKind) -> String? {
         switch provider {
-        case .codex:
-            return codexPath
-        case .claude:
-            return claudePath
-        case .gemini:
-            return geminiCliPath
+        case .codex: return codexPath
+        case .claude: return claudePath
+        case .gemini: return geminiCliPath
         }
     }
 
     private func connectToCodex() {
-        if codexState.status.path != nil
-            || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil
-        {
-            if codexState.status.isLoggedIn {
-                syncCodex()
-            } else {
-                showCodexLogin = true
-            }
+        if codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil {
+            if codexState.status.isLoggedIn { syncCodex() } else { showCodexLogin = true }
         }
     }
 
-    private func refreshUsageSnapshotsForSettings() async {
-        let codexBin =
-            codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "") : codexPath
-        let claudeBin =
-            claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
-        let geminiBin =
-            geminiCliPath.isEmpty
-            ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "") : geminiCliPath
-        await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
-        await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
-        await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
-    }
+    // MARK: - Sync Functions
 
     private func syncProviders() {
-        syncOpenAI()
-        syncAnthropic()
-        syncGoogle()
-        syncMiniMax()
-        syncOpenRouter()
-        syncCodex()
-        syncClaude()
-        syncGemini()
-        syncSwarm()
-        syncCodeReview()
-        syncPlanProvider()
+        syncOpenAI(); syncAnthropic(); syncGoogle(); syncMiniMax(); syncOpenRouter(); syncGrok()
+        syncCodex(); syncClaude(); syncGemini()
+        syncSwarm(); syncCodeReview(); syncPlanProvider()
     }
 
-    private func syncPlanProvider() {
-        // Plan runtime usa il provider reale selezionato.
-    }
+    private func syncPlanProvider() {}
+    private func syncSwarm() {}
+    private func syncCodeReview() {}
 
     private func syncOpenAI() {
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
         reregisterProviderPreservingSelection(id: "openai-api", provider:
-            ProviderFactory.openAIAPIProvider(
-                config: providerFactoryConfig(), reasoningEffort: effort,
-                executionController: executionController))
+            ProviderFactory.openAIAPIProvider(config: providerFactoryConfig(), reasoningEffort: effort, executionController: executionController))
     }
 
     private func syncAnthropic() {
         reregisterProviderPreservingSelection(id: "anthropic-api", provider:
-            ProviderFactory.anthropicAPIProvider(
-                config: providerFactoryConfig(),
-                executionController: executionController))
+            ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncGoogle() {
         reregisterProviderPreservingSelection(id: "google-api", provider:
-            ProviderFactory.googleAPIProvider(
-                config: providerFactoryConfig(),
-                executionController: executionController))
-    }
-
-    private func syncCodex() {
-        reregisterProviderPreservingSelection(id: "codex-cli", provider:
-            ProviderFactory.codexProvider(
-                config: providerFactoryConfig(), executionController: executionController))
-    }
-
-    private func openFullDiskAccessPreferences() {
-        if let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")
-        {
-            NSWorkspace.shared.open(url)
-        }
+            ProviderFactory.googleAPIProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncMiniMax() {
         reregisterProviderPreservingSelection(id: "minimax-api", provider:
-            ProviderFactory.miniMaxAPIProvider(
-                config: providerFactoryConfig(),
-                executionController: executionController))
+            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncOpenRouter() {
         reregisterProviderPreservingSelection(id: "openrouter-api", provider:
-            ProviderFactory.openRouterAPIProvider(
-                config: providerFactoryConfig(),
-                executionController: executionController))
+            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+    }
+
+    private func syncGrok() {
+        reregisterProviderPreservingSelection(id: "grok-api", provider:
+            ProviderFactory.grokAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+    }
+
+    private func syncCodex() {
+        reregisterProviderPreservingSelection(id: "codex-cli", provider:
+            ProviderFactory.codexProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
     private func syncClaude() {
         reregisterProviderPreservingSelection(id: "claude-cli", provider:
-            ProviderFactory.claudeProvider(
-                config: providerFactoryConfig(), executionController: executionController))
-        syncSwarm()
-        syncPlanProvider()
+            ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+        syncSwarm(); syncPlanProvider()
     }
 
     private func syncGemini() {
         reregisterProviderPreservingSelection(id: "gemini-cli", provider:
-            ProviderFactory.geminiProvider(
-                config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
     }
 
-    private func syncSwarm() {
-        // Swarm runtime viene creato on-demand con provider reali.
-    }
-
-    private func reregisterProviderPreservingSelection(
-        id: String,
-        provider: any LLMProvider
-    ) {
-        let wasSelected = providerRegistry.selectedProviderId == id
+    private func reregisterProviderPreservingSelection(id: String, provider: (any LLMProvider)?) {
+        let wasSel = providerRegistry.selectedProviderId
         providerRegistry.unregister(id: id)
-        providerRegistry.register(provider)
-        if wasSelected {
-            providerRegistry.selectedProviderId = id
-        }
+        if let provider { providerRegistry.register(provider) }
+        if wasSel == id, provider != nil { providerRegistry.selectedProviderId = id }
     }
 
-    private var openRouterPickerModels: [String] {
-        var models = openRouterPopularModels
-        let current = openrouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !current.isEmpty && !models.contains(current) {
-            models.insert(current, at: 0)
-        }
-        return models
+    // MARK: - Provider Factory Config
+
+    private func providerFactoryConfig() -> ProviderFactoryConfig {
+        ProviderFactoryConfig(
+            openaiApiKey: openaiApiKey, openaiModel: openaiModel,
+            anthropicApiKey: anthropicApiKey, anthropicModel: anthropicModel,
+            googleApiKey: googleApiKey, googleModel: googleModel,
+            minimaxApiKey: minimaxApiKey, minimaxModel: minimaxModel,
+            openrouterApiKey: openrouterApiKey, openrouterModel: openrouterModel,
+            grokApiKey: grokApiKey, grokModel: grokModel,
+            codexPath: codexPath, codexSandbox: codexSandbox,
+            codexSessionFullAccess: codexSessionFullAccess,
+            codexAskForApproval: codexAskForApproval,
+            codexModelOverride: codexModelOverride,
+            codexReasoningEffort: codexReasoningEffort,
+            planModeBackend: planModeBackend,
+            swarmOrchestrator: swarmOrchestrator, swarmWorkerBackend: swarmWorkerBackend,
+            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
+            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
+            swarmMaxReviewLoops: swarmMaxReviewLoops,
+            swarmEnabledRoles: swarmEnabledRoles,
+            globalYolo: globalYolo,
+            codeReviewPartitions: codeReviewPartitions,
+            codeReviewAnalysisOnly: codeReviewAnalysisOnly,
+            codeReviewMaxRounds: codeReviewMaxRounds,
+            codeReviewAnalysisBackend: codeReviewAnalysisBackend,
+            codeReviewExecutionBackend: codeReviewExecutionBackend,
+            claudePath: claudePath, claudeModel: claudeModel,
+            claudeAllowedTools: parseClaudeAllowedTools(),
+            geminiCliPath: geminiCliPath, geminiModelOverride: geminiModelOverride
+        )
     }
+
+    // MARK: - Normalization
 
     private func normalizeStoredSelections() {
-        openrouterModel = normalizeOpenRouterModelId(openrouterModel)
-        if !openAIModels.contains(openaiModel), let first = openAIModels.first {
-            openaiModel = first
+        if !openAIModels.contains(openaiModel), let first = openAIModels.first { openaiModel = first }
+        if !anthropicModels.contains(anthropicModel), let first = anthropicModels.first { anthropicModel = first }
+        if !googleModels.contains(googleModel), let first = googleModels.first { googleModel = first }
+        if !minimaxModels.contains(minimaxModel), let first = minimaxModels.first { minimaxModel = first }
+        if !grokModels.contains(grokModel), let first = grokModels.first { grokModel = first }
+        if !["low", "medium", "high"].contains(reasoningEffort) { reasoningEffort = "medium" }
+        if !["read-only", "workspace-write", "danger-full-access"].contains(codexSandbox) { codexSandbox = "workspace-write" }
+        if !["never", "on-request", "untrusted"].contains(codexAskForApproval) { codexAskForApproval = "never" }
+        if !["codex", "claude"].contains(planModeBackend) { planModeBackend = "codex" }
+        let validClaudeSlugs = ClaudeModelsCache.loadModels().map(\.slug)
+        if !validClaudeSlugs.contains(claudeModel) {
+            switch claudeModel {
+            case "sonnet": claudeModel = "claude-sonnet-4-6"
+            case "opus": claudeModel = "claude-opus-4-6"
+            case "haiku": claudeModel = "claude-haiku-4-5-20251001"
+            default: claudeModel = "claude-sonnet-4-6"
+            }
         }
-        if !anthropicModels.contains(anthropicModel), let first = anthropicModels.first {
-            anthropicModel = first
-        }
-        if !googleModels.contains(googleModel), let first = googleModels.first {
-            googleModel = first
-        }
-        if !minimaxModels.contains(minimaxModel), let first = minimaxModels.first {
-            minimaxModel = first
-        }
-        if !["low", "medium", "high"].contains(reasoningEffort) {
-            reasoningEffort = "medium"
-        }
-        if !["read-only", "workspace-write", "danger-full-access"].contains(codexSandbox) {
-            codexSandbox = "workspace-write"
-        }
-        if !["never", "on-request", "untrusted"].contains(codexAskForApproval) {
-            codexAskForApproval = "never"
-        }
-        if !["codex", "claude"].contains(planModeBackend) {
-            planModeBackend = "codex"
-        }
-        if !["auto", "concise", "detailed", "none"].contains(codexReasoningSummary) {
-            codexReasoningSummary = "auto"
-        }
-        if !["low", "medium", "high"].contains(codexVerbosity) {
-            codexVerbosity = "medium"
-        }
-        if !["none", "friendly", "pragmatic"].contains(codexPersonality) {
-            codexPersonality = "none"
-        }
-        if !["opus", "sonnet", "haiku"].contains(claudeModel) {
-            claudeModel = "sonnet"
-        }
-        if !["openai", "anthropic-api", "google-api", "openrouter-api", "minimax-api", "codex", "claude", "gemini"]
-            .contains(swarmOrchestrator)
-        {
-            swarmOrchestrator = "openai"
-        }
-        if !["codex", "claude", "gemini", "openai-api", "anthropic-api", "google-api", "openrouter-api", "minimax-api"]
-            .contains(swarmWorkerBackend)
-        {
-            swarmWorkerBackend = "codex"
-        }
-        if !["codex-cli", "claude-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api", "openrouter-api", "minimax-api"]
-            .contains(codeReviewAnalysisBackend)
-        {
-            codeReviewAnalysisBackend = "codex-cli"
-        }
-        if !["codex-cli", "claude-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api", "openrouter-api", "minimax-api"]
-            .contains(codeReviewExecutionBackend)
-        {
-            codeReviewExecutionBackend = "codex-cli"
-        }
-        if !["openai-api", "codex-cli", "claude-cli"].contains(summarizeProvider) {
-            summarizeProvider = "openai-api"
-        }
-        if !["system", "light", "dark"].contains(appearance) {
-            appearance = "system"
-        }
+        if !["system", "light", "dark"].contains(appearance) { appearance = "system" }
         chatBackgroundStyle = ChatBackgroundStyle.normalizedRawValue(chatBackgroundStyle)
+        if !["openai-api", "codex-cli", "claude-cli"].contains(summarizeProvider) { summarizeProvider = "openai-api" }
     }
+
+    // MARK: - Codex TOML
 
     private func loadCodexAdvanced() {
         let cfg = CodexConfigLoader.load()
-        // Configurazione principale da config.toml (sorgente unica per Codex CLI)
         codexSandbox = cfg.sandboxMode ?? ""
         codexModelOverride = cfg.model ?? ""
         codexReasoningEffort = cfg.modelReasoningEffort ?? "low"
-        // Modello avanzato
         codexReasoningSummary = cfg.modelReasoningSummary ?? "auto"
         codexVerbosity = cfg.modelVerbosity ?? "medium"
         let validPersonalities = ["none", "friendly", "pragmatic"]
-        codexPersonality =
-            validPersonalities.contains(cfg.personality ?? "none")
-            ? (cfg.personality ?? "none") : "none"
+        codexPersonality = validPersonalities.contains(cfg.personality ?? "none") ? (cfg.personality ?? "none") : "none"
         codexNetworkAccess = cfg.networkAccess ?? false
         codexAdditionalWriteRoots = cfg.additionalWriteRoots.joined(separator: ", ")
         codexDeveloperInstructions = cfg.developerInstructions ?? ""
@@ -2006,139 +1033,84 @@ struct SettingsView: View {
 
     private func saveCodexToml() {
         var cfg = CodexConfigLoader.load()
-        // Configurazione principale → config.toml (uso globale Codex CLI)
         if !codexSandbox.isEmpty { cfg.sandboxMode = codexSandbox }
         if !codexModelOverride.isEmpty { cfg.model = codexModelOverride }
         if !codexReasoningEffort.isEmpty { cfg.modelReasoningEffort = codexReasoningEffort }
-        // Modello avanzato
         cfg.modelReasoningSummary = codexReasoningSummary == "auto" ? nil : codexReasoningSummary
         cfg.modelVerbosity = codexVerbosity == "medium" ? nil : codexVerbosity
         cfg.personality = codexPersonality == "none" ? nil : codexPersonality
         cfg.networkAccess = codexNetworkAccess ? true : nil
         cfg.additionalWriteRoots = codexAdditionalWriteRoots.components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        cfg.developerInstructions =
-            codexDeveloperInstructions.isEmpty ? nil : codexDeveloperInstructions
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        cfg.developerInstructions = codexDeveloperInstructions.isEmpty ? nil : codexDeveloperInstructions
         cfg.checkForUpdateOnStartup = codexCheckUpdate ? nil : false
         CodexConfigLoader.save(cfg)
     }
 
-    private func syncCodeReview() {
-        // Review runtime viene creato on-demand con provider reali.
+    // MARK: - Index Status
+
+    private func refreshIndexStatus() async {
+        let index = workspaceStore.codebaseIndex
+        let info = await index.status()
+        switch info.status {
+        case .idle: indexStatusText = "Inattivo — nessun workspace indicizzato"
+        case .indexing: indexStatusText = "Indicizzazione in corso..."
+        case .ready:
+            let duration = info.indexDurationMs > 0 ? " (\(info.indexDurationMs)ms)" : ""
+            indexStatusText = "Pronto\(duration)"
+        case .error: indexStatusText = "Errore durante l'indicizzazione"
+        }
+        var stats: [String] = []
+        if info.totalFiles > 0 { stats.append("\(info.totalFiles) file") }
+        if info.totalSourceFiles > 0 { stats.append("\(info.totalSourceFiles) sorgenti") }
+        if info.totalSymbols > 0 { stats.append("\(info.totalSymbols) simboli") }
+        indexStatsText = stats.joined(separator: " · ")
     }
 
-    private func parseSwarmEnabledRoles() -> Set<AgentRole> {
-        var roles = Set<AgentRole>()
-        for raw in swarmEnabledRoles.components(separatedBy: ",") {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
-            if let role = AgentRole(rawValue: trimmed) {
-                roles.insert(role)
-            }
-        }
-        return roles
-    }
+    // MARK: - Helpers
 
     private func parseClaudeAllowedTools() -> [String] {
-        var seen = Set<String>()
-        var tools: [String] = []
+        var seen = Set<String>(); var tools: [String] = []
         for raw in claudeAllowedTools.components(separatedBy: ",") {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
-            if seen.insert(trimmed).inserted {
-                tools.append(trimmed)
-            }
+            if seen.insert(trimmed).inserted { tools.append(trimmed) }
         }
         return tools
     }
 
-    private func providerFactoryConfig() -> ProviderFactoryConfig {
-        ProviderFactoryConfig(
-            openaiApiKey: openaiApiKey,
-            openaiModel: openaiModel,
-            anthropicApiKey: anthropicApiKey,
-            anthropicModel: anthropicModel,
-            googleApiKey: googleApiKey,
-            googleModel: googleModel,
-            minimaxApiKey: minimaxApiKey,
-            minimaxModel: minimaxModel,
-            openrouterApiKey: openrouterApiKey,
-            openrouterModel: openrouterModel,
-            codexPath: codexPath,
-            codexSandbox: codexSandbox,
-            codexSessionFullAccess: codexSessionFullAccess,
-            codexAskForApproval: codexAskForApproval,
-            codexModelOverride: codexModelOverride,
-            codexReasoningEffort: codexReasoningEffort,
-            planModeBackend: planModeBackend,
-            swarmOrchestrator: swarmOrchestrator,
-            swarmWorkerBackend: swarmWorkerBackend,
-            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
-            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
-            swarmMaxReviewLoops: swarmMaxReviewLoops,
-            swarmEnabledRoles: swarmEnabledRoles,
-            globalYolo: globalYolo,
-            codeReviewPartitions: codeReviewPartitions,
-            codeReviewAnalysisOnly: codeReviewAnalysisOnly,
-            codeReviewMaxRounds: codeReviewMaxRounds,
-            codeReviewAnalysisBackend: codeReviewAnalysisBackend,
-            codeReviewExecutionBackend: codeReviewExecutionBackend,
-            claudePath: claudePath,
-            claudeModel: claudeModel,
-            claudeAllowedTools: parseClaudeAllowedTools(),
-            geminiCliPath: geminiCliPath,
-            geminiModelOverride: geminiModelOverride
-        )
+    private var currentProjectRootPath: String? {
+        if let active = workspaceStore.activeWorkspace, let root = active.folderPaths.first, !root.isEmpty { return root }
+        return workspaceStore.workspaces.first(where: { !$0.folderPaths.isEmpty })?.folderPaths.first
     }
 
-    private var currentProjectRootPath: String? {
-        if let active = workspaceStore.activeWorkspace, let root = active.folderPaths.first,
-            !root.isEmpty
-        {
-            return root
-        }
-        return workspaceStore.workspaces.first(where: { !$0.folderPaths.isEmpty })?.folderPaths
-            .first
-    }
+    // MARK: - Rules CRUD
 
     private func reloadRulesFromDisk() {
         globalRuleDocs = CoderRulesFile.loadGlobalRules()
-        if selectedGlobalRuleName.isEmpty
-            || !globalRuleDocs.contains(where: { $0.name == selectedGlobalRuleName })
-        {
+        if selectedGlobalRuleName.isEmpty || !globalRuleDocs.contains(where: { $0.name == selectedGlobalRuleName }) {
             selectedGlobalRuleName = globalRuleDocs.first?.name ?? ""
         }
-        globalRuleContentDraft =
-            globalRuleDocs.first(where: { $0.name == selectedGlobalRuleName })?.content ?? ""
-
+        globalRuleContentDraft = globalRuleDocs.first(where: { $0.name == selectedGlobalRuleName })?.content ?? ""
         if let root = currentProjectRootPath {
             projectRuleDocs = CoderRulesFile.loadProjectRules(workspacePath: root)
-            if selectedProjectRuleName.isEmpty
-                || !projectRuleDocs.contains(where: { $0.name == selectedProjectRuleName })
-            {
+            if selectedProjectRuleName.isEmpty || !projectRuleDocs.contains(where: { $0.name == selectedProjectRuleName }) {
                 selectedProjectRuleName = projectRuleDocs.first?.name ?? ""
             }
-            projectRuleContentDraft =
-                projectRuleDocs.first(where: { $0.name == selectedProjectRuleName })?.content ?? ""
+            projectRuleContentDraft = projectRuleDocs.first(where: { $0.name == selectedProjectRuleName })?.content ?? ""
         } else {
-            projectRuleDocs = []
-            selectedProjectRuleName = ""
-            projectRuleContentDraft = ""
+            projectRuleDocs = []; selectedProjectRuleName = ""; projectRuleContentDraft = ""
         }
     }
 
     private func createGlobalRule() {
         let base = newGlobalRuleName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !base.isEmpty else { return }
-        CoderRulesFile.saveGlobalRule(
-            name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n")
-        newGlobalRuleName = ""
-        reloadRulesFromDisk()
+        CoderRulesFile.saveGlobalRule(name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n")
+        newGlobalRuleName = ""; reloadRulesFromDisk()
         if let created = globalRuleDocs.last?.name {
             selectedGlobalRuleName = created
-            globalRuleContentDraft =
-                globalRuleDocs.first(where: { $0.name == created })?.content ?? ""
+            globalRuleContentDraft = globalRuleDocs.first(where: { $0.name == created })?.content ?? ""
         }
     }
 
@@ -2150,36 +1122,45 @@ struct SettingsView: View {
 
     private func deleteSelectedGlobalRule() {
         guard !selectedGlobalRuleName.isEmpty else { return }
-        CoderRulesFile.deleteGlobalRule(name: selectedGlobalRuleName)
-        reloadRulesFromDisk()
+        CoderRulesFile.deleteGlobalRule(name: selectedGlobalRuleName); reloadRulesFromDisk()
     }
 
     private func createProjectRule() {
         guard let root = currentProjectRootPath else { return }
         let base = newProjectRuleName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !base.isEmpty else { return }
-        CoderRulesFile.saveProjectRule(
-            name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n",
-            workspacePath: root)
-        newProjectRuleName = ""
-        reloadRulesFromDisk()
+        CoderRulesFile.saveProjectRule(name: base, content: "# \(base.replacingOccurrences(of: ".md", with: ""))\n", workspacePath: root)
+        newProjectRuleName = ""; reloadRulesFromDisk()
         if let created = projectRuleDocs.last?.name {
             selectedProjectRuleName = created
-            projectRuleContentDraft =
-                projectRuleDocs.first(where: { $0.name == created })?.content ?? ""
+            projectRuleContentDraft = projectRuleDocs.first(where: { $0.name == created })?.content ?? ""
         }
     }
 
     private func saveSelectedProjectRule() {
         guard let root = currentProjectRootPath, !selectedProjectRuleName.isEmpty else { return }
-        CoderRulesFile.saveProjectRule(
-            name: selectedProjectRuleName, content: projectRuleContentDraft, workspacePath: root)
+        CoderRulesFile.saveProjectRule(name: selectedProjectRuleName, content: projectRuleContentDraft, workspacePath: root)
         reloadRulesFromDisk()
     }
 
     private func deleteSelectedProjectRule() {
         guard let root = currentProjectRootPath, !selectedProjectRuleName.isEmpty else { return }
-        CoderRulesFile.deleteProjectRule(name: selectedProjectRuleName, workspacePath: root)
-        reloadRulesFromDisk()
+        CoderRulesFile.deleteProjectRule(name: selectedProjectRuleName, workspacePath: root); reloadRulesFromDisk()
+    }
+
+    private func openFullDiskAccessPreferences() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func refreshUsageSnapshotsForSettings() async {
+        let codexBin = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "") : codexPath
+        let claudeBin = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
+        let geminiBin = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "") : geminiCliPath
+        await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
+        await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
+        await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
     }
 }
+

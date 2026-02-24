@@ -4,6 +4,11 @@ import Foundation
 public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "claude-cli"
     public let displayName = "Claude Code CLI"
+    public let attachmentCapabilities = ProviderAttachmentCapabilities(
+        nativeImage: true,
+        nativeDocument: false,
+        nativeFile: false
+    )
     
     private let claudePath: String
     private let model: String?
@@ -30,23 +35,8 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func isAuthenticated() -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: claudePath)
-        process.arguments = ["--version"]
-        process.standardOutput = nil
-        process.standardError = nil
-        var env = CodexDetector.shellEnvironment()
-        if let override = environmentOverride {
-            env.merge(override) { _, new in new }
-        }
-        process.environment = env
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
+        let status = ClaudeDetector.detect(customPath: claudePath)
+        return status.isInstalled && status.isLoggedIn
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
@@ -81,7 +71,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                         args += ["--allowedTools", allowedTools.joined(separator: ",")]
                     }
                     
-                    var env = CodexDetector.shellEnvironment()
+                    var env = ClaudeDetector.shellEnvironment()
                     if let override = environmentOverride {
                         env.merge(override) { _, new in new }
                     }

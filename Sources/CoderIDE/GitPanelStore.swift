@@ -26,8 +26,20 @@ final class GitPanelStore: ObservableObject {
     @Published var newBranchName = ""
     @Published var branchSearch = ""
 
+    // New state
+    @Published private(set) var stashEntries: [GitStashEntry] = []
+    @Published private(set) var remoteBranches: [GitBranch] = []
+    @Published private(set) var aheadCount: Int = 0
+    @Published private(set) var behindCount: Int = 0
+    @Published var showDeleteBranchConfirm = false
+    @Published var branchToDelete: String?
+    @Published var stashMessage = ""
+
     let gitService = GitService()
     private let commitMessageGenerator = GitCommitMessageGenerator()
+
+    var stagedFiles: [GitChangedFile] { changedFiles.filter(\.isStaged) }
+    var unstagedFiles: [GitChangedFile] { changedFiles.filter { !$0.isStaged } }
 
     var totalAdded: Int { changedFiles.reduce(0) { $0 + $1.added } }
     var totalRemoved: Int { changedFiles.reduce(0) { $0 + $1.removed } }
@@ -52,6 +64,15 @@ final class GitPanelStore: ObservableObject {
             status = try gitService.status(gitRoot: root)
             changedFiles = try gitService.changedFiles(gitRoot: root)
             commitLog = (try? gitService.commitHistory(gitRoot: root, limit: 30)) ?? []
+            remoteBranches = (try? gitService.listRemoteBranches(gitRoot: root)) ?? []
+            stashEntries = (try? gitService.stashList(gitRoot: root)) ?? []
+            if let ab = try? gitService.aheadBehindCount(gitRoot: root) {
+                aheadCount = ab.ahead
+                behindCount = ab.behind
+            } else {
+                aheadCount = 0
+                behindCount = 0
+            }
         } catch {
             gitRoot = nil
             currentBranch = "-"
@@ -59,6 +80,10 @@ final class GitPanelStore: ObservableObject {
             status = nil
             changedFiles = []
             commitLog = []
+            remoteBranches = []
+            stashEntries = []
+            aheadCount = 0
+            behindCount = 0
             if let e = error as? GitServiceError {
                 switch e {
                 case .notGitRepository:
@@ -243,6 +268,189 @@ final class GitPanelStore: ObservableObject {
                     isBusy = false
                 }
             }
+        }
+    }
+
+    // MARK: - Pull & Fetch
+    func pull() {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                _ = try gitService.pull(gitRoot: gitRoot)
+                await MainActor.run {
+                    successMessage = "Pull completed"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    func fetch() {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                _ = try gitService.fetch(gitRoot: gitRoot)
+                await MainActor.run {
+                    successMessage = "Fetch completed"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    // MARK: - Stash
+    func stash(message: String?) {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.stash(gitRoot: gitRoot, message: message)
+                await MainActor.run {
+                    successMessage = "Changes stashed"
+                    stashMessage = ""
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    func stashPop() {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.stashPop(gitRoot: gitRoot)
+                await MainActor.run {
+                    successMessage = "Stash popped"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    func stashDrop(index: Int) {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.stashDrop(gitRoot: gitRoot, index: index)
+                await MainActor.run {
+                    successMessage = "Stash dropped"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    // MARK: - Branch Delete/Rename
+    func deleteBranch(name: String, force: Bool) {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.deleteBranch(name: name, gitRoot: gitRoot, force: force)
+                await MainActor.run {
+                    successMessage = "Branch deleted: \(name)"
+                    showDeleteBranchConfirm = false
+                    branchToDelete = nil
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    func renameBranch(oldName: String, newName: String) {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.renameBranch(oldName: oldName, newName: newName, gitRoot: gitRoot)
+                await MainActor.run {
+                    successMessage = "Branch renamed: \(oldName) → \(newName)"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    func checkoutRemoteBranch(name: String) {
+        guard let gitRoot else { return }
+        isBusy = true; error = nil; successMessage = nil
+        Task {
+            do {
+                try gitService.checkoutRemoteBranch(name: name, gitRoot: gitRoot)
+                await MainActor.run {
+                    successMessage = "Checked out: \(name)"
+                    refresh(workingDirectory: gitRoot)
+                    isBusy = false
+                }
+            } catch {
+                await MainActor.run { self.error = error.localizedDescription; isBusy = false }
+            }
+        }
+    }
+
+    // MARK: - Stage/Unstage
+    func stageFile(path: String) {
+        guard let gitRoot else { return }
+        do {
+            try gitService.stageFile(path: path, gitRoot: gitRoot)
+            refresh(workingDirectory: gitRoot)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func unstageFile(path: String) {
+        guard let gitRoot else { return }
+        do {
+            try gitService.unstageFile(path: path, gitRoot: gitRoot)
+            refresh(workingDirectory: gitRoot)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func stageAll() {
+        guard let gitRoot else { return }
+        do {
+            try gitService.stageAll(gitRoot: gitRoot)
+            refresh(workingDirectory: gitRoot)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    func unstageAll() {
+        guard let gitRoot else { return }
+        do {
+            try gitService.unstageAll(gitRoot: gitRoot)
+            refresh(workingDirectory: gitRoot)
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 

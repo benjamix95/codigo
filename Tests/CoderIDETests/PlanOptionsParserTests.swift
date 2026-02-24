@@ -225,6 +225,26 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertEqual(todos.count, 2)
     }
 
+    func testExtractTodosFromOptionTextWithNonH2TodoHeader() {
+        let input = """
+        ### To-do
+        - [ ] First task
+        - [ ] Second task
+        """
+        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
+        XCTAssertEqual(todos, ["First task", "Second task"])
+    }
+
+    func testExtractTodosFromOptionTextFallsBackToChecklistWithoutHeader() {
+        let input = """
+        Option details:
+        - [ ] First task
+        - [ ] Second task
+        """
+        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
+        XCTAssertEqual(todos, ["First task", "Second task"])
+    }
+
     func testExtractTodosFromOptionTextReturnsEmptyWhenNoSection() {
         let input = """
         ## Opzione 1: Refactor
@@ -232,5 +252,49 @@ final class PlanOptionsParserTests: XCTestCase {
         """
         let todos = PlanOptionsParser.extractTodosFromOptionText(input)
         XCTAssertTrue(todos.isEmpty)
+    }
+
+    func testExtractFinalPlanBodyExcludingQuestionsOptionsTodos() {
+        let input = """
+        ## Questions
+        1. Preferisci A o B?
+        A) A
+        B) B
+
+        ## Option 1: Patch rapida
+        Testo opzione.
+
+        ## Todo
+        - [ ] Step uno
+
+        ## Cause
+        - overflow nel composer su larghezza stretta
+        - parsing markdown troppo denso
+
+        ## Approach
+        Applico ViewThatFits + normalizzazione layout display-only.
+        """
+
+        let output = PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(input)
+
+        XCTAssertFalse(output.localizedCaseInsensitiveContains("## Questions"))
+        XCTAssertFalse(output.localizedCaseInsensitiveContains("## Option"))
+        XCTAssertFalse(output.localizedCaseInsensitiveContains("## Todo"))
+        XCTAssertTrue(output.localizedCaseInsensitiveContains("## Cause"))
+        XCTAssertTrue(output.localizedCaseInsensitiveContains("## Approach"))
+    }
+
+    func testExtractMermaidBlocksForDisplay() {
+        let input = """
+        ## Diagram
+        ```mermaid
+        graph TD
+            A[Start] --> B[Build]
+        ```
+        """
+
+        let blocks = PlanOptionsParser.extractMermaidBlocksForDisplay(input)
+        XCTAssertEqual(blocks.count, 1)
+        XCTAssertTrue(blocks[0].contains("graph TD"))
     }
 }

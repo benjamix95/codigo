@@ -33,7 +33,7 @@ struct CodigoApp: App {
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
-    @AppStorage("claude_model") private var claudeModel = "sonnet"
+    @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
         "Read,Edit,Bash,Write,Search"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "openai"
@@ -56,6 +56,8 @@ struct CodigoApp: App {
     @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
+    @AppStorage("grok_api_key") private var grokApiKey = ""
+    @AppStorage("grok_model") private var grokModel = "grok-4-1-fast-reasoning"
 
     private var colorScheme: ColorScheme? {
         switch appearance {
@@ -117,7 +119,7 @@ struct CodigoApp: App {
     private func configureWindow() {
         let candidates = NSApplication.shared.windows.filter { $0.canBecomeMain }
         for window in candidates {
-            window.minSize = NSSize(width: 1000, height: 600)
+            window.minSize = NSSize(width: 700, height: 500)
             window.backgroundColor = DesignSystem.AppKit.windowBackground
             AppDelegate.applyMainWindowStyle(window)
         }
@@ -160,6 +162,7 @@ struct CodigoApp: App {
         }
         registerMiniMax()
         registerOpenRouter()
+        registerGrok()
     }
 
     private func registerMiniMax() {
@@ -174,6 +177,14 @@ struct CodigoApp: App {
         providerRegistry.unregister(id: "openrouter-api")
         providerRegistry.register(
             ProviderFactory.openRouterAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController))
+    }
+
+    private func registerGrok() {
+        providerRegistry.unregister(id: "grok-api")
+        providerRegistry.register(
+            ProviderFactory.grokAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController))
     }
@@ -196,6 +207,8 @@ struct CodigoApp: App {
             minimaxModel: minimaxModel,
             openrouterApiKey: openrouterApiKey,
             openrouterModel: openrouterModel,
+            grokApiKey: grokApiKey,
+            grokModel: grokModel,
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
             codexSessionFullAccess: false,

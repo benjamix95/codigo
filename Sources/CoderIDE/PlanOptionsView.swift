@@ -50,7 +50,7 @@ struct PlanClarificationWizardView: View {
     @State private var currentQuestionIndex: Int = 0
     @State private var selectedOptionByQuestionId: [Int: String] = [:]
     @State private var customTextByQuestionId: [Int: String] = [:]
-    @State private var finalMandatoryNote: String = ""
+    @State private var finalNote: String = ""
     @State private var isConfirmStep = false
     @FocusState private var focusedField: FocusField?
 
@@ -63,8 +63,8 @@ struct PlanClarificationWizardView: View {
         return orderedQuestions[currentQuestionIndex]
     }
 
-    private var trimmedFinalMandatoryNote: String {
-        finalMandatoryNote.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var trimmedFinalNote: String {
+        finalNote.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var body: some View {
@@ -163,7 +163,7 @@ struct PlanClarificationWizardView: View {
 
         if shouldShowCustomField(for: question) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Custom response (overrides selection)")
+                Text("Custom response (optional, overrides selection)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
@@ -177,11 +177,6 @@ struct PlanClarificationWizardView: View {
                 .submitLabel(isLastQuestion(question) ? .done : .next)
                 .onSubmit {
                     advanceFromQuestion(question)
-                }
-                if isCustomFieldRequiredButEmpty(question) {
-                    Text("Custom response is required for this option.")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
                 }
             }
         }
@@ -248,12 +243,12 @@ struct PlanClarificationWizardView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Mandatory final note")
+                Text("Final note (optional)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
-                    "Add essential final details for the plan...",
-                    text: $finalMandatoryNote,
+                    "Add final details for the plan (optional)...",
+                    text: $finalNote,
                     axis: .vertical
                 )
                 .textFieldStyle(.roundedBorder)
@@ -262,11 +257,6 @@ struct PlanClarificationWizardView: View {
                 .submitLabel(.done)
                 .onSubmit {
                     submitIfPossible()
-                }
-                if trimmedFinalMandatoryNote.isEmpty {
-                    Text("This field is required to submit the wizard.")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
                 }
             }
 
@@ -298,7 +288,6 @@ struct PlanClarificationWizardView: View {
     private var canSubmitFinal: Bool {
         !orderedQuestions.isEmpty
             && orderedQuestions.allSatisfy(isQuestionAnswered)
-            && !trimmedFinalMandatoryNote.isEmpty
     }
 
     private func customTextBinding(for questionId: Int) -> Binding<String> {
@@ -316,11 +305,6 @@ struct PlanClarificationWizardView: View {
     private func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
         guard let selectedOption = selectedOption(for: question) else { return false }
         return PlanOptionsParser.isOtherLikeClarificationOption(selectedOption)
-    }
-
-    private func isCustomFieldRequiredButEmpty(_ question: PlanClarificationQuestion) -> Bool {
-        shouldShowCustomField(for: question)
-            && (customTextByQuestionId[question.id]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
 
     private func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
@@ -362,10 +346,9 @@ struct PlanClarificationWizardView: View {
             )
         }
         guard answers.count == orderedQuestions.count else { return nil }
-        guard !trimmedFinalMandatoryNote.isEmpty else { return nil }
         return PlanClarificationSubmission(
             answers: answers,
-            finalMandatoryNote: trimmedFinalMandatoryNote
+            finalNote: trimmedFinalNote
         )
     }
 
@@ -377,16 +360,13 @@ struct PlanClarificationWizardView: View {
     }
 
     private func isQuestionAnswered(_ question: PlanClarificationQuestion) -> Bool {
-        guard let selectedOption = selectedOption(for: question) else { return false }
-        guard PlanOptionsParser.isOtherLikeClarificationOption(selectedOption) else { return true }
-        let custom = customTextByQuestionId[question.id]?.trimmingCharacters(in: .whitespacesAndNewlines)
-            ?? ""
-        return !custom.isEmpty
+        selectedOption(for: question) != nil
     }
 }
 
 struct PlanOptionsView: View {
     let options: [PlanOption]
+    let selectedOptionId: Int?
     let onSelectOption: (PlanOption) -> Void
     let onCustomResponse: (String) -> Void
     let planColor: Color
@@ -396,11 +376,13 @@ struct PlanOptionsView: View {
 
     init(
         options: [PlanOption],
+        selectedOptionId: Int? = nil,
         planColor: Color = .blue,
         onSelectOption: @escaping (PlanOption) -> Void,
         onCustomResponse: @escaping (String) -> Void
     ) {
         self.options = options
+        self.selectedOptionId = selectedOptionId
         self.planColor = planColor
         self.onSelectOption = onSelectOption
         self.onCustomResponse = onCustomResponse
@@ -413,6 +395,7 @@ struct PlanOptionsView: View {
                 .foregroundStyle(.secondary)
 
             ForEach(options) { opt in
+                let isSelected = selectedOptionId == opt.id
                 Button { onSelectOption(opt) } label: {
                     HStack(alignment: .top, spacing: 8) {
                         Text("\(opt.id)")
@@ -436,13 +419,19 @@ struct PlanOptionsView: View {
 
                         Image(systemName: "arrow.right.circle")
                             .font(.subheadline)
-                            .foregroundStyle(planColor.opacity(0.7))
+                            .foregroundStyle(isSelected ? planColor : planColor.opacity(0.7))
                     }
                     .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                    .background(
+                        (isSelected ? planColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor)),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            .stroke(
+                                isSelected ? planColor.opacity(0.65) : Color(nsColor: .separatorColor),
+                                lineWidth: isSelected ? 1.0 : 0.5
+                            )
                     )
                 }
                 .buttonStyle(.plain)

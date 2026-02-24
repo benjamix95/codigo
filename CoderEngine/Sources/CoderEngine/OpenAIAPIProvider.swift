@@ -4,6 +4,11 @@ import Foundation
 public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
+    public let attachmentCapabilities = ProviderAttachmentCapabilities(
+        nativeImage: true,
+        nativeDocument: false,
+        nativeFile: false
+    )
 
     private let apiKey: String
     private let model: String

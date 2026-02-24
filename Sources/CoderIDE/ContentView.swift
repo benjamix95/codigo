@@ -34,24 +34,29 @@ struct ContentView: View {
                 .environmentObject(workspaceStore)
                 .environmentObject(projectContextStore)
                 .environmentObject(openFilesStore)
-                .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 420)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 300, max: 380)
         } detail: {
-            HStack(spacing: 6) {
-                if showEditorPanel {
-                    idePanel
-                        .frame(minWidth: 350, idealWidth: 450)
+            GeometryReader { geo in
+                let detailWidth = geo.size.width
+                HStack(spacing: 6) {
+                    if showEditorPanel && detailWidth >= 750 {
+                        idePanel
+                            .frame(minWidth: 220, idealWidth: 380)
+                    }
+                    chatPanel
+                        .frame(minWidth: 280, idealWidth: 480)
+                        .layoutPriority(1)
+                    if gitPanelStore.isOpen && detailWidth >= 700 {
+                        GitPanelView(
+                            store: gitPanelStore,
+                            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
+                            onOpenFile: { openFilesStore.openFile($0) }
+                        )
+                        .environmentObject(providerRegistry)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
-                chatPanel
-                    .frame(minWidth: 380, idealWidth: 500)
-                if gitPanelStore.isOpen {
-                    GitPanelView(
-                        store: gitPanelStore,
-                        effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
-                        onOpenFile: { openFilesStore.openFile($0) }
-                    )
-                    .environmentObject(providerRegistry)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 6)

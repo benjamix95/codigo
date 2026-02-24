@@ -69,7 +69,7 @@ public enum ClaudeUsageFetcher {
         process.standardOutput = outPipe
         process.standardError = nil
         process.standardInput = nil
-        process.environment = CodexDetector.shellEnvironment()
+        process.environment = ClaudeDetector.shellEnvironment()
         process.currentDirectoryURL =
             (workingDirectory.flatMap {
                 FileManager.default.fileExists(atPath: $0) ? $0 : nil

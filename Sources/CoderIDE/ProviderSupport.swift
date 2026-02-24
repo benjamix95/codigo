@@ -9,7 +9,8 @@ enum ProviderSupport {
         "anthropic-api",
         "google-api",
         "openrouter-api",
-        "minimax-api"
+        "minimax-api",
+        "grok-api"
     ]
 
     static func isAgentProvider(id: String?) -> Bool {
@@ -40,7 +41,8 @@ enum ProviderSupport {
         "anthropic-api",
         "google-api",
         "openrouter-api",
-        "minimax-api"
+        "minimax-api",
+        "grok-api"
     ]
 
     static func isIDEProvider(id: String?) -> Bool {

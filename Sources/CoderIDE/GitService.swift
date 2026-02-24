@@ -33,6 +33,13 @@ struct GitChangedFile: Identifiable, Equatable {
     let added: Int
     let removed: Int
     let status: String
+    let isStaged: Bool
+}
+
+struct GitStashEntry: Identifiable, Equatable {
+    var id: Int { index }
+    let index: Int
+    let message: String
 }
 
 struct GitFileDiffChunk: Equatable {
@@ -250,15 +257,29 @@ struct GitService {
         let lines = porcelain.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
         var result: [GitChangedFile] = []
         for line in lines {
-            guard line.count >= 4 else { continue }
-            let statusCode = String(line.prefix(2)).trimmingCharacters(in: .whitespaces)
+            guard line.count >= 3 else { continue }
+            // Porcelain format: XY path
+            // X = index (staged), Y = worktree
+            let indexChar = line[line.startIndex]
+            let worktreeChar = line[line.index(after: line.startIndex)]
             let rawPath = String(line.dropFirst(3))
             let path = rawPath.components(separatedBy: " -> ").last ?? rawPath
+
+            // Determine staging status
+            // If index column has a change letter (not ' ' and not '?'), it's staged
+            let isStaged = indexChar != " " && indexChar != "?"
+            let statusCode: String
+            if indexChar == "?" && worktreeChar == "?" {
+                statusCode = "??"
+            } else if isStaged {
+                statusCode = String(indexChar)
+            } else {
+                statusCode = String(worktreeChar)
+            }
 
             var added = 0
             var removed = 0
             if statusCode != "??" {
-                // Include both staged and unstaged deltas against HEAD for accurate file totals.
                 let stat = try runGit(["diff", "--numstat", "HEAD", "--", path], gitRoot: gitRoot)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !stat.isEmpty {
@@ -270,7 +291,7 @@ struct GitService {
                 }
             }
 
-            result.append(GitChangedFile(path: path, added: added, removed: removed, status: statusCode.isEmpty ? "M" : statusCode))
+            result.append(GitChangedFile(path: path, added: added, removed: removed, status: statusCode.isEmpty ? "M" : statusCode, isStaged: isStaged))
         }
         return result
     }
@@ -353,6 +374,113 @@ struct GitService {
                 try? FileManager.default.removeItem(atPath: fullPath)
             }
         }
+    }
+
+    // MARK: - Pull & Fetch
+
+    @discardableResult
+    func pull(gitRoot: String) throws -> String {
+        try runGit(["pull"], gitRoot: gitRoot)
+    }
+
+    @discardableResult
+    func fetch(gitRoot: String) throws -> String {
+        try runGit(["fetch", "--all", "--prune"], gitRoot: gitRoot)
+    }
+
+    // MARK: - Stash
+
+    func stash(gitRoot: String, message: String?) throws {
+        var args = ["stash", "push"]
+        if let message, !message.isEmpty {
+            args += ["-m", message]
+        }
+        _ = try runGit(args, gitRoot: gitRoot)
+    }
+
+    func stashPop(gitRoot: String) throws {
+        _ = try runGit(["stash", "pop"], gitRoot: gitRoot)
+    }
+
+    func stashDrop(gitRoot: String, index: Int) throws {
+        _ = try runGit(["stash", "drop", "stash@{\(index)}"], gitRoot: gitRoot)
+    }
+
+    func stashList(gitRoot: String) throws -> [GitStashEntry] {
+        let out = try runGit(["stash", "list", "--format=%gd|%s"], gitRoot: gitRoot)
+        return out.split(separator: "\n").compactMap { line -> GitStashEntry? in
+            let parts = line.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            guard parts.count >= 2 else { return nil }
+            // stash@{0} → extract index
+            let refPart = parts[0]
+            guard let open = refPart.firstIndex(of: "{"),
+                  let close = refPart.firstIndex(of: "}"),
+                  let idx = Int(refPart[refPart.index(after: open)..<close]) else { return nil }
+            return GitStashEntry(index: idx, message: parts[1])
+        }
+    }
+
+    // MARK: - Branch Management
+
+    func deleteBranch(name: String, gitRoot: String, force: Bool) throws {
+        let flag = force ? "-D" : "-d"
+        _ = try runGit(["branch", flag, name], gitRoot: gitRoot)
+    }
+
+    func renameBranch(oldName: String, newName: String, gitRoot: String) throws {
+        _ = try runGit(["branch", "-m", oldName, newName], gitRoot: gitRoot)
+    }
+
+    func listRemoteBranches(gitRoot: String) throws -> [GitBranch] {
+        let out = try runGit(["branch", "-r", "--format=%(refname:short)"], gitRoot: gitRoot)
+        return out.split(separator: "\n")
+            .map(String.init)
+            .filter { !$0.contains("HEAD") }
+            .map { name in
+                GitBranch(name: name, isCurrent: false, isRemoteTracking: true)
+            }
+    }
+
+    func checkoutRemoteBranch(name: String, gitRoot: String) throws {
+        // origin/feature → feature
+        let localName = name.contains("/") ? String(name.split(separator: "/", maxSplits: 1).last ?? Substring(name)) : name
+        _ = try runGit(["checkout", "-b", localName, name], gitRoot: gitRoot)
+    }
+
+    // MARK: - Stage / Unstage
+
+    func stageFile(path: String, gitRoot: String) throws {
+        _ = try runGit(["add", "--", path], gitRoot: gitRoot)
+    }
+
+    func unstageFile(path: String, gitRoot: String) throws {
+        _ = try runGit(["restore", "--staged", "--", path], gitRoot: gitRoot)
+    }
+
+    func stageAll(gitRoot: String) throws {
+        _ = try runGit(["add", "-A"], gitRoot: gitRoot)
+    }
+
+    func unstageAll(gitRoot: String) throws {
+        _ = try runGit(["reset", "HEAD"], gitRoot: gitRoot)
+    }
+
+    // MARK: - Ahead/Behind
+
+    func aheadBehindCount(gitRoot: String) throws -> (ahead: Int, behind: Int) {
+        let branch = try currentBranch(gitRoot: gitRoot)
+        guard !branch.hasPrefix("detached") else { return (0, 0) }
+        // Check if tracking branch exists
+        guard let _ = try? runGit(["rev-parse", "--abbrev-ref", "\(branch)@{upstream}"], gitRoot: gitRoot)
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !branch.isEmpty else {
+            return (0, 0)
+        }
+        let out = try runGit(["rev-list", "--left-right", "--count", "\(branch)...@{upstream}"], gitRoot: gitRoot)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = out.split(separator: "\t").map(String.init)
+        guard parts.count == 2 else { return (0, 0) }
+        return (ahead: Int(parts[0]) ?? 0, behind: Int(parts[1]) ?? 0)
     }
 
     private func isGhInstalled() -> Bool {

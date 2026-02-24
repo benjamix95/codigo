@@ -95,7 +95,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         )
     }
 
-    func testBuildPlanClarificationPromptIncludesCustomPrecedenceAndFinalMandatoryNote() {
+    func testBuildPlanClarificationPromptIncludesCustomPrecedenceAndOptionalFinalNote() {
         let submission = PlanClarificationSubmission(
             answers: [
                 PlanClarificationAnswer(
@@ -113,7 +113,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                     customResponse: nil
                 ),
             ],
-            finalMandatoryNote: "Non toccare API pubbliche e mantieni retrocompatibilità."
+            finalNote: "Non toccare API pubbliche e mantieni retrocompatibilità."
         )
 
         let prompt = buildPlanClarificationPrompt(submission)
@@ -121,7 +121,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Risposta selezionata: B) Correggere bug"))
         XCTAssertTrue(prompt.contains("2. Quale priorità vuoi?"))
         XCTAssertTrue(prompt.contains("Risposta personalizzata (precedenza): Priorità: stabilità in produzione"))
-        XCTAssertTrue(prompt.contains("Nota finale obbligatoria utente: Non toccare API pubbliche"))
+        XCTAssertTrue(prompt.contains("Nota finale utente (opzionale): Non toccare API pubbliche"))
     }
 
     func testBuildPlanClarificationPromptOmitsCustomLineWhenAbsent() {
@@ -135,11 +135,29 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                     customResponse: nil
                 )
             ],
-            finalMandatoryNote: "Testare su macOS."
+            finalNote: "Testare su macOS."
         )
 
         let prompt = buildPlanClarificationPrompt(submission)
         XCTAssertFalse(prompt.contains("Risposta personalizzata (precedenza):"))
-        XCTAssertTrue(prompt.contains("Nota finale obbligatoria utente: Testare su macOS."))
+        XCTAssertTrue(prompt.contains("Nota finale utente (opzionale): Testare su macOS."))
+    }
+
+    func testBuildPlanClarificationPromptHandlesMissingFinalNote() {
+        let submission = PlanClarificationSubmission(
+            answers: [
+                PlanClarificationAnswer(
+                    questionId: 1,
+                    question: "Quale area?",
+                    optionId: "A",
+                    optionText: "UI chat",
+                    customResponse: nil
+                )
+            ],
+            finalNote: ""
+        )
+
+        let prompt = buildPlanClarificationPrompt(submission)
+        XCTAssertTrue(prompt.contains("Nota finale utente: (omessa)"))
     }
 }

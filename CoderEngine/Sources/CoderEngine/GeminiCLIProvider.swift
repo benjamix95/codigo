@@ -4,6 +4,11 @@ import Foundation
 public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     public let id = "gemini-cli"
     public let displayName = "Gemini CLI"
+    public let attachmentCapabilities = ProviderAttachmentCapabilities(
+        nativeImage: true,
+        nativeDocument: false,
+        nativeFile: false
+    )
 
     private let geminiPath: String
     private let modelOverride: String?

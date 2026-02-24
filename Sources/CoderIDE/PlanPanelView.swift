@@ -77,6 +77,8 @@ struct PlanPanelView: View {
     let planFlowPhase: PlanFlowPhase
     /// Live streaming content from multi-turn plan flow (displayed during analyzing/questioning/generating phases).
     let planStreamingContent: String
+    let showHistorySection: Bool
+    let workspaceSource: PlanPanelPresentationSource
     let onClose: () -> Void
     let onSelectOption: (PlanOption, String?) -> Void
     let onCustomResponse: (String) -> Void
@@ -90,6 +92,8 @@ struct PlanPanelView: View {
     @State private var isEditing = false
     @State private var buildHint: String?
     @State private var showDeleteAllHistoryConfirmation = false
+    @State private var walkthroughExpanded = false
+    @State private var historySelectionVersion = 0
     /// Override provider for plan execution (nil = use conversation/global default)
     @State private var planProviderId: String?
     /// Keeps top controls out of the macOS titlebar non-interactive zone.
@@ -107,22 +111,12 @@ struct PlanPanelView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Phase progress indicator (visible during multi-turn flow)
-                    if planFlowPhase == .analyzing || planFlowPhase == .questioning
-                        || planFlowPhase == .generating
-                    {
+                    // 1) Progress (analyzing/questioning/generating)
+                    if planFlowPhase == .analyzing || planFlowPhase == .questioning || planFlowPhase == .generating {
                         PlanPhaseProgressView(phase: planFlowPhase)
                     }
 
-                    // ── 1. Mermaid Flow Diagram (extracted from plan content) ──
-                    if let firstMermaid = extractedMermaidBlocks.first {
-                        MermaidDiagramView(
-                            mermaidCode: firstMermaid,
-                            accentColor: planColor
-                        )
-                    }
-
-                    // ── 2. Clarification questions (if waiting) ──
+                    // 2) Clarification questions (only when truly waiting)
                     if case .awaitingClarification(let questions) = planningState {
                         if let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: questions) {
                             PlanClarificationWizardView(
@@ -136,10 +130,11 @@ struct PlanPanelView: View {
                         }
                     }
 
-                    // ── 3. Plan Options (if awaiting choice) ──
+                    // 3) Option chooser (proposal ready)
                     if case .awaitingChoice(_, let options) = planningState {
                         PlanOptionsView(
                             options: options,
+                            selectedOptionId: selectedOptionId(in: options),
                             planColor: planColor,
                             onSelectOption: { option in
                                 onSelectOption(option, planProviderId)
@@ -148,31 +143,36 @@ struct PlanPanelView: View {
                         )
                     }
 
-                    // ── 4. Todo list ──
+                    // 4) Final todos
                     if !canonicalPlanTodos.isEmpty {
                         todosSection
                     }
 
-                    // ── 5. Plan Board (steps overview) ──
-                    if let board = chatStore.planBoard(for: conversationId) {
-                        planBoardSection(board)
+                    // 5) Mermaid (if present)
+                    if let firstMermaid = extractedMermaidBlocks.first {
+                        MermaidDiagramView(
+                            mermaidCode: firstMermaid,
+                            accentColor: planColor
+                        )
                     }
 
-                    // ── 6. Full plan content (workspace) ──
+                    // 6) Final plan body (cause/approach), clean and deduplicated
                     planContentSection
 
-                    // ── 7. Walkthrough (appears when plan completes) ──
+                    // 7) Live activity (compact)
+                    if !taskActivityStore.activities.isEmpty {
+                        traceSection
+                    }
+
+                    // 8) Walkthrough (compact + expandable)
                     if let board = chatStore.planBoard(for: conversationId),
                        let wt = board.walkthroughMarkdown, !wt.isEmpty {
                         walkthroughSection(wt)
                     }
 
-                    // ── 8. Persistent history ──
-                    historySection
-
-                    // ── 9. Live activity trace (task activities at the bottom) ──
-                    if !taskActivityStore.activities.isEmpty {
-                        traceSection
+                    // 9) History (manual panel opening only)
+                    if showHistorySection {
+                        historySection
                     }
                 }
                 .padding(16)
@@ -193,12 +193,15 @@ struct PlanPanelView: View {
             planText = ""
             isEditing = false
             buildHint = nil
+            walkthroughExpanded = false
         }
         .onChange(of: conversationId) { _, _ in
             // New conversation => plan panel should immediately reflect the new context.
             planText = ""
             isEditing = false
             buildHint = nil
+            walkthroughExpanded = false
+            historySelectionVersion = 0
         }
         .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
             performBuild()
@@ -600,12 +603,30 @@ struct PlanPanelView: View {
     /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     private var displayPlanContent: String {
         if isEditing { return planText }
-        // During active plan phases, show streaming content from the multi-turn flow
-        if [.analyzing, .questioning, .generating].contains(planFlowPhase),
-           !planStreamingContent.isEmpty
-        {
+
+        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
+            if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !chosen.isEmpty {
+                return chosen
+            }
+            return selected.markdown
+        }
+
+        if let board = chatStore.planBoard(for: conversationId) {
+            if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !chosen.isEmpty {
+                return chosen
+            }
+            if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+                return first.fullText
+            }
+        }
+
+        // During active plan phases, show streaming content from the multi-turn flow.
+        if [.analyzing, .questioning, .generating].contains(planFlowPhase), !planStreamingContent.isEmpty {
             return planStreamingContent
         }
+
         let hasBoard = chatStore.planBoard(for: conversationId) != nil
         let hasSelectedHistoryEntry = planHistoryStore.selectedEntryId != nil
         let hasContext = hasPlanContext(
@@ -624,13 +645,16 @@ struct PlanPanelView: View {
         return planText
     }
 
+    private var displayPlanBodyContent: String {
+        PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(displayPlanContent)
+    }
+
     private var planContentSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("New Plan Workspace")
+                Text("Piano")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                Spacer()
                 Spacer()
                 Button {
                     if !isEditing {
@@ -676,20 +700,21 @@ struct PlanPanelView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)
                 .padding(.horizontal, 12)
-            } else if !displayPlanContent.isEmpty {
+            } else if !displayPlanBodyContent.isEmpty {
                 MarkdownContentView(
-                    content: displayPlanContent,
+                    content: displayPlanBodyContent,
                     context: nil,
                     onFileClicked: { _ in },
                     textAlignment: .leading
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .id("workspace-\(planHistoryStore.selectedEntryId?.uuidString ?? "current")-\(historySelectionVersion)")
             } else {
                 HStack(spacing: 8) {
                     Image(systemName: "doc.text")
                         .font(.system(size: 16))
                         .foregroundStyle(.quaternary)
-                    Text("Workspace is empty. Select a plan from history or generate a new one.")
+                    Text("Il piano finale comparirà qui quando pronto.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -712,6 +737,17 @@ struct PlanPanelView: View {
                 Text("History")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                if workspaceSource == .manualShortcut {
+                    Text("manual")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                        )
+                }
                 Spacer()
                 Text("\(items.count)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -745,7 +781,11 @@ struct PlanPanelView: View {
                         }
                         Spacer()
                         Button("Preview") {
+                            if planHistoryStore.selectedEntryId == entry.id {
+                                planHistoryStore.setSelectedEntry(id: nil)
+                            }
                             planHistoryStore.setSelectedEntry(id: entry.id)
+                            historySelectionVersion &+= 1
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
                             if !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
@@ -773,6 +813,7 @@ struct PlanPanelView: View {
                             }
                             onBuild(choice, planProviderId, true)
                             planHistoryStore.markRebuilt(id: entry.id)
+                            historySelectionVersion &+= 1
                             buildHint = "Rebuild started..."
                         } label: {
                             Image(systemName: "arrow.clockwise")
@@ -794,6 +835,9 @@ struct PlanPanelView: View {
                         }
                         .buttonStyle(.plain)
                         Button(role: .destructive) {
+                            if planHistoryStore.selectedEntryId == entry.id {
+                                historySelectionVersion &+= 1
+                            }
                             planHistoryStore.deleteEntry(id: entry.id)
                         } label: {
                             Image(systemName: "trash")
@@ -810,16 +854,6 @@ struct PlanPanelView: View {
                                     : Color(nsColor: .controlBackgroundColor).opacity(0.2)
                             )
                     )
-                }
-                if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
-                    Divider()
-                    MarkdownContentView(
-                        content: selected.markdown,
-                        context: nil,
-                        onFileClicked: { _ in },
-                        textAlignment: .leading
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -890,7 +924,7 @@ struct PlanPanelView: View {
     private var extractedMermaidBlocks: [String] {
         let content = displayPlanContent
         guard !content.isEmpty else { return [] }
-        return MermaidExtractor.extractMermaidBlocks(from: content)
+        return PlanOptionsParser.extractMermaidBlocksForDisplay(content)
     }
 
     private var canonicalPlanTodos: [TodoItem] {
@@ -965,48 +999,54 @@ struct PlanPanelView: View {
 
     private func walkthroughSection(_ markdown: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .fill(planColor.opacity(0.15))
-                        .frame(width: 24, height: 24)
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(planColor)
+            Button {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    walkthroughExpanded.toggle()
                 }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Walkthrough")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.primary)
-                    Text("Completion summary")
-                        .font(.system(size: 10, weight: .medium))
+            } label: {
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(planColor.opacity(0.15))
+                            .frame(width: 24, height: 24)
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(planColor)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Walkthrough")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.primary)
+                        Text(walkthroughExpanded ? "Nascondi riepilogo" : "Mostra riepilogo")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Image(systemName: walkthroughExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.tertiary)
                 }
-                Spacer()
-                Image(systemName: "doc.text.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(planColor.opacity(0.5))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(planColor.opacity(0.04))
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                planColor.opacity(0.04)
-            )
+            .buttonStyle(.plain)
 
-            Rectangle()
-                .fill(planColor.opacity(0.12))
-                .frame(height: 0.5)
+            if walkthroughExpanded {
+                Rectangle()
+                    .fill(planColor.opacity(0.12))
+                    .frame(height: 0.5)
 
-            // Content
-            MarkdownContentView(
-                content: markdown,
-                context: nil,
-                onFileClicked: { _ in },
-                textAlignment: .leading
-            )
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+                MarkdownContentView(
+                    content: markdown,
+                    context: nil,
+                    onFileClicked: { _ in },
+                    textAlignment: .leading
+                )
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .background(
             Color(nsColor: .controlBackgroundColor).opacity(0.15)
@@ -1070,6 +1110,31 @@ struct PlanPanelView: View {
             return (first.fullText, PlanOptionsParser.isFallbackOption(first))
         }
         return nil
+    }
+
+    private func selectedOptionId(in options: [PlanOption]) -> Int? {
+        guard !options.isEmpty else { return nil }
+        if let board = chatStore.planBoard(for: conversationId),
+           let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !chosen.isEmpty,
+           let match = options.first(where: { normalizedPlanText($0.fullText) == normalizedPlanText(chosen) })
+        {
+            return match.id
+        }
+        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId),
+           let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !chosen.isEmpty,
+           let match = options.first(where: { normalizedPlanText($0.fullText) == normalizedPlanText(chosen) })
+        {
+            return match.id
+        }
+        return nil
+    }
+
+    private func normalizedPlanText(_ text: String) -> String {
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
     }
 
     private func downloadCurrentPlan() {
