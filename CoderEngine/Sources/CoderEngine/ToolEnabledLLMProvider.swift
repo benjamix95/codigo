@@ -58,6 +58,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     var lastToolResultsForFallback: [[String: String]] = []
                     var emittedVisibleTextAfterToolRound = false
                     var hasAnyMeaningfulAssistantText = false
+                    let requiredPolicyHash = Self.requiredPolicyHash(from: context)
+                    var didEmitPolicyAck = false
 
                     for _ in 0..<maxToolRounds {
                         let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
@@ -90,6 +92,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 // Validate markers through dedup/budget checks
                                 var validatedMarkers: [CoderIDEMarker] = []
                                 for marker in markers {
+                                    if Self.isPolicyAckMarker(marker, requiredHash: requiredPolicyHash) {
+                                        didEmitPolicyAck = true
+                                    }
                                     let dedupeId = markerDedupeKey(marker)
                                     if emittedMarkerIds.contains(dedupeId) { continue }
                                     if toolCallsThisRound >= policy.maxToolCallsPerRound {
@@ -112,7 +117,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 // Execute markers with parallel read-only optimization
                                 let batchResults = await executeMarkerBatch(validatedMarkers, context: context)
                                 for (marker, produced) in batchResults {
+                                    if let hash = requiredPolicyHash,
+                                       shouldEmitSyntheticPolicyAck(
+                                        for: marker,
+                                        requiredHash: hash,
+                                        didEmitPolicyAck: didEmitPolicyAck
+                                       ) {
+                                        continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
+                                        didEmitPolicyAck = true
+                                    }
                                     for e in produced {
+                                        if case .raw(let type, let payload) = e,
+                                           type == "policy_ack",
+                                           Self.matchesRequiredPolicyHash(
+                                            payload["hash"] ?? payload["policy_hash"],
+                                            requiredHash: requiredPolicyHash
+                                           ) {
+                                            didEmitPolicyAck = true
+                                        }
                                         continuation.yield(e)
                                     }
                                     if marker.kind == "tool_call" || marker.kind == "glob" || marker.kind == "read" || marker.kind == "grep" || marker.kind == "instant_grep" {
@@ -133,6 +155,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             case .completed:
                                 break
                             case .raw(let type, let payload):
+                                if type == "policy_ack" {
+                                    if Self.matchesRequiredPolicyHash(
+                                        payload["hash"] ?? payload["policy_hash"],
+                                        requiredHash: requiredPolicyHash
+                                    ) {
+                                        didEmitPolicyAck = true
+                                    }
+                                    continuation.yield(event)
+                                    continue
+                                }
                                 if type == "tool_call_suggested" {
                                     let isPartial = (payload["is_partial"] ?? "").lowercased() == "true"
                                     if isPartial { continue }
@@ -161,8 +193,25 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     emittedMarkerIds.insert(dedupeId)
                                     toolCallsThisRound += 1
                                     sawExecutableSuggestion = true
+                                    if let hash = requiredPolicyHash,
+                                       shouldEmitSyntheticPolicyAck(
+                                        for: marker,
+                                        requiredHash: hash,
+                                        didEmitPolicyAck: didEmitPolicyAck
+                                       ) {
+                                        continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
+                                        didEmitPolicyAck = true
+                                    }
                                     let produced = await events(for: marker, context: context)
                                     for e in produced {
+                                        if case .raw(let innerType, let innerPayload) = e,
+                                           innerType == "policy_ack",
+                                           Self.matchesRequiredPolicyHash(
+                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                            requiredHash: requiredPolicyHash
+                                           ) {
+                                            didEmitPolicyAck = true
+                                        }
                                         continuation.yield(e)
                                     }
                                     if let summary = summarizeToolResultEvents(produced, marker: marker) {
@@ -538,6 +587,56 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             .sorted()
             .joined(separator: "|")
         return "\(marker.kind)|\(stablePayload)"
+    }
+
+    private func shouldEmitSyntheticPolicyAck(
+        for marker: CoderIDEMarker,
+        requiredHash: String,
+        didEmitPolicyAck: Bool
+    ) -> Bool {
+        guard !didEmitPolicyAck else { return false }
+        guard markerRequiresPolicyAck(marker) else { return false }
+        return !requiredHash.isEmpty
+    }
+
+    private func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
+        switch marker.kind {
+        case "policy_ack", "todo_read", "todo_write", "plan_step", "debug_panel":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
+        let prompt = context.contextPrompt()
+        guard !prompt.isEmpty else { return nil }
+        for marker in CoderIDEMarkerParser.parse(from: prompt).reversed() where marker.kind == "policy_ack" {
+            let rawHash = marker.payload["hash"] ?? marker.payload["policy_hash"] ?? ""
+            let hash = rawHash.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !hash.isEmpty {
+                return hash
+            }
+        }
+        return nil
+    }
+
+    private static func isPolicyAckMarker(
+        _ marker: CoderIDEMarker,
+        requiredHash: String?
+    ) -> Bool {
+        guard marker.kind == "policy_ack" else { return false }
+        let received = marker.payload["hash"] ?? marker.payload["policy_hash"]
+        return matchesRequiredPolicyHash(received, requiredHash: requiredHash)
+    }
+
+    private static func matchesRequiredPolicyHash(
+        _ receivedHash: String?,
+        requiredHash: String?
+    ) -> Bool {
+        guard let requiredHash, !requiredHash.isEmpty else { return true }
+        let received = (receivedHash ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return !received.isEmpty && received == requiredHash
     }
 
     private func events(for marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
