@@ -503,7 +503,21 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "read_batch":
             return await executeReadBatch(marker: marker, context: context)
         case "web_search":
-            return [.raw(type: "web_search_started", payload: marker.payload)]
+            var args = marker.payload
+            args["name"] = "web_search"
+            args["id"] = args["id"] ?? UUID().uuidString
+            let wsCall = ToolCall(
+                id: args["id"] ?? UUID().uuidString,
+                name: "web_search",
+                args: args,
+                sourceProvider: id,
+                swarmId: marker.payload["swarm_id"],
+                scope: executionScope
+            )
+            var searchEvents = await runtime.execute(wsCall, context: ToolExecutionContext(
+                workspaceContext: context, policy: policy, executionScope: executionScope))
+            searchEvents.insert(.raw(type: "web_search_started", payload: marker.payload), at: 0)
+            return searchEvents
         case "glob", "read", "grep":
             var args = marker.payload
             args["name"] = marker.kind
@@ -549,7 +563,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         for candidate in explicitCandidates {
             let name = candidate?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
             if [
-                "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search",
+                "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search", "web_fetch",
                 "str_replace", "create_file",
                 "read_range", "list_dir", "git_diff", "search_symbols", "run_tests", "build_project",
                 "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
@@ -803,6 +817,31 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **mcp_health** — Check MCP server health.
         - **mcp_reconnect** — Reconnect to an MCP server. Args: `server`.
 
+        ### Web Tools
+        - **web_search** — Search the web for current information. Returns a JSON array of results, each with `title`, `snippet`, and `url`. Use when you need up-to-date information, current documentation, recent API changes, external references, or anything beyond your training data. Args: `query` (search terms), `explanation` (optional context for the search).
+        - **web_fetch** — Fetch a web page and return its content as clean Markdown. Downloads the page HTML and converts it to readable Markdown, stripping scripts, styles, navigation, and non-content elements. Use to read full documentation pages, blog posts, Stack Overflow answers, API references, changelogs, or any URL. Args: `url` (the full URL to fetch). Limits: 128KB download, 12K chars output. Only supports public HTTP(S) pages (no localhost, no auth-protected pages, no binary files).
+
+        **Web tools workflow — always follow this pattern:**
+        1. Use `web_search` with a precise query to find relevant URLs and snippets.
+        2. Review the search results (titles + snippets) to identify the most promising pages.
+        3. Use `web_fetch` on the best 1-3 URLs to read their full content.
+        4. Synthesize the information from fetched pages into your response, citing sources.
+
+        **When to use web tools:**
+        - Current events, news, recent releases
+        - Up-to-date documentation, API references, changelogs
+        - Stack Overflow solutions, GitHub issues, blog posts
+        - Verifying information that may have changed since training
+        - Any time the user asks to "search", "look up", "check online", or provides a URL
+
+        **Best practices:**
+        - Write precise search queries (e.g., "Swift URLSession async await timeout" not just "Swift networking")
+        - Run multiple searches if covering different aspects
+        - Prioritize official sources (docs, repos) over third-party
+        - Fetch multiple URLs in parallel when possible (they are read-only tools)
+        - Always cite the source URLs in your response
+        - If a fetch fails (404, timeout), try an alternative URL from search results
+
         ### Debug Tools (for debug mode — analyzing bugs, forming hypotheses, tracking investigation)
         - **debug_context** — Gather full debug context in one call: git status, open files, lint errors, recent commits, debug log summary. Use this FIRST when entering debug mode. No required args.
         - **debug_log** — Write an entry to the debug log server. Args: `severity` (error/warning/info/verbose/trace), `source` (file:line or module), `message`, `detail` (optional: stack trace), `category` (optional: compiler/runtime/test/network/custom).
@@ -928,6 +967,17 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         Run a single test:
         [CODERIDE:tool_call|id=tst001|name=run_single_test|test_name=testLoginFlow]
 
+        Search the web:
+        [CODERIDE:tool_call|id=ws001|name=web_search|query=Swift URLSession async await tutorial 2025]
+
+        Fetch a web page:
+        [CODERIDE:tool_call|id=wf001|name=web_fetch|url=https://developer.apple.com/documentation/foundation/urlsession]
+
+        Web search + fetch workflow:
+        [CODERIDE:tool_call|id=ws002|name=web_search|query=SwiftUI NavigationStack migration guide]
+        (after reviewing results, fetch the best URL)
+        [CODERIDE:tool_call|id=wf002|name=web_fetch|url=https://developer.apple.com/documentation/swiftui/migrating-to-new-navigation-types]
+
         Gather full debug context:
         [CODERIDE:tool_call|id=dctx01|name=debug_context]
 
@@ -959,6 +1009,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - Todo: [CODERIDE:todo_write|title=...|status=pending|priority=medium]
         - Read batch: [CODERIDE:read_batch|files=a.swift,b.swift|group_id=...]
         - Web search: [CODERIDE:web_search|query=...|status=started]
+        - Web fetch: [CODERIDE:tool_call|id=...|name=web_fetch|url=https://example.com]
         - Debug panel: [CODERIDE:debug_panel|action=open|phase=analyzing]
         """
     }
@@ -974,6 +1025,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "workspace_stats", "tail_log", "list_processes", "search_symbols",
         "mcp_list_tools", "mcp_describe_tool", "mcp_list_servers", "mcp_health",
         "debug_query", "semantic_search", "read_lints", "debug_context",
+        "web_search", "web_fetch",
     ]
 
     private func isReadOnlyMarker(_ marker: CoderIDEMarker) -> Bool {

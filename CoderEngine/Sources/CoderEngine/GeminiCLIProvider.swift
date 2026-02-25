@@ -454,6 +454,8 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "read_batch_started", payload: marker.payload))
             case "web_search":
                 events.append((type: "web_search_started", payload: marker.payload))
+            case "web_fetch":
+                events.append((type: "web_fetch_started", payload: marker.payload))
             default:
                 break
             }

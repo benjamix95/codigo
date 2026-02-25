@@ -521,6 +521,10 @@ struct ChatPanelView: View {
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
+    @AppStorage("web_search_provider") private var webSearchProvider = "duckduckgo"
+    @AppStorage("brave_search_api_key") private var braveSearchApiKey = ""
+    @AppStorage("tavily_api_key") private var tavilyApiKey = ""
+    @AppStorage("serper_api_key") private var serperApiKey = ""
     @AppStorage("multi_cli_account_enabled") private var multiCLIAccountEnabled = false
     @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
@@ -2234,7 +2238,11 @@ struct ChatPanelView: View {
             if activity.type == "read_batch_started" || activity.type == "read_batch_completed"
                 || activity.type == "web_search_started"
                 || activity.type == "web_search_completed"
-                || activity.type == "web_search_failed" || activity.type == "command_execution"
+                || activity.type == "web_search_failed"
+                || activity.type == "web_fetch_started"
+                || activity.type == "web_fetch_completed"
+                || activity.type == "web_fetch_failed"
+                || activity.type == "command_execution"
                 || activity.type == "bash" || activity.type == "mcp_tool_call"
             {
                 if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
@@ -2904,7 +2912,11 @@ struct ChatPanelView: View {
             claudeModel: claudeModel,
             claudeAllowedTools: ["Read", "Edit", "Bash", "Write", "Search"],
             geminiCliPath: geminiCliPath,
-            geminiModelOverride: geminiModelOverride
+            geminiModelOverride: geminiModelOverride,
+            webSearchProvider: webSearchProvider,
+            braveSearchApiKey: braveSearchApiKey,
+            tavilyApiKey: tavilyApiKey,
+            serperApiKey: serperApiKey
         )
     }
 

@@ -655,7 +655,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return ("reasoning", payload)
         }
 
-        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed"]
+        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "web_fetch", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed", "web_fetch_started", "web_fetch_completed", "web_fetch_failed"]
         guard activityTypes.contains(type) else { return nil }
         
         var payload: [String: String] = ["title": titleForType(type, item: item), "detail": detailForType(type, item: item)]
@@ -792,6 +792,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "read_batch_started", payload: marker.payload))
             case "web_search":
                 events.append((type: "web_search_started", payload: marker.payload))
+            case "web_fetch":
+                events.append((type: "web_fetch_started", payload: marker.payload))
             default:
                 break
             }
@@ -873,7 +875,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
 
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|panel_write|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|[^\n\r]*"#,
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|panel_write|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|[^\n\r]*"#,
             with: "",
             options: .regularExpression
         )
@@ -919,6 +921,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return mcpEventTitle(from: item)
         case "web_search":
             return "Search"
+        case "web_fetch":
+            return "Fetch"
         default:
             return type
         }
@@ -935,6 +939,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return mcpEventDetail(from: item)
         case "web_search":
             return (item["query"] as? String) ?? ""
+        case "web_fetch":
+            return (item["url"] as? String) ?? ""
         default:
             return ""
         }

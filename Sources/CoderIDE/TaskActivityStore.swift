@@ -127,6 +127,10 @@ final class TaskActivityStore: ObservableObject {
         "web_search_started",
         "web_search_completed",
         "web_search_failed",
+        "web_fetch",
+        "web_fetch_started",
+        "web_fetch_completed",
+        "web_fetch_failed",
         "semantic_search",
         "read_lints",
         "debug_context",
@@ -141,6 +145,7 @@ final class TaskActivityStore: ObservableObject {
             return true
         }
         if normalized.hasPrefix("web_search")
+            || normalized.hasPrefix("web_fetch")
             || normalized.hasPrefix("todo_")
             || normalized.hasPrefix("read_batch")
             || normalized.hasPrefix("plan_step")
@@ -215,6 +220,9 @@ final class TaskActivityStore: ObservableObject {
         }
         if normalizedType.contains("web_search") {
             return "Searching web"
+        }
+        if normalizedType.contains("web_fetch") {
+            return "Fetching page"
         }
         if normalizedType.contains("todo") || normalizedType.contains("plan_step") {
             return "Planning next move"
@@ -448,6 +456,7 @@ final class TaskActivityStore: ObservableObject {
             case "command_execution", "bash",
                  "read_batch_started", "read_batch_completed",
                  "web_search", "web_search_started", "web_search_completed", "web_search_failed",
+                 "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed",
                  "mcp_tool_call",
                  "process_paused", "process_resumed",
                  "plan_step", "plan_step_update", "planning_auto_reset",
@@ -595,7 +604,7 @@ final class TaskActivityStore: ObservableObject {
     }
 
     private static func isErrorEvent(_ activity: TaskActivity) -> Bool {
-        if ["web_search_failed", "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error"].contains(activity.type) {
+        if ["web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error"].contains(activity.type) {
             return true
         }
         let t = activity.title.lowercased()

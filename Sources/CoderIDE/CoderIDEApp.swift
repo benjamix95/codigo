@@ -58,6 +58,10 @@ struct CodigoApp: App {
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     @AppStorage("grok_api_key") private var grokApiKey = ""
     @AppStorage("grok_model") private var grokModel = "grok-4-1-fast-reasoning"
+    @AppStorage("web_search_provider") private var webSearchProvider = "duckduckgo"
+    @AppStorage("brave_search_api_key") private var braveSearchApiKey = ""
+    @AppStorage("tavily_api_key") private var tavilyApiKey = ""
+    @AppStorage("serper_api_key") private var serperApiKey = ""
 
     private var colorScheme: ColorScheme? {
         switch appearance {
@@ -232,7 +236,11 @@ struct CodigoApp: App {
             claudeModel: claudeModel,
             claudeAllowedTools: tools,
             geminiCliPath: geminiCliPath,
-            geminiModelOverride: geminiModelOverride
+            geminiModelOverride: geminiModelOverride,
+            webSearchProvider: webSearchProvider,
+            braveSearchApiKey: braveSearchApiKey,
+            tavilyApiKey: tavilyApiKey,
+            serperApiKey: serperApiKey
         )
     }
 }

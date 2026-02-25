@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Web Search Live View (Cursor-style)
+// MARK: - Web Activity Live View (Search + Fetch, Cursor-style)
 
 struct WebSearchLiveView: View {
     let activities: [TaskActivity]
@@ -14,6 +14,10 @@ struct WebSearchLiveView: View {
                 || $0.type == "web_search_started"
                 || $0.type == "web_search_completed"
                 || $0.type == "web_search_failed"
+                || $0.type == "web_fetch"
+                || $0.type == "web_fetch_started"
+                || $0.type == "web_fetch_completed"
+                || $0.type == "web_fetch_failed"
         }
         .suffix(12)
         .map { $0 }
@@ -28,7 +32,7 @@ struct WebSearchLiveView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(WebSearchColors.accent)
 
-                    Text("Web Search")
+                    Text("Web Activity")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
 
@@ -44,10 +48,10 @@ struct WebSearchLiveView: View {
 
                 Divider().opacity(0.3)
 
-                // Search results
+                // Activity rows
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(webActivities) { activity in
-                        searchRow(activity)
+                        activityRow(activity)
                     }
                 }
                 .padding(.horizontal, 8)
@@ -62,13 +66,16 @@ struct WebSearchLiveView: View {
         }
     }
 
-    // MARK: - Search Row
+    // MARK: - Activity Row
 
-    private func searchRow(_ activity: TaskActivity) -> some View {
+    private func activityRow(_ activity: TaskActivity) -> some View {
         let isExpanded = expandedIds.contains(activity.id)
         let isHovered = hoveredId == activity.id
-        let status = searchStatus(activity)
-        let query = activity.payload["query"] ?? activity.title
+        let status = activityStatus(activity)
+        let isFetch = activity.type.contains("web_fetch")
+        let label = isFetch
+            ? (activity.payload["url"] ?? activity.title)
+            : (activity.payload["query"] ?? activity.title)
 
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
@@ -85,8 +92,8 @@ struct WebSearchLiveView: View {
 
                 // Content
                 VStack(alignment: .leading, spacing: 3) {
-                    // Query text
-                    Text(query)
+                    // Label text
+                    Text(label)
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(isExpanded ? nil : 1)
@@ -101,12 +108,23 @@ struct WebSearchLiveView: View {
                             .padding(.vertical, 2)
                             .background(status.color.opacity(0.08), in: Capsule())
 
-                        // Result count
-                        if let count = activity.payload["resultCount"], !count.isEmpty {
+                        // Result count (for search)
+                        if !isFetch, let count = activity.payload["resultCount"], !count.isEmpty {
                             HStack(spacing: 3) {
                                 Image(systemName: "doc.text")
                                     .font(.system(size: 8))
                                 Text("\(count) results")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundStyle(.tertiary)
+                        }
+
+                        // Content size (for fetch)
+                        if isFetch, let detail = activity.detail, detail.contains("chars") {
+                            HStack(spacing: 3) {
+                                Image(systemName: "doc.plaintext")
+                                    .font(.system(size: 8))
+                                Text(detail)
                                     .font(.system(size: 10))
                             }
                             .foregroundStyle(.tertiary)
@@ -215,8 +233,8 @@ struct WebSearchLiveView: View {
             }
 
             // Error message if failed
-            if activity.type == "web_search_failed" {
-                if let error = activity.payload["error"] ?? activity.detail, !error.isEmpty {
+            if activity.type == "web_search_failed" || activity.type == "web_fetch_failed" {
+                if let error = activity.payload["error"] ?? activity.payload["stderr"] ?? activity.detail, !error.isEmpty {
                     HStack(alignment: .top, spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 9))
@@ -247,6 +265,7 @@ struct WebSearchLiveView: View {
             || !(activity.payload["output"] ?? "").isEmpty
             || !(activity.payload["url"] ?? "").isEmpty
             || activity.type == "web_search_failed"
+            || activity.type == "web_fetch_failed"
     }
 
     private struct SearchStatus {
@@ -255,32 +274,26 @@ struct WebSearchLiveView: View {
         let color: Color
     }
 
-    private func searchStatus(_ activity: TaskActivity) -> SearchStatus {
+    private func activityStatus(_ activity: TaskActivity) -> SearchStatus {
         switch activity.type {
+        // Search statuses
         case "web_search_failed":
-            return SearchStatus(
-                icon: "xmark.circle.fill",
-                label: "Failed",
-                color: DesignSystem.Colors.error
-            )
+            return SearchStatus(icon: "xmark.circle.fill", label: "Failed", color: DesignSystem.Colors.error)
         case "web_search_completed":
-            return SearchStatus(
-                icon: "checkmark.circle.fill",
-                label: "Done",
-                color: .secondary
-            )
+            return SearchStatus(icon: "checkmark.circle.fill", label: "Done", color: .secondary)
         case "web_search_started":
-            return SearchStatus(
-                icon: "arrow.circlepath",
-                label: "Searching",
-                color: WebSearchColors.accent
-            )
+            return SearchStatus(icon: "arrow.circlepath", label: "Searching", color: WebSearchColors.accent)
+        // Fetch statuses
+        case "web_fetch_failed":
+            return SearchStatus(icon: "xmark.circle.fill", label: "Failed", color: DesignSystem.Colors.error)
+        case "web_fetch_completed":
+            return SearchStatus(icon: "checkmark.circle.fill", label: "Fetched", color: .secondary)
+        case "web_fetch_started":
+            return SearchStatus(icon: "arrow.down.circle", label: "Fetching", color: WebSearchColors.accent)
+        case "web_fetch":
+            return SearchStatus(icon: "globe", label: "Fetch", color: WebSearchColors.accent)
         default:
-            return SearchStatus(
-                icon: "magnifyingglass.circle.fill",
-                label: "Search",
-                color: WebSearchColors.accent
-            )
+            return SearchStatus(icon: "magnifyingglass.circle.fill", label: "Search", color: WebSearchColors.accent)
         }
     }
 }

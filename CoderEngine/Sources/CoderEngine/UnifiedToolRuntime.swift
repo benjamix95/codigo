@@ -114,6 +114,11 @@ public actor UnifiedToolRuntime {
     private let workspacePaths: [URL]
     private let excludedPaths: [String]
 
+    /// Web search service (Brave Search + DuckDuckGo fallback)
+    private let webSearch: WebSearchService
+    /// Web fetch service (HTML → Markdown)
+    private let webFetch: WebFetchService
+
     /// Debug log server for structured debug logging
     public let debugLogServer = DebugLogServer()
 
@@ -123,7 +128,9 @@ public actor UnifiedToolRuntime {
         mcpSessions: MCPSessionManager = MCPSessionManager(),
         index: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
-        excludedPaths: [String] = []
+        excludedPaths: [String] = [],
+        webSearchProvider: String? = nil,
+        webSearchApiKeys: [String: String]? = nil
     ) {
         self.executionController = executionController
         self.executionScope = executionScope
@@ -132,6 +139,19 @@ public actor UnifiedToolRuntime {
         self.indexTools = index.map { CodebaseIndexTools(index: $0) }
         self.workspacePaths = workspacePaths
         self.excludedPaths = excludedPaths
+
+        // Build web search service from provider + keys map
+        let provider = WebSearchProvider(rawValue: webSearchProvider ?? "") ?? .duckduckgo
+        var typedKeys: [WebSearchProvider: String] = [:]
+        if let keys = webSearchApiKeys {
+            for (rawKey, value) in keys {
+                if let p = WebSearchProvider(rawValue: rawKey) {
+                    typedKeys[p] = value
+                }
+            }
+        }
+        self.webSearch = WebSearchService(provider: provider, apiKeys: typedKeys)
+        self.webFetch = WebFetchService()
     }
 
     /// Run an external process and return (stdout, stderr, exitCode).
@@ -244,12 +264,9 @@ public actor UnifiedToolRuntime {
                     policy: context.policy
                 )
             case "web_search":
-                let query = call.args["query"] ?? ""
-                return success([
-                    "title": "Web search",
-                    "query": query,
-                    "detail": "Delegato al provider web"
-                ], startDate: startDate)
+                return await executeWebSearch(call: call, context: context, startDate: startDate)
+            case "web_fetch":
+                return await executeWebFetch(call: call, context: context, startDate: startDate)
             // New Cursor-style tools
             case "parallel_apply":
                 return try await executeParallelApply(call: call, context: context, startDate: startDate)
@@ -1093,6 +1110,75 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    // MARK: - Web Search
+
+    private func executeWebSearch(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return failure("query is required", errorCode: "validation", startDate: startDate)
+        }
+
+        do {
+            let results = try await webSearch.search(query: query, maxResults: 10)
+            if results.isEmpty {
+                return success([
+                    "title": "Web search: \(query)",
+                    "query": query,
+                    "detail": "No results found",
+                    "output": "[]",
+                    "resultCount": "0"
+                ], startDate: startDate)
+            }
+
+            let jsonArray: [[String: String]] = results.map { result in
+                ["title": result.title, "snippet": result.snippet, "url": result.url]
+            }
+            let jsonData = try JSONSerialization.data(withJSONObject: jsonArray, options: [.prettyPrinted, .sortedKeys])
+            let output = String(data: jsonData, encoding: .utf8) ?? "[]"
+
+            return success([
+                "title": "Web search: \(query)",
+                "query": query,
+                "detail": "\(results.count) results",
+                "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+                "resultCount": "\(results.count)"
+            ], startDate: startDate)
+        } catch {
+            return failure(
+                "Web search failed: \(error.localizedDescription)",
+                errorCode: "transport",
+                startDate: startDate,
+                payload: ["query": query, "title": "Web search failed"]
+            )
+        }
+    }
+
+    // MARK: - Web Fetch
+
+    private func executeWebFetch(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let urlString = (call.args["url"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !urlString.isEmpty else {
+            return failure("url is required", errorCode: "validation", startDate: startDate)
+        }
+
+        do {
+            let markdown = try await webFetch.fetch(urlString: urlString)
+            return success([
+                "title": "Fetched: \(urlString)",
+                "url": urlString,
+                "detail": "\(markdown.count) chars",
+                "output": truncate(markdown, maxBytes: context.policy.maxBashOutputBytes)
+            ], startDate: startDate)
+        } catch {
+            return failure(
+                "Web fetch failed: \(error.localizedDescription)",
+                errorCode: "transport",
+                startDate: startDate,
+                payload: ["url": urlString, "title": "Web fetch failed"]
+            )
+        }
+    }
+
     private func validate(call: ToolCall, normalizedName: String) throws {
         switch normalizedName {
         case "read", "write", "edit", "read_range", "list_dir", "read_json", "write_json", "tail_log",
@@ -1106,6 +1192,11 @@ public actor UnifiedToolRuntime {
             let query = call.args["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if query.isEmpty {
                 throw ToolRuntimeError.validation("query is required")
+            }
+        case "web_fetch":
+            let url = call.args["url"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if url.isEmpty {
+                throw ToolRuntimeError.validation("url is required")
             }
         case "list_symbols", "file_outline", "dependency_graph":
             let path = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1209,6 +1300,9 @@ public actor UnifiedToolRuntime {
         if let query = call.args["query"], !query.isEmpty {
             payload["query"] = query
         }
+        if let url = call.args["url"], !url.isEmpty {
+            payload["url"] = url
+        }
         if let server = call.args["server"] ?? call.args["server_id"], !server.isEmpty {
             payload["server_id"] = server
             payload["mcp_server"] = server
@@ -1240,6 +1334,8 @@ public actor UnifiedToolRuntime {
             return ok ? "command_execution" : "tool_execution_error"
         case "web_search":
             return ok ? "web_search_completed" : "web_search_failed"
+        case "web_fetch":
+            return ok ? "web_fetch_completed" : "web_fetch_failed"
         default:
             return ok ? "mcp_tool_call" : "tool_execution_error"
         }

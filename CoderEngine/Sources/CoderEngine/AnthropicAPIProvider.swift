@@ -426,12 +426,20 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                 ],
                 "required": ["server"]
             ]),
-            tool(name: "web_search", description: "Search web", schema: [
+            tool(name: "web_search", description: "Search the web for current information. Returns JSON array of results with title, snippet, and url.", schema: [
                 "type": "object",
                 "properties": [
-                    "query": ["type": "string", "description": "Search query"]
+                    "query": ["type": "string", "description": "Search query terms"],
+                    "explanation": ["type": "string", "description": "Optional context for why this search is needed"]
                 ],
                 "required": ["query"]
+            ]),
+            tool(name: "web_fetch", description: "Fetch a web page and return its content as clean Markdown. Use after web_search to read full page content.", schema: [
+                "type": "object",
+                "properties": [
+                    "url": ["type": "string", "description": "The full URL to fetch (https://...)"]
+                ],
+                "required": ["url"]
             ])
         ]
     }

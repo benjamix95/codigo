@@ -58,7 +58,9 @@ enum EventNormalizer {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit": kind = .fileUpdate
         case "turn_started", "turn_completed": kind = .generic
-        case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed": kind = .instantGrep
+        case "instant_grep", "search",
+             "web_search", "web_search_started", "web_search_completed", "web_search_failed",
+             "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
         case "debug_panel", "debug_panel_update": kind = .debugPanelUpdate
@@ -233,6 +235,15 @@ enum EventNormalizer {
             default: break
             }
         }
+        if type == "web_fetch",
+           let status = payload["status"]?.lowercased() {
+            switch status {
+            case "started": return "web_fetch_started"
+            case "completed": return "web_fetch_completed"
+            case "failed": return "web_fetch_failed"
+            default: break
+            }
+        }
         return type
     }
 
@@ -250,7 +261,9 @@ enum EventNormalizer {
             return .planning
         case "process_resumed":
             return .executing
-        case "instant_grep", "search", "web_search", "web_search_started", "web_search_completed", "web_search_failed":
+        case "instant_grep", "search",
+             "web_search", "web_search_started", "web_search_completed", "web_search_failed",
+             "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed":
             return .searching
         case "plan_step", "plan_step_update":
             return .planning
@@ -275,9 +288,9 @@ enum EventNormalizer {
             return true
         case "turn_completed":
             return false
-        case "web_search_started", "read_batch_started", "process_resumed":
+        case "web_search_started", "web_fetch_started", "read_batch_started", "process_resumed":
             return true
-        case "web_search_completed", "web_search_failed", "read_batch_completed", "process_paused":
+        case "web_search_completed", "web_search_failed", "web_fetch_completed", "web_fetch_failed", "read_batch_completed", "process_paused":
             return false
         default:
             return false
@@ -304,6 +317,12 @@ enum EventNormalizer {
             return "Web search completed"
         case "web_search_failed":
             return "Web search failed"
+        case "web_fetch_started":
+            return "Fetching web page"
+        case "web_fetch_completed":
+            return "Web page fetched"
+        case "web_fetch_failed":
+            return "Web fetch failed"
         case "tool_execution_error":
             return "Tool execution error"
         case "tool_validation_error":

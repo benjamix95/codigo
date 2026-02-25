@@ -58,6 +58,10 @@ struct SettingsView: View {
     @AppStorage("openrouter_model") private var openrouterModel = "anthropic/claude-sonnet-4-6"
     @AppStorage("grok_api_key") private var grokApiKey = ""
     @AppStorage("grok_model") private var grokModel = "grok-4-1-fast-reasoning"
+    @AppStorage("web_search_provider") private var webSearchProvider = "duckduckgo"
+    @AppStorage("brave_search_api_key") private var braveSearchApiKey = ""
+    @AppStorage("tavily_api_key") private var tavilyApiKey = ""
+    @AppStorage("serper_api_key") private var serperApiKey = ""
 
     // MARK: - CLI Tools
     @AppStorage("codex_path") private var codexPath = ""
@@ -302,6 +306,43 @@ struct SettingsView: View {
                     HStack {
                         SecureField("xai-...", text: $grokApiKey).textFieldStyle(.roundedBorder)
                         statusBadge(connected: !grokApiKey.isEmpty, label: grokApiKey.isEmpty ? "Not configured" : "Configured")
+                    }
+                }.padding(4)
+            }
+
+            GroupBox("Web Search") {
+                VStack(alignment: .leading, spacing: 10) {
+                    fieldLabel("Search provider")
+                    Picker("", selection: $webSearchProvider) {
+                        Text("DuckDuckGo (Free)").tag("duckduckgo")
+                        Text("Brave Search").tag("brave")
+                        Text("Tavily").tag("tavily")
+                        Text("Serper (Google)").tag("serper")
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+
+                    // Provider-specific API key fields
+                    if webSearchProvider == "brave" {
+                        HStack {
+                            SecureField("BSA...", text: $braveSearchApiKey).textFieldStyle(.roundedBorder)
+                            statusBadge(connected: !braveSearchApiKey.isEmpty, label: braveSearchApiKey.isEmpty ? "Key required" : "Configured")
+                        }
+                        hintBox("Free tier: 2,000 queries/month. Get a key at brave.com/search/api")
+                    } else if webSearchProvider == "tavily" {
+                        HStack {
+                            SecureField("tvly-...", text: $tavilyApiKey).textFieldStyle(.roundedBorder)
+                            statusBadge(connected: !tavilyApiKey.isEmpty, label: tavilyApiKey.isEmpty ? "Key required" : "Configured")
+                        }
+                        hintBox("Free tier: 1,000 queries/month. AI-optimized search. Get a key at tavily.com")
+                    } else if webSearchProvider == "serper" {
+                        HStack {
+                            SecureField("API Key", text: $serperApiKey).textFieldStyle(.roundedBorder)
+                            statusBadge(connected: !serperApiKey.isEmpty, label: serperApiKey.isEmpty ? "Key required" : "Configured")
+                        }
+                        hintBox("Free tier: 2,500 queries/month. Google Search results. Get a key at serper.dev")
+                    } else {
+                        hintBox("DuckDuckGo is free and requires no API key. Results are extracted via HTML scraping.")
                     }
                 }.padding(4)
             }
@@ -987,7 +1028,11 @@ struct SettingsView: View {
             codeReviewExecutionBackend: codeReviewExecutionBackend,
             claudePath: claudePath, claudeModel: claudeModel,
             claudeAllowedTools: parseClaudeAllowedTools(),
-            geminiCliPath: geminiCliPath, geminiModelOverride: geminiModelOverride
+            geminiCliPath: geminiCliPath, geminiModelOverride: geminiModelOverride,
+            webSearchProvider: webSearchProvider,
+            braveSearchApiKey: braveSearchApiKey,
+            tavilyApiKey: tavilyApiKey,
+            serperApiKey: serperApiKey
         )
     }
 

@@ -42,6 +42,20 @@ struct ProviderFactoryConfig {
     var claudeAllowedTools: [String]
     var geminiCliPath: String
     var geminiModelOverride: String
+
+    var webSearchProvider: String
+    var braveSearchApiKey: String
+    var tavilyApiKey: String
+    var serperApiKey: String
+
+    /// Build a `[String: String]` keys map suitable for `UnifiedToolRuntime`.
+    var webSearchApiKeys: [String: String] {
+        var keys: [String: String] = [:]
+        if !braveSearchApiKey.isEmpty { keys["brave"] = braveSearchApiKey }
+        if !tavilyApiKey.isEmpty { keys["tavily"] = tavilyApiKey }
+        if !serperApiKey.isEmpty { keys["serper"] = serperApiKey }
+        return keys
+    }
 }
 
 enum ProviderFactory {
@@ -372,13 +386,17 @@ enum ProviderFactory {
         executionController: ExecutionController?,
         executionScope: ExecutionScope,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        webSearchProvider: String? = nil,
+        webSearchApiKeys: [String: String]? = nil
     ) -> UnifiedToolRuntime {
         UnifiedToolRuntime(
             executionController: executionController,
             executionScope: executionScope,
             index: codebaseIndex,
-            workspacePaths: workspacePaths
+            workspacePaths: workspacePaths,
+            webSearchProvider: webSearchProvider,
+            webSearchApiKeys: webSearchApiKeys
         )
     }
 
@@ -400,7 +418,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
@@ -425,7 +445,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
@@ -452,7 +474,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
@@ -480,7 +504,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
@@ -508,7 +534,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
@@ -535,7 +563,9 @@ enum ProviderFactory {
                 executionController: executionController,
                 executionScope: executionScope,
                 codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,

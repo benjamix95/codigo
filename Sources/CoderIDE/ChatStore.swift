@@ -736,19 +736,19 @@ final class ChatStore: ObservableObject {
             options: .regularExpression
         )
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            of: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#,
             with: "",
             options: .regularExpression
         )
         // Broken/truncated variants of operational markers (e.g. "do_write|", "markersdo_write|").
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|instant_grep)\|"#,
+            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#,
             with: "",
             options: .regularExpression
         )
         // Technical events that must never appear in user-facing text.
         out = out.replacingOccurrences(
-            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#,
+            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#,
             with: "",
             options: .regularExpression
         )

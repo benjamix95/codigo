@@ -323,6 +323,8 @@ struct InlineActivityFeedView: View {
         case "mcp_tool_call": return "wrench.and.screwdriver.fill"
         case "web_search", "web_search_started", "web_search_completed", "web_search_failed":
             return "magnifyingglass"
+        case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed":
+            return "globe"
         case "read_batch_started", "read_batch_completed":
             return "doc.on.doc"
         case "todo_write", "todo_read":

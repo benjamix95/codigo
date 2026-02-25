@@ -551,10 +551,16 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                     "server": ["type": "string", "description": "Server id/name"],
                 ], required: ["server"]),
             functionTool(
-                name: "web_search", description: "Search web",
+                name: "web_search", description: "Search the web for current information. Returns JSON array of results with title, snippet, and url.",
                 properties: [
-                    "query": ["type": "string", "description": "Search query"]
+                    "query": ["type": "string", "description": "Search query terms"],
+                    "explanation": ["type": "string", "description": "Optional context for why this search is needed"]
                 ], required: ["query"]),
+            functionTool(
+                name: "web_fetch", description: "Fetch a web page and return its content as clean Markdown. Use after web_search to read full page content.",
+                properties: [
+                    "url": ["type": "string", "description": "The full URL to fetch (https://...)"]
+                ], required: ["url"]),
         ]
     }
 

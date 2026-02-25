@@ -59,6 +59,7 @@ private struct PlanTraceItem: Identifiable {
         case "read_batch_started", "read_batch_completed": return "Reading files (batch)"
         case "mcp_tool_call": return "Invoking MCP tool"
         case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "Web search"
+        case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": return "Fetching page"
         case "process_paused": return "Process paused"
         case "process_resumed": return "Process resumed"
         case "plan_step_update": return "Plan step updated"
@@ -128,6 +129,7 @@ private struct PlanTraceItem: Identifiable {
         case "read_batch_started", "read_batch_completed": return "doc.on.doc"
         case "mcp_tool_call": return "wrench.and.screwdriver.fill"
         case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
+        case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": return "globe"
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
@@ -146,6 +148,7 @@ private struct PlanTraceItem: Identifiable {
         case "read_batch_started", "read_batch_completed": return DesignSystem.Colors.agentColor
         case "mcp_tool_call": return DesignSystem.Colors.ideColor
         case "web_search", "web_search_started", "web_search_completed", "web_search_failed": return DesignSystem.Colors.info
+        case "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": return DesignSystem.Colors.info
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "plan_step_update": return DesignSystem.Colors.planColor
