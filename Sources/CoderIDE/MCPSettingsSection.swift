@@ -24,12 +24,12 @@ struct MCPSettingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Configura i server Model Context Protocol")
+            Text("Configure Model Context Protocol servers")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             if !detectedServers.isEmpty {
-                Text("Rilevati automaticamente")
+                Text("Auto-detected")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -47,13 +47,13 @@ struct MCPSettingsSection: View {
                 }
             }
 
-            Text("Server manuali")
+            Text("Manual servers")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
             if manualServers.isEmpty {
-                Text("Nessun server manuale configurato")
+                Text("No manual servers configured")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(12)
@@ -64,20 +64,20 @@ struct MCPSettingsSection: View {
                     MCPRowView(
                         name: server.name,
                         command: server.command,
-                        source: "Manuale",
+                        source: "Manual",
                         isEnabled: server.enabled,
                         isDetected: false,
                         onToggle: nil,
                         onEdit: { editingServer = server }
                     )
                     .contextMenu {
-                        Button("Elimina", role: .destructive) { deleteManual(server) }
+                        Button("Delete", role: .destructive) { deleteManual(server) }
                     }
                 }
             }
 
             Button { showAddForm = true } label: {
-                Label("Aggiungi server MCP", systemImage: "plus.circle.fill")
+                Label("Add MCP server", systemImage: "plus.circle.fill")
                     .font(.subheadline)
             }
             .sheet(isPresented: $showAddForm) {
@@ -188,20 +188,20 @@ struct MCPEditFormView: View {
                 Image(systemName: "server.rack")
                     .font(.title3)
                     .foregroundStyle(Color.accentColor)
-                Text("Configura server MCP")
+                Text("Configure MCP server")
                     .font(.title3)
                 Spacer()
             }
 
             Form {
-                TextField("Nome", text: $name)
-                TextField("Command (es. npx, /usr/bin/codex)", text: $command)
+                TextField("Name", text: $name)
+                TextField("Command (e.g. npx, /usr/bin/codex)", text: $command)
                     .font(.body.monospaced())
-                TextField("Args (virgola separata)", text: $argsText)
+                TextField("Args (comma-separated)", text: $argsText)
                     .font(.body.monospaced())
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Env (chiave=valore, uno per riga)")
+                    Text("Env (key=value, one per line)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     TextEditor(text: $envText)
@@ -209,13 +209,13 @@ struct MCPEditFormView: View {
                         .frame(height: 80)
                 }
 
-                Toggle("Abilitato", isOn: $enabled)
+                Toggle("Enabled", isOn: $enabled)
             }
             .formStyle(.grouped)
 
             HStack(spacing: 12) {
-                Button("Annulla", role: .cancel, action: onCancel)
-                Button("Salva") {
+                Button("Cancel", role: .cancel, action: onCancel)
+                Button("Save") {
                     let args = argsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
                     var env: [String: String] = [:]
                     for line in envText.components(separatedBy: .newlines) {

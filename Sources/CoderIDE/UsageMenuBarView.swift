@@ -11,7 +11,7 @@ struct UsageMenuBarView: View {
             Divider()
 
             if dashboardStore.sections.isEmpty {
-                Text("Nessun account configurato.")
+                Text("No accounts configured.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -27,7 +27,7 @@ struct UsageMenuBarView: View {
 
             Divider()
             HStack(spacing: 8) {
-                Button("Apri Impostazioni Multi-account") {
+                Button("Open multi-account settings") {
                     NotificationCenter.default.post(name: .coderOpenSettingsFromMenuBar, object: nil)
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -35,7 +35,7 @@ struct UsageMenuBarView: View {
                     Task { await dashboardStore.refresh() }
                 }
                 Spacer()
-                Button("Apri app") {
+                Button("Open app") {
                     NSApp.activate(ignoringOtherApps: true)
                 }
             }
@@ -57,14 +57,14 @@ struct UsageMenuBarView: View {
             Text("Usage Multi-account")
                 .font(.headline)
             let totals = dashboardStore.totals
-            Text("Account \(totals.accountCount) • Attivi \(totals.activeCount) • Exhausted \(totals.exhaustedCount)")
+            Text("Accounts \(totals.accountCount) • Active \(totals.activeCount) • Exhausted \(totals.exhaustedCount)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(String(format: "Oggi: $%.2f • %d token", totals.totalDayCost, totals.totalDayTokens))
+            Text(String(format: "Today: $%.2f • %d tokens", totals.totalDayCost, totals.totalDayTokens))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             if let updated = dashboardStore.lastUpdatedAt {
-                Text("Aggiornato \(updated.formatted(date: .omitted, time: .shortened))")
+                Text("Updated \(updated.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -138,11 +138,11 @@ struct UsageMenuBarView: View {
         VStack(alignment: .leading, spacing: 2) {
             switch section.codexCredits {
             case .available(let balance, let currency, _):
-                Text(String(format: "Crediti: %.2f %@", balance, currency))
+                Text(String(format: "Credits: %.2f %@", balance, currency))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             default:
-                Text("Crediti: N/D")
+                Text("Credits: N/A")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

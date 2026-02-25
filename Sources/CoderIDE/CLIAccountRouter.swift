@@ -56,7 +56,7 @@ final class CLIAccountRouter: ObservableObject {
 
     func currentAvailability(provider: CLIProviderKind) -> CLIAvailabilityState {
         availableAccounts(for: provider).isEmpty
-        ? .allExhausted(reason: "Nessun account disponibile")
+        ? .allExhausted(reason: "No available account")
         : .available
     }
 

@@ -182,7 +182,7 @@ struct ChatTerminalSessionsView: View {
                     let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Comando in esecuzione da \(elapsed)s")
+                        Text("Command running for \(elapsed)s")
                             .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary)
                         Spacer()
@@ -218,13 +218,13 @@ struct ChatTerminalSessionsView: View {
 
     private var completedTerminalSummaryLine: String {
         let completed = sessions.filter { !$0.isRunning }
-        guard !completed.isEmpty else { return "Nessuna sessione terminale attiva." }
+        guard !completed.isEmpty else { return "No active terminal sessions." }
         let snippets = completed.prefix(3).map { summarizeCommand($0.command) }
-        let suffix = completed.count > 3 ? " +\(completed.count - 3) altre" : ""
+        let suffix = completed.count > 3 ? " +\(completed.count - 3) more" : ""
         if completed.count == 1 {
-            return "Terminale completato: \(snippets.first ?? "")"
+            return "Terminal completed: \(snippets.first ?? "")"
         }
-        return "Terminali completati (\(completed.count)): \(snippets.joined(separator: " • "))\(suffix)"
+        return "Completed terminals (\(completed.count)): \(snippets.joined(separator: " • "))\(suffix)"
     }
 
     private func summarizeCommand(_ command: String) -> String {
@@ -311,7 +311,7 @@ struct ChatTerminalSessionsView: View {
                         .textSelection(.enabled)
                 }
                 if !hasOutput {
-                    Text(session.isRunning ? "Comando in esecuzione…" : "Output non disponibile (il provider non ha restituito stdout/stderr per questo comando).")
+                    Text(session.isRunning ? "Command running…" : "Output unavailable (the provider did not return stdout/stderr for this command).")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }

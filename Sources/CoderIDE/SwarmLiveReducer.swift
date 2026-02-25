@@ -161,7 +161,7 @@ enum SwarmLiveReducer {
         let t = activity.title.lowercased()
         let d = (activity.detail ?? "").lowercased()
         let status = (activity.payload["status"] ?? "").lowercased()
-        return t.contains("errore") || t.contains("failed") || d.contains("errore")
+        return t.contains("error") || t.contains("failed") || d.contains("error")
             || d.contains("failed") || status == "failed"
     }
 
@@ -174,7 +174,7 @@ enum SwarmLiveReducer {
             compact.append(title)
             if compact.count == 3 { break }
         }
-        return "Completato • " + compact.joined(separator: " → ")
+        return "Completed • " + compact.joined(separator: " → ")
     }
 
     private static func bestDetail(for activity: TaskActivity) -> String? {

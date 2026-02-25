@@ -4,42 +4,42 @@ import XCTest
 final class ChatPanelBuildBehaviorTests: XCTestCase {
     func testBuildPromptContainsNoEchoInstruction() {
         let instructions = """
-        6. Non ripetere integralmente il piano in chat: esegui, aggiorna TODO/step, e fornisci feedback operativo.
+        7. Do not repeat the plan in chat: execute, update status, provide minimal operational feedback.
         """
-        XCTAssertTrue(instructions.localizedCaseInsensitiveContains("Non ripetere integralmente il piano in chat"))
+        XCTAssertTrue(instructions.localizedCaseInsensitiveContains("Do not repeat the plan in chat"))
     }
 
     func testBuildDoesNotAppendPlanTextToUserMessage() {
-        let kickoff = "Build piano avviata: esegui il piano selezionato."
-        XCTAssertFalse(kickoff.localizedCaseInsensitiveContains("## Opzione"))
+        let kickoff = "Plan build started: execute the selected option."
+        XCTAssertFalse(kickoff.localizedCaseInsensitiveContains("## Option"))
         XCTAssertFalse(kickoff.localizedCaseInsensitiveContains("## Todo"))
     }
 
     func testNormalizeBuildFinalResponseRemovesPlanEchoBlocks() {
         let raw = """
-        ## Opzione 1: Refactor
-        Dettagli...
+        ## Option 1: Refactor
+        Details...
         ## Todo
         - [ ] A
         - [ ] B
 
-        ## Stato esecuzione
-        Completato con successo.
+        ## Execution status
+        Completed successfully.
         """
         let normalized = normalizeBuildFinalResponse(raw)
-        XCTAssertFalse(normalized.localizedCaseInsensitiveContains("## Opzione"))
+        XCTAssertFalse(normalized.localizedCaseInsensitiveContains("## Option"))
         XCTAssertFalse(normalized.localizedCaseInsensitiveContains("## Todo"))
-        XCTAssertTrue(normalized.localizedCaseInsensitiveContains("Stato esecuzione"))
+        XCTAssertTrue(normalized.localizedCaseInsensitiveContains("Execution status"))
     }
 
     func testNormalizeBuildFinalResponseKeepsOperationalTodoSectionWhenNoPlanEcho() {
         let raw = """
-        ## Stato esecuzione
-        Aggiornamenti:
+        ## Execution status
+        Updates:
 
         ## Todo
-        - [x] Verifica build
-        - [x] Esegui test
+        - [x] Verify build
+        - [x] Run tests
         """
         let normalized = normalizeBuildFinalResponse(raw)
         XCTAssertEqual(normalized, raw)
@@ -52,7 +52,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Analisi codebase in corso: attendi il completamento."
+            "Codebase analysis in progress: wait for completion."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -60,7 +60,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Servono chiarimenti: rispondi alle domande prima del build."
+            "Clarifications required: answer the questions before Build."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -68,7 +68,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Generazione piano in corso: attendi il completamento."
+            "Plan generation in progress: wait for completion."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -76,7 +76,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: false,
                 providerExecutionCapable: true
             ),
-            "Nessuna opzione disponibile da eseguire."
+            "No executable option available."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -84,7 +84,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: false
             ),
-            "Provider non pronto: seleziona un provider execution-capable autenticato."
+            "Provider not ready: select an authenticated execution-capable provider."
         )
         XCTAssertNil(
             planBuildDisabledReason(
@@ -100,28 +100,28 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
             answers: [
                 PlanClarificationAnswer(
                     questionId: 2,
-                    question: "Quale priorità vuoi?",
+                    question: "Which priority do you want?",
                     optionId: "I",
                     optionText: "Other...",
-                    customResponse: "Priorità: stabilità in produzione"
+                    customResponse: "Priority: production stability"
                 ),
                 PlanClarificationAnswer(
                     questionId: 1,
-                    question: "Qual è l'obiettivo?",
+                    question: "What is the objective?",
                     optionId: "B",
-                    optionText: "Correggere bug",
+                    optionText: "Fix bugs",
                     customResponse: nil
                 ),
             ],
-            finalNote: "Non toccare API pubbliche e mantieni retrocompatibilità."
+            finalNote: "Do not touch public APIs and keep backward compatibility."
         )
 
         let prompt = buildPlanClarificationPrompt(submission)
-        XCTAssertTrue(prompt.contains("1. Qual è l'obiettivo?"))
-        XCTAssertTrue(prompt.contains("Risposta selezionata: B) Correggere bug"))
-        XCTAssertTrue(prompt.contains("2. Quale priorità vuoi?"))
-        XCTAssertTrue(prompt.contains("Risposta personalizzata (precedenza): Priorità: stabilità in produzione"))
-        XCTAssertTrue(prompt.contains("Nota finale utente (opzionale): Non toccare API pubbliche"))
+        XCTAssertTrue(prompt.contains("1. What is the objective?"))
+        XCTAssertTrue(prompt.contains("Selected answer: B) Fix bugs"))
+        XCTAssertTrue(prompt.contains("2. Which priority do you want?"))
+        XCTAssertTrue(prompt.contains("Custom response (overrides selection): Priority: production stability"))
+        XCTAssertTrue(prompt.contains("Final user note (optional): Do not touch public APIs"))
     }
 
     func testBuildPlanClarificationPromptOmitsCustomLineWhenAbsent() {
@@ -129,18 +129,18 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
             answers: [
                 PlanClarificationAnswer(
                     questionId: 1,
-                    question: "Quale area?",
+                    question: "Which area?",
                     optionId: "A",
-                    optionText: "UI chat",
+                    optionText: "Chat UI",
                     customResponse: nil
                 )
             ],
-            finalNote: "Testare su macOS."
+            finalNote: "Test on macOS."
         )
 
         let prompt = buildPlanClarificationPrompt(submission)
-        XCTAssertFalse(prompt.contains("Risposta personalizzata (precedenza):"))
-        XCTAssertTrue(prompt.contains("Nota finale utente (opzionale): Testare su macOS."))
+        XCTAssertFalse(prompt.contains("Custom response (overrides selection):"))
+        XCTAssertTrue(prompt.contains("Final user note (optional): Test on macOS."))
     }
 
     func testBuildPlanClarificationPromptHandlesMissingFinalNote() {
@@ -148,9 +148,9 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
             answers: [
                 PlanClarificationAnswer(
                     questionId: 1,
-                    question: "Quale area?",
+                    question: "Which area?",
                     optionId: "A",
-                    optionText: "UI chat",
+                    optionText: "Chat UI",
                     customResponse: nil
                 )
             ],
@@ -158,6 +158,6 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
         )
 
         let prompt = buildPlanClarificationPrompt(submission)
-        XCTAssertTrue(prompt.contains("Nota finale utente: (omessa)"))
+        XCTAssertTrue(prompt.contains("Final user note: (omitted)"))
     }
 }

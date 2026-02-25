@@ -20,22 +20,22 @@ func planBuildDisabledReason(
     providerExecutionCapable: Bool
 ) -> String? {
     if !providerExecutionCapable {
-        return "Provider non pronto: seleziona un provider execution-capable autenticato."
+        return "Provider not ready: select an authenticated execution-capable provider."
     }
     if !hasBuildChoice {
-        return "Nessuna opzione disponibile da eseguire."
+        return "No executable option available."
     }
     switch phase {
     case .idle:
-        return "Build non disponibile in stato idle: genera o seleziona prima un piano."
+        return "Build unavailable in idle state: generate or select a plan first."
     case .analyzing:
-        return "Analisi codebase in corso: attendi il completamento."
+        return "Codebase analysis in progress: wait for completion."
     case .questioning:
-        return "Servono chiarimenti: rispondi alle domande prima del build."
+        return "Clarifications required: answer the questions before Build."
     case .generating:
-        return "Generazione piano in corso: attendi il completamento."
+        return "Plan generation in progress: wait for completion."
     case .building:
-        return "Build in corso..."
+        return "Build in progress..."
     case .proposalReady, .readyToBuild:
         return nil
     }
@@ -553,9 +553,10 @@ struct PlanPanelView: View {
             buildHint = "No executable option available."
             return
         }
+        let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
         let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-        guard !extractedTodos.isEmpty else {
-            buildHint = "Build blocked: selected plan does not include a ## Todo section."
+        guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
+            buildHint = "Build blocked: selected plan must include an explicit `## Todo` section with checklist items."
             return
         }
         buildHint = "Build started..."
@@ -652,7 +653,7 @@ struct PlanPanelView: View {
     private var planContentSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Piano")
+                Text("Plan")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -714,7 +715,7 @@ struct PlanPanelView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 16))
                         .foregroundStyle(.quaternary)
-                    Text("Il piano finale comparirà qui quando pronto.")
+                    Text("The final plan will appear here when ready.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -788,7 +789,8 @@ struct PlanPanelView: View {
                             historySelectionVersion &+= 1
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
-                            if !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
+                            if PlanOptionsParser.hasRequiredTodoHeader(choice),
+                               !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
                                 onHistoryEntrySelectedForBuild?()
                             }
                         }
@@ -806,9 +808,10 @@ struct PlanPanelView: View {
                             planHistoryStore.setSelectedEntry(id: entry.id)
                             let choice = entry.chosenPath?.isEmpty == false
                                 ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                            let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
                             let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-                            guard !extractedTodos.isEmpty else {
-                                buildHint = "Build blocked: selected plan does not include a ## Todo section."
+                            guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
+                                buildHint = "Build blocked: selected plan must include an explicit `## Todo` section with checklist items."
                                 return
                             }
                             onBuild(choice, planProviderId, true)
@@ -866,13 +869,13 @@ struct PlanPanelView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
         )
-        .alert("Elimina tutta la history?", isPresented: $showDeleteAllHistoryConfirmation) {
-            Button("Annulla", role: .cancel) {}
-            Button("Elimina tutto", role: .destructive) {
+        .alert("Delete all history?", isPresented: $showDeleteAllHistoryConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete all", role: .destructive) {
                 planHistoryStore.deleteAllForContext(contextId: ctxId, contextFolderPath: ctxPath)
             }
         } message: {
-            Text("Tutti i planning salvati per questo contesto verranno eliminati definitivamente.")
+            Text("All saved planning entries for this context will be permanently deleted.")
         }
     }
 
@@ -938,7 +941,7 @@ struct PlanPanelView: View {
                 Image(systemName: "checklist")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(planColor)
-                Text("Todo (Piano)")
+                Text("Todo (Plan)")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -1017,7 +1020,7 @@ struct PlanPanelView: View {
                         Text("Walkthrough")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text(walkthroughExpanded ? "Nascondi riepilogo" : "Mostra riepilogo")
+                        Text(walkthroughExpanded ? "Hide summary" : "Show summary")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
@@ -1195,24 +1198,24 @@ struct PlanPhaseProgressView: View {
         let phaseOrder: [PlanFlowPhase] = [.analyzing, .questioning, .generating]
         guard let currentIndex = phaseOrder.firstIndex(of: phase) else {
             return [
-                PhaseStep(label: "Analisi", isActive: false, isCompleted: true),
-                PhaseStep(label: "Domande", isActive: false, isCompleted: true),
-                PhaseStep(label: "Piano", isActive: false, isCompleted: true),
+                PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
+                PhaseStep(label: "Questions", isActive: false, isCompleted: true),
+                PhaseStep(label: "Plan", isActive: false, isCompleted: true),
             ]
         }
         return [
             PhaseStep(
-                label: "Analisi",
+                label: "Analysis",
                 isActive: currentIndex == 0,
                 isCompleted: currentIndex > 0
             ),
             PhaseStep(
-                label: "Domande",
+                label: "Questions",
                 isActive: currentIndex == 1,
                 isCompleted: currentIndex > 1
             ),
             PhaseStep(
-                label: "Piano",
+                label: "Plan",
                 isActive: currentIndex == 2,
                 isCompleted: false
             ),

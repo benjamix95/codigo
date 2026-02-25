@@ -327,7 +327,7 @@ final class TodoStore: ObservableObject {
             let existingKey = canonicalKey(for: todos[idx].title)
             if !desiredKeys.contains(existingKey), todos[idx].status != .done {
                 todos[idx].status = .blocked
-                todos[idx].notes = "Rimosso dal piano corrente"
+                todos[idx].notes = "Removed from current plan"
                 todos[idx].updatedAt = .now
             }
         }

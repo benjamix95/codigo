@@ -13,8 +13,8 @@ final class PlanShortcutAndCommandTests: XCTestCase {
     func testParsePlanCommandInputWithEmptyPromptUsesFallback() {
         let parsed = parsePlanCommandInput("/plan")
         XCTAssertTrue(parsed.forcePlanInline)
-        XCTAssertTrue(parsed.displayedInput.contains("Genera un planning strutturato"))
-        XCTAssertTrue(parsed.llmPromptInput.contains("Genera un planning strutturato"))
+        XCTAssertTrue(parsed.displayedInput.contains("Generate a structured plan"))
+        XCTAssertTrue(parsed.llmPromptInput.contains("Generate a structured plan"))
     }
 
     func testParsePlanCommandInputWithoutCommandKeepsOriginal() {

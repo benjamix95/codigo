@@ -28,7 +28,7 @@ enum ProviderSupport {
         return (agentProviderIds + agentApiProviderIds).contains(id)
     }
 
-    /// Build del piano richiede provider compatibili con Agent (CLI e API con tool support).
+    /// Plan build requires Agent-compatible providers (CLI and API with tool support).
     static func isPlanBuildExecutionCapableProvider(id: String?, registry: ProviderRegistry) -> Bool {
         guard let id else { return false }
         guard isUserSelectableRealProvider(id: id) else { return false }

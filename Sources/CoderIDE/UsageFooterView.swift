@@ -199,7 +199,7 @@ struct UsageFooterView: View {
             )
         }
         .buttonStyle(.plain)
-        .help(gitPanelStore.gitRoot == nil ? "Nessuna repository Git" : "Apri pannello Git")
+        .help(gitPanelStore.gitRoot == nil ? "No Git repository" : "Open Git panel")
     }
 
     private func scheduleRefresh() {

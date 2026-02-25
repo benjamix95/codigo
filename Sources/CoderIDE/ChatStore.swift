@@ -610,6 +610,19 @@ final class ChatStore: ObservableObject {
         if persistImmediately { saveConversations() }
     }
 
+    func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let midx = conversations[idx].messages.firstIndex(where: { $0.id == messageId }) else {
+            return
+        }
+        let message = conversations[idx].messages[midx]
+        guard message.role == .assistant else { return }
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty else { return }
+        conversations[idx].messages.remove(at: midx)
+        saveConversations()
+    }
+
     /// Removes CODERIDE markers from source to avoid flashes during streaming.
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
         var out = content

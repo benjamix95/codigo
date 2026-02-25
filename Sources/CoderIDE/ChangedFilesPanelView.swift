@@ -29,7 +29,7 @@ struct ChangedFilesPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .help("Chiudi pannello")
+                    .help("Close panel")
                 }
             }
 
@@ -47,7 +47,7 @@ struct ChangedFilesPanelView: View {
             }
 
             if store.files.isEmpty {
-                Text("Nessun file modificato")
+                Text("No changed files")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.top, 8)
@@ -83,7 +83,7 @@ struct ChangedFilesPanelView: View {
                                         .font(.system(size: 12, weight: .semibold))
                                 }
                                 .buttonStyle(.plain)
-                                .help("Ripristina file")
+                                .help("Restore file")
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)

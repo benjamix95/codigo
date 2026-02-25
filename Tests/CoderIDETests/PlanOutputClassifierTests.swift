@@ -4,17 +4,18 @@ import XCTest
 final class PlanOutputClassifierTests: XCTestCase {
     func testClassifyMixedClarificationAndOptionsPrefersProposalReady() {
         let input = """
-        ## Domande di chiarimento
-        1. Quale modulo?
+        ## Questions
+        1. Which module?
 
-        ## Opzione 1: Refactor
-        - Pro: robusto
-
-        ## Opzione 2: Patch
-        - Pro: veloce
-
+        ## Option 1: Refactor
         ## Todo
         - [ ] Step 1
+        - [ ] Step 2
+
+        ## Option 2: Patch
+        ## Todo
+        - [ ] Step A
+        - [ ] Step B
         """
 
         let result = PlanOutputClassifier.classify(
@@ -24,7 +25,7 @@ final class PlanOutputClassifierTests: XCTestCase {
             shouldRunPlanInline: false
         )
 
-        // With the priority flip, clarification questions now take precedence over options
+        // Clarification questions have priority even if options are present.
         XCTAssertTrue(result.hasClarificationQuestions)
         XCTAssertTrue(result.hasStrictOptions)
         XCTAssertEqual(result.nextPhase, .questioning)
@@ -35,9 +36,9 @@ final class PlanOutputClassifierTests: XCTestCase {
 
     func testClassifyClarificationsOnlySetsQuestioning() {
         let input = """
-        ## Domande di chiarimento
-        1. Quale modulo?
-        2. Quali vincoli?
+        ## Questions
+        1. Which module?
+        2. Which constraints?
         """
         let result = PlanOutputClassifier.classify(
             fullText: input,
@@ -53,12 +54,12 @@ final class PlanOutputClassifierTests: XCTestCase {
         }
     }
 
-    func testClassifyFreeformPlanFallsBackToAwaitingChoice() {
+    func testClassifyFreeformPlanWithoutTodoCompliantOptionsKeepsCurrentPhase() {
         let input = """
-        Piano consigliato:
-        1. Analizza i moduli coinvolti.
-        2. Applica il refactor in sicurezza.
-        3. Esegui build e test.
+        Recommended plan:
+        1. Analyze the involved modules.
+        2. Apply the refactor safely.
+        3. Run build and tests.
         """
         let result = PlanOutputClassifier.classify(
             fullText: input,
@@ -67,11 +68,7 @@ final class PlanOutputClassifierTests: XCTestCase {
             shouldRunPlanInline: false
         )
         XCTAssertFalse(result.hasStrictOptions)
-        XCTAssertEqual(result.nextPhase, .proposalReady)
-        guard case .awaitingChoice(_, let options) = result.planningState else {
-            return XCTFail("planningState should be awaitingChoice")
-        }
-        XCTAssertEqual(options.count, 1)
-        XCTAssertTrue(PlanOptionsParser.isFallbackOption(options[0]))
+        XCTAssertEqual(result.nextPhase, .analyzing)
+        XCTAssertNil(result.planningState)
     }
 }

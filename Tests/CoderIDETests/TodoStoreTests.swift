@@ -105,7 +105,7 @@ final class TodoStoreTests: XCTestCase {
 
         let removed = store.todos.first { $0.title == "Task 2" }
         XCTAssertEqual(removed?.status, .blocked)
-        XCTAssertEqual(removed?.notes, "Rimosso dal piano corrente")
+        XCTAssertEqual(removed?.notes, "Removed from current plan")
     }
 
     func testEmptyPlanTodosBlocksPendingCanonicalTasks() {
@@ -126,7 +126,7 @@ final class TodoStoreTests: XCTestCase {
         let removedTask = store.todos.first { $0.isPlanCanonical && $0.title == "Task 2" }
         XCTAssertEqual(doneTask?.status, .done)
         XCTAssertEqual(removedTask?.status, .blocked)
-        XCTAssertEqual(removedTask?.notes, "Rimosso dal piano corrente")
+        XCTAssertEqual(removedTask?.notes, "Removed from current plan")
     }
 
     func testRuntimeExtraTaskStaysNonCanonical() {

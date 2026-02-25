@@ -62,7 +62,7 @@ struct ConversationCheckpointGitStore {
         _ = try runGit(["add", "-A"], cwd: gitRoot, environment: env)
         let tree = try runGit(["write-tree"], cwd: gitRoot, environment: env).trimmingCharacters(in: .whitespacesAndNewlines)
         if tree.isEmpty {
-            throw GitStoreError.commandFailed("Impossibile creare tree git per checkpoint.")
+            throw GitStoreError.commandFailed("Unable to create git tree for checkpoint.")
         }
 
         var commitArgs = ["commit-tree", tree]
@@ -72,7 +72,7 @@ struct ConversationCheckpointGitStore {
         commitArgs.append(contentsOf: ["-m", "checkpoint:\(conversationId.uuidString):\(Int(Date().timeIntervalSince1970))"])
         let commit = try runGit(commitArgs, cwd: gitRoot).trimmingCharacters(in: .whitespacesAndNewlines)
         if commit.isEmpty {
-            throw GitStoreError.commandFailed("Impossibile creare commit snapshot.")
+            throw GitStoreError.commandFailed("Unable to create snapshot commit.")
         }
         _ = try runGit(["update-ref", refName, commit], cwd: gitRoot)
         return Snapshot(ref: commit, gitRoot: gitRoot)
@@ -195,7 +195,7 @@ struct ConversationCheckpointGitStore {
         if process.terminationStatus != 0 {
             let cmd = "git " + args.joined(separator: " ")
             let tail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw GitStoreError.commandFailed("Comando fallito (\(cmd)): \(tail.isEmpty ? "errore sconosciuto" : tail)")
+            throw GitStoreError.commandFailed("Command failed (\(cmd)): \(tail.isEmpty ? "unknown error" : tail)")
         }
         return stdout
     }

@@ -9,7 +9,7 @@ enum ContextScopeMode: String, CaseIterable {
     var label: String {
         switch self {
         case .auto: return "Auto (smart)"
-        case .activeFolder: return "Cartella"
+        case .activeFolder: return "Folder"
         case .workspaceAll: return "Workspace"
         }
     }
@@ -17,11 +17,11 @@ enum ContextScopeMode: String, CaseIterable {
     var helpText: String {
         switch self {
         case .auto:
-            return "Usa la cartella attiva; se il contesto aperto indica dipendenze fuori scope, allarga automaticamente a tutto il workspace."
+            return "Use the active folder; if open context indicates dependencies outside scope, automatically widen to the entire workspace."
         case .activeFolder:
-            return "Limita il contesto agente alla sola cartella attiva."
+            return "Limit agent context to the active folder only."
         case .workspaceAll:
-            return "Fornisce all'agente tutte le cartelle del workspace."
+            return "Provide all workspace folders to the agent."
         }
     }
 }
@@ -44,9 +44,9 @@ struct EffectiveContext {
             return (folderPaths[0] as NSString).lastPathComponent
         }
         if !folderPaths.isEmpty {
-            return "Progetto (\(folderPaths.count) cartelle)"
+            return "Project (\(folderPaths.count) folders)"
         }
-        return "Nessun progetto"
+        return "No project"
     }
 
     func toWorkspaceContext(
@@ -115,10 +115,10 @@ func effectiveContext(
 ) -> EffectiveContext {
     let contextId: UUID?
     if let conv = chatStore.conversation(for: conversationId) {
-        // Thread globale (contextId nil): usa il progetto attivo se aperto.
+        // Global thread (contextId nil): use active project if open.
         contextId = conv.contextId ?? projectContextStore.activeContextId
     } else {
-        // Nessuna conversazione selezionata (es. eliminate tutte): mantieni il progetto aperto.
+        // No selected conversation (e.g. all deleted): keep current project context.
         contextId = projectContextStore.activeContextId
     }
 

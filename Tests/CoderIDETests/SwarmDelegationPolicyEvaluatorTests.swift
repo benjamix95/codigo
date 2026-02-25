@@ -6,8 +6,8 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testNoDelegateWhenModeIsNotAgent() {
         let result = evaluator.evaluate(
-            userPrompt: "Risolvi questo bug",
-            suggestedTask: "coder: correggi bug",
+            userPrompt: "Fix this bug",
+            suggestedTask: "coder: fix bug",
             isAutoDelegateEnabled: true,
             mode: .plan
         )
@@ -17,7 +17,7 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testNoDelegateWhenAutoDelegateDisabled() {
         let result = evaluator.evaluate(
-            userPrompt: "Implementa questa feature",
+            userPrompt: "Implement this feature",
             suggestedTask: "planner + coder + reviewer",
             isAutoDelegateEnabled: false,
             mode: .agent
@@ -28,8 +28,8 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testAutoDelegateForExplicitSwarmRequest() {
         let result = evaluator.evaluate(
-            userPrompt: "Usa swarm e parallelizza questo lavoro",
-            suggestedTask: "qualsiasi task",
+            userPrompt: "Use swarm and parallelize this work",
+            suggestedTask: "any task",
             isAutoDelegateEnabled: true,
             mode: .agent
         )
@@ -39,8 +39,8 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testAutoDelegateForExplicitSwamAliasRequest() {
         let result = evaluator.evaluate(
-            userPrompt: "Usa swam e parallelizza questo lavoro",
-            suggestedTask: "qualsiasi task",
+            userPrompt: "Use swam and parallelize this work",
+            suggestedTask: "any task",
             isAutoDelegateEnabled: true,
             mode: .agent
         )
@@ -50,9 +50,9 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testAutoDelegateForMultiRoleTask() {
         let result = evaluator.evaluate(
-            userPrompt: "Implementa la feature",
+            userPrompt: "Implement the feature",
             suggestedTask:
-                "Coinvolgi coder per implementazione, reviewer per review tecnica e testWriter per test articolati",
+                "Involve coder for implementation, reviewer for technical review, and test writer for advanced testing",
             isAutoDelegateEnabled: true,
             mode: .agent
         )
@@ -62,8 +62,8 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testNoDelegateForSimpleSingleGoalTask() {
         let result = evaluator.evaluate(
-            userPrompt: "Rinomina una variabile in un file",
-            suggestedTask: "Aggiorna il nome della variabile in Sources/A.swift",
+            userPrompt: "Rename one variable in a file",
+            suggestedTask: "Update the variable name in Sources/A.swift",
             isAutoDelegateEnabled: true,
             mode: .agent
         )
@@ -73,8 +73,8 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
     func testNoDelegateForAmbiguousTaskWithoutParallelism() {
         let result = evaluator.evaluate(
-            userPrompt: "Migliora questo pezzo di codice",
-            suggestedTask: "Fai una piccola pulizia e sistema stile",
+            userPrompt: "Improve this code section",
+            suggestedTask: "Do a small cleanup and style fixes",
             isAutoDelegateEnabled: true,
             mode: .agent
         )

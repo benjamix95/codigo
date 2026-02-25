@@ -20,7 +20,7 @@ final class ChatStorePlanAttachmentTests: XCTestCase {
 
     func testLegacyChatMessageDecodeWithoutPlanAttachment() throws {
         let raw = """
-        {"id":"\(UUID().uuidString)","role":"assistant","content":"ciao","isStreaming":false}
+        {"id":"\(UUID().uuidString)","role":"assistant","content":"hello","isStreaming":false}
         """
         let data = try XCTUnwrap(raw.data(using: .utf8))
         let decoded = try JSONDecoder().decode(ChatMessage.self, from: data)
@@ -31,11 +31,13 @@ final class ChatStorePlanAttachmentTests: XCTestCase {
         let message = ChatMessage(
             role: .assistant,
             content: """
-            ## Opzione 1: Fix robusto
-            - Pro: migliore isolamento
+            ## Option 1: Robust fix
+            ## Todo
+            - [ ] Improve isolation
 
-            ## Opzione 2: Patch veloce
-            - Pro: rapido
+            ## Option 2: Fast patch
+            ## Todo
+            - [ ] Apply targeted fix
             """,
             isStreaming: false
         )

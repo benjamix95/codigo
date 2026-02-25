@@ -119,15 +119,7 @@ struct PlanClarificationWizardView: View {
             ForEach(question.options) { option in
                 let isSelected = selectedOptionByQuestionId[question.id] == option.id
                 Button {
-                    selectedOptionByQuestionId[question.id] = option.id
-                    if PlanOptionsParser.isOtherLikeClarificationOption(option) {
-                        focusedField = .customQuestion(question.id)
-                    } else {
-                        customTextByQuestionId[question.id] = ""
-                        if focusedField == .customQuestion(question.id) {
-                            focusedField = nil
-                        }
-                    }
+                    handleOptionSelection(option, for: question)
                 } label: {
                     HStack(alignment: .top, spacing: 8) {
                         Text(option.id)
@@ -310,6 +302,26 @@ struct PlanClarificationWizardView: View {
     private func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
         guard let lastQuestionId = orderedQuestions.last?.id else { return false }
         return question.id == lastQuestionId
+    }
+
+    private func handleOptionSelection(
+        _ option: PlanClarificationOption,
+        for question: PlanClarificationQuestion
+    ) {
+        selectedOptionByQuestionId[question.id] = option.id
+        if PlanOptionsParser.isOtherLikeClarificationOption(option) {
+            focusedField = .customQuestion(question.id)
+        } else {
+            customTextByQuestionId[question.id] = ""
+            if focusedField == .customQuestion(question.id) {
+                focusedField = nil
+            }
+        }
+
+        Task { @MainActor in
+            guard currentQuestion?.id == question.id else { return }
+            advanceFromQuestion(question)
+        }
     }
 
     private func advanceFromQuestion(_ question: PlanClarificationQuestion) {

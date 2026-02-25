@@ -100,7 +100,7 @@ final class ProjectContextStore: ObservableObject {
         } else if normalized.count == 1 {
             name = (normalized[0] as NSString).lastPathComponent
         } else {
-            name = "Progetto (\(normalized.count) cartelle)"
+            name = "Project (\(normalized.count) folders)"
         }
 
         let context = ProjectContext(

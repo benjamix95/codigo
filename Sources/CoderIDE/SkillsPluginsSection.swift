@@ -35,10 +35,10 @@ struct SkillsPluginsSection: View {
         VStack(alignment: .leading, spacing: 20) {
             header
 
-            hintBox("Skills e plugin vengono rilevati automaticamente da Claude, Codex, Gemini e MCP. Sono disponibili per tutti i provider AI.")
+            hintBox("Skills and plugins are automatically detected from Claude, Codex, Gemini, and MCP. They are available to all AI providers.")
 
             if isScanning {
-                ProgressView("Scansione in corso...")
+                ProgressView("Scanning...")
                     .font(.caption)
                     .padding()
             } else if items.isEmpty {
@@ -49,7 +49,7 @@ struct SkillsPluginsSection: View {
 
             HStack {
                 Button { scanAll() } label: {
-                    Label("Aggiorna", systemImage: "arrow.clockwise")
+                    Label("Refresh", systemImage: "arrow.clockwise")
                         .font(.subheadline)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.small)
@@ -69,7 +69,7 @@ struct SkillsPluginsSection: View {
                 .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Skills & Plugins").font(.title3.weight(.semibold))
-                Text("Strumenti installati rilevati nel sistema").font(.caption).foregroundStyle(.secondary)
+                Text("Installed tools detected on this system").font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -79,10 +79,10 @@ struct SkillsPluginsSection: View {
             Image(systemName: "puzzlepiece")
                 .font(.system(size: 28))
                 .foregroundStyle(.tertiary)
-            Text("Nessuno skill o plugin rilevato")
+            Text("No skills or plugins detected")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("Installa skills in ~/.claude/skills/, ~/.codex/skills/ o configura server MCP.")
+            Text("Install skills in ~/.claude/skills/, ~/.codex/skills/, or configure MCP servers.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)

@@ -2,13 +2,13 @@ import XCTest
 @testable import CoderIDE
 
 final class PlanOptionsParserTests: XCTestCase {
-    func testParseItalianOptionsWithMarkdownHeader() {
+    func testParseOptionsWithMarkdownHeader() {
         let input = """
-        ## Opzione 1: Refactor parser
-        - Pro: robustezza
+        ## Option 1: Refactor parser
+        - Pro: robustness
 
-        ## Opzione 2: Patch minima
-        - Pro: veloce
+        ## Option 2: Minimal patch
+        - Pro: faster rollout
         """
 
         let options = PlanOptionsParser.parse(from: input)
@@ -35,36 +35,36 @@ final class PlanOptionsParserTests: XCTestCase {
 
     func testParseSupportsApproachVariantAndLetterIndex() {
         let input = """
-        ### Approccio A: Refactor completo
-        dettagli...
+        ### Approach A: Full refactor
+        details...
 
-        ### Approach 2 - Patch incrementale
-        dettagli...
+        ### Approach 2 - Incremental patch
+        details...
         """
         let options = PlanOptionsParser.parse(from: input)
         XCTAssertEqual(options.count, 2)
-        XCTAssertTrue(options[0].title.localizedCaseInsensitiveContains("Refactor"))
+        XCTAssertTrue(options[0].title.localizedCaseInsensitiveContains("refactor"))
     }
 
     func testParseClarificationQuestionsReturnsQuestions() {
         let input = """
-        Ho bisogno di dettagli.
-        ## Domande di chiarimento
-        1. Quale parte del sistema deve essere modificata?
-        2. Esistono vincoli di retrocompatibilità?
-        3. Preferisci refactor o patch?
+        Need more details.
+        ## Questions
+        1. Which system area must be modified?
+        2. Are there backward-compatibility constraints?
+        3. Do you prefer refactor or patch?
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertNotNil(questions)
         XCTAssertEqual(questions?.count ?? 0, 3)
-        XCTAssertEqual(questions?[0], "Quale parte del sistema deve essere modificata?")
-        XCTAssertEqual(questions?[1], "Esistono vincoli di retrocompatibilità?")
+        XCTAssertEqual(questions?[0], "Which system area must be modified?")
+        XCTAssertEqual(questions?[1], "Are there backward-compatibility constraints?")
     }
 
     func testParseClarificationQuestionsReturnsNilWhenNoBlock() {
         let input = """
-        ## Opzione 1: Refactor
-        - Pro: robustezza
+        ## Option 1: Refactor
+        - Pro: robustness
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertNil(questions)
@@ -72,21 +72,21 @@ final class PlanOptionsParserTests: XCTestCase {
 
     func testParseClarificationQuestionsReturnsOneQuestionWhenPresent() {
         let input = """
-        ## Domande di chiarimento
-        1. Una sola domanda?
+        ## Questions
+        1. One single question?
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
-        XCTAssertEqual(questions, ["Una sola domanda?"])
+        XCTAssertEqual(questions, ["One single question?"])
     }
 
     func testParseStrictRejectsGenericNonPlanText() {
-        let input = "Ho analizzato il progetto, ma non posso proporre opzioni al momento."
+        let input = "I analyzed the project, but cannot propose options yet."
         let options = PlanOptionsParser.parseStrict(from: input)
         XCTAssertTrue(options.isEmpty)
     }
 
     func testParseFallsBackForDisplayEvenWhenStrictRejects() {
-        let input = "Risposta libera senza struttura formale."
+        let input = "Free-form response without formal structure."
         let strict = PlanOptionsParser.parseStrict(from: input)
         let display = PlanOptionsParser.parse(from: input)
         XCTAssertTrue(strict.isEmpty)
@@ -97,66 +97,66 @@ final class PlanOptionsParserTests: XCTestCase {
 
     func testParseClarificationQuestionsSupportsLevelThreeHeader() {
         let input = """
-        ### Domande di chiarimento:
-        1. Quale modulo va aggiornato?
-        2. Quale comportamento va preservato?
+        ### Questions:
+        1. Which module should be updated?
+        2. Which behavior must be preserved?
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertEqual(questions?.count, 2)
-        XCTAssertEqual(questions?.first, "Quale modulo va aggiornato?")
+        XCTAssertEqual(questions?.first, "Which module should be updated?")
     }
 
     func testParseClarificationQuestionsSupportsMixedBulletsAndNumbers() {
         let input = """
         ## Clarification Questions
-        - Qual è il target principale?
-        2. Quali test esistono già?
+        - What is the primary target?
+        2. Which tests already exist?
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertEqual(questions?.count, 2)
-        XCTAssertEqual(questions?[0], "Qual è il target principale?")
-        XCTAssertEqual(questions?[1], "Quali test esistono già?")
+        XCTAssertEqual(questions?[0], "What is the primary target?")
+        XCTAssertEqual(questions?[1], "Which tests already exist?")
     }
 
     func testParseClarificationQuestionsStopsAtAnyMarkdownHeading() {
         let input = """
         # Clarification Questions
-        - Quale modulo?
-        - Quale vincolo?
+        - Which module?
+        - Which constraint?
         # Option 1
-        - Questo bullet non è una domanda di chiarimento
+        - This bullet is not a clarification question
         """
         let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertEqual(questions?.count, 2)
-        XCTAssertEqual(questions?[0], "Quale modulo?")
-        XCTAssertEqual(questions?[1], "Quale vincolo?")
+        XCTAssertEqual(questions?[0], "Which module?")
+        XCTAssertEqual(questions?[1], "Which constraint?")
     }
 
     func testParseClarificationQuestionnaireStructuredQuestionsAndOptions() {
         let input = """
         ## Questions
-        1. Qual è l'obiettivo principale?
-        A) Migliorare performance
-        B) Correggere bug
-        C) Migliorare DX
+        1. What is the primary objective?
+        A) Improve performance
+        B) Fix bugs
+        C) Improve DX
 
-        2. Quale priorità vuoi?
-        A) Alta
-        B) Media
+        2. Which priority do you want?
+        A) High
+        B) Medium
         """
 
         let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
         XCTAssertNotNil(questionnaire)
         XCTAssertEqual(questionnaire?.questions.count, 2)
-        XCTAssertEqual(questionnaire?.questions[0].prompt, "Qual è l'obiettivo principale?")
+        XCTAssertEqual(questionnaire?.questions[0].prompt, "What is the primary objective?")
         XCTAssertEqual(questionnaire?.questions[0].options.map(\.id), ["A", "B", "C"])
-        XCTAssertEqual(questionnaire?.questions[1].options.map(\.text), ["Alta", "Media"])
+        XCTAssertEqual(questionnaire?.questions[1].options.map(\.text), ["High", "Medium"])
     }
 
     func testParseClarificationQuestionnaireReturnsNilWhenOptionsMissing() {
         let input = """
         ## Questions
-        1. Quale modulo va toccato?
+        1. Which module should be touched?
         """
 
         let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
@@ -171,17 +171,17 @@ final class PlanOptionsParserTests: XCTestCase {
         )
         XCTAssertTrue(
             PlanOptionsParser.isOtherLikeClarificationOption(
-                PlanClarificationOption(id: "L", text: "Áltro (specìfica nell'input)")
+                PlanClarificationOption(id: "L", text: "Óther (specify in input)")
             )
         )
         XCTAssertTrue(
             PlanOptionsParser.isOtherLikeClarificationOption(
-                PlanClarificationOption(id: "M", text: "Please specify custom details")
+                PlanClarificationOption(id: "M", text: "Specify custom details")
             )
         )
         XCTAssertTrue(
             PlanOptionsParser.isOtherLikeClarificationOption(
-                PlanClarificationOption(id: "N", text: "Specifica nel campo sotto")
+                PlanClarificationOption(id: "N", text: "Specify in the field below")
             )
         )
     }
@@ -189,7 +189,7 @@ final class PlanOptionsParserTests: XCTestCase {
     func testIsOtherLikeClarificationOptionRejectsClosedOptions() {
         XCTAssertFalse(
             PlanOptionsParser.isOtherLikeClarificationOption(
-                PlanClarificationOption(id: "H", text: "Nessuna priorità specifica")
+                PlanClarificationOption(id: "H", text: "No specific priority")
             )
         )
         XCTAssertFalse(
@@ -201,18 +201,18 @@ final class PlanOptionsParserTests: XCTestCase {
 
     func testExtractTodosFromOptionText() {
         let input = """
-        ## Opzione 1: Refactor
-        - Pro: robustezza
+        ## Option 1: Refactor
+        - Pro: robustness
         ## Todo
-        - [ ] Step 1: Creare interfaccia
-        - [ ] Step 2: Implementare classe concreta
-        - [ ] Step 3: Aggiornare test
+        - [ ] Step 1: Create interface
+        - [ ] Step 2: Implement concrete class
+        - [ ] Step 3: Update tests
         """
         let todos = PlanOptionsParser.extractTodosFromOptionText(input)
         XCTAssertEqual(todos.count, 3)
-        XCTAssertEqual(todos[0], "Step 1: Creare interfaccia")
-        XCTAssertEqual(todos[1], "Step 2: Implementare classe concreta")
-        XCTAssertEqual(todos[2], "Step 3: Aggiornare test")
+        XCTAssertEqual(todos[0], "Step 1: Create interface")
+        XCTAssertEqual(todos[1], "Step 2: Implement concrete class")
+        XCTAssertEqual(todos[2], "Step 3: Update tests")
     }
 
     func testExtractTodosFromOptionTextWithBullets() {
@@ -247,8 +247,8 @@ final class PlanOptionsParserTests: XCTestCase {
 
     func testExtractTodosFromOptionTextReturnsEmptyWhenNoSection() {
         let input = """
-        ## Opzione 1: Refactor
-        - Pro: robustezza
+        ## Option 1: Refactor
+        - Pro: robustness
         """
         let todos = PlanOptionsParser.extractTodosFromOptionText(input)
         XCTAssertTrue(todos.isEmpty)
@@ -257,22 +257,22 @@ final class PlanOptionsParserTests: XCTestCase {
     func testExtractFinalPlanBodyExcludingQuestionsOptionsTodos() {
         let input = """
         ## Questions
-        1. Preferisci A o B?
+        1. Do you prefer A or B?
         A) A
         B) B
 
-        ## Option 1: Patch rapida
-        Testo opzione.
+        ## Option 1: Quick patch
+        Option text.
 
         ## Todo
-        - [ ] Step uno
+        - [ ] Step one
 
         ## Cause
-        - overflow nel composer su larghezza stretta
-        - parsing markdown troppo denso
+        - overflow in composer on narrow width
+        - markdown parsing too dense
 
         ## Approach
-        Applico ViewThatFits + normalizzazione layout display-only.
+        Apply ViewThatFits + display-only layout normalization.
         """
 
         let output = PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(input)

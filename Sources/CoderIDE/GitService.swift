@@ -75,19 +75,19 @@ enum GitServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingWorkingDirectory:
-            return "Directory di lavoro non disponibile."
+            return "Working directory is unavailable."
         case .notGitRepository:
-            return "Nessuna repository Git nel contesto attivo."
+            return "No Git repository in the active context."
         case .branchNotFound(let branch):
-            return "Branch non trovato: \(branch)."
+            return "Branch not found: \(branch)."
         case .noChangesToCommit:
-            return "Nessuna modifica da committare."
+            return "No changes to commit."
         case .missingRemote:
-            return "Remote non configurato per questo repository."
+            return "Remote is not configured for this repository."
         case .ghNotInstalled:
-            return "GitHub CLI (gh) non installato."
+            return "GitHub CLI (gh) is not installed."
         case .ghNotAuthenticated:
-            return "GitHub CLI non autenticato."
+            return "GitHub CLI is not authenticated."
         case .commandFailed(let message):
             return message
         }
@@ -514,7 +514,7 @@ struct GitService {
         let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         if p.terminationStatus != 0 {
             let cmd = ([executable] + args).joined(separator: " ")
-            throw GitServiceError.commandFailed("Comando fallito (\(cmd)): \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))")
+            throw GitServiceError.commandFailed("Command failed (\(cmd)): \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
         return stdout
     }

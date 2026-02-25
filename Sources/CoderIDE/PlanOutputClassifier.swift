@@ -24,9 +24,10 @@ enum PlanOutputClassifier {
         }
 
         let clarifications = PlanOptionsParser.parseClarificationQuestions(from: fullText) ?? []
-        let options = PlanOptionsParser.parseStrict(from: fullText)
+        let strictOptions = PlanOptionsParser.parseStrict(from: fullText)
+        let strictTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: strictOptions)
         let hasClarificationQuestions = !clarifications.isEmpty
-        let hasStrictOptions = !options.isEmpty
+        let hasStrictOptions = !strictOptions.isEmpty && strictTodoCompliant.count == strictOptions.count
 
         // Clarification questions always take priority over options.
         // LLMs should never combine ## Questions and ## Options in the same
@@ -45,19 +46,20 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: false,
                 hasStrictOptions: true,
                 nextPhase: .proposalReady,
-                planningState: .awaitingChoice(planContent: fullText, options: options)
+                planningState: .awaitingChoice(planContent: fullText, options: strictTodoCompliant)
             )
         }
 
         let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             let fallbackOptions = PlanOptionsParser.parse(from: fullText)
-            if !fallbackOptions.isEmpty {
+            let fallbackTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: fallbackOptions)
+            if !fallbackOptions.isEmpty, fallbackTodoCompliant.count == fallbackOptions.count {
                 return PlanOutputClassification(
                     hasClarificationQuestions: false,
                     hasStrictOptions: false,
                     nextPhase: .proposalReady,
-                    planningState: .awaitingChoice(planContent: fullText, options: fallbackOptions)
+                    planningState: .awaitingChoice(planContent: fullText, options: fallbackTodoCompliant)
                 )
             }
         }

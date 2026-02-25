@@ -18,12 +18,12 @@ struct PlanChatCardView: View {
                 Spacer()
                 HStack(spacing: 12) {
                     toolbarButton(icon: "arrow.down.to.line", help: "Download plan", action: onDownload)
-                    toolbarButton(icon: "doc.on.doc", help: "Duplica planning", action: onDuplicate)
+                    toolbarButton(icon: "doc.on.doc", help: "Duplicate plan", action: onDuplicate)
                     Menu {
-                        Button("Rebuild ora", action: onRebuild)
-                        Button("Apri nello storico", action: onOpenInPanel)
+                        Button("Rebuild now", action: onRebuild)
+                        Button("Open in history", action: onOpenInPanel)
                         Divider()
-                        Button("Rimuovi dallo storico", role: .destructive, action: onRemove)
+                        Button("Remove from history", role: .destructive, action: onRemove)
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(.system(size: 13, weight: .semibold))

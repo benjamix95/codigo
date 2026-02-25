@@ -40,13 +40,13 @@ struct PlanClarificationSubmission: Equatable {
 /// Extracts numbered options from plan text (e.g. "## Option 1: ...", "Option 2:", etc.).
 enum PlanOptionsParser {
     private static let optionHeaderPattern =
-        #"(?i)(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
+        #"(?i)(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
     private static let nextOptionPattern =
-        #"(?i)^\s*(?:#{1,3}\s*)?(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])"#
     private static let optionWithTitlePattern =
-        #"(?i)^\s*(?:#{1,3}\s*)?(?:Opzione|Option|Approccio|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]\s*.+$"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]\s*.+$"#
     private static let clarificationHeaderPattern =
-        #"(?im)^\s*#{1,3}\s*(?:Domande\s+di\s+chiarimento|Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
+        #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
     private static let otherLikePrimaryTokens: Set<String> = [
         "other",
         "altro",
@@ -241,10 +241,10 @@ enum PlanOptionsParser {
                     if !rawTitle.isEmpty {
                         title = rawTitle
                     } else {
-                        title = "Opzione \(max(num, 1))"
+                        title = "Option \(max(num, 1))"
                     }
                 } else {
-                    title = "Opzione \(max(num, 1))"
+                    title = "Option \(max(num, 1))"
                 }
 
                 var fullLines = [line]
@@ -272,13 +272,13 @@ enum PlanOptionsParser {
         return []
     }
 
-    /// Restituisce solo opzioni strutturate e affidabili per transizioni di stato/build.
+    /// Returns only structured, reliable options for phase transitions/build gating.
     static func parseStrict(from text: String) -> [PlanOption] {
         let options = parseStructured(from: text)
         guard !options.isEmpty else { return [] }
 
-        // Hardening: evita falsi positivi su testo rumoroso. Richiedi almeno due opzioni
-        // oppure heading opzione completo con titolo.
+        // Hardening: avoid false positives on noisy text. Require at least two options,
+        // or one option with a strong heading + title.
         if options.count >= 2 { return options }
         guard options.count == 1 else { return [] }
         let firstLine = options[0].fullText.components(separatedBy: .newlines).first ?? ""
@@ -286,7 +286,7 @@ enum PlanOptionsParser {
         return hasStrongHeader ? options : []
     }
 
-    /// Restituisce le opzioni parsegate o una singola opzione con l'intero testo se il parsing fallisce
+    /// Returns parsed options, or a single option with full text if parsing fails.
     static func parse(from text: String) -> [PlanOption] {
         let strict = parseStrict(from: text)
         if !strict.isEmpty { return strict }
@@ -321,7 +321,7 @@ enum PlanOptionsParser {
             }
         }
 
-        // Ultimo fallback: intero testo come unica opzione
+        // Final fallback: whole text as one option.
         return [PlanOption(id: 1, title: "Full plan", fullText: trimmed)]
     }
 
@@ -329,53 +329,134 @@ enum PlanOptionsParser {
         option.id == 1 && option.title == "Full plan"
     }
 
-    /// Extracts todo steps from a plan option.
-    /// Supports headings like "## Todo", "### Todo", plain "Todo", and checklist fallbacks.
+    static func hasRequiredTodoHeader(_ optionText: String) -> Bool {
+        let todoHeaderPattern = #"(?im)^\s*##\s*todo\b"#
+        return optionText.range(of: todoHeaderPattern, options: .regularExpression) != nil
+    }
+
+    static func isTodoCompliantOption(_ option: PlanOption) -> Bool {
+        hasRequiredTodoHeader(option.fullText) && !extractTodosFromOptionText(option.fullText).isEmpty
+    }
+
+    static func todoCompliantOptions(from options: [PlanOption]) -> [PlanOption] {
+        options.filter(isTodoCompliantOption)
+    }
+
+    /// Extracts executable todo steps from a plan option.
+    /// Primary path requires a dedicated task section; fallback accepts explicit checklist/steps blocks.
     static func extractTodosFromOptionText(_ optionText: String) -> [String] {
         let lines = optionText.components(separatedBy: .newlines)
-        var inTodoSection = false
+        let taskHeaderPattern =
+            #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do|tasks?|implementation\s+steps?|execution\s+steps?|next\s+steps?|checklist|action\s+items?|work\s*plan)\b"#
+        let checklistPattern = #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#
+        let bulletPattern = #"^\s*[-*•]\s+(.+)$"#
+        let numberedPattern = #"^\s*\d+[.)]\s+(.+)$"#
+
         var todos: [String] = []
-        let todoHeaderPattern = #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do)\b"#
-        let checklistPattern = #"^\s*-\s*\[\s*\]\s*(.+)$"#
-        let bulletPattern = #"^\s*-\s+(.+)$"#
+        var seen = Set<String>()
+        var inTaskSection = false
+
+        func capture(_ text: String, pattern: String) -> String? {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                  let range = Range(match.range(at: 1), in: text)
+            else { return nil }
+            return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        func normalizeTodo(_ raw: String) -> String {
+            raw
+                .replacingOccurrences(of: #"`"#, with: "")
+                .replacingOccurrences(of: #"\*\*"#, with: "")
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        func shouldDiscard(_ title: String) -> Bool {
+            let normalized = title
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                .lowercased()
+            if normalized.isEmpty { return true }
+            if normalized.hasPrefix("pros") || normalized.hasPrefix("cons")
+                || normalized.hasPrefix("complexity")
+                || normalized.hasPrefix("trade-off")
+                || normalized.hasPrefix("tradeoff")
+                || normalized.hasPrefix("option ")
+                || normalized.hasPrefix("approach ")
+            {
+                return true
+            }
+            return false
+        }
+
+        func appendTodo(_ raw: String) {
+            let title = normalizeTodo(raw)
+            guard !shouldDiscard(title) else { return }
+            let key = title.lowercased()
+            guard !seen.contains(key) else { return }
+            seen.insert(key)
+            todos.append(title)
+        }
+
+        func parseTaskLine(_ trimmed: String, allowPlainBullets: Bool) -> String? {
+            if let checklist = capture(trimmed, pattern: checklistPattern) {
+                return checklist
+            }
+            if allowPlainBullets, let bullet = capture(trimmed, pattern: bulletPattern) {
+                return bullet
+            }
+            if allowPlainBullets, let numbered = capture(trimmed, pattern: numberedPattern) {
+                return numbered
+            }
+            return nil
+        }
+
+        // 1) Dedicated task section ("## Todo", "Tasks", "Next steps", ...)
         for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.range(of: todoHeaderPattern, options: .regularExpression) != nil {
-                inTodoSection = true
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.range(of: taskHeaderPattern, options: .regularExpression) != nil {
+                inTaskSection = true
                 continue
             }
-            if inTodoSection {
-                if trimmed.hasPrefix("##") { break }
+            if inTaskSection {
+                if trimmed.hasPrefix("#") { break }
                 if trimmed.isEmpty { continue }
-                if let regex = try? NSRegularExpression(pattern: checklistPattern),
-                   let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
-                   let r1 = Range(match.range(at: 1), in: trimmed) {
-                    let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
-                    if !title.isEmpty { todos.append(title) }
-                } else if let regex = try? NSRegularExpression(pattern: bulletPattern),
-                          let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
-                          let r1 = Range(match.range(at: 1), in: trimmed) {
-                    let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
-                    if !title.isEmpty, !title.hasPrefix("[") { todos.append(title) }
+                if let parsed = parseTaskLine(trimmed, allowPlainBullets: true) {
+                    appendTodo(parsed)
                 }
             }
         }
         if !todos.isEmpty { return todos }
 
-        // Fallback: if no Todo heading is present, still accept explicit checklists.
+        // 2) Explicit checklist anywhere in the option body.
         for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard let regex = try? NSRegularExpression(pattern: checklistPattern),
-                  let match = regex.firstMatch(
-                    in: trimmed,
-                    range: NSRange(trimmed.startIndex..., in: trimmed)
-                  ),
-                  let r1 = Range(match.range(at: 1), in: trimmed) else {
-                continue
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let checklist = parseTaskLine(trimmed, allowPlainBullets: false) {
+                appendTodo(checklist)
             }
-            let title = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
-            if !title.isEmpty { todos.append(title) }
         }
+        if !todos.isEmpty { return todos }
+
+        // 3) Fallback: pick the largest contiguous numbered/bulleted steps block.
+        var bestBlock: [String] = []
+        var currentBlock: [String] = []
+        for line in lines + [""] {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsed = parseTaskLine(trimmed, allowPlainBullets: true) {
+                currentBlock.append(parsed)
+            } else {
+                if currentBlock.count > bestBlock.count {
+                    bestBlock = currentBlock
+                }
+                currentBlock.removeAll(keepingCapacity: true)
+            }
+        }
+        if bestBlock.count >= 2 {
+            for item in bestBlock {
+                appendTodo(item)
+            }
+        }
+
         return todos
     }
 
@@ -385,14 +466,14 @@ enum PlanOptionsParser {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard !lines.isEmpty else {
-            return ("Piano", "")
+            return ("Plan", "")
         }
 
         let titleLine = lines.first(where: { $0.hasPrefix("#") }) ?? lines[0]
         let title = titleLine.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         let bodyLines = Array(lines.dropFirst().prefix(20))
         let body = bodyLines.joined(separator: "\n")
-        return (title.isEmpty ? "Piano" : title, body)
+        return (title.isEmpty ? "Plan" : title, body)
     }
 
     static func extractMermaidBlocksForDisplay(_ text: String) -> [String] {
@@ -405,18 +486,13 @@ enum PlanOptionsParser {
 
         let causeHeaders = [
             "cause",
-            "causa",
             "root cause",
             "analysis",
-            "analisi",
             "approach",
-            "approccio",
             "rationale",
             "trade-off",
             "tradeoff",
-            "vincoli",
             "constraints",
-            "assunzioni",
             "assumptions",
         ]
         let lines = trimmed.components(separatedBy: .newlines)
@@ -494,12 +570,9 @@ enum PlanOptionsParser {
             let title = normalized
                 .drop(while: { $0 == "#" || $0 == " " || $0 == "\t" })
             return title.hasPrefix("questions")
-                || title.hasPrefix("domande")
                 || title.hasPrefix("clarification")
                 || title.hasPrefix("option")
-                || title.hasPrefix("opzione")
                 || title.hasPrefix("approach")
-                || title.hasPrefix("approccio")
                 || title.hasPrefix("todo")
                 || title.hasPrefix("to-do")
         }

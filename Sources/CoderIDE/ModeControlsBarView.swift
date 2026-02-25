@@ -212,7 +212,7 @@ struct ModeControlsBarView: View {
         }) {
             return fallback.displayName
         }
-        return "Nessun provider"
+        return "No provider"
     }
 
     // MARK: - Codex Model Picker
@@ -224,7 +224,7 @@ struct ModeControlsBarView: View {
                 onSyncCodexProvider()
             } label: {
                 HStack {
-                    Text("Default (da config)")
+                    Text("Default (from config)")
                     if codexModelOverride.isEmpty { Image(systemName: "checkmark") }
                 }
             }
@@ -442,7 +442,7 @@ struct ModeControlsBarView: View {
                 onSyncToolRuntimePolicy()
             } label: {
                 HStack {
-                    Label("Default (da config)", systemImage: "doc.badge.gearshape")
+                    Label("Default (from config)", systemImage: "doc.badge.gearshape")
                     if codexSandbox.isEmpty { Image(systemName: "checkmark") }
                 }
             }
@@ -688,7 +688,7 @@ struct ModeControlsBarView: View {
             )
         }
         .buttonStyle(.plain)
-        .help("Attiva/disattiva Plan inline")
+        .help("Enable/disable inline Plan")
     }
 
     // MARK: - Delegate to Agent Button
@@ -710,7 +710,7 @@ struct ModeControlsBarView: View {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.right.circle")
                     .font(.system(size: 12))
-                Text("Delega ad Agent")
+                Text("Delegate to Agent")
                     .font(.system(size: 11, weight: .medium))
             }
             .foregroundStyle(
@@ -719,6 +719,6 @@ struct ModeControlsBarView: View {
         }
         .buttonStyle(.plain)
         .disabled(!canDelegate || !agentOk)
-        .help("Passa ad Agent e invia il messaggio (modifica file, comandi)")
+        .help("Switch to Agent and send message (edit files, run commands)")
     }
 }

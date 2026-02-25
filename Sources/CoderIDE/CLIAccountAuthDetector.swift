@@ -27,7 +27,7 @@ enum CLIAccountAuthDetector {
         guard FileManager.default.isExecutableFile(atPath: executable) else { return .notInstalled }
 
         // Non bloccare mai il main thread (render SwiftUI): evita waitUntilExit in UI pass.
-        // In UI path evitiamo anche falsi positivi basati su stato storico non verificato.
+        // In UI paths, also avoid false positives based on unverified historical state.
         if Thread.isMainThread {
             if let secret = CLIAccountSecretsStore().secret(for: account.id), !secret.isEmpty {
                 return .loggedIn(method: .apiKey)

@@ -10,7 +10,7 @@ struct PlanSummaryCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Piano")
+                Text("Plan")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -20,7 +20,7 @@ struct PlanSummaryCardView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help(isCollapsed ? "Espandi piano" : "Comprimi piano")
+                .help(isCollapsed ? "Expand plan" : "Collapse plan")
             }
 
             if !isCollapsed {

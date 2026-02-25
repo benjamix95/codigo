@@ -5,15 +5,15 @@ import XCTest
 final class PlanBuildIntegrationFlowTests: XCTestCase {
     func testEndToEndModelResponseToBuildStartPrompt() {
         let modelResponse = """
-        ## Opzione 1: Refactor parser
+        ## Option 1: Refactor parser
         ## Todo
-        - [ ] Estrarre helper parser
-        - [ ] Aggiornare test parser
+        - [ ] Extract parser helper
+        - [ ] Update parser tests
 
-        ## Opzione 2: Hardening build pipeline
+        ## Option 2: Harden build pipeline
         ## Todo
-        - [ ] Aggiungere test integrazione plan/build
-        - [ ] Eseguire swift test
+        - [ ] Add plan/build integration test
+        - [ ] Run swift test
         """
 
         let classification = PlanOutputClassifier.classify(
@@ -25,7 +25,7 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
         XCTAssertEqual(classification.nextPhase, .proposalReady)
 
         guard case .awaitingChoice(_, let options) = classification.planningState else {
-            return XCTFail("planningState atteso: awaitingChoice")
+            return XCTFail("expected planningState: awaitingChoice")
         }
         XCTAssertEqual(options.count, 2)
 
@@ -35,28 +35,28 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
 
         let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(chosen)
         XCTAssertEqual(extractedTodos, [
-            "Aggiungere test integrazione plan/build",
-            "Eseguire swift test",
+            "Add plan/build integration test",
+            "Run swift test",
         ])
 
         let result = buildPlanExecutionPrompt(
             workflowInstructions: "WF",
-            executionPlanBase: "**Piano:**\n\(chosen)",
+            executionPlanBase: "**Plan:**\n\(chosen)",
             planTodos: extractedTodos,
             canonicalTodos: []
         )
         XCTAssertFalse(result.isResume)
-        XCTAssertTrue(result.prompt.contains("TODO OBBLIGATORI"))
-        XCTAssertTrue(result.prompt.contains("1. [ ] Aggiungere test integrazione plan/build"))
-        XCTAssertTrue(result.prompt.contains("2. [ ] Eseguire swift test"))
-        XCTAssertFalse(result.prompt.contains("Todo già completati"))
+        XCTAssertTrue(result.prompt.contains("MANDATORY TODOs"))
+        XCTAssertTrue(result.prompt.contains("1. [ ] Add plan/build integration test"))
+        XCTAssertTrue(result.prompt.contains("2. [ ] Run swift test"))
+        XCTAssertFalse(result.prompt.contains("Already completed todos"))
     }
 
     func testResumeFlowReusesCanonicalTodosAndBuildsResumePrompt() {
         let store = TodoStore()
         let planTodos = [
-            "Creare test integrazione percorso completo",
-            "Eseguire swift test"
+            "Create full-path integration test",
+            "Run swift test"
         ]
         store.upsertCanonicalPlanTodos(planTodos)
         let initialCanonicalByTitle = Dictionary(
@@ -67,10 +67,10 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
 
         store.upsertFromAgent(
             id: nil,
-            title: "Creare test integrazione percorso completo",
+            title: "Create full-path integration test",
             status: .done,
             priority: .high,
-            notes: "completato",
+            notes: "completed",
             linkedFiles: []
         )
         store.upsertCanonicalPlanTodos(planTodos)
@@ -82,21 +82,21 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
 
         let result = buildPlanExecutionPrompt(
             workflowInstructions: "WF",
-            executionPlanBase: "**Piano:**\nOpzione scelta",
+            executionPlanBase: "**Plan:**\nSelected option",
             planTodos: planTodos,
             canonicalTodos: canonicalAfter
         )
         XCTAssertTrue(result.isResume)
-        XCTAssertTrue(result.prompt.contains("**RIPRESA IMPLEMENTAZIONE**"))
-        XCTAssertTrue(result.prompt.contains("- [x] Creare test integrazione percorso completo"))
-        XCTAssertTrue(result.prompt.contains("- [ ] Eseguire swift test"))
+        XCTAssertTrue(result.prompt.contains("**IMPLEMENTATION RESUME**"))
+        XCTAssertTrue(result.prompt.contains("- [x] Create full-path integration test"))
+        XCTAssertTrue(result.prompt.contains("- [ ] Run swift test"))
     }
 
     func testExecutionPromptDoesNotCreateRedundantTodoListDuringResume() {
         let now = Date()
         let canonicalTodos = [
             TodoItem(
-                title: "Task completato",
+                title: "Completed task",
                 status: .done,
                 source: .agent,
                 createdAt: now.addingTimeInterval(-100),
@@ -104,7 +104,7 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
                 isPlanCanonical: true
             ),
             TodoItem(
-                title: "Task aperto",
+                title: "Open task",
                 status: .pending,
                 source: .agent,
                 createdAt: now.addingTimeInterval(-40),
@@ -116,13 +116,13 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
         let result = buildPlanExecutionPrompt(
             workflowInstructions: "WF",
             executionPlanBase: "BASE",
-            planTodos: ["Task completato", "Task aperto"],
+            planTodos: ["Completed task", "Open task"],
             canonicalTodos: canonicalTodos
         )
 
         XCTAssertTrue(result.isResume)
-        XCTAssertFalse(result.prompt.contains("TODO OBBLIGATORI"))
-        XCTAssertTrue(result.prompt.contains("**Todo già completati:**"))
-        XCTAssertTrue(result.prompt.contains("**Todo da completare:**"))
+        XCTAssertFalse(result.prompt.contains("MANDATORY TODOs"))
+        XCTAssertTrue(result.prompt.contains("**Already completed todos:**"))
+        XCTAssertTrue(result.prompt.contains("**Remaining todos:**"))
     }
 }

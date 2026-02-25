@@ -27,7 +27,7 @@ struct TodoListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                TextField("Aggiungi task...", text: $newTodoText)
+                TextField("Add task...", text: $newTodoText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                 Button {
@@ -53,7 +53,7 @@ struct TodoListView: View {
             .padding(.horizontal, 6)
 
             if filteredTodos.isEmpty {
-                Text("Nessun task")
+                Text("No tasks")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 6)

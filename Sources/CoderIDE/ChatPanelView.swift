@@ -43,7 +43,7 @@ func normalizeBuildFinalResponse(_ text: String) -> String {
     let lines = trimmed.components(separatedBy: .newlines)
     let headerScan = lines.prefix(8).map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
     let hasEarlyOptionHeader = headerScan.contains {
-        $0.hasPrefix("## opzione") || $0.hasPrefix("## option")
+        $0.hasPrefix("## option")
     }
     let hasStrictOptions = !PlanOptionsParser.parseStrict(from: trimmed).isEmpty
     let checklistItems = lines.reduce(into: 0) { partialResult, line in
@@ -62,7 +62,7 @@ func normalizeBuildFinalResponse(_ text: String) -> String {
     for line in lines {
         let l = line.trimmingCharacters(in: .whitespaces)
         let low = l.lowercased()
-        if low.hasPrefix("## opzione") || low.hasPrefix("## option") || low.hasPrefix("## todo") {
+        if low.hasPrefix("## option") || low.hasPrefix("## todo") {
             skippingPlanBlock = true
             continue
         }
@@ -116,11 +116,11 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
         .map { answer in
             var lines: [String] = [
                 "\(answer.questionId). \(answer.question)",
-                "   Risposta selezionata: \(answer.optionId)) \(answer.optionText)",
+                "   Selected answer: \(answer.optionId)) \(answer.optionText)",
             ]
             let custom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !custom.isEmpty {
-                lines.append("   Risposta personalizzata (precedenza): \(custom)")
+                lines.append("   Custom response (overrides selection): \(custom)")
             }
             return lines.joined(separator: "\n")
         }
@@ -129,17 +129,19 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
     let finalNote = submission.finalNote.trimmingCharacters(in: .whitespacesAndNewlines)
     let finalNoteLine: String
     if finalNote.isEmpty {
-        finalNoteLine = "Nota finale utente: (omessa)"
+        finalNoteLine = "Final user note: (omitted)"
     } else {
-        finalNoteLine = "Nota finale utente (opzionale): \(finalNote)"
+        finalNoteLine = "Final user note (optional): \(finalNote)"
     }
     return """
-    Risposte alle domande di chiarimento del piano:
+    Answers to plan clarification questions:
     \(responseBody)
 
     \(finalNoteLine)
 
-    Dopo queste risposte, esegui analisi aggiuntiva del codebase in base ai vincoli indicati. Se emergono nuove ambiguità puoi fare ulteriori domande nello stesso formato ## Questions. Proponi opzioni finali (## Option con ## Todo) solo quando sei pienamente confidente.
+    After these answers, run additional codebase analysis using the selected constraints.
+    If new ambiguities appear, you may ask follow-up questions again using ## Questions.
+    Propose final options (## Option + ## Todo) only when you are fully confident.
     """
 }
 
@@ -171,25 +173,25 @@ func buildPlanExecutionPrompt(
         let prompt = """
         \(workflowInstructions)
 
-        **RIPRESA IMPLEMENTAZIONE** — Continua da dove eri rimasto.
+        **IMPLEMENTATION RESUME** - Continue from where you left off.
 
         \(executionPlanBase)
 
-        **Todo già completati:** Verifica che le modifiche corrispondenti siano presenti nei file. Se mancano o sono state annullate, riapplicale.
+        **Already completed todos:** Verify the corresponding file changes are present. If missing or reverted, re-apply them.
         \(doneList.isEmpty ? "(none)" : doneList)
 
-        **Todo da completare:**
-        \(pendingList.isEmpty ? "(tutti completati)" : pendingList)
+        **Remaining todos:**
+        \(pendingList.isEmpty ? "(all completed)" : pendingList)
 
-        Procedi verificando i task completati, riapplicando quelli mancanti, poi completa i rimanenti.
+        Proceed by validating completed tasks, restoring any missing ones, then finishing the remaining tasks.
         """
         return (prompt, true)
     }
 
-    var prompt = "\(workflowInstructions)\n\nL'utente ha scelto un'opzione del piano. Implementala seguendo i TODO ESATTAMENTE nell'ordine indicato. I TODO sono la checklist obbligatoria: non deviare, non saltare e non riordinare.\n\n\(executionPlanBase)"
+    var prompt = "\(workflowInstructions)\n\nThe user selected a plan option. Implement it by following TODOs EXACTLY in order. TODOs are mandatory: do not deviate, skip, or reorder.\n\n\(executionPlanBase)"
     if !planTodos.isEmpty {
         let todoList = planTodos.enumerated().map { "\($0.offset + 1). [ ] \($0.element)" }.joined(separator: "\n")
-        prompt += "\n\n**TODO OBBLIGATORI (segui in ordine, completa TUTTI):**\n\(todoList)\n\nRICORDA: ogni TODO deve passare da pending -> in_progress -> done. Non concludere finché non sono tutti done."
+        prompt += "\n\n**MANDATORY TODOs (follow in order, complete ALL):**\n\(todoList)\n\nREMINDER: each TODO must go pending -> in_progress -> done. Do not finish until all are done."
     }
     return (prompt, false)
 }
@@ -310,7 +312,7 @@ func parsePlanCommandInput(_ rawInput: String) -> PlanCommandParseResult {
     }
     let remainder = String(text.dropFirst(5)).trimmingCharacters(in: .whitespacesAndNewlines)
     let prompt = remainder.isEmpty
-        ? "Genera un planning strutturato con opzioni alternative, pro/contro e complessità."
+        ? "Generate a structured plan with alternative options, pros/cons, and complexity."
         : remainder
     return PlanCommandParseResult(
         displayedInput: prompt,
@@ -396,7 +398,7 @@ func evaluateCmdShiftPPlanShortcut(
     currentPlanToggleEnabled: Bool,
     currentShowPlanPanel: Bool
 ) -> CmdShiftPPlanShortcutTransition {
-    // 1) off/off -> attiva plan inline (badge in chat)
+    // 1) off/off -> enable inline Plan (chat badge)
     if !currentPlanToggleEnabled && !currentShowPlanPanel {
         return CmdShiftPPlanShortcutTransition(
             nextPlanToggleEnabled: true,
@@ -538,6 +540,7 @@ struct ChatPanelView: View {
     @State private var planClarificationAnswers: String = ""
     @State private var planStreamingContent: String = ""
     @State private var activeBuildPlanConversationId: UUID?
+    @State private var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
     @State private var isProviderReady = false
     @State private var attachedComposerAttachments: [ComposerAttachment] = []
     @State private var isSelectingImage = false
@@ -1141,7 +1144,9 @@ struct ChatPanelView: View {
             return
         }
         let chosenPath = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !chosenPath.isEmpty, !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty {
+        if !chosenPath.isEmpty,
+           PlanOptionsParser.hasRequiredTodoHeader(chosenPath),
+           !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty {
             planFlowPhase = .readyToBuild
             planningState = .idle
             return
@@ -1229,6 +1234,12 @@ struct ChatPanelView: View {
         }
     }
 
+    private func shouldHideBuildKickoffMessage(_ message: ChatMessage) -> Bool {
+        guard message.role == .assistant else { return false }
+        guard suppressedEmptyBuildAssistantMessageIds.contains(message.id) else { return false }
+        return message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
 
     private var chatHeader: some View {
         HStack(spacing: 8) {
@@ -1285,86 +1296,91 @@ struct ChatPanelView: View {
                             let canRewindFromMessage = message.role == .user && !isRewinding
                             let needsDivider = message.role == .user && index > 0
 
-                            HStack(alignment: .top, spacing: 0) {
-                                if message.role == .user { Spacer(minLength: 0) }
-                                if message.role == .assistant,
-                                    let attachment = message.planAttachment,
-                                    let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
-                                {
-                                    PlanChatCardView(
-                                        entry: entry,
-                                        onDownload: { downloadPlanEntry(entry) },
-                                        onDuplicate: { _ = planHistoryStore.duplicateEntry(id: entry.id) },
-                                        onRebuild: {
-                                            let choice = (entry.chosenPath?.isEmpty == false)
-                                                ? (entry.chosenPath ?? entry.markdown)
-                                                : entry.markdown
-                                            executeWithPlanChoice(
-                                                choice,
-                                                fromPlanConversationId: entry.conversationId
-                                            )
-                                            planHistoryStore.markRebuilt(id: entry.id)
-                                        },
-                                        onOpenInPanel: {
-                                            planHistoryStore.setSelectedEntry(id: entry.id)
-                                            openPlanPanelForCurrentContext(
-                                                preserveHistorySelection: true,
-                                                source: .manualDeepLink
-                                            )
-                                        },
-                                        onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
-                                        onExpandPlan: {
-                                            planHistoryStore.setSelectedEntry(id: entry.id)
-                                            openPlanPanelForCurrentContext(
-                                                preserveHistorySelection: true,
-                                                source: .manualDeepLink
-                                            )
-                                        }
-                                    )
-                                } else {
-                                    let effectiveReasoning = (conv.id == streamingReasoningConversationId
-                                        && isLastAssistant
-                                        && message.isStreaming)
-                                        ? streamingReasoningText
-                                        : nil
-                                    let shouldHideStreamingBarOnPreviousAssistant =
-                                        message.role == .assistant
-                                        && !isLastAssistant
-                                        && lastMsg?.role == .assistant
-                                        && (lastMsg?.isStreaming ?? false)
-                                        && isLoadingForCurrentConversation
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        MessageRow(
-                                            message: message,
-                                            context: effectiveContext.context,
-                                            modeColor: activeModeColor,
-                                            isActuallyLoading: isLoadingForCurrentConversation,
-                                            streamingStatusText: streamingStatusText(for: message),
-                                            streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
-                                            streamingReasoningText: effectiveReasoning,
-                                            showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
-                                            onFileClicked: { openFilesStore.openFile($0) },
-                                            onRestoreCheckpoint: message.role == .user
-                                                ? { rewindToMessage(at: index, conversationId: conv.id) }
-                                                : nil,
-                                            canRewind: canRewindFromMessage,
-                                            hasCheckpointForRestore: hasCheckpointForMessage,
-                                            showTopDivider: needsDivider
+                            if shouldHideBuildKickoffMessage(message) {
+                                EmptyView()
+                                    .id(message.id)
+                            } else {
+                                HStack(alignment: .top, spacing: 0) {
+                                    if message.role == .user { Spacer(minLength: 0) }
+                                    if message.role == .assistant,
+                                        let attachment = message.planAttachment,
+                                        let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
+                                    {
+                                        PlanChatCardView(
+                                            entry: entry,
+                                            onDownload: { downloadPlanEntry(entry) },
+                                            onDuplicate: { _ = planHistoryStore.duplicateEntry(id: entry.id) },
+                                            onRebuild: {
+                                                let choice = (entry.chosenPath?.isEmpty == false)
+                                                    ? (entry.chosenPath ?? entry.markdown)
+                                                    : entry.markdown
+                                                executeWithPlanChoice(
+                                                    choice,
+                                                    fromPlanConversationId: entry.conversationId
+                                                )
+                                                planHistoryStore.markRebuilt(id: entry.id)
+                                            },
+                                            onOpenInPanel: {
+                                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                                openPlanPanelForCurrentContext(
+                                                    preserveHistorySelection: true,
+                                                    source: .manualDeepLink
+                                                )
+                                            },
+                                            onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
+                                            onExpandPlan: {
+                                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                                openPlanPanelForCurrentContext(
+                                                    preserveHistorySelection: true,
+                                                    source: .manualDeepLink
+                                                )
+                                            }
                                         )
-                                        if message.role == .assistant {
-                                            let traceEvents = toolTraceStore.events(
-                                                conversationId: conv.id,
-                                                assistantMessageId: message.id
+                                    } else {
+                                        let effectiveReasoning = (conv.id == streamingReasoningConversationId
+                                            && isLastAssistant
+                                            && message.isStreaming)
+                                            ? streamingReasoningText
+                                            : nil
+                                        let shouldHideStreamingBarOnPreviousAssistant =
+                                            message.role == .assistant
+                                            && !isLastAssistant
+                                            && lastMsg?.role == .assistant
+                                            && (lastMsg?.isStreaming ?? false)
+                                            && isLoadingForCurrentConversation
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            MessageRow(
+                                                message: message,
+                                                context: effectiveContext.context,
+                                                modeColor: activeModeColor,
+                                                isActuallyLoading: isLoadingForCurrentConversation,
+                                                streamingStatusText: streamingStatusText(for: message),
+                                                streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
+                                                streamingReasoningText: effectiveReasoning,
+                                                showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
+                                                onFileClicked: { openFilesStore.openFile($0) },
+                                                onRestoreCheckpoint: message.role == .user
+                                                    ? { rewindToMessage(at: index, conversationId: conv.id) }
+                                                    : nil,
+                                                canRewind: canRewindFromMessage,
+                                                hasCheckpointForRestore: hasCheckpointForMessage,
+                                                showTopDivider: needsDivider
                                             )
-                                            if !traceEvents.isEmpty {
-                                                MessageToolTraceView(events: traceEvents)
+                                            if message.role == .assistant {
+                                                let traceEvents = toolTraceStore.events(
+                                                    conversationId: conv.id,
+                                                    assistantMessageId: message.id
+                                                )
+                                                if !traceEvents.isEmpty {
+                                                    MessageToolTraceView(events: traceEvents)
+                                                }
                                             }
                                         }
                                     }
+                                    if message.role == .assistant { Spacer(minLength: 0) }
                                 }
-                                if message.role == .assistant { Spacer(minLength: 0) }
+                                .id(message.id)
                             }
-                            .id(message.id)
                         }
                         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
                         if coderMode == .agent,
@@ -1975,12 +1991,9 @@ struct ChatPanelView: View {
             "step",
             "steps",
             "analysis",
-            "analisi",
             "workflow",
             "execution",
-            "implementazione",
             "plan",
-            "piano",
         ]
         if genericTitles.contains(normalized) {
             return true
@@ -3020,7 +3033,7 @@ struct ChatPanelView: View {
             type: "plan_answers_submitted",
             payload: [
                 "title": "Plan answers submitted",
-                "detail": "Le risposte di chiarimento sono state confermate nel Plan Panel.",
+                "detail": "Clarification answers were confirmed in the Plan Panel.",
                 "status": "completed",
             ],
             providerId: providerRegistry.selectedProviderId ?? "plan-ui",
@@ -3067,10 +3080,11 @@ struct ChatPanelView: View {
             )
             return
         }
+        let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
         let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-        guard !planTodos.isEmpty else {
+        guard hasRequiredTodoHeader, !planTodos.isEmpty else {
             appendTechnicalErrorMessage(
-                "[Plan] Build blocked: the selected option does not contain a ## Todo section.",
+                "[Plan] Build blocked: the selected option must include an explicit `## Todo` section with checklist items.",
                 in: conversationId
             )
             if !showPlanPanel {
@@ -3177,6 +3191,7 @@ struct ChatPanelView: View {
             ),
             to: agentConvId
         )
+        suppressedEmptyBuildAssistantMessageIds.insert(planBuildAssistantMessageId)
         startToolTraceTurn(
             conversationId: agentConvId,
             assistantMessageId: planBuildAssistantMessageId,
@@ -3197,6 +3212,7 @@ struct ChatPanelView: View {
             5. If a TODO is blocked, explain why and try to resolve it before moving on.
             6. Before finishing: ALL canonical TODOs MUST be done. If any is not done, do NOT terminate.
             7. Do not repeat the plan in chat: execute, update status, provide minimal operational feedback.
+            8. Do NOT post kickoff fillers like "starting build/execution": begin directly from concrete execution updates.
             """
 
         let executionPlanBase: String
@@ -3263,7 +3279,14 @@ struct ChatPanelView: View {
             }
             finalizeToolTraceTurn(conversationId: agentConvId)
             chatStore.endTask(conversationId: agentConvId)
-            await MainActor.run { activeBuildPlanConversationId = nil }
+            await MainActor.run {
+                chatStore.removeAssistantMessageIfEmpty(
+                    messageId: planBuildAssistantMessageId,
+                    in: agentConvId
+                )
+                suppressedEmptyBuildAssistantMessageIds.remove(planBuildAssistantMessageId)
+                activeBuildPlanConversationId = nil
+            }
         }
     }
 
@@ -3816,20 +3839,79 @@ struct ChatPanelView: View {
             onSignal: nil
         )
 
-        // Parse options from Phase 3 output
-        let full = generationResult.fullText
+        func parsePlanOptions(_ text: String) -> [PlanOption] {
+            let strict = PlanOptionsParser.parseStrict(from: text)
+            if !strict.isEmpty { return strict }
+            return PlanOptionsParser.parse(from: text)
+        }
+
+        func areAllOptionsTodoCompliant(_ options: [PlanOption]) -> Bool {
+            guard !options.isEmpty else { return false }
+            let compliant = PlanOptionsParser.todoCompliantOptions(from: options)
+            return compliant.count == options.count
+        }
+
+        var full = generationResult.fullText
+        var options = parsePlanOptions(full)
+
+        // Hard enforcement: every option must contain an explicit `## Todo` section.
+        let maxRepairAttempts = 2
+        var repairAttempt = 0
+        while !areAllOptionsTodoCompliant(options), repairAttempt < maxRepairAttempts {
+            repairAttempt += 1
+
+            await MainActor.run {
+                planStreamingContent = ""
+                chatStore.updateLastAssistantMessage(
+                    content: "Plan format validation failed: every option must include `## Todo` with checklist items. Regenerating (attempt \(repairAttempt)/\(maxRepairAttempts))...",
+                    in: conversationId,
+                    persistImmediately: true
+                )
+                chatStore.setLastAssistantStreaming(true, in: conversationId)
+            }
+
+            let repairPrompt = buildPhase3TodoComplianceRepairPrompt(
+                userRequest: planUserRequest,
+                analysisContext: planAnalysisContext,
+                clarificationAnswers: planClarificationAnswers,
+                invalidPlanOutput: full
+            )
+
+            let repairedResult = try await flowCoordinator.runStream(
+                provider: provider,
+                prompt: repairPrompt,
+                context: ctx,
+                attachments: nil,
+                onText: { [self] content in
+                    planStreamingContent = content
+                    applyStreamingUpdate(
+                        content: content,
+                        conversationId: conversationId
+                    )
+                },
+                onRaw: { [self] t, p, pid in
+                    handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+                },
+                onError: { [self] content in
+                    DispatchQueue.main.async {
+                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                    }
+                },
+                onSignal: nil
+            )
+
+            full = repairedResult.fullText
+            options = parsePlanOptions(full)
+        }
+
         await MainActor.run { planStreamingContent = full }
         chatStore.updateLastAssistantMessage(content: full, in: conversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
 
-        var options = PlanOptionsParser.parseStrict(from: full)
-        if options.isEmpty {
-            options = PlanOptionsParser.parse(from: full)
-        }
-
-        if !options.isEmpty {
-            let board = PlanBoard.build(from: full, options: options)
+        if !options.isEmpty, areAllOptionsTodoCompliant(options) {
+            let compliantOptions = PlanOptionsParser.todoCompliantOptions(from: options)
+            let board = PlanBoard.build(from: full, options: compliantOptions)
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
             let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
@@ -3842,7 +3924,7 @@ struct ChatPanelView: View {
                 contextFolderPath: currentConv?.contextFolderPath,
                 title: parsedSummary.title,
                 markdown: full,
-                options: options,
+                options: compliantOptions,
                 chosenPath: board.chosenPath,
                 tags: [],
                 sourceMessageId: nil
@@ -3870,7 +3952,7 @@ struct ChatPanelView: View {
 
             await MainActor.run {
                 planFlowPhase = .proposalReady
-                planningState = .awaitingChoice(planContent: full, options: options)
+                planningState = .awaitingChoice(planContent: full, options: compliantOptions)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
                     openPlanPanelForCurrentContext(
                         preserveHistorySelection: false,
@@ -3879,9 +3961,14 @@ struct ChatPanelView: View {
                 }
             }
         } else {
-            // No options parsed — stay in generating state and show raw output
+            // Invalid format: no executable options with mandatory `## Todo`.
+            chatStore.updateLastAssistantMessage(
+                content: "Plan format invalid after \(maxRepairAttempts) retries: every option must include `## Todo` with checklist items. Please run Plan again.",
+                in: conversationId,
+                persistImmediately: true
+            )
             await MainActor.run {
-                planFlowPhase = .proposalReady
+                planFlowPhase = .idle
                 planningState = .idle
             }
         }
@@ -4451,7 +4538,7 @@ struct ChatPanelView: View {
         - Each question MUST have 2-4 options labeled A) B) C) D)
         - Options must be mutually exclusive and concrete (not vague)
         - Include "D) Other (specify)" ONLY for genuinely open-ended questions
-        - The header MUST be exactly "## Questions" (not "## Domande" or other)
+        - The header MUST be exactly "## Questions" (no localized alternatives)
         - Do NOT include ## Option, ## Todo or plan proposals
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         - The format must be EXACTLY as above: number + text + options A) B) C) on separate lines
@@ -4503,9 +4590,55 @@ struct ChatPanelView: View {
         ...
 
         Rules:
-        - Each option MUST have a ## Todo section with executable steps
-        - Steps must be concrete and implementable
+        - Each option MUST include a section header exactly `## Todo` (double hash).
+        - Under each `## Todo`, include 3-8 checklist items using `- [ ] ...`.
+        - Do NOT use alternative headers like "Tasks", "Steps", or "Checklist".
+        - Steps must be concrete and directly implementable.
         - Do NOT ask questions or request clarifications
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        """
+
+        return prompt
+    }
+
+    private func buildPhase3TodoComplianceRepairPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String,
+        invalidPlanOutput: String
+    ) -> String {
+        let clippedInvalidOutput = String(invalidPlanOutput.prefix(8_000))
+        var prompt = """
+        **Phase: Plan Format Repair**
+
+        Your previous output is INVALID because one or more options are missing the required `## Todo` section.
+        Rewrite the plan from scratch.
+
+        User request: \(userRequest)
+
+        Codebase analysis:
+        \(analysisContext)
+        """
+
+        if !clarificationAnswers.isEmpty {
+            prompt += """
+
+            User clarification answers:
+            \(clarificationAnswers)
+            """
+        }
+
+        prompt += """
+
+        Invalid previous output (for reference):
+        \(clippedInvalidOutput)
+
+        Hard constraints (MANDATORY):
+        - Output 2-4 options using headers like `## Option 1: ...`
+        - Every option MUST contain the exact header `## Todo`
+        - Under every `## Todo`, include 3-8 checklist items using `- [ ]`
+        - Do NOT use alternative headers like Tasks/Steps/Checklist
+        - Output only the final markdown plan (no commentary)
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         """
 

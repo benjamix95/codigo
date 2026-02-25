@@ -3,17 +3,22 @@ import XCTest
 
 final class PlanFlowPhaseTests: XCTestCase {
     func testBuildBlockedWhenPhaseNotReady() {
-        XCTAssertFalse(canExecutePlanBuild(phase: .analyzing, choice: "Opzione 1"))
-        XCTAssertFalse(canExecutePlanBuild(phase: .questioning, choice: "Opzione 1"))
-        XCTAssertFalse(canExecutePlanBuild(phase: .generating, choice: "Opzione 1"))
-        XCTAssertFalse(canExecutePlanBuild(phase: .building, choice: "Opzione 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .analyzing, choice: "Option 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .questioning, choice: "Option 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .generating, choice: "Option 1"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .building, choice: "Option 1"))
     }
 
     func testPhaseTransitionsAnalyzingToQuestioning() {
         let text = """
-        ## Domande di chiarimento
-        1. Quale modulo devo modificare?
-        2. Ci sono vincoli di compatibilità?
+        ## Questions
+        1. Which module should be modified?
+        A) Parser
+        B) UI
+
+        2. Are there compatibility constraints?
+        A) Yes
+        B) No
         """
         let phase = nextPlanFlowPhaseForOutput(
             fullText: text,
@@ -25,10 +30,10 @@ final class PlanFlowPhaseTests: XCTestCase {
     }
 
     func testPhaseTransitionsProposalToReadyToBuildViaGating() {
-        XCTAssertFalse(canExecutePlanBuild(phase: .idle, choice: "## Opzione 1: A"))
-        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: "## Opzione 1: A", allowIdleRebuild: true))
-        XCTAssertTrue(canExecutePlanBuild(phase: .proposalReady, choice: "## Opzione 1: A"))
-        XCTAssertTrue(canExecutePlanBuild(phase: .readyToBuild, choice: "## Opzione 1: A"))
+        XCTAssertFalse(canExecutePlanBuild(phase: .idle, choice: "## Option 1: A"))
+        XCTAssertTrue(canExecutePlanBuild(phase: .idle, choice: "## Option 1: A", allowIdleRebuild: true))
+        XCTAssertTrue(canExecutePlanBuild(phase: .proposalReady, choice: "## Option 1: A"))
+        XCTAssertTrue(canExecutePlanBuild(phase: .readyToBuild, choice: "## Option 1: A"))
     }
 
     func testCanStartPlanBuildBlocksConcurrentExecution() {
@@ -37,14 +42,14 @@ final class PlanFlowPhaseTests: XCTestCase {
         XCTAssertTrue(canStartPlanBuild(isLoading: false, phase: .proposalReady))
     }
 
-    func testPhaseTransitionsToProposalReadyOnGenericTextFallback() {
+    func testPhaseStaysAnalyzingOnGenericTextWithoutTodoCompliantOptions() {
         let phase = nextPlanFlowPhaseForOutput(
-            fullText: "Analisi completata, ma servono più informazioni.",
+            fullText: "Analysis complete, but more information is required.",
             current: .analyzing,
             coderMode: .plan,
             shouldRunPlanInline: false
         )
-        XCTAssertEqual(phase, .proposalReady)
+        XCTAssertEqual(phase, .analyzing)
     }
 
     func testPanelBuildEnabledInIdleWhenChoiceExists() {

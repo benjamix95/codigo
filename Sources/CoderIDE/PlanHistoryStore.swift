@@ -87,7 +87,7 @@ final class PlanHistoryStore: ObservableObject {
             .joined(separator: " ")
         let trimmed = collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "Piano"
+            return "Plan"
         }
         return String(trimmed.prefix(maxPlanTitleLength))
     }
@@ -109,7 +109,7 @@ final class PlanHistoryStore: ObservableObject {
         let cappedOptions = Array(options.prefix(maxPlanOptionsPersisted))
         let safeTitle = sanitizeTitle(title)
         let safeMarkdown = sanitizedMarkdown.isEmpty
-            ? "Piano non disponibile (contenuto vuoto)."
+            ? "Plan unavailable (empty content)."
             : sanitizedMarkdown
         let entry = PlanHistoryEntry(
             conversationId: conversationId,
@@ -159,7 +159,7 @@ final class PlanHistoryStore: ObservableObject {
         save()
     }
 
-    /// Elimina tutti i planning per il contesto indicato (o tutti se nil).
+    /// Deletes all planning entries for the specified context (or all if nil).
     func deleteAllForContext(contextId: UUID?, contextFolderPath: String?) {
         if contextId == nil && contextFolderPath == nil {
             entries.removeAll()

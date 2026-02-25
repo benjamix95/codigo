@@ -139,7 +139,7 @@ final class OpenFilesStore: ObservableObject {
             loadErrors[path] = nil
             return true
         } catch {
-            loadErrors[path] = "Impossibile salvare il file: \(error.localizedDescription)"
+            loadErrors[path] = "Unable to save file: \(error.localizedDescription)"
             return false
         }
     }
@@ -155,7 +155,7 @@ final class OpenFilesStore: ObservableObject {
             fileContents[path] = ""
             diskSnapshot[path] = ""
             dirtyPaths.remove(path)
-            loadErrors[path] = "Impossibile aprire il file: \(error.localizedDescription)"
+            loadErrors[path] = "Unable to open file: \(error.localizedDescription)"
         }
     }
 
@@ -182,7 +182,7 @@ final class OpenFilesStore: ObservableObject {
         let rootPath = rootURL.path
         let filePath = fileURL.path
         guard filePath.hasPrefix(rootPath + "/") else {
-            loadErrors[absolutePath] = "Il file selezionato non appartiene al repository corrente"
+            loadErrors[absolutePath] = "Selected file does not belong to the current repository"
             viewModeByPath[absolutePath] = .plain
             return
         }

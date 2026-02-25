@@ -188,7 +188,7 @@ private struct SwarmLiveCardView: View {
                 }
             }
 
-            Text("In corso: \(card.currentStepTitle)")
+            Text("In progress: \(card.currentStepTitle)")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -209,7 +209,7 @@ private struct SwarmLiveCardView: View {
             }
 
             HStack {
-                Button(isCollapsed ? "Espandi" : "Collassa") {
+                Button(isCollapsed ? "Expand" : "Collapse") {
                     onToggleCollapse()
                 }
                 .buttonStyle(.plain)
@@ -249,7 +249,7 @@ private struct SwarmLiveCardView: View {
         let failed = card.recentEvents.reversed().first {
             let t = $0.title.lowercased()
             let d = ($0.detail ?? "").lowercased()
-            return t.contains("errore") || t.contains("failed") || d.contains("errore")
+            return t.contains("error") || t.contains("failed") || d.contains("error")
                 || d.contains("failed")
         }
         return failed?.detail ?? failed?.title
@@ -293,7 +293,7 @@ private struct SwarmLiveCardView: View {
             }
 
             if hasRaw(activity) {
-                Button(expanded ? "Nascondi dettagli" : "Mostra dettagli") {
+                Button(expanded ? "Hide details" : "Show details") {
                     if expanded {
                         expandedRawIds.remove(activity.id)
                     } else {
