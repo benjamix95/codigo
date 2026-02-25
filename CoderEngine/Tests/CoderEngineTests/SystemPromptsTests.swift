@@ -43,6 +43,16 @@ final class SystemPromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("str_replace"))
     }
 
+    func testTaskCompletionStrictContainsSelectiveStagingWorkflow() {
+        let prompt = SystemPrompts.taskCompletionStrict
+        XCTAssertTrue(prompt.contains("Mandatory selective staging and commit workflow"))
+        XCTAssertTrue(prompt.contains("Agent + Code Review + Swarm"))
+        XCTAssertTrue(prompt.contains("git add -p"))
+        XCTAssertTrue(prompt.contains("git apply --cached"))
+        XCTAssertTrue(prompt.contains("git diff --cached"))
+        XCTAssertTrue(prompt.contains("git diff --cached --stat"))
+    }
+
     func testAllProfilesCompile() {
         let profiles: [PromptProfile] = [
             .cursorDefault, .planner, .implementer, .debugger, .reviewer, .finisher,

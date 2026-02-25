@@ -30,6 +30,19 @@ enum PromptToolsPolicy {
     - When you use MCP, state explicitly which MCP servers and MCP tools you used.
     - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
 
+    Mandatory selective staging and commit workflow (Agent + Code Review + Swarm):
+    - This workflow is mandatory whenever you edit code.
+    - Execute this sequence in order:
+      1) Run focused verification for the changed scope (targeted tests/lints/build for touched files/modules).
+      2) If verification fails, do not stage or commit; fix issues and re-run verification.
+      3) Stage only verified, relevant changes using hunk-based staging (`git add -p`) or patch-to-index (`git apply --cached`) when precision is needed.
+      4) Never stage unrelated local changes. Keep pre-existing unrelated edits unstaged.
+      5) Inspect staged content before commit (`git diff --cached` and `git diff --cached --stat`) and ensure it matches only the validated scope.
+      6) Commit only the staged, validated changes with a clear message.
+      7) Push immediately after commit when a remote branch is configured. If push is not possible, report the exact blocker.
+    - Forbidden shortcuts for mixed worktrees: do not use blanket staging commands (`git add .`, `git add -A`, `git commit -a`) when unrelated changes exist.
+    - Do not rewrite or discard unrelated user changes while isolating the commit.
+
     Mode auto-activation policy:
     - When you determine a task is complex enough to benefit from planning (multi-step, multi-file, architectural), emit an `activate_plan_mode` event with reason before starting. This opens the Plan panel automatically.
     - When you detect errors, bugs, test failures, or the user asks to debug something, emit an `activate_debug_mode` event with reason. This opens the Debug panel automatically.
