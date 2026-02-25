@@ -17,4 +17,27 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         XCTAssertEqual(toolTraceTurnOutcome(for: .error), .failed)
         XCTAssertEqual(toolTraceTurnOutcome(for: .interrupted), .aborted)
     }
+
+    func testRolloverAutoTodoOutcomeBlocksInterruptedOrRunningTurns() {
+        XCTAssertEqual(
+            rolloverAutoTodoOutcome(for: .interrupted, hasRunningOperations: true),
+            .aborted
+        )
+        XCTAssertEqual(
+            rolloverAutoTodoOutcome(for: .error, hasRunningOperations: false),
+            .failed
+        )
+        XCTAssertEqual(
+            rolloverAutoTodoOutcome(for: .streaming, hasRunningOperations: true),
+            .aborted
+        )
+        XCTAssertEqual(
+            rolloverAutoTodoOutcome(for: .completed, hasRunningOperations: true),
+            .aborted
+        )
+        XCTAssertEqual(
+            rolloverAutoTodoOutcome(for: .completed, hasRunningOperations: false),
+            .success
+        )
+    }
 }

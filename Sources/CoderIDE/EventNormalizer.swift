@@ -56,7 +56,11 @@ enum EventNormalizer {
         let kind: EventKind
         switch type {
         case "command_execution", "bash": kind = .terminalSession
-        case "file_change", "edit": kind = .fileUpdate
+        case "file_change", "edit",
+             "str_replace", "regex_replace", "write", "create_file", "delete_file",
+             "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
+             "multi_edit", "multiedit":
+            kind = .fileUpdate
         case "turn_started", "turn_completed": kind = .generic
         case "instant_grep", "search",
              "web_search", "web_search_started", "web_search_completed", "web_search_failed",
@@ -230,6 +234,12 @@ enum EventNormalizer {
     }
 
     private static func normalizeSpecialType(_ type: String, payload: [String: String]) -> String {
+        let normalized = type
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if fileChangeLikeTypes.contains(normalized) {
+            return "file_change"
+        }
         if type == "read_batch_completed",
            let toolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
            ["semantic_search", "read_lints", "debug_context"].contains(toolName) {
@@ -266,7 +276,11 @@ enum EventNormalizer {
             return .searching
         case "read_lints", "debug_context":
             return .executing
-        case "file_change", "edit", "read_batch_started", "read_batch_completed":
+        case "file_change", "edit",
+             "str_replace", "regex_replace", "write", "create_file", "delete_file",
+             "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
+             "multi_edit", "multiedit",
+             "read_batch_started", "read_batch_completed":
             return .editing
         case "turn_started", "turn_completed":
             return .planning
@@ -394,6 +408,22 @@ enum EventNormalizer {
             return (payload["title"] ?? "MCP operation", detail)
         }
     }
+
+    private static let fileChangeLikeTypes: Set<String> = [
+        "file_change",
+        "edit",
+        "str_replace",
+        "regex_replace",
+        "write",
+        "create_file",
+        "delete_file",
+        "parallel_apply",
+        "rename_symbol",
+        "find_and_replace_all",
+        "undo_edit",
+        "multi_edit",
+        "multiedit",
+    ]
 
     private static func withSwarmPrefix(_ title: String, payload: [String: String]) -> String {
         guard let swarmId = payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !swarmId.isEmpty else {

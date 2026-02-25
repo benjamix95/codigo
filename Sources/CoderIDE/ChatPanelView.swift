@@ -54,6 +54,23 @@ func autoTodoFinalStatus(for outcome: ToolTraceTurnOutcome) -> TodoStatus {
     }
 }
 
+func rolloverAutoTodoOutcome(
+    for flowState: ConversationFlowCoordinator.State,
+    hasRunningOperations: Bool
+) -> ToolTraceTurnOutcome {
+    switch flowState {
+    case .error:
+        return .failed
+    case .interrupted:
+        return .aborted
+    case .streaming, .delegatedSwarm, .followUp:
+        // A new turn started before the previous one reached completion.
+        return .aborted
+    case .idle, .completed:
+        return hasRunningOperations ? .aborted : .success
+    }
+}
+
 func canExecutePlanBuild(phase: PlanFlowPhase, choice: String, allowIdleRebuild: Bool = false) -> Bool {
     let trimmed = choice.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
@@ -2115,7 +2132,16 @@ struct ChatPanelView: View {
     private func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
         if let previous = activeToolTraceTurn,
            previous.assistantMessageId != assistantMessageId {
-            finalizeAutoTodoIfNeeded(messageId: previous.assistantMessageId, outcome: .success)
+            let previousEvents = toolTraceStore.events(
+                conversationId: previous.conversationId,
+                assistantMessageId: previous.assistantMessageId
+            )
+            let hasRunningOperations = previousEvents.contains(where: \.isRunning)
+            let rolloverOutcome = rolloverAutoTodoOutcome(
+                for: flowCoordinator.state,
+                hasRunningOperations: hasRunningOperations
+            )
+            finalizeAutoTodoIfNeeded(messageId: previous.assistantMessageId, outcome: rolloverOutcome)
             toolTraceStore.finalizeTurn(
                 conversationId: previous.conversationId,
                 assistantMessageId: previous.assistantMessageId

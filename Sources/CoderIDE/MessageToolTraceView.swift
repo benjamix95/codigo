@@ -11,6 +11,7 @@ struct MessageToolTraceView: View {
     @State private var expandedFileIds: Set<UUID> = []
     @State private var filePreviewByEventId: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
+    @State private var isCompactDiffExpanded = false
 
     private let runningCompactLimit = 6
 
@@ -116,6 +117,7 @@ struct MessageToolTraceView: View {
                 if !isExpanded {
                     expandedIds.removeAll()
                     expandedFileIds.removeAll()
+                    isCompactDiffExpanded = false
                 }
             }
         } label: {
@@ -171,6 +173,51 @@ struct MessageToolTraceView: View {
                 Spacer(minLength: 0)
             }
             .padding(.bottom, 2)
+
+            if let compactDiff = compactDiffPreview {
+                VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.12)) {
+                            isCompactDiffExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "text.alignleft")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            Text("Compact diff")
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            Text("+\(fileAddedTotal)")
+                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(DesignSystem.Colors.success)
+                            Text("-\(fileRemovedTotal)")
+                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(DesignSystem.Colors.error)
+                            Spacer(minLength: 0)
+                            Image(systemName: isCompactDiffExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    if isCompactDiffExpanded {
+                        detailField(label: "Diff", value: compactDiff)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
+                )
+            }
 
             ForEach(fileChanges) { change in
                 fileChangeRow(change)
@@ -271,6 +318,14 @@ struct MessageToolTraceView: View {
                 Spacer(minLength: 0)
 
                 HStack(spacing: 6) {
+                    if let counters = editLineCounters(for: event) {
+                        Text("+\(counters.added)")
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.success)
+                        Text("-\(counters.removed)")
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.error)
+                    }
                     if event.isRunning {
                         Text("RUN")
                             .font(.system(size: 8, weight: .bold, design: .monospaced))
@@ -330,6 +385,9 @@ struct MessageToolTraceView: View {
             if let path = event.payload["path"] ?? event.payload["file"], !path.isEmpty {
                 detailField(label: "Path", value: path)
             }
+            if let lineSummary = editLineSummary(for: event) {
+                detailField(label: "Lines", value: lineSummary)
+            }
             if let tool = event.payload["tool"], !tool.isEmpty {
                 detailField(label: "Tool", value: tool)
             }
@@ -344,6 +402,15 @@ struct MessageToolTraceView: View {
             }
             if let output = event.payload["output"], !output.isEmpty {
                 detailField(label: "Output", value: output)
+            }
+            if let diffPreview = nonEmpty(
+                event.payload["diffPreview"]
+                    ?? event.payload["diff"]
+                    ?? event.payload["patch"]
+                    ?? event.payload["unified_diff"]
+                    ?? event.payload["changes_preview"]
+            ) {
+                detailField(label: "Diff preview", value: diffPreview)
             }
             if let status = event.payload["status"], !status.isEmpty {
                 detailField(label: "Status", value: status)
@@ -372,6 +439,9 @@ struct MessageToolTraceView: View {
     }
 
     private func compactDetail(for event: ToolTraceEvent) -> String? {
+        if let lineSummary = editLineSummary(for: event) {
+            return lineSummary
+        }
         let candidates = [
             event.detail,
             event.payload["command"],
@@ -390,6 +460,109 @@ struct MessageToolTraceView: View {
             }
         }
         return nil
+    }
+
+    private var compactDiffPreview: String? {
+        var sections: [String] = []
+        for change in fileChanges {
+            guard let chunk = compactDiffChunk(for: change) else { continue }
+            let path = nonEmpty(change.path) ?? change.basename
+            sections.append("### \(change.kind.displayTitle) \(path)\n\(chunk)")
+        }
+        guard !sections.isEmpty else { return nil }
+        return truncatePreview(sections.joined(separator: "\n\n"), limit: 24_000)
+    }
+
+    private func compactDiffChunk(for change: ToolTraceFileChange) -> String? {
+        if let payloadPreview = nonEmpty(change.diffPreview) {
+            return payloadPreview
+        }
+        if let cached = filePreviewByEventId[change.id],
+           case .diff(let text) = cached,
+           let nonEmptyText = nonEmpty(text) {
+            return nonEmptyText
+        }
+        return nil
+    }
+
+    private func editLineSummary(for event: ToolTraceEvent) -> String? {
+        guard let counters = editLineCounters(for: event) else { return nil }
+        return "+\(counters.added) -\(counters.removed)"
+    }
+
+    private func editLineCounters(for event: ToolTraceEvent) -> (added: Int, removed: Int)? {
+        let payload = event.payload
+        let hasFileHints = ToolTraceFileChangeMapper.isFileChangeEvent(event)
+            || nonEmpty(payload["path"]) != nil
+            || nonEmpty(payload["file"]) != nil
+            || nonEmpty(payload["diffPreview"]) != nil
+            || nonEmpty(payload["diff"]) != nil
+        guard hasFileHints else { return nil }
+
+        let explicitAdded = parseInt(payload: payload, keys: [
+            "linesAdded", "additions", "insertions", "added",
+        ]) ?? 0
+        let explicitRemoved = parseInt(payload: payload, keys: [
+            "linesRemoved", "deletions", "removed",
+        ]) ?? 0
+
+        if explicitAdded > 0 || explicitRemoved > 0 {
+            return (explicitAdded, explicitRemoved)
+        }
+
+        if let diff = nonEmpty(
+            payload["diffPreview"]
+                ?? payload["diff"]
+                ?? payload["patch"]
+                ?? payload["unified_diff"]
+                ?? payload["changes_preview"]
+        ) {
+            return diffLineCounts(from: diff)
+        }
+
+        if ToolTraceFileChangeMapper.isFileChangeEvent(event) {
+            return (0, 0)
+        }
+        return nil
+    }
+
+    private func diffLineCounts(from diff: String) -> (added: Int, removed: Int) {
+        var added = 0
+        var removed = 0
+        for line in diff.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("@@") {
+                continue
+            }
+            if line.hasPrefix("+") {
+                added += 1
+            } else if line.hasPrefix("-") {
+                removed += 1
+            }
+        }
+        return (max(0, added), max(0, removed))
+    }
+
+    private func parseInt(payload: [String: String], keys: [String]) -> Int? {
+        for key in keys {
+            let raw = (payload[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else { continue }
+            if let value = Int(raw) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func truncatePreview(_ text: String, limit: Int) -> String {
+        guard text.count > limit else { return text }
+        let end = text.index(text.startIndex, offsetBy: limit)
+        return String(text[..<end])
+            + "\n\n... diff truncated (\(text.count - limit) characters hidden)"
     }
 
     private var collapsedSummaryText: String {
@@ -492,10 +665,7 @@ struct MessageToolTraceView: View {
     }
 
     private var inferredEditCount: Int {
-        orderedEvents.filter { event in
-            let type = event.type.lowercased()
-            return type == "edit" || type == "file_change"
-        }.count
+        orderedEvents.filter { ToolTraceFileChangeMapper.isFileChangeEvent($0) }.count
     }
 
     private var inferredMCPSummary: String? {
@@ -707,6 +877,7 @@ struct MessageToolTraceView: View {
             isExpanded = false
             expandedIds.removeAll()
             expandedFileIds.removeAll()
+            isCompactDiffExpanded = false
         }
         didAutoCompactAfterCompletion = true
     }

@@ -215,6 +215,26 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertFalse(activity.isRunning)
     }
 
+    func testStrReplaceNormalizesToFileChangeEditingPhase() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "str_replace",
+            payload: [
+                "title": "Edited Config.swift",
+                "path": "Sources/CoderIDE/Config.swift",
+                "tool": "str_replace",
+            ]
+        )
+
+        XCTAssertEqual(envelope.kind, .fileUpdate)
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "file_change")
+        XCTAssertEqual(activity.phase, .editing)
+    }
+
     func testCommandExecutionGrepEmitsInstantGrep() {
         let events = EventNormalizer.normalize(
             type: "command_execution",

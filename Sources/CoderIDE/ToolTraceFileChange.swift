@@ -34,13 +34,11 @@ struct ToolTraceFileChange: Identifiable, Hashable {
 
 enum ToolTraceFileChangeMapper {
     static func isFileChangeEvent(_ event: ToolTraceEvent) -> Bool {
-        let normalized = event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized == "file_change" || normalized == "edit"
+        isFileChangeType(rawType: event.type, payload: event.payload)
     }
 
     static func isFileChangeActivity(_ activity: TaskActivity) -> Bool {
-        let normalized = activity.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized == "file_change" || normalized == "edit"
+        isFileChangeType(rawType: activity.type, payload: activity.payload)
     }
 
     static func from(event: ToolTraceEvent) -> ToolTraceFileChange? {
@@ -107,15 +105,20 @@ enum ToolTraceFileChangeMapper {
         } ?? "file"
 
         let kind = detectKind(payload: payload, title: title)
-        let added = parseInt(payload: payload, keys: [
+        let explicitAdded = parseInt(payload: payload, keys: [
             "linesAdded", "additions", "insertions", "added",
         ]) ?? 0
-        let removed = parseInt(payload: payload, keys: [
+        let explicitRemoved = parseInt(payload: payload, keys: [
             "linesRemoved", "deletions", "removed",
         ]) ?? 0
         let diffPreview = firstNonEmpty(payload: payload, keys: [
             "diffPreview", "diff", "patch", "unified_diff", "changes_preview",
         ])
+        let inferred = inferCounters(
+            added: explicitAdded,
+            removed: explicitRemoved,
+            diffPreview: diffPreview
+        )
         let rawOutput = firstNonEmpty(payload: payload, keys: [
             "output", "result", "stdout",
         ])
@@ -125,8 +128,8 @@ enum ToolTraceFileChangeMapper {
             path: path,
             basename: basename,
             kind: kind,
-            added: max(0, added),
-            removed: max(0, removed),
+            added: max(0, inferred.added),
+            removed: max(0, inferred.removed),
             diffPreview: diffPreview,
             rawOutput: rawOutput,
             sequence: sequence,
@@ -223,6 +226,74 @@ enum ToolTraceFileChangeMapper {
         }
         return nil
     }
+
+    private static func inferCounters(
+        added: Int,
+        removed: Int,
+        diffPreview: String?
+    ) -> (added: Int, removed: Int) {
+        guard added == 0, removed == 0, let diffPreview else {
+            return (added, removed)
+        }
+        let trimmed = diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return (added, removed) }
+
+        var inferredAdded = 0
+        var inferredRemoved = 0
+        for line in trimmed.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("@@") {
+                continue
+            }
+            if line.hasPrefix("+") {
+                inferredAdded += 1
+            } else if line.hasPrefix("-") {
+                inferredRemoved += 1
+            }
+        }
+        return (inferredAdded, inferredRemoved)
+    }
+
+    private static func isFileChangeType(rawType: String, payload: [String: String]) -> Bool {
+        let normalized = rawType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if fileChangeTypes.contains(normalized) {
+            return true
+        }
+        let normalizedTool = (payload["tool"] ?? payload["name"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return fileChangeTools.contains(normalizedTool)
+    }
+
+    private static let fileChangeTypes: Set<String> = [
+        "file_change",
+        "edit",
+        "str_replace",
+        "regex_replace",
+        "write",
+        "create_file",
+        "delete_file",
+        "parallel_apply",
+        "rename_symbol",
+        "find_and_replace_all",
+        "undo_edit",
+        "multi_edit",
+        "multiedit",
+    ]
+
+    private static let fileChangeTools: Set<String> = [
+        "edit",
+        "str_replace",
+        "regex_replace",
+        "write",
+        "create_file",
+        "delete_file",
+        "parallel_apply",
+        "rename_symbol",
+        "find_and_replace_all",
+        "undo_edit",
+        "multi_edit",
+        "multiedit",
+    ]
 
     private static func firstNonEmpty(payload: [String: String], keys: [String]) -> String? {
         for key in keys {

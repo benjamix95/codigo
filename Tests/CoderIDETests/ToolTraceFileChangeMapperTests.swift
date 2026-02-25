@@ -74,7 +74,49 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
         XCTAssertEqual(changes.first?.isRunning, false)
     }
 
+    func testMapperAcceptsStrReplaceEventType() {
+        let event = makeEvent(
+            type: "str_replace",
+            title: "Edited Config.swift",
+            payload: [
+                "path": "Sources/CoderIDE/Config.swift",
+                "tool": "str_replace",
+                "diffPreview": "@@ -1 +1 @@\n-let debug = false\n+let debug = true",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.path, "Sources/CoderIDE/Config.swift")
+        XCTAssertEqual(mapped?.added, 1)
+        XCTAssertEqual(mapped?.removed, 1)
+    }
+
+    func testMapperInfersCountersFromDiffWhenPayloadCountsMissing() {
+        let event = makeEvent(
+            title: "Edited Sample.swift",
+            payload: [
+                "path": "Sources/CoderIDE/Sample.swift",
+                "diffPreview": """
+                --- old
+                +++ new
+                @@ -1,2 +1,2 @@
+                -let a = 1
+                +let a = 2
+                +let b = 3
+                """,
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertEqual(mapped?.added, 2)
+        XCTAssertEqual(mapped?.removed, 1)
+    }
+
     private func makeEvent(
+        type: String = "file_change",
         title: String,
         payload: [String: String],
         sequence: Int = 1,
@@ -86,7 +128,7 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
             providerId: "codex-cli",
             conversationId: UUID(),
             assistantMessageId: UUID(),
-            type: "file_change",
+            type: type,
             title: title,
             detail: payload["path"],
             payload: payload,
