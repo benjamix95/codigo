@@ -140,6 +140,8 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             codexAskForApproval: "never",
             codexModelOverride: "",
             codexReasoningEffort: "",
+            codexModelProvider: "",
+            codexPreferResponsesWireAPI: false,
             planModeBackend: "openai-api",
             swarmOrchestrator: "openai-api",
             swarmWorkerBackend: "anthropic-api",

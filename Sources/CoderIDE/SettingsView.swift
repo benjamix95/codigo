@@ -69,6 +69,9 @@ struct SettingsView: View {
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
+    @AppStorage("codex_model_provider") private var codexModelProvider = ""
+    @AppStorage("codex_prefer_responses_wire_api")
+    private var codexPreferResponsesWireAPI = false
     @AppStorage("codex_session_full_access") private var codexSessionFullAccess = false
     @AppStorage("codex_network_access") private var codexNetworkAccess = false
     @AppStorage("codex_additional_write_roots") private var codexAdditionalWriteRoots = ""
@@ -233,6 +236,8 @@ struct SettingsView: View {
             .onChange(of: codexSandbox) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexAskForApproval) { _, _ in syncCodex() }
             .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexModelProvider) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexPreferResponsesWireAPI) { _, _ in syncCodex() }
             .onChange(of: codexNetworkAccess) { _, _ in saveCodexToml() }
             .onChange(of: codexAdditionalWriteRoots) { _, _ in saveCodexToml() }
             .onChange(of: codexCheckUpdate) { _, _ in saveCodexToml() }
@@ -416,6 +421,11 @@ struct SettingsView: View {
                         Text("On request").tag("on-request")
                         Text("Untrusted").tag("untrusted")
                     }.labelsHidden().pickerStyle(.segmented)
+
+                    Toggle("Prefer OpenAI Responses wire API", isOn: $codexPreferResponsesWireAPI)
+                    hintBox(
+                        "When enabled, Codex CLI runs with `model_providers.openai.wire_api=\"responses\"`."
+                    )
 
                     Toggle("Network access", isOn: $codexNetworkAccess)
                     Toggle("Check for updates", isOn: $codexCheckUpdate)
@@ -1142,6 +1152,8 @@ struct SettingsView: View {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexModelProvider: codexModelProvider,
+            codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator, swarmWorkerBackend: swarmWorkerBackend,
             swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
@@ -1198,6 +1210,7 @@ struct SettingsView: View {
         let cfg = CodexConfigLoader.load()
         codexSandbox = cfg.sandboxMode ?? ""
         codexModelOverride = cfg.model ?? ""
+        codexModelProvider = cfg.modelProvider ?? ""
         codexReasoningEffort = cfg.modelReasoningEffort ?? "low"
         codexReasoningSummary = cfg.modelReasoningSummary ?? "auto"
         codexVerbosity = cfg.modelVerbosity ?? "medium"
@@ -1216,6 +1229,7 @@ struct SettingsView: View {
         var cfg = CodexConfigLoader.load()
         if !codexSandbox.isEmpty { cfg.sandboxMode = codexSandbox }
         if !codexModelOverride.isEmpty { cfg.model = codexModelOverride }
+        if !codexModelProvider.isEmpty { cfg.modelProvider = codexModelProvider }
         if !codexReasoningEffort.isEmpty { cfg.modelReasoningEffort = codexReasoningEffort }
         cfg.modelReasoningSummary = codexReasoningSummary == "auto" ? nil : codexReasoningSummary
         cfg.modelVerbosity = codexVerbosity == "medium" ? nil : codexVerbosity

@@ -34,17 +34,35 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private let sandboxMode: CodexSandboxMode
     private let modelOverride: String?
     private let modelReasoningEffort: String?
+    private let modelProviderOverride: String?
+    private let preferOpenAIResponsesWireAPI: Bool
     private let yoloMode: Bool
     private let askForApproval: String
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
     private let environmentOverride: [String: String]?
 
-    public init(codexPath: String? = nil, sandboxMode: CodexSandboxMode = .workspaceWrite, modelOverride: String? = nil, modelReasoningEffort: String? = nil, yoloMode: Bool = false, askForApproval: String? = nil, executionController: ExecutionController? = nil, executionScope: ExecutionScope = .agent, environmentOverride: [String: String]? = nil) {
+    public init(
+        codexPath: String? = nil,
+        sandboxMode: CodexSandboxMode = .workspaceWrite,
+        modelOverride: String? = nil,
+        modelReasoningEffort: String? = nil,
+        modelProviderOverride: String? = nil,
+        preferOpenAIResponsesWireAPI: Bool = false,
+        yoloMode: Bool = false,
+        askForApproval: String? = nil,
+        executionController: ExecutionController? = nil,
+        executionScope: ExecutionScope = .agent,
+        environmentOverride: [String: String]? = nil
+    ) {
         self.codexPath = codexPath ?? PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
         self.sandboxMode = sandboxMode
         self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
         self.modelReasoningEffort = modelReasoningEffort?.isEmpty == true ? nil : modelReasoningEffort
+        self.modelProviderOverride = modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
+        self.preferOpenAIResponsesWireAPI = preferOpenAIResponsesWireAPI
         self.yoloMode = yoloMode
         self.askForApproval = Self.normalizeAskForApproval(askForApproval)
         self.executionController = executionController
@@ -104,33 +122,18 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                         return
                     }
                     
-                    var args: [String] = []
-                    if let urls = imageURLs, !urls.isEmpty {
-                        let paths = urls.map { $0.path }.joined(separator: ",")
-                        args += ["exec", "--image", paths]
-                    } else {
-                        args += ["exec"]
-                    }
-                    args += ["--json"]
-                    // Codex CLI does not accept --full-auto together with --yolo/--dangerously-bypass-approvals-and-sandbox.
-                    if !yoloMode {
-                        args += ["--full-auto"]
-                    }
-                    args += [
-                        "--sandbox", sandboxMode.rawValue,
-                        "-c", "approval_policy=\"\(askForApproval)\"",
-                        "--cd", workspacePath.path,
-                        fullPrompt
-                    ]
-                    if yoloMode {
-                        args.insert("--yolo", at: args.count - 1)
-                    }
-                    if let model = modelOverride {
-                        args.insert(contentsOf: ["--model", model], at: args.count - 1)
-                    }
-                    if let effort = modelReasoningEffort {
-                        args.insert(contentsOf: ["-c", "model_reasoning_effort=\(effort)"], at: args.count - 1)
-                    }
+                    let args = Self.buildExecArguments(
+                        fullPrompt: fullPrompt,
+                        imageURLs: imageURLs,
+                        sandboxMode: sandboxMode,
+                        yoloMode: yoloMode,
+                        askForApproval: askForApproval,
+                        workspacePath: workspacePath.path,
+                        modelOverride: modelOverride,
+                        modelReasoningEffort: modelReasoningEffort,
+                        modelProviderOverride: modelProviderOverride,
+                        preferOpenAIResponsesWireAPI: preferOpenAIResponsesWireAPI
+                    )
                     
                     var env = CodexDetector.shellEnvironment()
                     if let override = environmentOverride {
@@ -185,6 +188,87 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
         // Use PTY to reduce cases of stdout buffered until EOF.
         return (scriptPath, ["-q", "/dev/null", executable] + arguments)
+    }
+
+    static func buildExecArguments(
+        fullPrompt: String,
+        imageURLs: [URL]?,
+        sandboxMode: CodexSandboxMode,
+        yoloMode: Bool,
+        askForApproval: String,
+        workspacePath: String,
+        modelOverride: String?,
+        modelReasoningEffort: String?,
+        modelProviderOverride: String?,
+        preferOpenAIResponsesWireAPI: Bool
+    ) -> [String] {
+        var args: [String] = []
+        if let urls = imageURLs, !urls.isEmpty {
+            let paths = urls.map { $0.path }.joined(separator: ",")
+            args += ["exec", "--image", paths]
+        } else {
+            args += ["exec"]
+        }
+        args += ["--json"]
+        // Codex CLI does not accept --full-auto together with --yolo/--dangerously-bypass-approvals-and-sandbox.
+        if !yoloMode {
+            args += ["--full-auto"]
+        }
+        args += [
+            "--sandbox", sandboxMode.rawValue,
+            "--cd", workspacePath,
+            fullPrompt,
+        ]
+
+        func insertPromptScopedFlag(_ values: [String]) {
+            args.insert(contentsOf: values, at: args.count - 1)
+        }
+        func insertConfig(_ keyValue: String) {
+            insertPromptScopedFlag(["-c", keyValue])
+        }
+
+        if yoloMode {
+            insertPromptScopedFlag(["--yolo"])
+        }
+        if let model = modelOverride?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty {
+            insertPromptScopedFlag(["--model", model])
+        }
+        if let effort = modelReasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !effort.isEmpty {
+            insertConfig("model_reasoning_effort=\(effort)")
+        }
+        if let provider = modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !provider.isEmpty {
+            insertConfig("model_provider=\"\(escapedTomlString(provider))\"")
+        }
+        if shouldInjectOpenAIResponsesWireAPI(
+            modelProviderOverride: modelProviderOverride,
+            preferOpenAIResponsesWireAPI: preferOpenAIResponsesWireAPI
+        ) {
+            // Opt-in safety switch: force modern OpenAI wire API for Codex CLI.
+            // Useful when older chat-completions wire paths are deprecated upstream.
+            insertConfig("model_providers.openai.wire_api=\"responses\"")
+        }
+        insertConfig("approval_policy=\"\(askForApproval)\"")
+        return args
+    }
+
+    static func shouldInjectOpenAIResponsesWireAPI(
+        modelProviderOverride: String?,
+        preferOpenAIResponsesWireAPI: Bool
+    ) -> Bool {
+        guard preferOpenAIResponsesWireAPI else { return false }
+        let provider = modelProviderOverride?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        if provider.isEmpty { return true }
+        return provider == "openai"
+    }
+
+    private static func escapedTomlString(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
     static func parseStreamJSONPayloads(from rawLine: String) -> [[String: Any]] {

@@ -498,6 +498,9 @@ struct ChatPanelView: View {
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
+    @AppStorage("codex_model_provider") private var codexModelProvider = ""
+    @AppStorage("codex_prefer_responses_wire_api")
+    private var codexPreferResponsesWireAPI = false
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_provider_auto_migrated_v1") private var swarmProviderAutoMigrated = false
@@ -3291,6 +3294,8 @@ struct ChatPanelView: View {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexModelProvider: codexModelProvider,
+            codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,

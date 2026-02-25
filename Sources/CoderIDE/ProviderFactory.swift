@@ -21,6 +21,8 @@ struct ProviderFactoryConfig {
     var codexAskForApproval: String
     var codexModelOverride: String
     var codexReasoningEffort: String
+    var codexModelProvider: String
+    var codexPreferResponsesWireAPI: Bool
     var planModeBackend: String
 
     var swarmOrchestrator: String
@@ -112,6 +114,8 @@ enum ProviderFactory {
             modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
             modelReasoningEffort: config.codexReasoningEffort.isEmpty
                 ? nil : config.codexReasoningEffort,
+            modelProviderOverride: config.codexModelProvider.isEmpty ? nil : config.codexModelProvider,
+            preferOpenAIResponsesWireAPI: config.codexPreferResponsesWireAPI,
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),
             executionController: executionController,
@@ -405,6 +409,9 @@ enum ProviderFactory {
                 modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
                 modelReasoningEffort: config.codexReasoningEffort.isEmpty
                     ? nil : config.codexReasoningEffort,
+                modelProviderOverride: config.codexModelProvider.isEmpty
+                    ? nil : config.codexModelProvider,
+                preferOpenAIResponsesWireAPI: config.codexPreferResponsesWireAPI,
                 yoloMode: config.globalYolo,
                 askForApproval: askForApproval(from: config),
                 executionController: nil,

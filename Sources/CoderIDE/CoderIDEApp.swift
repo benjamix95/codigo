@@ -31,6 +31,9 @@ struct CodigoApp: App {
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
+    @AppStorage("codex_model_provider") private var codexModelProvider = ""
+    @AppStorage("codex_prefer_responses_wire_api")
+    private var codexPreferResponsesWireAPI = false
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
@@ -252,6 +255,8 @@ struct CodigoApp: App {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexModelProvider: codexModelProvider,
+            codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
