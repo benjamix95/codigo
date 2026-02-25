@@ -86,6 +86,16 @@ enum ToolTraceVisibility {
         return hasOperationalPayload(event.payload)
     }
 
+    static func shouldDisplay(activity: TaskActivity) -> Bool {
+        let type = normalizedType(activity.type)
+        if hiddenDisplayTypes.contains(type) { return false }
+        if type == "mcp_tool_call" {
+            return isRealMCPEvent(payload: activity.payload)
+        }
+        if operationalTypes.contains(type) { return true }
+        return hasOperationalPayload(activity.payload)
+    }
+
     static func isMCPEvent(event: ToolTraceEvent) -> Bool {
         let type = normalizedType(event.type)
         guard type == "mcp_tool_call" else { return false }

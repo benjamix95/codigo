@@ -359,6 +359,29 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertTrue((parsed.payload["title"] ?? "").contains("MCP discovery"))
     }
 
+    func testFunctionCallNamespacedSemanticSearchMapsToSemanticSearch() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "sem-1",
+                "type": "function_call",
+                "name": "functions.semantic_search",
+                "arguments": #"{"query":"policy acknowledgment flow"}"#,
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected mapped semantic_search event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "semantic_search")
+        XCTAssertEqual(parsed.payload["query"], "policy acknowledgment flow")
+        XCTAssertEqual(parsed.payload["status"], "completed")
+        XCTAssertEqual(parsed.payload["tool_call_id"], "sem-1")
+        XCTAssertEqual(parsed.payload["tool"], "semantic_search")
+    }
+
     func testAgentMessageItemIsNotMappedAsToolEvent() {
         let json: [String: Any] = [
             "type": "item.completed",

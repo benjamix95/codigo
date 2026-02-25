@@ -54,4 +54,41 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.type, "command_execution")
         XCTAssertEqual(mapped?.payload["tool"], "custom_tool")
     }
+
+    func testNamespacedExecCommandMapsToCommandExecution() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.exec_command",
+            payload: [
+                "cmd": "git status --short"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "command_execution")
+        XCTAssertEqual(mapped?.payload["tool"], "bash")
+        XCTAssertEqual(mapped?.payload["command"], "git status --short")
+    }
+
+    func testNamespacedSemanticSearchWithJSONStringArgsMapsToSemanticSearch() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.semantic_search",
+            payload: [
+                "arguments": #"{"query":"trace activity","num_results":8}"#
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "semantic_search")
+        XCTAssertEqual(mapped?.payload["query"], "trace activity")
+        XCTAssertEqual(mapped?.payload["tool"], "semantic_search")
+    }
+
+    func testNamespacedMCPListServersMapsToMCPToolCall() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.mcp_list_servers",
+            payload: [:]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["tool"], "mcp_list_servers")
+        XCTAssertTrue((mapped?.payload["title"] ?? "").contains("MCP discovery"))
+    }
 }

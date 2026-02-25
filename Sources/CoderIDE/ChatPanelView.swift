@@ -616,7 +616,10 @@ struct ChatPanelView: View {
     @State private var activeToolTraceTurn: ToolTraceTurnContext?
     @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
+    @State private var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
     @State private var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
+    @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
+    @State private var didReceiveExplicitTodoByMessage: Set<UUID> = []
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
     /// Coalescing flush interval for task activity feed.
@@ -2086,13 +2089,20 @@ struct ChatPanelView: View {
     private func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
         if let previous = activeToolTraceTurn,
            previous.assistantMessageId != assistantMessageId {
+            if let autoTodoId = autoTodoIdByMessage[previous.assistantMessageId],
+               !didReceiveExplicitTodoByMessage.contains(previous.assistantMessageId) {
+                todoStore.setStatus(id: autoTodoId, status: .done)
+            }
             toolTraceStore.finalizeTurn(
                 conversationId: previous.conversationId,
                 assistantMessageId: previous.assistantMessageId
             )
             toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
             toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
+            toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
+            autoTodoIdByMessage.removeValue(forKey: previous.assistantMessageId)
+            didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
             conversationId: conversationId,
@@ -2102,6 +2112,9 @@ struct ChatPanelView: View {
         activeToolTraceTurn = turn
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
+        toolTraceOperationalCountByMessage[assistantMessageId] = 0
+        autoTodoIdByMessage.removeValue(forKey: assistantMessageId)
+        didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         initializePolicyAckStateIfNeeded(for: assistantMessageId)
         toolTraceStore.startTurn(
             conversationId: conversationId,
@@ -2114,13 +2127,20 @@ struct ChatPanelView: View {
     private func finalizeToolTraceTurn(conversationId: UUID?) {
         guard let active = activeToolTraceTurn else { return }
         guard conversationId == nil || active.conversationId == conversationId else { return }
+        if let autoTodoId = autoTodoIdByMessage[active.assistantMessageId],
+           !didReceiveExplicitTodoByMessage.contains(active.assistantMessageId) {
+            todoStore.setStatus(id: autoTodoId, status: .done)
+        }
         toolTraceStore.finalizeTurn(
             conversationId: active.conversationId,
             assistantMessageId: active.assistantMessageId
         )
         toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
         toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
+        toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
+        autoTodoIdByMessage.removeValue(forKey: active.assistantMessageId)
+        didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
         activeToolTraceTurn = nil
     }
 
@@ -2167,6 +2187,17 @@ struct ChatPanelView: View {
                 ToolTraceVisibility.shouldDisplay(event: $0)
             }
         }
+        if toolTraceOperationalCountByMessage[target.assistantMessageId] == nil {
+            let existing = toolTraceStore.events(
+                conversationId: target.conversationId,
+                assistantMessageId: target.assistantMessageId
+            )
+            toolTraceOperationalCountByMessage[target.assistantMessageId] = existing.reduce(into: 0) { partial, event in
+                if ToolTraceVisibility.shouldDisplay(event: event) {
+                    partial += 1
+                }
+            }
+        }
         initializePolicyAckStateIfNeeded(for: target.assistantMessageId)
         toolTraceStore.startTurn(
             conversationId: target.conversationId,
@@ -2206,7 +2237,11 @@ struct ChatPanelView: View {
         )
         toolTraceStore.append(event: event)
         toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
-        toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
+        if ToolTraceVisibility.shouldDisplay(activity: activity) {
+            toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
+            let current = toolTraceOperationalCountByMessage[turn.assistantMessageId] ?? 0
+            toolTraceOperationalCountByMessage[turn.assistantMessageId] = current + 1
+        }
     }
 
     @MainActor
@@ -2228,6 +2263,11 @@ struct ChatPanelView: View {
                 appendToolTraceEvent(
                     activity: activity,
                     rawKind: envelope.kind,
+                    providerId: providerId,
+                    conversationId: conversationId
+                )
+                ensureTodoCoverageForMultiStep(
+                    activity: activity,
                     providerId: providerId,
                     conversationId: conversationId
                 )
@@ -2258,6 +2298,7 @@ struct ChatPanelView: View {
                         linkedFiles: todo.files
                     )
                 }
+                recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
             case .todoRead:
                 guard shouldAcceptTodoRead(conversationId: conversationId) else { break }
                 enableTaskPanelIfNeeded()
@@ -2278,6 +2319,89 @@ struct ChatPanelView: View {
         }
     }
 
+    private func recordExplicitTodoWrite(providerId: String, conversationId: UUID?) {
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+        let messageId = turn.assistantMessageId
+        didReceiveExplicitTodoByMessage.insert(messageId)
+        if let autoTodoId = autoTodoIdByMessage[messageId] {
+            todoStore.remove(id: autoTodoId)
+            autoTodoIdByMessage.removeValue(forKey: messageId)
+        }
+    }
+
+    private func ensureTodoCoverageForMultiStep(
+        activity: TaskActivity,
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        guard planFlowPhase != .building else { return }
+        guard ToolTraceVisibility.shouldDisplay(activity: activity) else { return }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+
+        let messageId = turn.assistantMessageId
+        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
+        guard autoTodoIdByMessage[messageId] == nil else { return }
+
+        let operationalCount = toolTraceOperationalCountByMessage[messageId] ?? 0
+        guard operationalCount >= 2 else { return }
+
+        let hasAgentTodo = todoStore.todos.contains { $0.source == .agent && !$0.isPlanCanonical }
+        guard !hasAgentTodo else { return }
+
+        let autoTodoId = UUID()
+        todoStore.upsertFromAgent(
+            id: autoTodoId,
+            title: autoTodoTitle(for: activity),
+            status: .inProgress,
+            priority: .medium,
+            notes: "Auto-generated: multi-step execution detected without explicit TODO markers.",
+            linkedFiles: autoTodoLinkedFiles(from: activity.payload)
+        )
+        autoTodoIdByMessage[messageId] = autoTodoId
+        enableTaskPanelIfNeeded()
+    }
+
+    private func autoTodoTitle(for activity: TaskActivity) -> String {
+        let normalizedTitle = activity.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedTitle.isEmpty, !isPlaceholderTodoTitle(normalizedTitle) {
+            return normalizedTitle
+        }
+        if let path = activity.payload["path"] ?? activity.payload["file"],
+           !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let base = (path as NSString).lastPathComponent
+            return "Completare modifiche su \(base)"
+        }
+        if let query = activity.payload["query"], !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Completare analisi: \(String(query.prefix(80)))"
+        }
+        if let command = activity.payload["command"], !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Completare esecuzione: \(String(command.prefix(80)))"
+        }
+        return "Completare i passaggi operativi richiesti"
+    }
+
+    private func autoTodoLinkedFiles(from payload: [String: String]) -> [String] {
+        var files = Set<String>()
+        for candidate in [payload["path"], payload["file"], payload["files"]] {
+            let raw = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !raw.isEmpty else { continue }
+            let splitItems = raw
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if splitItems.isEmpty {
+                files.insert(raw)
+            } else {
+                splitItems.forEach { files.insert($0) }
+            }
+        }
+        return files.sorted()
+    }
+
     private func shouldAcceptTodoWrite(_ todo: TodoWritePayload, conversationId: UUID?) -> Bool {
         if planFlowPhase == .building {
             return true
@@ -2291,7 +2415,14 @@ struct ChatPanelView: View {
         if hasExistingAgentTodo {
             return true
         }
-        return hasOperationalActivityInCurrentTurn(conversationId: conversationId)
+        if hasOperationalActivityInCurrentTurn(conversationId: conversationId) {
+            return true
+        }
+        guard let conversationId,
+              let assistantMessageId = currentAssistantMessageIdForTrace(conversationId: conversationId) else {
+            return false
+        }
+        return !didReceiveExplicitTodoByMessage.contains(assistantMessageId)
     }
 
     private func shouldAcceptTodoRead(conversationId: UUID?) -> Bool {
@@ -4825,6 +4956,7 @@ struct ChatPanelView: View {
                     1. Start with analysis (read/search) first. Do NOT create todos before understanding the task.
                     2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
                     3. If the task is genuinely multi-step, create ONE coherent todo list after analysis with only concrete, executable steps.
+                    3b. For multi-step execution, emit the first \(CoderIDEMarkers.todoWritePrefix) update BEFORE the first command/edit/tool action.
                     4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update").
                     5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
                     6. During execution, update status only for real todos: in_progress before work, done after completion.

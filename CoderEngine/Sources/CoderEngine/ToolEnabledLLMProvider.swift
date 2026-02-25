@@ -752,6 +752,27 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     }
 
     private func inferredToolName(from payload: [String: String]) -> String {
+        let supportedTools: Set<String> = [
+            "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search", "web_fetch",
+            "str_replace", "create_file",
+            "read_range", "list_dir", "git_diff", "search_symbols", "run_tests", "build_project",
+            "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
+            "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
+            "mcp_list_servers", "mcp_reconnect",
+            // Codebase index tools
+            "codebase_search", "find_symbol", "list_symbols", "find_references",
+            "project_structure", "file_outline", "find_files", "codebase_stats",
+            "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
+            // New Cursor-style tools
+            "parallel_apply", "regex_replace", "attempt_completion", "diagnostics",
+            // Advanced tools
+            "rename_symbol", "find_and_replace_all", "undo_edit", "run_single_test",
+            // Debug tools
+            "debug_log", "debug_query", "debug_session", "debug_hypothesize",
+            "debug_mark", "debug_clean",
+            // Cursor-style semantic tools
+            "semantic_search", "read_lints", "debug_context"
+        ]
         let explicitCandidates = [
             payload["name"],
             payload["tool"],
@@ -760,28 +781,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             payload["function_name"],
         ]
         for candidate in explicitCandidates {
-            let name = candidate?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-            if [
-                "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search", "web_fetch",
-                "str_replace", "create_file",
-                "read_range", "list_dir", "git_diff", "search_symbols", "run_tests", "build_project",
-                "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
-                "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
-                "mcp_list_servers", "mcp_reconnect",
-                // Codebase index tools
-                "codebase_search", "find_symbol", "list_symbols", "find_references",
-                "project_structure", "file_outline", "find_files", "codebase_stats",
-                "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
-                // New Cursor-style tools
-                "parallel_apply", "regex_replace", "attempt_completion", "diagnostics",
-                // Advanced tools
-                "rename_symbol", "find_and_replace_all", "undo_edit", "run_single_test",
-                // Debug tools
-                "debug_log", "debug_query", "debug_session", "debug_hypothesize",
-                "debug_mark", "debug_clean",
-                // Cursor-style semantic tools
-                "semantic_search", "read_lints", "debug_context"
-            ].contains(name) {
+            let rawName = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !rawName.isEmpty else { continue }
+            let name = ProviderToolEventMapper.normalizeToolIdentifier(rawName)
+            if supportedTools.contains(name) {
                 return name
             }
         }
