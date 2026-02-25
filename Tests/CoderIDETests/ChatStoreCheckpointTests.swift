@@ -19,7 +19,7 @@ final class ChatStoreCheckpointTests: XCTestCase {
     func testCreateCheckpointPersistsGitMetadata() throws {
         let store = ChatStore()
         let convId = try conversationID(from: store)
-        store.addMessage(ChatMessage(role: .user, content: "ciao"), to: convId)
+        store.addMessage(ChatMessage(role: .user, content: "hello"), to: convId)
 
         let gitState = ConversationCheckpointGitState(
             gitRootPath: "/tmp/repo",
@@ -40,7 +40,7 @@ final class ChatStoreCheckpointTests: XCTestCase {
         store.setPlanBoard(board, for: convId)
         store.createCheckpoint(for: convId, gitStates: [])
         guard let cpId = store.previousCheckpoint(conversationId: convId)?.id else {
-            XCTFail("Checkpoint mancante")
+            XCTFail("Checkpoint missing")
             return
         }
 
@@ -93,6 +93,6 @@ final class ChatStoreCheckpointTests: XCTestCase {
     }
 
     private func conversationID(from store: ChatStore) throws -> UUID {
-        try XCTUnwrap(store.conversations.first?.id, "Conversation mancante")
+        try XCTUnwrap(store.conversations.first?.id, "Conversation missing")
     }
 }

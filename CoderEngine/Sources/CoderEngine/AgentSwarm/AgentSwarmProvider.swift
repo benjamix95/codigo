@@ -1,5 +1,24 @@
 import Foundation
 
+public struct SwarmRuntimeDebugSnapshot: Sendable, Equatable {
+    public let orchestratorProviderId: String
+    public let workerProviderId: String
+    public let orchestratorRuntime: ToolRuntimeDebugSnapshot?
+    public let workerRuntime: ToolRuntimeDebugSnapshot?
+
+    public init(
+        orchestratorProviderId: String,
+        workerProviderId: String,
+        orchestratorRuntime: ToolRuntimeDebugSnapshot?,
+        workerRuntime: ToolRuntimeDebugSnapshot?
+    ) {
+        self.orchestratorProviderId = orchestratorProviderId
+        self.workerProviderId = workerProviderId
+        self.orchestratorRuntime = orchestratorRuntime
+        self.workerRuntime = workerRuntime
+    }
+}
+
 /// LLM provider that coordinates a swarm of specialized agents via orchestrator
 public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
     public let id = "swarm-runtime-internal"
@@ -27,6 +46,19 @@ public final class SwarmRuntimeProvider: LLMProvider, @unchecked Sendable {
 
     public func isAuthenticated() -> Bool {
         orchestratorProvider.isAuthenticated() && workerProvider.isAuthenticated()
+    }
+
+    public func debugSwarmSnapshot() async -> SwarmRuntimeDebugSnapshot {
+        let orchestratorRuntime = await (orchestratorProvider as? ToolEnabledLLMProvider)?
+            .debugToolRuntimeSnapshot()
+        let workerRuntime = await (workerProvider as? ToolEnabledLLMProvider)?
+            .debugToolRuntimeSnapshot()
+        return SwarmRuntimeDebugSnapshot(
+            orchestratorProviderId: orchestratorProvider.id,
+            workerProviderId: workerProvider.id,
+            orchestratorRuntime: orchestratorRuntime,
+            workerRuntime: workerRuntime
+        )
     }
 
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil)

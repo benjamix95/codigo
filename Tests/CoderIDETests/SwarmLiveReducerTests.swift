@@ -49,7 +49,7 @@ final class SwarmLiveReducerTests: XCTestCase {
     func testErrorEventSetsFailedStatus() {
         let failed = TaskActivity(
             type: "tool_execution_error",
-            title: "Errore tool",
+            title: "Tool error",
             detail: "failed",
             payload: ["swarm_id": "debugger", "group_id": "swarm-debugger"],
             timestamp: Date(timeIntervalSince1970: 120),

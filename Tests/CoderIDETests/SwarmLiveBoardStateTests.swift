@@ -46,7 +46,7 @@ final class SwarmLiveBoardStateTests: XCTestCase {
         var dedupe: [String: Set<String>] = [:]
         let activity = TaskActivity(
             type: "mcp_tool_call",
-            title: "Nuova attività",
+            title: "New activity",
             detail: "running",
             payload: ["swarm_id": "coder", "group_id": "swarm-coder", "status": "started"],
             phase: .executing,

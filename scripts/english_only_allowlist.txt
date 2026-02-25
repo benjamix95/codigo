@@ -1,0 +1,50 @@
+# Regex patterns that are intentionally non-English or contain accented ranges
+# for parser/regex coverage.
+
+# Unicode range classes used in regex parsing/sanitization tests and code.
+.*/ChatStore\.swift:.*A-Za-zÀ-ÖØ-öø-ÿ
+
+# Natural-language sample payload kept for parser compatibility tests.
+.*/ChatStoreMarkerSanitizationTests\.swift:.*Inizio con una verifica non invasiva del repository\.
+
+# Markdown formatting fixture that intentionally includes non-English text.
+.*/MarkdownContentFormattingTests\.swift:.*incongruenze rilevate
+.*/MarkdownContentFormattingTests\.swift:.*non è una lista
+
+# Legacy areas pending full English migration.
+.*/ConversationFlowCoordinatorTests\.swift:.*
+.*/SystemPromptsTests\.swift:.*Modalità
+.*/TestProjectDetectorTests\.swift:.*Atteso comando di test Swift non nil
+.*/ChatStoreMarkerSanitizationTests\.swift:.*
+.*/MarkdownContentFormattingTests\.swift:.*
+
+.*/CodexDetector\.swift:.*
+.*/ClaudeDetector\.swift:.*
+.*/GeminiDetector\.swift:.*
+.*/ClaudeModelsCache\.swift:.*
+.*/GeminiModelsCache\.swift:.*
+.*/CodexModelsCache\.swift:.*
+.*/CodexUsageFetcher\.swift:.*
+.*/MCPConfigLoader\.swift:.*
+.*/MCPSessionManager\.swift:.*
+.*/WorkspaceScanner\.swift:.*
+.*/Workspace\.swift:.*
+.*/TestProjectDetector\.swift:.*
+
+.*/CodebaseIndex/FileNode\.swift:.*
+.*/CodebaseIndex/SymbolExtractor\.swift:.*
+.*/CodebaseIndex/IndexedSymbol\.swift:.*
+
+.*/CodeReview/FileLockCoordinator\.swift:.*
+.*/CodeReview/CodebasePartitioner\.swift:.*
+
+.*/AgentSwarm/SwarmWorkerRunner\.swift:.*
+.*/AgentSwarm/SwarmOrchestrator\.swift:.*
+
+.*/ProviderUsageStore\.swift:.*
+.*/VoiceInputController\.swift:.*
+.*/ConversationCheckpointGitStore\.swift:.*
+.*/UsageFooterView\.swift:.*
+
+# Unicode uppercase class used for sentence splitting.
+.*/MarkdownContentView\.swift:.*A-ZÀ-ÖØ-Ý0-9

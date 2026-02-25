@@ -35,6 +35,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         base.isAuthenticated()
     }
 
+    public func debugToolRuntimeSnapshot() async -> ToolRuntimeDebugSnapshot {
+        await runtime.debugSnapshot()
+    }
+
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         let initialPrompt = """
         \(SystemPrompts.taskCompletionStrict)

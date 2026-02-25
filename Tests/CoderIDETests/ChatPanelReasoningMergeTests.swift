@@ -13,20 +13,20 @@ final class ChatPanelReasoningMergeTests: XCTestCase {
 
     func testMergeReasoningAppendsIndependentChunks() {
         let merged = ChatPanelView.mergeReasoningText(
-            existing: "Analisi iniziale",
-            incoming: "Nuovo blocco indipendente"
+            existing: "Initial analysis",
+            incoming: "New independent block"
         )
 
-        XCTAssertEqual(merged, "Analisi iniziale\n\nNuovo blocco indipendente")
+        XCTAssertEqual(merged, "Initial analysis\n\nNew independent block")
     }
 
     func testMergeReasoningDeduplicatesIdenticalChunk() {
         let merged = ChatPanelView.mergeReasoningText(
-            existing: "Blocco identico",
-            incoming: "Blocco identico"
+            existing: "Identical block",
+            incoming: "Identical block"
         )
 
-        XCTAssertEqual(merged, "Blocco identico")
+        XCTAssertEqual(merged, "Identical block")
     }
 
     func testMergeReasoningUsesOverlapWhenChunksTouch() {

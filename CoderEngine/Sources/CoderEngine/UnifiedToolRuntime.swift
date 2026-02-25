@@ -102,6 +102,25 @@ public struct ToolExecutionContext: Sendable {
     }
 }
 
+public struct ToolRuntimeDebugSnapshot: Sendable, Equatable {
+    public let hasCodebaseIndex: Bool
+    public let workspacePaths: [String]
+    public let excludedPaths: [String]
+    public let executionScope: ExecutionScope
+
+    public init(
+        hasCodebaseIndex: Bool,
+        workspacePaths: [String],
+        excludedPaths: [String],
+        executionScope: ExecutionScope
+    ) {
+        self.hasCodebaseIndex = hasCodebaseIndex
+        self.workspacePaths = workspacePaths
+        self.excludedPaths = excludedPaths
+        self.executionScope = executionScope
+    }
+}
+
 public actor UnifiedToolRuntime {
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
@@ -152,6 +171,15 @@ public actor UnifiedToolRuntime {
         }
         self.webSearch = WebSearchService(provider: provider, apiKeys: typedKeys)
         self.webFetch = WebFetchService()
+    }
+
+    public func debugSnapshot() -> ToolRuntimeDebugSnapshot {
+        ToolRuntimeDebugSnapshot(
+            hasCodebaseIndex: codebaseIndex != nil,
+            workspacePaths: workspacePaths.map(\.path),
+            excludedPaths: excludedPaths,
+            executionScope: executionScope
+        )
     }
 
     /// Run an external process and return (stdout, stderr, exitCode).
