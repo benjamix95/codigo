@@ -1,12 +1,12 @@
 import Foundation
 
-/// Fasi abilitate per il multi-swarm review
+/// Enabled phases for multi-swarm review
 public enum ReviewPhase: String, Sendable {
     case analysisOnly = "analysis-only"
     case analysisAndExecution = "analysis-and-execution"
 }
 
-/// Backend per Fase 2 (esecuzione correzioni): supporta CLI e API
+/// Backend for Phase 2 (fix execution): supports CLI and API
 public enum CodeReviewExecutionBackend: String, Sendable, CaseIterable {
     case codex
     case claude
@@ -27,30 +27,31 @@ public enum CodeReviewExecutionBackend: String, Sendable, CaseIterable {
     }
 }
 
-/// Configurazione per Multi-Swarm Code Review
+/// Configuration for Multi-Swarm Code Review
 public struct MultiSwarmReviewConfig: Sendable {
-    public let partitionCount: Int
+    /// Maximum number of concurrent review/fix workers (dynamic count, capped here)
+    public let maxWorkers: Int
     public let yoloMode: Bool
     public let enabledPhases: ReviewPhase
     public let maxReviewRounds: Int
-    /// Backend per Fase 1 (analisi): "codex" o "claude"
+    /// Backend for Phase 1 (analysis)
     public let analysisBackend: String
-    /// Backend per Fase 2 (esecuzione correzioni): codex, claude, anthropic-api, openai-api, google-api, openrouter-api
+    /// Backend for Phase 2 (fix execution)
     public let executionBackend: String
 
     public init(
-        partitionCount: Int = 3,
+        maxWorkers: Int = 6,
         yoloMode: Bool = false,
         enabledPhases: ReviewPhase = .analysisAndExecution,
         maxReviewRounds: Int = 3,
         analysisBackend: String = "codex",
         executionBackend: String = "codex"
     ) {
-        self.partitionCount = min(12, max(2, partitionCount))
+        self.maxWorkers = min(12, max(1, maxWorkers))
         self.yoloMode = yoloMode
         self.enabledPhases = enabledPhases
         self.maxReviewRounds = min(10, max(1, maxReviewRounds))
-        self.analysisBackend = (analysisBackend == "claude") ? "claude" : "codex"
+        self.analysisBackend = analysisBackend
         self.executionBackend = executionBackend
     }
 }

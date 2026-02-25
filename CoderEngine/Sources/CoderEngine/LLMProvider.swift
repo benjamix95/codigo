@@ -50,24 +50,24 @@ public struct ProviderAttachmentCapabilities: Equatable, Sendable {
     )
 }
 
-/// Protocollo base per i provider LLM
+/// Base protocol for LLM providers.
 public protocol LLMProvider: Sendable {
-    /// Identificatore univoco
+    /// Unique identifier.
     var id: String { get }
     
-    /// Nome visualizzato in UI
+    /// Display name shown in UI.
     var displayName: String { get }
 
-    /// Capability native dichiarate dal provider per allegati multimodali.
+    /// Native multimodal attachment capabilities declared by the provider.
     var attachmentCapabilities: ProviderAttachmentCapabilities { get }
     
-    /// Verifica se il provider è autenticato/configurato
+    /// Returns whether the provider is authenticated/configured.
     func isAuthenticated() -> Bool
     
-    /// Invia un prompt e riceve risposta in streaming. Opzionalmente include immagini per modelli multimodali.
+    /// Sends a prompt and returns a streaming response. Can include images for multimodal models.
     func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]?) async throws -> AsyncThrowingStream<StreamEvent, Error>
 
-    /// Nuovo canale allegati tipizzati.
+    /// Typed attachment channel.
     func send(
         prompt: String,
         context: WorkspaceContext,

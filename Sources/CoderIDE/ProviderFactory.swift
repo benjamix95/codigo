@@ -278,7 +278,9 @@ enum ProviderFactory {
     static func swarmProvider(
         config: ProviderFactoryConfig,
         executionController: ExecutionController?,
-        agentProviderId: String?
+        agentProviderId: String?,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
     ) -> SwarmRuntimeProvider? {
         let resolvedOrchestratorId = resolveSwarmBackendId(
             configuredBackendId: config.swarmOrchestrator,
@@ -295,7 +297,9 @@ enum ProviderFactory {
             let orchProvider = resolveSwarmBackendProvider(
                 backendId: resolvedOrchestratorId,
                 config: config,
-                executionController: executionController
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
             )
         else { return nil }
 
@@ -303,7 +307,9 @@ enum ProviderFactory {
             let workerProvider = resolveSwarmBackendProvider(
                 backendId: resolvedWorkerId,
                 config: config,
-                executionController: executionController
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
             )
         else { return nil }
 
@@ -569,6 +575,59 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
+            executionController: executionController
+        )
+    }
+
+    // MARK: - Code Review Multi-Swarm
+
+    static func codeReviewMultiSwarmProvider(
+        config: ProviderFactoryConfig,
+        executionController: ExecutionController?,
+        agentProviderId: String?,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
+    ) -> CodeReviewMultiSwarmProvider? {
+        // Resolve analysis backend (default: auto → same as agent)
+        let resolvedAnalysisId = resolveSwarmBackendId(
+            configuredBackendId: config.codeReviewAnalysisBackend,
+            agentProviderId: agentProviderId
+        )
+        // Resolve execution backend (default: auto → same as agent)
+        let resolvedExecutionId = resolveSwarmBackendId(
+            configuredBackendId: config.codeReviewExecutionBackend,
+            agentProviderId: agentProviderId
+        )
+
+        guard let analysisProvider = resolveSwarmBackendProvider(
+            backendId: resolvedAnalysisId,
+            config: config,
+            executionController: executionController,
+            codebaseIndex: codebaseIndex,
+            workspacePaths: workspacePaths
+        ) else { return nil }
+
+        guard let executionProvider = resolveSwarmBackendProvider(
+            backendId: resolvedExecutionId,
+            config: config,
+            executionController: executionController,
+            codebaseIndex: codebaseIndex,
+            workspacePaths: workspacePaths
+        ) else { return nil }
+
+        let reviewConfig = MultiSwarmReviewConfig(
+            maxWorkers: config.codeReviewPartitions,
+            yoloMode: config.globalYolo,
+            enabledPhases: config.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
+            maxReviewRounds: config.codeReviewMaxRounds,
+            analysisBackend: resolvedAnalysisId,
+            executionBackend: resolvedExecutionId
+        )
+
+        return CodeReviewMultiSwarmProvider(
+            config: reviewConfig,
+            analysisProvider: analysisProvider,
+            executionProvider: executionProvider,
             executionController: executionController
         )
     }

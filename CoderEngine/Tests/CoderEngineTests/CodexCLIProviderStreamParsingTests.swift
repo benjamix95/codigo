@@ -35,7 +35,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
                 "item": [
                     "id": "reasoning-1",
                     "type": "reasoning",
-                    "text": "Sto valutando l'approccio migliore"
+                    "text": "Evaluating the best approach"
                 ],
             ],
             [
@@ -43,7 +43,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
                 "item": [
                     "id": "message-1",
                     "type": "agent_message",
-                    "text": "Risposta finale pulita"
+                    "text": "Clean final answer"
                 ],
             ],
             ["type": "turn.completed"],
@@ -74,11 +74,11 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
             return nil
         }
 
-        XCTAssertEqual(assistantText, "Risposta finale pulita")
-        XCTAssertFalse(assistantText.contains("approccio migliore"))
+        XCTAssertEqual(assistantText, "Clean final answer")
+        XCTAssertFalse(assistantText.contains("best approach"))
         XCTAssertEqual(rawReasoningEvents.count, 1)
-        XCTAssertEqual(reasoningPayloads.first?["title"], "Ragionamento")
-        XCTAssertEqual(reasoningPayloads.first?["output"], "Sto valutando l'approccio migliore")
+        XCTAssertEqual(reasoningPayloads.first?["title"], "Reasoning")
+        XCTAssertEqual(reasoningPayloads.first?["output"], "Evaluating the best approach")
         XCTAssertEqual(reasoningPayloads.first?["group_id"], "reasoning-1")
         XCTAssertEqual(rawTurnEvents, ["turn_started", "turn_completed"])
     }
@@ -194,7 +194,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
                 "item": [
                     "id": "message-final",
                     "type": "agent_message",
-                    "text": "Output finale anche senza delta intermedi"
+                    "text": "Final output even without intermediate deltas"
                 ],
             ],
             ["type": "turn.completed"],
@@ -205,7 +205,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
             return nil
         }
 
-        XCTAssertEqual(assistantDeltas, ["Output finale anche senza delta intermedi"])
+        XCTAssertEqual(assistantDeltas, ["Final output even without intermediate deltas"])
     }
 
     func testDebugPanelMarkerEmitsDebugPanelUpdateRawEvent() {
@@ -260,6 +260,56 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         let key1 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: payload)
         let key2 = CodexCLIProvider.rawDedupKey(type: "command_execution", payload: payload)
         XCTAssertEqual(key1, key2)
+    }
+
+    func testFileChangeParsesNestedPathCountersAndDiffPreview() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "fc-1",
+                "type": "file_change",
+                "change_type": "create",
+                "metadata": [
+                    "target_path": "Tests/CoderIDETests/FontPreferencesTests.swift",
+                    "stats": [
+                        "insertions": 28,
+                        "deletions_count": 0,
+                    ],
+                ],
+                "patch": "@@ -0,0 +1 @@\n+import XCTest",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected file_change raw event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "file_change")
+        XCTAssertEqual(parsed.payload["title"], "Created FontPreferencesTests.swift")
+        XCTAssertEqual(parsed.payload["path"], "Tests/CoderIDETests/FontPreferencesTests.swift")
+        XCTAssertEqual(parsed.payload["linesAdded"], "28")
+        XCTAssertEqual(parsed.payload["linesRemoved"], "0")
+        XCTAssertEqual(parsed.payload["change_type"], "create")
+        XCTAssertEqual(parsed.payload["diffPreview"], "@@ -0,0 +1 @@\n+import XCTest")
+    }
+
+    func testFileChangeFallbackTitleWhenPathMissing() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "fc-2",
+                "type": "file_change",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected file_change raw event")
+            return
+        }
+
+        XCTAssertEqual(parsed.payload["title"], "Edited file")
+        XCTAssertEqual(parsed.payload["detail"], "")
     }
 
     private func runParser(events input: [[String: Any]]) -> [StreamEvent] {

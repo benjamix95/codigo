@@ -15,7 +15,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         )
 
         guard case .taskActivity(let activity)? = envelope.events.first else {
-            XCTFail("Evento taskActivity mancante")
+            XCTFail("Missing taskActivity event")
             return
         }
         XCTAssertEqual(activity.type, "web_search_started")
@@ -32,7 +32,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         )
 
         guard case .taskActivity(let activity)? = envelope.events.first else {
-            XCTFail("Evento taskActivity mancante")
+            XCTFail("Missing taskActivity event")
             return
         }
         XCTAssertEqual(activity.phase, .planning)
@@ -52,7 +52,7 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         )
 
         guard case .todoWrite(let todo)? = events.first else {
-            XCTFail("Evento todoWrite mancante")
+            XCTFail("Missing todoWrite event")
             return
         }
         XCTAssertEqual(todo.status, .inProgress)
@@ -63,17 +63,17 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         let events = EventNormalizer.normalize(
             type: "todo_write",
             payload: [
-                "task": "Allineare layout chat",
+                "task": "Align chat layout",
                 "status": "pending",
                 "priority": "medium"
             ]
         )
 
         guard case .todoWrite(let todo)? = events.first else {
-            XCTFail("Evento todoWrite mancante")
+            XCTFail("Missing todoWrite event")
             return
         }
-        XCTAssertEqual(todo.title, "Allineare layout chat")
+        XCTAssertEqual(todo.title, "Align chat layout")
         XCTAssertEqual(todo.status, .pending)
     }
 
@@ -120,20 +120,20 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             payload: [
                 "step_id": "1",
                 "status": "running",
-                "title": "Aggiorna parser"
+                "title": "Update parser"
             ]
         )
 
         XCTAssertTrue(events.contains {
             if case .planStepUpdate(let stepId, let status, let title) = $0 {
-                return stepId == "1" && status == .running && title == "Aggiorna parser"
+                return stepId == "1" && status == .running && title == "Update parser"
             }
             return false
         })
         XCTAssertTrue(events.contains {
             if case .taskActivity(let activity) = $0 {
                 return activity.type == "plan_step_update"
-                    && activity.title == "Aggiorna parser"
+                    && activity.title == "Update parser"
                     && activity.phase == .planning
                     && activity.isRunning
             }
@@ -145,8 +145,8 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         let events = EventNormalizer.normalize(
             type: "reasoning",
             payload: [
-                "title": "Ragionamento",
-                "detail": "Analisi interna"
+                "title": "Reasoning",
+                "detail": "Internal analysis"
             ]
         )
 
@@ -158,14 +158,14 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             sourceProvider: "codex-cli",
             type: "turn_started",
             payload: [
-                "title": "Turno avviato",
+                "title": "Turn started",
                 "status": "started",
                 "group_id": "turn-1"
             ]
         )
 
         guard case .taskActivity(let activity)? = envelope.events.first else {
-            XCTFail("Evento taskActivity mancante")
+            XCTFail("Missing taskActivity event")
             return
         }
         XCTAssertEqual(activity.type, "turn_started")
@@ -179,19 +179,39 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             sourceProvider: "codex-cli",
             type: "turn_completed",
             payload: [
-                "title": "Turno completato",
+                "title": "Turn completed",
                 "status": "completed",
                 "group_id": "turn-1"
             ]
         )
 
         guard case .taskActivity(let activity)? = envelope.events.first else {
-            XCTFail("Evento taskActivity mancante")
+            XCTFail("Missing taskActivity event")
             return
         }
         XCTAssertEqual(activity.type, "turn_completed")
         XCTAssertEqual(activity.phase, .planning)
         XCTAssertFalse(activity.isRunning)
         XCTAssertEqual(activity.groupId, "turn-1")
+    }
+
+    func testReadBatchCompletedSemanticSearchMapsToSemanticType() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "read_batch_completed",
+            payload: [
+                "tool": "semantic_search",
+                "status": "completed",
+                "query": "authentication flow"
+            ]
+        )
+
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "semantic_search")
+        XCTAssertEqual(activity.phase, .searching)
+        XCTAssertFalse(activity.isRunning)
     }
 }

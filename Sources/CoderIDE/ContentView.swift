@@ -24,8 +24,10 @@ struct ContentView: View {
     @State private var showPlanPanel = false
     @State private var showDebugPanel = false
     @State private var showSwarmPanel = false
+    @State private var showCodeReviewPanel = false
     @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
+    @AppStorage("git_panel_width") private var gitPanelWidth: Double = 380
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -35,10 +37,13 @@ struct ContentView: View {
                 .environmentObject(workspaceStore)
                 .environmentObject(projectContextStore)
                 .environmentObject(openFilesStore)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 300, max: 380)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
         } detail: {
             GeometryReader { geo in
                 let detailWidth = geo.size.width
+                // Clamp git panel so the chat always keeps at least 320pt
+                let maxGitWidth = max(280, detailWidth - 340)
+                let clampedGitWidth = min(CGFloat(gitPanelWidth), maxGitWidth)
                 HStack(spacing: 6) {
                     if showEditorPanel && detailWidth >= 750 {
                         idePanel
@@ -48,17 +53,28 @@ struct ContentView: View {
                         .frame(minWidth: 280, idealWidth: 480)
                         .layoutPriority(1)
                     if gitPanelStore.isOpen && detailWidth >= 700 {
+                        PanelResizeHandle(
+                            panelWidth: Binding(
+                                get: { clampedGitWidth },
+                                set: { gitPanelWidth = Double($0) }
+                            ),
+                            minWidth: 280,
+                            maxWidth: maxGitWidth,
+                            leadingEdge: true
+                        )
                         GitPanelView(
                             store: gitPanelStore,
                             effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
                             onOpenFile: { openFilesStore.openFile($0) }
                         )
                         .environmentObject(providerRegistry)
+                        .frame(width: clampedGitWidth)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(minWidth: 480)
             .padding(.horizontal, 6)
             .padding(.vertical, 6)
             .background(DesignSystem.Colors.backgroundDeep)
@@ -118,6 +134,15 @@ struct ContentView: View {
         .onChange(of: isSelectingProjectFolders) { _, isPresented in
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
+        .onChange(of: gitPanelStore.isOpen) { wasOpen, isOpen in
+            let panelWidth = CGFloat(gitPanelWidth) + 12 // panel + handle + spacing
+            if isOpen && !wasOpen {
+                WindowResizeHelper.adjustWidth(by: panelWidth)
+            } else if !isOpen && wasOpen {
+                WindowResizeHelper.adjustWidth(by: -panelWidth)
+            }
+        }
+        .navigationSplitViewStyle(.prominentDetail)
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
             if let selectedId = selectedConversationId,
@@ -264,6 +289,7 @@ struct ContentView: View {
             showPlanPanel: $showPlanPanel,
             showDebugPanel: $showDebugPanel,
             showSwarmPanel: $showSwarmPanel,
+            showCodeReviewPanel: $showCodeReviewPanel,
             debugStore: debugStore
         )
         .environmentObject(providerRegistry)

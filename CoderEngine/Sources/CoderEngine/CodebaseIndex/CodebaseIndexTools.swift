@@ -2,8 +2,8 @@ import Foundation
 
 // MARK: - CodebaseIndexTools
 
-/// Integra il CodebaseIndex nel sistema di tool MCP / UnifiedToolRuntime.
-/// Espone l'indice del codebase come tool invocabili dall'LLM.
+/// Integrates CodebaseIndex with MCP/UnifiedToolRuntime.
+/// Exposes codebase index operations as LLM-invokable tools.
 public actor CodebaseIndexTools {
 
     private let index: CodebaseIndex
@@ -14,69 +14,69 @@ public actor CodebaseIndexTools {
 
     // MARK: - Tool Definitions (for LLM prompt injection)
 
-    /// Restituisce la descrizione dei tool disponibili per il prompt dell'LLM
+    /// Returns the description of index tools for the LLM prompt.
     public static var toolDefinitionsPrompt: String {
         """
         ## Codebase Index Tools
 
-        Hai accesso a tool potenziati dall'indice del codebase. Usa i marker CoderIDE per invocarli:
+        You have access to codebase-index powered tools. Use CoderIDE markers to invoke them:
 
         ### codebase_search
-        Cerca simboli, tipi, funzioni nel codebase usando l'indice strutturato.
-        Molto più veloce e preciso di grep per trovare definizioni.
+        Search symbols, types, and functions using the structured index.
+        Much faster and more precise than grep for finding definitions.
         [CODERIDE:tool_call|id=<uuid>|name=codebase_search|query=<search_query>|kind=<class|struct|enum|protocol|function|method|property|test|all>|filePattern=<optional_glob>]
 
         ### find_symbol
-        Trova la definizione esatta di un simbolo (classe, funzione, struct, protocollo).
+        Find exact symbol definitions (class, function, struct, protocol).
         [CODERIDE:tool_call|id=<uuid>|name=find_symbol|query=<symbol_name>|kind=<optional_kind>]
 
         ### list_symbols
-        Elenca tutti i simboli in un file specifico (outline del file).
+        List all symbols in a specific file (file outline).
         [CODERIDE:tool_call|id=<uuid>|name=list_symbols|path=<relative_file_path>]
 
         ### find_references
-        Trova tutti i riferimenti a un simbolo nel codebase (definizioni + usi).
+        Find all references to a symbol in the codebase (definitions + usages).
         [CODERIDE:tool_call|id=<uuid>|name=find_references|query=<symbol_name>]
 
         ### project_structure
-        Mostra l'albero della struttura del progetto.
+        Show the project tree structure.
         [CODERIDE:tool_call|id=<uuid>|name=project_structure|maxDepth=<2|3|4>]
 
         ### file_outline
-        Ottieni l'outline strutturato di un file (simboli con numeri di riga).
+        Get a structured file outline (symbols with line numbers).
         [CODERIDE:tool_call|id=<uuid>|name=file_outline|path=<relative_file_path>]
 
         ### find_files
-        Cerca file per nome con fuzzy matching.
+        Find files by name with fuzzy matching.
         [CODERIDE:tool_call|id=<uuid>|name=find_files|query=<filename_query>|extension=<optional_ext>]
 
         ### codebase_stats
-        Statistiche del codebase: file, linguaggi, dimensioni, simboli.
+        Codebase statistics: files, languages, sizes, symbols.
         [CODERIDE:tool_call|id=<uuid>|name=codebase_stats]
 
         ### dependency_graph
-        Mostra le dipendenze (import) di un file e chi lo importa.
+        Show a file's dependencies (imports) and reverse imports.
         [CODERIDE:tool_call|id=<uuid>|name=dependency_graph|path=<relative_file_path>]
 
         ### list_types
-        Elenca tutti i tipi (class, struct, enum, protocol) nel codebase.
+        List all types (class, struct, enum, protocol) in the codebase.
         [CODERIDE:tool_call|id=<uuid>|name=list_types]
 
         ### list_tests
-        Elenca tutti i test nel codebase.
+        List all tests in the codebase.
         [CODERIDE:tool_call|id=<uuid>|name=list_tests]
 
         ### index_status
-        Mostra lo stato dell'indice del codebase.
+        Show codebase index status.
         [CODERIDE:tool_call|id=<uuid>|name=index_status]
 
         ### reindex
-        Forza la re-indicizzazione del workspace (incrementale se già indicizzato).
+        Force workspace reindexing (incremental if already indexed).
         [CODERIDE:tool_call|id=<uuid>|name=reindex]
         """
     }
 
-    /// Nomi dei tool gestiti dall'indice
+    /// Tool names handled by the index.
     public static let handledToolNames: Set<String> = [
         "codebase_search",
         "find_symbol",
@@ -93,14 +93,14 @@ public actor CodebaseIndexTools {
         "reindex",
     ]
 
-    /// Verifica se un tool name è gestito dall'indice
+    /// Returns whether a tool name is handled by the index.
     public static func handles(toolName: String) -> Bool {
         handledToolNames.contains(toolName)
     }
 
     // MARK: - Tool Execution
 
-    /// Esegue un tool dell'indice e restituisce eventi StreamEvent
+    /// Executes an index tool and returns StreamEvent values.
     public func execute(
         toolName: String,
         args: [String: String],
@@ -764,7 +764,7 @@ public actor CodebaseIndexTools {
 
 // MARK: - ToolOutput
 
-/// Output interno di un tool dell'indice
+/// Internal output model for an index tool.
 private struct ToolOutput {
     let ok: Bool
     let title: String

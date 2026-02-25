@@ -205,9 +205,31 @@ public actor CodebaseIndex {
         _status = .indexing
 
         var updatedCount = 0
-        var newSymbols = 0
+        var removedCount = 0
+        var changedFiles: [IndexedFile] = []
 
-        for (relativePath, node) in allFileNodes {
+        // Rebuild file trees from disk to avoid stale file nodes.
+        fileTrees.removeAll()
+        allFileNodes.removeAll()
+        for rootURL in currentWorkspacePaths {
+            let tree = buildFileTree(at: rootURL, relativePath: "", depth: 0)
+            fileTrees[rootURL.path] = tree
+            flattenNodes(tree)
+        }
+
+        let sourceNodes = allFileNodes.filter { _, node in
+            node.isSourceFile && node.size <= Self.maxFileSize
+        }
+
+        let currentSourcePaths = Set(sourceNodes.keys)
+        let indexedPaths = Set(indexedFiles.keys)
+        let removedPaths = indexedPaths.subtracting(currentSourcePaths)
+        for relativePath in removedPaths {
+            removeIndexedFile(relativePath)
+            removedCount += 1
+        }
+
+        for (relativePath, node) in sourceNodes {
             guard node.isSourceFile, node.size <= Self.maxFileSize else { continue }
 
             // Check if file was modified
@@ -238,19 +260,19 @@ public actor CodebaseIndex {
             ) {
                 addIndexedFile(indexed)
                 updatedCount += 1
-                newSymbols += indexed.symbols.count
+                changedFiles.append(indexed)
             }
-        }
-
-        // Check for new files
-        for rootURL in currentWorkspacePaths {
-            let tree = buildFileTree(at: rootURL, relativePath: "", depth: 0)
-            fileTrees[rootURL.path] = tree
-            flattenNodes(tree)
         }
 
         // Re-build import graph
         buildImportGraph()
+
+        // Keep semantic index deterministic and in sync with the symbol index.
+        if let firstRoot = currentWorkspacePaths.first {
+            await semanticIndex.buildIndex(indexedFiles: Array(indexedFiles.values), workspaceRoot: firstRoot)
+        } else if !changedFiles.isEmpty || removedCount > 0 {
+            await semanticIndex.clear()
+        }
 
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
@@ -265,24 +287,92 @@ public actor CodebaseIndex {
             },
             durationMs: durationMs,
             languages: languageBreakdown(),
-            updatedFiles: updatedCount
+            updatedFiles: updatedCount + removedCount
         )
     }
 
     /// Index a single file (for real-time updates)
-    public func indexSingleFile(absolutePath: String, relativePath: String) {
+    public func indexSingleFile(absolutePath: String, relativePath: String) async {
+        let canonicalRelativePath = canonicalRelativePath(for: absolutePath) ?? relativePath
+
         // Remove old entry
-        removeIndexedFile(relativePath)
+        removeIndexedFile(canonicalRelativePath)
+
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: absolutePath) {
+            let ext = (absolutePath as NSString).pathExtension.lowercased()
+            let size = attrs[.size] as? UInt64 ?? 0
+            let modDate = attrs[.modificationDate] as? Date ?? .distantPast
+            let depth = canonicalRelativePath.split(separator: "/").count - 1
+            let node = FileNode(
+                name: (absolutePath as NSString).lastPathComponent,
+                kind: .file,
+                extension_: ext.isEmpty ? nil : ext,
+                relativePath: canonicalRelativePath,
+                absolutePath: absolutePath,
+                depth: max(0, depth),
+                size: size,
+                modifiedAt: modDate
+            )
+            allFileNodes[canonicalRelativePath] = node
+        }
 
         // Re-index
         if let indexed = SymbolExtractor.indexFile(
             absolutePath: absolutePath,
-            relativePath: relativePath
+            relativePath: canonicalRelativePath
         ) {
             addIndexedFile(indexed)
-            // Update semantic index for this file
-            Task { await semanticIndex.updateFile(indexed) }
+            // Update semantic index for this file.
+            await semanticIndex.updateFile(indexed)
         }
+    }
+
+    /// Remove a single file from the index (for real-time delete/rename updates).
+    public func removeSingleFile(absolutePath: String, relativePath: String? = nil) async {
+        let canonicalRelativePath = relativePath ?? canonicalRelativePath(for: absolutePath)
+        guard let canonicalRelativePath else { return }
+
+        removeIndexedFile(canonicalRelativePath)
+        allFileNodes.removeValue(forKey: canonicalRelativePath)
+        await semanticIndex.removeFile(canonicalRelativePath)
+    }
+
+    /// Resolve an absolute path to the internal relative path format used by the index.
+    public func canonicalRelativePath(for absolutePath: String) -> String? {
+        for rootURL in currentWorkspacePaths {
+            let rootPath = rootURL.path
+            if absolutePath == rootPath {
+                return rootURL.lastPathComponent
+            }
+            let rootWithSlash = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+            if absolutePath.hasPrefix(rootWithSlash) {
+                let tail = String(absolutePath.dropFirst(rootWithSlash.count))
+                let rootName = rootURL.lastPathComponent
+                return tail.isEmpty ? rootName : "\(rootName)/\(tail)"
+            }
+        }
+        return nil
+    }
+
+    /// Clear all index state and reset status to idle.
+    public func clear() async {
+        fileTrees.removeAll()
+        indexedFiles.removeAll()
+        symbolsByName.removeAll()
+        symbolsByFile.removeAll()
+        symbolsByKind.removeAll()
+        allFileNodes.removeAll()
+        importGraph.removeAll()
+        reverseImportGraph.removeAll()
+        contentHashes.removeAll()
+        currentWorkspacePaths.removeAll()
+        excludedPaths.removeAll()
+        totalFilesScanned = 0
+        totalSymbolsExtracted = 0
+        indexDurationMs = 0
+        lastFullIndexAt = nil
+        _status = .idle
+        await semanticIndex.clear()
     }
 
     // MARK: - Public API: Symbol Search

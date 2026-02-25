@@ -389,6 +389,71 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return foundCompletion ? summary : nil
     }
 
+    private func summarizeInstantGrepResult(
+        events: [StreamEvent],
+        markerPayload: [String: String],
+        query: String,
+        fallbackScope: String
+    ) -> [String: String] {
+        var payload = markerPayload
+        var output = ""
+        var durationMs: String?
+        var pathScope = fallbackScope
+        var matchesCount: Int?
+        var previewLines = markerPayload["previewLines"] ?? ""
+
+        for event in events {
+            guard case .raw(_, let eventPayload) = event else { continue }
+            if let status = eventPayload["status"], status == "completed" {
+                if let out = eventPayload["output"], !out.isEmpty {
+                    output = out
+                }
+                if let duration = eventPayload["duration_ms"], !duration.isEmpty {
+                    durationMs = duration
+                }
+                if let scope = eventPayload["pathScope"] ?? eventPayload["path"], !scope.isEmpty {
+                    pathScope = scope
+                }
+                if let countRaw = eventPayload["count"], let parsed = Int(countRaw) {
+                    matchesCount = parsed
+                }
+                if let preview = eventPayload["previewLines"], !preview.isEmpty {
+                    previewLines = preview
+                }
+            }
+        }
+
+        let parsedPreview = grepPreviewLines(from: output, limit: 8)
+        let parsedLines = previewLines.isEmpty ? parsedPreview.joined(separator: "\n") : previewLines
+        let parsedCount = grepPreviewLines(from: output, limit: 10_000).count
+        payload["query"] = query
+        payload["pathScope"] = pathScope
+        payload["scope"] = pathScope
+        payload["matchesCount"] = "\(matchesCount ?? parsedCount)"
+        payload["previewLines"] = parsedLines
+        payload["duration_ms"] = durationMs ?? markerPayload["duration_ms"] ?? ""
+        return payload
+    }
+
+    private func grepPreviewLines(from output: String, limit: Int) -> [String] {
+        guard limit > 0 else { return [] }
+        var lines: [String] = []
+        var seen = Set<String>()
+
+        for rawLine in output.components(separatedBy: "\n") {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let parts = rawLine.split(separator: ":", maxSplits: 2).map(String.init)
+            guard parts.count >= 3, let lineNumber = Int(parts[1]) else { continue }
+            let preview = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = "\(parts[0]):\(lineNumber):\(preview)"
+            guard seen.insert(normalized).inserted else { continue }
+            lines.append(normalized)
+            if lines.count >= limit { break }
+        }
+        return lines
+    }
+
     private func buildFollowUpPrompt(originalPrompt: String, transcript: String, toolResults: [[String: String]]) -> String {
         let resultsSection: String
         if toolResults.isEmpty {
@@ -482,24 +547,44 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "todo_write":
             return [.raw(type: "todo_write", payload: marker.payload)]
         case "instant_grep":
-            let query = marker.payload["query"] ?? ""
+            let query = (marker.payload["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !query.isEmpty else {
                 return [.raw(type: "instant_grep", payload: marker.payload)]
             }
-            // Execute real search via codebase_search through the runtime
+            let scope = (marker.payload["pathScope"] ?? marker.payload["scope"] ?? ".")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            var grepArgs: [String: String] = ["query": query]
+            grepArgs["pathScope"] = scope.isEmpty ? "." : scope
+            if let fileType = marker.payload["fileType"], !fileType.isEmpty {
+                grepArgs["fileType"] = fileType
+            }
+            if let contextLines = marker.payload["context_lines"], !contextLines.isEmpty {
+                grepArgs["context_lines"] = contextLines
+            }
+            if let caseSensitive = marker.payload["case_sensitive"], !caseSensitive.isEmpty {
+                grepArgs["case_sensitive"] = caseSensitive
+            }
+            if let multiline = marker.payload["multiline"], !multiline.isEmpty {
+                grepArgs["multiline"] = multiline
+            }
+
             let call = ToolCall(
                 id: marker.payload["id"] ?? UUID().uuidString,
-                name: "codebase_search",
-                args: ["query": query, "kind": "all"],
+                name: "grep",
+                args: grepArgs,
                 sourceProvider: id,
                 swarmId: marker.payload["swarm_id"],
                 scope: executionScope
             )
-            var searchEvents = await runtime.execute(call, context: ToolExecutionContext(
+            let searchEvents = await runtime.execute(call, context: ToolExecutionContext(
                 workspaceContext: context, policy: policy, executionScope: executionScope))
-            // Prepend the UI event for live display
-            searchEvents.insert(.raw(type: "instant_grep", payload: marker.payload), at: 0)
-            return searchEvents
+            let summary = summarizeInstantGrepResult(
+                events: searchEvents,
+                markerPayload: marker.payload,
+                query: query,
+                fallbackScope: scope.isEmpty ? "." : scope
+            )
+            return [.raw(type: "instant_grep", payload: summary)] + searchEvents
         case "plan_step":
             return [.raw(type: "plan_step_update", payload: marker.payload)]
         case "debug_panel":
@@ -621,9 +706,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         guard wordCount <= 260 else { return false }
         let lower = trimmed.lowercased()
         let explicitSignals = [
-            "inizier\u{00F2}",
-            "sto esplorando",
-            "analizzo la struttura",
             "let me ",
             "i'll start",
             "i will start",

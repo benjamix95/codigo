@@ -611,8 +611,11 @@ struct SettingsView: View {
                             let paths = workspaceStore.activeWorkspace.map {
                                 $0.folderPaths.map { URL(fileURLWithPath: $0) }
                             } ?? []
-                            let excluded = codebaseIndexExcludedPaths
+                            let globalExcluded = codebaseIndexExcludedPaths
                                 .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            let workspaceExcluded = workspaceStore.activeWorkspace?.excludedPaths ?? []
+                            var seen = Set<String>()
+                            let excluded = (workspaceExcluded + globalExcluded).filter { seen.insert($0).inserted }
                             _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
                             await refreshIndexStatus()
                         }
@@ -1030,32 +1033,63 @@ struct SettingsView: View {
     private func syncOpenAI() {
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
         reregisterProviderPreservingSelection(id: "openai-api", provider:
-            ProviderFactory.openAIAPIProvider(config: providerFactoryConfig(), reasoningEffort: effort, executionController: executionController))
+            ProviderFactory.openAIAPIProvider(
+                config: providerFactoryConfig(),
+                reasoningEffort: effort,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncAnthropic() {
         reregisterProviderPreservingSelection(id: "anthropic-api", provider:
-            ProviderFactory.anthropicAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.anthropicAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncGoogle() {
         reregisterProviderPreservingSelection(id: "google-api", provider:
-            ProviderFactory.googleAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.googleAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncMiniMax() {
         reregisterProviderPreservingSelection(id: "minimax-api", provider:
-            ProviderFactory.miniMaxAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.miniMaxAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncOpenRouter() {
         reregisterProviderPreservingSelection(id: "openrouter-api", provider:
-            ProviderFactory.openRouterAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.openRouterAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncGrok() {
         reregisterProviderPreservingSelection(id: "grok-api", provider:
-            ProviderFactory.grokAPIProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.grokAPIProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncCodex() {

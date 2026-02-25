@@ -175,17 +175,43 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         }
 
         if type.contains("edit") || type.contains("write") || type.contains("file_change") {
-            let path = firstString(in: item, keys: ["path", "file_path", "file", "target_path"]) ?? "file"
+            let path = firstString(
+                in: item,
+                keys: ["path", "file_path", "file", "target_path", "relative_path"]
+            ) ?? "file"
+            let changeType = firstString(
+                in: item,
+                keys: ["change_type", "operation", "action", "edit_type"]
+            ) ?? type
             var payload: [String: String] = [
-                "title": "Edit • \((path as NSString).lastPathComponent)",
+                "title": fileChangeTitle(path: path, changeType: changeType),
                 "detail": path,
                 "path": path,
-                "file": path
+                "file": path,
+                "change_type": changeType,
             ]
-            if let out = firstString(in: item, keys: ["diff", "diff_preview", "patch"]), !out.isEmpty {
-                payload["diffPreview"] = String(out.prefix(6_000))
+            if let added = firstInt(
+                in: item,
+                keys: ["additions", "lines_added", "linesAdded", "insertions"]
+            ) {
+                payload["linesAdded"] = "\(added)"
             }
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
+            if let removed = firstInt(
+                in: item,
+                keys: ["deletions", "lines_removed", "linesRemoved", "deletions_count"]
+            ) {
+                payload["linesRemoved"] = "\(removed)"
+            }
+            if let out = firstString(
+                in: item,
+                keys: ["diffPreview", "diff", "diff_preview", "patch", "unified_diff", "changes_preview"]
+            ), !out.isEmpty {
+                payload["diffPreview"] = String(out.prefix(12_000))
+            }
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]) {
+                payload["swarm_id"] = swarmId
+                payload["group_id"] = "swarm-\(swarmId)"
+            }
             return ("file_change", payload)
         }
 
@@ -541,6 +567,28 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
+    private static func firstInt(in input: [String: Any], keys: [String]) -> Int? {
+        for key in keys {
+            guard let value = input[key] else { continue }
+            if let intValue = intValue(from: value) {
+                return intValue
+            }
+        }
+        for (_, value) in input {
+            if let nested = value as? [String: Any], let found = firstInt(in: nested, keys: keys) {
+                return found
+            }
+            if let list = value as? [Any] {
+                for item in list {
+                    if let nested = item as? [String: Any], let found = firstInt(in: nested, keys: keys) {
+                        return found
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
     private static func stringify(_ value: Any) -> String? {
         if let s = value as? String { return s }
         if let n = value as? NSNumber { return n.stringValue }
@@ -561,6 +609,45 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             if let e = dict["error"] as? String { return e }
         }
         return nil
+    }
+
+    private static func intValue(from value: Any) -> Int? {
+        if let intValue = value as? Int {
+            return intValue
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let string = value as? String {
+            return Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+
+    private static func fileChangeTitle(path: String, changeType: String) -> String {
+        let basename = (path as NSString).lastPathComponent.isEmpty
+            ? "file"
+            : (path as NSString).lastPathComponent
+        let normalized = changeType
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalized.contains("create")
+            || normalized == "a"
+            || normalized == "add"
+            || normalized == "added"
+            || normalized == "create_file"
+        {
+            return "Created \(basename)"
+        }
+        if normalized.contains("delete")
+            || normalized.contains("remove")
+            || normalized == "d"
+            || normalized == "deleted"
+        {
+            return "Deleted \(basename)"
+        }
+        return "Edited \(basename)"
     }
 
     private static func nonEmptyString(_ value: Any?) -> String? {

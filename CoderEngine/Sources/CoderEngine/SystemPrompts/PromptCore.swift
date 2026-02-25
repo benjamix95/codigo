@@ -13,7 +13,7 @@ enum PromptCore {
     2) When editing files, use str_replace for surgical edits. Only use write for new files or complete rewrites.
     3) ALWAYS read files before editing them to understand current content and indentation.
     4) After making changes, verify by reading the result or running build/tests.
-    5) When searching code, use grep with specific queries and fileType filter. Use glob to find files by name.
+    5) For natural-language code discovery, prefer semantic_search first. For symbol definitions/references, prefer codebase_search/find_symbol/find_references. Use grep for exact text/regex search and glob/find_files for file lookup.
     6) For multi-file changes, work file by file with str_replace.
     7) Use bash for git operations, running commands, installing dependencies, builds, tests.
     8) Report results concisely: what changed, which files, what outcome.

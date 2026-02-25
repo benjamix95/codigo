@@ -2,10 +2,15 @@ import SwiftUI
 
 struct MessageToolTraceView: View {
     let events: [ToolTraceEvent]
+    let workspaceHints: [String]
+    let onOpenFile: (String) -> Void
 
     @State private var expandedIds: Set<UUID> = []
     @State private var isExpanded = false
     @State private var didAutoCompactAfterCompletion = false
+    @State private var expandedFileIds: Set<UUID> = []
+    @State private var filePreviewByEventId: [UUID: FileChangePreviewResult] = [:]
+    @State private var loadingPreviewIds: Set<UUID> = []
 
     private let runningCompactLimit = 6
 
@@ -41,13 +46,37 @@ struct MessageToolTraceView: View {
         max(0, orderedEvents.count - displayEvents.count)
     }
 
+    private var fileChanges: [ToolTraceFileChange] {
+        ToolTraceFileChangeMapper.collect(from: orderedEvents)
+    }
+
+    private var fileAddedTotal: Int {
+        fileChanges.reduce(0) { $0 + max(0, $1.added) }
+    }
+
+    private var fileRemovedTotal: Int {
+        fileChanges.reduce(0) { $0 + max(0, $1.removed) }
+    }
+
+    private var genericDisplayEvents: [ToolTraceEvent] {
+        guard isExpanded, !fileChanges.isEmpty else { return displayEvents }
+        return displayEvents.filter { !ToolTraceFileChangeMapper.isFileChangeEvent($0) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             header
                 .padding(.bottom, shouldShowRows ? 2 : 4)
 
             if shouldShowRows {
-                ForEach(Array(displayEvents.enumerated()), id: \.element.id) { index, event in
+                if isExpanded, !fileChanges.isEmpty {
+                    fileChangesSection
+                        .padding(.leading, 22)
+                        .padding(.trailing, 4)
+                        .padding(.bottom, 4)
+                }
+
+                ForEach(Array(genericDisplayEvents.enumerated()), id: \.element.id) { index, event in
                     traceRow(event, displayIndex: index + 1, compactMode: !isExpanded)
                 }
 
@@ -86,6 +115,7 @@ struct MessageToolTraceView: View {
                 isExpanded.toggle()
                 if !isExpanded {
                     expandedIds.removeAll()
+                    expandedFileIds.removeAll()
                 }
             }
         } label: {
@@ -121,6 +151,98 @@ struct MessageToolTraceView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var fileChangesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.badge.gearshape")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text("Files changed \(fileChanges.count)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("+\(fileAddedTotal)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("-\(fileRemovedTotal)")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.error)
+                Spacer(minLength: 0)
+            }
+            .padding(.bottom, 2)
+
+            ForEach(fileChanges) { change in
+                fileChangeRow(change)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fileChangeRow(_ change: ToolTraceFileChange) -> some View {
+        let isExpandedRow = expandedFileIds.contains(change.id)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Button {
+                    openFileForChange(change)
+                } label: {
+                    Text("\(change.kind.displayTitle) \(change.basename)")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                Text("+\(max(0, change.added))")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("-\(max(0, change.removed))")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.error)
+
+                Button {
+                    toggleExpandedFile(change)
+                } label: {
+                    Image(systemName: isExpandedRow ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let path = change.path, !path.isEmpty {
+                Text(path)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+
+            if isExpandedRow {
+                if loadingPreviewIds.contains(change.id) {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("Loading preview...")
+                            .font(.system(size: 10))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
+                    .padding(.vertical, 2)
+                } else if let preview = filePreviewByEventId[change.id] {
+                    detailField(label: preview.label, value: preview.text)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
+        )
     }
 
     @ViewBuilder
@@ -238,7 +360,7 @@ struct MessageToolTraceView: View {
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .textSelection(.enabled)
-                .lineLimit(8)
+                .lineLimit(nil)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -517,6 +639,44 @@ struct MessageToolTraceView: View {
         }
     }
 
+    private func toggleExpandedFile(_ change: ToolTraceFileChange) {
+        withAnimation(.easeInOut(duration: 0.12)) {
+            if expandedFileIds.contains(change.id) {
+                expandedFileIds.remove(change.id)
+                return
+            }
+            expandedFileIds.insert(change.id)
+        }
+        loadPreviewIfNeeded(for: change)
+    }
+
+    private func openFileForChange(_ change: ToolTraceFileChange) {
+        guard let path = FileChangePreviewResolver.resolveOpenPath(
+            for: change,
+            workspaceHints: workspaceHints
+        ) else {
+            return
+        }
+        onOpenFile(path)
+    }
+
+    private func loadPreviewIfNeeded(for change: ToolTraceFileChange) {
+        if filePreviewByEventId[change.id] != nil || loadingPreviewIds.contains(change.id) {
+            return
+        }
+        loadingPreviewIds.insert(change.id)
+        Task {
+            let result = await FileChangePreviewResolver.shared.resolvePreview(
+                for: change,
+                workspaceHints: workspaceHints
+            )
+            await MainActor.run {
+                filePreviewByEventId[change.id] = result
+                loadingPreviewIds.remove(change.id)
+            }
+        }
+    }
+
     private func syncAutoPresentationState() {
         if hasRunningEvent {
             didAutoCompactAfterCompletion = false
@@ -527,6 +687,7 @@ struct MessageToolTraceView: View {
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
             expandedIds.removeAll()
+            expandedFileIds.removeAll()
         }
         didAutoCompactAfterCompletion = true
     }

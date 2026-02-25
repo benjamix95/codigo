@@ -459,6 +459,7 @@ private struct ToolTraceTurnContext: Equatable {
 struct ChatPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
+    @EnvironmentObject var workspaceStore: WorkspaceStore
     @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var taskActivityStore: TaskActivityStore
@@ -530,11 +531,16 @@ struct ChatPanelView: View {
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
+    @AppStorage("plan_panel_width") private var planPanelWidthStorage: Double = 320
+    @AppStorage("debug_panel_width") private var debugPanelWidthStorage: Double = 340
+    @AppStorage("swarm_panel_width") private var swarmPanelWidthStorage: Double = 360
+    @AppStorage("code_review_panel_width") private var codeReviewPanelWidthStorage: Double = 380
     @State private var planToggleEnabled = false
     @State private var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
+    @Binding var showCodeReviewPanel: Bool
     @State private var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
     @State private var planningState: PlanningState = .idle
@@ -707,13 +713,32 @@ struct ChatPanelView: View {
                 }
             }
             if showPlanPanel {
+                PanelResizeHandle(
+                    panelWidth: Binding(get: { CGFloat(planPanelWidthStorage) }, set: { planPanelWidthStorage = Double($0) }),
+                    minWidth: 220, maxWidth: 500, leadingEdge: false
+                )
                 planPanelSidebar
             }
             if showDebugPanel {
+                PanelResizeHandle(
+                    panelWidth: Binding(get: { CGFloat(debugPanelWidthStorage) }, set: { debugPanelWidthStorage = Double($0) }),
+                    minWidth: 240, maxWidth: 500, leadingEdge: false
+                )
                 debugPanelSidebar
             }
             if showSwarmPanel {
+                PanelResizeHandle(
+                    panelWidth: Binding(get: { CGFloat(swarmPanelWidthStorage) }, set: { swarmPanelWidthStorage = Double($0) }),
+                    minWidth: 260, maxWidth: 540, leadingEdge: false
+                )
                 swarmPanelSidebar
+            }
+            if showCodeReviewPanel {
+                PanelResizeHandle(
+                    panelWidth: Binding(get: { CGFloat(codeReviewPanelWidthStorage) }, set: { codeReviewPanelWidthStorage = Double($0) }),
+                    minWidth: 280, maxWidth: 560, leadingEdge: false
+                )
+                codeReviewPanelSidebar
             }
         }
     }
@@ -757,92 +782,123 @@ struct ChatPanelView: View {
     }
 
     private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
-        content
-        .onChange(of: showSwarmPanel) { _, isShowing in
-            if isShowing && coderMode != .agentSwarm {
-                selectMode(.agentSwarm)
-            }
-            if !isShowing && coderMode == .agentSwarm {
-                selectMode(.agent)
-            }
-        }
-        .onChange(of: showDebugPanel) { _, isShowing in
-            if debugToggleEnabled != isShowing {
-                debugToggleEnabled = isShowing
-            }
-        }
-        .onChange(of: debugToggleEnabled) { _, isEnabled in
-            guard showDebugPanel != isEnabled else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                showDebugPanel = isEnabled
-            }
-        }
-        .onChange(of: effectiveContext.primaryPath) { _, newPath in
-            gitPanelStore.refresh(workingDirectory: newPath)
-        }
-        .onChange(of: selectedConversationId) { _, _ in
-            gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-            composerFrozenTimerState = nil
-            composerTaskStartDate = nil
-            composerTimerAutoHideTask?.cancel()
-            composerTimerAutoHideTask = nil
-            lastTaskEndedByManualStop = false
-        }
-        .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
-            guard let cid = conversationId else { return }
-            let wasActive = oldSet.contains(cid)
-            let isActive = newSet.contains(cid)
-            if !wasActive && isActive {
-                composerTaskStartDate = chatStore.taskStartDate(for: cid) ?? Date()
-                composerFrozenTimerState = nil
-                composerTimerAutoHideTask?.cancel()
-                composerTimerAutoHideTask = nil
-                lastTaskEndedByManualStop = false
-            }
-            if wasActive && !isActive {
-                if skipNextLoadingCompletedHandling {
-                    skipNextLoadingCompletedHandling = false
-                    return
+        let lifecycleTracked = content
+            .onChange(of: showSwarmPanel) { wasOpen, isShowing in
+                if isShowing && coderMode != .agentSwarm {
+                    selectMode(.agentSwarm)
                 }
-                hasJustCompletedTask = true
+                if !isShowing && coderMode == .agentSwarm {
+                    selectMode(.agent)
+                }
+                let w = CGFloat(swarmPanelWidthStorage) + 12
+                if isShowing && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
+                else if !isShowing && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+            }
+            .onChange(of: showDebugPanel) { wasOpen, isShowing in
+                if debugToggleEnabled != isShowing {
+                    debugToggleEnabled = isShowing
+                }
+                let w = CGFloat(debugPanelWidthStorage) + 12
+                if isShowing && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
+                else if !isShowing && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+            }
+            .onChange(of: debugToggleEnabled) { _, isEnabled in
+                guard showDebugPanel != isEnabled else { return }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showDebugPanel = isEnabled
+                }
+            }
+            // Auto-expand/shrink window when side panels open/close
+            .onChange(of: showPlanPanel) { wasOpen, isOpen in
+                let w = CGFloat(planPanelWidthStorage) + 12
+                if isOpen && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
+                else if !isOpen && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+            }
+            .onChange(of: showCodeReviewPanel) { wasOpen, isOpen in
+                let w = CGFloat(codeReviewPanelWidthStorage) + 12
+                if isOpen && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
+                else if !isOpen && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+            }
+            .onChange(of: effectiveContext.primaryPath) { _, newPath in
+                gitPanelStore.refresh(workingDirectory: newPath)
+            }
+            .onChange(of: selectedConversationId) { _, _ in
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
-                isFollowingLive = true
-                newEventsWhileDetached = 0
-                let startDate = composerTaskStartDate ?? Date()
-                let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
-                let frozen = buildComposerFrozenTimerState(
-                    elapsedSeconds: elapsed,
-                    endedByManualStop: lastTaskEndedByManualStop
-                )
-                composerFrozenTimerState = frozen
+                composerFrozenTimerState = nil
                 composerTaskStartDate = nil
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
-                if let delay = frozen.autoHideDelay {
-                    composerTimerAutoHideTask = Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                        guard !Task.isCancelled else { return }
-                        if !self.isLoadingForCurrentConversation {
-                            composerFrozenTimerState = nil
-                        }
-                    }
-                }
                 lastTaskEndedByManualStop = false
             }
-        }
-        .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
-        .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
-        .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarmProvider() }
-        .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarmProvider() }
-        .onChange(of: globalYolo) { _, _ in
-            syncCodexProvider()
-            syncCodeReviewRuntimeConfig()
-            syncPlanProvider()
-        }
-        .onChange(of: codeReviewPartitions) { _, _ in syncCodeReviewRuntimeConfig() }
-        .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReviewRuntimeConfig() }
-        .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
-        .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+                guard let cid = conversationId else { return }
+                let wasActive = oldSet.contains(cid)
+                let isActive = newSet.contains(cid)
+                if !wasActive && isActive {
+                    composerTaskStartDate = chatStore.taskStartDate(for: cid) ?? Date()
+                    composerFrozenTimerState = nil
+                    composerTimerAutoHideTask?.cancel()
+                    composerTimerAutoHideTask = nil
+                    lastTaskEndedByManualStop = false
+                }
+                if wasActive && !isActive {
+                    if skipNextLoadingCompletedHandling {
+                        skipNextLoadingCompletedHandling = false
+                        return
+                    }
+                    hasJustCompletedTask = true
+                    gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                    isFollowingLive = true
+                    newEventsWhileDetached = 0
+                    let startDate = composerTaskStartDate ?? Date()
+                    let elapsed = max(0, Int(Date().timeIntervalSince(startDate)))
+                    let frozen = buildComposerFrozenTimerState(
+                        elapsedSeconds: elapsed,
+                        endedByManualStop: lastTaskEndedByManualStop
+                    )
+                    composerFrozenTimerState = frozen
+                    composerTaskStartDate = nil
+                    composerTimerAutoHideTask?.cancel()
+                    composerTimerAutoHideTask = nil
+                    if let delay = frozen.autoHideDelay {
+                        composerTimerAutoHideTask = Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            guard !Task.isCancelled else { return }
+                            if !self.isLoadingForCurrentConversation {
+                                composerFrozenTimerState = nil
+                            }
+                        }
+                    }
+                    lastTaskEndedByManualStop = false
+                }
+            }
+
+        let swarmTracked = lifecycleTracked
+            .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
+            .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
+            .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarmProvider() }
+            .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarmProvider() }
+            .onChange(of: globalYolo) { _, _ in
+                syncCodexProvider()
+                syncCodeReviewRuntimeConfig()
+                syncPlanProvider()
+            }
+
+        let workspaceTracked = swarmTracked
+            .onChange(of: workspaceStore.activeWorkspaceId) { _, _ in
+                syncToolRuntimePolicy()
+                syncCodeReviewRuntimeConfig()
+            }
+            .onChange(of: workspaceStore.workspaces.map(\.id)) { _, _ in
+                syncToolRuntimePolicy()
+                syncCodeReviewRuntimeConfig()
+            }
+
+        return workspaceTracked
+            .onChange(of: codeReviewPartitions) { _, _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
     }
 
     private func applyNotificationAndImporterModifiers<Content: View>(to content: Content) -> some View {
@@ -935,7 +991,7 @@ struct ChatPanelView: View {
                 }
             }
         )
-        .frame(minWidth: 220, idealWidth: 300, maxWidth: 360)
+        .frame(width: CGFloat(planPanelWidthStorage))
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -979,7 +1035,7 @@ struct ChatPanelView: View {
                 }
             }
         )
-        .frame(minWidth: 240, idealWidth: 320, maxWidth: 380)
+        .frame(width: CGFloat(debugPanelWidthStorage))
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -1002,7 +1058,42 @@ struct ChatPanelView: View {
             onOpenFile: { openFilesStore.openFile($0) },
             onSyncSwarmProvider: syncSwarmProvider
         )
-        .frame(minWidth: 260, idealWidth: 340, maxWidth: 420)
+        .frame(width: CGFloat(swarmPanelWidthStorage))
+        .transition(.move(edge: .trailing).combined(with: .opacity))
+    }
+
+    private var codeReviewPanelSidebar: some View {
+        CodeReviewPanelView(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            conversationId: conversationId,
+            isTaskRunning: isLoadingForCurrentConversation,
+            coderMode: coderMode,
+            codeReviewPartitions: $codeReviewPartitions,
+            codeReviewAnalysisOnly: $codeReviewAnalysisOnly,
+            codeReviewMaxRounds: $codeReviewMaxRounds,
+            codeReviewAnalysisBackend: $codeReviewAnalysisBackend,
+            codeReviewExecutionBackend: $codeReviewExecutionBackend,
+            onClose: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showCodeReviewPanel = false
+                }
+            },
+            onOpenFile: { openFilesStore.openFile($0) },
+            onRunSlashCommand: { command in
+                inputText = command
+                isInputFocused = true
+                sendMessage()
+            },
+            onSelectMode: { mode in
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    selectMode(mode)
+                }
+            }
+        )
+        .frame(width: CGFloat(codeReviewPanelWidthStorage))
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
@@ -1495,7 +1586,10 @@ struct ChatPanelView: View {
                                                     assistantMessageId: message.id
                                                 )
                                                 if !traceEvents.isEmpty {
-                                                    MessageToolTraceView(events: traceEvents)
+                                                    messageTraceView(
+                                                        traceEvents: traceEvents,
+                                                        effectiveContext: effectiveContext
+                                                    )
                                                 }
                                             }
                                         }
@@ -1784,6 +1878,30 @@ struct ChatPanelView: View {
             conversationId: conv.id,
             assistantMessageId: lastAssistant.id
         ).count
+    }
+
+    @ViewBuilder
+    private func messageTraceView(
+        traceEvents: [ToolTraceEvent],
+        effectiveContext: EffectiveContext
+    ) -> some View {
+        MessageToolTraceView(
+            events: traceEvents,
+            workspaceHints: traceWorkspaceHints(for: effectiveContext),
+            onOpenFile: { openFilesStore.openFile($0) }
+        )
+    }
+
+    private func traceWorkspaceHints(for effectiveContext: EffectiveContext) -> [String] {
+        let fromContext = effectiveContext.context?.folderPaths
+            .filter { !$0.isEmpty } ?? []
+        if !fromContext.isEmpty {
+            return fromContext
+        }
+        if let primary = effectiveContext.primaryPath, !primary.isEmpty {
+            return [primary]
+        }
+        return []
     }
 
     private func latestMessageScrollTarget() -> AnyHashable? {
@@ -2547,11 +2665,6 @@ struct ChatPanelView: View {
             onSyncToolRuntimePolicy: syncToolRuntimePolicy,
             onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
             onDelegateToAgent: delegateToAgent,
-            onSelectMode: { mode in
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                    selectMode(mode)
-                }
-            },
             attachedImageURLs: attachedComposerAttachments
                 .filter { $0.kind == .image }
                 .map(\.url),
@@ -2562,6 +2675,14 @@ struct ChatPanelView: View {
                 set: { newValue in
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         showSwarmPanel = newValue
+                    }
+                }
+            ),
+            codeReviewToggleEnabled: Binding(
+                get: { showCodeReviewPanel },
+                set: { newValue in
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showCodeReviewPanel = newValue
                     }
                 }
             ),
@@ -2899,7 +3020,11 @@ struct ChatPanelView: View {
 
     private func syncOpenRouterProvider() {
         let p = ProviderFactory.openRouterAPIProvider(
-            config: providerFactoryConfig(), executionController: executionController)
+            config: providerFactoryConfig(),
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
         checkProviderAuth()
     }
@@ -2912,27 +3037,47 @@ struct ChatPanelView: View {
 
         if !cfg.openrouterApiKey.isEmpty {
             let p = ProviderFactory.openRouterAPIProvider(
-                config: cfg, executionController: executionController)
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            )
             reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
         }
         if !cfg.openaiApiKey.isEmpty {
             let p = ProviderFactory.openAIAPIProvider(
-                config: cfg, executionController: executionController)
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            )
             reregisterProviderPreservingSelection(id: "openai-api", provider: p)
         }
         if !cfg.anthropicApiKey.isEmpty {
             let p = ProviderFactory.anthropicAPIProvider(
-                config: cfg, executionController: executionController)
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            )
             reregisterProviderPreservingSelection(id: "anthropic-api", provider: p)
         }
         if !cfg.googleApiKey.isEmpty {
             let p = ProviderFactory.googleAPIProvider(
-                config: cfg, executionController: executionController)
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            )
             reregisterProviderPreservingSelection(id: "google-api", provider: p)
         }
         if !cfg.minimaxApiKey.isEmpty {
             let p = ProviderFactory.miniMaxAPIProvider(
-                config: cfg, executionController: executionController)
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            )
             reregisterProviderPreservingSelection(id: "minimax-api", provider: p)
         }
 
@@ -4436,8 +4581,23 @@ struct ChatPanelView: View {
         shouldRunPlanInline: Bool,
         forcePlanInline: Bool
     ) -> (any LLMProvider)? {
-        // Plan/Review/Swarm use real selected providers, without virtual providers.
-        if forcePlanInline || shouldRunPlanInline || coderMode == .plan || coderMode == .codeReviewMultiSwarm || coderMode == .agentSwarm {
+        // Plan/Swarm use real selected providers, without virtual providers.
+        if forcePlanInline || shouldRunPlanInline || coderMode == .plan || coderMode == .agentSwarm {
+            return selectedProvider
+        }
+        // Code Review Multi-Swarm: build dedicated multi-swarm provider
+        if coderMode == .codeReviewMultiSwarm {
+            let cfg = providerFactoryConfig()
+            if let multiSwarm = ProviderFactory.codeReviewMultiSwarmProvider(
+                config: cfg,
+                executionController: executionController,
+                agentProviderId: providerRegistry.selectedProviderId,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ) {
+                return multiSwarm
+            }
+            // Fallback to selected provider if factory returns nil
             return selectedProvider
         }
         if multiCLIAccountEnabled,
@@ -5129,7 +5289,9 @@ struct ChatPanelView: View {
         guard let swarm = ProviderFactory.swarmProvider(
             config: providerFactoryConfig(),
             executionController: executionController,
-            agentProviderId: agentProviderIdBeforeSwarm
+            agentProviderId: agentProviderIdBeforeSwarm,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
         ), swarm.isAuthenticated() else { return }
 
         chatStore.addMessage(

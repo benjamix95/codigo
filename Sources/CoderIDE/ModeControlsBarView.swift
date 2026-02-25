@@ -2,9 +2,9 @@ import CoderEngine
 import SwiftUI
 
 // MARK: - Mode Controls Bar View
-/// Extracted from ChatPanelView.controlsBar and associated picker computed properties.
-/// Contains the provider picker, model pickers, reasoning picker, access level menu,
-/// swarm orchestrator picker, swarm activity toggle, and delegate-to-agent button.
+/// Bottom controls bar: provider picker, model pickers, reasoning picker, access level menu,
+/// panel toggle buttons (Plan, Debug), and icon-only toggle buttons for Code Review & Swarm
+/// at the far right.
 
 struct ModeControlsBarView: View {
     // MARK: - Provider Registry
@@ -50,126 +50,115 @@ struct ModeControlsBarView: View {
     let onSyncToolRuntimePolicy: () -> Void
     let onUserSelectedProvider: () -> Void
     let onDelegateToAgent: () -> Void
-    let onSelectMode: (CoderMode) -> Void
     let attachedImageURLs: [URL]
     @Binding var planToggleEnabled: Bool
     @Binding var debugToggleEnabled: Bool
     @Binding var swarmToggleEnabled: Bool
+    @Binding var codeReviewToggleEnabled: Bool
     let highlightPlanButton: Bool
+
+    // MARK: - Collapse Tiers
+
+    private enum ControlsTier {
+        case full, medium, compact, minimal
+    }
 
     // MARK: - Body
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            controlsHStack(tier: .full)
+            controlsHStack(tier: .medium)
+            controlsHStack(tier: .compact)
+            controlsHStack(tier: .minimal)
+        }
+    }
+
+    // MARK: - Tier HStack Builder
+
+    @ViewBuilder
+    private func controlsHStack(tier: ControlsTier) -> some View {
+        let pid = providerRegistry.selectedProviderId ?? ""
+        let isAgent = coderMode == .agent || coderMode == .agentSwarm
         HStack(spacing: 6) {
-            modeSelector
-
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor).opacity(0.3))
-                .frame(width: 1, height: 16)
-
-            providerPicker
-
-            providerSpecificControls
-        }
-    }
-
-    // MARK: - Mode Selector
-
-    private var modeSelector: some View {
-        HStack(spacing: 2) {
-            modeSelectorButton("Agent", icon: "brain.head.profile", mode: .agent, color: DesignSystem.Colors.agentColor)
-            modeSelectorButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
-            modeSelectorButton("Review", icon: "doc.text.magnifyingglass", mode: .codeReviewMultiSwarm, color: DesignSystem.Colors.reviewColor)
-        }
-    }
-
-    private func modeSelectorButton(_ title: String, icon: String, mode: CoderMode, color: Color) -> some View {
-        let isSelected = coderMode == mode || (mode == .agent && coderMode == .agentSwarm)
-        return Button {
-            onSelectMode(mode)
-        } label: {
-            HStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.caption2)
-                Text(title)
-                    .font(.caption)
+            // Provider picker: full=icon+name, medium=icon-only, compact/minimal=hidden
+            if tier == .full {
+                providerPickerView(showLabel: true)
+            } else if tier == .medium {
+                providerPickerView(showLabel: false)
             }
-            .foregroundStyle(isSelected ? color : .secondary.opacity(0.6))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? color.opacity(0.14) : Color.clear)
-            )
+
+            // Model picker (always shown)
+            modelPickerForProvider(pid)
+
+            // Reasoning picker (codex only, hidden at minimal)
+            if pid == "codex-cli" && tier != .minimal {
+                codexReasoningPicker
+            }
+
+            // Access level menu: full/medium=icon+label, compact=icon-only, minimal=hidden
+            if hasAccessLevel(pid) {
+                if tier == .full || tier == .medium {
+                    accessLevelMenuView(showLabel: true)
+                } else if tier == .compact {
+                    accessLevelMenuView(showLabel: false)
+                }
+            }
+
+            // Panel toggles: full=icon+text, medium=icon-only, compact/minimal=hidden
+            if isAgent && hasRealProvider(pid) {
+                if tier == .full {
+                    planButton
+                    debugButton
+                } else if tier == .medium {
+                    planButtonIconOnly
+                    debugButtonIconOnly
+                }
+            } else if !hasRealProvider(pid) {
+                if [.agent, .agentSwarm, .plan].contains(coderMode) {
+                    if tier == .full {
+                        planButton
+                        debugButton
+                    } else if tier == .medium {
+                        planButtonIconOnly
+                        debugButtonIconOnly
+                    }
+                } else if coderMode == .ide && tier == .full {
+                    delegateAdAgentButton
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            codeReviewIconButton
+            swarmIconButton
         }
-        .buttonStyle(.plain)
     }
 
-    // MARK: - Provider-Specific Controls
+    private func hasRealProvider(_ pid: String) -> Bool {
+        ["codex-cli", "gemini-cli", "claude-cli", "openrouter-api",
+         "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api"].contains(pid)
+    }
+
+    private func hasAccessLevel(_ pid: String) -> Bool {
+        ["codex-cli", "gemini-cli", "claude-cli", "openrouter-api",
+         "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api"].contains(pid)
+    }
 
     @ViewBuilder
-    private var providerSpecificControls: some View {
-        switch providerRegistry.selectedProviderId {
-        case "codex-cli":
-            codexModelPicker
-            codexReasoningPicker
-            accessLevelMenu
-            if coderMode == .agent || coderMode == .agentSwarm {
-                panelToggleButtons
-            }
-
-        case "gemini-cli":
-            geminiModelPicker
-            accessLevelMenu
-            if coderMode == .agent || coderMode == .agentSwarm {
-                panelToggleButtons
-            }
-
-        case "claude-cli":
-            claudeModelPicker
-            accessLevelMenu
-            if coderMode == .agent || coderMode == .agentSwarm {
-                panelToggleButtons
-            }
-
-        case "openrouter-api":
-            openRouterModelPicker
-            accessLevelMenu
-            if coderMode == .agent || coderMode == .agentSwarm {
-                panelToggleButtons
-            }
-
-        case "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api":
-            accessLevelMenu
-            if coderMode == .agent || coderMode == .agentSwarm {
-                panelToggleButtons
-            }
-
-        default:
-            if [.agent, .agentSwarm, .plan].contains(coderMode) {
-                Spacer()
-                panelToggleButtons
-            } else if coderMode == .ide {
-                Spacer()
-                delegateAdAgentButton
-            } else {
-                Spacer()
-            }
+    private func modelPickerForProvider(_ pid: String) -> some View {
+        switch pid {
+        case "codex-cli": codexModelPicker
+        case "gemini-cli": geminiModelPicker
+        case "claude-cli": claudeModelPicker
+        case "openrouter-api": openRouterModelPicker
+        default: EmptyView()
         }
-    }
-
-    // MARK: - Panel Toggle Buttons Group
-
-    @ViewBuilder
-    private var panelToggleButtons: some View {
-        planButton
-        debugButton
-        swarmButton
     }
 
     // MARK: - Provider Picker
 
-    private var providerPicker: some View {
+    private func providerPickerView(showLabel: Bool) -> some View {
         let realProviders = providerRegistry.providers
             .filter { ProviderSupport.isUserSelectableRealProvider(id: $0.id) }
         return Menu {
@@ -191,7 +180,9 @@ struct ModeControlsBarView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "cpu").font(.caption2)
-                Text(providerLabel).font(.caption)
+                if showLabel {
+                    Text(providerLabel).font(.caption).lineLimit(1)
+                }
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -244,7 +235,7 @@ struct ModeControlsBarView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(codexModelLabel).font(.caption)
+                Text(codexModelLabel).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -277,7 +268,7 @@ struct ModeControlsBarView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(ClaudeModelsCache.displayName(for: claudeModel)).font(.caption)
+                Text(ClaudeModelsCache.displayName(for: claudeModel)).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -315,7 +306,7 @@ struct ModeControlsBarView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(geminiModelLabel).font(.caption)
+                Text(geminiModelLabel).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -336,7 +327,7 @@ struct ModeControlsBarView: View {
     private var openRouterModelPicker: some View {
         Menu {
             if !openRouterPopularModels.isEmpty {
-                Section("Popolari") {
+                Section("Popular") {
                     ForEach(openRouterPopularModels, id: \.self) { model in
                         Button {
                             openrouterModel = model
@@ -370,7 +361,7 @@ struct ModeControlsBarView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(openRouterModelLabel).font(.caption)
+                Text(openRouterModelLabel).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -408,7 +399,7 @@ struct ModeControlsBarView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Text(reasoningEffortDisplay(codexReasoningEffort)).font(.caption)
+                Text(reasoningEffortDisplay(codexReasoningEffort)).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(.secondary)
@@ -434,7 +425,7 @@ struct ModeControlsBarView: View {
             ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
     }
 
-    private var accessLevelMenu: some View {
+    private func accessLevelMenuView(showLabel: Bool) -> some View {
         let cfg = CodexConfigLoader.load()
         return Menu {
             Button {
@@ -473,7 +464,9 @@ struct ModeControlsBarView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: accessLevelIcon(for: effectiveSandbox)).font(.caption)
-                Text(accessLevelLabel(for: effectiveSandbox)).font(.caption)
+                if showLabel {
+                    Text(accessLevelLabel(for: effectiveSandbox)).font(.caption).lineLimit(1)
+                }
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(
@@ -592,34 +585,57 @@ struct ModeControlsBarView: View {
         .fixedSize()
     }
 
-    // MARK: - Swarm Button
+    // MARK: - Code Review Icon Button (icon-only, far right)
 
-    private var swarmButton: some View {
+    private var codeReviewIconButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                codeReviewToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    codeReviewToggleEnabled
+                        ? DesignSystem.Colors.reviewColor : .secondary
+                )
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            codeReviewToggleEnabled
+                                ? DesignSystem.Colors.reviewColor.opacity(0.14)
+                                : Color.clear
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Code Review panel")
+    }
+
+    // MARK: - Swarm Icon Button (icon-only, far right)
+
+    private var swarmIconButton: some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 swarmToggleEnabled.toggle()
             }
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "ant.fill")
-                    .font(.caption2)
-                Text("Swarm")
-                    .font(.caption)
-            }
-            .foregroundStyle(
-                swarmToggleEnabled
-                    ? DesignSystem.Colors.swarmColor : .secondary
-            )
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        swarmToggleEnabled
-                            ? DesignSystem.Colors.swarmColor.opacity(0.14)
-                            : Color.clear
-                    )
-            )
+            Image(systemName: "ant.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    swarmToggleEnabled
+                        ? DesignSystem.Colors.swarmColor : .secondary
+                )
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            swarmToggleEnabled
+                                ? DesignSystem.Colors.swarmColor.opacity(0.14)
+                                : Color.clear
+                        )
+                )
         }
         .buttonStyle(.plain)
         .help("Toggle Swarm panel")
@@ -628,31 +644,57 @@ struct ModeControlsBarView: View {
     // MARK: - Debug Button
 
     private var debugButton: some View {
-        Button {
+        let isActive = debugToggleEnabled
+        let color = DesignSystem.Colors.debugColor
+        return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 debugToggleEnabled.toggle()
             }
         } label: {
-            HStack(spacing: 3) {
+            ViewThatFits(in: .horizontal) {
+                // Full: icon + text
+                HStack(spacing: 3) {
+                    Image(systemName: "ladybug.fill").font(.caption2)
+                    Text("Debug").font(.caption).fixedSize()
+                }
+                .foregroundStyle(isActive ? color : .secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? color.opacity(0.14) : Color.clear)
+                )
+                // Compact: icon only
                 Image(systemName: "ladybug.fill")
-                    .font(.caption2)
-                Text("Debug")
-                    .font(.caption)
-            }
-            .foregroundStyle(
-                debugToggleEnabled
-                    ? DesignSystem.Colors.debugColor : .secondary
-            )
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        debugToggleEnabled
-                            ? DesignSystem.Colors.debugColor.opacity(0.14)
-                            : Color.clear
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isActive ? color : .secondary)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isActive ? color.opacity(0.14) : Color.clear)
                     )
-            )
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Debug mode (Cmd+Shift+D)")
+    }
+
+    private var debugButtonIconOnly: some View {
+        let isActive = debugToggleEnabled
+        let color = DesignSystem.Colors.debugColor
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "ladybug.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isActive ? color : .secondary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? color.opacity(0.14) : Color.clear)
+                )
         }
         .buttonStyle(.plain)
         .help("Toggle Debug mode (Cmd+Shift+D)")
@@ -661,31 +703,57 @@ struct ModeControlsBarView: View {
     // MARK: - Plan Button
 
     private var planButton: some View {
-        Button {
+        let isActive = planToggleEnabled || highlightPlanButton
+        let color = DesignSystem.Colors.planColor
+        return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 planToggleEnabled.toggle()
             }
         } label: {
-            HStack(spacing: 3) {
+            ViewThatFits(in: .horizontal) {
+                // Full: icon + text
+                HStack(spacing: 3) {
+                    Image(systemName: "list.bullet.rectangle").font(.caption2)
+                    Text("Plan").font(.caption).fixedSize()
+                }
+                .foregroundStyle(isActive ? color : .secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? color.opacity(0.14) : Color.clear)
+                )
+                // Compact: icon only
                 Image(systemName: "list.bullet.rectangle")
-                    .font(.caption2)
-                Text("Plan")
-                    .font(.caption)
-            }
-            .foregroundStyle(
-                (planToggleEnabled || highlightPlanButton)
-                    ? DesignSystem.Colors.planColor : .secondary
-            )
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(
-                        (planToggleEnabled || highlightPlanButton)
-                            ? DesignSystem.Colors.planColor.opacity(0.14)
-                            : Color.clear
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isActive ? color : .secondary)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(isActive ? color.opacity(0.14) : Color.clear)
                     )
-            )
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Enable/disable inline Plan")
+    }
+
+    private var planButtonIconOnly: some View {
+        let isActive = planToggleEnabled || highlightPlanButton
+        let color = DesignSystem.Colors.planColor
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                planToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "list.bullet.rectangle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isActive ? color : .secondary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? color.opacity(0.14) : Color.clear)
+                )
         }
         .buttonStyle(.plain)
         .help("Enable/disable inline Plan")

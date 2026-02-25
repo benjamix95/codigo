@@ -163,6 +163,24 @@ public actor SemanticIndex {
         recalcAvgDocLength()
     }
 
+    /// Remove all semantic chunks for a single file.
+    public func removeFile(_ relativePath: String) {
+        removeChunksForFile(relativePath)
+        recalcAvgDocLength()
+    }
+
+    /// Clear the entire semantic index state.
+    public func clear() {
+        chunks.removeAll()
+        invertedIndex.removeAll()
+        termFrequencies.removeAll()
+        docLengths.removeAll()
+        avgDocLength = 0
+        merkleRoot = nil
+        currentSimHash = 0
+        fileToChunks.removeAll()
+    }
+
     // MARK: - Search
 
     /// Semantic search: query by natural language, return ranked chunks.

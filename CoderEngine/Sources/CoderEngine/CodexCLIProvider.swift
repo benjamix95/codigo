@@ -658,9 +658,18 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "web_fetch", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed", "web_fetch_started", "web_fetch_completed", "web_fetch_failed"]
         guard activityTypes.contains(type) else { return nil }
         
-        var payload: [String: String] = ["title": titleForType(type, item: item), "detail": detailForType(type, item: item)]
+        var payload: [String: String] = [
+            "title": titleForType(type, item: item),
+            "detail": detailForType(type, item: item),
+        ]
         if let itemId = firstString(in: item, keys: ["id"]) { payload["id"] = itemId }
-        if let path = firstString(in: item, keys: ["path", "file_path", "file", "target_path"]) { payload["path"] = path }
+        if let path = firstString(
+            in: item,
+            keys: ["path", "file_path", "file", "target_path", "relative_path"]
+        ) {
+            payload["path"] = path
+            payload["file"] = path
+        }
         if let path = item["path"] as? String { payload["file"] = path }
         if let cmd = firstString(in: item, keys: ["command", "command_line", "cmd"]) { payload["command"] = cmd }
         if let cwd = firstString(in: item, keys: ["cwd", "working_directory", "workdir"]) { payload["cwd"] = cwd }
@@ -676,10 +685,35 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             payload["mcp_server"] = mcpServer
             payload["server_id"] = payload["server_id"] ?? mcpServer
         }
-        if let added = item["additions"] as? Int { payload["linesAdded"] = "\(added)" }
-        if let added = item["lines_added"] as? Int { payload["linesAdded"] = "\(added)" }
-        if let removed = item["deletions"] as? Int { payload["linesRemoved"] = "\(removed)" }
-        if let removed = item["lines_removed"] as? Int { payload["linesRemoved"] = "\(removed)" }
+        if let added = firstInt(
+            in: item,
+            keys: ["additions", "lines_added", "linesAdded", "insertions"]
+        ) {
+            payload["linesAdded"] = "\(added)"
+        }
+        if let removed = firstInt(
+            in: item,
+            keys: ["deletions", "lines_removed", "linesRemoved", "deletions_count"]
+        ) {
+            payload["linesRemoved"] = "\(removed)"
+        }
+        if type == "file_change" {
+            if let diffPreview = firstString(
+                in: item,
+                keys: ["diffPreview", "diff", "patch", "unified_diff", "changes_preview"]
+            ), !diffPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                payload["diffPreview"] = String(diffPreview.prefix(12_000))
+            }
+            if let changeType = firstString(
+                in: item,
+                keys: ["change_type", "operation", "action", "edit_type"]
+            ), !changeType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                payload["change_type"] = changeType
+            }
+            // Recompute title/detail from enriched payload for consistency.
+            payload["title"] = fileChangeTitle(from: payload)
+            payload["detail"] = payload["path"] ?? payload["detail"] ?? ""
+        }
         if let query = firstString(in: item, keys: ["query", "search_query"]) { payload["query"] = query }
         if let qid = firstString(in: item, keys: ["query_id", "id"]) { payload["queryId"] = qid }
         if let status = firstString(in: item, keys: ["status"]) { payload["status"] = status }
@@ -735,6 +769,42 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     }
                 }
             }
+        }
+        return nil
+    }
+
+    private static func firstInt(in input: [String: Any], keys: [String]) -> Int? {
+        for key in keys {
+            guard let value = input[key] else { continue }
+            if let intValue = intValue(from: value) {
+                return intValue
+            }
+        }
+        for (_, value) in input {
+            if let nested = value as? [String: Any], let found = firstInt(in: nested, keys: keys) {
+                return found
+            }
+            if let list = value as? [Any] {
+                for item in list {
+                    if let nested = item as? [String: Any], let found = firstInt(in: nested, keys: keys) {
+                        return found
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func intValue(from value: Any) -> Int? {
+        if let intValue = value as? Int {
+            return intValue
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return Int(trimmed)
         }
         return nil
     }
@@ -909,11 +979,20 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private static func titleForType(_ type: String, item: [String: Any]) -> String {
         switch type {
         case "file_change":
-            let path = (item["path"] as? String) ?? (item["file_path"] as? String) ?? "file"
-            let base = (path as NSString).lastPathComponent
-            let added = (item["additions"] as? Int) ?? (item["lines_added"] as? Int) ?? 0
-            let removed = (item["deletions"] as? Int) ?? (item["lines_removed"] as? Int) ?? 0
-            return "Edit • \(base) • +\(added) -\(removed) lines"
+            var payload: [String: String] = [:]
+            if let path = firstString(
+                in: item,
+                keys: ["path", "file_path", "file", "target_path", "relative_path"]
+            ) {
+                payload["path"] = path
+            }
+            if let changeType = firstString(
+                in: item,
+                keys: ["change_type", "operation", "action", "edit_type", "tool", "name"]
+            ) {
+                payload["change_type"] = changeType
+            }
+            return fileChangeTitle(from: payload)
         case "command_execution":
             let cmd = (item["command"] as? String) ?? (item["command_line"] as? String) ?? "command"
             return "Bash • \(String(cmd.prefix(50)))..."
@@ -931,8 +1010,10 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private static func detailForType(_ type: String, item: [String: Any]) -> String {
         switch type {
         case "file_change":
-            let path = (item["path"] as? String) ?? (item["file_path"] as? String) ?? ""
-            return path
+            return firstString(
+                in: item,
+                keys: ["path", "file_path", "file", "target_path", "relative_path"]
+            ) ?? ""
         case "command_execution":
             return (item["command"] as? String) ?? (item["command_line"] as? String) ?? ""
         case "mcp_tool_call":
@@ -944,6 +1025,38 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         default:
             return ""
         }
+    }
+
+    private static func fileChangeTitle(from payload: [String: String]) -> String {
+        let path = (payload["path"] ?? payload["file"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let basename = path.isEmpty ? "file" : (path as NSString).lastPathComponent
+        let normalized = (payload["change_type"] ?? payload["operation"] ?? payload["action"] ?? payload["edit_type"] ?? payload["tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let label: String
+        if normalized.contains("create")
+            || normalized == "a"
+            || normalized == "add"
+            || normalized == "added"
+            || normalized == "create_file"
+        {
+            label = "Created"
+        } else if normalized.contains("delete")
+            || normalized.contains("remove")
+            || normalized == "d"
+            || normalized == "deleted"
+        {
+            label = "Deleted"
+        } else {
+            label = "Edited"
+        }
+
+        if basename.isEmpty || basename == "file" {
+            return "\(label) file"
+        }
+        return "\(label) \(basename)"
     }
 
     private static func mcpEventTitle(from item: [String: Any]) -> String {

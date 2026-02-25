@@ -1,37 +1,37 @@
 import Foundation
 
-/// Contesto del workspace inviato al Coder
+/// Workspace context passed to the coder runtime.
 public struct WorkspaceContext: Sendable {
-    /// Path radice (primo path, per compatibilità e working dir CLI)
+    /// Root path (first path, used for compatibility and CLI working directory).
     public var workspacePath: URL {
         workspacePaths.first ?? URL(fileURLWithPath: "/tmp")
     }
     
-    /// Tutti i path del contesto (workspace o ad-hoc)
+    /// All paths in the current context (workspace or ad-hoc folders).
     public let workspacePaths: [URL]
     
-    /// true = workspace nominato, false = cartelle ad-hoc
+    /// true = named workspace, false = ad-hoc folders.
     public let isNamedWorkspace: Bool
     
-    /// Nome workspace quando isNamedWorkspace
+    /// Workspace name when `isNamedWorkspace` is true.
     public let workspaceName: String?
     
-    /// Path da escludere (relativi o assoluti)
+    /// Paths to exclude (relative or absolute).
     public let excludedPaths: [String]
 
-    /// Se non nil, solo i path matching sono inclusi nel contesto (scoped per partizione)
+    /// If non-nil, only matching paths are included in context (partition-scoped).
     public let includedPaths: [String]?
 
-    /// File attualmente aperti con contenuto
+    /// Currently open files with content.
     public let openFiles: [OpenFile]
     
-    /// Selezione/cursore nel file attivo
+    /// Current selection/cursor snippet in active file.
     public let activeSelection: String?
     
-    /// Path del file attivo
+    /// Active file path.
     public let activeFilePath: String?
 
-    /// Root attiva in workspace multi-cartella (preferenza risoluzione file)
+    /// Active root for multi-folder workspaces (file resolution preference).
     public let activeRootPath: String?
     
     public init(
@@ -56,7 +56,7 @@ public struct WorkspaceContext: Sendable {
         self.activeRootPath = activeRootPath
     }
     
-    /// Inizializzatore legacy (singolo path)
+    /// Legacy initializer (single path).
     public init(
         workspacePath: URL,
         excludedPaths: [String] = [],
@@ -78,7 +78,7 @@ public struct WorkspaceContext: Sendable {
     }
 
     
-    /// Costruisce il prompt di contesto da inviare all'LLM
+    /// Builds the context prompt to send to the LLM.
     public func contextPrompt() -> String {
         var parts: [String] = []
         
@@ -86,28 +86,28 @@ public struct WorkspaceContext: Sendable {
             parts.append("\n**Workspace:** \(name)")
             parts.append("\n**Path:** \(workspacePaths.map { $0.path }.joined(separator: ", "))")
         } else if !workspacePaths.isEmpty {
-            parts.append("\n**Cartelle progetto:** \(workspacePaths.map { $0.path }.joined(separator: ", "))")
+            parts.append("\n**Project folders:** \(workspacePaths.map { $0.path }.joined(separator: ", "))")
         }
         
         if !excludedPaths.isEmpty {
-            parts.append("\n**Esclusi:** \(excludedPaths.joined(separator: ", "))")
+            parts.append("\n**Excluded:** \(excludedPaths.joined(separator: ", "))")
         }
         if let included = includedPaths, !included.isEmpty {
-            parts.append("\n**Scope partizione:** \(included.count) file (\(included.prefix(5).joined(separator: ", "))\(included.count > 5 ? "..." : ""))")
+            parts.append("\n**Partition scope:** \(included.count) files (\(included.prefix(5).joined(separator: ", "))\(included.count > 5 ? "..." : ""))")
         }
         
         for path in workspacePaths.prefix(1) {
             let rootFiles = WorkspaceScanner.listRootFiles(workspacePath: path, excludedPaths: excludedPaths)
             if !rootFiles.isEmpty {
-                parts.append("\n**File nella root:** \(rootFiles.joined(separator: ", "))")
+                parts.append("\n**Files in root:** \(rootFiles.joined(separator: ", "))")
             }
         }
         
         if let activePath = activeFilePath {
-            parts.append("\n**File attivo:** \(activePath)")
+            parts.append("\n**Active file:** \(activePath)")
         }
         if let activeRootPath {
-            parts.append("\n**Root attiva:** \(activeRootPath)")
+            parts.append("\n**Active root:** \(activeRootPath)")
         }
         
         let filesToShow: [OpenFile]
@@ -118,7 +118,7 @@ public struct WorkspaceContext: Sendable {
             filesToShow = openFiles
         }
         if !filesToShow.isEmpty {
-            parts.append("\n## File aperti")
+            parts.append("\n## Open files")
             for file in filesToShow {
                 parts.append("\n### \(file.path)")
                 parts.append("```")
@@ -128,7 +128,7 @@ public struct WorkspaceContext: Sendable {
         }
         
         if let selection = activeSelection, !selection.isEmpty {
-            parts.append("\n## Selezione attiva")
+            parts.append("\n## Active selection")
             parts.append("```")
             parts.append(selection)
             parts.append("```")
@@ -146,7 +146,7 @@ public struct WorkspaceContext: Sendable {
     }
 }
 
-/// File aperto nell'editor
+/// File currently open in the editor.
 public struct OpenFile: Sendable {
     public let path: String
     public let content: String

@@ -28,7 +28,7 @@ struct GitPanelView: View {
             Divider().opacity(0.4)
             commitSection
         }
-        .frame(minWidth: 300, idealWidth: 360, maxWidth: 420)
+        .frame(maxWidth: .infinity)
         .background(DesignSystem.Colors.backgroundPrimary)
         .sidebarPanel(cornerRadius: 14)
         .onAppear {
@@ -124,7 +124,7 @@ struct GitPanelView: View {
             .buttonStyle(.plain)
             .help("Close Git panel")
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 10)
     }
 
@@ -150,7 +150,7 @@ struct GitPanelView: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 6)
         .padding(.vertical, 6)
     }
 
@@ -333,7 +333,7 @@ struct GitPanelView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(Color.primary.opacity(0.02))
     }
@@ -405,7 +405,7 @@ struct GitPanelView: View {
                 .help("Discard changes")
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .hoverHighlight(Color.primary.opacity(0.04))
     }
@@ -481,7 +481,7 @@ struct GitPanelView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .hoverHighlight(Color.primary.opacity(0.04))
     }
@@ -504,7 +504,7 @@ struct GitPanelView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 8)
             .padding(.top, 8)
             .padding(.bottom, 4)
 
@@ -516,7 +516,7 @@ struct GitPanelView: View {
             }
             .pickerStyle(.segmented)
             .controlSize(.small)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 8)
             .padding(.bottom, 4)
 
             if branchSegment == .local {
@@ -525,7 +525,7 @@ struct GitPanelView: View {
                 remoteBranchesContent
             }
 
-            Divider().opacity(0.3).padding(.horizontal, 14)
+            Divider().opacity(0.3).padding(.horizontal, 8)
 
             // Create new branch
             Button {
@@ -540,7 +540,7 @@ struct GitPanelView: View {
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -606,7 +606,7 @@ struct GitPanelView: View {
                 .help("Delete branch")
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -663,7 +663,7 @@ struct GitPanelView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
@@ -719,7 +719,7 @@ struct GitPanelView: View {
                 }
             }
 
-            Divider().opacity(0.3).padding(.horizontal, 14)
+            Divider().opacity(0.3).padding(.horizontal, 8)
 
             // Stash input
             HStack(spacing: 8) {
@@ -746,7 +746,7 @@ struct GitPanelView: View {
                 .buttonStyle(.plain)
                 .disabled(store.isBusy || (store.status?.changedFiles ?? 0) == 0)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 8)
             .padding(.vertical, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -785,7 +785,7 @@ struct GitPanelView: View {
             .disabled(store.isBusy)
             .help("Drop stash")
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .hoverHighlight(Color.primary.opacity(0.04))
     }
@@ -886,7 +886,7 @@ struct GitPanelView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 8)
         .padding(.vertical, 10)
     }
 }

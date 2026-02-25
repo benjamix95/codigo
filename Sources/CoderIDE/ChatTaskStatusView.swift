@@ -294,7 +294,9 @@ struct TaskActivityPanel: View {
         // Plan trace
         if coderMode == .plan {
             PlanLiveTraceView(
-                activities: taskActivityStore.planRelevantRecentActivities(limit: 60)
+                activities: taskActivityStore.planRelevantRecentActivities(limit: 60),
+                workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
+                onOpenFile: onOpenFile
             )
         }
 
@@ -309,7 +311,9 @@ struct TaskActivityPanel: View {
             ) {
                 LiveActivityTimelineView(
                     activities: concreteActivities,
-                    maxVisible: 20
+                    maxVisible: 20,
+                    workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
+                    onOpenFile: onOpenFile
                 )
             }
         }
@@ -415,6 +419,8 @@ struct TaskActivityPanel: View {
             cards: cards,
             isTaskRunning: chatStore.isTaskActive(for: conversationId),
             selectedSwarmId: effectiveSwarmId,
+            workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
+            onOpenFile: onOpenFile,
             onSelectSwarm: { selected in
                 selectedSwarmLaneId = selected
             },
@@ -441,7 +447,9 @@ struct TaskActivityPanel: View {
             ) {
                 LiveActivityTimelineView(
                     activities: selectedLaneActivities,
-                    maxVisible: 24
+                    maxVisible: 24,
+                    workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
+                    onOpenFile: onOpenFile
                 )
             }
 

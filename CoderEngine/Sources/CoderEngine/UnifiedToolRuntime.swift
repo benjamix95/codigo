@@ -364,7 +364,7 @@ public actor UnifiedToolRuntime {
                         startDate: startDate
                     )
                 }
-                throw ToolRuntimeError.validation("Tool non supportato: \(normalizedName)")
+                throw ToolRuntimeError.validation("Unsupported tool: \(normalizedName)")
             }
         } catch let err as ToolRuntimeError {
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
@@ -623,7 +623,7 @@ public actor UnifiedToolRuntime {
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
             if err.errorCode == "mcp_unavailable" {
-                return failure("Tool non supportato: \(toolName)", errorCode: "validation", startDate: startDate)
+                return failure("Unsupported tool: \(toolName)", errorCode: "validation", startDate: startDate)
             }
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
         } catch {
@@ -664,7 +664,7 @@ public actor UnifiedToolRuntime {
         let lines = content.components(separatedBy: .newlines)
         let endLine = endLineRaw > 0 ? min(lines.count, endLineRaw) : min(lines.count, startLine + 200)
         if startLine > endLine || startLine > lines.count {
-            throw ToolRuntimeError.validation("Intervallo linee non valido")
+            throw ToolRuntimeError.validation("Invalid line range")
         }
         let segment = lines[(startLine - 1)..<endLine].enumerated().map { idx, line in
             "\(startLine + idx): \(line)"
@@ -699,7 +699,7 @@ public actor UnifiedToolRuntime {
 
     private func executeWrite(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
         guard let pathArg = call.args["path"] else {
-            throw ToolRuntimeError.validation("Path mancante")
+            throw ToolRuntimeError.validation("Missing path")
         }
         let path = try resolveRequiredPath(pathArg, context: context)
         let content = call.args["content"] ?? ""
@@ -852,7 +852,7 @@ public actor UnifiedToolRuntime {
     private func executeSearchSymbols(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if query.isEmpty {
-            return failure("query mancante", errorCode: "validation", startDate: startDate)
+            return failure("query is required", errorCode: "validation", startDate: startDate)
         }
 
         // Prefer index-powered search if available (supports all languages)
@@ -954,13 +954,13 @@ public actor UnifiedToolRuntime {
         let path = try resolveRequiredPath(call.args["path"], context: context)
         let content = try String(contentsOfFile: path, encoding: .utf8)
         guard let data = content.data(using: .utf8) else {
-            throw ToolRuntimeError.validation("JSON non leggibile")
+            throw ToolRuntimeError.validation("JSON cannot be read")
         }
         let obj: Any
         do {
             obj = try JSONSerialization.jsonObject(with: data)
         } catch {
-            throw ToolRuntimeError.validation("JSON non valido")
+            throw ToolRuntimeError.validation("Invalid JSON")
         }
         let pretty = prettyJSON(obj)
         return success([
@@ -973,7 +973,7 @@ public actor UnifiedToolRuntime {
     private func executeWriteJSON(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
         let path = try resolveRequiredPath(call.args["path"], context: context)
         guard let patchRaw = call.args["patch"], !patchRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ToolRuntimeError.validation("patch JSON obbligatoria")
+            throw ToolRuntimeError.validation("patch JSON is required")
         }
         let patchObj = try parseJSONObject(from: patchRaw)
         let existingObj: Any
@@ -1028,7 +1028,7 @@ public actor UnifiedToolRuntime {
         case "yarn":
             command = "yarn audit --json || true"
         default:
-            return failure("manager non supportato: \(manager)", errorCode: "validation", startDate: startDate)
+            return failure("unsupported manager: \(manager)", errorCode: "validation", startDate: startDate)
         }
         return await runBash(
             command: command,
@@ -1044,7 +1044,7 @@ public actor UnifiedToolRuntime {
     private func executeTailLog(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let lines = max(1, min(2_000, Int(call.args["lines"] ?? "200") ?? 200))
         guard let rawPath = call.args["path"], !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return failure("path obbligatorio", errorCode: "validation", startDate: startDate)
+            return failure("path is required", errorCode: "validation", startDate: startDate)
         }
         do {
             let path = try resolveRequiredPath(rawPath, context: context)
@@ -1248,7 +1248,7 @@ public actor UnifiedToolRuntime {
 
     private func resolveRequiredPath(_ rawPath: String?, context: ToolExecutionContext) throws -> String {
         guard let path = resolvePath(rawPath, workspace: context.workspaceContext.workspacePath.path, sandboxMode: context.policy.sandboxMode) else {
-            throw ToolRuntimeError.sandboxViolation("Path non consentito dal sandbox")
+            throw ToolRuntimeError.sandboxViolation("Path is not allowed by sandbox policy")
         }
         return path
     }
@@ -1277,7 +1277,7 @@ public actor UnifiedToolRuntime {
     private func validateShell(command: String, policy: ToolRuntimePolicy) throws {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            throw ToolRuntimeError.validation("Comando vuoto")
+            throw ToolRuntimeError.validation("Empty command")
         }
         let lower = trimmed.lowercased()
 
@@ -1286,11 +1286,11 @@ public actor UnifiedToolRuntime {
                 "rm -rf /", ":(){ :|:& };:", "sudo ", "> /dev/sd", "mkfs", "dd if=", "shutdown", "reboot", "kill -9 1"
             ]
             for pattern in blockedPatterns where lower.contains(pattern) {
-                throw ToolRuntimeError.sandboxViolation("Comando bloccato da policy strict")
+                throw ToolRuntimeError.sandboxViolation("Command blocked by strict policy")
             }
 
             if lower.contains(" > /") || lower.contains(" >> /") {
-                throw ToolRuntimeError.sandboxViolation("Redirection assoluta bloccata in strict mode")
+                throw ToolRuntimeError.sandboxViolation("Absolute redirection blocked in strict mode")
             }
 
             let head = lower.split(separator: " ").first.map(String.init) ?? ""
@@ -1306,7 +1306,7 @@ public actor UnifiedToolRuntime {
                 "grep", "egrep", "fgrep", "tr", "cut", "paste", "column", "comm", "join",
             ]
             if !head.isEmpty && !allowlist.contains(head) {
-                throw ToolRuntimeError.sandboxViolation("Comando non consentito in strict mode: \(head)")
+                throw ToolRuntimeError.sandboxViolation("Command not allowed in strict mode: \(head)")
             }
         }
     }
@@ -1480,8 +1480,22 @@ public actor UnifiedToolRuntime {
     // MARK: - Improved Grep
 
     private func executeGrep(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let query = call.args["query"] ?? ""
-        let scope = call.args["pathScope"] ?? call.args["path"] ?? "."
+        let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawScope = (call.args["pathScope"] ?? call.args["path"] ?? ".")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let scopeParts = rawScope
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let scopes: [String] = {
+            if scopeParts.isEmpty { return ["."] }
+            var out: [String] = []
+            var seen = Set<String>()
+            for item in scopeParts where seen.insert(item).inserted {
+                out.append(item)
+            }
+            return out
+        }()
         let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let contextLines = Int(call.args["context_lines"] ?? "") ?? 2
         let caseSensitive = (call.args["case_sensitive"] ?? "false").lowercased() == "true"
@@ -1499,41 +1513,101 @@ public actor UnifiedToolRuntime {
             let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
             if indexResult.ok,
                let output = indexResult.payload["output"],
-               !output.isEmpty,
-               !output.contains("No symbols found") {
+                !output.isEmpty,
+                !output.contains("No symbols found") {
                 // Merge with ripgrep results for completeness
                 var payload = indexResult.payload
                 payload["title"] = "Grep \(query) (index + rg)"
+                payload["pathScope"] = scopes.joined(separator: ",")
                 return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
             }
         }
 
-        // Full ripgrep search
-        var cmd = "rg -n --no-heading --max-count 200"
-        if !caseSensitive { cmd += " -i" }
-        if multiline { cmd += " -U" }
-        if !fileType.isEmpty { cmd += " --type '\(shellEscaped(fileType))'" }
-        if contextLines > 0 { cmd += " -C \(min(contextLines, 10))" }
-        cmd += " '\(shellEscaped(query))' '\(shellEscaped(scope))' | head -n 500"
+        let workspace = context.workspaceContext.workspacePath.path
+        let maxContext = min(max(contextLines, 0), 10)
+        var searchOutput = ""
+        var searchError = ""
+        var usedFallback = false
 
-        let rawResult = await runBash(
-            command: cmd,
-            cwd: context.workspaceContext.workspacePath,
-            startDate: startDate,
-            title: "Grep \(query)",
-            timeoutMs: context.policy.timeoutMs,
-            maxOutputBytes: context.policy.maxBashOutputBytes,
-            policy: context.policy
+        // Primary: ripgrep
+        var rgArgs = ["/usr/bin/env", "rg", "-n", "--no-heading", "--max-count", "200"]
+        if !caseSensitive { rgArgs.append("-i") }
+        if multiline { rgArgs.append("-U") }
+        if !fileType.isEmpty { rgArgs.append(contentsOf: ["--type", fileType]) }
+        if maxContext > 0 { rgArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+        rgArgs.append(query)
+        rgArgs.append(contentsOf: scopes)
+        rgArgs.append(contentsOf: ["--glob", "!.build", "--glob", "!node_modules", "--glob", "!.git"])
+
+        let (rgOut, rgErr, rgExit) = await shellExec(
+            args: rgArgs,
+            cwd: workspace,
+            timeout: context.policy.timeoutMs
         )
+        searchOutput = rgOut
+        searchError = rgErr
 
-        // Post-process: rank results by file importance
-        if rawResult.ok, let output = rawResult.payload["output"], !output.isEmpty {
-            let ranked = rankGrepResults(output, query: query)
-            var payload = rawResult.payload
-            payload["output"] = ranked
-            return ToolResult(ok: true, payload: payload, durationMs: rawResult.durationMs)
+        // Fallback: grep when rg is not available.
+        let rgMissing = rgExit == 127
+            || rgErr.lowercased().contains("command not found")
+            || rgErr.lowercased().contains("no such file or directory")
+        if rgMissing {
+            usedFallback = true
+            var grepArgs = ["/usr/bin/env", "grep", "-RIn"]
+            if !caseSensitive { grepArgs.append("-i") }
+            if maxContext > 0 { grepArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+            grepArgs.append(query)
+            grepArgs.append(contentsOf: scopes)
+
+            let (grepOut, grepErr, _) = await shellExec(
+                args: grepArgs,
+                cwd: workspace,
+                timeout: context.policy.timeoutMs
+            )
+            searchOutput = grepOut
+            searchError = grepErr
         }
-        return rawResult
+
+        let durationMs = max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+        let trimmedOutput = searchOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // If both engines are unavailable or failed unexpectedly, report transport failure.
+        if trimmedOutput.isEmpty, usedFallback, searchError.lowercased().contains("not found") {
+            return failure(
+                "Text search tools are unavailable (rg/grep not found)",
+                errorCode: "transport",
+                startDate: startDate,
+                payload: [
+                    "title": "Grep \(query)",
+                    "pathScope": scopes.joined(separator: ","),
+                ]
+            )
+        }
+
+        // No matches is a successful search with zero results.
+        if trimmedOutput.isEmpty {
+            return ToolResult(ok: true, payload: [
+                "title": "Grep \(query)",
+                "query": query,
+                "detail": "No matches found",
+                "output": "",
+                "count": "0",
+                "previewLines": "",
+                "pathScope": scopes.joined(separator: ","),
+            ], durationMs: durationMs)
+        }
+
+        let ranked = rankGrepResults(searchOutput, query: query)
+        let matchLines = extractSearchMatchLines(ranked, limit: 500)
+        return ToolResult(ok: true, payload: [
+            "title": "Grep \(query)",
+            "query": query,
+            "detail": "\(matchLines.count) matches",
+            "output": truncate(ranked, maxBytes: context.policy.maxBashOutputBytes),
+            "count": "\(matchLines.count)",
+            "previewLines": matchLines.prefix(8).joined(separator: "\n"),
+            "pathScope": scopes.joined(separator: ","),
+        ], durationMs: durationMs)
     }
 
     private func containsRegexChars(_ s: String) -> Bool {
@@ -1585,6 +1659,25 @@ public actor UnifiedToolRuntime {
         }.sorted { $0.score > $1.score }
 
         return scored.flatMap(\.lines).joined(separator: "\n")
+    }
+
+    private func extractSearchMatchLines(_ output: String, limit: Int = .max) -> [String] {
+        var matches: [String] = []
+        var seen = Set<String>()
+
+        for rawLine in output.components(separatedBy: "\n") {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let parts = rawLine.split(separator: ":", maxSplits: 2).map(String.init)
+            guard parts.count >= 3, let lineNumber = Int(parts[1]) else { continue }
+            let preview = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = "\(parts[0]):\(lineNumber):\(preview)"
+            guard seen.insert(normalized).inserted else { continue }
+            matches.append(normalized)
+            if matches.count >= limit { break }
+        }
+
+        return matches
     }
 
     // MARK: - Improved Glob
@@ -2354,8 +2447,21 @@ public actor UnifiedToolRuntime {
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        let numResults = min(max(Int(call.args["num_results"] ?? "25") ?? 25, 1), 50)
+        let rawLimit = call.args["limit"] ?? call.args["num_results"] ?? "25"
+        let numResults = min(max(Int(rawLimit) ?? 25, 1), 50)
         let workspace = context.workspaceContext.workspacePath.path
+        let searchPaths: [String] = {
+            let paths = targetDirs.map { dir in
+                (dir as NSString).isAbsolutePath ? dir : (workspace as NSString).appendingPathComponent(dir)
+            }
+            if paths.isEmpty { return [workspace] }
+            var deduped: [String] = []
+            var seen = Set<String>()
+            for path in paths where seen.insert(path).inserted {
+                deduped.append(path)
+            }
+            return deduped
+        }()
 
         // Primary: BM25 SemanticIndex (AST-aware chunks + inverted index)
         if let index = codebaseIndex {
@@ -2392,7 +2498,8 @@ public actor UnifiedToolRuntime {
                     "query": query,
                     "detail": "\(results.count) results (BM25 index)",
                     "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
-                    "count": "\(results.count)"
+                    "count": "\(results.count)",
+                    "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ",")
                 ], startDate: startDate)
             }
         }
@@ -2433,18 +2540,14 @@ public actor UnifiedToolRuntime {
 
         var grepResults: [FallbackResult] = []
         for pattern in patterns.prefix(5) {
-            let searchPath: String
-            if let dir = targetDirs.first {
-                searchPath = (dir as NSString).isAbsolutePath ? dir : (workspace as NSString).appendingPathComponent(dir)
-            } else {
-                searchPath = workspace
-            }
-            var grepArgs = ["/usr/bin/rg", "--no-heading", "-n", "--max-count=10", "-i"]
-            grepArgs.append(contentsOf: [pattern, searchPath])
-            grepArgs.append(contentsOf: ["--glob", "!.build", "--glob", "!node_modules", "--glob", "!.git"])
+            for searchPath in searchPaths {
+                let output = await runSemanticTextSearch(
+                    pattern: pattern,
+                    searchPath: searchPath,
+                    workspace: workspace
+                )
+                guard !output.isEmpty else { continue }
 
-            let (output, _, exitCode) = await shellExec(args: grepArgs, cwd: workspace, timeout: 10_000)
-            if exitCode == 0 {
                 for line in output.components(separatedBy: "\n") where !line.isEmpty {
                     let parts = line.split(separator: ":", maxSplits: 2).map(String.init)
                     guard parts.count >= 3 else { continue }
@@ -2500,8 +2603,25 @@ public actor UnifiedToolRuntime {
             "query": query,
             "detail": "\(top.count) results (grep fallback)",
             "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
-            "count": "\(top.count)"
+            "count": "\(top.count)",
+            "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ",")
         ], startDate: startDate)
+    }
+
+    private func runSemanticTextSearch(pattern: String, searchPath: String, workspace: String) async -> String {
+        let command = """
+        if command -v rg >/dev/null 2>&1; then
+          rg --no-heading -n --max-count=10 -i '\(shellEscaped(pattern))' '\(shellEscaped(searchPath))' --glob '!.build' --glob '!node_modules' --glob '!.git' 2>/dev/null
+        else
+          grep -RIn -m 10 -i -- '\(shellEscaped(pattern))' '\(shellEscaped(searchPath))' 2>/dev/null
+        fi
+        """
+        let (output, _, _) = await shellExec(
+            args: ["/bin/sh", "-lc", command],
+            cwd: workspace,
+            timeout: 10_000
+        )
+        return output
     }
 
     // MARK: - read_lints: Read current linter/diagnostic state without running a build

@@ -136,7 +136,7 @@ struct CodigoApp: App {
     private func configureWindow() {
         let candidates = NSApplication.shared.windows.filter { $0.canBecomeMain }
         for window in candidates {
-            window.minSize = NSSize(width: 700, height: 500)
+            window.minSize = NSSize(width: 860, height: 500)
             window.backgroundColor = DesignSystem.AppKit.windowBackground
             AppDelegate.applyMainWindowStyle(window)
         }
@@ -148,19 +148,25 @@ struct CodigoApp: App {
             providerRegistry.register(
                 ProviderFactory.openAIAPIProvider(
                     config: providerFactoryConfig(), reasoningEffort: effort,
-                    executionController: executionController))
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths))
         }
         if providerRegistry.provider(for: "anthropic-api") == nil {
             providerRegistry.register(
                 ProviderFactory.anthropicAPIProvider(
                     config: providerFactoryConfig(),
-                    executionController: executionController))
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths))
         }
         if providerRegistry.provider(for: "google-api") == nil {
             providerRegistry.register(
                 ProviderFactory.googleAPIProvider(
                     config: providerFactoryConfig(),
-                    executionController: executionController))
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths))
         }
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
@@ -187,7 +193,9 @@ struct CodigoApp: App {
         providerRegistry.register(
             ProviderFactory.miniMaxAPIProvider(
                 config: providerFactoryConfig(),
-                executionController: executionController))
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths))
     }
 
     private func registerOpenRouter() {
@@ -195,7 +203,9 @@ struct CodigoApp: App {
         providerRegistry.register(
             ProviderFactory.openRouterAPIProvider(
                 config: providerFactoryConfig(),
-                executionController: executionController))
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths))
     }
 
     private func registerGrok() {
@@ -203,7 +213,9 @@ struct CodigoApp: App {
         providerRegistry.register(
             ProviderFactory.grokAPIProvider(
                 config: providerFactoryConfig(),
-                executionController: executionController))
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths))
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {

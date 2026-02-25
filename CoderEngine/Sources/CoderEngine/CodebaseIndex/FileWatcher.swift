@@ -114,23 +114,35 @@ public actor FileWatcher {
         pendingPaths.removeAll()
 
         for absolutePath in paths {
-            // Compute relative path from workspace root
-            var relativePath: String?
-            for ws in workspacePaths {
-                let wsPath = ws.path.hasSuffix("/") ? ws.path : ws.path + "/"
-                if absolutePath.hasPrefix(wsPath) {
-                    relativePath = String(absolutePath.dropFirst(wsPath.count))
-                    break
-                }
-            }
-            guard let relPath = relativePath else { continue }
+            let relPath =
+                await index.canonicalRelativePath(for: absolutePath)
+                ?? computeInternalRelativePath(for: absolutePath)
+            guard let relPath else { continue }
 
             if FileManager.default.fileExists(atPath: absolutePath) {
                 // File created or modified — re-index it
                 await index.indexSingleFile(absolutePath: absolutePath, relativePath: relPath)
+            } else {
+                // File removed or renamed — remove stale index entries immediately.
+                await index.removeSingleFile(absolutePath: absolutePath, relativePath: relPath)
             }
-            // Note: for deleted files, the next incremental update will clean them up
         }
+    }
+
+    private func computeInternalRelativePath(for absolutePath: String) -> String? {
+        for ws in workspacePaths {
+            let rootPath = ws.path
+            if absolutePath == rootPath {
+                return ws.lastPathComponent
+            }
+            let rootWithSlash = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+            if absolutePath.hasPrefix(rootWithSlash) {
+                let tail = String(absolutePath.dropFirst(rootWithSlash.count))
+                let rootName = ws.lastPathComponent
+                return tail.isEmpty ? rootName : "\(rootName)/\(tail)"
+            }
+        }
+        return nil
     }
 
     // MARK: - Filtering

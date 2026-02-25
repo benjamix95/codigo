@@ -347,6 +347,74 @@ extension View {
     func glow(color: Color, radius: CGFloat = 0) -> some View { self }
 }
 
+// MARK: - Panel Resize Handle
+/// A draggable divider that allows users to resize adjacent panels.
+struct PanelResizeHandle: View {
+    /// The current width of the panel being resized.
+    @Binding var panelWidth: CGFloat
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+    /// Set to true when the handle is on the leading edge of the panel (drag right = wider).
+    var leadingEdge: Bool = true
+
+    @State private var isDragging = false
+    @State private var isHovering = false
+    @State private var dragStartWidth: CGFloat = 0
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .overlay(
+                RoundedRectangle(cornerRadius: 1)
+                    .fill((isDragging || isHovering) ? Color.accentColor.opacity(0.5) : Color(nsColor: .separatorColor).opacity(0.3))
+                    .frame(width: isDragging || isHovering ? 3 : 1)
+                    .animation(.easeOut(duration: 0.15), value: isDragging)
+                    .animation(.easeOut(duration: 0.15), value: isHovering)
+            )
+            .onHover { hovering in
+                isHovering = hovering
+                if hovering {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                            dragStartWidth = panelWidth
+                        }
+                        let delta = leadingEdge ? -value.translation.width : value.translation.width
+                        panelWidth = min(max(dragStartWidth + delta, minWidth), maxWidth)
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                    }
+            )
+    }
+}
+
+// MARK: - Window Auto-Resize Helper
+
+enum WindowResizeHelper {
+    /// Expands or shrinks the window width by `delta` points, keeping the left edge fixed.
+    /// Positive delta = wider, negative = narrower. Respects screen bounds.
+    static func adjustWidth(by delta: CGFloat) {
+        guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first(where: { $0.canBecomeMain }) else { return }
+        let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first!
+        var frame = window.frame
+        let newWidth = max(frame.width + delta, window.minSize.width)
+        let maxRight = screen.visibleFrame.maxX
+        let clampedWidth = min(newWidth, maxRight - frame.minX)
+        frame.size.width = clampedWidth
+        window.setFrame(frame, display: true, animate: true)
+    }
+}
+
 // MARK: - Glass Card
 struct GlassCard<Content: View>: View {
     let content: Content

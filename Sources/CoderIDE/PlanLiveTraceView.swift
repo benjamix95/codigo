@@ -40,20 +40,26 @@ private struct PlanTraceItem: Identifiable {
     let timestamp: Date
     let status: Status
     let isExpandable: Bool
+    let fileChange: ToolTraceFileChange?
 
     init(activity: TaskActivity) {
+        let mappedFileChange = ToolTraceFileChangeMapper.from(activity: activity)
         id = activity.id
         icon = PlanTraceItem.icon(for: activity.type)
         iconColor = PlanTraceItem.color(for: activity.type)
-        displayTitle = PlanTraceItem.title(for: activity)
+        displayTitle = PlanTraceItem.title(for: activity, fileChange: mappedFileChange)
         displaySummary = PlanTraceItem.summary(for: activity)
         rawOutput = PlanTraceItem.rawOutput(for: activity)
         timestamp = activity.timestamp
         status = PlanTraceItem.status(for: activity)
-        isExpandable = !(rawOutput?.isEmpty ?? true)
+        fileChange = mappedFileChange
+        isExpandable = mappedFileChange != nil || !(rawOutput?.isEmpty ?? true)
     }
 
-    private static func title(for activity: TaskActivity) -> String {
+    private static func title(for activity: TaskActivity, fileChange: ToolTraceFileChange?) -> String {
+        if let fileChange {
+            return "\(fileChange.kind.displayTitle) \(fileChange.basename)"
+        }
         switch activity.type {
         case "command_execution", "bash": return "Running command"
         case "read_batch_started", "read_batch_completed": return "Reading files (batch)"
@@ -67,7 +73,6 @@ private struct PlanTraceItem: Identifiable {
         case "semantic_search": return "Semantic search"
         case "read_lints": return "Reading diagnostics"
         case "debug_context": return "Debug context"
-        case "file_change", "edit": return "Updating file"
         default: return activity.title
         }
     }
@@ -95,6 +100,10 @@ private struct PlanTraceItem: Identifiable {
         }
         if let cwd = activity.payload["cwd"], !cwd.isEmpty {
             lines.append("cwd: \(cwd)")
+        }
+        if let diffPreview = activity.payload["diffPreview"], !diffPreview.isEmpty {
+            lines.append("")
+            lines.append(diffPreview)
         }
         if let output = activity.payload["output"], !output.isEmpty {
             lines.append("")
@@ -164,7 +173,12 @@ private struct PlanTraceItem: Identifiable {
 
 struct PlanLiveTraceView: View {
     let activities: [TaskActivity]
+    let workspaceHints: [String]
+    let onOpenFile: ((String) -> Void)?
+
     @State private var expandedRawById: Set<UUID> = []
+    @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
+    @State private var loadingPreviewIds: Set<UUID> = []
 
     private var traceItems: [PlanTraceItem] {
         activities.map(PlanTraceItem.init(activity:))
@@ -196,6 +210,7 @@ struct PlanLiveTraceView: View {
 
     private func traceRow(_ item: PlanTraceItem) -> some View {
         let isExpanded = expandedRawById.contains(item.id)
+
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: item.icon)
@@ -206,6 +221,16 @@ struct PlanLiveTraceView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                 Spacer()
+
+                if let fileChange = item.fileChange {
+                    Text("+\(max(0, fileChange.added))")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.success)
+                    Text("-\(max(0, fileChange.removed))")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.error)
+                }
+
                 Text(item.status.label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(item.status.color)
@@ -217,18 +242,30 @@ struct PlanLiveTraceView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text(item.displaySummary)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            if let fileChange = item.fileChange,
+               let path = fileChange.path,
+               !path.isEmpty,
+               let openPath = FileChangePreviewResolver.resolveOpenPath(for: fileChange, workspaceHints: workspaceHints)
+            {
+                Button {
+                    onOpenFile?(openPath)
+                } label: {
+                    Text(path)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.info)
+                        .lineLimit(2)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(item.displaySummary)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
 
             if item.isExpandable {
                 Button {
-                    if isExpanded {
-                        expandedRawById.remove(item.id)
-                    } else {
-                        expandedRawById.insert(item.id)
-                    }
+                    toggleExpanded(item)
                 } label: {
                     Text(isExpanded ? "Hide output" : "Show output")
                         .font(.system(size: 10, weight: .medium))
@@ -237,19 +274,74 @@ struct PlanLiveTraceView: View {
                 .buttonStyle(.plain)
             }
 
-            if isExpanded, let raw = item.rawOutput {
-                Text(truncated(raw))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
-                    .textSelection(.enabled)
+            if isExpanded {
+                if let fileChange = item.fileChange {
+                    fileChangePreview(for: fileChange)
+                } else if let raw = item.rawOutput {
+                    Text(truncated(raw))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                        .textSelection(.enabled)
+                }
             }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
         .background(Color.black.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func fileChangePreview(for change: ToolTraceFileChange) -> some View {
+        if loadingPreviewIds.contains(change.id) {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Loading preview...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        } else if let preview = filePreviewById[change.id] {
+            Text(preview.text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 8))
+                .textSelection(.enabled)
+        }
+    }
+
+    private func toggleExpanded(_ item: PlanTraceItem) {
+        if expandedRawById.contains(item.id) {
+            expandedRawById.remove(item.id)
+            return
+        }
+
+        expandedRawById.insert(item.id)
+        if let fileChange = item.fileChange {
+            loadPreviewIfNeeded(for: fileChange)
+        }
+    }
+
+    private func loadPreviewIfNeeded(for change: ToolTraceFileChange) {
+        if filePreviewById[change.id] != nil || loadingPreviewIds.contains(change.id) {
+            return
+        }
+
+        loadingPreviewIds.insert(change.id)
+        Task {
+            let result = await FileChangePreviewResolver.shared.resolvePreview(
+                for: change,
+                workspaceHints: workspaceHints
+            )
+            await MainActor.run {
+                filePreviewById[change.id] = result
+                loadingPreviewIds.remove(change.id)
+            }
+        }
     }
 
     private func timestamp(_ date: Date) -> String {
@@ -259,6 +351,6 @@ struct PlanLiveTraceView: View {
     private func truncated(_ text: String, maxChars: Int = 6000) -> String {
         if text.count <= maxChars { return text }
         let end = text.index(text.startIndex, offsetBy: maxChars)
-        return String(text[..<end]) + "\n\n… output truncated (\(text.count - maxChars) characters hidden)"
+        return String(text[..<end]) + "\n\n... output truncated (\(text.count - maxChars) characters hidden)"
     }
 }

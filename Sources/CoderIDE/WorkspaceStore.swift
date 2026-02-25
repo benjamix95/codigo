@@ -3,6 +3,8 @@ import CoderEngine
 
 private let workspacesKey = "CoderIDE.workspaces"
 private let activeWorkspaceIdKey = "CoderIDE.activeWorkspaceId"
+private let codebaseIndexEnabledKey = "codebase_index_enabled"
+private let codebaseIndexExcludedPathsKey = "codebase_index_excluded_paths"
 
 @MainActor
 final class WorkspaceStore: ObservableObject {
@@ -35,11 +37,31 @@ final class WorkspaceStore: ObservableObject {
         activeWorkspace?.excludedPaths ?? []
     }
 
+    private var isAutomaticIndexingEnabled: Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: codebaseIndexEnabledKey) == nil {
+            return true
+        }
+        return defaults.bool(forKey: codebaseIndexEnabledKey)
+    }
+
+    private var globalExcludedPaths: [String] {
+        let raw = UserDefaults.standard.string(forKey: codebaseIndexExcludedPathsKey) ?? ""
+        return raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var effectiveExcludedPaths: [String] {
+        var seen = Set<String>()
+        let combined = activeExcludedPaths + globalExcludedPaths
+        return combined.filter { seen.insert($0).inserted }
+    }
+
     /// Index the active workspace (called on workspace change)
     func indexActiveWorkspace() {
         let paths = activeWorkspacePaths
-        let excluded = activeExcludedPaths
-        guard !paths.isEmpty else { return }
 
         // Stop existing file watcher
         if let watcher = fileWatcher {
@@ -47,6 +69,15 @@ final class WorkspaceStore: ObservableObject {
             fileWatcher = nil
         }
 
+        guard isAutomaticIndexingEnabled, !paths.isEmpty else {
+            let index = codebaseIndex
+            Task.detached(priority: .utility) {
+                await index.clear()
+            }
+            return
+        }
+
+        let excluded = effectiveExcludedPaths
         let index = codebaseIndex
         Task.detached(priority: .utility) {
             let _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
@@ -89,7 +120,7 @@ final class WorkspaceStore: ObservableObject {
         }
     }
     
-    /// Crea workspace vuoto (senza cartelle)
+    /// Create an empty workspace (without folders)
     func createEmpty(name: String) {
         let ws = Workspace(name: name, folderPaths: [])
         workspaces.append(ws)
@@ -99,7 +130,7 @@ final class WorkspaceStore: ObservableObject {
         save()
     }
 
-    /// Crea workspace con una cartella (convenienza)
+    /// Create a workspace with a single root folder (convenience)
     func create(name: String, rootPath: String) {
         let ws = Workspace(name: name, rootPath: rootPath)
         workspaces.append(ws)
@@ -131,6 +162,7 @@ final class WorkspaceStore: ObservableObject {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspace.id }) else { return }
         workspaces[idx] = workspace
         save()
+        if workspace.id == activeWorkspaceId { indexActiveWorkspace() }
     }
 
     func delete(id: UUID) {
@@ -147,6 +179,7 @@ final class WorkspaceStore: ObservableObject {
         if !workspaces[idx].excludedPaths.contains(pathNorm) {
             workspaces[idx].excludedPaths.append(pathNorm)
             save()
+            if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
         }
     }
 
@@ -154,5 +187,6 @@ final class WorkspaceStore: ObservableObject {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
         workspaces[idx].excludedPaths.removeAll { $0 == path }
         save()
+        if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
     }
 }

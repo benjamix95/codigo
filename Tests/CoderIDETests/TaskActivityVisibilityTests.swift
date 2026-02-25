@@ -24,7 +24,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
     func testStreamingStatusAndDetailIgnoreGenericEvents() {
         let generic = TaskActivity(
             type: "turn_started",
-            title: "Turno avviato",
+            title: "Turn started",
             phase: .planning,
             isRunning: true
         )
@@ -36,7 +36,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
         )
         let concrete = TaskActivity(
             type: "command_execution",
-            title: "Eseguo test",
+            title: "Running tests",
             phase: .executing,
             isRunning: true
         )
@@ -52,12 +52,12 @@ final class TaskActivityVisibilityTests: XCTestCase {
         )
 
         XCTAssertEqual(status, "Running command")
-        XCTAssertEqual(detail, "Eseguo test • 2 operations")
+        XCTAssertEqual(detail, "Running tests • 2 operations")
     }
 
     func testStreamingStatusAndDetailFallbackWhenOnlyGenericEvents() {
         let activities = [
-            TaskActivity(type: "turn_started", title: "Turno avviato", phase: .planning, isRunning: true),
+            TaskActivity(type: "turn_started", title: "Turn started", phase: .planning, isRunning: true),
             TaskActivity(type: "usage", title: "Token usage", phase: .planning, isRunning: false),
         ]
 

@@ -611,6 +611,94 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertLessThanOrEqual(count, 3, "Should respect limit parameter")
     }
 
+    func testSemanticSearchLimitAliasTakesPriority() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        for i in 1...12 {
+            let file = tmp.appendingPathComponent("LimitAlias\(i).swift")
+            try "func limitAlias\(i)() { print(\"alias\") }".write(to: file, atomically: true, encoding: .utf8)
+        }
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "limit alias", "num_results": "10", "limit": "2"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        let count = Int(completed?["count"] ?? "0") ?? 0
+        XCTAssertLessThanOrEqual(count, 2, "limit alias should cap results")
+    }
+
+    func testSemanticSearchFallbackSupportsMultipleTargetDirectories() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let dirA = tmp.appendingPathComponent("DirA", isDirectory: true)
+        let dirB = tmp.appendingPathComponent("DirB", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        try "func alphaMatch() { print(\"shared semantic token\") }".write(
+            to: dirA.appendingPathComponent("Alpha.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "func betaMatch() { print(\"shared semantic token\") }".write(
+            to: dirB.appendingPathComponent("Beta.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: [
+                "query": "shared semantic token",
+                "target_directories": "DirA,DirB",
+                "limit": "10",
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("DirA/Alpha.swift"), "Expected hit from DirA")
+        XCTAssertTrue(output.contains("DirB/Beta.swift"), "Expected hit from DirB")
+    }
+
+    func testGrepMultiScopeProducesPreviewAndCountPayload() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let dirA = tmp.appendingPathComponent("ScopeA", isDirectory: true)
+        let dirB = tmp.appendingPathComponent("ScopeB", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+        try "let instantNeedle = 1\n".write(to: dirA.appendingPathComponent("One.swift"), atomically: true, encoding: .utf8)
+        try "let instantNeedle = 2\n".write(to: dirB.appendingPathComponent("Two.swift"), atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "grep",
+            args: ["query": "instantNeedle", "pathScope": "ScopeA,ScopeB"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertEqual(completed?["pathScope"], "ScopeA,ScopeB")
+        XCTAssertFalse((completed?["previewLines"] ?? "").isEmpty)
+        XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
+    }
+
     func testSemanticSearchNoResultsReturnsEmpty() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()

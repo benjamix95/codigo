@@ -260,10 +260,18 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             let newLines = newStr.components(separatedBy: .newlines).count
             let added = max(0, newLines - oldLines)
             let removed = max(0, oldLines - newLines)
-            let title = "Edit • \(base) • +\(added) -\(removed) lines"
-            var payload: [String: String] = ["title": title, "detail": path, "path": path, "file": path]
-            if added > 0 { payload["linesAdded"] = "\(added)" }
-            if removed > 0 { payload["linesRemoved"] = "\(removed)" }
+            let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let title = "Edited \(base)"
+            var payload: [String: String] = [
+                "title": title,
+                "detail": path,
+                "path": path,
+                "file": path,
+                "tool": normalizedName,
+                "change_type": "edit",
+                "linesAdded": "\(added)",
+                "linesRemoved": "\(removed)",
+            ]
             if !oldStr.isEmpty || !newStr.isEmpty {
                 payload["diffPreview"] = buildDiffPreview(old: oldStr, new: newStr)
             }

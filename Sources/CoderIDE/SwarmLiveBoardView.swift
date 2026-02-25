@@ -4,6 +4,8 @@ struct SwarmLiveBoardView: View {
     let cards: [SwarmLiveCardState]
     let isTaskRunning: Bool
     let selectedSwarmId: String?
+    let workspaceHints: [String]
+    let onOpenFile: ((String) -> Void)?
     let onSelectSwarm: ((String) -> Void)?
     let onSetCollapsed: ((String, Bool) -> Void)?
 
@@ -15,12 +17,16 @@ struct SwarmLiveBoardView: View {
         cards: [SwarmLiveCardState],
         isTaskRunning: Bool = false,
         selectedSwarmId: String? = nil,
+        workspaceHints: [String] = [],
+        onOpenFile: ((String) -> Void)? = nil,
         onSelectSwarm: ((String) -> Void)? = nil,
         onSetCollapsed: ((String, Bool) -> Void)? = nil
     ) {
         self.cards = cards
         self.isTaskRunning = isTaskRunning
         self.selectedSwarmId = selectedSwarmId
+        self.workspaceHints = workspaceHints
+        self.onOpenFile = onOpenFile
         self.onSelectSwarm = onSelectSwarm
         self.onSetCollapsed = onSetCollapsed
     }
@@ -66,6 +72,8 @@ struct SwarmLiveBoardView: View {
                                     isCollapsed: collapsed,
                                     isSelected: selectedSwarmId == card.swarmId,
                                     expandedRawIds: $expandedRawIds,
+                                    workspaceHints: workspaceHints,
+                                    onOpenFile: onOpenFile,
                                     onToggleCollapse: {
                                         let next = !collapsed
                                         localCollapsed[card.swarmId] = next
@@ -112,11 +120,15 @@ private struct SwarmLiveCardView: View {
     let isCollapsed: Bool
     let isSelected: Bool
     @Binding var expandedRawIds: Set<UUID>
+    let workspaceHints: [String]
+    let onOpenFile: ((String) -> Void)?
     let onToggleCollapse: () -> Void
     let onSelect: () -> Void
 
     private let previewEventCount = 12
     private let maxRawPreviewChars = 4096
+    @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
+    @State private var loadingPreviewIds: Set<UUID> = []
 
     private var statusColor: Color {
         switch card.status {
@@ -258,16 +270,36 @@ private struct SwarmLiveCardView: View {
     @ViewBuilder
     private func eventRow(_ activity: TaskActivity) -> some View {
         let expanded = expandedRawIds.contains(activity.id)
+        let fileChange = ToolTraceFileChangeMapper.from(activity: activity)
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Circle()
                     .fill(activityStatusColor(activity))
                     .frame(width: 6, height: 6)
-                Text(activity.title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
+
+                if let fileChange {
+                    Text("\(fileChange.kind.displayTitle) \(fileChange.basename)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                } else {
+                    Text(activity.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                }
+
                 Spacer()
+
+                if let fileChange {
+                    Text("+\(max(0, fileChange.added))")
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.success)
+                    Text("-\(max(0, fileChange.removed))")
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.error)
+                }
+
                 Text(activity.timestamp.formatted(date: .omitted, time: .standard))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(.tertiary)
@@ -286,19 +318,32 @@ private struct SwarmLiveCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(expanded ? nil : 2)
             } else if let path = activity.payload["path"] ?? activity.payload["file"], !path.isEmpty {
-                Text(path)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let fileChange,
+                   let openPath = FileChangePreviewResolver.resolveOpenPath(
+                       for: fileChange,
+                       workspaceHints: workspaceHints
+                   )
+                {
+                    Button {
+                        onOpenFile?(openPath)
+                    } label: {
+                        Text(path)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.info)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(path)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             if hasRaw(activity) {
                 Button(expanded ? "Hide details" : "Show details") {
-                    if expanded {
-                        expandedRawIds.remove(activity.id)
-                    } else {
-                        expandedRawIds.insert(activity.id)
-                    }
+                    toggleRaw(activity: activity, fileChange: fileChange)
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .medium))
@@ -306,18 +351,22 @@ private struct SwarmLiveCardView: View {
             }
 
             if expanded {
-                let raw = rawDetail(for: activity)
-                if !raw.isEmpty {
-                    Text(raw)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            Color(nsColor: .controlBackgroundColor).opacity(0.35),
-                            in: RoundedRectangle(cornerRadius: 8)
-                        )
-                        .textSelection(.enabled)
+                if let fileChange {
+                    fileChangePreviewView(for: fileChange)
+                } else {
+                    let raw = rawDetail(for: activity)
+                    if !raw.isEmpty {
+                        Text(raw)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                Color(nsColor: .controlBackgroundColor).opacity(0.35),
+                                in: RoundedRectangle(cornerRadius: 8)
+                            )
+                            .textSelection(.enabled)
+                    }
                 }
             }
         }
@@ -332,7 +381,10 @@ private struct SwarmLiveCardView: View {
     }
 
     private func hasRaw(_ activity: TaskActivity) -> Bool {
-        !(activity.payload["output"] ?? "").isEmpty ||
+        if ToolTraceFileChangeMapper.isFileChangeActivity(activity) {
+            return true
+        }
+        return !(activity.payload["output"] ?? "").isEmpty ||
             !(activity.payload["stderr"] ?? "").isEmpty ||
             !(activity.payload["cwd"] ?? "").isEmpty ||
             !(activity.payload["diffPreview"] ?? "").isEmpty
@@ -346,10 +398,65 @@ private struct SwarmLiveCardView: View {
         if let output = activity.payload["output"], !output.isEmpty {
             lines.append(String(output.prefix(maxRawPreviewChars)))
         }
+        if let diffPreview = activity.payload["diffPreview"], !diffPreview.isEmpty {
+            lines.append(String(diffPreview.prefix(maxRawPreviewChars)))
+        }
         if let stderr = activity.payload["stderr"], !stderr.isEmpty {
             lines.append("stderr:")
             lines.append(String(stderr.prefix(maxRawPreviewChars)))
         }
         return lines.joined(separator: "\n\n")
+    }
+
+    @ViewBuilder
+    private func fileChangePreviewView(for change: ToolTraceFileChange) -> some View {
+        if loadingPreviewIds.contains(change.id) {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Loading preview...")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        } else if let preview = filePreviewById[change.id] {
+            Text(preview.text)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    Color(nsColor: .controlBackgroundColor).opacity(0.35),
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+                .textSelection(.enabled)
+        }
+    }
+
+    private func toggleRaw(activity: TaskActivity, fileChange: ToolTraceFileChange?) {
+        if expandedRawIds.contains(activity.id) {
+            expandedRawIds.remove(activity.id)
+            return
+        }
+        expandedRawIds.insert(activity.id)
+        if let fileChange {
+            loadPreviewIfNeeded(for: fileChange)
+        }
+    }
+
+    private func loadPreviewIfNeeded(for change: ToolTraceFileChange) {
+        if filePreviewById[change.id] != nil || loadingPreviewIds.contains(change.id) {
+            return
+        }
+        loadingPreviewIds.insert(change.id)
+        Task {
+            let result = await FileChangePreviewResolver.shared.resolvePreview(
+                for: change,
+                workspaceHints: workspaceHints
+            )
+            await MainActor.run {
+                filePreviewById[change.id] = result
+                loadingPreviewIds.remove(change.id)
+            }
+        }
     }
 }

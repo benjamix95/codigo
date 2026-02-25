@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider OpenAI-compatible via API diretta (usabile per OpenAI, OpenRouter, MiniMax, ecc.)
+/// OpenAI-compatible API provider (usable for OpenAI, OpenRouter, MiniMax, and others).
 public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
@@ -16,7 +16,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     private let baseURL: String
     private let extraHeaders: [String: String]
 
-    /// Modelli che supportano reasoning effort: o1, o3, o4-mini
+    /// Models that support reasoning effort: o1, o3, o4-mini.
     public static func isReasoningModel(_ name: String) -> Bool {
         name.hasPrefix("o1") || name.hasPrefix("o3") || name.hasPrefix("o4")
     }
@@ -159,7 +159,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                     @Sendable
                     func attemptStream(includeTools: Bool) async throws -> String? {
                         guard let url = URL(string: baseURL) else {
-                            throw CoderEngineError.apiError("URL non valida: \(baseURL)")
+                            throw CoderEngineError.apiError("Invalid URL: \(baseURL)")
                         }
                         var request = URLRequest(url: url)
                         request.httpMethod = "POST"
@@ -193,7 +193,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
                         guard let httpResponse = response as? HTTPURLResponse else {
-                            throw CoderEngineError.apiError("Risposta non HTTP dal server")
+                            throw CoderEngineError.apiError("Non-HTTP response from server")
                         }
 
                         // Handle non-2xx responses with proper error body reading
@@ -211,14 +211,14 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                             if statusCode == 401 || statusCode == 403 {
                                 let msg = Self.extractErrorMessage(
                                     from: errorBody, statusCode: statusCode)
-                                throw CoderEngineError.apiError("Autenticazione fallita — \(msg)")
+                                throw CoderEngineError.apiError("Authentication failed — \(msg)")
                             }
 
                             // For rate limiting
                             if statusCode == 429 {
                                 let msg = Self.extractErrorMessage(
                                     from: errorBody, statusCode: statusCode)
-                                throw CoderEngineError.apiError("Rate limit superato — \(msg)")
+                                throw CoderEngineError.apiError("Rate limit exceeded — \(msg)")
                             }
 
                             // For other 4xx errors when tools are included, also try without tools
@@ -309,7 +309,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                                                 type: "reasoning",
                                                 payload: [
                                                     "output": text,
-                                                    "title": "Ragionamento",
+                                                    "title": "Reasoning",
                                                     "group_id": "reasoning-stream",
                                                 ]))
                                     }
@@ -414,178 +414,11 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     // MARK: - Tool Definitions
 
     private static var toolDefinitions: [[String: Any]] {
-        [
-            functionTool(
-                name: "read", description: "Read file content from workspace",
-                properties: [
-                    "path": [
-                        "type": "string", "description": "File path absolute or workspace-relative",
-                    ]
-                ], required: ["path"]),
-            functionTool(
-                name: "glob", description: "Find files by glob-like pattern",
-                properties: [
-                    "pattern": ["type": "string", "description": "Pattern to match, e.g. *.swift"]
-                ], required: ["pattern"]),
-            functionTool(
-                name: "grep", description: "Search text in files",
-                properties: [
-                    "query": ["type": "string", "description": "Text/regex query"],
-                    "pathScope": ["type": "string", "description": "Optional folder/file scope"],
-                ], required: ["query"]),
-            functionTool(
-                name: "edit", description: "Overwrite file with new content",
-                properties: [
-                    "path": ["type": "string", "description": "Target file path"],
-                    "content": ["type": "string", "description": "Full file content to write"],
-                ], required: ["path", "content"]),
-            functionTool(
-                name: "write", description: "Alias of edit",
-                properties: [
-                    "path": ["type": "string", "description": "Target file path"],
-                    "content": ["type": "string", "description": "Full file content to write"],
-                ], required: ["path", "content"]),
-            functionTool(
-                name: "bash", description: "Run shell command in workspace",
-                properties: [
-                    "command": ["type": "string", "description": "Shell command"]
-                ], required: ["command"]),
-            functionTool(
-                name: "read_range", description: "Read a line range from a file",
-                properties: [
-                    "path": ["type": "string", "description": "Target file path"],
-                    "start": ["type": "string", "description": "Start line (1-based)"],
-                    "end": ["type": "string", "description": "End line (inclusive)"],
-                ], required: ["path", "start"]),
-            functionTool(
-                name: "list_dir", description: "List directory entries",
-                properties: [
-                    "path": ["type": "string", "description": "Directory path"],
-                    "maxEntries": ["type": "string", "description": "Max number of entries"],
-                ], required: ["path"]),
-            functionTool(
-                name: "git_diff", description: "Show git diff",
-                properties: [
-                    "path": ["type": "string", "description": "Optional path scope"]
-                ], required: []),
-            functionTool(
-                name: "search_symbols", description: "Search code symbols",
-                properties: [
-                    "query": ["type": "string", "description": "Symbol query"],
-                    "kind": ["type": "string", "description": "class|struct|enum|protocol|function|all"],
-                ], required: ["query"]),
-            functionTool(
-                name: "run_tests", description: "Run tests for the project",
-                properties: [
-                    "target": ["type": "string", "description": "Optional test target or filter"],
-                    "filter": ["type": "string", "description": "Optional test filter"],
-                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"],
-                ], required: []),
-            functionTool(
-                name: "build_project", description: "Build the project",
-                properties: [
-                    "configuration": ["type": "string", "description": "debug|release"],
-                    "target": ["type": "string", "description": "Optional target"],
-                    "timeout_ms": ["type": "string", "description": "Timeout in milliseconds"],
-                ], required: []),
-            functionTool(
-                name: "list_processes", description: "List running processes",
-                properties: [
-                    "filter": ["type": "string", "description": "Optional process filter"],
-                ], required: []),
-            functionTool(
-                name: "read_json", description: "Read and pretty-print JSON file",
-                properties: [
-                    "path": ["type": "string", "description": "JSON file path"],
-                ], required: ["path"]),
-            functionTool(
-                name: "write_json", description: "Merge JSON patch into JSON file",
-                properties: [
-                    "path": ["type": "string", "description": "JSON file path"],
-                    "patch": ["type": "string", "description": "JSON object patch string"],
-                ], required: ["path", "patch"]),
-            functionTool(
-                name: "workspace_stats", description: "Collect workspace stats",
-                properties: [
-                    "path": ["type": "string", "description": "Optional relative path scope"],
-                ], required: []),
-            functionTool(
-                name: "dependency_audit", description: "Run dependency audit",
-                properties: [
-                    "manager": ["type": "string", "description": "swift|npm|pnpm|yarn"],
-                ], required: []),
-            functionTool(
-                name: "tail_log", description: "Tail a log file",
-                properties: [
-                    "path": ["type": "string", "description": "Log file path"],
-                    "lines": ["type": "string", "description": "Number of lines"],
-                ], required: ["path"]),
-            functionTool(
-                name: "mcp", description: "Invoke MCP tool",
-                properties: [
-                    "tool": ["type": "string", "description": "MCP tool name"],
-                    "args": ["type": "string", "description": "JSON string args"],
-                ], required: ["tool"]),
-            functionTool(
-                name: "mcp_list_servers", description: "List configured MCP servers",
-                properties: [:], required: []),
-            functionTool(
-                name: "mcp_list_tools", description: "List MCP tools",
-                properties: [
-                    "server": ["type": "string", "description": "Optional server id/name"],
-                ], required: []),
-            functionTool(
-                name: "mcp_describe_tool", description: "Describe MCP tool schema",
-                properties: [
-                    "server": ["type": "string", "description": "Optional server id/name"],
-                    "tool": ["type": "string", "description": "Tool name"],
-                ], required: ["tool"]),
-            functionTool(
-                name: "mcp_health", description: "Check MCP server health",
-                properties: [
-                    "server": ["type": "string", "description": "Optional server id/name"],
-                ], required: []),
-            functionTool(
-                name: "mcp_reconnect", description: "Reconnect MCP session",
-                properties: [
-                    "server": ["type": "string", "description": "Server id/name"],
-                ], required: ["server"]),
-            functionTool(
-                name: "web_search", description: "Search the web for current information. Returns JSON array of results with title, snippet, and url.",
-                properties: [
-                    "query": ["type": "string", "description": "Search query terms"],
-                    "explanation": ["type": "string", "description": "Optional context for why this search is needed"]
-                ], required: ["query"]),
-            functionTool(
-                name: "web_fetch", description: "Fetch a web page and return its content as clean Markdown. Use after web_search to read full page content.",
-                properties: [
-                    "url": ["type": "string", "description": "The full URL to fetch (https://...)"]
-                ], required: ["url"]),
-        ]
-    }
-
-    private static func functionTool(
-        name: String,
-        description: String,
-        properties: [String: [String: String]],
-        required: [String]
-    ) -> [String: Any] {
-        [
-            "type": "function",
-            "function": [
-                "name": name,
-                "description": description,
-                "parameters": [
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                ],
-            ],
-        ]
+        ToolSchemaCatalog.openAIFunctionTools
     }
 }
 
-/// Errori CoderEngine
+/// CoderEngine errors.
 public enum CoderEngineError: Error, Sendable {
     case notAuthenticated
     case apiError(String)
@@ -596,11 +429,11 @@ extension CoderEngineError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notAuthenticated:
-            return "Provider non autenticato"
+            return "Provider is not authenticated"
         case .apiError(let message):
             return message
         case .cliNotFound(let path):
-            return "CLI non trovata: \(path)"
+            return "CLI not found: \(path)"
         }
     }
 }

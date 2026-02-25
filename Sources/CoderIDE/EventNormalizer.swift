@@ -226,6 +226,11 @@ enum EventNormalizer {
     }
 
     private static func normalizeSpecialType(_ type: String, payload: [String: String]) -> String {
+        if type == "read_batch_completed",
+           let toolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           ["semantic_search", "read_lints", "debug_context"].contains(toolName) {
+            return toolName
+        }
         if type == "web_search",
            let status = payload["status"]?.lowercased() {
             switch status {
@@ -252,6 +257,10 @@ enum EventNormalizer {
         case "command_execution", "bash":
             return .executing
         case "mcp_tool_call":
+            return .executing
+        case "semantic_search":
+            return .searching
+        case "read_lints", "debug_context":
             return .executing
         case "file_change", "edit", "read_batch_started", "read_batch_completed":
             return .editing
