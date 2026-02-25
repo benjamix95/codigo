@@ -1288,27 +1288,26 @@ struct ChatPanelView: View {
 
 
     private var chatHeader: some View {
-        ZStack {
-            // Center: Mode tabs — Agent / IDE
-            modeTabBar
+        GeometryReader { geo in
+            ZStack {
+                // Center: Mode tabs — Agent / IDE
+                modeTabBar
 
-            // Leading: project + title, Trailing: rewind button
-            ViewThatFits(in: .horizontal) {
+                // Leading: project + (optional) title, Trailing: rewind button
                 HStack(spacing: 8) {
                     projectButton
-                    conversationTitleLabel
-                    Spacer(minLength: 0)
-                    rewindButton
-                }
-                HStack(spacing: 8) {
-                    projectButton
+                    if shouldShowConversationTitle(headerWidth: geo.size.width) {
+                        conversationTitleLabel
+                    }
                     Spacer(minLength: 0)
                     rewindButton
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .frame(height: 32)
     }
 
     @ViewBuilder
@@ -1334,6 +1333,11 @@ struct ChatPanelView: View {
             .foregroundStyle(.primary.opacity(0.7))
             .lineLimit(1)
             .fixedSize()
+    }
+
+    private func shouldShowConversationTitle(headerWidth: CGFloat) -> Bool {
+        // Hide thread title aggressively in narrow layouts to avoid overlap with centered mode tabs.
+        headerWidth >= 720
     }
 
     private var rewindButton: some View {
@@ -1365,7 +1369,7 @@ struct ChatPanelView: View {
 
     private var modeTabBar: some View {
         HStack(spacing: 2) {
-            modeTabButton("Agent", icon: "brain.head.profile", mode: .agent, color: DesignSystem.Colors.agentColor)
+            modeTabButton("Agent", icon: "brain", mode: .agent, color: DesignSystem.Colors.agentColor)
             modeTabButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
         }
     }
@@ -2794,7 +2798,7 @@ struct ChatPanelView: View {
     }
     private func modeIcon(for m: CoderMode) -> String {
         switch m {
-        case .agent: return "brain.head.profile"
+        case .agent: return "brain"
         case .agentSwarm: return "ant.fill"
         case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
         case .plan: return "list.bullet.rectangle"
