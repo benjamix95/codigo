@@ -12,6 +12,7 @@ struct MessageToolTraceView: View {
     @State private var filePreviewByEventId: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
     @State private var isCompactDiffExpanded = false
+    @State private var isCompactDiffLoading = false
 
     private let runningCompactLimit = 6
 
@@ -206,6 +207,37 @@ struct MessageToolTraceView: View {
                     if isCompactDiffExpanded {
                         detailField(label: "Diff", value: compactDiff)
                     }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
+                )
+            } else if !fileChanges.isEmpty {
+                HStack(spacing: 8) {
+                    if isCompactDiffLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "text.alignleft")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    }
+                    Button {
+                        loadCompactDiffPreviewIfNeeded()
+                    } label: {
+                        Text(isCompactDiffLoading ? "Building compact diff..." : "Build compact diff")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCompactDiffLoading)
+                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
@@ -866,6 +898,31 @@ struct MessageToolTraceView: View {
         }
     }
 
+    private func loadCompactDiffPreviewIfNeeded() {
+        guard !isCompactDiffLoading else { return }
+        guard !fileChanges.isEmpty else { return }
+        isCompactDiffLoading = true
+
+        Task {
+            for change in fileChanges {
+                if compactDiffChunk(for: change) != nil {
+                    continue
+                }
+                let result = await FileChangePreviewResolver.shared.resolvePreview(
+                    for: change,
+                    workspaceHints: workspaceHints
+                )
+                await MainActor.run {
+                    filePreviewByEventId[change.id] = result
+                }
+            }
+
+            await MainActor.run {
+                isCompactDiffLoading = false
+            }
+        }
+    }
+
     private func syncAutoPresentationState() {
         if hasRunningEvent {
             didAutoCompactAfterCompletion = false
@@ -879,6 +936,7 @@ struct MessageToolTraceView: View {
             expandedFileIds.removeAll()
             isCompactDiffExpanded = false
         }
+        isCompactDiffLoading = false
         didAutoCompactAfterCompletion = true
     }
 }
