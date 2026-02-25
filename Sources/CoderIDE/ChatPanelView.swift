@@ -1288,37 +1288,110 @@ struct ChatPanelView: View {
 
 
     private var chatHeader: some View {
-        HStack(spacing: 8) {
-            Text(chatStore.conversation(for: conversationId)?.title ?? "New conversation")
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.7))
-                .lineLimit(1)
-            Spacer()
-            Button {
-                rewindConversation()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 11, weight: .medium))
-                    if isRewinding {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
+        ZStack {
+            // Center: Mode tabs — Agent / IDE
+            modeTabBar
+
+            // Leading: project + title, Trailing: rewind button
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    projectButton
+                    conversationTitleLabel
+                    Spacer(minLength: 0)
+                    rewindButton
                 }
-                .foregroundStyle(
-                    (chatStore.canRewind(conversationId: conversationId) && !isLoadingForCurrentConversation
-                        && !isRewinding) ? .secondary : .quaternary)
+                HStack(spacing: 8) {
+                    projectButton
+                    Spacer(minLength: 0)
+                    rewindButton
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(
-                !chatStore.canRewind(conversationId: conversationId) || isLoadingForCurrentConversation
-                    || isRewinding
-            )
-            .help("Rewind to previous checkpoint (restore chat and files)")
-            .accessibilityLabel("Rewind checkpoint chat")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var projectButton: some View {
+        if let path = effectiveContext.primaryPath {
+            Button {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+            } label: {
+                Text(effectiveContext.displayLabel)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .buttonStyle(.plain)
+            .help("Open folder \(path)")
+        }
+    }
+
+    private var conversationTitleLabel: some View {
+        Text(chatStore.conversation(for: conversationId)?.title ?? "New conversation")
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(.primary.opacity(0.7))
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private var rewindButton: some View {
+        Button {
+            rewindConversation()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 11, weight: .medium))
+                if isRewinding {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .foregroundStyle(
+                (chatStore.canRewind(conversationId: conversationId) && !isLoadingForCurrentConversation
+                    && !isRewinding) ? .secondary : .quaternary)
+        }
+        .buttonStyle(.plain)
+        .disabled(
+            !chatStore.canRewind(conversationId: conversationId) || isLoadingForCurrentConversation
+                || isRewinding
+        )
+        .help("Rewind to previous checkpoint (restore chat and files)")
+        .accessibilityLabel("Rewind checkpoint chat")
+    }
+
+    // MARK: - Mode Tab Bar (Agent / IDE)
+
+    private var modeTabBar: some View {
+        HStack(spacing: 2) {
+            modeTabButton("Agent", icon: "brain.head.profile", mode: .agent, color: DesignSystem.Colors.agentColor)
+            modeTabButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
+        }
+    }
+
+    private func modeTabButton(_ title: String, icon: String, mode: CoderMode, color: Color) -> some View {
+        let isSelected = coderMode == mode || (mode == .agent && (coderMode == .agentSwarm || coderMode == .codeReviewMultiSwarm))
+        return Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                selectMode(mode)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(isSelected ? color : .secondary.opacity(0.6))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isSelected ? color.opacity(0.12) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Messages Area
