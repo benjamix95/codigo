@@ -215,6 +215,26 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertFalse(activity.isRunning)
     }
 
+    func testReadBatchCompletedNamespacedSemanticSearchMapsToSemanticType() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "read_batch_completed",
+            payload: [
+                "tool": "functions.semantic_search",
+                "status": "completed",
+                "query": "trace activity"
+            ]
+        )
+
+        guard case .taskActivity(let activity)? = envelope.events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "semantic_search")
+        XCTAssertEqual(activity.phase, .searching)
+        XCTAssertFalse(activity.isRunning)
+    }
+
     func testStrReplaceNormalizesToFileChangeEditingPhase() {
         let envelope = EventNormalizer.normalizeEnvelope(
             sourceProvider: "codex-cli",

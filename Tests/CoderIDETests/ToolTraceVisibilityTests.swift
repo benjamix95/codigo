@@ -49,6 +49,44 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: fakeMCP))
     }
 
+    func testNamespacedMCPToolEventIsIncludedAndDisplayed() {
+        let namespaced = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP discovery",
+            payload: ["tool": "functions.mcp_list_servers"],
+            phase: .executing,
+            isRunning: false
+        )
+
+        XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: namespaced))
+
+        let event = makeEvent(type: "mcp_tool_call", payload: ["tool": "functions.mcp_list_servers"])
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
+    func testTodoWriteIsVisibleButDoesNotRequirePolicyAck() {
+        let activity = TaskActivity(
+            type: "todo_write",
+            title: "Todo updated",
+            payload: [
+                "title": "Implement trace fix",
+                "status": "in_progress",
+            ],
+            phase: .planning,
+            isRunning: false
+        )
+
+        XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
+        let event = makeEvent(type: "todo_write", payload: activity.payload)
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+        XCTAssertFalse(
+            ToolTraceVisibility.requiresPolicyAck(
+                type: "todo_write",
+                payload: activity.payload
+            )
+        )
+    }
+
     private func makeEvent(type: String, payload: [String: String]) -> ToolTraceEvent {
         ToolTraceEvent(
             sequence: 1,

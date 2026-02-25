@@ -359,6 +359,26 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertTrue((parsed.payload["title"] ?? "").contains("MCP discovery"))
     }
 
+    func testRawMCPToolCallNormalizesNamespacedToolIdentifier() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "mcp-2",
+                "type": "mcp_tool_call",
+                "name": "functions.mcp_list_servers",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected raw mcp_tool_call event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "mcp_tool_call")
+        XCTAssertEqual(parsed.payload["tool"], "mcp_list_servers")
+        XCTAssertEqual(parsed.payload["tool_raw"], "functions.mcp_list_servers")
+    }
+
     func testFunctionCallNamespacedSemanticSearchMapsToSemanticSearch() {
         let json: [String: Any] = [
             "type": "item.completed",

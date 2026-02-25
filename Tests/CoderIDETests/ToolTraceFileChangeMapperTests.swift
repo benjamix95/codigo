@@ -115,6 +115,47 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.removed, 1)
     }
 
+    func testMapperTreatsApplyPatchAsFileChangeEvenWhenTypeIsCommandExecution() {
+        let event = makeEvent(
+            type: "command_execution",
+            title: "apply_patch",
+            payload: [
+                "tool": "functions.apply_patch",
+                "path": "Sources/CoderIDE/Trace.swift",
+                "patch": """
+                @@ -1 +1 @@
+                -let old = 1
+                +let old = 2
+                """,
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.path, "Sources/CoderIDE/Trace.swift")
+        XCTAssertEqual(mapped?.added, 1)
+        XCTAssertEqual(mapped?.removed, 1)
+    }
+
+    func testMapperUsesPathAndDiffHeuristicForUntypedFileChanges() {
+        let event = makeEvent(
+            type: "command_execution",
+            title: "unknown",
+            payload: [
+                "path": "Sources/CoderIDE/Unknown.swift",
+                "diffPreview": "-a\n+b",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertNotNil(mapped)
+        XCTAssertEqual(mapped?.basename, "Unknown.swift")
+        XCTAssertEqual(mapped?.added, 1)
+        XCTAssertEqual(mapped?.removed, 1)
+    }
+
     private func makeEvent(
         type: String = "file_change",
         title: String,

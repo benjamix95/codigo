@@ -237,13 +237,19 @@ enum EventNormalizer {
         let normalized = type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+        let normalizedCanonicalType = normalizedToolIdentifier(normalized)
+        if ["semantic_search", "read_lints", "debug_context"].contains(normalizedCanonicalType) {
+            return normalizedCanonicalType
+        }
         if fileChangeLikeTypes.contains(normalized) {
             return "file_change"
         }
         if type == "read_batch_completed",
-           let toolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           ["semantic_search", "read_lints", "debug_context"].contains(toolName) {
-            return toolName
+           let rawToolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           ["semantic_search", "read_lints", "debug_context"].contains(
+               normalizedToolIdentifier(rawToolName)
+           ) {
+            return normalizedToolIdentifier(rawToolName)
         }
         if type == "web_search",
            let status = payload["status"]?.lowercased() {
@@ -264,6 +270,23 @@ enum EventNormalizer {
             }
         }
         return type
+    }
+
+    private static func normalizedToolIdentifier(_ raw: String) -> String {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        guard !normalized.isEmpty else { return "" }
+        let parts = normalized
+            .split(whereSeparator: { ch in
+                ch == "." || ch == ":" || ch == "/" || ch == "\\"
+            })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        guard let last = parts.last else { return normalized }
+        return last
     }
 
     private static func phaseForType(_ type: String, payload _: [String: String]) -> ActivityPhase {
@@ -418,6 +441,7 @@ enum EventNormalizer {
         "create_file",
         "delete_file",
         "parallel_apply",
+        "apply_patch",
         "rename_symbol",
         "find_and_replace_all",
         "undo_edit",

@@ -783,7 +783,10 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let stderr = firstString(in: item, keys: ["stderr", "error", "error_message"]), !stderr.isEmpty {
             payload["stderr"] = String(stderr.prefix(3_000))
         }
-        if let tool = firstString(in: item, keys: ["tool", "name"]) { payload["tool"] = tool }
+        if let tool = firstString(in: item, keys: ["tool", "name"]) {
+            payload["tool"] = ProviderToolEventMapper.normalizeToolIdentifier(tool)
+            payload["tool_raw"] = tool
+        }
         if let mcpTool = firstString(in: item, keys: ["mcp_tool", "tool_name"]) { payload["mcp_tool"] = mcpTool }
         if let mcpServer = firstString(in: item, keys: ["mcp_server", "server_id", "server", "server_name"]) {
             payload["mcp_server"] = mcpServer

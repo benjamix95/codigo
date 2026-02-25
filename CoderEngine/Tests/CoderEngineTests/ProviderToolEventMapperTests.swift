@@ -91,4 +91,23 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["tool"], "mcp_list_servers")
         XCTAssertTrue((mapped?.payload["title"] ?? "").contains("MCP discovery"))
     }
+
+    func testApplyPatchMapsToFileChange() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.apply_patch",
+            payload: [
+                "path": "Sources/CoderIDE/MessageToolTraceView.swift",
+                "patch": """
+                @@ -1 +1 @@
+                -old
+                +new
+                """,
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "file_change")
+        XCTAssertEqual(mapped?.payload["tool"], "apply_patch")
+        XCTAssertEqual(mapped?.payload["path"], "Sources/CoderIDE/MessageToolTraceView.swift")
+        XCTAssertNotNil(mapped?.payload["diffPreview"])
+    }
 }

@@ -5,8 +5,6 @@ enum ToolTraceVisibility {
         "turn_started",
         "turn_completed",
         "coderide_show_task_panel",
-        "todo_read",
-        "todo_write",
         "plan_step",
         "plan_step_update",
         "activate_plan_mode",
@@ -38,6 +36,8 @@ enum ToolTraceVisibility {
         "tool_execution_error",
         "tool_timeout",
         "tool_validation_error",
+        "todo_read",
+        "todo_write",
         "web_search",
         "web_search_started",
         "web_search_completed",
@@ -111,6 +111,7 @@ enum ToolTraceVisibility {
     static func requiresPolicyAck(type rawType: String, payload: [String: String]) -> Bool {
         let type = normalizedType(rawType)
         if type == "policy_ack" { return false }
+        if type == "todo_read" || type == "todo_write" { return false }
         if hiddenDisplayTypes.contains(type) { return false }
         if [
             "tool_execution_error", "tool_validation_error", "tool_timeout",
@@ -140,7 +141,11 @@ enum ToolTraceVisibility {
     }
 
     private static func isRealMCPEvent(payload: [String: String]) -> Bool {
-        let tool = normalizedType(payload["tool"] ?? payload["name"] ?? "")
+        let rawTool = normalizedType(payload["tool"] ?? payload["name"] ?? "")
+        let tool = normalizedToolIdentifier(rawTool)
+        if rawTool.hasPrefix("mcp") || rawTool.contains(".mcp_") || rawTool.contains("/mcp_") {
+            return true
+        }
         if tool.hasPrefix("mcp") { return true }
         if !(payload["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
@@ -152,5 +157,18 @@ enum ToolTraceVisibility {
             return true
         }
         return false
+    }
+
+    private static func normalizedToolIdentifier(_ value: String) -> String {
+        let normalized = normalizedType(value)
+        guard !normalized.isEmpty else { return "" }
+        let parts = normalized
+            .split(whereSeparator: { ch in
+                ch == "." || ch == ":" || ch == "/" || ch == "\\"
+            })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        guard let last = parts.last else { return normalized }
+        return last
     }
 }

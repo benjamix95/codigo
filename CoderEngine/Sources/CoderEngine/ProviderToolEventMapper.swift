@@ -121,7 +121,7 @@ enum ProviderToolEventMapper {
     }
 
     private static let canonicalToolNames: Set<String> = [
-        "agent", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
+        "agent", "apply_patch", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
         "debug_context", "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
@@ -133,6 +133,7 @@ enum ProviderToolEventMapper {
     ]
 
     private static let canonicalToolAliases: [String: String] = [
+        "applypatch": "apply_patch",
         "codebasesearch": "codebase_search",
         "debugcontext": "debug_context",
         "exec_command": "bash",
@@ -297,7 +298,7 @@ enum ProviderToolEventMapper {
     }
 
     private static func isFileChangeTool(_ tool: String, typeHint: String) -> Bool {
-        if ["edit", "write", "multiedit", "multi_edit", "create_file", "delete_file", "str_replace", "regex_replace", "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit"].contains(tool) {
+        if ["edit", "write", "multiedit", "multi_edit", "create_file", "delete_file", "str_replace", "regex_replace", "parallel_apply", "apply_patch", "rename_symbol", "find_and_replace_all", "undo_edit"].contains(tool) {
             return true
         }
         return typeHint.contains("file_change") || typeHint.contains("edit") || typeHint.contains("write")

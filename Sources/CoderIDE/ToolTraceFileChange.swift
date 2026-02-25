@@ -258,10 +258,19 @@ enum ToolTraceFileChangeMapper {
         if fileChangeTypes.contains(normalized) {
             return true
         }
-        let normalizedTool = (payload["tool"] ?? payload["name"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return fileChangeTools.contains(normalizedTool)
+        let normalizedTool = normalizedToolIdentifier(payload["tool"] ?? payload["name"] ?? "")
+        if fileChangeTools.contains(normalizedTool) {
+            return true
+        }
+
+        let hasPathHint = firstNonEmpty(payload: payload, keys: [
+            "path", "file", "file_path", "relative_path", "target_path",
+        ]) != nil
+        let hasDiffHint = firstNonEmpty(payload: payload, keys: [
+            "diffPreview", "diff", "patch", "unified_diff", "changes_preview",
+            "old_string", "new_string", "linesAdded", "linesRemoved", "additions", "deletions",
+        ]) != nil
+        return hasPathHint && hasDiffHint
     }
 
     private static let fileChangeTypes: Set<String> = [
@@ -273,6 +282,7 @@ enum ToolTraceFileChangeMapper {
         "create_file",
         "delete_file",
         "parallel_apply",
+        "apply_patch",
         "rename_symbol",
         "find_and_replace_all",
         "undo_edit",
@@ -288,6 +298,7 @@ enum ToolTraceFileChangeMapper {
         "create_file",
         "delete_file",
         "parallel_apply",
+        "apply_patch",
         "rename_symbol",
         "find_and_replace_all",
         "undo_edit",
@@ -301,5 +312,22 @@ enum ToolTraceFileChangeMapper {
             if !value.isEmpty { return value }
         }
         return nil
+    }
+
+    private static func normalizedToolIdentifier(_ raw: String) -> String {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+        guard !normalized.isEmpty else { return "" }
+        let parts = normalized
+            .split(whereSeparator: { ch in
+                ch == "." || ch == ":" || ch == "/" || ch == "\\"
+            })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        guard let last = parts.last else { return normalized }
+        return last
     }
 }

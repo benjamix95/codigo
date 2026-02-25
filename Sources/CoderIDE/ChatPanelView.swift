@@ -662,6 +662,7 @@ struct ChatPanelView: View {
     @State private var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
     @State private var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
     @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
+    @State private var autoTodoCompletedOperationsByMessage: [UUID: Int] = [:]
     @State private var didReceiveExplicitTodoByMessage: Set<UUID> = []
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
@@ -2141,7 +2142,12 @@ struct ChatPanelView: View {
                 for: flowCoordinator.state,
                 hasRunningOperations: hasRunningOperations
             )
-            finalizeAutoTodoIfNeeded(messageId: previous.assistantMessageId, outcome: rolloverOutcome)
+            finalizeAutoTodoIfNeeded(
+                messageId: previous.assistantMessageId,
+                outcome: rolloverOutcome,
+                providerId: previous.providerId,
+                conversationId: previous.conversationId
+            )
             toolTraceStore.finalizeTurn(
                 conversationId: previous.conversationId,
                 assistantMessageId: previous.assistantMessageId
@@ -2151,6 +2157,7 @@ struct ChatPanelView: View {
             toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
             autoTodoIdByMessage.removeValue(forKey: previous.assistantMessageId)
+            autoTodoCompletedOperationsByMessage.removeValue(forKey: previous.assistantMessageId)
             didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
@@ -2163,6 +2170,7 @@ struct ChatPanelView: View {
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolTraceOperationalCountByMessage[assistantMessageId] = 0
         autoTodoIdByMessage.removeValue(forKey: assistantMessageId)
+        autoTodoCompletedOperationsByMessage.removeValue(forKey: assistantMessageId)
         didReceiveExplicitTodoByMessage.remove(assistantMessageId)
         initializePolicyAckStateIfNeeded(for: assistantMessageId)
         toolTraceStore.startTurn(
@@ -2177,7 +2185,12 @@ struct ChatPanelView: View {
         guard let active = activeToolTraceTurn else { return }
         guard conversationId == nil || active.conversationId == conversationId else { return }
         let finalOutcome = outcome ?? toolTraceTurnOutcome(for: flowCoordinator.state)
-        finalizeAutoTodoIfNeeded(messageId: active.assistantMessageId, outcome: finalOutcome)
+        finalizeAutoTodoIfNeeded(
+            messageId: active.assistantMessageId,
+            outcome: finalOutcome,
+            providerId: active.providerId,
+            conversationId: active.conversationId
+        )
         toolTraceStore.finalizeTurn(
             conversationId: active.conversationId,
             assistantMessageId: active.assistantMessageId
@@ -2187,15 +2200,43 @@ struct ChatPanelView: View {
         toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
         autoTodoIdByMessage.removeValue(forKey: active.assistantMessageId)
+        autoTodoCompletedOperationsByMessage.removeValue(forKey: active.assistantMessageId)
         didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
         activeToolTraceTurn = nil
     }
 
     @MainActor
-    private func finalizeAutoTodoIfNeeded(messageId: UUID, outcome: ToolTraceTurnOutcome) {
+    private func finalizeAutoTodoIfNeeded(
+        messageId: UUID,
+        outcome: ToolTraceTurnOutcome,
+        providerId: String,
+        conversationId: UUID
+    ) {
         if let autoTodoId = autoTodoIdByMessage[messageId],
            !didReceiveExplicitTodoByMessage.contains(messageId) {
-            todoStore.setStatus(id: autoTodoId, status: autoTodoFinalStatus(for: outcome))
+            let finalStatus = autoTodoFinalStatus(for: outcome)
+            todoStore.setStatus(id: autoTodoId, status: finalStatus)
+            let currentTodo = todoStore.todos.first(where: { $0.id == autoTodoId })
+            let notes: String = {
+                switch finalStatus {
+                case .done:
+                    return "Auto-generated: tutte le attivita trace completate."
+                case .blocked:
+                    return "Auto-generated: esecuzione interrotta o fallita."
+                default:
+                    return "Auto-generated: stato aggiornato."
+                }
+            }()
+            emitAutoTodoTraceUpdate(
+                todoId: autoTodoId,
+                title: currentTodo?.title ?? "Auto TODO",
+                status: finalStatus,
+                notes: notes,
+                linkedFiles: currentTodo?.linkedFiles ?? [],
+                providerId: providerId,
+                conversationId: conversationId,
+                timestamp: .now
+            )
         }
     }
 
@@ -2239,7 +2280,7 @@ struct ChatPanelView: View {
                 assistantMessageId: target.assistantMessageId
             )
             toolTraceOperationalSeenByMessage[target.assistantMessageId] = existing.contains {
-                ToolTraceVisibility.shouldDisplay(event: $0)
+                isOperationalTraceEvent($0)
             }
         }
         if toolTraceOperationalCountByMessage[target.assistantMessageId] == nil {
@@ -2248,7 +2289,7 @@ struct ChatPanelView: View {
                 assistantMessageId: target.assistantMessageId
             )
             toolTraceOperationalCountByMessage[target.assistantMessageId] = existing.reduce(into: 0) { partial, event in
-                if ToolTraceVisibility.shouldDisplay(event: event) {
+                if isOperationalTraceEvent(event) {
                     partial += 1
                 }
             }
@@ -2292,7 +2333,7 @@ struct ChatPanelView: View {
         )
         toolTraceStore.append(event: event)
         toolTraceNextSequenceByMessage[turn.assistantMessageId] = sequence + 1
-        if ToolTraceVisibility.shouldDisplay(activity: activity) {
+        if isOperationalTraceActivity(activity) {
             toolTraceOperationalSeenByMessage[turn.assistantMessageId] = true
             let current = toolTraceOperationalCountByMessage[turn.assistantMessageId] ?? 0
             toolTraceOperationalCountByMessage[turn.assistantMessageId] = current + 1
@@ -2314,6 +2355,11 @@ struct ChatPanelView: View {
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
+                ensureAutoTodoStartedBeforeOperationalActivity(
+                    activity: activity,
+                    providerId: providerId,
+                    conversationId: conversationId
+                )
                 enqueueTaskActivity(activity)
                 appendToolTraceEvent(
                     activity: activity,
@@ -2321,7 +2367,7 @@ struct ChatPanelView: View {
                     providerId: providerId,
                     conversationId: conversationId
                 )
-                ensureTodoCoverageForMultiStep(
+                updateAutoTodoProgressAfterOperationalActivity(
                     activity: activity,
                     providerId: providerId,
                     conversationId: conversationId
@@ -2383,16 +2429,17 @@ struct ChatPanelView: View {
         if let autoTodoId = autoTodoIdByMessage[messageId] {
             todoStore.remove(id: autoTodoId)
             autoTodoIdByMessage.removeValue(forKey: messageId)
+            autoTodoCompletedOperationsByMessage.removeValue(forKey: messageId)
         }
     }
 
-    private func ensureTodoCoverageForMultiStep(
+    private func ensureAutoTodoStartedBeforeOperationalActivity(
         activity: TaskActivity,
         providerId: String,
         conversationId: UUID?
     ) {
         guard planFlowPhase != .building else { return }
-        guard ToolTraceVisibility.shouldDisplay(activity: activity) else { return }
+        guard isOperationalTraceActivity(activity) else { return }
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
@@ -2401,23 +2448,120 @@ struct ChatPanelView: View {
         guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
         guard autoTodoIdByMessage[messageId] == nil else { return }
 
-        let operationalCount = toolTraceOperationalCountByMessage[messageId] ?? 0
-        guard operationalCount >= 2 else { return }
-
         let hasAgentTodo = todoStore.todos.contains { $0.source == .agent && !$0.isPlanCanonical }
         guard !hasAgentTodo else { return }
 
         let autoTodoId = UUID()
+        let todoTitle = autoTodoTitle(for: activity)
+        let linkedFiles = autoTodoLinkedFiles(from: activity.payload)
+        let notes = "Auto-generated: TODO avviato prima delle operazioni trace."
         todoStore.upsertFromAgent(
             id: autoTodoId,
-            title: autoTodoTitle(for: activity),
+            title: todoTitle,
             status: .inProgress,
             priority: .medium,
-            notes: "Auto-generated: multi-step execution detected without explicit TODO markers.",
-            linkedFiles: autoTodoLinkedFiles(from: activity.payload)
+            notes: notes,
+            linkedFiles: linkedFiles
         )
         autoTodoIdByMessage[messageId] = autoTodoId
+        autoTodoCompletedOperationsByMessage[messageId] = 0
+        emitAutoTodoTraceUpdate(
+            todoId: autoTodoId,
+            title: todoTitle,
+            status: .inProgress,
+            notes: notes,
+            linkedFiles: linkedFiles,
+            providerId: providerId,
+            conversationId: conversationId,
+            timestamp: activity.timestamp
+        )
         enableTaskPanelIfNeeded()
+    }
+
+    private func updateAutoTodoProgressAfterOperationalActivity(
+        activity: TaskActivity,
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        guard planFlowPhase != .building else { return }
+        guard isOperationalTraceActivity(activity) else { return }
+        guard !activity.isRunning else { return }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+
+        let messageId = turn.assistantMessageId
+        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
+        guard let autoTodoId = autoTodoIdByMessage[messageId] else { return }
+
+        let completedCount = (autoTodoCompletedOperationsByMessage[messageId] ?? 0) + 1
+        autoTodoCompletedOperationsByMessage[messageId] = completedCount
+
+        let currentTodo = todoStore.todos.first(where: { $0.id == autoTodoId })
+        let todoTitle = currentTodo?.title ?? autoTodoTitle(for: activity)
+        let mergedFiles = Array(
+            Set((currentTodo?.linkedFiles ?? []) + autoTodoLinkedFiles(from: activity.payload))
+        ).sorted()
+        let notes = "Auto-generated: \(completedCount) attivita trace completate."
+
+        todoStore.upsertFromAgent(
+            id: autoTodoId,
+            title: todoTitle,
+            status: .inProgress,
+            priority: nil,
+            notes: notes,
+            linkedFiles: mergedFiles
+        )
+        emitAutoTodoTraceUpdate(
+            todoId: autoTodoId,
+            title: todoTitle,
+            status: .inProgress,
+            notes: notes,
+            linkedFiles: mergedFiles,
+            providerId: providerId,
+            conversationId: conversationId,
+            timestamp: activity.timestamp
+        )
+    }
+
+    private func emitAutoTodoTraceUpdate(
+        todoId: UUID,
+        title: String,
+        status: TodoStatus,
+        notes: String,
+        linkedFiles: [String],
+        providerId: String,
+        conversationId: UUID?,
+        timestamp: Date
+    ) {
+        var payload: [String: String] = [
+            "id": todoId.uuidString,
+            "title": title,
+            "task": title,
+            "status": status.rawValue,
+            "priority": TodoPriority.medium.rawValue,
+            "notes": notes,
+        ]
+        if !linkedFiles.isEmpty {
+            payload["files"] = linkedFiles.joined(separator: ",")
+        }
+
+        let activity = TaskActivity(
+            type: "todo_write",
+            title: "Todo updated",
+            detail: title,
+            payload: payload,
+            timestamp: timestamp,
+            phase: .planning,
+            isRunning: false
+        )
+        enqueueTaskActivity(activity)
+        appendToolTraceEvent(
+            activity: activity,
+            rawKind: .todoUpdate,
+            providerId: providerId,
+            conversationId: conversationId
+        )
     }
 
     private func autoTodoTitle(for activity: TaskActivity) -> String {
@@ -2502,7 +2646,7 @@ struct ChatPanelView: View {
             conversationId: conversationId,
             assistantMessageId: assistantMessageId
         )
-        let hasOperational = existing.contains { ToolTraceVisibility.shouldDisplay(event: $0) }
+        let hasOperational = existing.contains { isOperationalTraceEvent($0) }
         toolTraceOperationalSeenByMessage[assistantMessageId] = hasOperational
         return hasOperational
     }
@@ -2515,6 +2659,36 @@ struct ChatPanelView: View {
             .messages
             .last(where: { $0.role == .assistant })?
             .id
+    }
+
+    private func isOperationalTraceActivity(_ activity: TaskActivity) -> Bool {
+        guard ToolTraceVisibility.shouldDisplay(activity: activity) else { return false }
+        let type = activity.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let excluded: Set<String> = [
+            "todo_read",
+            "todo_write",
+            "plan_step",
+            "plan_step_update",
+            "activate_plan_mode",
+            "activate_debug_mode",
+            "policy_ack",
+        ]
+        return !excluded.contains(type)
+    }
+
+    private func isOperationalTraceEvent(_ event: ToolTraceEvent) -> Bool {
+        guard ToolTraceVisibility.shouldDisplay(event: event) else { return false }
+        let type = event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let excluded: Set<String> = [
+            "todo_read",
+            "todo_write",
+            "plan_step",
+            "plan_step_update",
+            "activate_plan_mode",
+            "activate_debug_mode",
+            "policy_ack",
+        ]
+        return !excluded.contains(type)
     }
 
     private func isPlaceholderTodoTitle(_ rawTitle: String) -> Bool {

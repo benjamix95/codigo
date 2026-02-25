@@ -30,6 +30,10 @@ struct MessageToolTraceView: View {
         orderedEvents.contains(where: \.isRunning)
     }
 
+    private var hasTodoEvents: Bool {
+        orderedEvents.contains(where: isTodoEvent(_:))
+    }
+
     private var shouldShowRows: Bool {
         hasRunningEvent || isExpanded
     }
@@ -108,6 +112,10 @@ struct MessageToolTraceView: View {
         }
         .onChange(of: hasRunningEvent) { _, _ in
             syncAutoPresentationState()
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            guard expanded else { return }
+            loadCompactDiffPreviewIfNeeded()
         }
     }
 
@@ -326,7 +334,8 @@ struct MessageToolTraceView: View {
 
     @ViewBuilder
     private func traceRow(_ event: ToolTraceEvent, displayIndex: Int, compactMode: Bool) -> some View {
-        let isRowExpanded = isExpanded && expandedIds.contains(event.id)
+        let forceExpanded = isTodoEvent(event)
+        let isRowExpanded = isExpanded && (forceExpanded || expandedIds.contains(event.id))
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 8) {
                 Text("\(displayIndex).")
@@ -367,7 +376,7 @@ struct MessageToolTraceView: View {
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
                     }
-                    if !compactMode {
+                    if !compactMode && !forceExpanded {
                         Image(systemName: isRowExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(DesignSystem.Colors.textQuaternary)
@@ -376,7 +385,7 @@ struct MessageToolTraceView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                guard !compactMode else { return }
+                guard !compactMode, !forceExpanded else { return }
                 withAnimation(.easeInOut(duration: 0.12)) {
                     if isRowExpanded {
                         expandedIds.remove(event.id)
@@ -446,6 +455,15 @@ struct MessageToolTraceView: View {
             }
             if let status = event.payload["status"], !status.isEmpty {
                 detailField(label: "Status", value: status)
+            }
+            if let priority = event.payload["priority"], !priority.isEmpty {
+                detailField(label: "Priority", value: priority)
+            }
+            if let notes = event.payload["notes"], !notes.isEmpty {
+                detailField(label: "Notes", value: notes)
+            }
+            if let files = event.payload["files"], !files.isEmpty {
+                detailField(label: "Files", value: files)
             }
         }
     }
@@ -929,6 +947,14 @@ struct MessageToolTraceView: View {
             return
         }
         guard !orderedEvents.isEmpty else { return }
+        if hasTodoEvents {
+            withAnimation(.easeOut(duration: 0.15)) {
+                isExpanded = true
+            }
+            loadCompactDiffPreviewIfNeeded()
+            didAutoCompactAfterCompletion = true
+            return
+        }
         guard !didAutoCompactAfterCompletion else { return }
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
@@ -938,5 +964,9 @@ struct MessageToolTraceView: View {
         }
         isCompactDiffLoading = false
         didAutoCompactAfterCompletion = true
+    }
+
+    private func isTodoEvent(_ event: ToolTraceEvent) -> Bool {
+        event.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix("todo_")
     }
 }
