@@ -158,109 +158,6 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
     private static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
         let item = (json["item"] as? [String: Any]) ?? json
         let type = firstString(in: item, keys: ["type", "event_type"])?.lowercased() ?? ""
-
-        if type.contains("command") || type.contains("bash") || firstString(in: item, keys: ["command", "command_line", "cmd"]) != nil {
-            var payload: [String: String] = [
-                "title": "Bash",
-                "detail": firstString(in: item, keys: ["command", "command_line", "cmd"]) ?? ""
-            ]
-            if let command = firstString(in: item, keys: ["command", "command_line", "cmd"]) { payload["command"] = command }
-            if let cwd = firstString(in: item, keys: ["cwd", "working_directory", "workdir"]) { payload["cwd"] = cwd }
-            if let output = firstString(in: item, keys: ["output", "result", "stdout"]) { payload["output"] = String(output.prefix(6_000)) }
-            if let stderr = firstString(in: item, keys: ["stderr", "error", "error_message"]), !stderr.isEmpty {
-                payload["stderr"] = String(stderr.prefix(3_000))
-            }
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
-            return ("command_execution", payload)
-        }
-
-        if type.contains("edit") || type.contains("write") || type.contains("file_change") {
-            let path = firstString(
-                in: item,
-                keys: ["path", "file_path", "file", "target_path", "relative_path"]
-            ) ?? "file"
-            let changeType = firstString(
-                in: item,
-                keys: ["change_type", "operation", "action", "edit_type"]
-            ) ?? type
-            var payload: [String: String] = [
-                "title": fileChangeTitle(path: path, changeType: changeType),
-                "detail": path,
-                "path": path,
-                "file": path,
-                "change_type": changeType,
-            ]
-            if let added = firstInt(
-                in: item,
-                keys: ["additions", "lines_added", "linesAdded", "insertions"]
-            ) {
-                payload["linesAdded"] = "\(added)"
-            }
-            if let removed = firstInt(
-                in: item,
-                keys: ["deletions", "lines_removed", "linesRemoved", "deletions_count"]
-            ) {
-                payload["linesRemoved"] = "\(removed)"
-            }
-            if let out = firstString(
-                in: item,
-                keys: ["diffPreview", "diff", "diff_preview", "patch", "unified_diff", "changes_preview"]
-            ), !out.isEmpty {
-                payload["diffPreview"] = String(out.prefix(12_000))
-            }
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]) {
-                payload["swarm_id"] = swarmId
-                payload["group_id"] = "swarm-\(swarmId)"
-            }
-            return ("file_change", payload)
-        }
-
-        if type.contains("mcp")
-            || firstString(in: item, keys: ["mcp_tool", "mcp_server", "server_id"]) != nil
-        {
-            let rawTool = firstString(in: item, keys: ["tool", "name"]) ?? "mcp"
-            let normalizedTool = rawTool.lowercased()
-            let mcpTool = firstString(in: item, keys: ["mcp_tool", "tool_name"]) ?? ""
-            let mcpServer = firstString(in: item, keys: ["mcp_server", "server_id", "server"]) ?? ""
-
-            let title: String = {
-                switch normalizedTool {
-                case "mcp_list_servers":
-                    return "MCP discovery • servers"
-                case "mcp_list_tools":
-                    return "MCP discovery • tools"
-                case "mcp_describe_tool":
-                    return "MCP inspect • \(mcpTool.isEmpty ? "tool" : mcpTool)"
-                case "mcp_health":
-                    return "MCP health check"
-                case "mcp_reconnect":
-                    return "MCP reconnect • \(mcpServer.isEmpty ? "server" : mcpServer)"
-                default:
-                    var target = !mcpTool.isEmpty ? mcpTool : rawTool
-                    if target.isEmpty { target = "tool" }
-                    if !mcpServer.isEmpty {
-                        return "MCP call • \(mcpServer)/\(target)"
-                    }
-                    return "MCP call • \(target)"
-                }
-            }()
-
-            var payload: [String: String] = [
-                "title": title,
-                "detail": firstString(in: item, keys: ["detail", "query", "arguments", "args"]) ?? "",
-                "tool": rawTool
-            ]
-            if !mcpTool.isEmpty { payload["mcp_tool"] = mcpTool }
-            if !mcpServer.isEmpty {
-                payload["mcp_server"] = mcpServer
-                payload["server_id"] = mcpServer
-            }
-            if let output = firstString(in: item, keys: ["output", "result", "content"]) {
-                payload["output"] = String(output.prefix(6_000))
-            }
-            return ("mcp_tool_call", payload)
-        }
-
         if type == "reasoning" || type == "thinking" {
             let text = firstString(in: item, keys: ["text", "output", "content", "result", "message"]) ?? ""
             guard !text.isEmpty else { return nil }
@@ -274,23 +171,38 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
             return ("reasoning", payload)
         }
 
-        if type.contains("read") {
-            let path = firstString(in: item, keys: ["path", "file_path", "file"]) ?? ""
-            guard !path.isEmpty else { return nil }
-            var payload: [String: String] = [
-                "title": "Read • \((path as NSString).lastPathComponent)",
-                "detail": path,
-                "path": path,
-                "file": path,
-                "count": "1",
-                "files": path
-            ]
-            if let output = firstString(in: item, keys: ["output", "result", "content"]) { payload["output"] = String(output.prefix(6_000)) }
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId; payload["group_id"] = "swarm-\(swarmId)" }
-            return ("read_batch_completed", payload)
+        let rawTool = firstString(in: item, keys: ["tool", "name"]) ?? type
+        if let mapped = ProviderToolEventMapper.map(
+            toolName: rawTool,
+            payload: item,
+            typeHint: type
+        ) {
+            return withSwarmMetadata(mapped, item: item)
+        }
+
+        if !type.isEmpty {
+            if let mappedFromType = ProviderToolEventMapper.map(
+                toolName: type,
+                payload: item,
+                typeHint: type
+            ) {
+                return withSwarmMetadata(mappedFromType, item: item)
+            }
         }
 
         return nil
+    }
+
+    private static func withSwarmMetadata(
+        _ mapped: (type: String, payload: [String: String]),
+        item: [String: Any]
+    ) -> (type: String, payload: [String: String]) {
+        var payload = mapped.payload
+        if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
+            payload["swarm_id"] = swarmId
+            payload["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
+        }
+        return (mapped.type, payload)
     }
 
     static func parseStreamJSONPayloads(from rawLine: String, carry: inout String) -> [[String: Any]] {
@@ -482,6 +394,8 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "web_search_started", payload: marker.payload))
             case "web_fetch":
                 events.append((type: "web_fetch_started", payload: marker.payload))
+            case "policy_ack":
+                events.append((type: "policy_ack", payload: marker.payload))
             default:
                 break
             }

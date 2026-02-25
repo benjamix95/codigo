@@ -138,6 +138,13 @@ public struct WorkspaceContext: Sendable {
         if !rulesBlock.isEmpty {
             parts.append("\n\(rulesBlock)")
         }
+
+        let policyBlock = InstructionPolicyBundle.promptBlock(
+            workspacePaths: workspacePaths.map(\.path)
+        )
+        if !policyBlock.isEmpty {
+            parts.append("\n\(policyBlock)")
+        }
         
         if parts.isEmpty && activeFilePath == nil {
             return ""

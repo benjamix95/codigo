@@ -121,7 +121,7 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
     }
 
     private func makeConfig() -> ProviderFactoryConfig {
-        ProviderFactoryConfig(
+        return ProviderFactoryConfig(
             openaiApiKey: "openai-test-key",
             openaiModel: "gpt-4o-mini",
             anthropicApiKey: "anthropic-test-key",
@@ -158,6 +158,8 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             claudeAllowedTools: [],
             geminiCliPath: "",
             geminiModelOverride: "",
+            unifiedToolRuntimeEnabled: true,
+            agentsHardBlockEnabled: true,
             webSearchProvider: "duckduckgo",
             braveSearchApiKey: "",
             tavilyApiKey: "",

@@ -864,6 +864,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "web_search_started", payload: marker.payload))
             case "web_fetch":
                 events.append((type: "web_fetch_started", payload: marker.payload))
+            case "policy_ack":
+                events.append((type: "policy_ack", payload: marker.payload))
             default:
                 break
             }

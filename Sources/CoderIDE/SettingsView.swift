@@ -79,6 +79,8 @@ struct SettingsView: View {
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
+    @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
+    @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
 
     // MARK: - Hidden runtime keys (no UI, consumed by ProviderFactoryConfig)
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
@@ -1099,13 +1101,23 @@ struct SettingsView: View {
 
     private func syncClaude() {
         reregisterProviderPreservingSelection(id: "claude-cli", provider:
-            ProviderFactory.claudeProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.claudeProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
         syncSwarm(); syncPlanProvider()
     }
 
     private func syncGemini() {
         reregisterProviderPreservingSelection(id: "gemini-cli", provider:
-            ProviderFactory.geminiProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.geminiProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func reregisterProviderPreservingSelection(id: String, provider: (any LLMProvider)?) {
@@ -1145,6 +1157,8 @@ struct SettingsView: View {
             claudePath: claudePath, claudeModel: claudeModel,
             claudeAllowedTools: parseClaudeAllowedTools(),
             geminiCliPath: geminiCliPath, geminiModelOverride: geminiModelOverride,
+            unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
+            agentsHardBlockEnabled: agentsHardBlockEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,
@@ -1237,13 +1251,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private func parseClaudeAllowedTools() -> [String] {
-        var seen = Set<String>(); var tools: [String] = []
-        for raw in claudeAllowedTools.components(separatedBy: ",") {
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty { continue }
-            if seen.insert(trimmed).inserted { tools.append(trimmed) }
-        }
-        return tools
+        ProviderFactory.normalizedToolList(from: claudeAllowedTools)
     }
 
     private var currentProjectRootPath: String? {

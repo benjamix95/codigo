@@ -42,6 +42,8 @@ struct ProviderFactoryConfig {
     var claudeAllowedTools: [String]
     var geminiCliPath: String
     var geminiModelOverride: String
+    var unifiedToolRuntimeEnabled: Bool
+    var agentsHardBlockEnabled: Bool
 
     var webSearchProvider: String
     var braveSearchApiKey: String
@@ -87,6 +89,19 @@ enum ProviderFactory {
         )
     }
 
+    static func normalizedToolList(from raw: String) -> [String] {
+        var seen = Set<String>()
+        var tools: [String] = []
+        for token in raw.components(separatedBy: ",") {
+            let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            if seen.insert(trimmed).inserted {
+                tools.append(trimmed)
+            }
+        }
+        return tools
+    }
+
     static func codexProvider(
         config: ProviderFactoryConfig, executionController: ExecutionController?,
         environmentOverride: [String: String]? = nil
@@ -106,26 +121,64 @@ enum ProviderFactory {
 
     static func claudeProvider(
         config: ProviderFactoryConfig, executionController: ExecutionController?,
+        executionScope: ExecutionScope = .agent,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
         environmentOverride: [String: String]? = nil
-    ) -> ClaudeCLIProvider {
-        ClaudeCLIProvider(
+    ) -> any LLMProvider {
+        let base = ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
             model: config.claudeModel,
             allowedTools: config.claudeAllowedTools,
             executionController: executionController,
+            executionScope: executionScope,
             environmentOverride: environmentOverride
+        )
+        guard config.unifiedToolRuntimeEnabled else { return base }
+        return ToolEnabledLLMProvider(
+            base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
+            ),
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
         )
     }
 
     static func geminiProvider(
         config: ProviderFactoryConfig, executionController: ExecutionController?,
+        executionScope: ExecutionScope = .agent,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
         environmentOverride: [String: String]? = nil
-    ) -> GeminiCLIProvider {
-        GeminiCLIProvider(
+    ) -> any LLMProvider {
+        let base = GeminiCLIProvider(
             geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
             modelOverride: config.geminiModelOverride.isEmpty ? nil : config.geminiModelOverride,
             executionController: executionController,
+            executionScope: executionScope,
             environmentOverride: environmentOverride
+        )
+        guard config.unifiedToolRuntimeEnabled else { return base }
+        return ToolEnabledLLMProvider(
+            base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
+            ),
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
         )
     }
 
@@ -246,9 +299,19 @@ enum ProviderFactory {
         case "codex", "codex-cli":
             return codexProvider(config: config, executionController: executionController)
         case "claude", "claude-cli":
-            return claudeProvider(config: config, executionController: executionController)
+            return claudeProvider(
+                config: config,
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            )
         case "gemini", "gemini-cli":
-            return geminiProvider(config: config, executionController: executionController)
+            return geminiProvider(
+                config: config,
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            )
         case "openai":
             guard !config.openaiApiKey.isEmpty else { return nil }
             return openAIAPIProvider(config: config, executionController: executionController, codebaseIndex: codebaseIndex, workspacePaths: workspacePaths)

@@ -15,4 +15,17 @@ final class ClaudeCLIProviderMarkerParsingTests: XCTestCase {
         XCTAssertEqual(events.first?.payload["phase"], "verifying")
         XCTAssertTrue(carry.isEmpty)
     }
+
+    func testParseCoderIDEMarkerEventsMapsPolicyAckToRawEvent() {
+        var carry = ""
+        let events = ClaudeCLIProvider.parseCoderIDEMarkerEvents(
+            in: "[CODERIDE:policy_ack|hash=abc123]",
+            carry: &carry
+        )
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.type, "policy_ack")
+        XCTAssertEqual(events.first?.payload["hash"], "abc123")
+        XCTAssertTrue(carry.isEmpty)
+    }
 }

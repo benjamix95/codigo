@@ -36,6 +36,8 @@ struct CodigoApp: App {
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
         "Read,Edit,Bash,Write,Search"
+    @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
+    @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
@@ -176,12 +178,20 @@ struct CodigoApp: App {
         if providerRegistry.provider(for: "claude-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.claudeProvider(
-                    config: providerFactoryConfig(), executionController: executionController))
+                    config: providerFactoryConfig(),
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                ))
         }
         if providerRegistry.provider(for: "gemini-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.geminiProvider(
-                    config: providerFactoryConfig(), executionController: executionController))
+                    config: providerFactoryConfig(),
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                ))
         }
         registerMiniMax()
         registerOpenRouter()
@@ -222,9 +232,7 @@ struct CodigoApp: App {
         let effectiveSandbox =
             codexSandbox.isEmpty
             ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
-        let tools = claudeAllowedTools.components(separatedBy: ",").map {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines)
-        }.filter { !$0.isEmpty }
+        let tools = ProviderFactory.normalizedToolList(from: claudeAllowedTools)
         return ProviderFactoryConfig(
             openaiApiKey: apiKey,
             openaiModel: model,
@@ -262,6 +270,8 @@ struct CodigoApp: App {
             claudeAllowedTools: tools,
             geminiCliPath: geminiCliPath,
             geminiModelOverride: geminiModelOverride,
+            unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
+            agentsHardBlockEnabled: agentsHardBlockEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,

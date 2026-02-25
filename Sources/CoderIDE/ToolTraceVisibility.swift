@@ -1,7 +1,7 @@
 import Foundation
 
 enum ToolTraceVisibility {
-    private static let hiddenTypes: Set<String> = [
+    private static let hiddenIncludeTypes: Set<String> = [
         "turn_started",
         "turn_completed",
         "coderide_show_task_panel",
@@ -15,6 +15,10 @@ enum ToolTraceVisibility {
         "reasoning",
         "usage",
     ]
+
+    private static let hiddenDisplayTypes: Set<String> = hiddenIncludeTypes.union([
+        "policy_ack"
+    ])
 
     private static let operationalTypes: Set<String> = [
         "agent",
@@ -38,6 +42,10 @@ enum ToolTraceVisibility {
         "web_search_started",
         "web_search_completed",
         "web_search_failed",
+        "web_fetch",
+        "web_fetch_started",
+        "web_fetch_completed",
+        "web_fetch_failed",
     ]
 
     private static let operationalPayloadKeys: Set<String> = [
@@ -53,11 +61,14 @@ enum ToolTraceVisibility {
         "name",
         "pattern",
         "replacement",
+        "url",
+        "tool_call_id",
     ]
 
     static func shouldInclude(activity: TaskActivity) -> Bool {
         let type = normalizedType(activity.type)
-        if hiddenTypes.contains(type) { return false }
+        if type == "policy_ack" { return true }
+        if hiddenIncludeTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
             return isRealMCPEvent(payload: activity.payload)
         }
@@ -67,7 +78,7 @@ enum ToolTraceVisibility {
 
     static func shouldDisplay(event: ToolTraceEvent) -> Bool {
         let type = normalizedType(event.type)
-        if hiddenTypes.contains(type) { return false }
+        if hiddenDisplayTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
             return isRealMCPEvent(payload: event.payload)
         }
@@ -85,6 +96,23 @@ enum ToolTraceVisibility {
         let type = normalizedType(activity.type)
         guard type == "mcp_tool_call" else { return false }
         return isRealMCPEvent(payload: activity.payload)
+    }
+
+    static func requiresPolicyAck(type rawType: String, payload: [String: String]) -> Bool {
+        let type = normalizedType(rawType)
+        if type == "policy_ack" { return false }
+        if hiddenDisplayTypes.contains(type) { return false }
+        if [
+            "tool_execution_error", "tool_validation_error", "tool_timeout",
+            "permission_denied", "error"
+        ].contains(type) {
+            return false
+        }
+        if type == "mcp_tool_call" {
+            return isRealMCPEvent(payload: payload)
+        }
+        if operationalTypes.contains(type) { return true }
+        return hasOperationalPayload(payload)
     }
 
     private static func hasOperationalPayload(_ payload: [String: String]) -> Bool {

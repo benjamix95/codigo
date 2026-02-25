@@ -231,105 +231,16 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         guard (block["type"] as? String) == "tool_use",
               let name = block["name"] as? String,
               let input = block["input"] as? [String: Any] else { return nil }
-
-        switch name {
-        case "Bash":
-            let cmd = firstString(in: input, keys: ["command", "command_line", "cmd"]) ?? ""
-            let title = "Bash • \(String(cmd.prefix(50)))\(cmd.count > 50 ? "..." : "")"
-            var payload: [String: String] = [
-                "title": title,
-                "detail": cmd,
-                "command": cmd
-            ]
-            if let cwd = firstString(in: input, keys: ["cwd", "working_directory", "workdir"]) {
-                payload["cwd"] = cwd
-            }
-            if let output = firstString(in: input, keys: ["output", "result", "stdout", "message", "content"]) {
-                payload["output"] = String(output.prefix(6_000))
-            }
-            if let stderr = firstString(in: input, keys: ["stderr", "error", "error_message"]), !stderr.isEmpty {
-                payload["stderr"] = String(stderr.prefix(3_000))
-            }
-            return ("command_execution", payload)
-        case "Edit", "Write":
-            let path = input["file_path"] as? String ?? input["path"] as? String ?? "file"
-            let base = (path as NSString).lastPathComponent
-            let oldStr = input["old_string"] as? String ?? ""
-            let newStr = input["new_string"] as? String ?? input["contents"] as? String ?? ""
-            let oldLines = oldStr.components(separatedBy: .newlines).count
-            let newLines = newStr.components(separatedBy: .newlines).count
-            let added = max(0, newLines - oldLines)
-            let removed = max(0, oldLines - newLines)
-            let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let title = "Edited \(base)"
-            var payload: [String: String] = [
-                "title": title,
-                "detail": path,
-                "path": path,
-                "file": path,
-                "tool": normalizedName,
-                "change_type": "edit",
-                "linesAdded": "\(added)",
-                "linesRemoved": "\(removed)",
-            ]
-            if !oldStr.isEmpty || !newStr.isEmpty {
-                payload["diffPreview"] = buildDiffPreview(old: oldStr, new: newStr)
-            }
-            return ("file_change", payload)
-        case "Read":
-            let path = input["path"] as? String ?? input["file_path"] as? String ?? ""
-            var payload: [String: String] = [
-                "title": "Read • \((path as NSString).lastPathComponent)",
-                "detail": path,
-                "path": path,
-                "file": path,
-                "count": "1",
-                "files": path
-            ]
-            if let out = firstString(in: input, keys: ["content", "output", "result"]), !out.isEmpty {
-                payload["output"] = String(out.prefix(6_000))
-            }
-            return ("read_batch_completed", payload)
-        default:
-            let rawName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalized = rawName.lowercased()
-            let detail = (input["query"] as? String)
-                ?? (input["command"] as? String)
-                ?? firstString(in: input, keys: ["detail", "arguments", "args"])
-                ?? ""
-            let mcpTool = firstString(in: input, keys: ["mcp_tool", "tool_name", "tool"]) ?? ""
-            let mcpServer = firstString(in: input, keys: ["mcp_server", "server_id", "server"]) ?? ""
-
-            var title = rawName
-            switch normalized {
-            case "mcp_list_servers":
-                title = "MCP discovery • servers"
-            case "mcp_list_tools":
-                title = "MCP discovery • tools"
-            case "mcp_describe_tool":
-                title = "MCP inspect • \(mcpTool.isEmpty ? "tool" : mcpTool)"
-            case "mcp_health":
-                title = "MCP health check"
-            case "mcp_reconnect":
-                title = "MCP reconnect • \(mcpServer.isEmpty ? "server" : mcpServer)"
-            default:
-                if normalized.hasPrefix("mcp"), !mcpTool.isEmpty || !mcpServer.isEmpty {
-                    if !mcpServer.isEmpty {
-                        title = "MCP call • \(mcpServer)/\(mcpTool.isEmpty ? rawName : mcpTool)"
-                    } else {
-                        title = "MCP call • \(mcpTool.isEmpty ? rawName : mcpTool)"
-                    }
-                }
-            }
-
-            var payload: [String: String] = ["title": title, "detail": detail, "tool": rawName]
-            if !mcpTool.isEmpty { payload["mcp_tool"] = mcpTool }
-            if !mcpServer.isEmpty {
-                payload["mcp_server"] = mcpServer
-                payload["server_id"] = mcpServer
-            }
-            return ("mcp_tool_call", payload)
+        if let mapped = ProviderToolEventMapper.map(toolName: name, payload: input) {
+            return mapped
         }
+
+        let fallbackTool = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ("command_execution", [
+            "title": fallbackTool.isEmpty ? "Tool execution" : fallbackTool,
+            "detail": firstString(in: input, keys: ["detail", "query", "command", "path", "file"]) ?? "",
+            "tool": ProviderToolEventMapper.normalizeToolIdentifier(fallbackTool),
+        ])
     }
 
     private static func normalizeTools(_ values: [String]) -> [String] {
@@ -366,6 +277,8 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                 events.append((type: "web_search_started", payload: marker.payload))
             case "web_fetch":
                 events.append((type: "web_fetch_started", payload: marker.payload))
+            case "policy_ack":
+                events.append((type: "policy_ack", payload: marker.payload))
             default:
                 break
             }

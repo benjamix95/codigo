@@ -394,14 +394,16 @@ struct MessageToolTraceView: View {
 
     private var collapsedSummaryText: String {
         let fileCount = inferredFileCount
+        let readCount = inferredReadCount
         let searchCount = inferredSearchCount
         let commandCount = inferredCommandCount
         let editCount = inferredEditCount
         let mcpSummary = inferredMCPSummary
         let skillSummary = inferredSkillsSummary
 
-        if fileCount > 0 && searchCount > 0 {
-            var base = "Explored \(fileCount) \(pluralized("file", count: fileCount)), \(searchCount) \(pluralized("search", count: searchCount))"
+        if (readCount > 0 || fileCount > 0) && searchCount > 0 {
+            let exploredCount = max(fileCount, readCount)
+            var base = "Explored \(exploredCount) \(pluralized("file", count: exploredCount)), \(searchCount) \(pluralized("search", count: searchCount))"
             if let mcpSummary {
                 base += " • \(mcpSummary)"
             }
@@ -412,6 +414,9 @@ struct MessageToolTraceView: View {
         }
 
         var parts: [String] = []
+        if readCount > 0 {
+            parts.append("\(readCount) \(pluralized("read", count: readCount))")
+        }
         if fileCount > 0 {
             parts.append("\(fileCount) \(pluralized("file", count: fileCount)) explored")
         }
@@ -458,10 +463,24 @@ struct MessageToolTraceView: View {
         return paths.count
     }
 
+    private var inferredReadCount: Int {
+        orderedEvents.filter { event in
+            let type = event.type.lowercased()
+            if type == "read_batch_started" || type == "read_batch_completed" {
+                return true
+            }
+            if type == "semantic_search" {
+                return true
+            }
+            return (event.payload["source"] ?? "") == "synthetic_command_read"
+        }.count
+    }
+
     private var inferredSearchCount: Int {
         orderedEvents.filter { event in
             let type = event.type.lowercased()
             return type.contains("search") || type.contains("grep")
+                || type == "instant_grep"
         }.count
     }
 

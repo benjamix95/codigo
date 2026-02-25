@@ -15,4 +15,17 @@ final class GeminiCLIProviderMarkerParsingTests: XCTestCase {
         XCTAssertEqual(events.first?.payload["phase"], "analyzing")
         XCTAssertTrue(carry.isEmpty)
     }
+
+    func testParseCoderIDEMarkerEventsMapsPolicyAckToRawEvent() {
+        var carry = ""
+        let events = GeminiCLIProvider.parseCoderIDEMarkerEvents(
+            in: "[CODERIDE:policy_ack|hash=def456]",
+            carry: &carry
+        )
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.type, "policy_ack")
+        XCTAssertEqual(events.first?.payload["hash"], "def456")
+        XCTAssertTrue(carry.isEmpty)
+    }
 }

@@ -214,4 +214,37 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(activity.phase, .searching)
         XCTAssertFalse(activity.isRunning)
     }
+
+    func testCommandExecutionGrepEmitsInstantGrep() {
+        let events = EventNormalizer.normalize(
+            type: "command_execution",
+            payload: [
+                "command": "grep -n \"policy\" Sources/CoderIDE/ChatPanelView.swift",
+                "cwd": "/Users/test/repo",
+                "output": "Sources/CoderIDE/ChatPanelView.swift:10:policy"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .instantGrep = $0 { return true }
+            return false
+        })
+    }
+
+    func testCommandExecutionCatEmitsSyntheticReadActivity() {
+        let events = EventNormalizer.normalize(
+            type: "command_execution",
+            payload: [
+                "command": "cat Sources/CoderIDE/ToolTraceVisibility.swift",
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "read_batch_completed"
+                    && activity.payload["source"] == "synthetic_command_read"
+            }
+            return false
+        })
+    }
 }

@@ -456,6 +456,16 @@ private struct ToolTraceTurnContext: Equatable {
     let providerId: String
 }
 
+private struct PolicyAckState: Equatable {
+    let expectedHash: String
+    var acknowledgedHash: String?
+    var violationEmitted: Bool = false
+
+    var isSatisfied: Bool {
+        acknowledgedHash == expectedHash
+    }
+}
+
 struct ChatPanelView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var chatStore: ChatStore
@@ -520,8 +530,11 @@ struct ChatPanelView: View {
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
+    @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
+    @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
     @AppStorage("web_search_provider") private var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key") private var braveSearchApiKey = ""
     @AppStorage("tavily_api_key") private var tavilyApiKey = ""
@@ -600,6 +613,7 @@ struct ChatPanelView: View {
     @State private var activeToolTraceTurn: ToolTraceTurnContext?
     @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
+    @State private var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
     /// Minimum interval between streaming content updates (≈30fps).
     private let streamThrottleInterval: TimeInterval = 0.033
     /// Coalescing flush interval for task activity feed.
@@ -878,6 +892,14 @@ struct ChatPanelView: View {
             .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
             .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarmProvider() }
             .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarmProvider() }
+            .onChange(of: claudeAllowedTools) { _, _ in
+                syncClaudeProvider()
+            }
+            .onChange(of: unifiedToolRuntimeEnabled) { _, _ in
+                syncClaudeProvider()
+                syncGeminiProvider()
+                syncToolRuntimePolicy()
+            }
             .onChange(of: globalYolo) { _, _ in
                 syncCodexProvider()
                 syncCodeReviewRuntimeConfig()
@@ -2034,6 +2056,29 @@ struct ChatPanelView: View {
         }
     }
 
+    private func currentInstructionPolicyBundle() -> InstructionPolicyBundle {
+        let hints = traceWorkspaceHints(for: effectiveContext)
+        return InstructionPolicyBundle.load(workspacePaths: hints)
+    }
+
+    private func expectedPolicyAckHash() -> String? {
+        guard agentsHardBlockEnabled else { return nil }
+        let bundle = currentInstructionPolicyBundle()
+        let hash = bundle.policyHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !hash.isEmpty else { return nil }
+        return hash
+    }
+
+    private func initializePolicyAckStateIfNeeded(for assistantMessageId: UUID) {
+        guard let expectedHash = expectedPolicyAckHash() else {
+            policyAckStateByMessage.removeValue(forKey: assistantMessageId)
+            return
+        }
+        if policyAckStateByMessage[assistantMessageId] == nil {
+            policyAckStateByMessage[assistantMessageId] = PolicyAckState(expectedHash: expectedHash)
+        }
+    }
+
     @MainActor
     private func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
         if let previous = activeToolTraceTurn,
@@ -2044,6 +2089,7 @@ struct ChatPanelView: View {
             )
             toolTraceNextSequenceByMessage.removeValue(forKey: previous.assistantMessageId)
             toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
+            policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
         }
         let turn = ToolTraceTurnContext(
             conversationId: conversationId,
@@ -2053,6 +2099,7 @@ struct ChatPanelView: View {
         activeToolTraceTurn = turn
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
+        initializePolicyAckStateIfNeeded(for: assistantMessageId)
         toolTraceStore.startTurn(
             conversationId: conversationId,
             assistantMessageId: assistantMessageId,
@@ -2070,6 +2117,7 @@ struct ChatPanelView: View {
         )
         toolTraceNextSequenceByMessage.removeValue(forKey: active.assistantMessageId)
         toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
+        policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
         activeToolTraceTurn = nil
     }
 
@@ -2116,6 +2164,7 @@ struct ChatPanelView: View {
                 ToolTraceVisibility.shouldDisplay(event: $0)
             }
         }
+        initializePolicyAckStateIfNeeded(for: target.assistantMessageId)
         toolTraceStore.startTurn(
             conversationId: target.conversationId,
             assistantMessageId: target.assistantMessageId,
@@ -3004,7 +3053,11 @@ struct ChatPanelView: View {
 
     private func syncClaudeProvider() {
         let p = ProviderFactory.claudeProvider(
-            config: providerFactoryConfig(), executionController: executionController)
+            config: providerFactoryConfig(),
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: p)
         syncSwarmProvider()
         syncPlanProvider()
@@ -3013,7 +3066,11 @@ struct ChatPanelView: View {
 
     private func syncGeminiProvider() {
         let p = ProviderFactory.geminiProvider(
-            config: providerFactoryConfig(), executionController: executionController)
+            config: providerFactoryConfig(),
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: p)
         checkProviderAuth()
     }
@@ -3034,6 +3091,20 @@ struct ChatPanelView: View {
         let codex = ProviderFactory.codexProvider(
             config: cfg, executionController: executionController)
         reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
+        let claude = ProviderFactory.claudeProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        reregisterProviderPreservingSelection(id: "claude-cli", provider: claude)
+        let gemini = ProviderFactory.geminiProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        reregisterProviderPreservingSelection(id: "gemini-cli", provider: gemini)
 
         if !cfg.openrouterApiKey.isEmpty {
             let p = ProviderFactory.openRouterAPIProvider(
@@ -3200,7 +3271,8 @@ struct ChatPanelView: View {
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {
-        ProviderFactoryConfig(
+        let parsedClaudeTools = ProviderFactory.normalizedToolList(from: claudeAllowedTools)
+        return ProviderFactoryConfig(
             openaiApiKey: openaiApiKey,
             openaiModel: openaiModel,
             anthropicApiKey: anthropicApiKey,
@@ -3234,9 +3306,11 @@ struct ChatPanelView: View {
             codeReviewExecutionBackend: codeReviewExecutionBackend,
             claudePath: claudePath,
             claudeModel: claudeModel,
-            claudeAllowedTools: ["Read", "Edit", "Bash", "Write", "Search"],
+            claudeAllowedTools: parsedClaudeTools,
             geminiCliPath: geminiCliPath,
             geminiModelOverride: geminiModelOverride,
+            unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
+            agentsHardBlockEnabled: agentsHardBlockEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,
@@ -4632,11 +4706,17 @@ struct ChatPanelView: View {
                             environmentOverride: env)
                     case .claude:
                         return ProviderFactory.claudeProvider(
-                            config: cfg, executionController: executionController,
+                            config: cfg,
+                            executionController: executionController,
+                            codebaseIndex: workspaceStore.codebaseIndex,
+                            workspacePaths: workspaceStore.activeWorkspacePaths,
                             environmentOverride: env)
                     case .gemini:
                         return ProviderFactory.geminiProvider(
-                            config: cfg, executionController: executionController,
+                            config: cfg,
+                            executionController: executionController,
+                            codebaseIndex: workspaceStore.codebaseIndex,
+                            workspacePaths: workspaceStore.activeWorkspacePaths,
                             environmentOverride: env)
                     }
                 }
@@ -4736,6 +4816,7 @@ struct ChatPanelView: View {
                     7. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
                     8. If MCP is available and external/domain capabilities are needed, verify MCP availability first with `mcp_list_servers`, then `mcp_list_tools`, and run calls with `mcp_call`.
                     9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
+                    10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
                     To update plan steps use marker:
                     \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
                     For code searches with rg, you can emit markers with results:
@@ -5002,6 +5083,19 @@ struct ChatPanelView: View {
         type t: String, payload p: [String: String], providerId pid: String,
         conversationId convId: UUID?
     ) {
+        if t == "policy_ack" {
+            let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
+            recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
+            return
+        }
+        if shouldHardBlockForMissingPolicyAck(
+            type: t,
+            payload: p,
+            providerId: pid,
+            conversationId: convId
+        ) {
+            return
+        }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
             let existing =
                 streamingReasoningConversationId == convId
@@ -5037,6 +5131,116 @@ struct ChatPanelView: View {
                 model: p["model"] ?? "gpt-4o-mini")
         }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+    }
+
+    @MainActor
+    private func processPolicyAckEvent(
+        payload: [String: String],
+        providerId: String,
+        conversationId: UUID?
+    ) -> [String: String] {
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return payload
+        }
+        guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
+            return payload
+        }
+
+        let receivedHash = (payload["hash"] ?? payload["policy_hash"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var enriched = payload
+        enriched["expected_hash"] = state.expectedHash
+
+        if receivedHash == state.expectedHash {
+            state.acknowledgedHash = receivedHash
+            enriched["status"] = "acknowledged"
+            enriched["title"] = payload["title"] ?? "Policy acknowledged"
+            enriched["detail"] = payload["detail"] ?? "Policy hash accepted"
+        } else {
+            enriched["status"] = "invalid"
+            enriched["title"] = payload["title"] ?? "Policy acknowledgment invalid"
+            enriched["detail"] = payload["detail"] ?? "Expected hash \(state.expectedHash)"
+        }
+        policyAckStateByMessage[turn.assistantMessageId] = state
+        return enriched
+    }
+
+    @MainActor
+    private func shouldHardBlockForMissingPolicyAck(
+        type: String,
+        payload: [String: String],
+        providerId: String,
+        conversationId: UUID?
+    ) -> Bool {
+        guard agentsHardBlockEnabled else { return false }
+        guard ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload) else { return false }
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return false
+        }
+        guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
+            return false
+        }
+        if state.isSatisfied { return false }
+        if state.violationEmitted { return true }
+
+        state.violationEmitted = true
+        policyAckStateByMessage[turn.assistantMessageId] = state
+        emitPolicyAckViolation(
+            expectedHash: state.expectedHash,
+            incomingType: type,
+            providerId: providerId,
+            conversationId: conversationId
+        )
+        return true
+    }
+
+    @MainActor
+    private func emitPolicyAckViolation(
+        expectedHash: String,
+        incomingType: String,
+        providerId: String,
+        conversationId: UUID?
+    ) {
+        let detail =
+            "Missing required marker [CODERIDE:policy_ack|hash=\(expectedHash)] before event '\(incomingType)'."
+        recordTaskActivity(
+            type: "tool_execution_error",
+            payload: [
+                "title": "Policy acknowledgment required",
+                "detail": detail,
+                "status": "failed",
+                "error_code": "policy_ack_missing",
+                "expected_hash": expectedHash,
+            ],
+            providerId: providerId,
+            conversationId: conversationId
+        )
+        appendTechnicalErrorMessage(
+            "[Policy error] Mandatory AGENTS/SKILL acknowledgment missing. Emit [CODERIDE:policy_ack|hash=\(expectedHash)] before using tools.",
+            in: conversationId
+        )
+        stopTaskForPolicyViolation(conversationId: conversationId)
+    }
+
+    @MainActor
+    private func stopTaskForPolicyViolation(conversationId: UUID?) {
+        let scope = executionScopeForCurrentMode()
+        executionController.terminate(scope: scope)
+        flowCoordinator.interrupt()
+        taskFlushTask?.cancel()
+        taskFlushTask = nil
+        flushPendingTaskActivities()
+        if let conversationId {
+            chatStore.setLastAssistantStreaming(false, in: conversationId)
+            clearStreamingReasoning(for: conversationId)
+        }
+        finalizeToolTraceTurn(conversationId: conversationId)
+        cancelFallbackTurnStartEvent()
+        chatStore.endTask(conversationId: conversationId)
+        activeBuildPlanConversationId = nil
+        if planFlowPhase == .building {
+            planFlowPhase = .proposalReady
+        }
     }
 
     static func shouldShowFinalChatActions(
