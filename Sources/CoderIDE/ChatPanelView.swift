@@ -561,6 +561,7 @@ struct ChatPanelView: View {
     @State private var hasJustCompletedTask = false
     @State private var showRateLimitAlert = false
     @State private var rateLimitAlertText = ""
+    @State private var didCopyAllChat = false
     @State private var isFollowingLive = true
     @State private var newEventsWhileDetached = 0
     @StateObject private var voiceInputController = VoiceInputController()
@@ -608,6 +609,7 @@ struct ChatPanelView: View {
     static let debugPanelToggleNotification = Notification.Name("CoderIDE.DebugPanelToggle")
     private static let threadSearchAskAINotification = Notification.Name(
         "CoderIDE.ThreadSearchAskAI")
+    private static let markdownExportContentType = UTType(filenameExtension: "md") ?? .plainText
     private let topInteractiveInset: CGFloat = 22
     private let chatColumnMaxWidth: CGFloat = 960
 
@@ -637,6 +639,12 @@ struct ChatPanelView: View {
     }
     private var showsSwarmViewOnly: Bool { shouldShowSwarmViewOnly(for: coderMode) }
     private var planPanelConversationId: UUID? { conversationId }
+    private var shouldShowFinalChatActions: Bool {
+        Self.shouldShowFinalChatActions(
+            conversation: chatStore.conversation(for: conversationId),
+            isLoadingForCurrentConversation: isLoadingForCurrentConversation
+        ) && !showsSwarmViewOnly
+    }
 
     var body: some View {
         applyNotificationAndImporterModifiers(
@@ -671,6 +679,10 @@ struct ChatPanelView: View {
                     swarmDashboardArea
                 } else {
                     messagesArea
+                }
+
+                if shouldShowFinalChatActions {
+                    finalChatActionsBar
                 }
 
                 // Keep the legacy task bar only when the composer is not visible (e.g. Swarm).
@@ -1238,6 +1250,36 @@ struct ChatPanelView: View {
         }
     }
 
+    private func copyWholeChatToClipboard() {
+        guard let markdown = chatStore.exportConversationMarkdown(conversationId: conversationId) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+        didCopyAllChat = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            didCopyAllChat = false
+        }
+    }
+
+    private func downloadCurrentConversationMarkdown() {
+        guard let markdown = chatStore.exportConversationMarkdown(conversationId: conversationId) else { return }
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [Self.markdownExportContentType]
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = chatStore.defaultMarkdownFilename(for: conversationId)
+        savePanel.begin { response in
+            guard response == .OK, let url = savePanel.url else { return }
+            do {
+                try markdown.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+            }
+        }
+    }
+
+    private func forkCurrentConversation() {
+        guard let newConversationId = chatStore.forkConversation(from: conversationId) else { return }
+        selectedConversationId = newConversationId
+    }
+
     private func shouldHideBuildKickoffMessage(_ message: ChatMessage) -> Bool {
         guard message.role == .assistant else { return false }
         guard suppressedEmptyBuildAssistantMessageIds.contains(message.id) else { return false }
@@ -1551,6 +1593,66 @@ struct ChatPanelView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var finalChatActionsBar: some View {
+        HStack(spacing: 8) {
+            finalChatActionButton(
+                icon: didCopyAllChat ? "checkmark" : "doc.on.doc",
+                title: didCopyAllChat ? "Copied" : "Copy all",
+                help: didCopyAllChat ? "Copied" : "Copy entire chat as Markdown",
+                foreground: didCopyAllChat ? DesignSystem.Colors.success : .secondary,
+                action: copyWholeChatToClipboard
+            )
+            finalChatActionButton(
+                icon: "arrow.down.to.line",
+                title: "Download .md",
+                help: "Download chat as Markdown",
+                foreground: .secondary,
+                action: downloadCurrentConversationMarkdown
+            )
+            finalChatActionButton(
+                icon: "square.on.square",
+                title: "Fork chat",
+                help: "Fork this chat into a new thread",
+                foreground: .secondary,
+                action: forkCurrentConversation
+            )
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: chatColumnMaxWidth)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+
+    private func finalChatActionButton(
+        icon: String,
+        title: String,
+        help: String,
+        foreground: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+            )
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(title)
     }
 
     private func enableTaskPanelIfNeeded() {
@@ -4698,6 +4800,17 @@ struct ChatPanelView: View {
                 model: p["model"] ?? "gpt-4o-mini")
         }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+    }
+
+    static func shouldShowFinalChatActions(
+        conversation: Conversation?,
+        isLoadingForCurrentConversation: Bool
+    ) -> Bool {
+        guard !isLoadingForCurrentConversation else { return false }
+        guard let conversation else { return false }
+        guard conversation.messages.contains(where: { $0.role == .assistant }) else { return false }
+        guard let lastMessage = conversation.messages.last else { return false }
+        return lastMessage.role == .assistant && !lastMessage.isStreaming
     }
 
     static func mergeReasoningText(existing: String?, incoming: String) -> String {

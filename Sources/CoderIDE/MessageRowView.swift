@@ -36,6 +36,7 @@ struct MessageRow: View {
     private var isUser: Bool { message.role == .user }
     private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
     private var contentMaxWidth: CGFloat { isUser ? 560 : 860 }
+    private var shouldShowCopyAction: Bool { Self.shouldShowCopyAction(for: message) }
 
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 0) {
@@ -151,8 +152,8 @@ struct MessageRow: View {
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
                 )
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
-                if !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    userActionsRow
+                if shouldShowCopyAction {
+                    messageActionsRow
                 }
             } else {
                 // Thinking block
@@ -174,6 +175,9 @@ struct MessageRow: View {
                 .padding(.vertical, 4)
                 // Streaming bar
                 if shouldShowStreamingBar { streamingBar }
+                if shouldShowCopyAction {
+                    messageActionsRow
+                }
             }
         }
     }
@@ -221,17 +225,13 @@ struct MessageRow: View {
 
     // MARK: - Streaming Bar
 
-    private var userActionsRow: some View {
+    private var messageActionsRow: some View {
         HStack(spacing: 6) {
             Button {
-                copyUserMessageToClipboard()
+                copyMessageToClipboard()
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: didCopyMessage ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 9.5, weight: .semibold))
-                    Text(didCopyMessage ? "Copied" : "Copy")
-                        .font(.system(size: 10, weight: .semibold))
-                }
+                Image(systemName: didCopyMessage ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : .secondary)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -241,14 +241,17 @@ struct MessageRow: View {
                 )
             }
             .buttonStyle(.plain)
-            .help("Copia il messaggio")
+            .help(didCopyMessage ? "Copied" : "Copy message")
+            .accessibilityLabel(didCopyMessage ? "Copied" : "Copy message")
             .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
             .animation(.easeOut(duration: 0.15), value: didCopyMessage)
         }
-        .padding(.trailing, 6)
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        .padding(.trailing, isUser ? 6 : 0)
+        .padding(.leading, isUser ? 0 : 2)
     }
 
-    private func copyUserMessageToClipboard() {
+    private func copyMessageToClipboard() {
         let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         NSPasteboard.general.clearContents()
@@ -256,6 +259,17 @@ struct MessageRow: View {
         didCopyMessage = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             didCopyMessage = false
+        }
+    }
+
+    static func shouldShowCopyAction(for message: ChatMessage) -> Bool {
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        switch message.role {
+        case .user:
+            return true
+        case .assistant:
+            return !message.isStreaming
         }
     }
 
