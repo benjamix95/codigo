@@ -22,10 +22,15 @@ struct MarkdownContentView: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
+    @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
 
     // MARK: - Premium Design Tokens
 
-    private var bodyFont: CGFloat { 13.5 }
+    private var bodyFont: CGFloat { FontPreferences.sanitizeSize(uiSansFontSize + 0.5, kind: .sans) }
+    private var codeFontSize: CGFloat { FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code) }
     private var bodyLineSpacing: CGFloat { 6.5 }
 
     // Text
@@ -109,9 +114,9 @@ struct MarkdownContentView: View {
             } else {
                 (Text(buildStreamingAttributed(text))
                     + Text(" \u{258C}")
-                        .font(.system(size: bodyFont))
+                        .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
                         .foregroundColor(textPrimary.opacity(0.45)))
-                    .font(.system(size: bodyFont))
+                    .font(FontPreferences.resolveSansFont(size: bodyFont, family: uiSansFontFamily))
                     .foregroundStyle(textPrimary)
                     .lineSpacing(bodyLineSpacing)
                     .textSelection(.enabled)
@@ -139,7 +144,11 @@ struct MarkdownContentView: View {
             let range = run.range
             guard let intent = run.inlinePresentationIntent else { continue }
             if intent.contains(.code) {
-                result[range].font = .system(size: max(bodyFont - 1, 11), weight: .medium, design: .monospaced)
+                result[range].font = FontPreferences.resolveCodeFont(
+                    size: max(codeFontSize - 1, 11),
+                    family: uiCodeFontFamily,
+                    weight: .medium
+                )
                 result[range].backgroundColor = NSColor(inlineCodeBackground)
                 result[range].foregroundColor = NSColor(inlineCodeColor)
             }
@@ -349,7 +358,12 @@ struct MarkdownContentView: View {
     private func numberedItemView(number: String, text: String, indent: Int) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(number).")
-                .font(.system(size: bodyFont, weight: .bold, design: .rounded))
+                .font(FontPreferences.resolveSansFont(
+                    size: bodyFont,
+                    family: uiSansFontFamily,
+                    weight: .bold,
+                    design: .rounded
+                ))
                 .foregroundStyle(accentColor.opacity(0.8))
                 .frame(minWidth: 22, alignment: .trailing)
             inlineMarkdown(text)
@@ -414,7 +428,7 @@ struct MarkdownContentView: View {
                 if url.isFileURL { onFileClicked(url.path); return .handled }
                 return .systemAction(url)
             })
-            .font(.system(size: sz, weight: fontWeight))
+            .font(FontPreferences.resolveSansFont(size: sz, family: uiSansFontFamily, weight: fontWeight))
             .foregroundStyle(color ?? textPrimary)
             .lineSpacing(bodyLineSpacing)
             .textSelection(.enabled)
@@ -428,7 +442,7 @@ struct MarkdownContentView: View {
             HStack {
                 if !language.isEmpty {
                     Text(language.lowercased())
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(FontPreferences.resolveCodeFont(size: max(codeFontSize - 2, 10), family: uiCodeFontFamily, weight: .bold))
                         .foregroundStyle(accentColor.opacity(0.6))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -441,9 +455,9 @@ struct MarkdownContentView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "doc.on.doc")
-                            .font(.system(size: 9))
+                            .font(FontPreferences.resolveSansFont(size: 9, family: uiSansFontFamily))
                         Text("Copy")
-                            .font(.system(size: 9.5, weight: .medium))
+                            .font(FontPreferences.resolveSansFont(size: 9.5, family: uiSansFontFamily, weight: .medium))
                     }
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 8)
@@ -467,7 +481,7 @@ struct MarkdownContentView: View {
             // Code content
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(FontPreferences.resolveCodeFont(size: codeFontSize, family: uiCodeFontFamily))
                     .foregroundStyle(.primary.opacity(0.85))
                     .textSelection(.enabled)
                     .padding(.horizontal, 16)
@@ -518,10 +532,10 @@ struct MarkdownContentView: View {
             let range = run.range
             if let intent = run.inlinePresentationIntent {
                 if intent.contains(.code) {
-                    result[range].font = .system(
-                        size: max(fontSize - 1, 11),
-                        weight: .medium,
-                        design: .monospaced
+                    result[range].font = FontPreferences.resolveCodeFont(
+                        size: max(codeFontSize - 1, 11),
+                        family: uiCodeFontFamily,
+                        weight: .medium
                     )
                     result[range].backgroundColor = NSColor(inlineCodeBackground)
                     result[range].foregroundColor = NSColor(inlineCodeColor)

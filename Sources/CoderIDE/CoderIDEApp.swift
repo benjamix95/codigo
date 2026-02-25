@@ -50,6 +50,10 @@ struct CodigoApp: App {
     @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
     @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
     @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
+    @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
     @AppStorage("minimax_api_key") private var minimaxApiKey = ""
     @AppStorage("minimax_model") private var minimaxModel = "MiniMax-M2.5"
     @AppStorage("openrouter_api_key") private var openrouterApiKey = ""
@@ -71,10 +75,18 @@ struct CodigoApp: App {
         }
     }
 
+    private var resolvedSansFont: Font {
+        FontPreferences.resolveSansFont(
+            size: FontPreferences.sanitizeSize(uiSansFontSize, kind: .sans),
+            family: uiSansFontFamily
+        )
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(colorScheme)
+                .environment(\.font, resolvedSansFont)
                 .environmentObject(providerRegistry)
                 .environmentObject(chatStore)
                 .environmentObject(workspaceStore)
@@ -91,6 +103,7 @@ struct CodigoApp: App {
                 .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)
                 .onAppear {
+                    FontPreferences.registerBundledFonts()
                     projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
                     chatStore.migrateLegacyContextsIfNeeded(
                         contextStore: projectContextStore, workspaceStore: workspaceStore)

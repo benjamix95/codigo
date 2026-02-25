@@ -19,6 +19,8 @@ final class AutoFollowLocalProcessTerminalView: LocalProcessTerminalView {
 struct TerminalPanelView: View {
     let workingDirectory: String?
     @AppStorage("terminal_auto_follow_output") private var autoFollowOutput = true
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
 
     init(workingDirectory: String? = nil) {
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
@@ -29,7 +31,9 @@ struct TerminalPanelView: View {
             terminalHeader
             TerminalContainerView(
                 workingDirectory: workingDirectory,
-                autoFollowOutput: autoFollowOutput
+                autoFollowOutput: autoFollowOutput,
+                codeFontFamily: uiCodeFontFamily,
+                codeFontSize: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code)
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -70,7 +74,10 @@ struct TerminalPanelView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 10))
                     Text(workingDirectoryDisplay(path))
-                        .font(.system(size: 10, design: .monospaced))
+                        .codeFont(
+                            size: FontPreferences.sanitizeSize(uiCodeFontSize - 2, kind: .code),
+                            family: uiCodeFontFamily
+                        )
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -81,7 +88,10 @@ struct TerminalPanelView: View {
             }
             Spacer()
             Text(shellDisplay)
-                .font(.system(size: 10, design: .monospaced))
+                .codeFont(
+                    size: FontPreferences.sanitizeSize(uiCodeFontSize - 2, kind: .code),
+                    family: uiCodeFontFamily
+                )
                 .foregroundStyle(.tertiary)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 3)
@@ -132,6 +142,8 @@ struct TerminalPanelView: View {
 struct TerminalContainerView: NSViewRepresentable {
     let workingDirectory: String?
     let autoFollowOutput: Bool
+    let codeFontFamily: String
+    let codeFontSize: CGFloat
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = AutoFollowLocalProcessTerminalView(frame: .zero)
@@ -146,7 +158,7 @@ struct TerminalContainerView: NSViewRepresentable {
         let shellName = "-" + (shell as NSString).lastPathComponent
         view.startProcess(executable: shell, execName: shellName, currentDirectory: workingDirectory)
         view.getTerminal().silentLog = true
-        view.font = NSFont.monospacedSystemFont(ofSize: 12.5, weight: .regular)
+        view.font = FontPreferences.resolveNSMonoFont(size: codeFontSize, family: codeFontFamily)
         return view
     }
 

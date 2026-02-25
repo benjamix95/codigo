@@ -12,6 +12,8 @@ struct EditorPlaceholderView: View {
 
     @State private var position: CodeEditor.Position = CodeEditor.Position()
     @State private var messages: Set<TextLocated<Message>> = []
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
 
     var body: some View {
         Group {
@@ -208,7 +210,7 @@ struct EditorPlaceholderView: View {
                             Text(folderPaths.count > 1
                                  ? folderPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
                                  : displayPath)
-                                .font(.system(size: 12, design: .monospaced))
+                                .codeFont(size: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code), family: uiCodeFontFamily)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2).multilineTextAlignment(.center)
                         }
@@ -299,7 +301,11 @@ struct EditorPlaceholderView: View {
                         ForEach(Array(diff.chunks.enumerated()), id: \.offset) { _, chunk in
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(chunk.header)
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .codeFont(
+                                        size: FontPreferences.sanitizeSize(uiCodeFontSize - 1, kind: .code),
+                                        family: uiCodeFontFamily,
+                                        weight: .semibold
+                                    )
                                     .foregroundStyle(Color.accentColor.opacity(0.9))
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
@@ -338,7 +344,7 @@ struct EditorPlaceholderView: View {
             }
         }()
         return Text(line.isEmpty ? " " : line)
-            .font(.system(size: 11, design: .monospaced))
+            .codeFont(size: FontPreferences.sanitizeSize(uiCodeFontSize - 1, kind: .code), family: uiCodeFontFamily)
             .foregroundStyle(.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 2)

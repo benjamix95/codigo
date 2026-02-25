@@ -110,6 +110,10 @@ struct SettingsView: View {
     // MARK: - Appearance
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
+    @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
+    @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
 
     // MARK: - Codebase Index
     @AppStorage("codebase_index_enabled") private var codebaseIndexEnabled = true
@@ -144,6 +148,14 @@ struct SettingsView: View {
     @State private var loginMethodByAccount: [UUID: CLIAccountLoginCoordinator.LoginMethod] = [:]
     @State private var indexStatusText: String = "Loading..."
     @State private var indexStatsText: String = ""
+
+    private var availableSansFontFamilies: [String] {
+        FontPreferences.availableSansFamilies()
+    }
+
+    private var availableMonoFontFamilies: [String] {
+        FontPreferences.availableMonoFamilies()
+    }
 
     // MARK: - Body
 
@@ -187,6 +199,7 @@ struct SettingsView: View {
             }
         }
         .onAppear {
+            FontPreferences.registerBundledFonts()
             normalizeStoredSelections()
             loadCodexAdvanced()
             syncProviders()
@@ -231,6 +244,19 @@ struct SettingsView: View {
     private func applyBehaviorSyncs<V: View>(_ content: V) -> some View {
         content
             .onChange(of: globalYolo) { _, _ in syncCodex(); syncPlanProvider(); syncCodeReview() }
+            .onChange(of: codebaseIndexEnabled) { _, _ in
+                workspaceStore.indexActiveWorkspace()
+                Task { await refreshIndexStatus() }
+            }
+            .onChange(of: codebaseIndexExcludedPaths) { _, _ in
+                workspaceStore.indexActiveWorkspace()
+            }
+            .onChange(of: uiSansFontSize) { _, newValue in
+                uiSansFontSize = Double(FontPreferences.sanitizeSize(newValue, kind: .sans))
+            }
+            .onChange(of: uiCodeFontSize) { _, newValue in
+                uiCodeFontSize = Double(FontPreferences.sanitizeSize(newValue, kind: .code))
+            }
     }
 
     // MARK: - Detail Router
@@ -684,6 +710,62 @@ struct SettingsView: View {
                             Text(style.label).tag(style.rawValue)
                         }
                     }.labelsHidden()
+                }
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Sans font family")
+                    HStack(spacing: 12) {
+                        Stepper(
+                            value: Binding(
+                                get: { Int(FontPreferences.sanitizeSize(uiSansFontSize, kind: .sans)) },
+                                set: { uiSansFontSize = Double($0) }
+                            ),
+                            in: Int(FontPreferences.sansSizeRange.lowerBound)...Int(FontPreferences.sansSizeRange.upperBound)
+                        ) {
+                            Text("\(Int(FontPreferences.sanitizeSize(uiSansFontSize, kind: .sans))) px")
+                                .frame(width: 58, alignment: .leading)
+                        }
+                        Picker("Sans family", selection: $uiSansFontFamily) {
+                            Text("System Default").tag(FontPreferences.systemSansToken)
+                            ForEach(availableSansFontFamilies, id: \.self) { family in
+                                Text(family).tag(family)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    Text("Adjust the font used for the app UI.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Code font")
+                    HStack(spacing: 12) {
+                        Stepper(
+                            value: Binding(
+                                get: { Int(FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code)) },
+                                set: { uiCodeFontSize = Double($0) }
+                            ),
+                            in: Int(FontPreferences.codeSizeRange.lowerBound)...Int(FontPreferences.codeSizeRange.upperBound)
+                        ) {
+                            Text("\(Int(FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code))) px")
+                                .frame(width: 58, alignment: .leading)
+                        }
+                        Picker("Code family", selection: $uiCodeFontFamily) {
+                            Text("System Monospace").tag(FontPreferences.systemMonoToken)
+                            ForEach(availableMonoFontFamilies, id: \.self) { family in
+                                Text(family).tag(family)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    Text("Adjust font and size used for code across chats and technical panels.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }

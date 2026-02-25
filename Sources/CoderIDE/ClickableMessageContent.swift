@@ -5,6 +5,10 @@ struct ClickableMessageContent: View {
     let context: ProjectContext?
     let onFileClicked: (String) -> Void
     var textAlignment: TextAlignment = .leading
+    @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
+    @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize
+    @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
+    @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
 
     /// Removes CODERIDE markers (complete, incomplete, with spaces/newlines). During streaming
     /// the model emits token by token; variants like [ CODERIDE: or [CODERIDE\n: may appear.
@@ -20,7 +24,10 @@ struct ClickableMessageContent: View {
                 if url.isFileURL { onFileClicked(url.path); return .handled }
                 return .systemAction(url)
             })
-            .font(.system(size: 15.5, weight: .regular, design: .default))
+            .font(FontPreferences.resolveSansFont(
+                size: FontPreferences.sanitizeSize(uiSansFontSize + 2.5, kind: .sans),
+                family: uiSansFontFamily
+            ))
             .lineSpacing(7)
             .multilineTextAlignment(textAlignment)
             .textSelection(.enabled)
@@ -65,7 +72,10 @@ struct ClickableMessageContent: View {
             let range = run.range
             guard let inlineIntent = run.inlinePresentationIntent else { continue }
             if inlineIntent.contains(.code) {
-                attributed[range].font = .system(size: 13.5, weight: .regular, design: .monospaced)
+                attributed[range].font = FontPreferences.resolveCodeFont(
+                    size: FontPreferences.sanitizeSize(uiCodeFontSize + 1.5, kind: .code),
+                    family: uiCodeFontFamily
+                )
                 attributed[range].backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.65)
             }
         }
