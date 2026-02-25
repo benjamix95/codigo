@@ -179,11 +179,20 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         ]))
                                         continue
                                     }
-                                    var args: [String: String] = [:]
-                                    if let argsJson = payload["args"], let parsed = parseArgsJSON(argsJson) {
-                                        args = parsed
+                                    var args = payload
+                                    let metadataKeys: Set<String> = [
+                                        "id", "name", "tool", "tool_name", "function", "function_name",
+                                        "args", "is_partial", "type", "status", "title", "detail", "output",
+                                    ]
+                                    for key in metadataKeys {
+                                        args.removeValue(forKey: key)
                                     }
-                                    args["id"] = payload["id"] ?? UUID().uuidString
+                                    if let argsJson = payload["args"], let parsed = parseArgsJSON(argsJson) {
+                                        for (key, value) in parsed {
+                                            args[key] = value
+                                        }
+                                    }
+                                    args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
                                     args["name"] = name
                                     let marker = CoderIDEMarker(kind: "tool_call", payload: args)
                                     let dedupeId = markerDedupeKey(marker)

@@ -112,7 +112,7 @@ public actor CodebaseIndexTools {
 
         // Ensure index is built
         let status = await index.status()
-        if status.status == .idle {
+        if shouldPerformFullReindex(statusInfo: status, workspacePaths: workspacePaths) {
             let _ = await index.indexWorkspace(paths: workspacePaths, excludedPaths: excludedPaths)
         }
 
@@ -651,7 +651,8 @@ public actor CodebaseIndexTools {
         let info = await index.status()
 
         let result: IndexResult
-        if info.status == .ready {
+        if info.status == .ready,
+           !shouldPerformFullReindex(statusInfo: info, workspacePaths: workspacePaths) {
             result = await index.incrementalUpdate()
         } else {
             result = await index.indexWorkspace(paths: workspacePaths, excludedPaths: excludedPaths)
@@ -663,6 +664,35 @@ public actor CodebaseIndexTools {
             output: result.summary,
             detail: "\(result.totalSymbols) symbols in \(result.durationMs)ms"
         )
+    }
+
+    private func shouldPerformFullReindex(
+        statusInfo: IndexStatusInfo,
+        workspacePaths: [URL]
+    ) -> Bool {
+        if statusInfo.status == .idle || statusInfo.status == .error {
+            return true
+        }
+        let requested = normalizeWorkspacePaths(workspacePaths)
+        guard !requested.isEmpty else { return false }
+        let indexed = normalizeWorkspacePaths(statusInfo.workspacePaths)
+        return requested != indexed
+    }
+
+    private func normalizeWorkspacePaths(_ paths: [URL]) -> [String] {
+        let values = paths.map { $0.standardizedFileURL.path }
+        return normalizeWorkspacePaths(values)
+    }
+
+    private func normalizeWorkspacePaths(_ paths: [String]) -> [String] {
+        var normalized = Set<String>()
+        for rawPath in paths {
+            let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let value = URL(fileURLWithPath: trimmed).standardizedFileURL.path
+            normalized.insert(value)
+        }
+        return normalized.sorted()
     }
 
     // MARK: - Formatting Helpers

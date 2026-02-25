@@ -673,6 +673,47 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertTrue(output.contains("DirB/Beta.swift"), "Expected hit from DirB")
     }
 
+    func testSemanticSearchReindexesWhenWorkspacePathsChange() async throws {
+        let root = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let workspaceA = root.appendingPathComponent("workspace-a", isDirectory: true)
+        let workspaceB = root.appendingPathComponent("workspace-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspaceA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workspaceB, withIntermediateDirectories: true)
+
+        try "struct WorkspaceAOnlySymbol {}".write(
+            to: workspaceA.appendingPathComponent("First.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "func betaWorkspaceToken() { print(\"beta workspace token\") }".write(
+            to: workspaceB.appendingPathComponent("Second.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspaceA])
+
+        let runtime = UnifiedToolRuntime(index: index, workspacePaths: [workspaceB])
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "beta workspace token"],
+            workspace: workspaceB
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        let status = await index.status()
+        XCTAssertEqual(status.workspacePaths, [workspaceB.path])
+        XCTAssertTrue(
+            (completed?["output"] ?? "").contains("Second.swift"),
+            "Expected semantic search output to be refreshed for workspace-b"
+        )
+    }
+
     func testGrepMultiScopeProducesPreviewAndCountPayload() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()

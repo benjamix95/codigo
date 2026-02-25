@@ -2465,6 +2465,7 @@ public actor UnifiedToolRuntime {
 
         // Primary: BM25 SemanticIndex (AST-aware chunks + inverted index)
         if let index = codebaseIndex {
+            await ensureSemanticIndexReadyIfNeeded(index: index, context: context)
             let results = await index.semanticIndex.search(
                 query: query,
                 targetDirectories: targetDirs,
@@ -2606,6 +2607,56 @@ public actor UnifiedToolRuntime {
             "count": "\(top.count)",
             "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ",")
         ], startDate: startDate)
+    }
+
+    private func ensureSemanticIndexReadyIfNeeded(
+        index: CodebaseIndex,
+        context: ToolExecutionContext
+    ) async {
+        let requestedPaths = preferredWorkspacePaths(for: context)
+        guard !requestedPaths.isEmpty else { return }
+
+        let status = await index.status()
+        guard shouldPerformSemanticFullReindex(statusInfo: status, requestedWorkspacePaths: requestedPaths)
+        else { return }
+
+        let _ = await index.indexWorkspace(paths: requestedPaths, excludedPaths: excludedPaths)
+    }
+
+    private func preferredWorkspacePaths(for context: ToolExecutionContext) -> [URL] {
+        if !workspacePaths.isEmpty {
+            return workspacePaths
+        }
+        return [context.workspaceContext.workspacePath]
+    }
+
+    private func shouldPerformSemanticFullReindex(
+        statusInfo: IndexStatusInfo,
+        requestedWorkspacePaths: [URL]
+    ) -> Bool {
+        if statusInfo.status == .idle || statusInfo.status == .error {
+            return true
+        }
+        let requested = normalizeWorkspacePaths(requestedWorkspacePaths)
+        guard !requested.isEmpty else { return false }
+        let indexed = normalizeWorkspacePaths(statusInfo.workspacePaths)
+        return requested != indexed
+    }
+
+    private func normalizeWorkspacePaths(_ paths: [URL]) -> [String] {
+        let values = paths.map { $0.standardizedFileURL.path }
+        return normalizeWorkspacePaths(values)
+    }
+
+    private func normalizeWorkspacePaths(_ paths: [String]) -> [String] {
+        var normalized = Set<String>()
+        for rawPath in paths {
+            let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let value = URL(fileURLWithPath: trimmed).standardizedFileURL.path
+            normalized.insert(value)
+        }
+        return normalized.sorted()
     }
 
     private func runSemanticTextSearch(pattern: String, searchPath: String, workspace: String) async -> String {

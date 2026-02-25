@@ -1106,7 +1106,12 @@ struct SettingsView: View {
 
     private func syncCodex() {
         reregisterProviderPreservingSelection(id: "codex-cli", provider:
-            ProviderFactory.codexProvider(config: providerFactoryConfig(), executionController: executionController))
+            ProviderFactory.codexProvider(
+                config: providerFactoryConfig(),
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths
+            ))
     }
 
     private func syncClaude() {

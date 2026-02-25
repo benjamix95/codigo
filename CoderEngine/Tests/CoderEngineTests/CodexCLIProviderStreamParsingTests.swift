@@ -312,6 +312,66 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(parsed.payload["detail"], "")
     }
 
+    func testFunctionCallToolEventMapsToInstantGrep() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "tool-1",
+                "type": "function_call",
+                "name": "grep",
+                "arguments": [
+                    "query": "trace activity",
+                    "pathScope": "Sources/CoderIDE",
+                ],
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected mapped tool raw event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "instant_grep")
+        XCTAssertEqual(parsed.payload["query"], "trace activity")
+        XCTAssertEqual(parsed.payload["pathScope"], "Sources/CoderIDE")
+        XCTAssertEqual(parsed.payload["status"], "completed")
+        XCTAssertEqual(parsed.payload["tool_call_id"], "tool-1")
+    }
+
+    func testFunctionCallMCPEventMapsToMCPToolCall() {
+        let json: [String: Any] = [
+            "type": "item.started",
+            "item": [
+                "id": "mcp-1",
+                "type": "function_call",
+                "name": "mcp_list_servers",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected mapped MCP event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "mcp_tool_call")
+        XCTAssertEqual(parsed.payload["status"], "started")
+        XCTAssertEqual(parsed.payload["tool_call_id"], "mcp-1")
+        XCTAssertTrue((parsed.payload["title"] ?? "").contains("MCP discovery"))
+    }
+
+    func testAgentMessageItemIsNotMappedAsToolEvent() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "msg-1",
+                "type": "agent_message",
+                "text": "final response",
+            ],
+        ]
+
+        XCTAssertNil(CodexCLIProvider.parseRawEvent(from: json))
+    }
+
     private func runParser(events input: [[String: Any]]) -> [StreamEvent] {
         var state = CodexCLIProvider.CodexStreamParserState()
         var out: [StreamEvent] = []

@@ -106,9 +106,12 @@ enum ProviderFactory {
 
     static func codexProvider(
         config: ProviderFactoryConfig, executionController: ExecutionController?,
+        executionScope: ExecutionScope = .agent,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
         environmentOverride: [String: String]? = nil
-    ) -> CodexCLIProvider {
-        CodexCLIProvider(
+    ) -> any LLMProvider {
+        let base = CodexCLIProvider(
             codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
             sandboxMode: sandbox(from: config),
             modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
@@ -119,7 +122,23 @@ enum ProviderFactory {
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),
             executionController: executionController,
+            executionScope: executionScope,
             environmentOverride: codexEnvironmentOverride(environmentOverride)
+        )
+        guard config.unifiedToolRuntimeEnabled else { return base }
+        return ToolEnabledLLMProvider(
+            base: base,
+            runtime: buildRuntime(
+                executionController: executionController,
+                executionScope: executionScope,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths,
+                webSearchProvider: config.webSearchProvider,
+                webSearchApiKeys: config.webSearchApiKeys
+            ),
+            policy: toolRuntimePolicy(from: config),
+            executionScope: executionScope,
+            executionController: executionController
         )
     }
 
@@ -301,7 +320,12 @@ enum ProviderFactory {
     ) -> (any LLMProvider)? {
         switch backendId {
         case "codex", "codex-cli":
-            return codexProvider(config: config, executionController: executionController)
+            return codexProvider(
+                config: config,
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            )
         case "claude", "claude-cli":
             return claudeProvider(
                 config: config,

@@ -176,7 +176,10 @@ struct CodigoApp: App {
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.codexProvider(
-                    config: providerFactoryConfig(), executionController: executionController))
+                    config: providerFactoryConfig(),
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths))
         }
         if providerRegistry.provider(for: "claude-cli") == nil {
             providerRegistry.register(

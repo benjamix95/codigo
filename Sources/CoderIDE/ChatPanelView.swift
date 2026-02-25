@@ -3046,7 +3046,11 @@ struct ChatPanelView: View {
 
     private func syncCodexProvider() {
         let p = ProviderFactory.codexProvider(
-            config: providerFactoryConfig(), executionController: executionController)
+            config: providerFactoryConfig(),
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: p)
         syncSwarmProvider()
         syncPlanProvider()
@@ -3092,7 +3096,11 @@ struct ChatPanelView: View {
     private func syncToolRuntimePolicy() {
         let cfg = providerFactoryConfig()
         let codex = ProviderFactory.codexProvider(
-            config: cfg, executionController: executionController)
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
         let claude = ProviderFactory.claudeProvider(
             config: cfg,
@@ -4708,6 +4716,8 @@ struct ChatPanelView: View {
                     case .codex:
                         return ProviderFactory.codexProvider(
                             config: cfg, executionController: executionController,
+                            codebaseIndex: workspaceStore.codebaseIndex,
+                            workspacePaths: workspaceStore.activeWorkspacePaths,
                             environmentOverride: env)
                     case .claude:
                         return ProviderFactory.claudeProvider(

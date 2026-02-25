@@ -116,4 +116,46 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
 
         XCTAssertEqual(policyAckCount, 1)
     }
+
+    func testToolCallSuggestedUsesDirectPayloadArgumentsWhenArgsJSONMissing() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("policy-ack-direct-args-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let sourceFile = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-3",
+                "name": "read",
+                "path": sourceFile.path,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
+        let stream = try await provider.send(
+            prompt: "Leggi Sample.swift",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var completedPayload: [String: String]?
+        for try await event in stream {
+            if case .raw(let type, let payload) = event,
+               type == "read_batch_completed",
+               payload["status"] == "completed" {
+                completedPayload = payload
+            }
+        }
+
+        let payload = try XCTUnwrap(completedPayload)
+        XCTAssertEqual(payload["path"], sourceFile.path)
+        XCTAssertTrue((payload["output"] ?? "").contains("let value = 1"))
+    }
 }

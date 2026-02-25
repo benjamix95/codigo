@@ -739,8 +739,28 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return ("reasoning", payload)
         }
 
-        let activityTypes = ["file_change", "command_execution", "mcp_tool_call", "web_search", "web_fetch", "instant_grep", "todo_write", "todo_read", "plan_step_update", "read_batch_started", "read_batch_completed", "web_search_started", "web_search_completed", "web_search_failed", "web_fetch_started", "web_fetch_completed", "web_fetch_failed"]
-        guard activityTypes.contains(type) else { return nil }
+        let activityTypes: Set<String> = [
+            "file_change",
+            "command_execution",
+            "mcp_tool_call",
+            "web_search",
+            "web_fetch",
+            "instant_grep",
+            "todo_write",
+            "todo_read",
+            "plan_step_update",
+            "read_batch_started",
+            "read_batch_completed",
+            "web_search_started",
+            "web_search_completed",
+            "web_search_failed",
+            "web_fetch_started",
+            "web_fetch_completed",
+            "web_fetch_failed",
+        ]
+        if !activityTypes.contains(type) {
+            return mapToolLikeRawEvent(type: type, eventType: eventType, item: item)
+        }
         
         var payload: [String: String] = [
             "title": titleForType(type, item: item),
@@ -828,6 +848,170 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
         
         return (type, payload)
+    }
+
+    private static func mapToolLikeRawEvent(
+        type: String,
+        eventType: String,
+        item: [String: Any]
+    ) -> (type: String, payload: [String: String])? {
+        guard isToolLikeRawEvent(type: type, eventType: eventType, item: item) else { return nil }
+
+        let explicitTool = firstString(
+            in: item,
+            keys: ["tool", "tool_name", "function_name", "function", "name", "mcp_tool"]
+        ) ?? ""
+        let normalizedType = ProviderToolEventMapper.normalizeToolIdentifier(type)
+        let normalizedExplicitTool = ProviderToolEventMapper.normalizeToolIdentifier(explicitTool)
+        let genericTypes: Set<String> = ["tool_call", "function_call", "tool_result", "function_result", "call"]
+
+        let rawToolName: String
+        if !normalizedExplicitTool.isEmpty {
+            rawToolName = explicitTool
+        } else if !genericTypes.contains(normalizedType) {
+            rawToolName = type
+        } else {
+            return nil
+        }
+
+        guard let mapped = ProviderToolEventMapper.map(
+            toolName: rawToolName,
+            payload: item,
+            typeHint: type
+        ) else {
+            return nil
+        }
+
+        var payload = mapped.payload
+        if payload["tool"] == nil || payload["tool"]?.isEmpty == true {
+            payload["tool"] = ProviderToolEventMapper.normalizeToolIdentifier(rawToolName)
+        }
+
+        if let status = firstString(in: item, keys: ["status"]), !status.isEmpty {
+            payload["status"] = status
+        } else if payload["status"] == nil {
+            switch eventType {
+            case "item.started":
+                payload["status"] = "started"
+            case "item.updated":
+                payload["status"] = "in_progress"
+            case "item.completed":
+                payload["status"] = "completed"
+            default:
+                break
+            }
+        }
+
+        if let itemId = firstString(in: item, keys: ["id"]), !itemId.isEmpty {
+            payload["id"] = itemId
+            if payload["group_id"] == nil || payload["group_id"]?.isEmpty == true {
+                payload["group_id"] = itemId
+            }
+        }
+        if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]), !toolCallId.isEmpty {
+            payload["tool_call_id"] = toolCallId
+        } else if payload["tool_call_id"] == nil,
+                  let id = payload["id"], !id.isEmpty {
+            payload["tool_call_id"] = id
+        }
+        if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
+            payload["swarm_id"] = swarmId
+            if payload["group_id"] == nil || payload["group_id"]?.isEmpty == true {
+                payload["group_id"] = "swarm-\(swarmId)"
+            }
+        }
+
+        return (mapped.type, payload)
+    }
+
+    private static func isToolLikeRawEvent(
+        type: String,
+        eventType: String,
+        item: [String: Any]
+    ) -> Bool {
+        let normalizedType = ProviderToolEventMapper.normalizeToolIdentifier(type)
+        guard !normalizedType.isEmpty else { return false }
+
+        let nonToolTypes: Set<String> = [
+            "reasoning",
+            "agent_message",
+            "assistant_message",
+            "user_message",
+            "message",
+            "text",
+            "final_answer",
+        ]
+        if nonToolTypes.contains(normalizedType) { return false }
+
+        if eventType.contains("tool") || eventType.contains("function_call") {
+            return true
+        }
+
+        let toolLikeTypes: Set<String> = [
+            "tool_call",
+            "function_call",
+            "tool_result",
+            "function_result",
+            "command_execution",
+            "file_change",
+            "mcp_tool_call",
+            "web_search",
+            "web_fetch",
+            "instant_grep",
+            "search",
+            "semantic_search",
+            "codebase_search",
+            "find_symbol",
+            "find_references",
+            "file_outline",
+            "list_symbols",
+            "read",
+            "read_range",
+            "list_dir",
+            "glob",
+            "grep",
+            "str_replace",
+            "edit",
+            "write",
+            "create_file",
+            "delete_file",
+            "parallel_apply",
+            "rename_symbol",
+            "find_files",
+            "mcp_call",
+            "mcp_list_servers",
+            "mcp_list_tools",
+            "mcp_describe_tool",
+            "mcp_health",
+            "mcp_reconnect",
+            "index_status",
+            "reindex",
+            "read_lints",
+            "debug_context",
+            "diagnostics",
+        ]
+        if toolLikeTypes.contains(normalizedType) { return true }
+        if normalizedType.hasPrefix("mcp_") || normalizedType.hasPrefix("web_") { return true }
+
+        let toolSignalKeys = [
+            "tool",
+            "tool_name",
+            "function",
+            "function_name",
+            "mcp_tool",
+            "mcp_server",
+            "server_id",
+            "command",
+            "command_line",
+            "cmd",
+            "old_string",
+            "new_string",
+            "query",
+            "pattern",
+            "args",
+            "arguments",
+        ]
+        return firstString(in: item, keys: toolSignalKeys) != nil
     }
 
     private static func normalizedEventType(_ raw: String) -> String {

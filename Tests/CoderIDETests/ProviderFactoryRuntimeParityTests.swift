@@ -3,12 +3,39 @@ import CoderEngine
 @testable import CoderIDE
 
 final class ProviderFactoryRuntimeParityTests: XCTestCase {
-    func testAPIProvidersReceiveCodebaseIndexAndWorkspacePaths() async throws {
+    func testProvidersReceiveCodebaseIndexAndWorkspacePathsWhenRuntimeEnabled() async throws {
         let config = makeConfig()
         let index = CodebaseIndex()
         let workspacePaths = makeWorkspacePaths()
 
         let providers: [(expectedId: String, provider: any LLMProvider)] = [
+            (
+                "codex-cli",
+                ProviderFactory.codexProvider(
+                    config: config,
+                    executionController: nil,
+                    codebaseIndex: index,
+                    workspacePaths: workspacePaths
+                )
+            ),
+            (
+                "claude-cli",
+                ProviderFactory.claudeProvider(
+                    config: config,
+                    executionController: nil,
+                    codebaseIndex: index,
+                    workspacePaths: workspacePaths
+                )
+            ),
+            (
+                "gemini-cli",
+                ProviderFactory.geminiProvider(
+                    config: config,
+                    executionController: nil,
+                    codebaseIndex: index,
+                    workspacePaths: workspacePaths
+                )
+            ),
             (
                 "openai-api",
                 ProviderFactory.openAIAPIProvider(
@@ -77,6 +104,23 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             XCTAssertEqual(snapshot.workspacePaths, expectedWorkspacePaths)
             XCTAssertEqual(snapshot.executionScope, .agent)
         }
+    }
+
+    func testCodexProviderReturnsBaseProviderWhenRuntimeDisabled() async throws {
+        var config = makeConfig()
+        config.unifiedToolRuntimeEnabled = false
+        let index = CodebaseIndex()
+        let workspacePaths = makeWorkspacePaths()
+
+        let provider = ProviderFactory.codexProvider(
+            config: config,
+            executionController: nil,
+            codebaseIndex: index,
+            workspacePaths: workspacePaths
+        )
+
+        XCTAssertTrue(provider is CodexCLIProvider)
+        XCTAssertFalse(provider is ToolEnabledLLMProvider)
     }
 
     func testSwarmProviderPassesRuntimeParityToOrchestratorAndWorker() async throws {
