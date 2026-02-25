@@ -871,6 +871,84 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertGreaterThan(errorCount, 0, "Should detect errors in malformed Swift code")
     }
 
+    // MARK: - DebugQuery Tests
+
+    func testDebugQueryFullAppliesSourceFilter() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (logA, ctxA) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "error",
+                "source": "NetworkManager.swift:42",
+                "message": "Connection refused",
+                "category": "runtime"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logA, context: ctxA)
+
+        let (logB, ctxB) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "warning",
+                "source": "AuthService.swift:11",
+                "message": "Token close to expiration",
+                "category": "runtime"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logB, context: ctxB)
+
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: ["format": "full", "source": "NetworkManager.swift"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(queryCall, context: queryCtx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertEqual(completed?["detail"], "1 entries (1 errors, 0 warnings)")
+        let output = completed?["output"] ?? ""
+        XCTAssertTrue(output.contains("NetworkManager.swift:42"))
+        XCTAssertFalse(output.contains("AuthService.swift:11"))
+    }
+
+    func testDebugQuerySummaryWithFiltersReturnsFilteredSummary() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (logCall, logCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "error",
+                "source": "Compiler",
+                "message": "Type mismatch",
+                "category": "compiler"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logCall, context: logCtx)
+
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: ["format": "summary", "severity": "error"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(queryCall, context: queryCtx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("Debug Query Summary:"))
+        XCTAssertTrue(output.contains("Total entries: 1"))
+        XCTAssertTrue(output.contains("Errors: 1"))
+    }
+
     // MARK: - DebugContext Tests
 
     func testDebugContextGathersGitInfo() async throws {

@@ -2228,12 +2228,15 @@ public actor UnifiedToolRuntime {
     private func executeDebugQuery(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let severity = call.args["severity"]
         let category = call.args["category"]
+        let source = call.args["source"]
         let search = call.args["search"] ?? call.args["query"]
-        let limitStr = call.args["limit"] ?? "50"
-        let limit = Int(limitStr) ?? 50
-        let format = call.args["format"] ?? "summary" // summary or full
+        let requestedLimit = Int(call.args["limit"] ?? "50") ?? 50
+        let limit = min(max(requestedLimit, 1), 500)
+        let format = (call.args["format"] ?? "summary").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        if format == "summary" {
+        if format == "summary",
+           severity == nil, category == nil, source == nil,
+           (search?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
             let summary = await debugLogServer.sessionSummary()
             let ms = Int(Date().timeIntervalSince(startDate) * 1000)
             return ToolResult(ok: true, payload: [
@@ -2243,13 +2246,40 @@ public actor UnifiedToolRuntime {
             ], durationMs: ms)
         }
 
-        let result = await debugLogServer.query(severity: severity, category: category, search: search, limit: limit)
-        let formatted = await debugLogServer.recentFormatted(limit: limit)
+        let result = await debugLogServer.query(
+            severity: severity,
+            category: category,
+            source: source,
+            search: search,
+            limit: limit
+        )
+
+        let output: String
+        if format == "summary" {
+            output = """
+            Debug Query Summary:
+              Total entries: \(result.totalCount)
+              Errors: \(result.errorCount)
+              Warnings: \(result.warningCount)
+            """
+        } else {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
+            output = result.entries.isEmpty
+                ? "No log entries matched the query."
+                : result.entries.map { entry in
+                    let ts = formatter.string(from: entry.timestamp)
+                    let cat = entry.category.map { "[\($0)] " } ?? ""
+                    let detail = entry.detail.map { "\n  detail: \($0)" } ?? ""
+                    return "[\(ts)] \(entry.severity.uppercased()) \(cat)\(entry.source): \(entry.message)\(detail)"
+                }.joined(separator: "\n")
+        }
+
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
         return ToolResult(ok: true, payload: [
             "title": "debug_query",
             "detail": "\(result.totalCount) entries (\(result.errorCount) errors, \(result.warningCount) warnings)",
-            "output": formatted
+            "output": output
         ], durationMs: ms)
     }
 
@@ -2876,16 +2906,13 @@ public actor UnifiedToolRuntime {
             sections.append(lintSection)
         }
 
-        // 7. Debug log summary (if any active session)
-        let queryCall = ToolCall(
-            id: UUID().uuidString, name: "debug_query",
-            args: ["format": "summary", "limit": "5"],
-            sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
-        )
-        let queryResult = await executeDebugQuery(call: queryCall, context: context, startDate: startDate)
-        if queryResult.ok, let output = queryResult.payload["output"], !output.isEmpty,
-           output != "0 log entries" {
-            sections.append("## Debug Log Summary\n\(output)")
+        // 7. Debug log summary (include only when logs exist)
+        let debugSnapshot = await debugLogServer.query(limit: 5)
+        if debugSnapshot.totalCount > 0 {
+            let summary = await debugLogServer.sessionSummary()
+            if !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                sections.append("## Debug Log Summary\n\(summary)")
+            }
         }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)

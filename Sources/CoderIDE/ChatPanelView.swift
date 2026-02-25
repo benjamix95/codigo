@@ -2732,7 +2732,7 @@ struct ChatPanelView: View {
                 showDebugPanel = true
             }
             if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
-                debugStore.phase = debugPhase
+                debugStore.setPhase(debugPhase)
             }
         case "close":
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -2765,10 +2765,11 @@ struct ChatPanelView: View {
                 showDebugPanel = true
             }
         case "resolve":
-            debugStore.phase = .resolved
-            if let phaseStr = phase {
-                debugStore.resolutionSummary = phaseStr
-            }
+            let summary = phase?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            debugStore.resolveSession(
+                summary: summary.isEmpty ? "Debug session resolved" : summary
+            )
         case "marker":
             // Agent inserted a debug marker — track it
             if let phaseStr = phase {
@@ -2899,10 +2900,13 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleAutoActivateDebugMode(reason: String?) {
-        guard !showDebugPanel else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        if !showDebugPanel {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled = true
+                showDebugPanel = true
+            }
+        } else {
             debugToggleEnabled = true
-            showDebugPanel = true
         }
         if let reason = reason, !reason.isEmpty {
             debugStore.startDebugSession(errorContext: reason)

@@ -29,11 +29,27 @@ enum CoderIDEMarkerParser {
 
             let payloadParts = Array(parts.dropFirst())
             var payload: [String: String] = [:]
+            var lastKey: String?
             for part in payloadParts {
                 let pair = splitEscaped(part, separator: "=")
-                guard pair.count == 2 else { continue }
-                payload[unescape(pair[0]).trimmingCharacters(in: .whitespaces)] =
-                    unescape(pair[1]).trimmingCharacters(in: .whitespaces)
+                if pair.count == 2 {
+                    let key = unescape(pair[0]).trimmingCharacters(in: .whitespaces)
+                    let value = unescape(pair[1]).trimmingCharacters(in: .whitespaces)
+                    guard !key.isEmpty else { continue }
+                    payload[key] = value
+                    lastKey = key
+                    continue
+                }
+                // Support unescaped "|" inside payload values by treating
+                // keyless segments as a continuation of the previous key.
+                guard let previousKey = lastKey else { continue }
+                let continuation = unescape(part).trimmingCharacters(in: .whitespaces)
+                guard !continuation.isEmpty else { continue }
+                if let existing = payload[previousKey], !existing.isEmpty {
+                    payload[previousKey] = existing + "|" + continuation
+                } else {
+                    payload[previousKey] = continuation
+                }
             }
             let kind = head.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             markers.append(CoderIDEMarker(kind: kind, payload: payload))
