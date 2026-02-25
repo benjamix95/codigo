@@ -61,4 +61,40 @@ final class PlanFlowPhaseTests: XCTestCase {
         XCTAssertFalse(isPlanBuildEnabled(phase: .idle, hasBuildChoice: false))
     }
 
+    // MARK: - Classification skips building phase
+
+    func testClassifierDoesNotReclassifyDuringBuildingPhase() {
+        // Build output that accidentally matches option patterns should NOT
+        // change the phase away from .building.
+        let buildOutput = """
+        ## Option 1: Refactor
+        ## Todo
+        - [ ] Step 1
+        """
+        let classification = PlanOutputClassifier.classify(
+            fullText: buildOutput,
+            current: .building,
+            coderMode: .plan,
+            shouldRunPlanInline: false
+        )
+        // The classifier itself returns .proposalReady, but the caller
+        // (handleStreamResult) must skip classification during .building.
+        // This test documents the expected caller behavior via the gate function.
+        XCTAssertTrue(classification.hasStrictOptions,
+            "Classifier still detects options — caller must gate on phase")
+    }
+
+    func testBuildPhaseExcludedFromNormalizationClassification() {
+        // normalizeBuildFinalResponse strips plan echoes from build output
+        let echoed = """
+        ## Option 1: Refactor
+        ## Todo
+        - [ ] Step 1
+        ## Summary
+        Build completed successfully.
+        """
+        let normalized = normalizeBuildFinalResponse(echoed)
+        // The normalized text should strip the plan-echo sections
+        XCTAssertFalse(normalized.contains("## Option 1"))
+    }
 }

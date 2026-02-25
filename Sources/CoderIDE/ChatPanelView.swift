@@ -1312,6 +1312,7 @@ struct ChatPanelView: View {
     }
 
     private func restorePlanStateIfNeeded(for conversationId: UUID?) {
+        planStreamingContent = ""
         guard let conversationId else {
             planningState = .idle
             planFlowPhase = .idle
@@ -1371,6 +1372,9 @@ struct ChatPanelView: View {
                 if !transition.nextPlanToggleEnabled {
                     planningState = .idle
                     planFlowPhase = .idle
+                    planStreamingContent = ""
+                    planAnalysisContext = ""
+                    planClarificationAnswers = ""
                     planHistoryStore.setSelectedEntry(id: nil)
                 }
             }
@@ -1393,6 +1397,9 @@ struct ChatPanelView: View {
                 isPlanTabHovered = false
                 planningState = .idle
                 planFlowPhase = .idle
+                planStreamingContent = ""
+                planAnalysisContext = ""
+                planClarificationAnswers = ""
             }
         }
         isInputFocused = true
@@ -2037,8 +2044,15 @@ struct ChatPanelView: View {
         cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: targetConversationId)
         activeBuildPlanConversationId = nil
-        if planFlowPhase == .building {
+        switch planFlowPhase {
+        case .building:
             planFlowPhase = .proposalReady
+        case .analyzing, .questioning, .generating:
+            planFlowPhase = .idle
+            planningState = .idle
+            planStreamingContent = ""
+        default:
+            break
         }
     }
 
@@ -5627,8 +5641,15 @@ struct ChatPanelView: View {
         cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: conversationId)
         activeBuildPlanConversationId = nil
-        if planFlowPhase == .building {
+        switch planFlowPhase {
+        case .building:
             planFlowPhase = .proposalReady
+        case .analyzing, .questioning, .generating:
+            planFlowPhase = .idle
+            planningState = .idle
+            planStreamingContent = ""
+        default:
+            break
         }
     }
 
@@ -5766,6 +5787,7 @@ struct ChatPanelView: View {
             && planFlowPhase != .analyzing
             && planFlowPhase != .questioning
             && planFlowPhase != .generating
+            && planFlowPhase != .building
         {
             let classification = PlanOutputClassifier.classify(
                 fullText: full,
