@@ -236,7 +236,7 @@ struct PlanPanelView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .help("Close (Shift+Tab)")
+                .help("Close panel")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

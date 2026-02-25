@@ -1383,26 +1383,32 @@ struct ChatPanelView: View {
     }
 
     private func handleShiftTabPlanShortcut() {
-        // Shift+Tab toggles plan mode on/off directly
+        let now = Date()
+        let transition = evaluateShiftTabPlanShortcut(
+            now: now,
+            primedUntil: planShortcutPrimedUntil,
+            currentInputText: inputText
+        )
+
+        inputText = transition.nextInputText
+        planShortcutPrimedUntil = transition.nextPrimedUntil
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            planToggleEnabled.toggle()
-            if planToggleEnabled {
-                // Plan mode activated — show visual feedback
-                isPlanTabHovered = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isPlanTabHovered = transition.shouldHighlightPlanToggle
+        }
+
+        if transition.shouldHighlightPlanToggle, let scheduledUntil = transition.nextPrimedUntil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                // Do not clear if a newer shortcut cycle has already updated the timer.
+                if planShortcutPrimedUntil == scheduledUntil {
                     isPlanTabHovered = false
                 }
-            } else {
-                // Plan mode deactivated — reset state
-                isPlanTabHovered = false
-                planningState = .idle
-                planFlowPhase = .idle
-                planStreamingContent = ""
-                planAnalysisContext = ""
-                planClarificationAnswers = ""
             }
         }
-        isInputFocused = true
+
+        if transition.shouldFocusInput {
+            isInputFocused = true
+        }
     }
 
     private func downloadPlanEntry(_ entry: PlanHistoryEntry) {
@@ -2903,9 +2909,6 @@ struct ChatPanelView: View {
     @MainActor
     private func handleAutoActivatePlanMode(reason: String?) {
         guard !showPlanPanel else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            planToggleEnabled = true
-        }
         openPlanPanelForCurrentContext(
             preserveHistorySelection: false,
             source: .automaticFlow
