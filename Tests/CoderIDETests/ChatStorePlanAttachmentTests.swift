@@ -5,16 +5,27 @@ import XCTest
 final class ChatStorePlanAttachmentTests: XCTestCase {
     private let convKey = "CoderIDE.conversations"
     private let historyKey = "CoderIDE.planHistory"
+    private var historyFileURL: URL {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first!
+        return appSupport
+            .appendingPathComponent("CoderIDE", isDirectory: true)
+            .appendingPathComponent("planHistory.json")
+    }
 
     override func setUp() {
         super.setUp()
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: historyKey)
+        try? FileManager.default.removeItem(at: historyFileURL)
     }
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: historyKey)
+        try? FileManager.default.removeItem(at: historyFileURL)
         super.tearDown()
     }
 

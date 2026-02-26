@@ -17,7 +17,7 @@ final class VoiceInputControllerTests: XCTestCase {
         guard case .failed(let message) = controller.state else {
             return XCTFail("Expected failed state")
         }
-        XCTAssertTrue(message.lowercased().contains("microfono"))
+        XCTAssertTrue(message.lowercased().contains("microphone"))
     }
 
     func testSuccessfulTranscriptionFlowInsertsFinalText() async {

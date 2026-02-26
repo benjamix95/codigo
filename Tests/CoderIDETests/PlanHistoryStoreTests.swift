@@ -4,14 +4,25 @@ import XCTest
 @MainActor
 final class PlanHistoryStoreTests: XCTestCase {
     private let key = "CoderIDE.planHistory"
+    private var fileURL: URL {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first!
+        return appSupport
+            .appendingPathComponent("CoderIDE", isDirectory: true)
+            .appendingPathComponent("planHistory.json")
+    }
 
     override func setUp() {
         super.setUp()
         UserDefaults.standard.removeObject(forKey: key)
+        try? FileManager.default.removeItem(at: fileURL)
     }
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: key)
+        try? FileManager.default.removeItem(at: fileURL)
         super.tearDown()
     }
 

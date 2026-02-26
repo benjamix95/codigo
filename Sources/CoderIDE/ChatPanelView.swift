@@ -667,6 +667,8 @@ struct ChatPanelView: View {
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
     @State private var streamThrottleTask: Task<Void, Never>?
+    @State private var activeRunTaskByConversation: [UUID: Task<Void, Never>] = [:]
+    @State private var activeRunTokenByConversation: [UUID: UUID] = [:]
     @State private var activeToolTraceTurnsByConversation: [UUID: ToolTraceTurnContext] = [:]
     @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
@@ -2057,10 +2059,51 @@ struct ChatPanelView: View {
         interruptTask(for: conversationId)
     }
 
+    @MainActor
+    private func launchRunTask(
+        for conversationId: UUID,
+        operation: @escaping () async -> Void
+    ) {
+        activeRunTaskByConversation[conversationId]?.cancel()
+        let token = UUID()
+        activeRunTokenByConversation[conversationId] = token
+
+        let task = Task { @MainActor in
+            await operation()
+            guard activeRunTokenByConversation[conversationId] == token else { return }
+            activeRunTokenByConversation.removeValue(forKey: conversationId)
+            activeRunTaskByConversation.removeValue(forKey: conversationId)
+        }
+        activeRunTaskByConversation[conversationId] = task
+    }
+
+    @MainActor
+    @discardableResult
+    private func cancelRunTask(for conversationId: UUID?) -> Bool {
+        guard let conversationId else { return false }
+        guard let task = activeRunTaskByConversation[conversationId] else { return false }
+        task.cancel()
+        activeRunTaskByConversation.removeValue(forKey: conversationId)
+        activeRunTokenByConversation.removeValue(forKey: conversationId)
+        return true
+    }
+
+    @MainActor
+    private func applyFlowCoordinatorState(
+        for targetConversationId: UUID?,
+        _ transition: (ConversationFlowCoordinator) -> Void
+    ) {
+        guard targetConversationId == conversationId else { return }
+        transition(flowCoordinator)
+    }
+
     private func interruptTask(for targetConversationId: UUID?) {
-        let scope = executionScopeForCurrentMode()
-        executionController.terminate(scope: scope)
-        flowCoordinator.interrupt()
+        let didCancelTask = cancelRunTask(for: targetConversationId)
+        if !didCancelTask {
+            let scope = executionScopeForCurrentMode()
+            executionController.terminate(scope: scope)
+        }
+        applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
         taskFlushTask?.cancel()
         taskFlushTask = nil
         flushPendingTaskActivities()
@@ -2077,10 +2120,14 @@ struct ChatPanelView: View {
             clearStreamingReasoning(for: cid)
         }
         finalizeToolTraceTurn(conversationId: targetConversationId, outcome: .aborted)
-        cancelFallbackTurnStartEvent()
+        if targetConversationId == conversationId {
+            cancelFallbackTurnStartEvent()
+        }
         chatStore.endTask(conversationId: targetConversationId)
-        activeBuildPlanConversationId = nil
-        resetPlanFlowAfterInterruption()
+        if targetConversationId == conversationId {
+            activeBuildPlanConversationId = nil
+            resetPlanFlowAfterInterruption()
+        }
     }
 
     private func resetPlanFlowAfterInterruption() {
@@ -4056,7 +4103,7 @@ struct ChatPanelView: View {
             canonicalTodos: canonicalTodos
         ).prompt
 
-        Task {
+        launchRunTask(for: agentConvId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
             do {
                 _ = try await flowCoordinator.runStream(
@@ -4088,7 +4135,7 @@ struct ChatPanelView: View {
                     traceOutcome = .aborted
                     chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                     await MainActor.run {
-                        flowCoordinator.interrupt()
+                        applyFlowCoordinatorState(for: agentConvId) { $0.interrupt() }
                         planFlowPhase = .readyToBuild
                     }
                 } else {
@@ -4097,7 +4144,7 @@ struct ChatPanelView: View {
                     chatStore.updateLastAssistantMessage(
                         content: userFacingStreamError(error), in: agentConvId)
                     await MainActor.run {
-                        flowCoordinator.fail()
+                        applyFlowCoordinatorState(for: agentConvId) { $0.fail() }
                         planFlowPhase = .readyToBuild
                     }
                 }
@@ -4402,7 +4449,7 @@ struct ChatPanelView: View {
 
         // 5. Execute async stream
         let isPlanMultiTurnFlow = (coderMode == .plan || shouldRunPlanInline) && planFlowPhase == .analyzing
-        Task {
+        launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
             do {
                 if isPlanMultiTurnFlow {
@@ -4460,14 +4507,14 @@ struct ChatPanelView: View {
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
                     await MainActor.run {
-                        flowCoordinator.interrupt()
+                        applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
                     }
                 } else {
                     traceOutcome = .failed
                     chatStore.updateLastAssistantMessage(
                         content: userFacingStreamError(error), in: targetConversationId)
                     await MainActor.run {
-                        flowCoordinator.fail()
+                        applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }
                 }
             }
@@ -4851,7 +4898,7 @@ struct ChatPanelView: View {
         )
 
         chatStore.beginTask(conversationId: targetConversationId)
-        Task {
+        launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
             do {
                 try await runPostClarificationFlow(
@@ -4865,13 +4912,17 @@ struct ChatPanelView: View {
                 clearStreamingReasoning(for: targetConversationId)
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
-                    flowCoordinator.interrupt()
+                    await MainActor.run {
+                        applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
+                    }
                 } else {
                     traceOutcome = .failed
                     chatStore.updateLastAssistantMessage(
                         content: userFacingStreamError(error), in: targetConversationId
                     )
-                    flowCoordinator.fail()
+                    await MainActor.run {
+                        applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
+                    }
                 }
             }
             finalizeToolTraceTurn(conversationId: targetConversationId, outcome: traceOutcome)
@@ -5700,9 +5751,12 @@ struct ChatPanelView: View {
 
     @MainActor
     private func stopTaskForPolicyViolation(conversationId: UUID?) {
-        let scope = executionScopeForCurrentMode()
-        executionController.terminate(scope: scope)
-        flowCoordinator.interrupt()
+        let didCancelTask = cancelRunTask(for: conversationId)
+        if !didCancelTask {
+            let scope = executionScopeForCurrentMode()
+            executionController.terminate(scope: scope)
+        }
+        applyFlowCoordinatorState(for: conversationId) { $0.interrupt() }
         taskFlushTask?.cancel()
         taskFlushTask = nil
         flushPendingTaskActivities()
@@ -5711,10 +5765,14 @@ struct ChatPanelView: View {
             clearStreamingReasoning(for: conversationId)
         }
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .failed)
-        cancelFallbackTurnStartEvent()
+        if conversationId == self.conversationId {
+            cancelFallbackTurnStartEvent()
+        }
         chatStore.endTask(conversationId: conversationId)
-        activeBuildPlanConversationId = nil
-        resetPlanFlowAfterInterruption()
+        if conversationId == self.conversationId {
+            activeBuildPlanConversationId = nil
+            resetPlanFlowAfterInterruption()
+        }
     }
 
     static func shouldShowFinalChatActions(
@@ -5784,6 +5842,16 @@ struct ChatPanelView: View {
         content: String,
         conversationId: UUID?
     ) {
+        // Keep off-screen/background thread updates isolated from the visible stream throttle state.
+        if conversationId != self.conversationId {
+            chatStore.updateLastAssistantMessage(
+                content: content,
+                in: conversationId,
+                persistImmediately: false
+            )
+            return
+        }
+
         // Always store the latest content so we never lose data.
         pendingStreamContent = content
         pendingStreamConversationId = conversationId

@@ -64,10 +64,19 @@ struct ProcessRunner {
         try process.run()
         executionController?.beginScope(scope)
         executionController?.setCurrentProcess(process)
+        let processBox = ProcessBox(process)
 
         return AsyncThrowingStream { continuation in
+            continuation.onTermination = { @Sendable termination in
+                guard case .cancelled = termination else { return }
+                let process = processBox.process
+                if process.isRunning {
+                    process.terminate()
+                }
+            }
+
             Task {
-                defer { executionController?.clearCurrentProcess() }
+                defer { executionController?.clearCurrentProcess(process) }
 
                 // ---------- stderr: collect in background (unchanged) ----------
                 let stderrTask = Task { () -> String in
@@ -183,7 +192,7 @@ struct ProcessRunner {
 
         executionController?.beginScope(scope)
         executionController?.setCurrentProcess(process)
-        defer { executionController?.clearCurrentProcess() }
+        defer { executionController?.clearCurrentProcess(process) }
 
         var lines: [String] = []
         var buffer = [UInt8]()
@@ -227,5 +236,14 @@ struct ProcessRunner {
             !line.isEmpty
         else { return }
         onLine(line)
+    }
+
+    /// Sendable wrapper used by stream termination callbacks.
+    private final class ProcessBox: @unchecked Sendable {
+        let process: Process
+
+        init(_ process: Process) {
+            self.process = process
+        }
     }
 }

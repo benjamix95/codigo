@@ -52,7 +52,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Codebase analysis in progress: wait for completion."
+            "Analyzing..."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -60,7 +60,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Clarifications required: answer the questions before Build."
+            "Answer questions first"
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -68,7 +68,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: true
             ),
-            "Plan generation in progress: wait for completion."
+            "Generating..."
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -76,7 +76,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: false,
                 providerExecutionCapable: true
             ),
-            "No executable option available."
+            "No option selected"
         )
         XCTAssertEqual(
             planBuildDisabledReason(
@@ -84,7 +84,7 @@ final class ChatPanelBuildBehaviorTests: XCTestCase {
                 hasBuildChoice: true,
                 providerExecutionCapable: false
             ),
-            "Provider not ready: select an authenticated execution-capable provider."
+            "Auth required"
         )
         XCTAssertNil(
             planBuildDisabledReason(

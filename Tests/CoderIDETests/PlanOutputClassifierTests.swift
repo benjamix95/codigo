@@ -27,7 +27,7 @@ final class PlanOutputClassifierTests: XCTestCase {
 
         // Clarification questions have priority even if options are present.
         XCTAssertTrue(result.hasClarificationQuestions)
-        XCTAssertTrue(result.hasStrictOptions)
+        XCTAssertFalse(result.hasStrictOptions)
         XCTAssertEqual(result.nextPhase, .questioning)
         guard case .awaitingClarification = result.planningState else {
             return XCTFail("planningState should be awaitingClarification (clarification takes priority)")

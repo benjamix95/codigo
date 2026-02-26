@@ -77,11 +77,9 @@ final class PlanFlowPhaseTests: XCTestCase {
             coderMode: .plan,
             shouldRunPlanInline: false
         )
-        // The classifier itself returns .proposalReady, but the caller
-        // (handleStreamResult) must skip classification during .building.
-        // This test documents the expected caller behavior via the gate function.
-        XCTAssertTrue(classification.hasStrictOptions,
-            "Classifier still detects options — caller must gate on phase")
+        XCTAssertFalse(classification.hasStrictOptions)
+        XCTAssertEqual(classification.nextPhase, .building)
+        XCTAssertNil(classification.planningState)
     }
 
     func testBuildPhaseExcludedFromNormalizationClassification() {

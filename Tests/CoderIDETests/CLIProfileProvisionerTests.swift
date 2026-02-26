@@ -141,7 +141,11 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     @MainActor
     func testDisconnectReseedsCodexProfile() throws {
-        let profile = try makeTemporaryProfileDirectory()
+        let managedRoot = CLIProfileProvisioner.baseProfilesDir()
+            .appendingPathComponent("codex", isDirectory: true)
+        let profile = managedRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        temporaryDirectories.append(profile)
         let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
         let staleFile = profile.appendingPathComponent("stale.txt")
         try "stale".write(to: staleFile, atomically: true, encoding: .utf8)

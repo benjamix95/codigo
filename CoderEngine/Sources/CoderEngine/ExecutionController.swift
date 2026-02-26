@@ -42,9 +42,13 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         }
     }
 
-    /// Clears the process reference (called when the process terminates)
-    public func clearCurrentProcess() {
+    /// Clears the process reference (called when a process terminates).
+    /// If a specific process is provided, clears only when it matches the tracked one.
+    public func clearCurrentProcess(_ process: Process? = nil) {
         lock.withLock {
+            if let process, let currentProcess, currentProcess !== process {
+                return
+            }
             currentProcess = nil
             currentScope = nil
             _runState = .idle
