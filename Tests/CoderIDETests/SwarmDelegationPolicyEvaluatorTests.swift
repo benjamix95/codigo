@@ -81,4 +81,15 @@ final class SwarmDelegationPolicyEvaluatorTests: XCTestCase {
 
         XCTAssertEqual(result.decision, .noDelegate)
     }
+
+    func testAutoDelegateWhenModeIsAgentSwarmEvenIfToggleDisabled() {
+        let result = evaluator.evaluate(
+            userPrompt: "Fix this bug",
+            suggestedTask: "Investigate and apply targeted patch",
+            isAutoDelegateEnabled: false,
+            mode: .agentSwarm
+        )
+
+        XCTAssertEqual(result.decision, .autoDelegate)
+    }
 }

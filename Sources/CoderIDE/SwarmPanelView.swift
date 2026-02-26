@@ -41,6 +41,10 @@ struct SwarmPanelView: View {
         }.joined(separator: ";")
     }
 
+    private var recentOverviewActivities: [TaskActivity] {
+        Array(taskActivityStore.concreteRecentActivities(limit: 12).reversed())
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -228,6 +232,10 @@ struct SwarmPanelView: View {
                         progressSection
                     }
 
+                    if !recentOverviewActivities.isEmpty {
+                        overviewActivitySection
+                    }
+
                     ForEach(sortedCards) { card in
                         overviewCard(card)
                             .id("swarm-card-\(card.swarmId)")
@@ -276,6 +284,57 @@ struct SwarmPanelView: View {
                         .lineLimit(1)
                 }
                 .padding(.vertical, 1)
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Overview Activity Section
+
+    private var overviewActivitySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(swarmColor)
+                Text("Swarm Activity")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(recentOverviewActivities.count)")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+
+            ForEach(recentOverviewActivities) { activity in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(eventStatusColor(activity))
+                        .frame(width: 5, height: 5)
+
+                    Text(activity.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    if let swarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !swarmId.isEmpty
+                    {
+                        Text(swarmId)
+                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(swarmColor)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(swarmColor.opacity(0.12), in: Capsule())
+                    }
+
+                    Spacer()
+
+                    Text(activity.timestamp.formatted(date: .omitted, time: .standard))
+                        .font(.system(size: 8, design: .monospaced))
+                        .foregroundStyle(.quaternary)
+                }
             }
         }
         .padding(10)

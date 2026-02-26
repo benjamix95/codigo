@@ -92,10 +92,17 @@ struct SwarmDelegationPolicyEvaluator {
         isAutoDelegateEnabled: Bool,
         mode: CoderMode
     ) -> SwarmDelegationEvaluation {
-        guard mode == .agent else {
+        guard mode == .agent || mode == .agentSwarm else {
             return SwarmDelegationEvaluation(
                 decision: .noDelegate,
-                reason: "delegation disabled outside Agent mode"
+                reason: "delegation disabled outside Agent/Agent Swarm mode"
+            )
+        }
+
+        if mode == .agentSwarm {
+            return SwarmDelegationEvaluation(
+                decision: .autoDelegate,
+                reason: "Agent Swarm mode enabled"
             )
         }
 

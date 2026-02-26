@@ -5213,7 +5213,7 @@ struct ChatPanelView: View {
                     For concurrent web searches (max 4 queries in parallel), emit status markers:
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
-                if agentAutoDelegateSwarm {
+                if agentAutoDelegateSwarm || coderMode == .agentSwarm {
                     let swarmInstructions =
                         """
                         Swarm delegation is optional and must be conservative.
