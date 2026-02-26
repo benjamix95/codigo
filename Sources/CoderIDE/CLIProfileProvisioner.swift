@@ -19,6 +19,8 @@ enum CLIProfileProvisioner {
         // Seed provider-specific config files
         if provider == .codex {
             ensureCodexProfileFiles(at: profile, overwrite: false)
+        } else if provider == .claude {
+            ensureClaudeProfileFiles(at: profile)
         }
 
         return profile.path
@@ -34,7 +36,12 @@ enum CLIProfileProvisioner {
             env["CODEX_HOME"] = profilePath
             if let secret, !secret.isEmpty { env["OPENAI_API_KEY"] = secret }
         case .claude:
-            env["CLAUDE_HOME"] = profilePath
+            let profileURL = URL(fileURLWithPath: profilePath, isDirectory: true)
+            ensureClaudeProfileFiles(at: profileURL)
+            env["HOME"] = profilePath
+            env["CLAUDE_HOME"] = profileURL
+                .appendingPathComponent(".claude", isDirectory: true)
+                .path
             if let secret, !secret.isEmpty { env["ANTHROPIC_API_KEY"] = secret }
         case .gemini:
             env["GEMINI_CONFIG_DIR"] = profilePath
@@ -47,6 +54,17 @@ enum CLIProfileProvisioner {
     /// Unlike initial seeding, this overwrites existing files to ensure they're up-to-date.
     static func reseedCodexProfile(at profileURL: URL) {
         ensureCodexProfileFiles(at: profileURL, overwrite: true)
+    }
+
+    /// Repairs a Codex profile without overwriting user customizations.
+    static func selfHealCodexProfile(at profileURL: URL) {
+        ensureCodexProfileFiles(at: profileURL, overwrite: false)
+    }
+
+    private static func ensureClaudeProfileFiles(at profileURL: URL) {
+        try? FileManager.default.createDirectory(at: profileURL, withIntermediateDirectories: true)
+        let claudeHome = profileURL.appendingPathComponent(".claude", isDirectory: true)
+        try? FileManager.default.createDirectory(at: claudeHome, withIntermediateDirectories: true)
     }
 
     // MARK: - Codex Profile Seeding

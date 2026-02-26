@@ -123,6 +123,22 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(config.contains("command = \"\(newMCP.path)\""))
     }
 
+    func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {
+        let profile = try makeTemporaryProfileDirectory()
+
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: .claude,
+            profilePath: profile.path,
+            secret: "sk-ant-test"
+        )
+
+        let expectedClaudeHome = profile.appendingPathComponent(".claude", isDirectory: true).path
+        XCTAssertEqual(env["HOME"], profile.path)
+        XCTAssertEqual(env["CLAUDE_HOME"], expectedClaudeHome)
+        XCTAssertEqual(env["ANTHROPIC_API_KEY"], "sk-ant-test")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: expectedClaudeHome))
+    }
+
     @MainActor
     func testDisconnectReseedsCodexProfile() throws {
         let profile = try makeTemporaryProfileDirectory()

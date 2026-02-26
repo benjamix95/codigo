@@ -14,6 +14,7 @@ struct CLIAccountLoginSheet: View {
     @StateObject private var coordinator = CLIAccountLoginCoordinator()
     @State private var apiKey = ""
     @State private var phase: LoginPhase = .options
+    @State private var copiedURLHint = false
 
     private enum LoginPhase {
         case options
@@ -90,30 +91,32 @@ struct CLIAccountLoginSheet: View {
             }
             .buttonStyle(.plain)
 
-            dividerLine
+            if supportsDeviceCode {
+                dividerLine
 
-            // Secondary: Device code
-            Button(action: loginWithDeviceCode) {
-                HStack(spacing: 12) {
-                    Image(systemName: "key.fill")
-                        .font(.title3)
-                        .foregroundStyle(providerColor)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Device code")
-                            .font(.subheadline.weight(.medium))
-                        Text("Authenticate via terminal")
-                            .font(.caption)
+                // Secondary: Device code
+                Button(action: loginWithDeviceCode) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "key.fill")
+                            .font(.title3)
+                            .foregroundStyle(providerColor)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Device code")
+                                .font(.subheadline.weight(.medium))
+                            Text("Authenticate via terminal")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
+                    .padding(12)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
                 }
-                .padding(12)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             // Tertiary: API key
             VStack(alignment: .leading, spacing: 8) {
@@ -154,6 +157,57 @@ struct CLIAccountLoginSheet: View {
             Text("Complete the login in your browser...")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            if let authURL = coordinator.authURLByAccount[account.id] {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Login link")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(authURL.absoluteString)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+
+                    HStack(spacing: 8) {
+                        Link(destination: authURL) {
+                            Label("Open link", systemImage: "arrow.up.right.square")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(authURL.absoluteString, forType: .string)
+                            copiedURLHint = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                                copiedURLHint = false
+                            }
+                        } label: {
+                            Label("Copy link", systemImage: "doc.on.doc")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        if copiedURLHint {
+                            Text("Copied")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            if let output = coordinator.lastOutputByAccount[account.id], !output.isEmpty {
+                Text(output)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             Button("Cancel") {
                 coordinator.cancelLogin(accountId: account.id)
@@ -234,6 +288,10 @@ struct CLIAccountLoginSheet: View {
         case .claude: return "sk-ant-..."
         case .gemini: return "AIza..."
         }
+    }
+
+    private var supportsDeviceCode: Bool {
+        account.provider != .claude
     }
 
     private var dividerLine: some View {

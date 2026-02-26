@@ -21,8 +21,11 @@ public enum ClaudeDetector {
         ProcessInfo.processInfo.environment["CLAUDE_HOME"] ?? "\(NSHomeDirectory())/.claude"
     }
 
-    private static var credentialsPath: String {
-        "\(claudeHome)/credentials.json"
+    private static var credentialsPaths: [String] {
+        [
+            "\(claudeHome)/.credentials.json",
+            "\(claudeHome)/credentials.json",
+        ]
     }
 
     /// Builds an environment dict that includes PATH and ANTHROPIC_API_KEY from shell config.
@@ -44,18 +47,24 @@ public enum ClaudeDetector {
         return PathFinder.find(executable: "claude")
     }
 
-    /// Verifica se credentials.json esiste e contiene credenziali valide
+    /// Verifica se il file credenziali Claude esiste e contiene credenziali valide
     public static func hasAuthFile() -> Bool {
-        let path = credentialsPath
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            return false
+        for path in credentialsPaths {
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            if hasTokenLikeFields(in: json) {
+                return true
+            }
+            if let oauth = json["claudeAiOauth"] as? [String: Any],
+               hasTokenLikeFields(in: oauth) {
+                return true
+            }
+            if json["loggedIn"] as? Bool == true {
+                return true
+            }
         }
-        if json["accessToken"] != nil || json["access_token"] != nil || json["token"] != nil {
-            return true
-        }
-        if let oauthToken = json["oauthToken"] as? String, !oauthToken.isEmpty { return true }
         return false
     }
 
@@ -84,21 +93,31 @@ public enum ClaudeDetector {
         let hasAuth = hasAuthFile()
         let cliOk = checkCLIAvailable(claudePath: path)
         let hasEnvKey = shellEnvironment()["ANTHROPIC_API_KEY"] != nil
-        let loggedIn = hasAuth || cliOk || hasEnvKey
+        let loggedIn = hasAuth || hasEnvKey
 
         let authMethod: String?
         if loggedIn {
             if hasAuth { authMethod = "file" }
             else if hasEnvKey { authMethod = "env" }
-            else { authMethod = "cli" }
+            else { authMethod = nil }
         } else {
             authMethod = nil
         }
         return ClaudeStatus(
-            isInstalled: true, path: path, isLoggedIn: loggedIn, authMethod: authMethod)
+            isInstalled: cliOk, path: path, isLoggedIn: loggedIn, authMethod: authMethod)
     }
 
     // MARK: - Private
+
+    private static func hasTokenLikeFields(in json: [String: Any]) -> Bool {
+        if let value = json["accessToken"] as? String, !value.isEmpty { return true }
+        if let value = json["access_token"] as? String, !value.isEmpty { return true }
+        if let value = json["token"] as? String, !value.isEmpty { return true }
+        if let value = json["oauthToken"] as? String, !value.isEmpty { return true }
+        if let value = json["refreshToken"] as? String, !value.isEmpty { return true }
+        if let value = json["refresh_token"] as? String, !value.isEmpty { return true }
+        return false
+    }
 
     private static func loadAnthropicKeyFromShellConfig() -> String? {
         let home = NSHomeDirectory()

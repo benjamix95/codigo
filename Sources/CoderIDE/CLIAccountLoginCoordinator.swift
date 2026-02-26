@@ -21,8 +21,11 @@ final class CLIAccountLoginCoordinator: ObservableObject {
 
     @Published private(set) var isRunningByAccount: [UUID: Bool] = [:]
     @Published private(set) var statusByAccount: [UUID: String] = [:]
+    @Published private(set) var authURLByAccount: [UUID: URL] = [:]
+    @Published private(set) var lastOutputByAccount: [UUID: String] = [:]
 
     private var loginProcesses: [UUID: Process] = [:]
+    private var autoOpenedAuthURLAccounts: Set<UUID> = []
 
     func startLogin(account: CLIAccount, providerPath: String?, method: LoginMethod, apiKey: String?) {
         let executable = CLIAccountAuthDetector.resolveExecutable(provider: account.provider, providerPath: providerPath)
@@ -32,8 +35,18 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             return
         }
 
+        // Claude API-key auth is environment-based; no interactive CLI login flow is required.
+        if method == .apiKey, account.provider == .claude {
+            statusByAccount[account.id] = "Connected"
+            isRunningByAccount[account.id] = false
+            return
+        }
+
         isRunningByAccount[account.id] = true
         statusByAccount[account.id] = "Starting login..."
+        authURLByAccount[account.id] = nil
+        lastOutputByAccount[account.id] = nil
+        autoOpenedAuthURLAccounts.remove(account.id)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -64,18 +77,25 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             guard let self else { return }
             let data = handle.availableData
             guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
-            if let regex = try? NSRegularExpression(pattern: "https?://[^\\s\"'<>]+"),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let range = Range(match.range, in: text),
-               let url = URL(string: String(text[range])) {
-                DispatchQueue.main.async {
-                    NSWorkspace.shared.open(url)
-                    self.statusByAccount[account.id] = "Browser opened, complete the login..."
-                }
-            }
+            let cleaned = Self.sanitizeOutput(text)
+            let url = Self.extractFirstURL(from: cleaned)
             DispatchQueue.main.async {
-                if self.statusByAccount[account.id]?.contains("Browser opened") != true {
-                    self.statusByAccount[account.id] = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let url {
+                    self.authURLByAccount[account.id] = url
+                    if method == .browserOAuth, !self.autoOpenedAuthURLAccounts.contains(account.id) {
+                        NSWorkspace.shared.open(url)
+                        self.autoOpenedAuthURLAccounts.insert(account.id)
+                    }
+                }
+
+                let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                self.lastOutputByAccount[account.id] = trimmed
+
+                if method == .browserOAuth, self.authURLByAccount[account.id] != nil {
+                    self.statusByAccount[account.id] = "Browser opened, complete the login..."
+                } else {
+                    self.statusByAccount[account.id] = trimmed
                 }
             }
         }
@@ -106,7 +126,10 @@ final class CLIAccountLoginCoordinator: ObservableObject {
     func pollLoginStatus(account: CLIAccount, providerPath: String?) async {
         for _ in 0..<45 {
             try? await Task.sleep(for: .seconds(2))
-            let status = CLIAccountAuthDetector.detect(account: account, providerPath: providerPath)
+            let status = await CLIAccountAuthDetector.detectOffMainThread(
+                account: account,
+                providerPath: providerPath
+            )
             if status.isLoggedIn {
                 await MainActor.run {
                     isRunningByAccount[account.id] = false
@@ -128,6 +151,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
         loginProcesses[accountId] = nil
         isRunningByAccount[accountId] = false
         statusByAccount[accountId] = "Login cancelled"
+        autoOpenedAuthURLAccounts.remove(accountId)
     }
 
     func disconnect(account: CLIAccount) {
@@ -157,9 +181,9 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             }
         case .claude:
             switch method {
-            case .browserOAuth: return ["login"]
-            case .deviceCode: return ["login", "--device-code"]
-            case .apiKey: return ["login", "--api-key"]
+            case .browserOAuth: return ["auth", "login"]
+            case .deviceCode: return ["auth", "login"]
+            case .apiKey: return ["auth", "status"]
             }
         case .gemini:
             switch method {
@@ -168,5 +192,26 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             case .apiKey: return ["auth", "login", "--api-key"]
             }
         }
+    }
+
+    nonisolated private static func extractFirstURL(from output: String) -> URL? {
+        guard let regex = try? NSRegularExpression(pattern: "https?://[^\\s\"'<>]+"),
+              let match = regex.firstMatch(in: output, range: NSRange(output.startIndex..., in: output)),
+              let range = Range(match.range, in: output) else {
+            return nil
+        }
+        return URL(string: String(output[range]))
+    }
+
+    nonisolated private static func sanitizeOutput(_ raw: String) -> String {
+        let noANSI = raw.replacingOccurrences(
+            of: "\\u001B\\[[0-9;]*[A-Za-z]",
+            with: "",
+            options: .regularExpression
+        )
+        let cleanedScalars = noANSI.unicodeScalars.filter { scalar in
+            scalar.value == 0x09 || scalar.value == 0x0A || scalar.value >= 0x20
+        }
+        return String(String.UnicodeScalarView(cleanedScalars))
     }
 }
