@@ -15,7 +15,9 @@ enum ToolTraceVisibility {
     ]
 
     private static let hiddenDisplayTypes: Set<String> = hiddenIncludeTypes.union([
-        "policy_ack"
+        "policy_ack",
+        "todo_write",
+        "todo_read",
     ])
 
     private static let operationalTypes: Set<String> = [
@@ -33,6 +35,7 @@ enum ToolTraceVisibility {
         "read_batch_completed",
         "search",
         "semantic_search",
+        "skill_invocation",
         "tool_execution_error",
         "tool_timeout",
         "tool_validation_error",
@@ -55,6 +58,7 @@ enum ToolTraceVisibility {
         "file",
         "files",
         "tool",
+        "skill",
         "mcp_tool",
         "mcp_server",
         "server_id",

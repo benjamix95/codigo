@@ -58,6 +58,9 @@ final class ToolTraceStoreTests: XCTestCase {
         XCTAssertEqual(inMemory.map(\.sequence), [1, 2])
         XCTAssertEqual(inMemory.first?.payload["output"], payload)
 
+        // Wait for async disk writes to complete before reloading from disk.
+        store.flushDiskWrites()
+
         let reloaded = ToolTraceStore().events(
             conversationId: testConversationId,
             assistantMessageId: testAssistantMessageId

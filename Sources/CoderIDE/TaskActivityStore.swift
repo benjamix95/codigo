@@ -247,9 +247,21 @@ final class TaskActivityStore: ObservableObject {
         return last.title
     }
 
+    private let activitiesHardCap = 500
+
     func addActivity(_ activity: TaskActivity) {
         activities.append(activity)
         pruneCompletedTerminalActivities()
+        // Hard cap: drop oldest non-running activities to prevent unbounded growth.
+        if activities.count > activitiesHardCap {
+            let excess = activities.count - activitiesHardCap
+            var removed = 0
+            activities.removeAll { act in
+                guard removed < excess, !act.isRunning else { return false }
+                removed += 1
+                return true
+            }
+        }
         recalcActiveOperations()
         ingestSwarmCard(activity: activity)
     }

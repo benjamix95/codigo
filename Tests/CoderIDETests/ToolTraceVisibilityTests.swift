@@ -64,7 +64,7 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
-    func testTodoWriteIsVisibleButDoesNotRequirePolicyAck() {
+    func testTodoWriteIsIncludedButNotDisplayedAndDoesNotRequirePolicyAck() {
         let activity = TaskActivity(
             type: "todo_write",
             title: "Todo updated",
@@ -78,13 +78,32 @@ final class ToolTraceVisibilityTests: XCTestCase {
 
         XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
         let event = makeEvent(type: "todo_write", payload: activity.payload)
-        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+        XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
         XCTAssertFalse(
             ToolTraceVisibility.requiresPolicyAck(
                 type: "todo_write",
                 payload: activity.payload
             )
         )
+    }
+
+    func testSkillInvocationIsDisplayed() {
+        let event = makeEvent(
+            type: "skill_invocation",
+            payload: ["skill": "commit", "title": "Skill • commit"]
+        )
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
+    func testSkillInvocationActivityIsIncluded() {
+        let activity = TaskActivity(
+            type: "skill_invocation",
+            title: "Skill • commit",
+            payload: ["skill": "commit"],
+            phase: .executing,
+            isRunning: false
+        )
+        XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
     }
 
     private func makeEvent(type: String, payload: [String: String]) -> ToolTraceEvent {

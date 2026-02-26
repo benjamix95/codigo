@@ -661,6 +661,8 @@ struct ChatPanelView: View {
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
     @State private var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
     @State private var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
+    /// Events queued while waiting for policy_ack, keyed by assistant message id.
+    @State private var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?)]] = [:]
     @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
     @State private var autoTodoCompletedOperationsByMessage: [UUID: Int] = [:]
     @State private var didReceiveExplicitTodoByMessage: Set<UUID> = []
@@ -1666,6 +1668,14 @@ struct ChatPanelView: View {
                                                 showTopDivider: needsDivider
                                             )
                                             if message.role == .assistant {
+                                                if !todoStore.todos.isEmpty,
+                                                   message.id == messages.last(where: { $0.role == .assistant })?.id {
+                                                    TodoLiveInlineCard(
+                                                        store: todoStore,
+                                                        onOpenFile: { openFilesStore.openFile($0) }
+                                                    )
+                                                    .padding(.horizontal, 2)
+                                                }
                                                 let traceEvents = toolTraceStore.events(
                                                     conversationId: conv.id,
                                                     assistantMessageId: message.id
@@ -2176,6 +2186,17 @@ struct ChatPanelView: View {
             toolTraceOperationalSeenByMessage.removeValue(forKey: previous.assistantMessageId)
             toolTraceOperationalCountByMessage.removeValue(forKey: previous.assistantMessageId)
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
+            // Flush any remaining blocked events before discarding the queue
+            if let remainingQueued = policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
+                for event in remainingQueued {
+                    recordTaskActivity(
+                        type: event.type,
+                        payload: event.payload,
+                        providerId: event.providerId,
+                        conversationId: event.conversationId
+                    )
+                }
+            }
             autoTodoIdByMessage.removeValue(forKey: previous.assistantMessageId)
             autoTodoCompletedOperationsByMessage.removeValue(forKey: previous.assistantMessageId)
             didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
@@ -2454,94 +2475,22 @@ struct ChatPanelView: View {
     }
 
     private func ensureAutoTodoStartedBeforeOperationalActivity(
-        activity: TaskActivity,
-        providerId: String,
-        conversationId: UUID?
+        activity _: TaskActivity,
+        providerId _: String,
+        conversationId _: UUID?
     ) {
-        guard planFlowPhase != .building else { return }
-        guard isOperationalTraceActivity(activity) else { return }
-        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
-            return
-        }
-
-        let messageId = turn.assistantMessageId
-        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
-        guard autoTodoIdByMessage[messageId] == nil else { return }
-
-        let hasAgentTodo = todoStore.todos.contains { $0.source == .agent && !$0.isPlanCanonical }
-        guard !hasAgentTodo else { return }
-
-        let autoTodoId = UUID()
-        let todoTitle = autoTodoTitle(for: activity)
-        let linkedFiles = autoTodoLinkedFiles(from: activity.payload)
-        let notes = "Auto-generated: TODO avviato prima delle operazioni trace."
-        todoStore.upsertFromAgent(
-            id: autoTodoId,
-            title: todoTitle,
-            status: .inProgress,
-            priority: .medium,
-            notes: notes,
-            linkedFiles: linkedFiles
-        )
-        autoTodoIdByMessage[messageId] = autoTodoId
-        autoTodoCompletedOperationsByMessage[messageId] = 0
-        emitAutoTodoTraceUpdate(
-            todoId: autoTodoId,
-            title: todoTitle,
-            status: .inProgress,
-            notes: notes,
-            linkedFiles: linkedFiles,
-            providerId: providerId,
-            conversationId: conversationId,
-            timestamp: activity.timestamp
-        )
-        enableTaskPanelIfNeeded()
+        // Disabled: auto-TODO created placeholder items with generic titles
+        // before the LLM had analyzed the task. Only explicit todo_write
+        // events from the LLM should create TODOs.
     }
 
     private func updateAutoTodoProgressAfterOperationalActivity(
-        activity: TaskActivity,
-        providerId: String,
-        conversationId: UUID?
+        activity _: TaskActivity,
+        providerId _: String,
+        conversationId _: UUID?
     ) {
-        guard planFlowPhase != .building else { return }
-        guard isOperationalTraceActivity(activity) else { return }
-        guard !activity.isRunning else { return }
-        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
-            return
-        }
-
-        let messageId = turn.assistantMessageId
-        guard !didReceiveExplicitTodoByMessage.contains(messageId) else { return }
-        guard let autoTodoId = autoTodoIdByMessage[messageId] else { return }
-
-        let completedCount = (autoTodoCompletedOperationsByMessage[messageId] ?? 0) + 1
-        autoTodoCompletedOperationsByMessage[messageId] = completedCount
-
-        let currentTodo = todoStore.todos.first(where: { $0.id == autoTodoId })
-        let todoTitle = currentTodo?.title ?? autoTodoTitle(for: activity)
-        let mergedFiles = Array(
-            Set((currentTodo?.linkedFiles ?? []) + autoTodoLinkedFiles(from: activity.payload))
-        ).sorted()
-        let notes = "Auto-generated: \(completedCount) attivita trace completate."
-
-        todoStore.upsertFromAgent(
-            id: autoTodoId,
-            title: todoTitle,
-            status: .inProgress,
-            priority: nil,
-            notes: notes,
-            linkedFiles: mergedFiles
-        )
-        emitAutoTodoTraceUpdate(
-            todoId: autoTodoId,
-            title: todoTitle,
-            status: .inProgress,
-            notes: notes,
-            linkedFiles: mergedFiles,
-            providerId: providerId,
-            conversationId: conversationId,
-            timestamp: activity.timestamp
-        )
+        // Disabled: auto-TODO progress updates are no longer needed
+        // since auto-TODO creation is disabled.
     }
 
     private func emitAutoTodoTraceUpdate(
@@ -2628,18 +2577,27 @@ struct ChatPanelView: View {
         if isPlaceholderTodoTitle(todo.title) {
             return false
         }
+        // Always accept updates when agent todos already exist (status changes, new items).
         let hasExistingAgentTodo = todoStore.todos.contains {
             $0.source == .agent && !$0.isPlanCanonical
         }
         if hasExistingAgentTodo {
             return true
         }
+        // Accept the first TodoWrite in a turn even without prior operational activity.
+        // The mandatory workflow is: investigate → report → create TODO → resolve.
+        // The agent may create TODOs before or after operational activity; both are valid.
         if hasOperationalActivityInCurrentTurn(conversationId: conversationId) {
             return true
         }
+        // Accept the first explicit todo for this assistant message, even without
+        // operational activity. This ensures the TODO live activity appears when
+        // the agent creates tasks after analysis (including subagent/swarm analysis).
         guard let conversationId,
               let assistantMessageId = currentAssistantMessageIdForTrace(conversationId: conversationId) else {
-            return false
+            // When conversationId or assistantMessageId is unavailable (e.g. during
+            // swarm follow-up), accept the todo so the live activity is not silently lost.
+            return true
         }
         return !didReceiveExplicitTodoByMessage.contains(assistantMessageId)
     }
@@ -2974,6 +2932,7 @@ struct ChatPanelView: View {
                 || activity.type == "web_fetch_failed"
                 || activity.type == "command_execution"
                 || activity.type == "bash" || activity.type == "mcp_tool_call"
+                || activity.type == "skill_invocation"
             {
                 if taskActivityStore.shouldPreserveSwarmCriticalEvent(activity) {
                     taskActivityStore.addActivity(activity)
@@ -5492,6 +5451,7 @@ struct ChatPanelView: View {
         if t == "policy_ack" {
             let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
             recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
+            flushPolicyAckBlockedQueue(providerId: pid, conversationId: convId)
             return
         }
         if shouldHardBlockForMissingPolicyAck(
@@ -5500,6 +5460,13 @@ struct ChatPanelView: View {
             providerId: pid,
             conversationId: convId
         ) {
+            // Queue the event instead of silently dropping it.
+            // It will be flushed when the policy_ack arrives.
+            if let turn = resolveToolTraceTurn(conversationId: convId, providerId: pid) {
+                policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
+                    (type: t, payload: p, providerId: pid, conversationId: convId)
+                )
+            }
             return
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
@@ -5626,6 +5593,26 @@ struct ChatPanelView: View {
             in: conversationId
         )
         stopTaskForPolicyViolation(conversationId: conversationId)
+    }
+
+    /// Flush events that were queued while waiting for policy_ack.
+    @MainActor
+    private func flushPolicyAckBlockedQueue(providerId: String, conversationId: UUID?) {
+        guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
+            return
+        }
+        let messageId = turn.assistantMessageId
+        guard let queued = policyAckBlockedQueue.removeValue(forKey: messageId), !queued.isEmpty else {
+            return
+        }
+        for event in queued {
+            recordTaskActivity(
+                type: event.type,
+                payload: event.payload,
+                providerId: event.providerId,
+                conversationId: event.conversationId
+            )
+        }
     }
 
     @MainActor

@@ -4,7 +4,17 @@ enum PromptToolsPolicy {
     static let toolUsage = """
     Tool usage policy:
     - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
-    - Use tools when you need evidence (reading files, searching code) or to make real changes (editing, running commands).
+    - Use ALL available tools — not just Bash. You have access to: Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch, Task (subagents), TodoWrite, Skill, MCP tools, NotebookEdit, and more.
+    - CRITICAL: Do NOT default to Bash for everything. Use the right tool for the job:
+      • File search → Glob, find_files (NOT `find` via Bash)
+      • Content search → Grep, semantic_search, codebase_search (NOT `grep` via Bash)
+      • Read files → Read, read_range (NOT `cat` via Bash)
+      • Edit files → str_replace, Edit (NOT `sed` via Bash)
+      • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
+      • MCP tools → mcp_call, mcp_list_tools (use them when available)
+      • Skills → Skill tool (when skills are available and relevant)
+      • Subagents → Task tool (for parallel or complex sub-tasks)
+      • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
     - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.
@@ -21,7 +31,7 @@ enum PromptToolsPolicy {
     - Use `attempt_completion` to signal task completion with optional verification command.
     - For multi-step tasks, plan your approach first, then execute systematically.
     - Prefer structured tools (read_range, list_dir, git_diff, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search) over raw bash when available.
-    - If repository/runtime instructions reference AGENTS.md, SKILL.md, runbooks, or local skills, treat them as mandatory operational constraints.
+    - If repository/runtime instructions reference AGENTS.md, SKILL.md, runbooks, or local skills, treat them as mandatory operational constraints. Use the Skill tool to invoke skills when relevant.
     - MCP flow is mandatory when MCP tools are available and external/domain actions are involved:
       1) call `mcp_list_servers` first to verify availability,
       2) call `mcp_list_tools` for relevant servers,
@@ -29,6 +39,13 @@ enum PromptToolsPolicy {
       4) execute with `mcp_call`.
     - When you use MCP, state explicitly which MCP servers and MCP tools you used.
     - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
+
+    Mandatory execution workflow — follow this sequence for every task:
+    1. INVESTIGATE FIRST: Use search tools (Grep, Glob, semantic_search, codebase_search, find_symbol, find_references, web_search) and read tools (Read, read_range, file_outline) to fully understand the problem before making any changes. Never jump to editing without investigating. Use Task (subagents) in parallel when exploring multiple areas.
+    2. REPORT FINDINGS: Briefly state what you found — the problems, root causes, affected files, and scope. Be explicit about what is wrong and why.
+    3. CREATE TODO LIST (MANDATORY): STOP HERE and use TodoWrite to create a structured task list with ALL concrete tasks BEFORE making any code changes. This is non-negotiable — the user sees progress only through the LiveCard. Never skip this step. Never jump from step 2 directly to step 4.
+    4. RESOLVE SYSTEMATICALLY: Execute fixes one by one, following the todo list. Update TodoWrite status (in_progress → completed) for each task as you work. After each fix, verify (read_lints, diagnostics, tests). Mark each todo as completed immediately when done.
+    5. VERIFY & REPORT: After all fixes, run final verification. Summarize: what changed, which files, outcome.
 
     Mandatory selective staging and commit workflow (Agent + Code Review + Swarm):
     - This workflow is mandatory whenever you edit code.

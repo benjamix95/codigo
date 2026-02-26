@@ -90,22 +90,66 @@ enum EventNormalizer {
             return []
         }
 
-        if type == "todo_write", let todo = parseTodoWrite(payload: payload) {
-            events.append(.todoWrite(todo))
-            events.append(
-                .taskActivity(
-                    TaskActivity(
-                        type: type,
-                        title: "Todo updated",
-                        detail: todo.title,
-                        payload: payload,
-                        timestamp: timestamp,
-                        phase: .planning,
-                        isRunning: false
+        if type == "todo_write" {
+            // Parse the full todos array when available (serialized as JSON by mapTodo).
+            if let todosJson = payload["todos_json"],
+               let todosData = todosJson.data(using: .utf8),
+               let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]],
+               !todosArray.isEmpty {
+                var summaryParts: [String] = []
+                for todoItem in todosArray {
+                    let content = (todoItem["content"] as? String ?? todoItem["title"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !content.isEmpty else { continue }
+                    let statusStr = todoItem["status"] as? String
+                    let status = normalizedTodoStatus(statusStr)
+                    let activeForm = todoItem["activeForm"] as? String
+                    events.append(.todoWrite(TodoWritePayload(
+                        id: nil,
+                        title: content,
+                        status: status,
+                        priority: nil,
+                        notes: activeForm,
+                        files: []
+                    )))
+                    summaryParts.append(content)
+                }
+                if !events.isEmpty {
+                    let detail = "\(summaryParts.count) tasks"
+                    events.append(
+                        .taskActivity(
+                            TaskActivity(
+                                type: type,
+                                title: "Todo updated",
+                                detail: detail,
+                                payload: payload,
+                                timestamp: timestamp,
+                                phase: .planning,
+                                isRunning: false
+                            )
+                        )
+                    )
+                    return events
+                }
+            }
+            // Fallback: single todo item (legacy or simple payload)
+            if let todo = parseTodoWrite(payload: payload) {
+                events.append(.todoWrite(todo))
+                events.append(
+                    .taskActivity(
+                        TaskActivity(
+                            type: type,
+                            title: "Todo updated",
+                            detail: todo.title,
+                            payload: payload,
+                            timestamp: timestamp,
+                            phase: .planning,
+                            isRunning: false
+                        )
                     )
                 )
-            )
-            return events
+                return events
+            }
         }
         if type == "todo_read" {
             events.append(.todoRead)

@@ -7,11 +7,22 @@ final class CodexStateStore: ObservableObject {
     @AppStorage("codex_path") private var storedPath = ""
 
     init() {
-        refresh()
+        // Defer detection to avoid running Process.waitUntilExit() during
+        // SwiftUI graph construction, which pumps the run loop and crashes
+        // AttributeGraph with a precondition failure.
+        Task { @MainActor [weak self] in
+            self?.refresh()
+        }
     }
 
     func refresh() {
         let path = storedPath.isEmpty ? nil : storedPath
-        status = CodexDetector.detect(customPath: path)
+        // Run the blocking detection off the main thread.
+        Task.detached(priority: .utility) { [path] in
+            let result = CodexDetector.detect(customPath: path)
+            await MainActor.run { [weak self] in
+                self?.status = result
+            }
+        }
     }
 }

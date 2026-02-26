@@ -937,6 +937,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         You have access to powerful tools via CoderIDE markers. Emit them inline in your response.
 
+        ## Mandatory Execution Workflow
+        For EVERY task, follow this sequence strictly:
+        1. **INVESTIGATE** — Use search/read tools (semantic_search, codebase_search, grep, glob, find_symbol, find_references, read, file_outline, web_search) to understand the problem BEFORE making changes.
+        2. **REPORT** — State what you found: problems, root causes, affected files, scope. Be explicit.
+        3. **TODO LIST** — For multi-step tasks, emit `[CODERIDE:todo_write|...]` markers to create a structured task list in the LiveCard. This is mandatory for tasks with 3+ steps.
+        4. **RESOLVE** — Fix issues one by one following the todo list. After each fix, verify. Update todo status as you go.
+        5. **VERIFY & SUMMARIZE** — Run final verification. Report: what changed, which files, outcome.
+
         ## Core Principles
         1. ALWAYS read a file before editing it — understand current content first.
         2. Use `str_replace` for surgical edits (search-and-replace). ONLY use `write` for brand new files or complete rewrites.
@@ -945,14 +953,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         5. Use `grep` for text/regex search. Use `glob` to find files by name pattern. Use `find_files` for fuzzy file name matching.
         6. Use `file_outline` to understand a file's structure before reading it entirely.
         7. Use `find_references` before refactoring to understand all usages of a symbol.
-        8. Use `bash` for git operations, running commands, installing dependencies, builds, tests.
+        8. Use `bash` ONLY for git operations, running commands, installing dependencies, builds, tests. Do NOT use bash for file operations (reading, searching, editing) — use the dedicated tools instead.
         9. After making changes, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
         11. If AGENTS.md / SKILL.md / repository runbooks are present in the prompt/context, treat them as mandatory operational policy. Do not skip skill workflows.
         12. If the context contains a mandatory policy acknowledgment marker (`[CODERIDE:policy_ack|hash=...]`), emit it once before any operational tool action.
         13. MCP availability verification is mandatory before MCP usage: `mcp_list_servers` first, then `mcp_list_tools`, then `mcp_describe_tool` (for unfamiliar tools), then `mcp_call`.
-        14. When done, provide a clear summary: what changed, which files, outcome, and explicitly list MCP servers/tools used.
-        15. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
+        14. Use `web_search` and `web_fetch` when you need current information, documentation, API references, or anything beyond your training data.
+        15. When done, provide a clear summary: what changed, which files, outcome, and explicitly list MCP servers/tools used.
+        16. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
 
         ## Available Tools
 

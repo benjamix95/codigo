@@ -207,6 +207,13 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    /// Tools that modify files and should trigger a codebase reindex.
+    private static let fileChangingTools: Set<String> = [
+        "edit", "write", "str_replace", "create_file", "delete_file",
+        "parallel_apply", "regex_replace", "rename_symbol",
+        "find_and_replace_all", "undo_edit", "write_json",
+    ]
+
     public func execute(_ call: ToolCall, context: ToolExecutionContext) async -> [StreamEvent] {
         let normalizedName = normalizeToolName(call.name)
         let start = Date()
@@ -227,7 +234,38 @@ public actor UnifiedToolRuntime {
 
         let eventType = eventTypeForTool(name: normalizedName, ok: result.ok)
         events.append(.raw(type: eventType, payload: completedPayload))
+
+        // Auto-reindex modified files so semantic search stays fresh
+        if result.ok, Self.fileChangingTools.contains(normalizedName) {
+            await reindexModifiedFile(call: call, context: context)
+        }
+
         return events
+    }
+
+    /// Re-indexes a single file after it has been modified by a tool.
+    private func reindexModifiedFile(call: ToolCall, context: ToolExecutionContext) async {
+        guard let index = codebaseIndex else { return }
+        let path = call.args["path"] ?? call.args["file_path"] ?? call.args["file"] ?? call.args["target_path"] ?? ""
+        guard !path.isEmpty else { return }
+
+        let workspacePath = context.workspaceContext.workspacePath.path
+        let absolutePath: String
+        if (path as NSString).isAbsolutePath {
+            absolutePath = path
+        } else {
+            absolutePath = (workspacePath as NSString).appendingPathComponent(path)
+        }
+
+        let relativePath: String
+        if absolutePath.hasPrefix(workspacePath) {
+            relativePath = String(absolutePath.dropFirst(workspacePath.count))
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        } else {
+            relativePath = path
+        }
+
+        await index.indexSingleFile(absolutePath: absolutePath, relativePath: relativePath)
     }
 
     private func run(

@@ -108,26 +108,24 @@ struct CodigoApp: App {
                 .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)
                 .onAppear {
-                    FontPreferences.registerBundledFonts()
-                    projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                    chatStore.migrateLegacyContextsIfNeeded(
-                        contextStore: projectContextStore, workspaceStore: workspaceStore)
-                    chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
-                    registerProviders()
                     configureWindow()
+                    // Defer heavy initialization to let the first frame render immediately.
+                    Task { @MainActor in
+                        FontPreferences.registerBundledFonts()
+                        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+                        chatStore.migrateLegacyContextsIfNeeded(
+                            contextStore: projectContextStore, workspaceStore: workspaceStore)
+                        chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+                        registerProviders()
+                    }
                 }
         }
         MenuBarExtra {
             UsageMenuBarView()
                 .environmentObject(accountUsageDashboardStore)
         } label: {
-            if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
-               let img = NSImage(contentsOf: url) {
-                let resized = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
-                    img.draw(in: rect)
-                    return true
-                }
-                Image(nsImage: resized)
+            if let img = Self.cachedMenuBarImage {
+                Image(nsImage: img)
             } else {
                 Image(systemName: "chart.bar.fill")
             }
@@ -137,6 +135,17 @@ struct CodigoApp: App {
             CommandGroup(replacing: .newItem) {}
         }
     }
+
+    /// Menu bar image loaded and resized once, reused on every render.
+    private static let cachedMenuBarImage: NSImage? = {
+        guard let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+              let img = NSImage(contentsOf: url) else { return nil }
+        let resized = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            img.draw(in: rect)
+            return true
+        }
+        return resized
+    }()
 
     private func configureWindow() {
         let candidates = NSApplication.shared.windows.filter { $0.canBecomeMain }

@@ -265,6 +265,13 @@ final class ChatStore: ObservableObject {
     @Published var taskStartDates: [UUID: Date] = [:]
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
 
+    /// Debounce task for coalescing rapid `saveConversations()` calls.
+    private var pendingSaveTask: Task<Void, Never>?
+    /// Debounce task for coalescing rapid `savePlanBoards()` calls.
+    private var pendingPlanSaveTask: Task<Void, Never>?
+    /// Background queue for serialization + UserDefaults writes.
+    private static let persistQueue = DispatchQueue(label: "com.codigo.chatstore.persist", qos: .utility)
+
     /// True when any conversation has an active task.
     var isLoading: Bool { !activeTaskConversationIds.isEmpty }
 
@@ -297,34 +304,84 @@ final class ChatStore: ObservableObject {
         }
     }
 
+    /// Threshold above which conversation loading happens on a background queue.
+    private static let asyncLoadThreshold = 100_000 // 100 KB
+
     private func loadConversations() {
-        guard let data = UserDefaults.standard.data(forKey: conversationsStorageKey),
-              let decoded = try? JSONDecoder().decode([Conversation].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: conversationsStorageKey) else { return }
+
+        if data.count < Self.asyncLoadThreshold {
+            // Small dataset – decode synchronously (fast enough, avoids empty-flash).
+            if let decoded = try? JSONDecoder().decode([Conversation].self, from: data) {
+                conversations = decoded
+            }
             return
         }
-        conversations = decoded
+
+        // Large dataset – decode on a background queue to avoid blocking the main thread.
+        Task.detached(priority: .userInitiated) {
+            guard let decoded = try? JSONDecoder().decode([Conversation].self, from: data) else { return }
+            await MainActor.run {
+                if self.conversations.isEmpty || self.conversations.first?.messages.isEmpty == true {
+                    self.conversations = decoded
+                } else if !decoded.isEmpty {
+                    let existingIds = Set(self.conversations.map(\.id))
+                    let loaded = decoded.filter { !existingIds.contains($0.id) }
+                    self.conversations = loaded + self.conversations
+                }
+            }
+        }
     }
 
     func saveConversations() {
-        guard let data = try? JSONEncoder().encode(conversations) else { return }
-        UserDefaults.standard.set(data, forKey: conversationsStorageKey)
+        pendingSaveTask?.cancel()
+        let snapshot = conversations
+        pendingSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, self != nil else { return }
+            Self.persistQueue.async {
+                guard let data = try? JSONEncoder().encode(snapshot) else { return }
+                UserDefaults.standard.set(data, forKey: conversationsStorageKey)
+            }
+        }
     }
 
     private func loadPlanBoards() {
-        guard let data = UserDefaults.standard.data(forKey: planBoardsStorageKey),
-              let decoded = try? JSONDecoder().decode([String: PlanBoard].self, from: data) else {
+        guard let data = UserDefaults.standard.data(forKey: planBoardsStorageKey) else { return }
+
+        let decode: () -> [UUID: PlanBoard]? = {
+            guard let decoded = try? JSONDecoder().decode([String: PlanBoard].self, from: data) else { return nil }
+            return Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value -> (UUID, PlanBoard)? in
+                guard let uuid = UUID(uuidString: key) else { return nil }
+                return (uuid, value)
+            })
+        }
+
+        if data.count < Self.asyncLoadThreshold {
+            if let boards = decode() { planBoards = boards }
             return
         }
-        planBoards = Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value in
-            guard let uuid = UUID(uuidString: key) else { return nil }
-            return (uuid, value)
-        })
+
+        Task.detached(priority: .userInitiated) {
+            guard let boards = decode() else { return }
+            await MainActor.run {
+                self.planBoards.merge(boards) { _, loaded in loaded }
+            }
+        }
     }
 
     private func savePlanBoards() {
-        let serialized = Dictionary(uniqueKeysWithValues: planBoards.map { ($0.key.uuidString, $0.value) })
-        guard let data = try? JSONEncoder().encode(serialized) else { return }
-        UserDefaults.standard.set(data, forKey: planBoardsStorageKey)
+        pendingPlanSaveTask?.cancel()
+        let snapshot = planBoards
+        pendingPlanSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, self != nil else { return }
+            let serialized = Dictionary(uniqueKeysWithValues: snapshot.map { ($0.key.uuidString, $0.value) })
+            Self.persistQueue.async {
+                guard let data = try? JSONEncoder().encode(serialized) else { return }
+                UserDefaults.standard.set(data, forKey: planBoardsStorageKey)
+            }
+        }
     }
 
     func migrateLegacyContextsIfNeeded(contextStore: ProjectContextStore, workspaceStore: WorkspaceStore) {
@@ -702,15 +759,8 @@ final class ChatStore: ObservableObject {
         } else {
             resolvedContent = stripped
         }
-        var conv = conversations[idx]
-        var msgs = conv.messages
-        var msg = msgs[lastIdx]
-        msg.content = resolvedContent
-        msgs[lastIdx] = msg
-        conv.messages = msgs
-        var updated = conversations
-        updated[idx] = conv
-        conversations = updated
+        // Mutate in-place to avoid creating intermediate array copies on every streaming token.
+        conversations[idx].messages[lastIdx].content = resolvedContent
         if persistImmediately { saveConversations() }
     }
 
@@ -727,27 +777,76 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
+    // MARK: - Cached regex patterns (compiled once, reused on every call)
+
+    private enum MarkerRegex {
+        static let coderideMarker = try! NSRegularExpression(
+            pattern: "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]", options: .caseInsensitive)
+        static let ideFilesLine = try! NSRegularExpression(
+            pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let opLineIDE = try! NSRegularExpression(
+            pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let bugReview = try! NSRegularExpression(
+            pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let inlineOpPrefix = try! NSRegularExpression(
+            pattern: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let initBoilerplate = try! NSRegularExpression(
+            pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let progressHeading = try! NSRegularExpression(
+            pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let cliTrace = try! NSRegularExpression(
+            pattern: #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
+            options: [.caseInsensitive, .anchorsMatchLines])
+        static let inlineMarkerPrefix = try! NSRegularExpression(
+            pattern: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#, options: [])
+        static let inlineMarkerTypes = try! NSRegularExpression(
+            pattern: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
+        static let inlineMarkerBroken = try! NSRegularExpression(
+            pattern: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
+        static let technicalEvents = try! NSRegularExpression(
+            pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#, options: [])
+        static let stickyKeyValue = try! NSRegularExpression(
+            pattern: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#, options: [])
+        static let singleKeyValue = try! NSRegularExpression(
+            pattern: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#, options: [])
+        static let keyValueBracket = try! NSRegularExpression(
+            pattern: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#, options: [])
+        static let trailingSpaceNewline = try! NSRegularExpression(pattern: #"\s+\n"#, options: [])
+        static let excessiveNewlines = try! NSRegularExpression(pattern: #"\n{3,}"#, options: [])
+        static let excessiveSpaces = try! NSRegularExpression(pattern: #"[ \t]{2,}"#, options: [])
+        static let missingSpaceAfterPunct = try! NSRegularExpression(
+            pattern: #"([.!?])([A-Za-zÀ-ÖØ-öø-ÿ])"#, options: [])
+        static let tripleNewlines = try! NSRegularExpression(pattern: #"\n\n\n+"#, options: [])
+        static let structuredPayload = try! NSRegularExpression(
+            pattern: #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#, options: [])
+    }
+
+    /// Helper: apply pre-compiled NSRegularExpression as a replacement on the full string.
+    private static func applyRegex(_ regex: NSRegularExpression, on string: inout String, template: String) {
+        let ns = string as NSString
+        string = regex.stringByReplacingMatches(
+            in: string, range: NSRange(location: 0, length: ns.length), withTemplate: template)
+    }
+
     /// Removes CODERIDE markers from source to avoid flashes during streaming.
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
         var out = content
-        // 1. Standard [CODERIDE:...] markers (regex)
-        if let regex = try? NSRegularExpression(
-            pattern: "\\[\\s*CODERIDE\\s*:[^\\]\\n]*\\]",
-            options: .caseInsensitive
-        ) {
-            while true {
-                let ns = out as NSString
-                guard let match = regex.firstMatch(in: out, range: NSRange(location: 0, length: ns.length))
-                else { break }
-                let start = out.index(out.startIndex, offsetBy: match.range.location)
-                let end = out.index(start, offsetBy: match.range.length)
-                out.removeSubrange(start..<end)
-            }
+        // 1. Standard [CODERIDE:...] markers
+        while true {
+            let ns = out as NSString
+            guard let match = MarkerRegex.coderideMarker.firstMatch(
+                in: out, range: NSRange(location: 0, length: ns.length)) else { break }
+            let start = out.index(out.startIndex, offsetBy: match.range.location)
+            let end = out.index(start, offsetBy: match.range.length)
+            out.removeSubrange(start..<end)
         }
         // 2. Fallback for incomplete [CODERIDE markers
-        // During streaming, incomplete marker fragments may arrive.
-        // We only remove the "dirty" portion of the line to avoid deleting
-        // valid assistant text that follows in subsequent lines.
         while let start = out.range(of: "[CODERIDE", options: .caseInsensitive) {
             if let end = out[start.upperBound...].firstIndex(of: "]") {
                 out.removeSubrange(start.lowerBound..<out.index(after: end))
@@ -761,148 +860,41 @@ final class ChatStore: ObservableObject {
             }
         }
         if aggressive {
-            // 3. Strip operational status lines that leak into output
-            // e.g. "Creating detailed Italian planIDE:files=README.md]"
-            if let statusLineRegex = try? NSRegularExpression(
-                pattern: #"^[^\n]*IDE\s*:\s*files\s*=[^\]\n]*\]?\s*"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = statusLineRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            // 4. Strip lines that are purely operational prefixes (e.g. "Creating detailed..." followed by IDE markers)
-            if let opLineRegex = try? NSRegularExpression(
-                pattern: #"^(?:Creating|Generating|Processing|Analyzing|Reading|Writing|Updating)\s+[^\n]*?(?:IDE|CODERIDE|planIDE)[^\n]*$"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = opLineRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            // 4b. Removes initial operational boilerplate before the useful response.
-            if let bugReviewRegex = try? NSRegularExpression(
-                pattern: #"(?im)^Planning\s+(?:bug\s+review|code\s+review)\s+workflow\s*$"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = bugReviewRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            // 4b-1. If the line contains an operational prefix + useful content on the same line,
-            // remove only the initial prefix and preserve the text that follows.
-            if let inlineOperationalPrefixRegex = try? NSRegularExpression(
-                pattern: #"(?im)^(\s*(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing|Inspecting)\s+(?:initial\s+)?(?:task\s+panel(?:\s+and\s+todo\s+update)?|todo(?:\s+update)?|workflow(?:\s+steps?)?|project\s+analysis|analysis|plan|execution(?:\s+flow)?)(?:\s+and\s+todo\s+update)?\s+)"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = inlineOperationalPrefixRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            if let initBoilerplateRegex = try? NSRegularExpression(
-                pattern: #"(?im)^(?:(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+(?:initial\s+)?(?:task\s+panel|todo|workflow|workflow\s+steps?|project\s+analysis|analysis|plan|execution|execution\s+flow|operations?)\b[^\n]*|(?:Setting|Preparing|Starting|Initializing|Bootstrapping|Planning|Analyzing)\s+[^\n]*(?:task\s+panel|todo|workflow|analysis|plan|execution)\b[^\n]*)$"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = initBoilerplateRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            // 4c. Removes operational heading/lines of "progress commentary" leaked into the stream.
-            if let progressHeadingRegex = try? NSRegularExpression(
-                pattern: #"(?im)^(?:\*{1,2}\s*)?(?:Updating|Planning|Reading|Analyzing|Implementing)\b[^\n]{0,140}(?:\*{1,2})?\s*$"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = progressHeadingRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
-            // 4d. Removes technical progress lines not useful to the final user text.
-            if let cliTraceRegex = try? NSRegularExpression(
-                pattern: #"(?im)^(?:Explored\s+\d+\s+files?(?:,\s*\d+\s+search(?:es)?)?(?:,\s*\d+\s+list)?|Ran\s+[^\n]+|Inspecting\s+[^\n]+)\s*$"#,
-                options: [.caseInsensitive, .anchorsMatchLines]
-            ) {
-                let ns = out as NSString
-                out = cliTraceRegex.stringByReplacingMatches(
-                    in: out, range: NSRange(location: 0, length: ns.length), withTemplate: ""
-                )
-            }
+            applyRegex(MarkerRegex.ideFilesLine, on: &out, template: "")
+            applyRegex(MarkerRegex.opLineIDE, on: &out, template: "")
+            applyRegex(MarkerRegex.bugReview, on: &out, template: "")
+            applyRegex(MarkerRegex.inlineOpPrefix, on: &out, template: "")
+            applyRegex(MarkerRegex.initBoilerplate, on: &out, template: "")
+            applyRegex(MarkerRegex.progressHeading, on: &out, template: "")
+            applyRegex(MarkerRegex.cliTrace, on: &out, template: "")
         }
-        // Inline marker "markers:todo_write|..." or "todo_write|..."
-        out = out.replacingOccurrences(
-            of: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#,
-            with: "",
-            options: .regularExpression
-        )
-        out = out.replacingOccurrences(
-            of: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#,
-            with: "",
-            options: .regularExpression
-        )
-        // Broken/truncated variants of operational markers (e.g. "do_write|", "markersdo_write|").
-        out = out.replacingOccurrences(
-            of: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#,
-            with: "",
-            options: .regularExpression
-        )
-        // Technical events that must never appear in user-facing text.
-        out = out.replacingOccurrences(
-            of: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#,
-            with: "",
-            options: .regularExpression
-        )
+        // Inline markers
+        applyRegex(MarkerRegex.inlineMarkerPrefix, on: &out, template: "")
+        applyRegex(MarkerRegex.inlineMarkerTypes, on: &out, template: "")
+        applyRegex(MarkerRegex.inlineMarkerBroken, on: &out, template: "")
+        applyRegex(MarkerRegex.technicalEvents, on: &out, template: "")
         if aggressive {
-            // If a marker sticks to the text, separate the key=value token before removal.
-            out = out.replacingOccurrences(
-                of: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#,
-                with: "$1 $2",
-                options: .regularExpression
-            )
-            // Removes single key=value fragments typical of operational markers.
-            out = out.replacingOccurrences(
-                of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task)=[^|\n\r]+(?:\||$)"#,
-                with: "",
-                options: .regularExpression
-            )
-            // Fallback key=value with closing ] (e.g. files=Sources/..]).
-            out = out.replacingOccurrences(
-                of: #"(?i)\b(?:id|title|status|priority|notes|files|step_id|queryid|query|group_id|count|task|pathscope|matchescount|previewlines)=[^\]\n\r]+\]"#,
-                with: "",
-                options: .regularExpression
-            )
-            // Robust fallback: removes "raw" marker payloads leaked into the text
-            // (e.g. id=t1|title=...|status=...|priority=...|notes=...|files=...|).
+            applyRegex(MarkerRegex.stickyKeyValue, on: &out, template: "$1 $2")
+            applyRegex(MarkerRegex.singleKeyValue, on: &out, template: "")
+            applyRegex(MarkerRegex.keyValueBracket, on: &out, template: "")
             out = stripStructuredMarkerPayloads(out)
         }
-        // Cleanup readable formatting (chat style): spaces, punctuation, line breaks.
-        out = out.replacingOccurrences(of: #"\s+\n"#, with: "\n", options: .regularExpression)
-        out = out.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
-        out = out.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
-        out = out.replacingOccurrences(
-            of: #"([.!?])([A-Za-zÀ-ÖØ-öø-ÿ])"#,
-            with: "$1 $2",
-            options: .regularExpression
-        )
-        let normalized = out.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
-        return aggressive ? normalized.trimmingCharacters(in: .whitespacesAndNewlines) : normalized
+        // Cleanup formatting
+        applyRegex(MarkerRegex.trailingSpaceNewline, on: &out, template: "\n")
+        applyRegex(MarkerRegex.excessiveNewlines, on: &out, template: "\n\n")
+        applyRegex(MarkerRegex.excessiveSpaces, on: &out, template: " ")
+        applyRegex(MarkerRegex.missingSpaceAfterPunct, on: &out, template: "$1 $2")
+        applyRegex(MarkerRegex.tripleNewlines, on: &out, template: "\n\n")
+        return aggressive ? out.trimmingCharacters(in: .whitespacesAndNewlines) : out
     }
 
+    private static let structuredPayloadMarkerKeys: Set<String> = [
+        "id", "title", "status", "priority", "notes", "files", "step_id",
+        "queryid", "query", "group_id", "count", "task",
+    ]
+
     private static func stripStructuredMarkerPayloads(_ input: String) -> String {
-        let markerKeys: Set<String> = [
-            "id", "title", "status", "priority", "notes", "files", "step_id",
-            "queryid", "query", "group_id", "count", "task",
-        ]
-        guard let regex = try? NSRegularExpression(
-            pattern: #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#,
-            options: []
-        ) else {
-            return input
-        }
+        let regex = MarkerRegex.structuredPayload
         var out = input
         while true {
             let ns = out as NSString
@@ -921,7 +913,7 @@ final class ChatStore: ObservableObject {
                             .lowercased()
                     }
                 guard !keys.isEmpty else { continue }
-                let markerKeyCount = keys.filter { markerKeys.contains($0) }.count
+                let markerKeyCount = keys.filter { structuredPayloadMarkerKeys.contains($0) }.count
                 if markerKeyCount >= 3 {
                     out.removeSubrange(strRange)
                     removed = true

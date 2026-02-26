@@ -20,7 +20,7 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     public init(
         claudePath: String? = nil,
         model: String? = nil,
-        allowedTools: [String] = ["Read", "Edit", "Bash"],
+        allowedTools: [String] = [],
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
@@ -235,11 +235,33 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             return mapped
         }
 
+        // Smart fallback: infer event type from payload keys instead of always using command_execution
+        let normalizedTool = ProviderToolEventMapper.normalizeToolIdentifier(name)
+        let hasPath = firstString(in: input, keys: ["path", "file_path", "file", "target_path"]) != nil
+        let hasCommand = firstString(in: input, keys: ["command", "command_line", "cmd"]) != nil
+        let hasQuery = firstString(in: input, keys: ["query", "pattern", "search", "needle"]) != nil
+        let hasOldString = firstString(in: input, keys: ["old_string", "old_text"]) != nil
+        let hasContent = firstString(in: input, keys: ["content", "new_string", "new_text"]) != nil
+
+        // File change tools: have path + old_string/content modifications
+        if hasPath && (hasOldString || (hasContent && !hasCommand)) {
+            return ProviderToolEventMapper.map(toolName: "edit", payload: input, typeHint: "file_change")
+        }
+        // Read tools: have path but no modification keys and no command
+        if hasPath && !hasCommand && !hasOldString && !hasContent {
+            return ProviderToolEventMapper.map(toolName: "read", payload: input)
+        }
+        // Search tools: have query but no command
+        if hasQuery && !hasCommand {
+            return ProviderToolEventMapper.map(toolName: "search", payload: input)
+        }
+
+        // True fallback for genuinely unknown tools
         let fallbackTool = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return ("command_execution", [
             "title": fallbackTool.isEmpty ? "Tool execution" : fallbackTool,
             "detail": firstString(in: input, keys: ["detail", "query", "command", "path", "file"]) ?? "",
-            "tool": ProviderToolEventMapper.normalizeToolIdentifier(fallbackTool),
+            "tool": normalizedTool,
         ])
     }
 
@@ -253,7 +275,10 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                 result.append(trimmed)
             }
         }
-        return result.isEmpty ? ["Read", "Edit", "Bash"] : result
+        // Empty = no restriction → Claude CLI uses ALL available tools
+        // (Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch,
+        //  Task, TodoWrite, Skill, MCP, NotebookEdit, etc.)
+        return result
     }
 
     static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {

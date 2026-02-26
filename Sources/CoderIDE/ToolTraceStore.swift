@@ -97,10 +97,21 @@ final class ToolTraceStore: ObservableObject {
         return d
     }()
 
+    /// Background queue for all disk I/O — keeps FileHandle operations off the main thread.
+    private static let diskQueue = DispatchQueue(label: "com.codigo.tooltrace.disk", qos: .utility)
+
+    /// Blocks until all pending disk writes have completed. For test use.
+    func flushDiskWrites() {
+        Self.diskQueue.sync {}
+    }
+
     func startTurn(conversationId: UUID, assistantMessageId: UUID, providerId _: String) {
         let key = TraceKey(conversationId: conversationId, assistantMessageId: assistantMessageId)
         _ = loadIfNeeded(for: key)
-        ensureTraceFileExists(for: key)
+        let url = fileURL(for: key)
+        Self.diskQueue.async {
+            Self.ensureTraceFileExistsOnDisk(at: url)
+        }
     }
 
     func append(event: ToolTraceEvent) {
@@ -112,7 +123,13 @@ final class ToolTraceStore: ObservableObject {
             return lhs.timestamp < rhs.timestamp
         }
         cache[key] = events
-        appendEventToDisk(event, for: key)
+        // Encode on main thread (fast), dispatch write to background
+        if let encoded = try? encoder.encode(event) {
+            let url = fileURL(for: key)
+            Self.diskQueue.async {
+                Self.appendDataToDisk(encoded, url: url)
+            }
+        }
     }
 
     func events(conversationId: UUID, assistantMessageId: UUID) -> [ToolTraceEvent] {
@@ -164,21 +181,18 @@ final class ToolTraceStore: ObservableObject {
         return out
     }
 
-    private func appendEventToDisk(_ event: ToolTraceEvent, for key: TraceKey) {
-        ensureTraceFileExists(for: key)
-        let url = fileURL(for: key)
-        guard let encoded = try? encoder.encode(event) else { return }
+    /// Appends pre-encoded JSON data to disk. Runs on `diskQueue` (off main thread).
+    nonisolated private static func appendDataToDisk(_ data: Data, url: URL) {
+        ensureTraceFileExistsOnDisk(at: url)
         guard let handle = try? FileHandle(forWritingTo: url) else { return }
-        defer {
-            try? handle.close()
-        }
+        defer { try? handle.close() }
         handle.seekToEndOfFile()
-        handle.write(encoded)
+        handle.write(data)
         handle.write(Data([0x0A]))
     }
 
-    private func ensureTraceFileExists(for key: TraceKey) {
-        let url = fileURL(for: key)
+    /// Ensures the trace file and parent directories exist. Runs on `diskQueue`.
+    nonisolated private static func ensureTraceFileExistsOnDisk(at url: URL) {
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: url.path) {

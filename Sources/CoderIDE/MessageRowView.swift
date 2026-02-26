@@ -303,28 +303,86 @@ struct MessageRow: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(paths, id: \.self) { path in
-                    Group {
-                        if FileManager.default.fileExists(atPath: path),
-                            let nsImage = NSImage(contentsOf: URL(fileURLWithPath: path))
-                        {
-                            Image(nsImage: nsImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
-                            Image(systemName: "photo")
-                                .font(.system(size: 24))
-                                .foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                    .frame(width: userImageThumbWidth, height: userImageThumbHeight)
-                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    CachedThumbnailView(
+                        path: path,
+                        width: userImageThumbWidth,
+                        height: userImageThumbHeight
+                    )
                 }
             }
         }
         .fixedSize(horizontal: true, vertical: false)
         .padding(.bottom, 4)
+    }
+}
+
+/// Loads an image thumbnail asynchronously and caches the result.
+private struct CachedThumbnailView: View {
+    let path: String
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var loadedImage: NSImage?
+    @State private var loadFailed = false
+
+    var body: some View {
+        Group {
+            if let img = loadedImage {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if loadFailed {
+                Image(systemName: "photo")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Color.clear // placeholder while loading
+            }
+        }
+        .frame(width: width, height: height)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .task(id: path) {
+            if let cached = MessageImageCache.shared.image(for: path) {
+                loadedImage = cached
+                return
+            }
+            let result = await Task.detached(priority: .utility) {
+                guard FileManager.default.fileExists(atPath: path) else { return nil as NSImage? }
+                return NSImage(contentsOf: URL(fileURLWithPath: path))
+            }.value
+            if let img = result {
+                MessageImageCache.shared.setImage(img, for: path)
+                loadedImage = img
+            } else {
+                loadFailed = true
+            }
+        }
+    }
+}
+
+/// Simple in-memory image cache for user-attached message thumbnails.
+private final class MessageImageCache: @unchecked Sendable {
+    static let shared = MessageImageCache()
+    private let lock = NSLock()
+    private var cache: [String: NSImage] = [:]
+    private let maxEntries = 50
+
+    func image(for path: String) -> NSImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[path]
+    }
+
+    func setImage(_ image: NSImage, for path: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if cache.count >= maxEntries {
+            // Evict oldest (arbitrary) entry
+            if let first = cache.keys.first { cache.removeValue(forKey: first) }
+        }
+        cache[path] = image
     }
 }
 

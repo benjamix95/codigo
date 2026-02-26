@@ -354,6 +354,7 @@ final class ConversationFlowCoordinator: ObservableObject {
             \(swarmFull)
 
             Integrate what was done into the conversation context and continue.
+            IMPORTANT: Before starting any implementation or code changes, you MUST first create a TodoWrite list with all the concrete tasks to complete. The user tracks progress via the LiveCard — create the TodoWrite immediately after reviewing the swarm results, then proceed task by task.
             """
             var follow = ""
             let followStream = try await agentProvider.send(prompt: followUpPrompt, context: context, imageURLs: nil)

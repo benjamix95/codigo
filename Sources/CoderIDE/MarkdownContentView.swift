@@ -158,15 +158,25 @@ struct MarkdownContentView: View {
 
     // MARK: - Full Markdown Body (block-level)
 
+    /// Cached parsed blocks – recomputed only when `content` actually changes,
+    /// not on every body evaluation (e.g. colorScheme / font changes).
+    @State private var cachedBlocks: [MarkdownBlock]?
+
     private var fullMarkdownBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            let blocks = parseBlocks()
+        let blocks = cachedBlocks ?? parseBlocks()
+        return VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { idx, block in
                 blockView(for: block, prevBlock: idx > 0 ? blocks[idx - 1] : nil)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            if cachedBlocks == nil { cachedBlocks = parseBlocks() }
+        }
+        .onChange(of: content) { _, _ in
+            cachedBlocks = parseBlocks()
+        }
     }
 
     // MARK: - Block Types
@@ -508,6 +518,12 @@ struct MarkdownContentView: View {
 
     // MARK: - Inline AttributedString Builder
 
+    /// File link regex compiled once and reused.
+    private static let fileLinkRegex: NSRegularExpression? = {
+        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
+        return try? NSRegularExpression(pattern: pattern)
+    }()
+
     private func buildInlineAttributed(
         _ text: String,
         fontSize: CGFloat,
@@ -547,9 +563,8 @@ struct MarkdownContentView: View {
             }
         }
 
-        // File links
-        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
+        // File links (regex compiled once as static)
+        guard let regex = Self.fileLinkRegex else { return result }
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
         for match in regex.matches(in: text, range: fullRange) {
@@ -893,6 +908,9 @@ struct MarkdownContentView: View {
         return rebuilt
     }
 
+    private static let sentenceSplitRegex = try! NSRegularExpression(
+        pattern: #"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Ý0-9])"#, options: [])
+
     private static func normalizeDenseLine(_ line: String) -> String {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return line }
@@ -906,10 +924,7 @@ struct MarkdownContentView: View {
             return line
         }
 
-        let sentenceSplitPattern = #"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Ý0-9])"#
-        guard let regex = try? NSRegularExpression(pattern: sentenceSplitPattern, options: []) else {
-            return line
-        }
+        let regex = sentenceSplitRegex
         let ns = trimmed as NSString
         let matches = regex.matches(in: trimmed, range: NSRange(location: 0, length: ns.length))
         guard !matches.isEmpty else { return line }
@@ -948,19 +963,17 @@ struct MarkdownContentView: View {
         return chunks.joined(separator: "\n\n")
     }
 
+    private static let numberedLineRegex = try! NSRegularExpression(pattern: #"^\d+\.\s+"#, options: [])
+
     private static func isStructuredMarkdownLine(_ line: String) -> Bool {
         if line.hasPrefix("#") || line.hasPrefix(">") { return true }
         if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") { return true }
         if line.hasPrefix("|"), line.hasSuffix("|") { return true }
         if line == "---" || line == "***" || line == "___" { return true }
 
-        let numberedPattern = #"^\d+\.\s+"#
-        if let regex = try? NSRegularExpression(pattern: numberedPattern, options: []) {
-            let ns = line as NSString
-            let range = NSRange(location: 0, length: ns.length)
-            return regex.firstMatch(in: line, options: [], range: range) != nil
-        }
-        return false
+        let ns = line as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        return numberedLineRegex.firstMatch(in: line, options: [], range: range) != nil
     }
 }
 

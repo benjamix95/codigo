@@ -37,8 +37,14 @@ enum ProviderToolEventMapper {
         if isWebFetchTool(tool, payload: normalizedPayload) {
             return mapWebFetch(tool: mappedToolName, payload: normalizedPayload)
         }
+        if isSkillTool(tool) {
+            return mapSkill(tool: mappedToolName, payload: normalizedPayload)
+        }
         if isAgentTool(tool) {
             return mapAgent(tool: mappedToolName, payload: normalizedPayload)
+        }
+        if isTodoTool(tool) {
+            return mapTodo(tool: mappedToolName, payload: normalizedPayload)
         }
         if !tool.isEmpty {
             return mapFallback(tool: mappedToolName, payload: normalizedPayload)
@@ -126,10 +132,10 @@ enum ProviderToolEventMapper {
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
         "mcp_health", "mcp_list_servers", "mcp_list_tools", "mcp_reconnect", "multi_edit",
-        "multiedit", "notebook_read", "notebookread", "parallel_apply", "read", "read_file",
-        "read_lints", "read_range", "regex_replace", "rename_symbol", "rg", "run_agent", "search",
-        "search_symbols", "semantic_search", "str_replace", "sub_agent", "subagent", "undo_edit",
-        "web_fetch", "web_search", "write",
+        "multiedit", "notebook_edit", "notebook_read", "notebook_write", "notebookread", "parallel_apply",
+        "read", "read_file", "read_lints", "read_range", "regex_replace", "rename_symbol", "rg",
+        "run_agent", "search", "search_symbols", "semantic_search", "skill", "str_replace", "sub_agent",
+        "subagent", "todo_write", "todo_read", "undo_edit", "web_fetch", "web_search", "write", "write_file",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
@@ -151,13 +157,18 @@ enum ProviderToolEventMapper {
         "mcplisttools": "mcp_list_tools",
         "mcpreconnect": "mcp_reconnect",
         "multi_tool_use_parallel": "parallel_apply",
+        "notebookedit": "notebook_edit",
+        "notebookwrite": "notebook_write",
         "parallel": "parallel_apply",
         "readlints": "read_lints",
         "readrange": "read_range",
         "strreplace": "str_replace",
+        "todowrite": "todo_write",
+        "todoread": "todo_read",
         "webfetch": "web_fetch",
         "websearch": "web_search",
         "write_stdin": "bash",
+        "writefile": "write_file",
     ]
 
     static func normalizeToolIdentifier(_ raw: String) -> String {
@@ -298,7 +309,11 @@ enum ProviderToolEventMapper {
     }
 
     private static func isFileChangeTool(_ tool: String, typeHint: String) -> Bool {
-        if ["edit", "write", "multiedit", "multi_edit", "create_file", "delete_file", "str_replace", "regex_replace", "parallel_apply", "apply_patch", "rename_symbol", "find_and_replace_all", "undo_edit"].contains(tool) {
+        if [
+            "edit", "write", "write_file", "multiedit", "multi_edit", "create_file", "delete_file",
+            "str_replace", "regex_replace", "parallel_apply", "apply_patch", "rename_symbol",
+            "find_and_replace_all", "undo_edit", "notebook_edit", "notebook_write",
+        ].contains(tool) {
             return true
         }
         return typeHint.contains("file_change") || typeHint.contains("edit") || typeHint.contains("write")
@@ -333,6 +348,14 @@ enum ProviderToolEventMapper {
 
     private static func isWebFetchTool(_ tool: String, payload _: [String: Any]) -> Bool {
         tool.hasPrefix("web_fetch")
+    }
+
+    private static func isSkillTool(_ tool: String) -> Bool {
+        tool == "skill" || tool.hasPrefix("skill_")
+    }
+
+    private static func isTodoTool(_ tool: String) -> Bool {
+        tool == "todo_write" || tool == "todo_read"
     }
 
     private static func isAgentTool(_ tool: String) -> Bool {
@@ -556,6 +579,58 @@ enum ProviderToolEventMapper {
             mapped["group_id"] = "swarm-\(swarmId)"
         }
         return ("agent", mapped)
+    }
+
+    private static func mapSkill(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
+        let skillName = firstString(in: payload, keys: ["skill", "name", "skill_name"]) ?? ""
+        let args = firstString(in: payload, keys: ["args", "arguments"]) ?? ""
+        let title = skillName.isEmpty ? "Skill invocation" : "Skill • \(skillName)"
+        var mapped: [String: String] = [
+            "title": title,
+            "detail": args.isEmpty ? skillName : "\(skillName) \(args)",
+            "tool": normalizeToolIdentifier(rawTool),
+        ]
+        if !skillName.isEmpty { mapped["skill"] = skillName }
+        if !args.isEmpty { mapped["args"] = args }
+        if let output = firstString(in: payload, keys: ["output", "result", "content"]), !output.isEmpty {
+            mapped["output"] = String(output.prefix(6_000))
+        }
+        return ("skill_invocation", mapped)
+    }
+
+    private static func mapTodo(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
+        let normalized = normalizeToolIdentifier(rawTool)
+        var mapped: [String: String] = [
+            "tool": normalized,
+        ]
+
+        // Handle the full todos array from TodoWrite tool input.
+        // The LLM sends {"todos": [{"content": "...", "status": "...", "activeForm": "..."}, ...]}
+        // Serialize the array as JSON so the normalizer can create individual todo items.
+        if let todosArray = payload["todos"] as? [[String: Any]], !todosArray.isEmpty {
+            if let todosData = try? JSONSerialization.data(withJSONObject: todosArray),
+               let todosJson = String(data: todosData, encoding: .utf8) {
+                mapped["todos_json"] = todosJson
+            }
+            // Use first item's content for the display title
+            if let firstContent = (todosArray.first?["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !firstContent.isEmpty {
+                mapped["title"] = "Todo • \(firstContent)"
+                mapped["detail"] = firstContent
+                mapped["count"] = "\(todosArray.count)"
+            } else {
+                mapped["title"] = "Update todo list"
+            }
+        } else if let title = firstString(in: payload, keys: ["title", "content"]), !title.isEmpty {
+            mapped["title"] = "Todo • \(title)"
+            mapped["detail"] = title
+        } else {
+            mapped["title"] = normalized == "todo_read" ? "Read todo list" : "Update todo list"
+        }
+        if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
+            mapped["status"] = status
+        }
+        return ("todo_write", mapped)
     }
 
     private static func mapFallback(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
