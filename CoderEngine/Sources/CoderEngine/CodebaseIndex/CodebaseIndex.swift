@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - CodebaseIndex
 
@@ -6,6 +7,8 @@ import Foundation
 /// Scans the workspace, extracts symbols from each source file,
 /// builds the file tree and provides fast query APIs.
 public actor CodebaseIndex {
+
+    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "CodebaseIndex")
 
     // MARK: - State
 
@@ -45,8 +48,20 @@ public actor CodebaseIndex {
     /// Excluded path patterns
     private var excludedPaths: [String] = []
 
+    /// Excluded file patterns (glob)
+    private var excludedFilePatterns: [String] = []
+
+    /// Parsed .gitignore rules: (pattern, isNegation, isDirectoryOnly)
+    private var gitignoreRules: [(pattern: String, isNegation: Bool, isDirectoryOnly: Bool)] = []
+
+    /// Whether to respect .gitignore
+    private var respectGitignore: Bool = true
+
     /// Index status
     private var _status: IndexStatus = .idle
+
+    /// Indexing progress (non-nil only while indexing)
+    private var _indexingProgress: (current: Int, total: Int)?
 
     /// Semantic search index (BM25 + AST chunking + Merkle tree)
     public let semanticIndex = SemanticIndex()
@@ -116,18 +131,47 @@ public actor CodebaseIndex {
 
     public init() {}
 
+    // MARK: - Persistence
+
+    /// Compute a stable cache directory for the given workspace paths.
+    private static func cacheDirectory(for workspacePaths: [URL]) -> URL {
+        let pathsString = workspacePaths.map(\.path).sorted().joined(separator: "|")
+        let hash = pathsString.utf8.reduce(UInt64(5381)) { ($0 &<< 5) &+ $0 &+ UInt64($1) }
+        let hashHex = String(hash, radix: 16, uppercase: false)
+
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("Codigo", isDirectory: true)
+            .appendingPathComponent("index", isDirectory: true)
+            .appendingPathComponent(hashHex, isDirectory: true)
+
+        try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        return cacheDir
+    }
+
     // MARK: - Public API: Indexing
 
     /// Index the complete workspace (full scan)
     public func indexWorkspace(
         paths: [URL],
-        excludedPaths: [String] = []
+        excludedPaths: [String] = [],
+        excludedFilePatterns: [String] = [],
+        respectGitignore: Bool = true
     ) async -> IndexResult {
         let startTime = Date()
         _status = .indexing
+        Self.logger.info("indexWorkspace: starting full index for \(paths.map(\.path).joined(separator: ", "), privacy: .public)")
 
         self.currentWorkspacePaths = paths
         self.excludedPaths = excludedPaths
+        self.excludedFilePatterns = excludedFilePatterns
+        self.respectGitignore = respectGitignore
+
+        // Load .gitignore rules if enabled
+        if respectGitignore, let firstRoot = paths.first {
+            loadGitignoreRules(for: firstRoot)
+        } else {
+            gitignoreRules = []
+        }
 
         // Reset state
         fileTrees.removeAll()
@@ -159,10 +203,14 @@ public actor CodebaseIndex {
         // 2. Index source files (extract symbols)
         let sourceFiles = allFileNodes.values.filter {
             $0.isSourceFile && $0.size <= Self.maxFileSize
+            && !isFileExcluded($0.relativePath)
+            && !isGitignored($0.relativePath, isDirectory: false)
         }
         let filesToIndex = Array(sourceFiles.prefix(Self.maxFiles))
+        let totalToIndex = filesToIndex.count
+        _indexingProgress = (current: 0, total: totalToIndex)
 
-        for node in filesToIndex {
+        for (i, node) in filesToIndex.enumerated() {
             if let indexed = SymbolExtractor.indexFile(
                 absolutePath: node.absolutePath,
                 relativePath: node.relativePath,
@@ -171,21 +219,53 @@ public actor CodebaseIndex {
                 addIndexedFile(indexed)
                 totalFilesScanned += 1
             }
+            _indexingProgress = (current: i + 1, total: totalToIndex)
+            // Yield periodically to let progress polling read the value
+            if (i + 1) % 100 == 0 {
+                await Task.yield()
+            }
         }
 
         // 3. Build import graph
         buildImportGraph()
 
         // 4. Build semantic index (BM25 + AST chunking)
+        // Configure persistence and try loading cached data
+        let cacheDir = Self.cacheDirectory(for: paths)
+        let semanticCachePath = cacheDir.appendingPathComponent("semantic.jsonl")
+        await semanticIndex.setPersistencePath(semanticCachePath)
+
         let allIndexed = Array(indexedFiles.values)
         if let firstRoot = paths.first {
-            await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
+            // Try loading persisted semantic index
+            let semanticStatus = await semanticIndex.status()
+            if semanticStatus.totalChunks == 0 {
+                await semanticIndex.loadFromDisk()
+            }
+
+            // Validate persisted data with Merkle tree simHash
+            let loadedStatus = await semanticIndex.status()
+            if loadedStatus.totalChunks > 0 {
+                let newMerkle = MerkleTree.build(root: firstRoot)
+                let newSimHash = newMerkle.map { MerkleTree.simHash(of: $0) } ?? 0
+                if loadedStatus.simHash == newSimHash && newSimHash != 0 {
+                    Self.logger.info("indexWorkspace: reusing persisted semantic index (\(loadedStatus.totalChunks) chunks, simHash match)")
+                } else {
+                    Self.logger.info("indexWorkspace: persisted semantic index stale, rebuilding")
+                    await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
+                }
+            } else {
+                await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot)
+            }
         }
 
+        _indexingProgress = nil
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
         lastFullIndexAt = Date()
         _status = .ready
+
+        Self.logger.info("indexWorkspace: completed — \(self.totalSymbolsExtracted) symbols, \(self.totalFilesScanned) files, \(durationMs)ms")
 
         return IndexResult(
             totalFiles: allFileNodes.count,
@@ -203,6 +283,7 @@ public actor CodebaseIndex {
     public func incrementalUpdate() async -> IndexResult {
         let startTime = Date()
         _status = .indexing
+        Self.logger.info("incrementalUpdate: starting")
 
         var updatedCount = 0
         var removedCount = 0
@@ -267,9 +348,17 @@ public actor CodebaseIndex {
         // Re-build import graph
         buildImportGraph()
 
-        // Keep semantic index deterministic and in sync with the symbol index.
+        // Update semantic index incrementally (not a full rebuild)
         if let firstRoot = currentWorkspacePaths.first {
-            await semanticIndex.buildIndex(indexedFiles: Array(indexedFiles.values), workspaceRoot: firstRoot)
+            if !changedFiles.isEmpty {
+                await semanticIndex.incrementalUpdate(
+                    changedFiles: changedFiles,
+                    workspaceRoot: firstRoot
+                )
+            }
+            for relativePath in removedPaths {
+                await semanticIndex.removeFile(relativePath)
+            }
         } else if !changedFiles.isEmpty || removedCount > 0 {
             await semanticIndex.clear()
         }
@@ -277,6 +366,8 @@ public actor CodebaseIndex {
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
         _status = .ready
+
+        Self.logger.info("incrementalUpdate: completed — \(updatedCount) updated, \(removedCount) removed, \(durationMs)ms")
 
         return IndexResult(
             totalFiles: allFileNodes.count,
@@ -800,6 +891,12 @@ public actor CodebaseIndex {
 
     /// Current index status
     public func status() -> IndexStatusInfo {
+        let progress: IndexingProgress?
+        if let p = _indexingProgress {
+            progress = IndexingProgress(current: p.current, total: p.total)
+        } else {
+            progress = nil
+        }
         return IndexStatusInfo(
             status: _status,
             totalFiles: allFileNodes.count,
@@ -807,8 +904,27 @@ public actor CodebaseIndex {
             totalSymbols: totalSymbolsExtracted,
             lastIndexedAt: lastFullIndexAt,
             indexDurationMs: indexDurationMs,
-            workspacePaths: currentWorkspacePaths.map(\.path)
+            workspacePaths: currentWorkspacePaths.map(\.path),
+            progress: progress
         )
+    }
+
+    /// Suspends until the index status is `.ready`, or until the timeout elapses.
+    /// Uses exponential backoff polling (10ms → 500ms).
+    /// Works thanks to actor reentrancy: `Task.sleep` releases the executor,
+    /// allowing `indexWorkspace()` to proceed during the sleep.
+    /// Returns `true` if the index became ready, `false` on timeout.
+    public func waitUntilReady(timeoutMs: Int = 30_000) async -> Bool {
+        if _status == .ready { return true }
+        guard _status == .indexing else { return false }
+
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
+        var sleepNs: UInt64 = 10_000_000  // start at 10ms
+        while _status == .indexing, Date() < deadline {
+            try? await Task.sleep(nanoseconds: sleepNs)
+            sleepNs = min(sleepNs * 2, 500_000_000)  // cap at 500ms
+        }
+        return _status == .ready
     }
 
     /// Index summary in text format (for LLM context)
@@ -820,7 +936,8 @@ public actor CodebaseIndex {
             totalSymbols: totalSymbolsExtracted,
             lastIndexedAt: lastFullIndexAt,
             indexDurationMs: indexDurationMs,
-            workspacePaths: currentWorkspacePaths.map(\.path)
+            workspacePaths: currentWorkspacePaths.map(\.path),
+            progress: nil
         )
 
         var lines: [String] = []
@@ -956,7 +1073,7 @@ public actor CodebaseIndex {
             let relPath = relativePath.isEmpty ? name : relativePath
 
             // Check if excluded
-            if Self.defaultExcludedDirs.contains(name) || isExcluded(name) {
+            if Self.defaultExcludedDirs.contains(name) || isExcluded(name, relativePath: relPath) || isGitignored(relPath, isDirectory: true) {
                 return FileNode(
                     name: name,
                     kind: .directory,
@@ -1104,8 +1221,21 @@ public actor CodebaseIndex {
         return counts
     }
 
-    private func isExcluded(_ name: String) -> Bool {
-        excludedPaths.contains(name)
+    private func isExcluded(_ name: String, relativePath: String = "") -> Bool {
+        for pattern in excludedPaths {
+            // Exact name match (existing behavior)
+            if name == pattern { return true }
+            // Path prefix match: "Sources/Generated" matches files under that path
+            if !relativePath.isEmpty && !pattern.contains("*") {
+                if relativePath == pattern || relativePath.hasPrefix(pattern + "/") { return true }
+            }
+            // Glob pattern match
+            if pattern.contains("*") {
+                let pathToCheck = relativePath.isEmpty ? name : relativePath
+                if matchGlob(pattern: pattern.lowercased(), path: pathToCheck.lowercased()) { return true }
+            }
+        }
+        return false
     }
 
     // MARK: - Private: Tree String Builder
@@ -1161,6 +1291,70 @@ public actor CodebaseIndex {
         }
 
         return result
+    }
+
+    // MARK: - Private: Gitignore & File Exclusion
+
+    /// Parse .gitignore from the workspace root
+    private func loadGitignoreRules(for rootURL: URL) {
+        gitignoreRules = []
+        let gitignorePath = rootURL.appendingPathComponent(".gitignore").path
+        guard let content = try? String(contentsOfFile: gitignorePath, encoding: .utf8) else { return }
+
+        for line in content.components(separatedBy: .newlines) {
+            var rule = line.trimmingCharacters(in: .whitespaces)
+            if rule.isEmpty || rule.hasPrefix("#") { continue }
+
+            let isNegation = rule.hasPrefix("!")
+            if isNegation { rule = String(rule.dropFirst()) }
+
+            let isDirectoryOnly = rule.hasSuffix("/")
+            if isDirectoryOnly { rule = String(rule.dropLast()) }
+
+            gitignoreRules.append((pattern: rule, isNegation: isNegation, isDirectoryOnly: isDirectoryOnly))
+        }
+        Self.logger.debug("loadGitignoreRules: loaded \(self.gitignoreRules.count) rules")
+    }
+
+    /// Check if a relative path is gitignored (last matching rule wins, like git)
+    private func isGitignored(_ relativePath: String, isDirectory: Bool) -> Bool {
+        guard respectGitignore, !gitignoreRules.isEmpty, !relativePath.isEmpty else { return false }
+
+        var ignored = false
+        for rule in gitignoreRules {
+            // Directory-only rules don't apply to files
+            if rule.isDirectoryOnly && !isDirectory { continue }
+
+            let matches: Bool
+            if rule.pattern.contains("*") || rule.pattern.contains("?") {
+                matches = matchGlob(pattern: rule.pattern.lowercased(), path: relativePath.lowercased())
+            } else if rule.pattern.contains("/") {
+                // Path-based rule: match as prefix
+                matches = relativePath == rule.pattern || relativePath.hasPrefix(rule.pattern + "/")
+            } else {
+                // Name-based rule: match any path component
+                let name = (relativePath as NSString).lastPathComponent
+                matches = name == rule.pattern || relativePath.hasSuffix("/\(rule.pattern)")
+            }
+
+            if matches {
+                ignored = !rule.isNegation
+            }
+        }
+        return ignored
+    }
+
+    /// Check if a file should be excluded by file patterns
+    private func isFileExcluded(_ relativePath: String) -> Bool {
+        guard !excludedFilePatterns.isEmpty else { return false }
+        for pattern in excludedFilePatterns {
+            let trimmed = pattern.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            if matchGlob(pattern: trimmed.lowercased(), path: relativePath.lowercased()) {
+                return true
+            }
+        }
+        return false
     }
 
     // MARK: - Private: Pattern Matching
@@ -1288,4 +1482,18 @@ public struct IndexStatusInfo: Sendable {
     public let lastIndexedAt: Date?
     public let indexDurationMs: Int
     public let workspacePaths: [String]
+    public let progress: IndexingProgress?
+}
+
+/// Progress information during indexing
+public struct IndexingProgress: Sendable {
+    public let current: Int
+    public let total: Int
+    public var fraction: Double {
+        guard total > 0 else { return 0 }
+        return Double(current) / Double(total)
+    }
+    public var percentText: String {
+        "\(Int(fraction * 100))%"
+    }
 }

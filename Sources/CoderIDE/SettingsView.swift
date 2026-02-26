@@ -123,6 +123,8 @@ struct SettingsView: View {
     // MARK: - Codebase Index
     @AppStorage("codebase_index_enabled") private var codebaseIndexEnabled = true
     @AppStorage("codebase_index_excluded_paths") private var codebaseIndexExcludedPaths = ""
+    @AppStorage("codebase_index_respect_gitignore") private var codebaseIndexRespectGitignore = true
+    @AppStorage("codebase_index_excluded_file_patterns") private var codebaseIndexExcludedFilePatterns = ""
 
     // MARK: - State Objects
     @StateObject private var codexState = CodexStateStore()
@@ -132,7 +134,6 @@ struct SettingsView: View {
     @StateObject private var accountLoginCoordinator = CLIAccountLoginCoordinator()
 
     // MARK: - UI State
-    @State private var showCodexLogin = false
     @State private var showOpenRouterLogin = false
     @State private var codexAgentsMd = ""
     @State private var claudeMdContent = ""
@@ -144,15 +145,11 @@ struct SettingsView: View {
     @State private var newProjectRuleName: String = ""
     @State private var globalRuleContentDraft: String = ""
     @State private var projectRuleContentDraft: String = ""
-    @State private var newAccountLabelByProvider: [CLIProviderKind: String] = [:]
-    @State private var newAccountKeyByProvider: [CLIProviderKind: String] = [:]
-    @State private var newDailyLimitByProvider: [CLIProviderKind: String] = [:]
-    @State private var newWeeklyLimitByProvider: [CLIProviderKind: String] = [:]
-    @State private var newMonthlyLimitByProvider: [CLIProviderKind: String] = [:]
-    @State private var accountTestResultById: [UUID: String] = [:]
-    @State private var loginMethodByAccount: [UUID: CLIAccountLoginCoordinator.LoginMethod] = [:]
+    @State private var loginSheetAccount: CLIAccount?
+    @State private var showDeleteConfirmation: UUID?
     @State private var indexStatusText: String = "Loading..."
     @State private var indexStatsText: String = ""
+    @State private var statusRefreshTask: Task<Void, Never>?
 
     private var availableSansFontFamilies: [String] {
         FontPreferences.availableSansFamilies()
@@ -403,9 +400,6 @@ struct SettingsView: View {
                     }
                     Button("Connect to Codex") { connectToCodex() }
                         .buttonStyle(.borderedProminent).controlSize(.small)
-                        .sheet(isPresented: $showCodexLogin) {
-                            CodexLoginView(codexPath: codexPath, onDismiss: { syncCodex() })
-                        }
 
                     Divider()
                     fieldLabel("Sandbox")
@@ -493,6 +487,17 @@ struct SettingsView: View {
             .onAppear { geminiState.refresh() }
 
             multiAccountProviderSection(.gemini)
+        }
+        .sheet(item: $loginSheetAccount) { account in
+            CLIAccountLoginSheet(
+                account: account,
+                providerPath: providerPath(for: account.provider),
+                onDismiss: {
+                    let status = accountAuthStatus(account)
+                    cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
+                    syncProviders()
+                }
+            )
         }
     }
 
@@ -606,11 +611,23 @@ struct SettingsView: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
                     fieldLabel("Index status")
-                    Text(indexStatusText)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if !indexStatsText.isEmpty {
+                    if let progress = workspaceStore.indexProgress {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Indexing... \(progress.current)/\(progress.total) files (\(progress.percentText))")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        ProgressView(value: progress.fraction)
+                            .progressViewStyle(.linear)
+                    } else {
+                        Text(indexStatusText)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if !indexStatsText.isEmpty && workspaceStore.indexProgress == nil {
                         Text(indexStatsText)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.tertiary)
@@ -619,19 +636,12 @@ struct SettingsView: View {
                     Button("Reindex") {
                         Task {
                             indexStatusText = "Reindexing..."
-                            let index = workspaceStore.codebaseIndex
-                            let paths = workspaceStore.activeWorkspace.map {
-                                $0.folderPaths.map { URL(fileURLWithPath: $0) }
-                            } ?? []
-                            let globalExcluded = codebaseIndexExcludedPaths
-                                .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-                            let workspaceExcluded = workspaceStore.activeWorkspace?.excludedPaths ?? []
-                            var seen = Set<String>()
-                            let excluded = (workspaceExcluded + globalExcluded).filter { seen.insert($0).inserted }
-                            _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
-                            await refreshIndexStatus()
+                            workspaceStore.indexActiveWorkspace()
                         }
-                    }.buttonStyle(.borderedProminent).controlSize(.small)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(workspaceStore.indexProgress != nil)
                 }
             }
 
@@ -642,8 +652,49 @@ struct SettingsView: View {
                     hintBox("Comma-separated list of directories to exclude. Default directories (node_modules, .git, build, etc.) are always excluded.")
                 }
             }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Respect .gitignore", isOn: $codebaseIndexRespectGitignore)
+                        .toggleStyle(.switch)
+                        .onChange(of: codebaseIndexRespectGitignore) { _ in
+                            workspaceStore.indexActiveWorkspace()
+                        }
+                    hintBox("When enabled, files and directories listed in .gitignore are excluded from indexing.")
+                }
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Excluded file patterns")
+                    TextField("*.generated.swift, *.pb.swift, *.min.js", text: $codebaseIndexExcludedFilePatterns)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: codebaseIndexExcludedFilePatterns) { _ in
+                            // Debounce: only re-index after a short pause
+                        }
+                    hintBox("Comma-separated glob patterns for files to exclude (e.g. *.generated.swift, *.pb.swift).")
+                    Button("Apply") {
+                        workspaceStore.indexActiveWorkspace()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
         }
-        .onAppear { Task { await refreshIndexStatus() } }
+        .onAppear {
+            Task { await refreshIndexStatus() }
+            statusRefreshTask = Task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s
+                    guard !Task.isCancelled else { break }
+                    await refreshIndexStatus()
+                }
+            }
+        }
+        .onDisappear {
+            statusRefreshTask?.cancel()
+            statusRefreshTask = nil
+        }
     }
 
     // MARK: - Behavior
@@ -827,98 +878,158 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func multiAccountProviderSection(_ provider: CLIProviderKind) -> some View {
-        GroupBox("Multi-account \(provider.displayName)") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle("Enable multi-account CLI", isOn: $cliAccountsStore.multiAccountEnabled)
-                Text("Auto-switch on quota/rate-limit events and local daily/weekly/monthly limits.")
-                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Label("Accounts", systemImage: "person.2")
+                        .font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Toggle("Multi-account", isOn: $cliAccountsStore.multiAccountEnabled)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                }
 
                 let providerAccounts = cliAccountsStore.accounts(for: provider)
                 if providerAccounts.isEmpty {
-                    Text("No accounts configured for \(provider.displayName).")
-                        .font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 6) {
+                            Image(systemName: "person.badge.plus")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.tertiary)
+                            Text("No accounts yet")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 12)
+                        Spacer()
+                    }
                 } else {
                     ForEach(providerAccounts) { account in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                TextField("Label", text: Binding(
-                                    get: { account.label },
-                                    set: { var u = account; u.label = $0; cliAccountsStore.update(u) }
-                                ))
-                                Toggle("Enabled", isOn: Binding(
-                                    get: { account.isEnabled },
-                                    set: { var u = account; u.isEnabled = $0; cliAccountsStore.update(u) }
-                                )).toggleStyle(.checkbox)
-                                Stepper("Priority \(account.priority)", value: Binding(
-                                    get: { account.priority },
-                                    set: { var u = account; u.priority = max(0, $0); cliAccountsStore.update(u) }
-                                ), in: 0...99)
-                            }
-                            HStack(spacing: 10) {
-                                statusBadge(connected: accountAuthStatus(account).isLoggedIn, label: accountStatusLabel(account))
-                                let day = cliUsageLedger.totals(accountId: account.id, period: .day)
-                                let week = cliUsageLedger.totals(accountId: account.id, period: .weekOfYear)
-                                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
-                                Text("Today $\(day.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
-                                Text("W $\(week.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
-                                Text("M $\(month.cost, specifier: "%.2f")").font(.caption2).foregroundStyle(.secondary)
-                            }
-                            HStack(spacing: 8) {
-                                Picker("", selection: Binding(
-                                    get: { loginMethodByAccount[account.id] ?? .browserOAuth },
-                                    set: { loginMethodByAccount[account.id] = $0 }
-                                )) {
-                                    ForEach(CLIAccountLoginCoordinator.LoginMethod.allCases) { method in
-                                        Text(method.title).tag(method)
-                                    }
-                                }.labelsHidden().frame(width: 160)
-                                Button("Connect") { connectAccount(account) }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(accountLoginCoordinator.isRunningByAccount[account.id] == true)
-                                Button("Disconnect") { disconnectAccount(account) }.buttonStyle(.bordered)
-                                Button("Test") { testAccount(account) }.buttonStyle(.bordered)
-                                Button("Delete", role: .destructive) { cliAccountsStore.delete(accountId: account.id) }.buttonStyle(.bordered)
-                                if let result = accountTestResultById[account.id] {
-                                    Text(result).font(.caption).foregroundStyle(result.contains("OK") ? .green : .red)
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+                        accountCard(account, provider: provider)
                     }
                 }
 
-                Divider()
-                fieldLabel("Add account")
-                HStack(spacing: 8) {
-                    TextField("Label", text: Binding(
-                        get: { newAccountLabelByProvider[provider, default: ""] },
-                        set: { newAccountLabelByProvider[provider] = $0 }
-                    ))
-                    SecureField("API key (optional)", text: Binding(
-                        get: { newAccountKeyByProvider[provider, default: ""] },
-                        set: { newAccountKeyByProvider[provider] = $0 }
-                    ))
+                Button {
+                    let account = cliAccountsStore.addAccountQuick(provider: provider)
+                    loginSheetAccount = account
+                } label: {
+                    Label("Add Account", systemImage: "plus")
+                        .font(.system(size: 12, weight: .medium))
                 }
-                HStack(spacing: 8) {
-                    TextField("Daily limit $", text: Binding(
-                        get: { newDailyLimitByProvider[provider, default: ""] },
-                        set: { newDailyLimitByProvider[provider] = $0 }
-                    ))
-                    TextField("Weekly limit $", text: Binding(
-                        get: { newWeeklyLimitByProvider[provider, default: ""] },
-                        set: { newWeeklyLimitByProvider[provider] = $0 }
-                    ))
-                    TextField("Monthly limit $", text: Binding(
-                        get: { newMonthlyLimitByProvider[provider, default: ""] },
-                        set: { newMonthlyLimitByProvider[provider] = $0 }
-                    ))
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(4)
+        } label: {
+            Text("\(provider.displayName) Accounts")
+        }
+    }
+
+    @ViewBuilder
+    private func accountCard(_ account: CLIAccount, provider: CLIProviderKind) -> some View {
+        let isConnected = accountAuthStatus(account).isLoggedIn
+
+        VStack(alignment: .leading, spacing: 8) {
+            // Row 1: Avatar + Label + Enabled toggle
+            HStack(spacing: 10) {
+                accountAvatar(account)
+
+                TextField("Label", text: Binding(
+                    get: { account.label },
+                    set: { var u = account; u.label = $0; cliAccountsStore.update(u) }
+                ))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+
+                Spacer()
+
+                Toggle("", isOn: Binding(
+                    get: { account.isEnabled },
+                    set: { var u = account; u.isEnabled = $0; cliAccountsStore.update(u) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
+
+            // Row 2: Status + usage
+            HStack(spacing: 8) {
+                statusBadge(connected: isConnected, label: accountStatusLabel(account))
+
+                Spacer()
+
+                let day = cliUsageLedger.totals(accountId: account.id, period: .day)
+                let month = cliUsageLedger.totals(accountId: account.id, period: .month)
+                Text("$\(day.cost, specifier: "%.2f")/d")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+                Text("$\(month.cost, specifier: "%.2f")/m")
+                    .font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+
+            // Row 3: Actions
+            HStack(spacing: 6) {
+                if !isConnected {
+                    Button("Sign In") {
+                        loginSheetAccount = account
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                } else {
+                    Button("Disconnect") { disconnectAccount(account) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
-                HStack(spacing: 8) {
-                    Button("Add account") { addAccount(provider) }.buttonStyle(.borderedProminent)
-                    Button("Reset limit status") { cliAccountsStore.resetHealth(provider: provider) }.buttonStyle(.bordered)
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = account.id
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
                 }
-            }.padding(4)
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .alert("Delete Account",
+                       isPresented: Binding(
+                        get: { showDeleteConfirmation == account.id },
+                        set: { if !$0 { showDeleteConfirmation = nil } }
+                       )
+                ) {
+                    Button("Delete", role: .destructive) {
+                        cliAccountsStore.delete(accountId: account.id)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Remove \"\(account.label)\"? This will delete the profile directory and credentials.")
+                }
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(isConnected ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+    }
+
+    private func accountAvatar(_ account: CLIAccount) -> some View {
+        ZStack {
+            Circle()
+                .fill(providerAvatarColor(account.provider))
+                .frame(width: 28, height: 28)
+            Text(String(account.label.prefix(1)).uppercased())
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func providerAvatarColor(_ provider: CLIProviderKind) -> Color {
+        switch provider {
+        case .codex: return .green
+        case .claude: return .orange
+        case .gemini: return .blue
         }
     }
 
@@ -944,68 +1055,6 @@ struct SettingsView: View {
         return String(format: "Credits: %.2f %@", balance, currency)
     }
 
-    private func addAccount(_ provider: CLIProviderKind) {
-        let label = newAccountLabelByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-        let secret = newAccountKeyByProvider[provider, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-        let quota = CLIAccountQuotaPolicy(
-            dailyLimitUSD: Double(newDailyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
-            weeklyLimitUSD: Double(newWeeklyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
-            monthlyLimitUSD: Double(newMonthlyLimitByProvider[provider, default: ""].replacingOccurrences(of: ",", with: ".")),
-            dailyTokenLimit: nil, weeklyTokenLimit: nil, monthlyTokenLimit: nil
-        )
-        cliAccountsStore.addAccount(provider: provider, label: label, apiKey: secret.isEmpty ? nil : secret, quota: quota)
-        newAccountLabelByProvider[provider] = ""
-        newAccountKeyByProvider[provider] = ""
-        newDailyLimitByProvider[provider] = ""
-        newWeeklyLimitByProvider[provider] = ""
-        newMonthlyLimitByProvider[provider] = ""
-    }
-
-    private func testAccount(_ account: CLIAccount) {
-        let secret = cliAccountsStore.secret(for: account.id)
-        let env = CLIProfileProvisioner.environmentOverrides(provider: account.provider, profilePath: account.profilePath, secret: secret)
-        let executable: String
-        let args: [String]
-        switch account.provider {
-        case .codex:
-            executable = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "/opt/homebrew/bin/codex") : codexPath
-            args = ["--version"]
-        case .claude:
-            executable = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "/opt/homebrew/bin/claude") : claudePath
-            args = ["--version"]
-        case .gemini:
-            executable = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini") : geminiCliPath
-            args = ["--version"]
-        }
-        Task.detached {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = args
-            var shell = CodexDetector.shellEnvironment()
-            shell.merge(env) { _, new in new }
-            process.environment = shell
-            do {
-                try process.run(); process.waitUntilExit()
-                let ok = process.terminationStatus == 0
-                await MainActor.run { accountTestResultById[account.id] = ok ? "OK" : "Error exit \(process.terminationStatus)" }
-            } catch {
-                await MainActor.run { accountTestResultById[account.id] = "Error: \(error.localizedDescription)" }
-            }
-        }
-    }
-
-    private func connectAccount(_ account: CLIAccount) {
-        let method = loginMethodByAccount[account.id] ?? .browserOAuth
-        let path = providerPath(for: account.provider)
-        let apiKey = cliAccountsStore.secret(for: account.id)
-        accountLoginCoordinator.startLogin(account: account, providerPath: path, method: method, apiKey: apiKey)
-        Task {
-            try? await Task.sleep(for: .seconds(1))
-            let status = accountAuthStatus(account)
-            await MainActor.run { cliAccountsStore.updateAuthStatus(accountId: account.id, status: status) }
-        }
-    }
-
     private func disconnectAccount(_ account: CLIAccount) {
         accountLoginCoordinator.disconnect(account: account)
         let status = accountAuthStatus(account)
@@ -1025,8 +1074,18 @@ struct SettingsView: View {
     }
 
     private func connectToCodex() {
-        if codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil {
-            if codexState.status.isLoggedIn { syncCodex() } else { showCodexLogin = true }
+        guard codexState.status.path != nil || CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) != nil else { return }
+        if codexState.status.isLoggedIn {
+            syncCodex()
+        } else {
+            // Create a quick account and open the login sheet
+            let existingAccounts = cliAccountsStore.accounts(for: .codex)
+            if let first = existingAccounts.first {
+                loginSheetAccount = first
+            } else {
+                let account = cliAccountsStore.addAccountQuick(provider: .codex)
+                loginSheetAccount = account
+            }
         }
     }
 

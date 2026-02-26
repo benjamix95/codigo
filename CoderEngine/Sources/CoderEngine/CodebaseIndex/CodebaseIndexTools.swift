@@ -1,10 +1,13 @@
 import Foundation
+import os
 
 // MARK: - CodebaseIndexTools
 
 /// Integrates CodebaseIndex with MCP/UnifiedToolRuntime.
 /// Exposes codebase index operations as LLM-invokable tools.
 public actor CodebaseIndexTools {
+
+    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "CodebaseIndexTools")
 
     private let index: CodebaseIndex
 
@@ -112,7 +115,14 @@ public actor CodebaseIndexTools {
 
         // Ensure index is built
         let status = await index.status()
-        if shouldPerformFullReindex(statusInfo: status, workspacePaths: workspacePaths) {
+        if status.status == .indexing {
+            Self.logger.notice("execute(\(toolName, privacy: .public)): index is currently building, waiting...")
+            let ready = await index.waitUntilReady(timeoutMs: 30_000)
+            if !ready {
+                Self.logger.warning("execute(\(toolName, privacy: .public)): timed out waiting for index")
+            }
+        } else if shouldPerformFullReindex(statusInfo: status, workspacePaths: workspacePaths) {
+            Self.logger.info("execute(\(toolName, privacy: .public)): triggering full reindex")
             let _ = await index.indexWorkspace(paths: workspacePaths, excludedPaths: excludedPaths)
         }
 

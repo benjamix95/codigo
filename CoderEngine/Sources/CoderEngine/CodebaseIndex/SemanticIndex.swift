@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - SemanticIndex
 
@@ -15,6 +16,8 @@ import Foundation
 /// 2. Tokenize chunks → inverted index
 /// 3. Query: tokenize → BM25 score → rank → return top-K
 public actor SemanticIndex {
+
+    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "SemanticIndex")
 
     // MARK: - BM25 Parameters
 
@@ -62,6 +65,11 @@ public actor SemanticIndex {
         self.persistencePath = persistencePath
     }
 
+    /// Set or update the persistence path (call before buildIndex or loadFromDisk)
+    public func setPersistencePath(_ path: URL?) {
+        self.persistencePath = path
+    }
+
     // MARK: - Full Index Build
 
     /// Build the semantic index from a set of IndexedFiles.
@@ -70,6 +78,7 @@ public actor SemanticIndex {
         indexedFiles: [IndexedFile],
         workspaceRoot: URL
     ) async {
+        Self.logger.info("buildIndex: starting for \(indexedFiles.count) files")
         // Reset state
         chunks.removeAll()
         invertedIndex.removeAll()
@@ -98,6 +107,8 @@ public actor SemanticIndex {
 
         // Phase 3: Compute average doc length
         recalcAvgDocLength()
+
+        Self.logger.info("buildIndex: completed — \(self.chunks.count) chunks, \(self.invertedIndex.count) tokens, \(self.fileToChunks.count) files")
 
         // Phase 4: Persist if configured
         if persistencePath != nil {
@@ -191,7 +202,15 @@ public actor SemanticIndex {
         numResults: Int = 25
     ) -> [SearchResult] {
         let queryTokens = tokenize(query)
-        guard !queryTokens.isEmpty else { return [] }
+        guard !queryTokens.isEmpty else {
+            Self.logger.debug("search: empty query tokens for '\(query, privacy: .public)'")
+            return []
+        }
+
+        if chunks.isEmpty {
+            Self.logger.notice("search: index is empty (0 chunks), query='\(query, privacy: .public)'")
+            return []
+        }
 
         // Score all documents using BM25
         var scores: [String: Double] = [:]
@@ -476,7 +495,14 @@ public actor SemanticIndex {
 
     // MARK: - Persistence
 
-    /// Save index to disk as JSONL
+    /// Metadata persisted alongside the JSONL chunk data
+    private struct PersistenceMetadata: Codable {
+        let simHash: UInt64
+        let totalChunks: Int
+        let totalFiles: Int
+    }
+
+    /// Save index to disk as JSONL + metadata
     private func persist() async {
         guard let path = persistencePath else { return }
         let encoder = JSONEncoder()
@@ -489,6 +515,17 @@ public actor SemanticIndex {
         }
         let content = lines.joined(separator: "\n")
         try? content.write(to: path, atomically: true, encoding: .utf8)
+
+        // Persist metadata (simHash) for cache validation
+        let metaPath = path.deletingLastPathComponent().appendingPathComponent("semantic.meta.json")
+        let meta = PersistenceMetadata(
+            simHash: currentSimHash,
+            totalChunks: chunks.count,
+            totalFiles: fileToChunks.count
+        )
+        if let metaData = try? JSONEncoder().encode(meta) {
+            try? metaData.write(to: metaPath, options: .atomic)
+        }
     }
 
     /// Load index from disk
@@ -513,5 +550,13 @@ public actor SemanticIndex {
             addChunks([chunk], forFile: chunk.filePath)
         }
         recalcAvgDocLength()
+
+        // Restore metadata (simHash for cache validation)
+        let metaPath = path.deletingLastPathComponent().appendingPathComponent("semantic.meta.json")
+        if let metaData = try? Data(contentsOf: metaPath),
+           let meta = try? JSONDecoder().decode(PersistenceMetadata.self, from: metaData) {
+            currentSimHash = meta.simHash
+            Self.logger.info("loadFromDisk: restored \(loadedChunks.count) chunks, simHash=\(meta.simHash)")
+        }
     }
 }

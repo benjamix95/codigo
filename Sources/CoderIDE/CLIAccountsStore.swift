@@ -49,6 +49,15 @@ final class CLIAccountsStore: ObservableObject {
         save()
     }
 
+    /// Quick-add an account with auto-generated label. Returns the created account.
+    @discardableResult
+    func addAccountQuick(provider: CLIProviderKind) -> CLIAccount {
+        let nextNum = accounts(for: provider).count + 1
+        let label = "Account \(nextNum)"
+        addAccount(provider: provider, label: label, apiKey: nil)
+        return accounts.last!
+    }
+
     func update(_ account: CLIAccount) {
         guard let idx = accounts.firstIndex(where: { $0.id == account.id }) else { return }
         var updated = account

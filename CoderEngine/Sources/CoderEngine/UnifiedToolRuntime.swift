@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public struct ToolCall: Sendable {
     public let id: String
@@ -7,6 +8,22 @@ public struct ToolCall: Sendable {
     public let sourceProvider: String
     public let swarmId: String?
     public let scope: ExecutionScope
+
+    public init(
+        id: String,
+        name: String,
+        args: [String: String],
+        sourceProvider: String,
+        swarmId: String?,
+        scope: ExecutionScope
+    ) {
+        self.id = id
+        self.name = name
+        self.args = args
+        self.sourceProvider = sourceProvider
+        self.swarmId = swarmId
+        self.scope = scope
+    }
 }
 
 public struct ToolResult: Sendable {
@@ -122,6 +139,8 @@ public struct ToolRuntimeDebugSnapshot: Sendable, Equatable {
 }
 
 public actor UnifiedToolRuntime {
+    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "UnifiedToolRuntime")
+
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
     private let mcpSessions: MCPSessionManager
@@ -1539,25 +1558,30 @@ public actor UnifiedToolRuntime {
         let caseSensitive = (call.args["case_sensitive"] ?? "false").lowercased() == "true"
         let multiline = (call.args["multiline"] ?? "false").lowercased() == "true"
 
-        // If query looks like a symbol name (no regex chars) and index is available, try index first
-        if let indexTools, !query.isEmpty, !containsRegexChars(query) {
-            let indexEvents = await indexTools.execute(
-                toolName: "codebase_search",
-                args: ["query": query, "kind": "all"],
-                callId: call.id,
-                workspacePaths: workspacePaths,
-                excludedPaths: excludedPaths
-            )
-            let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
-            if indexResult.ok,
-               let output = indexResult.payload["output"],
-                !output.isEmpty,
-                !output.contains("No symbols found") {
-                // Merge with ripgrep results for completeness
-                var payload = indexResult.payload
-                payload["title"] = "Grep \(query) (index + rg)"
-                payload["pathScope"] = scopes.joined(separator: ",")
-                return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
+        // If query looks like a symbol name (no regex chars) and index is available, try index first.
+        // Use a short timeout (200ms) to avoid blocking grep when the index is still building.
+        if let indexTools, let codebaseIndex, !query.isEmpty, !containsRegexChars(query) {
+            let indexReady = await codebaseIndex.waitUntilReady(timeoutMs: 200)
+            if indexReady {
+                let indexEvents = await indexTools.execute(
+                    toolName: "codebase_search",
+                    args: ["query": query, "kind": "all"],
+                    callId: call.id,
+                    workspacePaths: workspacePaths,
+                    excludedPaths: excludedPaths
+                )
+                let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
+                if indexResult.ok,
+                   let output = indexResult.payload["output"],
+                    !output.isEmpty,
+                    !output.contains("No symbols found") {
+                    var payload = indexResult.payload
+                    payload["title"] = "Grep \(query) (index + rg)"
+                    payload["pathScope"] = scopes.joined(separator: ",")
+                    return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
+                }
+            } else {
+                Self.logger.debug("executeGrep: index not ready within 200ms, skipping to ripgrep for '\(query, privacy: .public)'")
             }
         }
 
@@ -2685,6 +2709,14 @@ public actor UnifiedToolRuntime {
         guard !requestedPaths.isEmpty else { return }
 
         let status = await index.status()
+
+        // Wait for in-progress indexing to finish before proceeding
+        if status.status == .indexing {
+            Self.logger.debug("ensureSemanticIndexReady: waiting for in-progress indexing to finish")
+            let _ = await index.waitUntilReady(timeoutMs: 30_000)
+            return
+        }
+
         guard shouldPerformSemanticFullReindex(statusInfo: status, requestedWorkspacePaths: requestedPaths)
         else { return }
 

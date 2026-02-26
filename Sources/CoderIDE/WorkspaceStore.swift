@@ -5,17 +5,25 @@ private let workspacesKey = "CoderIDE.workspaces"
 private let activeWorkspaceIdKey = "CoderIDE.activeWorkspaceId"
 private let codebaseIndexEnabledKey = "codebase_index_enabled"
 private let codebaseIndexExcludedPathsKey = "codebase_index_excluded_paths"
+private let codebaseIndexRespectGitignoreKey = "codebase_index_respect_gitignore"
+private let codebaseIndexExcludedFilePatternsKey = "codebase_index_excluded_file_patterns"
 
 @MainActor
 final class WorkspaceStore: ObservableObject {
     @Published var workspaces: [Workspace] = []
     @Published var activeWorkspaceId: UUID?
 
+    /// Indexing progress (nil when not indexing)
+    @Published var indexProgress: IndexingProgress?
+
     /// Shared codebase index — available to all providers
     let codebaseIndex = CodebaseIndex()
 
     /// File watcher for real-time index updates
     private var fileWatcher: FileWatcher?
+
+    /// Progress polling task
+    private var progressPollingTask: Task<Void, Never>?
 
     init() {
         load()
@@ -59,6 +67,22 @@ final class WorkspaceStore: ObservableObject {
         return combined.filter { seen.insert($0).inserted }
     }
 
+    private var isRespectGitignoreEnabled: Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: codebaseIndexRespectGitignoreKey) == nil {
+            return true
+        }
+        return defaults.bool(forKey: codebaseIndexRespectGitignoreKey)
+    }
+
+    private var globalExcludedFilePatterns: [String] {
+        let raw = UserDefaults.standard.string(forKey: codebaseIndexExcludedFilePatternsKey) ?? ""
+        return raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
     /// Index the active workspace (called on workspace change)
     func indexActiveWorkspace() {
         let paths = activeWorkspacePaths
@@ -69,6 +93,11 @@ final class WorkspaceStore: ObservableObject {
             fileWatcher = nil
         }
 
+        // Cancel previous polling
+        progressPollingTask?.cancel()
+        progressPollingTask = nil
+        indexProgress = nil
+
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
             let index = codebaseIndex
             Task.detached(priority: .utility) {
@@ -78,15 +107,43 @@ final class WorkspaceStore: ObservableObject {
         }
 
         let excluded = effectiveExcludedPaths
+        let filePatterns = globalExcludedFilePatterns
+        let gitignore = isRespectGitignoreEnabled
         let index = codebaseIndex
+
+        // Start progress polling
+        startProgressPolling()
+
         Task.detached(priority: .utility) {
-            let _ = await index.indexWorkspace(paths: paths, excludedPaths: excluded)
+            let _ = await index.indexWorkspace(
+                paths: paths,
+                excludedPaths: excluded,
+                excludedFilePatterns: filePatterns,
+                respectGitignore: gitignore
+            )
 
             // Start file watcher for real-time updates
             let watcher = FileWatcher(index: index, workspacePaths: paths)
             await watcher.start()
             await MainActor.run { [weak self] in
                 self?.fileWatcher = watcher
+                self?.progressPollingTask?.cancel()
+                self?.progressPollingTask = nil
+                self?.indexProgress = nil
+            }
+        }
+    }
+
+    /// Poll codebase index progress at 300ms intervals
+    private func startProgressPolling() {
+        let index = codebaseIndex
+        progressPollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let info = await index.status()
+                guard !Task.isCancelled else { break }
+                self?.indexProgress = info.progress
+                if info.status != .indexing { break }
+                try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
             }
         }
     }
@@ -156,6 +213,7 @@ final class WorkspaceStore: ObservableObject {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
         workspaces[idx].folderPaths.removeAll { $0 == path }
         save()
+        if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
     }
 
     func update(_ workspace: Workspace) {

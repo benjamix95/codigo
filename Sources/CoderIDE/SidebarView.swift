@@ -751,6 +751,8 @@ struct SidebarView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
+            ProfileSwitcherView()
+
             Label("Codigo", systemImage: "command")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -764,6 +766,9 @@ struct SidebarView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.clear)
+        .onReceive(NotificationCenter.default.publisher(for: .openSettingsToAccounts)) { _ in
+            showSettings = true
+        }
     }
 
     private func relativeDate(_ date: Date) -> String {

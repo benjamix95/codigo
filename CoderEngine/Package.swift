@@ -6,7 +6,8 @@ let package = Package(
     name: "CoderEngine",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "CoderEngine", targets: ["CoderEngine"])
+        .library(name: "CoderEngine", targets: ["CoderEngine"]),
+        .executable(name: "coderide-mcp-server", targets: ["CoderIDEMCPServer"])
     ],
     dependencies: [
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.10.0")
@@ -16,6 +17,14 @@ let package = Package(
             name: "CoderEngine",
             dependencies: [.product(name: "MCP", package: "swift-sdk")],
             path: "Sources/CoderEngine"
+        ),
+        .executableTarget(
+            name: "CoderIDEMCPServer",
+            dependencies: [
+                "CoderEngine",
+                .product(name: "MCP", package: "swift-sdk")
+            ],
+            path: "Sources/CoderIDEMCPServer"
         ),
         .testTarget(
             name: "CoderEngineTests",
