@@ -23,9 +23,10 @@ final class CLIAccountLoginCoordinator: ObservableObject {
     @Published private(set) var statusByAccount: [UUID: String] = [:]
     @Published private(set) var authURLByAccount: [UUID: URL] = [:]
     @Published private(set) var lastOutputByAccount: [UUID: String] = [:]
+    @Published private(set) var awaitingInputByAccount: [UUID: Bool] = [:]
 
     private var loginProcesses: [UUID: Process] = [:]
-    private var autoOpenedAuthURLAccounts: Set<UUID> = []
+    private var loginInputPipes: [UUID: Pipe] = [:]
 
     func startLogin(account: CLIAccount, providerPath: String?, method: LoginMethod, apiKey: String?) {
         let executable = CLIAccountAuthDetector.resolveExecutable(provider: account.provider, providerPath: providerPath)
@@ -46,13 +47,14 @@ final class CLIAccountLoginCoordinator: ObservableObject {
         statusByAccount[account.id] = "Starting login..."
         authURLByAccount[account.id] = nil
         lastOutputByAccount[account.id] = nil
-        autoOpenedAuthURLAccounts.remove(account.id)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         let outPipe = Pipe()
+        let inputPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = outPipe
+        process.standardInput = inputPipe
 
         let env = CLIAccountAuthDetector.buildEnvironment(for: account)
         process.environment = env
@@ -70,7 +72,6 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                 return
             }
             process.arguments = loginArgs(provider: account.provider, method: .apiKey)
-            process.standardInput = Pipe()
         }
 
         outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -79,42 +80,58 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
             let cleaned = Self.sanitizeOutput(text)
             let url = Self.extractFirstURL(from: cleaned)
+            let outputNeedsInput = Self.outputRequestsInteractiveCode(
+                cleaned,
+                provider: account.provider
+            )
             DispatchQueue.main.async {
                 if let url {
                     self.authURLByAccount[account.id] = url
-                    if method == .browserOAuth, !self.autoOpenedAuthURLAccounts.contains(account.id) {
-                        NSWorkspace.shared.open(url)
-                        self.autoOpenedAuthURLAccounts.insert(account.id)
-                    }
+                }
+                if outputNeedsInput {
+                    self.awaitingInputByAccount[account.id] = true
                 }
 
                 let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
                 self.lastOutputByAccount[account.id] = trimmed
 
-                if method == .browserOAuth, self.authURLByAccount[account.id] != nil {
-                    self.statusByAccount[account.id] = "Browser opened, complete the login..."
+                if self.awaitingInputByAccount[account.id] == true {
+                    self.statusByAccount[account.id] = "Paste the authentication code and submit"
+                } else if method == .browserOAuth, self.authURLByAccount[account.id] != nil {
+                    self.statusByAccount[account.id] = "Open the login link in your browser..."
                 } else {
                     self.statusByAccount[account.id] = trimmed
                 }
             }
         }
 
-        process.terminationHandler = { [weak self] _ in
+        process.terminationHandler = { [weak self] proc in
             guard let self else { return }
             DispatchQueue.main.async {
                 outPipe.fileHandleForReading.readabilityHandler = nil
                 self.loginProcesses[account.id] = nil
+                self.loginInputPipes[account.id] = nil
+                self.awaitingInputByAccount[account.id] = false
                 self.isRunningByAccount[account.id] = false
+                if proc.terminationReason == .exit,
+                   proc.terminationStatus == 0,
+                   self.statusByAccount[account.id] != "Login cancelled" {
+                    self.statusByAccount[account.id] = "Connected"
+                }
             }
         }
 
         do {
             try process.run()
             loginProcesses[account.id] = process
-            if method == .apiKey, let apiKey, let input = process.standardInput as? Pipe {
-                input.fileHandleForWriting.write((apiKey + "\n").data(using: .utf8) ?? Data())
-                try? input.fileHandleForWriting.close()
+            loginInputPipes[account.id] = inputPipe
+            awaitingInputByAccount[account.id] = false
+            if method == .apiKey, let apiKey {
+                try inputPipe.fileHandleForWriting.write(
+                    contentsOf: (apiKey + "\n").data(using: .utf8) ?? Data()
+                )
+                try? inputPipe.fileHandleForWriting.close()
             }
             Task { await pollLoginStatus(account: account, providerPath: providerPath) }
         } catch {
@@ -134,6 +151,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                 await MainActor.run {
                     isRunningByAccount[account.id] = false
                     statusByAccount[account.id] = "Connected"
+                    awaitingInputByAccount[account.id] = false
                 }
                 return
             }
@@ -149,9 +167,34 @@ final class CLIAccountLoginCoordinator: ObservableObject {
     func cancelLogin(accountId: UUID) {
         loginProcesses[accountId]?.terminate()
         loginProcesses[accountId] = nil
+        loginInputPipes[accountId] = nil
         isRunningByAccount[accountId] = false
         statusByAccount[accountId] = "Login cancelled"
-        autoOpenedAuthURLAccounts.remove(accountId)
+        awaitingInputByAccount[accountId] = false
+    }
+
+    @discardableResult
+    func submitInteractiveInput(accountId: UUID, text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            statusByAccount[accountId] = "Authentication code is empty"
+            return false
+        }
+        guard let inputPipe = loginInputPipes[accountId] else {
+            statusByAccount[accountId] = "Login process not ready for input"
+            return false
+        }
+        do {
+            try inputPipe.fileHandleForWriting.write(
+                contentsOf: (trimmed + "\n").data(using: .utf8) ?? Data()
+            )
+            statusByAccount[accountId] = "Code submitted, waiting for confirmation..."
+            awaitingInputByAccount[accountId] = false
+            return true
+        } catch {
+            statusByAccount[accountId] = "Failed to submit code: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func disconnect(account: CLIAccount) {
@@ -258,5 +301,28 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             scalar.value == 0x09 || scalar.value == 0x0A || scalar.value >= 0x20
         }
         return String(String.UnicodeScalarView(cleanedScalars))
+    }
+
+    nonisolated static func outputRequestsInteractiveCode(_ output: String, provider: CLIProviderKind) -> Bool {
+        let lower = output.lowercased()
+        let commonHints = [
+            "paste authentication code",
+            "enter authentication code",
+            "verification code",
+            "one-time code",
+            "paste code here",
+            "enter code:"
+        ]
+        if commonHints.contains(where: { lower.contains($0) }) {
+            return true
+        }
+        guard provider == .claude else { return false }
+        let claudeHints = [
+            "paste this into claude code",
+            "paste into claude code",
+            "authentication code",
+            "if prompted, paste"
+        ]
+        return claudeHints.contains(where: { lower.contains($0) })
     }
 }

@@ -5,6 +5,13 @@ import CoderEngine
 /// Universal login sheet for any CLI provider (Codex, Claude, Gemini).
 /// Replaces the Codex-specific `CodexLoginView` with a provider-agnostic flow.
 struct CLIAccountLoginSheet: View {
+    private struct BrowserApp: Identifiable {
+        let id: String
+        let name: String
+        let url: URL
+        let isDefault: Bool
+    }
+
     @Environment(\.dismiss) var dismiss
 
     let account: CLIAccount
@@ -15,6 +22,9 @@ struct CLIAccountLoginSheet: View {
     @State private var apiKey = ""
     @State private var phase: LoginPhase = .options
     @State private var copiedURLHint = false
+    @State private var authCodeInput = ""
+    @State private var authCodeHint = ""
+    @State private var availableBrowsers: [BrowserApp] = []
 
     private enum LoginPhase {
         case options
@@ -33,9 +43,12 @@ struct CLIAccountLoginSheet: View {
             }
         }
         .frame(width: 400)
+        .onAppear {
+            refreshAvailableBrowsers()
+        }
         .onReceive(coordinator.$statusByAccount) { statuses in
             guard let status = statuses[account.id] else { return }
-            if status == "Connected" {
+            if statusIsSuccess(status) {
                 dismiss()
                 onDismiss?()
             }
@@ -163,18 +176,40 @@ struct CLIAccountLoginSheet: View {
                     Text("Login link")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    Text(authURL.absoluteString)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .lineLimit(2)
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        Text(authURL.absoluteString)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                    }
 
                     HStack(spacing: 8) {
-                        Link(destination: authURL) {
-                            Label("Open link", systemImage: "arrow.up.right.square")
+                        if availableBrowsers.isEmpty {
+                            Link(destination: authURL) {
+                                Label("Open link", systemImage: "arrow.up.right.square")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        } else {
+                            Menu {
+                                ForEach(availableBrowsers) { browser in
+                                    Button {
+                                        open(authURL, with: browser.url)
+                                    } label: {
+                                        if browser.isDefault {
+                                            Text("\(browser.name) (default)")
+                                        } else {
+                                            Text(browser.name)
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Label("Open in browser", systemImage: "globe")
+                            }
+                            .menuStyle(.borderlessButton)
+                            .controlSize(.small)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
 
                         Button {
                             NSPasteboard.general.clearContents()
@@ -209,6 +244,59 @@ struct CLIAccountLoginSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            if shouldShowAuthCodeInput {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Authentication code")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("Paste the code shown in browser", text: $authCodeInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12, design: .monospaced))
+                    HStack(spacing: 8) {
+                        Button {
+                            let pasted = NSPasteboard.general.string(forType: .string)?
+                                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                            guard !pasted.isEmpty else {
+                                authCodeHint = "Clipboard is empty"
+                                return
+                            }
+                            authCodeInput = pasted
+                            authCodeHint = "Code pasted"
+                        } label: {
+                            Label("Paste", systemImage: "doc.on.clipboard")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Button {
+                            guard coordinator.submitInteractiveInput(
+                                accountId: account.id,
+                                text: authCodeInput
+                            ) else {
+                                authCodeHint = "Unable to submit code"
+                                return
+                            }
+                            authCodeHint = "Code submitted"
+                            authCodeInput = ""
+                        } label: {
+                            Label("Submit code", systemImage: "paperplane")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(authCodeInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if !authCodeHint.isEmpty {
+                            Text(authCodeHint)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            }
+
             if isLoginSuccess {
                 Button("Done") {
                     dismiss()
@@ -231,6 +319,8 @@ struct CLIAccountLoginSheet: View {
     // MARK: - Actions
 
     private func loginWithBrowser() {
+        authCodeInput = ""
+        authCodeHint = ""
         phase = .polling(message: "Opening browser...")
         coordinator.startLogin(
             account: account,
@@ -241,6 +331,8 @@ struct CLIAccountLoginSheet: View {
     }
 
     private func loginWithDeviceCode() {
+        authCodeInput = ""
+        authCodeHint = ""
         phase = .polling(message: "Generating device code...")
         coordinator.startLogin(
             account: account,
@@ -252,6 +344,8 @@ struct CLIAccountLoginSheet: View {
 
     private func loginWithAPIKey() {
         guard !apiKey.isEmpty else { return }
+        authCodeInput = ""
+        authCodeHint = ""
         phase = .polling(message: "Authenticating...")
 
         // Store key in keychain first
@@ -305,8 +399,18 @@ struct CLIAccountLoginSheet: View {
 
     private var isLoginSuccess: Bool {
         guard let status = coordinator.statusByAccount[account.id] else { return false }
-        let lower = status.lowercased()
-        return lower.contains("successfully") || lower.contains("logged in") || status == "Connected"
+        return statusIsSuccess(status)
+    }
+
+    private var shouldShowAuthCodeInput: Bool {
+        if coordinator.awaitingInputByAccount[account.id] == true {
+            return true
+        }
+        guard account.provider == .claude else { return false }
+        if case .polling = phase {
+            return true
+        }
+        return false
     }
 
     private var dividerLine: some View {
@@ -314,6 +418,55 @@ struct CLIAccountLoginSheet: View {
             Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
             Text("or").font(.caption).foregroundStyle(.tertiary)
             Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
+        }
+    }
+
+    private func statusIsSuccess(_ status: String) -> Bool {
+        let lower = status.lowercased()
+        return status == "Connected"
+            || lower.contains("logged in")
+            || lower.contains("login successful")
+            || lower.contains("authenticated")
+            || lower.contains("connected")
+    }
+
+    private func open(_ url: URL, with browserURL: URL) {
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: browserURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, _ in }
+    }
+
+    private func refreshAvailableBrowsers() {
+        guard let probeURL = URL(string: "https://claude.ai") else { return }
+        let defaultAppURL = NSWorkspace.shared.urlForApplication(toOpen: probeURL)
+        let defaultBundleId = defaultAppURL.flatMap { Bundle(url: $0)?.bundleIdentifier }
+        let appURLs = NSWorkspace.shared.urlsForApplications(toOpen: probeURL)
+
+        var seen: Set<String> = []
+        var detected: [BrowserApp] = []
+        for appURL in appURLs {
+            guard let bundle = Bundle(url: appURL) else { continue }
+            let bundleId = bundle.bundleIdentifier ?? appURL.path
+            guard seen.insert(bundleId).inserted else { continue }
+            let displayName = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+                ?? appURL.deletingPathExtension().lastPathComponent
+            detected.append(
+                BrowserApp(
+                    id: bundleId,
+                    name: displayName,
+                    url: appURL,
+                    isDefault: bundleId == defaultBundleId
+                )
+            )
+        }
+        availableBrowsers = detected.sorted { lhs, rhs in
+            if lhs.isDefault != rhs.isDefault {
+                return lhs.isDefault
+            }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
 }
