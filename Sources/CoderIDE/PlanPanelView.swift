@@ -3,7 +3,13 @@ import SwiftUI
 import CoderEngine
 import UniformTypeIdentifiers
 
-func isPlanBuildEnabled(phase: PlanFlowPhase, hasBuildChoice: Bool, allowIdleRebuild: Bool = false) -> Bool {
+func isPlanBuildEnabled(
+    phase: PlanFlowPhase,
+    hasBuildChoice: Bool,
+    allowIdleRebuild: Bool = false,
+    providerExecutionCapable: Bool = true
+) -> Bool {
+    guard providerExecutionCapable else { return false }
     switch phase {
     case .proposalReady, .readyToBuild:
         return true
@@ -434,17 +440,19 @@ struct PlanPanelView: View {
     // MARK: - Build Button
 
     private var isPlanFullyBuilt: Bool {
-        guard let board = chatStore.planBoard(for: conversationId), !board.steps.isEmpty else {
+        let canonical = canonicalPlanTodos
+        guard !canonical.isEmpty else {
             return false
         }
-        return board.steps.allSatisfy { $0.status == .done } && !isCurrentConversationLoading
+        return canonical.allSatisfy { $0.status == .done } && !isCurrentConversationLoading
     }
 
     private var isBuildEnabledByPhase: Bool {
         isPlanBuildEnabled(
             phase: planFlowPhase,
             hasBuildChoice: resolvedBuildChoice != nil,
-            allowIdleRebuild: false
+            allowIdleRebuild: false,
+            providerExecutionCapable: isActiveProviderExecutionCapable
         )
     }
 
@@ -800,6 +808,7 @@ struct PlanPanelView: View {
                     .padding(.vertical, 6)
             } else {
                 ForEach(items) { entry in
+                    let selectedHistoryOptionId = selectedOptionIdForHistoryEntry(entry)
                     HStack(alignment: .top, spacing: 8) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.title)
@@ -815,7 +824,7 @@ struct PlanPanelView: View {
                                 planHistoryStore.setSelectedEntry(id: nil)
                             } else {
                                 planHistoryStore.setSelectedEntry(id: entry.id)
-                                let choice = resolvedContent(for: entry)
+                                let choice = resolvedBuildContent(for: entry) ?? ""
                                 if PlanOptionsParser.hasRequiredTodoHeader(choice),
                                    !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
                                     onHistoryEntrySelectedForBuild?()
@@ -829,17 +838,47 @@ struct PlanPanelView: View {
                                 .foregroundStyle(isActive ? planColor : .secondary)
                         }
                         .buttonStyle(.plain)
+                        if !entry.options.isEmpty {
+                            Menu {
+                                ForEach(entry.options.sorted(by: { $0.id < $1.id })) { option in
+                                    Button {
+                                        planHistoryStore.updateChosenPath(id: entry.id, chosenPath: option.fullText)
+                                        planHistoryStore.setSelectedEntry(id: entry.id)
+                                        onHistoryEntrySelectedForBuild?()
+                                        historySelectionVersion &+= 1
+                                        buildHint = "Selected Option \(option.id)"
+                                    } label: {
+                                        HStack {
+                                            Text("Option \(option.id): \(option.title)")
+                                                .lineLimit(1)
+                                            if selectedHistoryOptionId == option.id {
+                                                Spacer()
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "list.number")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .help("Select option for rebuild")
+                        }
                         Button {
                             guard isPlanBuildEnabled(
                                 phase: planFlowPhase,
                                 hasBuildChoice: true,
-                                allowIdleRebuild: true
+                                allowIdleRebuild: true,
+                                providerExecutionCapable: isActiveProviderExecutionCapable
                             ) else {
                                 buildHint = phaseHint ?? "Build unavailable in this phase."
                                 return
                             }
                             planHistoryStore.setSelectedEntry(id: entry.id)
-                            let choice = resolvedContent(for: entry)
+                            guard let choice = resolvedBuildContent(for: entry) else {
+                                buildHint = "Select an option before rebuilding."
+                                return
+                            }
                             let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
                             let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
                             guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
@@ -940,6 +979,10 @@ struct PlanPanelView: View {
                     Button {
                         let newStatus: TodoStatus = todo.status == .done ? .pending : .done
                         todoStore.setStatus(id: todo.id, status: newStatus)
+                        if let conversationId {
+                            let canonical = todoStore.todos.filter(\.isPlanCanonical)
+                            chatStore.syncPlanStepsFromCanonicalTodos(canonical, in: conversationId)
+                        }
                     } label: {
                         Image(systemName: todo.status == .done ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 13))
@@ -1046,11 +1089,16 @@ struct PlanPanelView: View {
 
     // MARK: - Helpers
 
-    private func resolvedContent(for entry: PlanHistoryEntry) -> String {
+    private func resolvedPreviewContent(for entry: PlanHistoryEntry) -> String {
         if let chosen = entry.chosenPath, !chosen.isEmpty {
             return chosen
         }
         return entry.markdown
+    }
+
+    private func resolvedBuildContent(for entry: PlanHistoryEntry) -> String? {
+        let chosen = entry.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return chosen.isEmpty ? nil : chosen
     }
 
     private var thinSeparator: some View {
@@ -1064,32 +1112,18 @@ struct PlanPanelView: View {
     }
 
     private func resolveBuildChoice() -> (text: String, isFallback: Bool)? {
-        // Only use the local edit buffer when actively editing.
-        if isEditing {
-            let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !workspaceText.isEmpty {
-                return (workspaceText, false)
-            }
-        }
         if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
-            if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !chosen.isEmpty {
+            if let chosen = resolvedBuildContent(for: selected) {
                 return (chosen, false)
             }
-            return (selected.markdown, false)
+            return nil
         }
         if let board = chatStore.planBoard(for: conversationId) {
             if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                !chosen.isEmpty {
                 return (chosen, false)
             }
-            if let first = firstOption(byId: board.options) {
-                return (first.fullText, PlanOptionsParser.isFallbackOption(first))
-            }
-        }
-        if case .awaitingChoice(_, let options) = planningState,
-           let first = firstOption(byId: options) {
-            return (first.fullText, PlanOptionsParser.isFallbackOption(first))
+            return nil
         }
         return nil
     }
@@ -1113,6 +1147,15 @@ struct PlanPanelView: View {
         return nil
     }
 
+    private func selectedOptionIdForHistoryEntry(_ entry: PlanHistoryEntry) -> Int? {
+        guard !entry.options.isEmpty else { return nil }
+        guard let chosen = entry.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !chosen.isEmpty else { return nil }
+        return entry.options.first(where: {
+            normalizedPlanText($0.fullText) == normalizedPlanText(chosen)
+        })?.id
+    }
+
     private func normalizedPlanText(_ text: String) -> String {
         text
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1133,7 +1176,7 @@ struct PlanPanelView: View {
     }
 
     private func downloadPlan(_ entry: PlanHistoryEntry) {
-        let content = resolvedContent(for: entry)
+        let content = resolvedPreviewContent(for: entry)
         let baseName = entry.title.isEmpty ? "PLAN" : entry.title
         let safeName = baseName
             .components(separatedBy: CharacterSet.alphanumerics.inverted)

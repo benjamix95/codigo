@@ -68,7 +68,9 @@ struct PlanBoard: Codable, Equatable {
 
     static func build(from planContent: String, options: [PlanOption]) -> PlanBoard {
         let goal = PlanBoard.extractGoal(from: planContent)
-        let steps = PlanBoard.extractSteps(from: planContent)
+        let primaryOption = options.min(by: { $0.id < $1.id })
+        let initialTodos = primaryOption.map { PlanOptionsParser.extractTodosFromOptionText($0.fullText) } ?? []
+        let steps = PlanBoard.buildSteps(fromTodoTitles: initialTodos)
         return PlanBoard(goal: goal, options: options, chosenPath: nil, steps: steps, updatedAt: .now, walkthroughMarkdown: nil)
     }
 
@@ -80,34 +82,34 @@ struct PlanBoard: Codable, Equatable {
         return String(text.prefix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func extractSteps(from text: String) -> [PlanStep] {
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        var steps: [PlanStep] = []
-        let regex = try? NSRegularExpression(pattern: #"^\s*(\d+)[.)]\s+(.+)$"#)
+    static func buildSteps(
+        fromTodoTitles titles: [String],
+        statusForIndex: ((Int) -> PlanStepStatus)? = nil
+    ) -> [PlanStep] {
+        let cleaned = titles
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else { continue }
-            if let regex,
-               let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
-               let idRange = Range(match.range(at: 1), in: trimmed),
-               let titleRange = Range(match.range(at: 2), in: trimmed) {
-                let rawId = String(trimmed[idRange])
-                let full = String(trimmed[titleRange])
-                steps.append(PlanStep(id: rawId, title: full, description: full, targetFile: nil, status: .pending))
-                continue
-            }
-
-            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                let full = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-                let newId = "b\(steps.count + 1)"
-                steps.append(PlanStep(id: newId, title: full, description: full, targetFile: nil, status: .pending))
-            }
+        if cleaned.isEmpty {
+            return [
+                PlanStep(
+                    id: "1",
+                    title: "Plan execution",
+                    description: "Follow the proposed plan",
+                    targetFile: nil,
+                    status: .pending
+                )
+            ]
         }
 
-        if steps.isEmpty {
-            steps.append(PlanStep(id: "1", title: "Plan execution", description: "Follow the proposed plan", targetFile: nil, status: .pending))
+        return cleaned.enumerated().map { index, title in
+            PlanStep(
+                id: String(index + 1),
+                title: title,
+                description: title,
+                targetFile: nil,
+                status: statusForIndex?(index) ?? .pending
+            )
         }
-        return steps
     }
 }

@@ -5,27 +5,24 @@ import XCTest
 final class ChatStorePlanAttachmentTests: XCTestCase {
     private let convKey = "CoderIDE.conversations"
     private let historyKey = "CoderIDE.planHistory"
-    private var historyFileURL: URL {
-        let appSupport = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first!
-        return appSupport
-            .appendingPathComponent("CoderIDE", isDirectory: true)
-            .appendingPathComponent("planHistory.json")
-    }
+    private var suiteName: String!
+    private var isolatedDefaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: historyKey)
-        try? FileManager.default.removeItem(at: historyFileURL)
+        suiteName = "ChatStorePlanAttachmentTests.\(UUID().uuidString)"
+        isolatedDefaults = UserDefaults(suiteName: suiteName)
+        isolatedDefaults.removePersistentDomain(forName: suiteName)
+        isolatedDefaults.removeObject(forKey: convKey)
+        isolatedDefaults.removeObject(forKey: historyKey)
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: convKey)
-        UserDefaults.standard.removeObject(forKey: historyKey)
-        try? FileManager.default.removeItem(at: historyFileURL)
+        isolatedDefaults.removeObject(forKey: convKey)
+        isolatedDefaults.removeObject(forKey: historyKey)
+        isolatedDefaults.removePersistentDomain(forName: suiteName)
+        isolatedDefaults = nil
+        suiteName = nil
         super.tearDown()
     }
 
@@ -52,18 +49,34 @@ final class ChatStorePlanAttachmentTests: XCTestCase {
             """,
             isStreaming: false
         )
-        let conv = Conversation(title: "test", messages: [message], mode: .agent)
-        let data = try JSONEncoder().encode([conv])
-        UserDefaults.standard.set(data, forKey: convKey)
+        let chat = ChatStore(userDefaults: isolatedDefaults)
+        chat.conversations = []
+        let conversationId = chat.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .agent
+        )
+        chat.addMessage(message, to: conversationId)
 
-        let chat = ChatStore()
-        let history = PlanHistoryStore()
+        let suiteName = "ChatStorePlanAttachmentTests.\(UUID().uuidString)"
+        let isolatedDefaults = UserDefaults(suiteName: suiteName)!
+        isolatedDefaults.removePersistentDomain(forName: suiteName)
+        let isolatedHistoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("planHistory-\(UUID().uuidString).json")
+        defer {
+            isolatedDefaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: isolatedHistoryURL)
+        }
+        let history = PlanHistoryStore(
+            userDefaults: isolatedDefaults,
+            storageURL: isolatedHistoryURL
+        )
 
         chat.backfillPlanAttachmentsIfNeeded(historyStore: history)
         chat.backfillPlanAttachmentsIfNeeded(historyStore: history)
 
         XCTAssertEqual(history.entries.count, 1)
-        let loaded = chat.conversations.first?.messages.first
+        let loaded = chat.conversation(for: conversationId)?.messages.first
         XCTAssertNotNil(loaded?.planAttachment)
     }
 }

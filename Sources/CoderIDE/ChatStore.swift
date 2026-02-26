@@ -258,12 +258,17 @@ struct ConversationCheckpoint: Identifiable, Codable, Equatable {
 private let conversationsStorageKey = "CoderIDE.conversations"
 private let planBoardsStorageKey = "CoderIDE.planBoards"
 
+private struct SendableUserDefaults: @unchecked Sendable {
+    let value: UserDefaults
+}
+
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var activeTaskConversationIds: Set<UUID> = []
     @Published var taskStartDates: [UUID: Date] = [:]
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
+    private let userDefaults: UserDefaults
 
     /// Debounce task for coalescing rapid `saveConversations()` calls.
     private var pendingSaveTask: Task<Void, Never>?
@@ -296,7 +301,8 @@ final class ChatStore: ObservableObject {
         return taskStartDates[id]
     }
 
-    init() {
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
         loadConversations()
         loadPlanBoards()
         if conversations.isEmpty {
@@ -308,7 +314,7 @@ final class ChatStore: ObservableObject {
     private static let asyncLoadThreshold = 100_000 // 100 KB
 
     private func loadConversations() {
-        guard let data = UserDefaults.standard.data(forKey: conversationsStorageKey) else { return }
+        guard let data = userDefaults.data(forKey: conversationsStorageKey) else { return }
 
         if data.count < Self.asyncLoadThreshold {
             // Small dataset – decode synchronously (fast enough, avoids empty-flash).
@@ -338,16 +344,17 @@ final class ChatStore: ObservableObject {
         let snapshot = conversations
         pendingSaveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled, self != nil else { return }
+            guard !Task.isCancelled, let self else { return }
+            let defaults = SendableUserDefaults(value: self.userDefaults)
             Self.persistQueue.async {
                 guard let data = try? JSONEncoder().encode(snapshot) else { return }
-                UserDefaults.standard.set(data, forKey: conversationsStorageKey)
+                defaults.value.set(data, forKey: conversationsStorageKey)
             }
         }
     }
 
     private func loadPlanBoards() {
-        guard let data = UserDefaults.standard.data(forKey: planBoardsStorageKey) else { return }
+        guard let data = userDefaults.data(forKey: planBoardsStorageKey) else { return }
 
         let decode: () -> [UUID: PlanBoard]? = {
             guard let decoded = try? JSONDecoder().decode([String: PlanBoard].self, from: data) else { return nil }
@@ -375,11 +382,12 @@ final class ChatStore: ObservableObject {
         let snapshot = planBoards
         pendingPlanSaveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled, self != nil else { return }
+            guard !Task.isCancelled, let self else { return }
             let serialized = Dictionary(uniqueKeysWithValues: snapshot.map { ($0.key.uuidString, $0.value) })
+            let defaults = SendableUserDefaults(value: self.userDefaults)
             Self.persistQueue.async {
                 guard let data = try? JSONEncoder().encode(serialized) else { return }
-                UserDefaults.standard.set(data, forKey: planBoardsStorageKey)
+                defaults.value.set(data, forKey: planBoardsStorageKey)
             }
         }
     }
@@ -995,6 +1003,8 @@ final class ChatStore: ObservableObject {
     func choosePlanPath(_ chosenPath: String, for conversationId: UUID?) {
         guard let conversationId, var board = planBoards[conversationId] else { return }
         board.chosenPath = chosenPath
+        let optionTodos = PlanOptionsParser.extractTodosFromOptionText(chosenPath)
+        board.steps = PlanBoard.buildSteps(fromTodoTitles: optionTodos)
         board.updatedAt = .now
         planBoards[conversationId] = board
         savePlanBoards()
@@ -1109,6 +1119,44 @@ final class ChatStore: ObservableObject {
         guard let conversationId, var board = planBoards[conversationId] else { return }
         guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
         board.steps[index].status = status
+        board.updatedAt = .now
+        planBoards[conversationId] = board
+        savePlanBoards()
+    }
+
+    func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUID?) {
+        guard let conversationId else { return }
+        var board = planBoards[conversationId] ?? PlanBoard(
+            goal: "Operational plan in progress",
+            options: [],
+            chosenPath: nil,
+            steps: [],
+            updatedAt: .now,
+            walkthroughMarkdown: nil
+        )
+
+        let canonicalTodos = todos
+            .filter(\.isPlanCanonical)
+            .sorted(by: { $0.createdAt < $1.createdAt })
+
+        let steps = PlanBoard.buildSteps(
+            fromTodoTitles: canonicalTodos.map(\.title),
+            statusForIndex: { index in
+                guard canonicalTodos.indices.contains(index) else { return .pending }
+                switch canonicalTodos[index].status {
+                case .pending:
+                    return .pending
+                case .inProgress:
+                    return .running
+                case .done:
+                    return .done
+                case .blocked:
+                    return .failed
+                }
+            }
+        )
+
+        board.steps = steps
         board.updatedAt = .now
         planBoards[conversationId] = board
         savePlanBoards()

@@ -123,6 +123,8 @@ private let todosStorageKey = "CoderIDE.todos"
 final class TodoStore: ObservableObject {
     @Published var todos: [TodoItem] = []
     @Published var filter: TodoFilter = .open
+    private let storageKey: String
+    private let userDefaults: UserDefaults
 
     private func canonicalKey(for title: String) -> String {
         title
@@ -143,7 +145,12 @@ final class TodoStore: ObservableObject {
         (items ?? todos).sorted(by: sortCanonicalFirst(_:_:))
     }
 
-    init() {
+    init(
+        storageKey: String = todosStorageKey,
+        userDefaults: UserDefaults = .standard
+    ) {
+        self.storageKey = storageKey
+        self.userDefaults = userDefaults
         loadTodos()
     }
 
@@ -176,7 +183,7 @@ final class TodoStore: ObservableObject {
     }
 
     private func loadTodos() {
-        guard let data = UserDefaults.standard.data(forKey: todosStorageKey),
+        guard let data = userDefaults.data(forKey: storageKey),
               let decoded = try? JSONDecoder().decode([TodoItem].self, from: data) else {
             return
         }
@@ -185,7 +192,7 @@ final class TodoStore: ObservableObject {
 
     private func saveTodos() {
         guard let data = try? JSONEncoder().encode(todos) else { return }
-        UserDefaults.standard.set(data, forKey: todosStorageKey)
+        userDefaults.set(data, forKey: storageKey)
     }
 
     func add(title: String, source: TodoSource = .manual, priority: TodoPriority = .medium, notes: String = "", linkedFiles: [String] = []) {

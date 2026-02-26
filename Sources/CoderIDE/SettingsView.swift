@@ -112,6 +112,8 @@ struct SettingsView: View {
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
     @AppStorage("summarize_provider") private var summarizeProvider = "openai-api"
     @AppStorage("full_auto_tools") private var fullAutoTools = true
+    @AppStorage(planHistoryMaxEntriesPreferenceKey) private var planHistoryMaxEntries = 200
+    @AppStorage(planHistoryMaxMarkdownLengthPreferenceKey) private var planHistoryMaxMarkdownLength = 65_536
 
     // MARK: - Appearance
     @AppStorage("appearance") private var appearance = "system"
@@ -733,7 +735,9 @@ struct SettingsView: View {
     // MARK: - Behavior
 
     private var behaviorSection: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        let historyEntryLimits = [50, 100, 200]
+        let historyMarkdownLimits = [32_768, 49_152, 65_536]
+        return VStack(alignment: .leading, spacing: 20) {
             sectionHeader(title: "Behavior", subtitle: "Agent and terminal behavior", icon: "bolt.fill")
 
             GroupBox {
@@ -779,6 +783,36 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Auto-approve tools", isOn: $fullAutoTools)
                     hintBox("Automatically approves tool calls (files, terminal, etc.) without interactive confirmation.")
+                }
+            }
+
+            GroupBox("Plan history limits") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        fieldLabel("Max entries")
+                        Spacer()
+                        Picker("Max entries", selection: $planHistoryMaxEntries) {
+                            ForEach(historyEntryLimits, id: \.self) { limit in
+                                Text("\(limit)").tag(limit)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 110)
+                    }
+
+                    HStack {
+                        fieldLabel("Max markdown chars")
+                        Spacer()
+                        Picker("Max markdown chars", selection: $planHistoryMaxMarkdownLength) {
+                            ForEach(historyMarkdownLimits, id: \.self) { limit in
+                                Text("\(limit)").tag(limit)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 130)
+                    }
+
+                    hintBox("Controls how many plan snapshots are retained and their maximum markdown size. Existing history is trimmed immediately when lowering limits.")
                 }
             }
         }

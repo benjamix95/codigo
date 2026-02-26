@@ -53,8 +53,12 @@ struct PlanHistoryEntry: Identifiable, Codable, Equatable {
 }
 
 private let planHistoryUserDefaultsKey = "CoderIDE.planHistory"
-private let maxPlanHistoryEntries = 50
-private let maxPlanMarkdownLength = 32_768
+let planHistoryMaxEntriesPreferenceKey = "plan_history_max_entries"
+let planHistoryMaxMarkdownLengthPreferenceKey = "plan_history_max_markdown_chars"
+private let defaultPlanHistoryMaxEntries = 200
+private let defaultPlanHistoryMaxMarkdownLength = 65_536
+private let allowedPlanHistoryMaxEntries = [50, 100, 200]
+private let allowedPlanHistoryMaxMarkdownLengths = [32_768, 49_152, 65_536]
 private let maxPlanOptionsPersisted = 8
 private let maxPlanTitleLength = 120
 
@@ -62,8 +66,11 @@ private let maxPlanTitleLength = 120
 final class PlanHistoryStore: ObservableObject {
     @Published private(set) var entries: [PlanHistoryEntry] = []
     @Published var selectedEntryId: UUID?
+    private var userDefaultsObserver: NSObjectProtocol?
+    private let userDefaults: UserDefaults
+    private let storageURL: URL
 
-    private static var fileURL: URL {
+    private static var defaultFileURL: URL {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
@@ -72,23 +79,94 @@ final class PlanHistoryStore: ObservableObject {
         return dir.appendingPathComponent("planHistory.json")
     }
 
-    init() {
+    init(
+        userDefaults: UserDefaults = .standard,
+        storageURL: URL? = nil
+    ) {
+        self.userDefaults = userDefaults
+        self.storageURL = storageURL ?? Self.defaultFileURL
         load()
+        applyConfiguredLimits()
+        userDefaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: userDefaults,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.applyConfiguredLimits()
+            }
+        }
+    }
+
+    private var configuredMaxEntries: Int {
+        let stored = userDefaults.integer(forKey: planHistoryMaxEntriesPreferenceKey)
+        let value = stored == 0 ? defaultPlanHistoryMaxEntries : stored
+        return allowedPlanHistoryMaxEntries.contains(value) ? value : defaultPlanHistoryMaxEntries
+    }
+
+    private var configuredMaxMarkdownLength: Int {
+        let stored = userDefaults.integer(forKey: planHistoryMaxMarkdownLengthPreferenceKey)
+        let value = stored == 0 ? defaultPlanHistoryMaxMarkdownLength : stored
+        return allowedPlanHistoryMaxMarkdownLengths.contains(value)
+            ? value
+            : defaultPlanHistoryMaxMarkdownLength
+    }
+
+    private func trimEntriesInMemory() -> Bool {
+        let maxEntries = configuredMaxEntries
+        let maxMarkdownLength = configuredMaxMarkdownLength
+        var updated = false
+
+        let sorted = entries.sorted(by: { $0.createdAt > $1.createdAt })
+        if sorted.count > maxEntries {
+            entries = Array(sorted.prefix(maxEntries))
+            updated = true
+        } else if sorted != entries {
+            entries = sorted
+            updated = true
+        }
+
+        for idx in entries.indices {
+            let sanitizedMarkdown = String(entries[idx].markdown.prefix(maxMarkdownLength))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let safeMarkdown = sanitizedMarkdown.isEmpty
+                ? "Plan unavailable (empty content)."
+                : sanitizedMarkdown
+            if entries[idx].markdown != safeMarkdown {
+                entries[idx].markdown = safeMarkdown
+                entries[idx].updatedAt = .now
+                updated = true
+            }
+        }
+
+        if let sid = selectedEntryId, !entries.contains(where: { $0.id == sid }) {
+            selectedEntryId = nil
+            updated = true
+        }
+        return updated
+    }
+
+    func applyConfiguredLimits() {
+        if trimEntriesInMemory() {
+            save()
+        }
     }
 
     func load() {
         // Try file-based storage first, then fall back to UserDefaults for migration.
-        if let data = try? Data(contentsOf: Self.fileURL),
+        if let data = try? Data(contentsOf: storageURL),
            let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) {
-            entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+            entries = decoded.sorted(by: { $0.createdAt > $1.createdAt })
+            _ = trimEntriesInMemory()
             return
         }
         // Migrate from UserDefaults if present.
-        if let data = UserDefaults.standard.data(forKey: planHistoryUserDefaultsKey),
+        if let data = userDefaults.data(forKey: planHistoryUserDefaultsKey),
            let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) {
-            entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+            entries = decoded.sorted(by: { $0.createdAt > $1.createdAt })
+            _ = trimEntriesInMemory()
             save()
-            UserDefaults.standard.removeObject(forKey: planHistoryUserDefaultsKey)
+            userDefaults.removeObject(forKey: planHistoryUserDefaultsKey)
             return
         }
     }
@@ -96,7 +174,7 @@ final class PlanHistoryStore: ObservableObject {
     func save() {
         do {
             let data = try JSONEncoder().encode(entries)
-            try data.write(to: Self.fileURL, options: .atomic)
+            try data.write(to: storageURL, options: .atomic)
         } catch {
             print("[PlanHistoryStore] save failed: \(error.localizedDescription)")
         }
@@ -126,7 +204,7 @@ final class PlanHistoryStore: ObservableObject {
         tags: [String],
         sourceMessageId: UUID?
     ) -> PlanHistoryEntry {
-        let sanitizedMarkdown = String(markdown.prefix(maxPlanMarkdownLength))
+        let sanitizedMarkdown = String(markdown.prefix(configuredMaxMarkdownLength))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let cappedOptions = Array(options.prefix(maxPlanOptionsPersisted))
         let safeTitle = sanitizeTitle(title)
@@ -145,9 +223,7 @@ final class PlanHistoryStore: ObservableObject {
             sourceMessageId: sourceMessageId
         )
         entries.append(entry)
-        if entries.count > maxPlanHistoryEntries {
-            entries = Array(entries.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
-        }
+        _ = trimEntriesInMemory()
         selectedEntryId = entry.id
         save()
         return entry
@@ -170,9 +246,7 @@ final class PlanHistoryStore: ObservableObject {
         copy.updatedAt = .now
         copy.sourceMessageId = nil
         entries.append(copy)
-        if entries.count > maxPlanHistoryEntries {
-            entries = Array(entries.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
-        }
+        _ = trimEntriesInMemory()
         selectedEntryId = copy.id
         save()
         return copy

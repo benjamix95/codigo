@@ -40,7 +40,7 @@ struct PlanClarificationSubmission: Equatable {
 /// Extracts numbered options from plan text (e.g. "## Option 1: ...", "Option 2:", etc.).
 enum PlanOptionsParser {
     private static let optionHeaderPattern =
-        #"(?i)(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
     private static let nextOptionPattern =
         #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])"#
     private static let optionWithTitlePattern =
@@ -63,6 +63,10 @@ enum PlanOptionsParser {
     private static let checklistLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#)
     private static let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#)
     private static let fallbackNumberedRegex = try? NSRegularExpression(pattern: #"^(\d+)[.)]\s*(.+)"#)
+
+    private static func isFenceDelimiter(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
+    }
 
     static func isOtherLikeClarificationOption(_ option: PlanClarificationOption) -> Bool {
         let normalized = option.text
@@ -222,10 +226,20 @@ enum PlanOptionsParser {
 
         var options: [(num: Int, title: String, full: String)] = []
         let lines = trimmed.components(separatedBy: .newlines)
+        var inFence = false
 
         var i = 0
         while i < lines.count {
             let line = lines[i]
+            if isFenceDelimiter(line) {
+                inFence.toggle()
+                i += 1
+                continue
+            }
+            if inFence {
+                i += 1
+                continue
+            }
             // Match "Option 1:" / "Approach A:" or with Markdown heading.
             if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
@@ -260,9 +274,15 @@ enum PlanOptionsParser {
 
                 var fullLines = [line]
                 i += 1
+                var inOptionFence = false
                 while i < lines.count {
                     let next = lines[i]
-                    if next.range(of: nextOptionPattern, options: .regularExpression) != nil {
+                    if isFenceDelimiter(next) {
+                        inOptionFence.toggle()
+                    }
+                    if !inOptionFence,
+                       next.range(of: nextOptionPattern, options: .regularExpression) != nil
+                    {
                         break
                     }
                     fullLines.append(next)

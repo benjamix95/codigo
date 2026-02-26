@@ -1,5 +1,18 @@
 import SwiftUI
 
+func isClarificationSelectionComplete(
+    question _: PlanClarificationQuestion,
+    selectedOption: PlanClarificationOption?,
+    customText: String?
+) -> Bool {
+    guard let selectedOption else { return false }
+    if PlanOptionsParser.isOtherLikeClarificationOption(selectedOption) {
+        let custom = customText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !custom.isEmpty
+    }
+    return true
+}
+
 /// Card showing clarification questions and asking the user to answer in the composer.
 struct PlanClarificationView: View {
     let questions: String
@@ -376,7 +389,11 @@ struct PlanClarificationWizardView: View {
     }
 
     private func isQuestionAnswered(_ question: PlanClarificationQuestion) -> Bool {
-        selectedOption(for: question) != nil
+        isClarificationSelectionComplete(
+            question: question,
+            selectedOption: selectedOption(for: question),
+            customText: customTextByQuestionId[question.id]
+        )
     }
 }
 

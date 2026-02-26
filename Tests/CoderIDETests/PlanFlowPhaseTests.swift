@@ -57,6 +57,17 @@ final class PlanFlowPhaseTests: XCTestCase {
         XCTAssertTrue(isPlanBuildEnabled(phase: .idle, hasBuildChoice: true, allowIdleRebuild: true))
     }
 
+    func testPanelBuildDisabledWhenProviderIsNotExecutionCapable() {
+        XCTAssertFalse(
+            isPlanBuildEnabled(
+                phase: .readyToBuild,
+                hasBuildChoice: true,
+                allowIdleRebuild: false,
+                providerExecutionCapable: false
+            )
+        )
+    }
+
     func testPanelBuildDisabledInIdleWhenNoChoiceExists() {
         XCTAssertFalse(isPlanBuildEnabled(phase: .idle, hasBuildChoice: false))
     }

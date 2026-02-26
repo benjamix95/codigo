@@ -53,7 +53,14 @@ final class PlanBuildIntegrationFlowTests: XCTestCase {
     }
 
     func testResumeFlowReusesCanonicalTodosAndBuildsResumePrompt() {
-        let store = TodoStore()
+        let suiteName = "PlanBuildIntegrationFlowTests.\(UUID().uuidString)"
+        let isolatedDefaults = UserDefaults(suiteName: suiteName)!
+        isolatedDefaults.removePersistentDomain(forName: suiteName)
+        defer { isolatedDefaults.removePersistentDomain(forName: suiteName) }
+        let store = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: isolatedDefaults
+        )
         let planTodos = [
             "Create full-path integration test",
             "Run swift test"

@@ -153,6 +153,41 @@ func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {
     !isLoading && phase != .building
 }
 
+enum PlanQuestionPhaseDecision: Equatable {
+    case clarification(String)
+    case proceedToGeneration
+}
+
+func hasNoQuestionsNeededSignal(_ text: String) -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return false }
+    let normalized = trimmed
+        .replacingOccurrences(of: #"[.!]"#, with: "", options: .regularExpression)
+        .replacingOccurrences(of: #"[_\-\s]+"#, with: "", options: .regularExpression)
+        .lowercased()
+    return normalized == "noquestionsneeded"
+}
+
+func decidePlanQuestionPhaseOutput(
+    _ text: String,
+    coderMode: CoderMode,
+    shouldRunPlanInline: Bool
+) -> PlanQuestionPhaseDecision {
+    if hasNoQuestionsNeededSignal(text) {
+        return .proceedToGeneration
+    }
+    let classification = PlanOutputClassifier.classify(
+        fullText: text,
+        current: .questioning,
+        coderMode: coderMode,
+        shouldRunPlanInline: shouldRunPlanInline
+    )
+    if case .awaitingClarification(let questions) = classification.planningState {
+        return .clarification(questions)
+    }
+    return .proceedToGeneration
+}
+
 func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> String {
     let orderedAnswers = submission.answers.sorted(by: { $0.questionId < $1.questionId })
     let responseBody = orderedAnswers
@@ -2522,7 +2557,7 @@ struct ChatPanelView: View {
                 guard shouldAcceptTodoWrite(todo, conversationId: conversationId) else { break }
                 enableTaskPanelIfNeeded()
                 if planFlowPhase == .building {
-                    _ = todoStore.upsertCanonicalOnlyFromAgent(
+                    let updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: todo.id,
                         title: todo.title,
                         status: todo.status,
@@ -2530,6 +2565,12 @@ struct ChatPanelView: View {
                         notes: todo.notes,
                         linkedFiles: todo.files
                     )
+                    if updated {
+                        let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
+                        if let sourcePlanId = activeBuildPlanConversationId {
+                            chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
+                        }
+                    }
                 } else {
                     todoStore.upsertFromAgent(
                         id: todo.id,
@@ -4049,12 +4090,12 @@ struct ChatPanelView: View {
 
         todoStore.upsertCanonicalPlanTodos(planTodos)
         let canonicalTodos = todoStore.todos.filter { $0.isPlanCanonical }
+        chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
 
         if let selected = planHistoryStore.selectedEntryId {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
             planHistoryStore.markRebuilt(id: selected)
         }
-        chatStore.updatePlanStepStatus(stepId: "1", status: .running, in: planConversationId)
         selectedConversationId = agentConvId
         providerRegistry.selectedProviderId = provider.id
         coderMode = .agent
@@ -4137,21 +4178,18 @@ struct ChatPanelView: View {
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 clearStreamingReasoning(for: agentConvId)
-                chatStore.updatePlanStepStatus(stepId: "1", status: .done, in: planConversationId)
                 await MainActor.run { planFlowPhase = .readyToBuild }
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 clearStreamingReasoning(for: agentConvId)
                 if isInterruptedStreamError(error) {
                     traceOutcome = .aborted
-                    chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                     await MainActor.run {
                         applyFlowCoordinatorState(for: agentConvId) { $0.interrupt() }
                         planFlowPhase = .readyToBuild
                     }
                 } else {
                     traceOutcome = .failed
-                    chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                     chatStore.updateLastAssistantMessage(
                         content: userFacingStreamError(error), in: agentConvId)
                     await MainActor.run {
@@ -4632,23 +4670,16 @@ struct ChatPanelView: View {
         )
 
         let questionText = questionResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let needsQuestions = !questionText.contains("NO_QUESTIONS_NEEDED")
+        let questionDecision = decidePlanQuestionPhaseOutput(
+            questionText,
+            coderMode: coderMode,
+            shouldRunPlanInline: shouldRunPlanInline
+        )
 
-        if needsQuestions {
+        if case .clarification(let questions) = questionDecision {
             // Parse questions and pause for user input
-            let classification = PlanOutputClassifier.classify(
-                fullText: questionText,
-                current: .questioning,
-                coderMode: coderMode,
-                shouldRunPlanInline: shouldRunPlanInline
-            )
             await MainActor.run {
-                if case .awaitingClarification(let q) = classification.planningState {
-                    planningState = .awaitingClarification(questions: q)
-                } else {
-                    // Fallback: treat entire text as questions
-                    planningState = .awaitingClarification(questions: questionText)
-                }
+                planningState = .awaitingClarification(questions: questions)
                 planStreamingContent = questionText
                 chatStore.updateLastAssistantMessage(
                     content: questionText, in: conversationId, persistImmediately: true
@@ -4666,11 +4697,14 @@ struct ChatPanelView: View {
             return
         }
 
-        // No questions needed — proceed directly to Phase 3
+        // No structured clarification questions — proceed directly to Phase 3.
         finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
+        let phase2Summary = hasNoQuestionsNeededSignal(questionText)
+            ? "No questions needed. Generating plan..."
+            : "Question phase completed. Generating plan..."
         await MainActor.run {
             chatStore.updateLastAssistantMessage(
-                content: "No questions needed. Generating plan...",
+                content: phase2Summary,
                 in: conversationId,
                 persistImmediately: true
             )

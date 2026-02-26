@@ -137,7 +137,10 @@ Visibile solo quando il panel è aperto manualmente via shortcut. Mostra gli ult
 
 ## Storico e persistenza (PlanHistoryStore)
 
-I piani vengono salvati in `UserDefaults` con queste limitazioni:
+I piani vengono salvati su file in `Application Support/CoderIDE/planHistory.json`.
+`UserDefaults` viene usato solo per migrazione legacy e per le preferenze dei limiti.
+
+Limiti configurabili (Settings → Behavior → Plan history limits), con default:
 
 | Parametro | Limite |
 |-----------|--------|

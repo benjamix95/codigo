@@ -46,6 +46,34 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertTrue(options[0].title.localizedCaseInsensitiveContains("refactor"))
     }
 
+    func testParseStrictIgnoresInlineNarrativeOptionToken() {
+        let input = """
+        Comparison summary: Option 2: keep current architecture for now.
+        This is plain narrative text and should not create structured plan options.
+        """
+
+        let strict = PlanOptionsParser.parseStrict(from: input)
+        XCTAssertTrue(strict.isEmpty)
+    }
+
+    func testParseStrictIgnoresOptionHeadersInsideCodeFences() {
+        let input = """
+        ## Option 1: Real option
+        ## Todo
+        - [ ] Implement step
+
+        ```markdown
+        ## Option 2: This is example code, not a real option
+        ## Todo
+        - [ ] Fake step
+        ```
+        """
+
+        let strict = PlanOptionsParser.parseStrict(from: input)
+        XCTAssertEqual(strict.count, 1)
+        XCTAssertEqual(strict.first?.id, 1)
+    }
+
     func testParseClarificationQuestionsReturnsQuestions() {
         let input = """
         Need more details.

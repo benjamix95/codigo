@@ -3,20 +3,33 @@ import XCTest
 
 @MainActor
 final class TodoStoreTests: XCTestCase {
-    private let storageKey = "CoderIDE.todos"
+    private var storageKey: String!
+    private var suiteName: String!
+    private var userDefaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        storageKey = "CoderIDE.todos.tests.\(UUID().uuidString)"
+        suiteName = "TodoStoreTests.\(UUID().uuidString)"
+        userDefaults = UserDefaults(suiteName: suiteName)
+        userDefaults?.removePersistentDomain(forName: suiteName)
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        userDefaults?.removeObject(forKey: storageKey)
+        userDefaults?.removePersistentDomain(forName: suiteName)
+        userDefaults = nil
+        suiteName = nil
+        storageKey = nil
         super.tearDown()
     }
 
+    private func makeStore() -> TodoStore {
+        TodoStore(storageKey: storageKey, userDefaults: userDefaults)
+    }
+
     func testClearAgentTodosPreservesManualItems() {
-        let store = TodoStore()
+        let store = makeStore()
         store.add(title: "Manual A", source: .manual)
         store.add(title: "Agent A", source: .agent)
         store.add(title: "Manual B", source: .manual)
@@ -29,7 +42,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testUpsertCanonicalPlanTodosKeepsStableIdsForSameTitles() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])
         let firstIds = store.todos.filter { $0.isPlanCanonical }.map(\.id)
 
@@ -41,7 +54,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testRuntimeUpsertBindsToCanonicalTodo() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Map plan flow"])
 
         let canonicalBefore = store.todos.first { $0.isPlanCanonical }
@@ -64,7 +77,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testSortedCanonicalFirstTodosPrioritizesPlanTodos() {
-        let store = TodoStore()
+        let store = makeStore()
         store.add(title: "Runtime task", source: .agent, priority: .high)
         store.upsertCanonicalPlanTodos(["Plan task"])
 
@@ -74,7 +87,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testClearAgentTodosPreservesCanonicalPlanTodos() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Plan A"])
         store.add(title: "Runtime A", source: .agent)
 
@@ -86,7 +99,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testClearAgentTodosWithIncludePlanCanonicalRemovesAllAgentTodos() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Plan A"])
         store.add(title: "Runtime A", source: .agent)
         store.add(title: "Manual A", source: .manual)
@@ -99,7 +112,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testRemovedCanonicalTasksBecomeBlockedWithStandardNote() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Task 1", "Task 2"])
         store.upsertCanonicalPlanTodos(["Task 1"])
 
@@ -109,7 +122,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testEmptyPlanTodosBlocksPendingCanonicalTasks() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Task 1", "Task 2"])
         store.upsertFromAgent(
             id: nil,
@@ -130,7 +143,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testRuntimeExtraTaskStaysNonCanonical() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Task canonica lunga"])
 
         store.upsertFromAgent(
@@ -148,7 +161,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testUpsertCanonicalPlanTodosDoesNotPromoteManualTodoWithSameTitle() {
-        let store = TodoStore()
+        let store = makeStore()
         store.add(title: "Setup CI", source: .manual, priority: .high)
 
         store.upsertCanonicalPlanTodos(["Setup CI"])
@@ -163,7 +176,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testUpsertCanonicalOnlyFromAgentUpdatesExistingCanonicalTodo() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Implement parser wizard"])
 
         let updated = store.upsertCanonicalOnlyFromAgent(
@@ -183,7 +196,7 @@ final class TodoStoreTests: XCTestCase {
     }
 
     func testUpsertCanonicalOnlyFromAgentIgnoresUnknownRuntimeTodo() {
-        let store = TodoStore()
+        let store = makeStore()
         store.upsertCanonicalPlanTodos(["Canonical task"])
 
         let updated = store.upsertCanonicalOnlyFromAgent(
