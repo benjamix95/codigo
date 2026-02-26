@@ -70,6 +70,12 @@ private struct PlanTraceItem: Identifiable {
         case "process_resumed": return "Process resumed"
         case "plan_step_update": return "Plan step updated"
         case "debug_panel", "debug_panel_update": return "Debug panel"
+        case "debug_log": return "Debug log"
+        case "debug_query": return "Debug query"
+        case "debug_session": return "Debug session"
+        case "debug_hypothesize": return "Debug hypothesis"
+        case "debug_mark": return "Debug marker"
+        case "debug_clean": return "Debug clean"
         case "semantic_search": return "Semantic search"
         case "read_lints": return "Reading diagnostics"
         case "debug_context": return "Debug context"
@@ -122,10 +128,20 @@ private struct PlanTraceItem: Identifiable {
     }
 
     private static func status(for activity: TaskActivity) -> Status {
+        let normalizedStatus = (activity.payload["status"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if ["failed", "error", "timeout"].contains(normalizedStatus) {
+            return .failed
+        }
+        if ["completed", "done", "success"].contains(normalizedStatus) {
+            return .completed
+        }
+
         switch activity.type {
         case "web_search_failed", "web_fetch_failed":
             return .failed
-        case "read_batch_completed", "web_search_completed", "web_fetch_completed", "process_resumed":
+        case "read_batch_completed", "web_search_completed", "web_fetch_completed", "process_resumed", "debug_clean":
             return .completed
         default:
             return activity.isRunning ? .running : .completed
@@ -142,7 +158,12 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
-        case "debug_panel", "debug_panel_update": return "ladybug.fill"
+        case "debug_panel", "debug_panel_update", "debug_hypothesize": return "ladybug.fill"
+        case "debug_log": return "text.badge.plus"
+        case "debug_query": return "text.magnifyingglass"
+        case "debug_session": return "play.circle.fill"
+        case "debug_mark": return "mappin.and.ellipse"
+        case "debug_clean": return "trash.fill"
         case "semantic_search": return "brain"
         case "read_lints": return "exclamationmark.triangle.fill"
         case "debug_context": return "list.clipboard.fill"
@@ -161,7 +182,9 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "plan_step_update": return DesignSystem.Colors.planColor
-        case "debug_panel", "debug_panel_update": return DesignSystem.Colors.debugColor
+        case "debug_panel", "debug_panel_update", "debug_hypothesize": return DesignSystem.Colors.debugColor
+        case "debug_log", "debug_query", "debug_session", "debug_mark", "debug_clean":
+            return DesignSystem.Colors.debugColor
         case "semantic_search": return DesignSystem.Colors.info
         case "read_lints": return DesignSystem.Colors.warning
         case "debug_context": return DesignSystem.Colors.debugColor

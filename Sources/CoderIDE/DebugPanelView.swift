@@ -112,7 +112,13 @@ struct DebugPanelView: View {
                 reproduceSection
             }
 
-            // Resolution summary + Fixed button
+            // Verify cleanup + Mark Fixed action
+            if debugStore.phase == .verifying {
+                Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
+                verifyCleanupSection
+            }
+
+            // Resolution summary
             if debugStore.phase == .resolved {
                 Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
                 resolutionSection
@@ -908,7 +914,65 @@ struct DebugPanelView: View {
         .background(DesignSystem.Colors.warning.opacity(0.06))
     }
 
-    // MARK: - Resolution Section (Fixed button)
+    // MARK: - Verify Cleanup Section
+
+    private var verifyCleanupSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.seal")
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("Verification complete")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+
+            Text("Run debug cleanup, verify success, then resolve the session.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Button {
+                    onFixed()
+                } label: {
+                    HStack(spacing: 6) {
+                        if debugStore.awaitingDebugClean {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 11))
+                        }
+                        Text(debugStore.awaitingDebugClean ? "Waiting for debug_clean" : "Mark Fixed")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        debugStore.awaitingDebugClean ? DesignSystem.Colors.warning : DesignSystem.Colors.success,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(debugStore.awaitingDebugClean)
+                .help("Run debug_clean and resolve after success")
+
+                let totalFiles = Set(
+                    debugStore.debugMarkers.map(\.filePath)
+                    + debugStore.instrumentationPoints.map(\.filePath)
+                ).count
+                if totalFiles > 0 {
+                    Text("Will clean \(totalFiles) files")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(12)
+        .background(DesignSystem.Colors.success.opacity(0.06))
+    }
+
+    // MARK: - Resolution Section
 
     private var resolutionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -923,41 +987,6 @@ struct DebugPanelView: View {
                 Text(debugStore.resolutionSummary)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    onFixed()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 11))
-                        Text("Mark Fixed")
-                            .font(.system(size: 12, weight: .semibold))
-                        let totalArtifacts = debugStore.debugMarkers.count + debugStore.instrumentationPoints.count
-                        if totalArtifacts > 0 {
-                            Text("(\(totalArtifacts) artifacts)")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(DesignSystem.Colors.success, in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .help("Mark as fixed — removes all debug markers and instrumentation from files")
-
-                let totalFiles = Set(
-                    debugStore.debugMarkers.map(\.filePath)
-                    + debugStore.instrumentationPoints.map(\.filePath)
-                ).count
-                if totalFiles > 0 {
-                    Text("Will clean \(totalFiles) files")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
             }
         }
         .padding(12)

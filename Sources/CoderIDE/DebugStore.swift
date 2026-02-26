@@ -144,13 +144,20 @@ struct DebugHypothesis: Identifiable, Codable {
         }
     }
 
-    init(title: String, description: String) {
-        self.id = UUID()
+    init(
+        id: UUID = UUID(),
+        title: String,
+        description: String,
+        status: HypothesisStatus = .proposed,
+        evidence: [String] = [],
+        createdAt: Date = Date()
+    ) {
+        self.id = id
         self.title = title
         self.description = description
-        self.status = .proposed
-        self.evidence = []
-        self.createdAt = Date()
+        self.status = status
+        self.evidence = evidence
+        self.createdAt = createdAt
     }
 }
 
@@ -265,6 +272,9 @@ final class DebugStore: ObservableObject {
     /// Whether the user confirmed they reproduced the bug (after reproduce phase)
     @Published var userConfirmedReproduce = false
 
+    /// While true, the panel is waiting for debug_clean completion before resolving.
+    @Published var awaitingDebugClean = false
+
     /// Filters for log panel
     @Published var severityFilter: Set<DebugEntrySeverity> = Set(DebugEntrySeverity.allCases)
     @Published var categoryFilter: String? = nil
@@ -291,6 +301,9 @@ final class DebugStore: ObservableObject {
         hypotheses.filter { $0.status == .proposed || $0.status == .investigating }
     }
 
+    private var pendingResolutionAfterClean: String?
+    private var emittedLegacyWarnings: Set<String> = []
+
     // MARK: - Log Management
 
     func addLog(_ entry: DebugLogEntry) {
@@ -311,18 +324,50 @@ final class DebugStore: ObservableObject {
 
     // MARK: - Hypothesis Management
 
-    func addHypothesis(title: String, description: String) -> UUID {
-        let h = DebugHypothesis(title: title, description: description)
+    @discardableResult
+    func addHypothesis(
+        id: UUID? = nil,
+        title: String,
+        description: String,
+        status: DebugHypothesis.HypothesisStatus = .proposed,
+        evidence: String? = nil
+    ) -> UUID {
+        let resolvedId = id ?? UUID()
+        if let idx = hypotheses.firstIndex(where: { $0.id == resolvedId }) {
+            hypotheses[idx].status = status
+            if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                hypotheses[idx] = DebugHypothesis(
+                    id: resolvedId,
+                    title: title,
+                    description: description,
+                    status: status,
+                    evidence: hypotheses[idx].evidence,
+                    createdAt: hypotheses[idx].createdAt
+                )
+            }
+            if let evidence, !evidence.isEmpty {
+                hypotheses[idx].evidence.append(evidence)
+            }
+            return resolvedId
+        }
+
+        var h = DebugHypothesis(id: resolvedId, title: title, description: description)
+        h.status = status
+        if let evidence, !evidence.isEmpty {
+            h.evidence.append(evidence)
+        }
         hypotheses.append(h)
         return h.id
     }
 
-    func updateHypothesis(id: UUID, status: DebugHypothesis.HypothesisStatus, evidence: String? = nil) {
-        guard let idx = hypotheses.firstIndex(where: { $0.id == id }) else { return }
+    @discardableResult
+    func updateHypothesis(id: UUID, status: DebugHypothesis.HypothesisStatus, evidence: String? = nil) -> Bool {
+        guard let idx = hypotheses.firstIndex(where: { $0.id == id }) else { return false }
         hypotheses[idx].status = status
-        if let ev = evidence {
+        if let ev = evidence, !ev.isEmpty {
             hypotheses[idx].evidence.append(ev)
         }
+        return true
     }
 
     // MARK: - Breakpoint Management
@@ -422,6 +467,9 @@ final class DebugStore: ObservableObject {
         clarificationQuestions = ""
         resolutionSummary = ""
         userConfirmedReproduce = false
+        awaitingDebugClean = false
+        pendingResolutionAfterClean = nil
+        emittedLegacyWarnings.removeAll()
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram
@@ -450,6 +498,8 @@ final class DebugStore: ObservableObject {
 
     func resolveSession(summary: String) {
         resolutionSummary = summary
+        awaitingDebugClean = false
+        pendingResolutionAfterClean = nil
         phase = .resolved
         addLog(severity: .info, source: "debug_session", message: "Debug session resolved: \(summary)", category: "system")
     }
@@ -461,6 +511,9 @@ final class DebugStore: ObservableObject {
         clarificationQuestions = ""
         resolutionSummary = ""
         userConfirmedReproduce = false
+        awaitingDebugClean = false
+        pendingResolutionAfterClean = nil
+        emittedLegacyWarnings.removeAll()
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = ""
@@ -497,12 +550,69 @@ final class DebugStore: ObservableObject {
         addLog(severity: .info, source: "debug_session", message: "Bug reproduced — proceeding to fix phase", category: "system")
     }
 
-    /// Mark bug as fixed: resolves session, cleans markers + instrumentation
+    /// Begin Mark Fixed in verifying phase. Returns the list of files expected to be cleaned.
+    func beginMarkFixed(summary: String) -> [String] {
+        let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingResolutionAfterClean = normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
+        awaitingDebugClean = true
+        phase = .verifying
+
+        let files = Set(debugMarkers.map(\.filePath) + instrumentationPoints.map(\.filePath)).sorted()
+        addLog(
+            severity: .info,
+            source: "debug_session",
+            message: "Mark Fixed requested — waiting for debug_clean",
+            detail: files.isEmpty ? nil : files.joined(separator: ", "),
+            category: "system"
+        )
+        return files
+    }
+
+    /// Apply debug_clean result; resolve only when cleanup succeeds.
+    func applyDebugCleanResult(success: Bool, detail: String?) {
+        guard awaitingDebugClean else { return }
+
+        if success {
+            _ = cleanAllDebugMarkers()
+            _ = cleanAllInstrumentation()
+            let summary = pendingResolutionAfterClean ?? resolutionSummary
+            resolveSession(summary: summary.isEmpty ? "Debug session resolved" : summary)
+            if let detail, !detail.isEmpty {
+                addLog(severity: .info, source: "debug_clean", message: detail, category: "system")
+            }
+        } else {
+            awaitingDebugClean = false
+            pendingResolutionAfterClean = nil
+            phase = .verifying
+            addLog(
+                severity: .warning,
+                source: "debug_clean",
+                message: "debug_clean failed; session remains in verifying",
+                detail: detail,
+                category: "system"
+            )
+        }
+    }
+
+    /// Backward-compatible helper (legacy flow). Prefer beginMarkFixed + applyDebugCleanResult.
     func markFixed(summary: String) -> (markers: [(filePath: String, markers: [DebugMarker])], instrumentation: [InstrumentationPoint]) {
         let markers = cleanAllDebugMarkers()
         let instrumentation = cleanAllInstrumentation()
         resolveSession(summary: summary)
         return (markers, instrumentation)
+    }
+
+    func addLegacyDebugPanelWarning(action: String) {
+        let normalized = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return }
+        guard emittedLegacyWarnings.insert(normalized).inserted else { return }
+        addLog(
+            severity: .warning,
+            source: "debug_panel",
+            message: "Legacy debug_panel action '\(normalized)' is deprecated",
+            detail: "Use debug_* tool events (debug_log/debug_hypothesize/debug_mark/debug_clean).",
+            category: "deprecation"
+        )
     }
 
     // MARK: - Default Debug Flow Diagram

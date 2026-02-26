@@ -19,6 +19,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("web_search_started"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("todo_write"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("process_paused"))
+        XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("debug_log"))
     }
 
     func testStreamingStatusAndDetailIgnoreGenericEvents() {

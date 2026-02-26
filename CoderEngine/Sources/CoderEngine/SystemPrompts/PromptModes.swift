@@ -22,7 +22,7 @@ enum PromptModes {
     Debugger mode (Cursor-style 4-phase debugging with Hypothesize→Instrument→Observe→Verify→Fix loop):
 
     PHASE 1 — DESCRIBE THE BUG:
-    - Emit `debug_panel` event with action "phase" and phase "describing" to update the panel.
+    - Emit `debug_panel` only for panel control (`open`/`phase`) and set phase to `describing`.
     - Start with `debug_context` to gather git status, open files, lints, terminal state.
     - Use `semantic_search` to find related code by meaning.
     - Log observable symptoms with `debug_log`. Use `read_lints` for current diagnostics.
@@ -31,31 +31,30 @@ enum PromptModes {
     PHASE 2 — REPRODUCE THE BUG:
     - Emit `debug_panel` event with action "phase" and phase "reproducing".
     - If the bug is not trivially reproducible, emit action "reproduce" to show Proceed button.
-    - Insert instrumentation (logging, variable captures, timing) using `debug_panel` action "instrument".
-    - Each instrumentation point should target a specific hypothesis (include hypothesisId).
+    - Insert instrumentation using `debug_mark` and record runtime observations with `debug_log` (category `runtime`/`instrumentation`).
+    - Each instrumentation point should target a specific hypothesis ID.
     - Ask the user to reproduce; wait for "Proceed" confirmation.
 
     PHASE 3 — FIX (inner loop: Hypothesize → Instrument → Observe → Verify → Fix):
     - Emit `debug_panel` event with action "phase" and phase "fixing".
-    - Hypothesize: Formulate testable hypotheses with `debug_hypothesize`. One at a time.
-    - Instrument: Insert targeted logging/assertions to test the hypothesis. Use action "instrument" with type (logging|assertion|timing|variable).
-    - Observe: Read runtime logs collected from the instrumentation. Analyze variable states, execution paths, timing.
-    - Verify hypothesis: If confirmed, apply minimal fix with `str_replace`. If rejected, update hypothesis status and try next.
+    - Hypothesize: Use `debug_hypothesize` with action `propose` to create one hypothesis at a time, then keep its returned ID.
+    - Instrument: Insert targeted markers with `debug_mark` to test that hypothesis.
+    - Observe: Collect runtime logs with `debug_log` and inspect with `debug_query`.
+    - Verify hypothesis: if confirmed, apply minimal fix with `str_replace`; if rejected, call `debug_hypothesize` action `update` on the same hypothesis ID.
     - If instrumentation reveals unexpected behavior, emit action "phase" phase "instrumenting" and add more logging.
-    - Apply minimal fix. Update hypothesis status to "confirmed" or "rejected".
+    - Apply minimal fix. Update hypothesis status to `confirmed` or `rejected` via `debug_hypothesize update`.
 
     PHASE 4 — VERIFY THE FIX:
     - Emit `debug_panel` event with action "phase" and phase "verifying".
     - Run `read_lints` (fast) then tests. Check for regressions.
     - If verification FAILS: emit action "loop_back" to return to Phase 3 with more instrumentation. The panel tracks iteration count.
-    - If verification PASSES: emit action "resolve" with summary. Clean all markers and instrumentation with `debug_clean`.
-    - ALWAYS clean all debug artifacts (debug_clean) before marking resolved.
+    - If verification PASSES: run `debug_clean`, verify success, then emit `debug_panel` action `resolve` with summary.
+    - ALWAYS clean all debug artifacts (`debug_clean`) before resolving.
     - Report: root cause, fix applied, verification result, residual risk.
 
-    Instrumentation format for `debug_panel` action "instrument":
-    - phase field format: "filePath|lineNumber|type|code|hypothesisId"
-    - type: logging, assertion, timing, variable
-    - Example: "Sources/App.swift|42|logging|print(\\"DEBUG: value=\\\\(x)\\")|hyp-001"
+    Legacy compatibility note:
+    - `debug_panel` action `instrument` may appear in older traces but is deprecated.
+    - Prefer `debug_mark` + `debug_log` + `debug_hypothesize` (ID-based) for instrumentation flow.
 
     Runtime log format (written to .codigo/debug.log as JSONL):
     - {id, timestamp, location, message, data: {key: value}, sessionId, runId, hypothesisId}

@@ -10,6 +10,54 @@ struct TodoWritePayload {
     let files: [String]
 }
 
+struct DebugLogToolPayload {
+    let severity: DebugEntrySeverity
+    let source: String
+    let message: String
+    let detail: String?
+    let category: String?
+    let data: [String: String]
+    let runId: String?
+    let hypothesisId: String?
+}
+
+struct DebugHypothesizeToolPayload {
+    let action: String
+    let hypothesisId: UUID?
+    let hypothesisIdRaw: String?
+    let title: String?
+    let description: String?
+    let status: DebugHypothesis.HypothesisStatus?
+    let evidence: String?
+}
+
+struct DebugMarkToolPayload {
+    let filePath: String
+    let lineNumber: Int
+    let comment: String
+}
+
+struct DebugCleanToolPayload {
+    let cleanedCount: Int
+    let filesCount: Int
+    let detail: String?
+    let status: String?
+}
+
+struct DebugSessionToolPayload {
+    let action: String
+    let sessionId: String?
+    let detail: String?
+    let status: String?
+}
+
+struct DebugQueryToolPayload {
+    let format: String
+    let output: String?
+    let detail: String?
+    let status: String?
+}
+
 enum NormalizedEvent {
     case taskActivity(TaskActivity)
     case instantGrep(InstantGrepResult)
@@ -17,6 +65,12 @@ enum NormalizedEvent {
     case todoRead
     case planStepUpdate(stepId: String, status: PlanStepStatus, title: String?)
     case debugPanelUpdate(action: String, phase: String?)
+    case debugLog(DebugLogToolPayload)
+    case debugHypothesize(DebugHypothesizeToolPayload)
+    case debugMark(DebugMarkToolPayload)
+    case debugClean(DebugCleanToolPayload)
+    case debugSession(DebugSessionToolPayload)
+    case debugQuery(DebugQueryToolPayload)
     /// LLM requests to auto-activate plan mode panel
     case activatePlanMode(reason: String?)
     /// LLM requests to auto-activate debug mode panel
@@ -30,6 +84,7 @@ enum EventKind: String, Codable {
     case todoUpdate = "todo_update"
     case planStepUpdate = "plan_step_update"
     case debugPanelUpdate = "debug_panel_update"
+    case debugToolUpdate = "debug_tool_update"
     case modeActivation = "mode_activation"
     case swarmProgress = "swarm_progress"
     case usageUpdate = "usage_update"
@@ -69,6 +124,8 @@ enum EventNormalizer {
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
         case "debug_panel", "debug_panel_update": kind = .debugPanelUpdate
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+            kind = .debugToolUpdate
         case "activate_plan_mode", "activate_debug_mode": kind = .modeActivation
         case "swarm_steps", "agent": kind = .swarmProgress
         case "usage": kind = .usageUpdate
@@ -213,6 +270,108 @@ enum EventNormalizer {
             return events
         }
 
+        if type == "debug_log" {
+            if let debugLogPayload = parseDebugLogPayload(payload: payload) {
+                events.append(.debugLog(debugLogPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["message"] ?? payload["detail"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_hypothesize" {
+            if let hypothesisPayload = parseDebugHypothesizePayload(payload: payload) {
+                events.append(.debugHypothesize(hypothesisPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"] ?? payload["status"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_mark" {
+            if let markerPayload = parseDebugMarkPayload(payload: payload) {
+                events.append(.debugMark(markerPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"] ?? payload["marker_info"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_clean" {
+            if let cleanPayload = parseDebugCleanPayload(payload: payload) {
+                events.append(.debugClean(cleanPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_session" {
+            if let sessionPayload = parseDebugSessionPayload(payload: payload) {
+                events.append(.debugSession(sessionPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_query" {
+            if let queryPayload = parseDebugQueryPayload(payload: payload) {
+                events.append(.debugQuery(queryPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
         if type == "activate_plan_mode" {
             let reason = payload["reason"]
             events.append(.activatePlanMode(reason: reason))
@@ -292,7 +451,10 @@ enum EventNormalizer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         let normalizedCanonicalType = normalizedToolIdentifier(normalized)
-        if ["semantic_search", "read_lints", "debug_context"].contains(normalizedCanonicalType) {
+        if [
+            "semantic_search", "read_lints", "debug_context",
+            "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+        ].contains(normalizedCanonicalType) {
             return normalizedCanonicalType
         }
         if fileChangeLikeTypes.contains(normalized) {
@@ -300,9 +462,11 @@ enum EventNormalizer {
         }
         if type == "read_batch_completed",
            let rawToolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           ["semantic_search", "read_lints", "debug_context"].contains(
-               normalizedToolIdentifier(rawToolName)
-           ) {
+           [
+               "semantic_search", "read_lints", "debug_context",
+               "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+           ].contains(normalizedToolIdentifier(rawToolName))
+        {
             return normalizedToolIdentifier(rawToolName)
         }
         if type == "web_search",
@@ -351,8 +515,10 @@ enum EventNormalizer {
             return .executing
         case "semantic_search":
             return .searching
-        case "read_lints", "debug_context":
+        case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize":
             return .executing
+        case "debug_mark", "debug_clean":
+            return .editing
         case "file_change", "edit",
              "str_replace", "regex_replace", "write", "create_file", "delete_file",
              "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
@@ -400,6 +566,8 @@ enum EventNormalizer {
             return true
         case "web_search_completed", "web_search_failed", "web_fetch_completed", "web_fetch_failed", "read_batch_completed", "process_paused":
             return false
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+            return status == "started" || status == "running" || status == "in_progress"
         default:
             return false
         }
@@ -439,6 +607,18 @@ enum EventNormalizer {
             return "Timeout tool"
         case "permission_denied":
             return "Permission denied"
+        case "debug_log":
+            return "Debug log"
+        case "debug_query":
+            return "Debug query"
+        case "debug_session":
+            return "Debug session"
+        case "debug_hypothesize":
+            return "Debug hypothesis"
+        case "debug_mark":
+            return "Debug marker"
+        case "debug_clean":
+            return "Debug clean"
         case "policy_ack":
             return "Policy acknowledged"
         default:
@@ -548,6 +728,138 @@ enum EventNormalizer {
         guard let raw else { return nil }
         let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return TodoPriority(rawValue: normalized)
+    }
+
+    private static func parseDebugLogPayload(payload: [String: String]) -> DebugLogToolPayload? {
+        let severity = normalizeDebugSeverity(payload["severity"])
+        let source = payload["source"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "agent"
+        let message = payload["message"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? payload["detail"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        guard !message.isEmpty else { return nil }
+        let data = parseDebugData(payload["data"]) 
+        return DebugLogToolPayload(
+            severity: severity,
+            source: source,
+            message: message,
+            detail: payload["log_detail"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? payload["detail"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            category: payload["category"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            data: data,
+            runId: payload["run_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            hypothesisId: payload["hypothesis_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private static func parseDebugHypothesizePayload(payload: [String: String]) -> DebugHypothesizeToolPayload? {
+        let action = (payload["action"] ?? "propose")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let hypothesisIdRaw = payload["hypothesis_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return DebugHypothesizeToolPayload(
+            action: action,
+            hypothesisId: hypothesisIdRaw.flatMap(UUID.init(uuidString:)),
+            hypothesisIdRaw: hypothesisIdRaw,
+            title: payload["hypothesis_title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            description: payload["description"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            status: normalizeHypothesisStatus(payload["hypothesis_status"] ?? payload["status"]),
+            evidence: payload["evidence"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private static func parseDebugMarkPayload(payload: [String: String]) -> DebugMarkToolPayload? {
+        let markerInfo = payload["marker_info"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !markerInfo.isEmpty {
+            let parts = markerInfo.split(separator: "|", maxSplits: 2).map(String.init)
+            if parts.count >= 2, let lineNumber = Int(parts[1]) {
+                return DebugMarkToolPayload(
+                    filePath: parts[0],
+                    lineNumber: lineNumber,
+                    comment: parts.count > 2 ? parts[2] : "debug marker"
+                )
+            }
+        }
+
+        let filePath = payload["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let line = Int(payload["line"] ?? "")
+        guard !filePath.isEmpty, let line else { return nil }
+        let comment = payload["comment"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "debug marker"
+        return DebugMarkToolPayload(filePath: filePath, lineNumber: line, comment: comment)
+    }
+
+    private static func parseDebugCleanPayload(payload: [String: String]) -> DebugCleanToolPayload? {
+        let status = payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanedCount = Int(payload["cleaned_markers"] ?? "") ?? 0
+        let filesCount = Int(payload["cleaned_files"] ?? "") ?? 0
+        if cleanedCount == 0, filesCount == 0,
+           (payload["detail"] ?? "").isEmpty,
+           (status ?? "").isEmpty {
+            return nil
+        }
+        return DebugCleanToolPayload(
+            cleanedCount: cleanedCount,
+            filesCount: filesCount,
+            detail: payload["detail"],
+            status: status
+        )
+    }
+
+    private static func parseDebugSessionPayload(payload: [String: String]) -> DebugSessionToolPayload? {
+        let action = payload["action"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if action.isEmpty, payload["session_id"] == nil, payload["detail"] == nil { return nil }
+        return DebugSessionToolPayload(
+            action: action,
+            sessionId: payload["session_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            detail: payload["detail"],
+            status: payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private static func parseDebugQueryPayload(payload: [String: String]) -> DebugQueryToolPayload? {
+        let format = payload["format"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "summary"
+        if payload["detail"] == nil, payload["output"] == nil, payload["status"] == nil {
+            return nil
+        }
+        return DebugQueryToolPayload(
+            format: format,
+            output: payload["output"],
+            detail: payload["detail"],
+            status: payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private static func parseDebugData(_ raw: String?) -> [String: String] {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [:] }
+        let pairs = raw.split(separator: ",")
+        var out: [String: String] = [:]
+        for pair in pairs {
+            let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            if kv.count == 2 {
+                out[kv[0].trimmingCharacters(in: .whitespacesAndNewlines)] = kv[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return out
+    }
+
+    private static func normalizeDebugSeverity(_ raw: String?) -> DebugEntrySeverity {
+        switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "error": return .error
+        case "warning": return .warning
+        case "verbose": return .verbose
+        case "trace": return .trace
+        default: return .info
+        }
+    }
+
+    private static func normalizeHypothesisStatus(_ raw: String?) -> DebugHypothesis.HypothesisStatus? {
+        switch raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "proposed": return .proposed
+        case "investigating": return .investigating
+        case "confirmed": return .confirmed
+        case "rejected": return .rejected
+        default: return nil
+        }
     }
 
     private static func parseInstantGrep(payload: [String: String], timestamp: Date) -> InstantGrepResult? {

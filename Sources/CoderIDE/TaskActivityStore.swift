@@ -113,6 +113,12 @@ final class TaskActivityStore: ObservableObject {
         "activate_debug_mode",
         "debug_panel",
         "debug_panel_update",
+        "debug_log",
+        "debug_query",
+        "debug_session",
+        "debug_hypothesize",
+        "debug_mark",
+        "debug_clean",
         "process_paused",
         "process_resumed",
         "read_batch_started",
@@ -223,6 +229,9 @@ final class TaskActivityStore: ObservableObject {
         }
         if normalizedType.contains("web_fetch") {
             return "Fetching page"
+        }
+        if normalizedType.hasPrefix("debug_") {
+            return "Debugging"
         }
         if normalizedType.contains("todo") || normalizedType.contains("plan_step") {
             return "Planning next move"
@@ -485,6 +494,7 @@ final class TaskActivityStore: ObservableObject {
                  "plan_step", "plan_step_update", "planning_auto_reset",
                  "activate_plan_mode", "activate_debug_mode",
                  "debug_panel", "debug_panel_update",
+                 "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
                  "semantic_search", "read_lints", "debug_context",
                  "file_change", "edit":
                 return true

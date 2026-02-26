@@ -1107,7 +1107,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **debug_log** — Write an entry to the debug log server. Args: `severity` (error/warning/info/verbose/trace), `source` (file:line or module), `message`, `detail` (optional: stack trace), `category` (optional: compiler/runtime/test/network/custom).
         - **debug_query** — Query the debug log. Args: `severity` (optional filter), `category` (optional), `source` (optional), `search` (text search), `format` (summary/full, default: summary), `limit` (default 100).
         - **debug_session** — Manage debug sessions. Args: `action` (start/end/clear).
-        - **debug_hypothesize** — Propose or update a debug hypothesis. Args: `title`, `description`, `status` (proposed/investigating/confirmed/rejected), `evidence` (optional comma-separated list).
+        - **debug_hypothesize** — Propose or update a debug hypothesis (ID-based). Args: `action` (propose/update), `hypothesis_id` (required for update), `title` (required for propose), `description`, `status` (proposed/investigating/confirmed/rejected), `evidence`.
         - **debug_mark** — Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup. Args: `path`, `line` (line number), `comment` (description), `code` (optional code to insert).
         - **debug_clean** — Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace. Args: `path` (optional, cleans all files if omitted).
 
@@ -1139,7 +1139,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         **Phase 6: Investigation & Fix**
         14. Verify one hypothesis at a time with evidence
-        15. Update hypothesis status: `debug_hypothesize ... status=confirmed` or `status=rejected`
+        15. Update hypothesis status: `debug_hypothesize action=update hypothesis_id=... status=confirmed|rejected`
         16. Apply the fix using `str_replace` / `parallel_apply`
 
         **Phase 7: Verification**
@@ -1249,7 +1249,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         [CODERIDE:tool_call|id=dbg003|name=debug_query|severity=error|format=summary]
 
         Propose a debug hypothesis:
-        [CODERIDE:tool_call|id=dbg004|name=debug_hypothesize|title=Timeout caused by DNS resolution|description=The connection timeout occurs because DNS resolution hangs for 30s on IPv6|status=proposed|evidence=error log at line 42,timeout value is 30s]
+        [CODERIDE:tool_call|id=dbg004|name=debug_hypothesize|action=propose|title=Timeout caused by DNS resolution|description=The connection timeout occurs because DNS resolution hangs for 30s on IPv6|status=proposed|evidence=error log at line 42,timeout value is 30s]
 
         Insert a debug marker (print statement):
         [CODERIDE:tool_call|id=dbg005|name=debug_mark|path=Sources/App/NetworkManager.swift|line=42|comment=checking response value|code=print("DEBUG: response = \\(response)")]

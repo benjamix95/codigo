@@ -1193,17 +1193,14 @@ struct ChatPanelView: View {
                 sendMessage()
             },
             onFixed: {
-                let result = debugStore.markFixed(summary: debugStore.resolutionSummary)
-                // Tell agent to clean up debug artifacts from files
-                let allFiles = Set(
-                    result.markers.map(\.filePath)
-                    + result.instrumentation.map(\.filePath)
-                )
-                if !allFiles.isEmpty {
-                    let fileList = allFiles.sorted().joined(separator: ", ")
-                    inputText = "[DEBUG] Marked as fixed. Clean all debug markers and instrumentation from: \(fileList)"
-                    sendMessage()
+                let filesToClean = debugStore.beginMarkFixed(summary: debugStore.resolutionSummary)
+                if filesToClean.isEmpty {
+                    inputText = "[DEBUG] Run debug_clean now and confirm cleanup succeeded, then resolve the session."
+                } else {
+                    let fileList = filesToClean.joined(separator: ", ")
+                    inputText = "[DEBUG] Run debug_clean for these files: \(fileList). After success, resolve the session."
                 }
+                sendMessage()
             }
         )
         .frame(width: CGFloat(debugPanelWidthStorage))
@@ -2644,6 +2641,18 @@ struct ChatPanelView: View {
                 }
             case .debugPanelUpdate(let action, let phase):
                 handleDebugPanelUpdate(action: action, phase: phase)
+            case .debugLog(let payload):
+                handleDebugLogPayload(payload)
+            case .debugHypothesize(let payload):
+                handleDebugHypothesizePayload(payload)
+            case .debugMark(let payload):
+                handleDebugMarkPayload(payload)
+            case .debugClean(let payload):
+                handleDebugCleanPayload(payload)
+            case .debugSession(let payload):
+                handleDebugSessionPayload(payload)
+            case .debugQuery(let payload):
+                handleDebugQueryPayload(payload)
             case .activatePlanMode(let reason):
                 handleAutoActivatePlanMode(reason: reason)
             case .activateDebugMode(let reason):
@@ -2894,7 +2903,15 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleDebugPanelUpdate(action: String, phase: String?) {
-        switch action.lowercased() {
+        let normalizedAction = action.lowercased()
+        let legacyPayloadActions: Set<String> = [
+            "marker", "instrument", "runtime_log", "loop_back", "new_run", "hypothesize", "hypothesis_update", "diagram"
+        ]
+        if legacyPayloadActions.contains(normalizedAction) {
+            debugStore.addLegacyDebugPanelWarning(action: normalizedAction)
+        }
+
+        switch normalizedAction {
         case "open":
             debugToggleEnabled = true
             showDebugPanel = true
@@ -3043,6 +3060,125 @@ struct ChatPanelView: View {
         default:
             break
         }
+    }
+
+    @MainActor
+    private func handleDebugLogPayload(_ payload: DebugLogToolPayload) {
+        debugStore.addLog(
+            severity: payload.severity,
+            source: payload.source,
+            message: payload.message,
+            detail: payload.detail,
+            category: payload.category
+        )
+
+        let isRuntimeLike = payload.category == "runtime"
+            || payload.category == "instrumentation"
+            || !payload.data.isEmpty
+            || !(payload.hypothesisId ?? "").isEmpty
+        if isRuntimeLike {
+            debugStore.addRuntimeLog(
+                location: payload.source,
+                message: payload.message,
+                data: payload.data,
+                hypothesisId: payload.hypothesisId
+            )
+        }
+    }
+
+    @MainActor
+    private func handleDebugHypothesizePayload(_ payload: DebugHypothesizeToolPayload) {
+        switch payload.action {
+        case "update":
+            guard let hypothesisId = payload.hypothesisId,
+                  let status = payload.status
+            else {
+                return
+            }
+            let updated = debugStore.updateHypothesis(id: hypothesisId, status: status, evidence: payload.evidence)
+            if !updated {
+                debugStore.addLog(
+                    severity: .warning,
+                    source: "debug_hypothesize",
+                    message: "Hypothesis update ignored: unknown id",
+                    detail: payload.hypothesisIdRaw,
+                    category: "debug"
+                )
+            }
+        default:
+            let title = (payload.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { return }
+            let description = payload.description ?? ""
+            let _ = debugStore.addHypothesis(
+                id: payload.hypothesisId,
+                title: title,
+                description: description,
+                status: payload.status ?? .proposed,
+                evidence: payload.evidence
+            )
+        }
+    }
+
+    @MainActor
+    private func handleDebugMarkPayload(_ payload: DebugMarkToolPayload) {
+        debugStore.addDebugMarker(DebugMarker(
+            filePath: payload.filePath,
+            lineNumber: payload.lineNumber,
+            markerComment: payload.comment
+        ))
+        if debugStore.phase == .fixing {
+            debugStore.phase = .instrumenting
+        }
+    }
+
+    @MainActor
+    private func handleDebugCleanPayload(_ payload: DebugCleanToolPayload) {
+        let normalizedStatus = (payload.status ?? "completed").lowercased()
+        let cleanSucceeded = !(normalizedStatus == "failed" || normalizedStatus == "error")
+
+        if debugStore.awaitingDebugClean {
+            debugStore.applyDebugCleanResult(success: cleanSucceeded, detail: payload.detail)
+            return
+        }
+
+        if cleanSucceeded {
+            _ = debugStore.cleanAllDebugMarkers()
+            _ = debugStore.cleanAllInstrumentation()
+            if let detail = payload.detail, !detail.isEmpty {
+                debugStore.addLog(severity: .info, source: "debug_clean", message: detail, category: "system")
+            }
+        }
+    }
+
+    @MainActor
+    private func handleDebugSessionPayload(_ payload: DebugSessionToolPayload) {
+        switch payload.action {
+        case "start":
+            if shouldStartDebugSessionOnAutoActivate(currentPhase: debugStore.phase) {
+                debugStore.startDebugSession(errorContext: payload.detail ?? "")
+            }
+        case "clear":
+            debugStore.clearLogs()
+            debugStore.clearRuntimeLogs()
+        case "end", "stop":
+            if debugStore.phase != .resolved {
+                debugStore.setPhase(.verifying)
+            }
+        default:
+            break
+        }
+    }
+
+    @MainActor
+    private func handleDebugQueryPayload(_ payload: DebugQueryToolPayload) {
+        let detail = payload.detail ?? "Debug query \(payload.format)"
+        debugStore.addLog(
+            severity: .info,
+            source: "debug_query",
+            message: detail,
+            detail: payload.output,
+            category: "debug"
+        )
     }
 
     // MARK: - LLM Auto-Activation Handlers

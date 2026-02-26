@@ -160,6 +160,9 @@ public actor UnifiedToolRuntime {
     /// Debug log server for structured debug logging
     public let debugLogServer = DebugLogServer()
 
+    /// Tracks hypothesis lifecycle for debug_hypothesize ID validation.
+    private var debugHypotheses: [String: (title: String, description: String, status: String)] = [:]
+
     public init(
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
@@ -1408,10 +1411,11 @@ public actor UnifiedToolRuntime {
              "project_structure", "file_outline", "find_files", "codebase_stats",
              "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
              "diagnostics", "attempt_completion",
-             "debug_log", "debug_query", "debug_session", "debug_hypothesize",
-             "debug_mark", "debug_clean", "run_single_test",
+             "run_single_test",
              "semantic_search", "read_lints", "debug_context":
             return ok ? "read_batch_completed" : "tool_execution_error"
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+            return ok ? name : "tool_execution_error"
         case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
              "rename_symbol", "find_and_replace_all", "undo_edit":
             return ok ? "file_change" : "tool_execution_error"
@@ -1440,6 +1444,27 @@ public actor UnifiedToolRuntime {
         let prefixData = data.prefix(maxBytes)
         let prefixText = String(data: prefixData, encoding: .utf8) ?? String(input.prefix(maxBytes / 2))
         return prefixText + "\n...[truncated]"
+    }
+
+    private func parseDebugDataArg(_ raw: String?) -> [String: String] {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [:] }
+        var out: [String: String] = [:]
+        for pair in raw.split(separator: ",") {
+            let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            if kv.count == 2 {
+                out[kv[0].trimmingCharacters(in: .whitespacesAndNewlines)] = kv[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return out
+    }
+
+    private func normalizeHypothesisStatus(_ status: String, fallback: String) -> String {
+        switch status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "proposed", "investigating", "confirmed", "rejected":
+            return status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        default:
+            return fallback
+        }
     }
 
     private func success(_ payload: [String: String], startDate: Date) -> ToolResult {
@@ -2272,18 +2297,42 @@ public actor UnifiedToolRuntime {
         let message = call.args["message"] ?? ""
         let detail = call.args["detail"]
         let category = call.args["category"]
+        let data = call.args["data"]
+        let runId = call.args["run_id"] ?? call.args["runId"]
+        let hypothesisId = call.args["hypothesis_id"] ?? call.args["hypothesisId"]
 
         guard !message.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "message is required"], durationMs: 0)
         }
 
-        await debugLogServer.log(severity: severity, source: source, message: message, detail: detail, category: category)
+        if let category, category == "runtime" || category == "instrumentation" {
+            await debugLogServer.logRuntime(
+                source: source,
+                message: message,
+                severity: severity,
+                detail: detail,
+                category: category,
+                data: parseDebugDataArg(data),
+                runId: runId,
+                hypothesisId: hypothesisId
+            )
+        } else {
+            await debugLogServer.log(severity: severity, source: source, message: message, detail: detail, category: category)
+        }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
         return ToolResult(ok: true, payload: [
             "title": "debug_log",
             "detail": "[\(severity.uppercased())] \(message)",
-            "output": "Logged: [\(severity)] \(source): \(message)"
+            "output": "Logged: [\(severity)] \(source): \(message)",
+            "severity": severity,
+            "source": source,
+            "message": message,
+            "log_detail": detail ?? "",
+            "category": category ?? "",
+            "data": data ?? "",
+            "run_id": runId ?? "",
+            "hypothesis_id": hypothesisId ?? ""
         ], durationMs: ms)
     }
 
@@ -2304,7 +2353,8 @@ public actor UnifiedToolRuntime {
             return ToolResult(ok: true, payload: [
                 "title": "debug_query",
                 "detail": "Debug session summary",
-                "output": summary
+                "output": summary,
+                "format": "summary"
             ], durationMs: ms)
         }
 
@@ -2341,21 +2391,25 @@ public actor UnifiedToolRuntime {
         return ToolResult(ok: true, payload: [
             "title": "debug_query",
             "detail": "\(result.totalCount) entries (\(result.errorCount) errors, \(result.warningCount) warnings)",
-            "output": output
+            "output": output,
+            "format": format
         ], durationMs: ms)
     }
 
     private func executeDebugSession(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let action = call.args["action"] ?? "start"
+        let action = (call.args["action"] ?? "start").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
 
         switch action {
         case "start":
             let sessionId = await debugLogServer.startSession()
+            debugHypotheses.removeAll()
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Debug session started (id: \(sessionId.prefix(8)))",
-                "output": "Session \(sessionId) started"
+                "output": "Session \(sessionId) started",
+                "action": "start",
+                "session_id": sessionId
             ], durationMs: ms)
         case "end", "stop":
             await debugLogServer.endSession()
@@ -2363,14 +2417,17 @@ public actor UnifiedToolRuntime {
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Debug session ended",
-                "output": summary
+                "output": summary,
+                "action": action
             ], durationMs: ms)
         case "clear":
             await debugLogServer.clearSession()
+            debugHypotheses.removeAll()
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Session logs cleared",
-                "output": "Session logs cleared"
+                "output": "Session logs cleared",
+                "action": "clear"
             ], durationMs: ms)
         default:
             return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, or clear."], durationMs: ms)
@@ -2378,50 +2435,81 @@ public actor UnifiedToolRuntime {
     }
 
     private func executeDebugHypothesize(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let title = call.args["title"] ?? ""
-        let description = call.args["description"] ?? ""
-        let action = call.args["action"] ?? "propose" // propose, update
-        let hypothesisId = call.args["hypothesis_id"]
-        let status = call.args["status"]
-        let evidence = call.args["evidence"]
+        let title = (call.args["title"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = (call.args["description"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let action = (call.args["action"] ?? "propose").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let hypothesisId = (call.args["hypothesis_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestedStatus = (call.args["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let evidence = call.args["evidence"]?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
 
         switch action {
         case "propose":
             guard !title.isEmpty else {
-                return ToolResult(ok: false, payload: ["detail": "title is required for new hypothesis"], durationMs: ms)
+                return ToolResult(ok: false, payload: ["detail": "title is required for propose action"], durationMs: ms)
             }
-            // Log the hypothesis to the debug server
+
+            let newHypothesisId = UUID().uuidString
+            let normalizedStatus = normalizeHypothesisStatus(requestedStatus, fallback: "proposed")
+            debugHypotheses[newHypothesisId] = (
+                title: title,
+                description: description,
+                status: normalizedStatus
+            )
+
             await debugLogServer.log(
                 severity: "info",
                 source: "hypothesis",
-                message: "Hypothesis: \(title)",
+                message: "Hypothesis \(newHypothesisId.prefix(8)) proposed: \(title)",
                 detail: description,
                 category: "debug"
             )
+
             return ToolResult(ok: true, payload: [
                 "title": "debug_hypothesize",
                 "detail": "Hypothesis proposed: \(title)",
-                "output": "Proposed hypothesis: \(title)\n\(description)"
+                "output": "Proposed hypothesis \(newHypothesisId.prefix(8)): \(title)",
+                "action": "propose",
+                "hypothesis_id": newHypothesisId,
+                "hypothesis_title": title,
+                "description": description,
+                "hypothesis_status": normalizedStatus,
+                "evidence": evidence ?? ""
             ], durationMs: ms)
+
         case "update":
-            guard let hid = hypothesisId, !hid.isEmpty else {
+            guard !hypothesisId.isEmpty else {
                 return ToolResult(ok: false, payload: ["detail": "hypothesis_id is required for update"], durationMs: ms)
             }
-            let statusStr = status ?? "investigating"
+            guard var existing = debugHypotheses[hypothesisId] else {
+                return ToolResult(ok: false, payload: ["detail": "Unknown hypothesis_id: \(hypothesisId)"], durationMs: ms)
+            }
+
+            let nextStatus = normalizeHypothesisStatus(requestedStatus, fallback: existing.status)
+            existing.status = nextStatus
+            debugHypotheses[hypothesisId] = existing
+
             await debugLogServer.log(
                 severity: "info",
                 source: "hypothesis",
-                message: "Hypothesis \(hid.prefix(8)) updated to \(statusStr)",
+                message: "Hypothesis \(hypothesisId.prefix(8)) updated to \(nextStatus)",
                 detail: evidence,
                 category: "debug"
             )
+
             return ToolResult(ok: true, payload: [
                 "title": "debug_hypothesize",
-                "detail": "Hypothesis updated to \(statusStr)",
-                "output": "Updated hypothesis \(hid.prefix(8)) → \(statusStr)\(evidence.map { ". Evidence: \($0)" } ?? "")"
+                "detail": "Hypothesis updated to \(nextStatus)",
+                "output": "Updated hypothesis \(hypothesisId.prefix(8)) -> \(nextStatus)",
+                "action": "update",
+                "hypothesis_id": hypothesisId,
+                "hypothesis_title": existing.title,
+                "description": existing.description,
+                "hypothesis_status": nextStatus,
+                "evidence": evidence ?? ""
             ], durationMs: ms)
+
         default:
             return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use propose or update."], durationMs: ms)
         }
@@ -2470,7 +2558,10 @@ public actor UnifiedToolRuntime {
                 "title": "debug_mark",
                 "detail": "Debug marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
                 "output": "Inserted: \(markerLine)",
-                "marker_info": "\(path)|\(lineNum)|\(comment)"
+                "marker_info": "\(path)|\(lineNum)|\(comment)",
+                "path": path,
+                "line": "\(lineNum)",
+                "comment": comment
             ], durationMs: ms)
         } catch {
             return ToolResult(ok: false, payload: [
@@ -2524,7 +2615,10 @@ public actor UnifiedToolRuntime {
         return ToolResult(ok: errors.isEmpty, payload: [
             "title": "debug_clean",
             "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.prefix(3).joined(separator: "; "))",
-            "output": detail
+            "output": detail,
+            "cleaned_markers": "\(cleanedCount)",
+            "cleaned_files": "\(filesToClean.count)",
+            "status": errors.isEmpty ? "completed" : "failed"
         ], durationMs: ms)
     }
 

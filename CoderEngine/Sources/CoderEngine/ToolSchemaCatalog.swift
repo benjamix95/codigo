@@ -425,14 +425,16 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "debug_hypothesize",
-            description: "Create or update debug hypothesis",
+            description: "Propose or update debug hypothesis (ID-based contract)",
             properties: [
-                "title": ["type": "string", "description": "Hypothesis title"],
-                "description": ["type": "string", "description": "Hypothesis description"],
+                "action": ["type": "string", "description": "propose|update"],
+                "hypothesis_id": ["type": "string", "description": "Required for update; returned by propose"],
+                "title": ["type": "string", "description": "Required for propose"],
+                "description": ["type": "string", "description": "Optional hypothesis description"],
                 "status": ["type": "string", "description": "proposed|investigating|confirmed|rejected"],
                 "evidence": ["type": "string", "description": "Optional evidence notes"]
             ],
-            required: ["title", "description", "status"]
+            required: ["action"]
         ),
         ToolSchemaEntry(
             name: "debug_mark",

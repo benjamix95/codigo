@@ -949,6 +949,92 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertTrue(output.contains("Errors: 1"))
     }
 
+    func testDebugLogEmitsDedicatedEventType() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Runtime",
+                "message": "Boot"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+
+        XCTAssertTrue(events.contains { event in
+            if case .raw(let type, _) = event {
+                return type == "debug_log"
+            }
+            return false
+        })
+    }
+
+    func testDebugHypothesizeIsIDBasedForProposeAndUpdate() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (propose, proposeCtx) = makeCall(
+            name: "debug_hypothesize",
+            args: [
+                "action": "propose",
+                "title": "Socket timeout due to DNS",
+                "description": "Repro in IPv6 only",
+                "status": "proposed"
+            ],
+            workspace: tmp
+        )
+        let proposeEvents = await runtime.execute(propose, context: proposeCtx)
+        let proposedPayload = extractLastPayload(proposeEvents)
+        let hypothesisId = proposedPayload?["hypothesis_id"] ?? ""
+
+        XCTAssertFalse(hypothesisId.isEmpty)
+        XCTAssertEqual(proposedPayload?["action"], "propose")
+
+        let (update, updateCtx) = makeCall(
+            name: "debug_hypothesize",
+            args: [
+                "action": "update",
+                "hypothesis_id": hypothesisId,
+                "status": "confirmed",
+                "evidence": "Observed DNS timeout in runtime logs"
+            ],
+            workspace: tmp
+        )
+        let updateEvents = await runtime.execute(update, context: updateCtx)
+        let updatePayload = extractLastPayload(updateEvents)
+
+        XCTAssertEqual(updatePayload?["status"], "completed")
+        XCTAssertEqual(updatePayload?["action"], "update")
+        XCTAssertEqual(updatePayload?["hypothesis_id"], hypothesisId)
+        XCTAssertEqual(updatePayload?["hypothesis_status"], "confirmed")
+    }
+
+    func testDebugHypothesizeUpdateRejectsUnknownID() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (update, updateCtx) = makeCall(
+            name: "debug_hypothesize",
+            args: [
+                "action": "update",
+                "hypothesis_id": UUID().uuidString,
+                "status": "confirmed"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(update, context: updateCtx)
+        let payload = extractLastPayload(events)
+
+        XCTAssertEqual(payload?["status"], "failed")
+        XCTAssertTrue((payload?["detail"] ?? "").contains("Unknown hypothesis_id"))
+    }
+
     // MARK: - DebugContext Tests
 
     func testDebugContextGathersGitInfo() async throws {

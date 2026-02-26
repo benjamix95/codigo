@@ -13,6 +13,7 @@ final class DebugStoreTests: XCTestCase {
         store.addInstrumentation(filePath: "A.swift", lineNumber: 11, type: .logging, code: "print(1)")
         store.addDebugMarker(DebugMarker(filePath: "A.swift", lineNumber: 12, markerComment: "old marker"))
         store.userConfirmedReproduce = true
+        store.awaitingDebugClean = true
         store.phase = .fixing
         store.streamingContent = "old stream"
         store.clarificationQuestions = "old question"
@@ -32,6 +33,7 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertTrue(store.instrumentationPoints.isEmpty)
         XCTAssertTrue(store.debugMarkers.isEmpty)
         XCTAssertFalse(store.userConfirmedReproduce)
+        XCTAssertFalse(store.awaitingDebugClean)
         XCTAssertTrue(store.streamingContent.isEmpty)
         XCTAssertTrue(store.clarificationQuestions.isEmpty)
         XCTAssertTrue(store.resolutionSummary.isEmpty)
@@ -39,4 +41,32 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertNil(store.currentRunId)
         XCTAssertEqual(store.debugFlowDiagram, DebugStore.defaultDebugFlowDiagram)
     }
+
+    func testUpdateHypothesisReturnsFalseForUnknownID() {
+        let store = DebugStore()
+        let updated = store.updateHypothesis(id: UUID(), status: .confirmed, evidence: "no-op")
+        XCTAssertFalse(updated)
+    }
+
+    func testBeginMarkFixedWaitsForDebugCleanBeforeResolving() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "boom")
+        store.phase = .verifying
+        store.addDebugMarker(DebugMarker(filePath: "A.swift", lineNumber: 12, markerComment: "legacy"))
+        store.addInstrumentation(filePath: "A.swift", lineNumber: 14, type: .logging, code: "print(1)")
+
+        let files = store.beginMarkFixed(summary: "Fixed crash")
+        XCTAssertTrue(store.awaitingDebugClean)
+        XCTAssertEqual(store.phase, .verifying)
+        XCTAssertEqual(Set(files), Set(["A.swift"]))
+
+        store.applyDebugCleanResult(success: true, detail: "Removed 2 markers")
+
+        XCTAssertFalse(store.awaitingDebugClean)
+        XCTAssertEqual(store.phase, .resolved)
+        XCTAssertEqual(store.resolutionSummary, "Fixed crash")
+        XCTAssertTrue(store.debugMarkers.isEmpty)
+        XCTAssertTrue(store.instrumentationPoints.isEmpty)
+    }
 }
+

@@ -124,15 +124,19 @@ public actor DebugLogServer {
     public func logRuntime(
         source: String,
         message: String,
+        severity: String = "info",
+        detail: String? = nil,
+        category: String = "instrumentation",
         data: [String: String] = [:],
         runId: String? = nil,
         hypothesisId: String? = nil
     ) {
         let entry = LogEntry(
-            severity: "info",
+            severity: severity,
             source: source,
             message: message,
-            category: "instrumentation",
+            detail: detail,
+            category: category,
             sessionId: activeSessionId,
             runId: runId,
             hypothesisId: hypothesisId,
@@ -147,7 +151,7 @@ public actor DebugLogServer {
         hypothesisId: String? = nil,
         limit: Int = 100
     ) -> [LogEntry] {
-        var filtered = entries.filter { $0.category == "instrumentation" }
+        var filtered = entries.filter { $0.category == "instrumentation" || $0.category == "runtime" }
         if let rid = runId {
             filtered = filtered.filter { $0.runId == rid }
         }

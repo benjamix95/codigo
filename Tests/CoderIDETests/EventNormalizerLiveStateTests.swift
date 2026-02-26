@@ -287,4 +287,77 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             return false
         })
     }
+
+    func testDebugLogEmitsTypedAndTaskActivityEvents() {
+        let events = EventNormalizer.normalize(
+            type: "debug_log",
+            payload: [
+                "severity": "error",
+                "source": "NetworkManager.swift:42",
+                "message": "Connection refused",
+                "category": "runtime",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugLog(let payload) = $0 {
+                return payload.severity == .error
+                    && payload.source == "NetworkManager.swift:42"
+                    && payload.message == "Connection refused"
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "debug_log"
+                    && activity.phase == .executing
+                    && !activity.isRunning
+            }
+            return false
+        })
+    }
+
+    func testDebugMarkEmitsTypedPayload() {
+        let events = EventNormalizer.normalize(
+            type: "debug_mark",
+            payload: [
+                "marker_info": "Sources/App.swift|42|added print",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugMark(let payload) = $0 {
+                return payload.filePath == "Sources/App.swift"
+                    && payload.lineNumber == 42
+                    && payload.comment == "added print"
+            }
+            return false
+        })
+    }
+
+    func testDebugHypothesizeParsesIDBasedPayload() {
+        let id = UUID()
+        let events = EventNormalizer.normalize(
+            type: "debug_hypothesize",
+            payload: [
+                "action": "update",
+                "hypothesis_id": id.uuidString,
+                "hypothesis_status": "confirmed",
+                "evidence": "Reproduced with runtime logs"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugHypothesize(let payload) = $0 {
+                return payload.action == "update"
+                    && payload.hypothesisId == id
+                    && payload.status == .confirmed
+            }
+            return false
+        })
+    }
 }
+
