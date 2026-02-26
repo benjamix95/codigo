@@ -1,4 +1,5 @@
 import SwiftUI
+import CoderEngine
 
 enum TodoStatus: String, Codable, CaseIterable {
     case pending
@@ -14,6 +15,33 @@ enum TodoStatus: String, Codable, CaseIterable {
         case .done: return 3
         }
     }
+
+    var icon: String {
+        switch self {
+        case .pending: return "circle"
+        case .inProgress: return "play.circle.fill"
+        case .blocked: return "exclamationmark.triangle.fill"
+        case .done: return "checkmark.circle.fill"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .pending: return "OPEN"
+        case .inProgress: return "DOING"
+        case .blocked: return "BLOCKED"
+        case .done: return "DONE"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .pending: return DesignSystem.Colors.textSecondary
+        case .inProgress: return DesignSystem.Colors.planColor
+        case .blocked: return DesignSystem.Colors.error
+        case .done: return DesignSystem.Colors.success
+        }
+    }
 }
 
 enum TodoPriority: String, Codable, CaseIterable {
@@ -26,6 +54,14 @@ enum TodoPriority: String, Codable, CaseIterable {
         case .high: return 0
         case .medium: return 1
         case .low: return 2
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .low: return DesignSystem.Colors.textTertiary
+        case .medium: return DesignSystem.Colors.info
+        case .high: return DesignSystem.Colors.error
         }
     }
 }
@@ -46,6 +82,8 @@ struct TodoItem: Identifiable, Codable {
     var notes: String
     var linkedFiles: [String]
     var isPlanCanonical: Bool
+    /// Present-tense label shown during execution (e.g. "Fixing bug").
+    var activeForm: String
 
     init(
         id: UUID = UUID(),
@@ -57,7 +95,8 @@ struct TodoItem: Identifiable, Codable {
         updatedAt: Date = .now,
         notes: String = "",
         linkedFiles: [String] = [],
-        isPlanCanonical: Bool = false
+        isPlanCanonical: Bool = false,
+        activeForm: String = ""
     ) {
         self.id = id
         self.title = title
@@ -69,10 +108,11 @@ struct TodoItem: Identifiable, Codable {
         self.notes = notes
         self.linkedFiles = linkedFiles
         self.isPlanCanonical = isPlanCanonical
+        self.activeForm = activeForm
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical
+        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, activeForm
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +134,7 @@ struct TodoItem: Identifiable, Codable {
         linkedFiles = (try? container.decode([String].self, forKey: .linkedFiles)) ?? []
         updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
         isPlanCanonical = (try? container.decode(Bool.self, forKey: .isPlanCanonical)) ?? false
+        activeForm = (try? container.decode(String.self, forKey: .activeForm)) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
@@ -108,6 +149,7 @@ struct TodoItem: Identifiable, Codable {
         try container.encode(notes, forKey: .notes)
         try container.encode(linkedFiles, forKey: .linkedFiles)
         try container.encode(isPlanCanonical, forKey: .isPlanCanonical)
+        try container.encode(activeForm, forKey: .activeForm)
     }
 }
 
@@ -125,6 +167,9 @@ final class TodoStore: ObservableObject {
     @Published var filter: TodoFilter = .open
     private let storageKey: String
     private let userDefaults: UserDefaults
+
+    /// Callback invoked when a canonical todo's status changes, enabling plan board sync.
+    var onCanonicalTodoStatusChange: ((String, TodoStatus) -> Void)?
 
     private func canonicalKey(for title: String) -> String {
         title
@@ -193,12 +238,32 @@ final class TodoStore: ObservableObject {
     private func saveTodos() {
         guard let data = try? JSONEncoder().encode(todos) else { return }
         userDefaults.set(data, forKey: storageKey)
+        syncToSharedState()
     }
 
-    func add(title: String, source: TodoSource = .manual, priority: TodoPriority = .medium, notes: String = "", linkedFiles: [String] = []) {
+    /// Write current todos to the shared state file so the MCP server
+    /// can serve them via `coderide_todo_read`.
+    private func syncToSharedState() {
+        let items: [[String: Any]] = todos.map { todo in
+            [
+                "id": todo.id.uuidString,
+                "title": todo.title,
+                "status": todo.status.rawValue,
+                "priority": todo.priority.rawValue,
+                "source": todo.source.rawValue,
+                "notes": todo.notes,
+                "isPlanCanonical": todo.isPlanCanonical,
+                "activeForm": todo.activeForm,
+                "linkedFiles": todo.linkedFiles,
+            ]
+        }
+        MCPSharedState.writeTodos(items)
+    }
+
+    func add(title: String, source: TodoSource = .manual, priority: TodoPriority = .medium, notes: String = "", activeForm: String = "", linkedFiles: [String] = []) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        todos.append(TodoItem(title: trimmed, priority: priority, source: source, notes: notes, linkedFiles: linkedFiles))
+        todos.append(TodoItem(title: trimmed, priority: priority, source: source, notes: notes, linkedFiles: linkedFiles, activeForm: activeForm))
         saveTodos()
     }
 
@@ -208,10 +273,15 @@ final class TodoStore: ObservableObject {
         status: TodoStatus?,
         priority: TodoPriority?,
         notes: String?,
+        activeForm: String? = nil,
         linkedFiles: [String]
     ) {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return }
+
+        func applyActiveForm(at idx: Int) {
+            if let activeForm, !activeForm.isEmpty { todos[idx].activeForm = activeForm }
+        }
 
         if let id, let idx = todos.firstIndex(where: { $0.id == id }) {
             todos[idx].title = normalizedTitle
@@ -219,6 +289,7 @@ final class TodoStore: ObservableObject {
             if let priority { todos[idx].priority = priority }
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
+            applyActiveForm(at: idx)
             todos[idx].source = .agent
             todos[idx].updatedAt = .now
             saveTodos()
@@ -232,6 +303,7 @@ final class TodoStore: ObservableObject {
             if let priority { todos[idx].priority = priority }
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
+            applyActiveForm(at: idx)
             todos[idx].source = .agent
             todos[idx].updatedAt = .now
             saveTodos()
@@ -243,6 +315,7 @@ final class TodoStore: ObservableObject {
             if let priority { todos[idx].priority = priority }
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
+            applyActiveForm(at: idx)
             todos[idx].source = .agent
             todos[idx].updatedAt = .now
             saveTodos()
@@ -254,6 +327,7 @@ final class TodoStore: ObservableObject {
             source: .agent,
             priority: priority ?? .medium,
             notes: notes ?? "",
+            activeForm: activeForm ?? "",
             linkedFiles: linkedFiles
         )
         if let status, let idx = todos.indices.last {
@@ -270,6 +344,7 @@ final class TodoStore: ObservableObject {
         status: TodoStatus?,
         priority: TodoPriority?,
         notes: String?,
+        activeForm: String? = nil,
         linkedFiles: [String]
     ) -> Bool {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,6 +356,7 @@ final class TodoStore: ObservableObject {
             if let priority { todos[idx].priority = priority }
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
+            if let activeForm, !activeForm.isEmpty { todos[idx].activeForm = activeForm }
             todos[idx].source = .agent
             todos[idx].updatedAt = .now
             saveTodos()
@@ -375,9 +451,16 @@ final class TodoStore: ObservableObject {
 
     func setStatus(id: UUID, status: TodoStatus) {
         guard let idx = todos.firstIndex(where: { $0.id == id }) else { return }
+        let oldStatus = todos[idx].status
         todos[idx].status = status
+        if oldStatus == .inProgress, status != .inProgress {
+            todos[idx].activeForm = ""
+        }
         todos[idx].updatedAt = .now
         saveTodos()
+        if todos[idx].isPlanCanonical, status != oldStatus {
+            onCanonicalTodoStatusChange?(todos[idx].title, status)
+        }
     }
 
     func setPriority(id: UUID, priority: TodoPriority) {

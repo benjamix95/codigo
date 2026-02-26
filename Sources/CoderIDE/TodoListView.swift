@@ -75,13 +75,13 @@ struct TodoListView: View {
             Button {
                 toggleStatus(todo)
             } label: {
-                Image(systemName: statusIcon(todo.status))
+                Image(systemName: todo.status.icon)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(statusColor(todo.status))
+                    .foregroundStyle(todo.status.color)
             }
             .buttonStyle(.plain)
 
-            Circle().fill(priorityColor(todo.priority)).frame(width: 5, height: 5)
+            Circle().fill(todo.priority.color).frame(width: 5, height: 5)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(todo.title)
@@ -90,19 +90,25 @@ struct TodoListView: View {
                     .foregroundStyle(todo.status == .done ? .secondary : .primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                if todo.status == .inProgress, !todo.activeForm.isEmpty {
+                    Text(todo.activeForm)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.planColor.opacity(0.8))
+                        .lineLimit(1)
+                }
                 HStack(spacing: 6) {
-                    Text(statusLabel(todo.status))
+                    Text(todo.status.label)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(statusColor(todo.status))
+                        .foregroundStyle(todo.status.color)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(statusColor(todo.status).opacity(0.14), in: Capsule())
+                        .background(todo.status.color.opacity(0.14), in: Capsule())
                     Text(todo.priority.rawValue.uppercased())
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundStyle(priorityColor(todo.priority))
+                        .foregroundStyle(todo.priority.color)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(priorityColor(todo.priority).opacity(0.12), in: Capsule())
+                        .background(todo.priority.color.opacity(0.12), in: Capsule())
                 }
             }
 
@@ -176,40 +182,6 @@ struct TodoListView: View {
         }
     }
 
-    private func statusIcon(_ status: TodoStatus) -> String {
-        switch status {
-        case .pending: return "circle"
-        case .inProgress: return "play.circle.fill"
-        case .blocked: return "exclamationmark.triangle.fill"
-        case .done: return "checkmark.circle.fill"
-        }
-    }
-
-    private func statusLabel(_ status: TodoStatus) -> String {
-        switch status {
-        case .pending: return "OPEN"
-        case .inProgress: return "DOING"
-        case .blocked: return "BLOCKED"
-        case .done: return "DONE"
-        }
-    }
-
-    private func statusColor(_ status: TodoStatus) -> Color {
-        switch status {
-        case .pending: return DesignSystem.Colors.textSecondary
-        case .inProgress: return DesignSystem.Colors.planColor
-        case .blocked: return DesignSystem.Colors.error
-        case .done: return DesignSystem.Colors.success
-        }
-    }
-
-    private func priorityColor(_ priority: TodoPriority) -> Color {
-        switch priority {
-        case .low: return DesignSystem.Colors.textTertiary
-        case .medium: return DesignSystem.Colors.info
-        case .high: return DesignSystem.Colors.error
-        }
-    }
 }
 
 struct TodoLiveInlineCard: View {
@@ -222,8 +194,14 @@ struct TodoLiveInlineCard: View {
 
     var body: some View {
         let items = displayedTodos
+        let doneCount = items.filter { $0.status == .done }.count
+        let inProgressCount = items.filter { $0.status == .inProgress }.count
+        let total = items.count
+        let ratio = total > 0 ? Double(doneCount) / Double(total) : 0.0
+
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
+                // Header with progress info
                 HStack(spacing: 6) {
                     Image(systemName: "checklist")
                         .font(.system(size: 10, weight: .semibold))
@@ -232,30 +210,62 @@ struct TodoLiveInlineCard: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                     Spacer()
-                    let doneCount = items.filter { $0.status == .done }.count
-                    if doneCount > 0 {
-                        Text("\(doneCount)/\(items.count)")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundStyle(DesignSystem.Colors.success)
+                    if inProgressCount > 0 {
+                        Text("\(inProgressCount) running")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(DesignSystem.Colors.planColor)
+                    }
+                    Text("\(doneCount)/\(total)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(doneCount > 0 ? DesignSystem.Colors.success : DesignSystem.Colors.textTertiary)
+                        .contentTransition(.numericText())
+                    Text("\(Int(ratio * 100))%")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(ratio >= 1.0 ? DesignSystem.Colors.success : DesignSystem.Colors.textSecondary)
+                        .contentTransition(.numericText())
+                }
+
+                // Progress bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(DesignSystem.Colors.textTertiary.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(ratio >= 1.0 ? DesignSystem.Colors.success : DesignSystem.Colors.planColor)
+                            .frame(width: geo.size.width * CGFloat(ratio))
+                            .animation(.easeInOut(duration: 0.4), value: ratio)
                     }
                 }
+                .frame(height: 3)
+
+                // Todo items
                 ForEach(items) { todo in
-                    HStack(alignment: .center, spacing: 8) {
-                        Image(systemName: todoStatusIcon(todo.status))
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: todo.status.icon)
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(todoStatusColor(todo.status))
+                            .foregroundStyle(todo.status.color)
                             .frame(width: 14)
-                        Text(todo.title)
-                            .font(.system(size: 11))
-                            .strikethrough(todo.status == .done)
-                            .foregroundStyle(todo.status == .done ? DesignSystem.Colors.textTertiary : .primary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .symbolEffect(.pulse, isActive: todo.status == .inProgress)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(todo.title)
+                                .font(.system(size: 11))
+                                .strikethrough(todo.status == .done)
+                                .foregroundStyle(todo.status == .done ? DesignSystem.Colors.textTertiary : .primary)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if todo.status == .inProgress, !todo.activeForm.isEmpty {
+                                Text(todo.activeForm)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(DesignSystem.Colors.planColor.opacity(0.8))
+                                    .lineLimit(1)
+                            }
+                        }
                         Spacer(minLength: 0)
                         todoPriorityBadge(todo.priority)
                     }
                     .padding(.vertical, 2)
                 }
+                .animation(.easeInOut(duration: 0.25), value: items.map { "\($0.id)-\($0.status.rawValue)" })
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -270,41 +280,15 @@ struct TodoLiveInlineCard: View {
         }
     }
 
-    private func todoStatusIcon(_ status: TodoStatus) -> String {
-        switch status {
-        case .pending: return "circle"
-        case .inProgress: return "play.circle.fill"
-        case .blocked: return "exclamationmark.triangle.fill"
-        case .done: return "checkmark.circle.fill"
-        }
-    }
-
-    private func todoStatusColor(_ status: TodoStatus) -> Color {
-        switch status {
-        case .pending: return DesignSystem.Colors.textTertiary
-        case .inProgress: return DesignSystem.Colors.planColor
-        case .blocked: return DesignSystem.Colors.error
-        case .done: return DesignSystem.Colors.success
-        }
-    }
-
     @ViewBuilder
     private func todoPriorityBadge(_ priority: TodoPriority) -> some View {
         if priority != .low {
             Text(priority.rawValue.uppercased())
                 .font(.system(size: 7.5, weight: .bold, design: .monospaced))
-                .foregroundStyle(todoPriorityColor(priority))
+                .foregroundStyle(priority.color)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1.5)
-                .background(todoPriorityColor(priority).opacity(0.12), in: Capsule())
-        }
-    }
-
-    private func todoPriorityColor(_ priority: TodoPriority) -> Color {
-        switch priority {
-        case .low: return DesignSystem.Colors.textTertiary
-        case .medium: return DesignSystem.Colors.info
-        case .high: return DesignSystem.Colors.error
+                .background(priority.color.opacity(0.12), in: Capsule())
         }
     }
 }

@@ -905,6 +905,33 @@ struct ChatPanelView: View {
             checkProviderAuth()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
             restorePlanStateIfNeeded(for: selectedConversationId)
+            wireTodoPlanBidirectionalSync()
+        }
+    }
+
+    /// Wire bidirectional sync: when a canonical todo status changes manually,
+    /// propagate the change to the corresponding PlanStep in the plan board.
+    private func wireTodoPlanBidirectionalSync() {
+        todoStore.onCanonicalTodoStatusChange = { [weak chatStore] title, todoStatus in
+            guard let chatStore else { return }
+            let planStatus: PlanStepStatus = {
+                switch todoStatus {
+                case .pending: return .pending
+                case .inProgress: return .running
+                case .done: return .done
+                case .blocked: return .failed
+                }
+            }()
+            // Find matching step by title in the active plan board and update
+            if let activeId = chatStore.activeTaskConversationId,
+               var board = chatStore.planBoard(for: activeId),
+               let idx = board.steps.firstIndex(where: {
+                   $0.title.caseInsensitiveCompare(title) == .orderedSame
+               }) {
+                board.steps[idx].status = planStatus
+                board.updatedAt = .now
+                chatStore.setPlanBoard(board, for: activeId)
+            }
         }
     }
 
@@ -2563,6 +2590,7 @@ struct ChatPanelView: View {
                         status: todo.status,
                         priority: todo.priority,
                         notes: todo.notes,
+                        activeForm: todo.activeForm,
                         linkedFiles: todo.files
                     )
                     if updated {
@@ -2578,6 +2606,7 @@ struct ChatPanelView: View {
                         status: todo.status,
                         priority: todo.priority,
                         notes: todo.notes,
+                        activeForm: todo.activeForm,
                         linkedFiles: todo.files
                     )
                 }
@@ -2591,6 +2620,27 @@ struct ChatPanelView: View {
                 chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
                     chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
+                }
+                // Cross-sync: PlanStep status → canonical TodoItem
+                if let title = stepTitle {
+                    let todoStatus: TodoStatus = {
+                        switch status {
+                        case .pending: return .pending
+                        case .running: return .inProgress
+                        case .done: return .done
+                        case .failed: return .blocked
+                        }
+                    }()
+                    let stepActiveForm: String? = status == .running ? title : nil
+                    todoStore.upsertCanonicalOnlyFromAgent(
+                        id: nil,
+                        title: title,
+                        status: todoStatus,
+                        priority: nil,
+                        notes: nil,
+                        activeForm: stepActiveForm,
+                        linkedFiles: []
+                    )
                 }
             case .debugPanelUpdate(let action, let phase):
                 handleDebugPanelUpdate(action: action, phase: phase)

@@ -315,37 +315,58 @@ enum CLIProfileProvisioner {
     - `coderide_web_search` — Search the web.
     - `coderide_web_fetch` — Fetch a web page as Markdown.
 
+    ### IDE Integration (Todo / Plan)
+    - `coderide_todo_write` — Update the IDE todo list. Use for multi-step task tracking.
+      Pass `todos` (JSON array of `{content, status, activeForm}`) for batch updates,
+      or `title` + `status` for single-item updates.
+      Status values: `pending`, `in_progress`, `done`, `blocked`.
+      **IMPORTANT**: ALWAYS include `activeForm` for `in_progress` items.
+      `activeForm` is a present-tense gerund phrase (e.g. "Fixing authentication bug",
+      "Running tests", "Refactoring API layer") displayed as live status in the IDE.
+    - `coderide_todo_read` — Read the current IDE todo list state. Use to:
+      * Check progress before/after a complex operation
+      * Resume work on a partially completed task list
+      * Reconcile your understanding with the IDE's current state
+      Do NOT call as your first action; investigate the task first.
+    - `coderide_plan_step_update` — Update a plan step status in the IDE.
+      Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
+
     ## Workflow
 
     1. **INVESTIGATE** — Use `coderide_grep`, `coderide_codebase_search`, `coderide_find_symbol`,
        `coderide_read`, `coderide_file_outline` to understand the problem BEFORE making changes.
-    2. **PLAN** — For multi-step tasks, emit progress markers (see below).
+    2. **PLAN** — For tasks with 3+ concrete steps, use `coderide_todo_write` AFTER investigation
+       to create a structured task list. Include all steps in a single batch call.
+       ALWAYS include `activeForm` for `in_progress` items.
     3. **RESOLVE** — Use `coderide_str_replace` for surgical edits. Only use `coderide_write`
        for new files or complete rewrites. Always `coderide_read` before editing.
+       Update todo status via `coderide_todo_write` as you complete each step.
     4. **VERIFY** — Use `coderide_read_lints` (fast) or `coderide_diagnostics` (full build).
 
-    ## IDE Progress Markers
+    ## IDE Progress Tools
 
-    Emit these text markers inline in your response to update the CoderIDE UI:
+    **Prefer MCP tools over inline markers for todo/plan updates.**
+    Use `coderide_todo_write` and `coderide_plan_step_update` MCP tools — they are
+    programmatic and more reliable than text markers.
 
-    ### Todo List (for multi-step tasks with 3+ steps)
-    ```
-    [CODERIDE:todo_write|title=Task description|status=pending|priority=medium]
-    [CODERIDE:todo_write|title=Task description|status=in_progress]
-    [CODERIDE:todo_write|title=Task description|status=completed]
+    ### Todo List (via MCP tool — preferred)
+    Call `coderide_todo_write` with a JSON array:
+    ```json
+    {"todos": "[{\\"content\\":\\"Fix bug\\",\\"status\\":\\"in_progress\\",\\"activeForm\\":\\"Fixing authentication bug\\"},{\\"content\\":\\"Add tests\\",\\"status\\":\\"pending\\",\\"activeForm\\":\\"Adding unit tests\\"}]"}
     ```
 
-    ### Plan Steps
+    ### Plan Steps (via MCP tool — preferred)
+    Call `coderide_plan_step_update`:
+    ```json
+    {"step_id": "1", "status": "running", "title": "Analysis"}
     ```
+
+    ### Fallback: Inline Markers
+    If MCP tools are unavailable, emit these text markers inline:
+    ```
+    [CODERIDE:todo_write|title=Task description|status=pending|priority=medium|activeForm=Doing task]
     [CODERIDE:plan_step|step_id=1|status=running|title=Analysis]
-    [CODERIDE:plan_step|step_id=1|status=completed|title=Analysis]
-    ```
-
-    ### Debug Mode
-    ```
     [CODERIDE:debug_panel|action=open|phase=analyzing]
-    [CODERIDE:debug_panel|action=phase|phase=verifying]
-    [CODERIDE:debug_panel|action=resolve|phase=Fixed the issue]
     ```
 
     ## Rules
@@ -353,7 +374,8 @@ enum CLIProfileProvisioner {
     - Prefer `coderide_str_replace` over `apply_patch` for targeted edits.
     - Prefer `coderide_grep`/`coderide_find_symbol` over shell `grep`/`find`.
     - Use shell (`bash`) only for git operations, running builds, installing deps.
-    - Emit todo markers for any task with 3+ steps.
+    - Use `coderide_todo_write` for any task with 3+ steps.
+    - ALWAYS include `activeForm` when setting a todo to `in_progress`.
     - Do NOT stop until the task is fully resolved.
     """
 }

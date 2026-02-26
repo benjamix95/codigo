@@ -29,6 +29,11 @@ enum ProviderToolEventMapper {
             return mapSearch(tool: mappedToolName, payload: normalizedPayload)
         }
         if isMCPTool(tool, payload: normalizedPayload) {
+            // MCP tool calls that target IDE state tools (todo/plan) should be
+            // remapped to their native event types so the UI pipeline handles them.
+            if let ideRemap = remapMCPIDEStateTool(tool: mappedToolName, payload: normalizedPayload) {
+                return ideRemap
+            }
             return mapMCP(tool: mappedToolName, payload: normalizedPayload)
         }
         if isWebSearchTool(tool, payload: normalizedPayload) {
@@ -485,6 +490,26 @@ enum ProviderToolEventMapper {
         return ("semantic_search", mapped)
     }
 
+    /// When an MCP tool call's underlying tool is an IDE state tool (todo/plan),
+    /// remap it to the native event type so the EventNormalizer → UI pipeline handles it.
+    private static func remapMCPIDEStateTool(tool _: String, payload: [String: Any]) -> (type: String, payload: [String: String])? {
+        // Extract the actual MCP tool name (e.g. "coderide_todo_write")
+        let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name"]) ?? ""
+        let normalizedMCP = normalizeToolIdentifier(mcpTool)
+
+        if normalizedMCP == "todo_write" || normalizedMCP == "todo_read" {
+            return mapTodo(tool: normalizedMCP, payload: payload)
+        }
+        if normalizedMCP == "plan_step_update" || normalizedMCP == "plan_step" {
+            var mapped: [String: String] = [:]
+            if let stepId = firstString(in: payload, keys: ["step_id", "stepId"]) { mapped["step_id"] = stepId }
+            if let status = firstString(in: payload, keys: ["status"]) { mapped["status"] = status }
+            if let title = firstString(in: payload, keys: ["title"]) { mapped["title"] = title }
+            return ("plan_step_update", mapped)
+        }
+        return nil
+    }
+
     private static func mapMCP(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
         let normalizedTool = normalizeToolIdentifier(rawTool)
         let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name", "tool"]) ?? ""
@@ -621,6 +646,24 @@ enum ProviderToolEventMapper {
             } else {
                 mapped["title"] = "Update todo list"
             }
+        } else if let todosString = firstString(in: payload, keys: ["todos"]),
+                  !todosString.isEmpty,
+                  let data = todosString.data(using: .utf8),
+                  let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                  !array.isEmpty {
+            // Handle todos passed as JSON string (common from MCP calls)
+            if let todosData = try? JSONSerialization.data(withJSONObject: array),
+               let todosJson = String(data: todosData, encoding: .utf8) {
+                mapped["todos_json"] = todosJson
+            }
+            if let firstContent = (array.first?["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !firstContent.isEmpty {
+                mapped["title"] = "Todo • \(firstContent)"
+                mapped["detail"] = firstContent
+                mapped["count"] = "\(array.count)"
+            } else {
+                mapped["title"] = "Update todo list"
+            }
         } else if let title = firstString(in: payload, keys: ["title", "content"]), !title.isEmpty {
             mapped["title"] = "Todo • \(title)"
             mapped["detail"] = title
@@ -630,7 +673,11 @@ enum ProviderToolEventMapper {
         if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
             mapped["status"] = status
         }
-        return ("todo_write", mapped)
+        if let activeForm = firstString(in: payload, keys: ["activeForm", "active_form"]), !activeForm.isEmpty {
+            mapped["activeForm"] = activeForm
+        }
+        let eventType = normalized == "todo_read" ? "todo_read" : "todo_write"
+        return (eventType, mapped)
     }
 
     private static func mapFallback(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

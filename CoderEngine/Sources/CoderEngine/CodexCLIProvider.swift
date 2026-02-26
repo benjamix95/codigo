@@ -518,6 +518,24 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 state: &state,
                 events: &events
             )
+            // Emit synthetic IDE-state events when an MCP tool call targets
+            // coderide_todo_write / coderide_todo_read / coderide_plan_step_update.
+            // The MCP tool call event is kept for activity display; the synthetic
+            // event feeds the EventNormalizer → TodoStore / PlanBoard pipeline.
+            if rawEvent.type == "mcp_tool_call" {
+                let item = (json["item"] as? [String: Any]) ?? json
+                for synthetic in syntheticIDEStateEventsFromMCP(
+                    payload: rawEvent.payload,
+                    item: item
+                ) {
+                    appendRawEvent(
+                        type: synthetic.type,
+                        payload: synthetic.payload,
+                        state: &state,
+                        events: &events
+                    )
+                }
+            }
         }
 
         if !state.emittedContextCompacted, containsCompactionSignal(json: json) {
@@ -773,7 +791,71 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
         return events
     }
-    
+
+    /// When an MCP tool call targets an IDE-state tool (todo/plan), produce
+    /// synthetic events that feed the existing EventNormalizer → Store pipeline.
+    /// The original `mcp_tool_call` event is kept for activity-panel display.
+    static func syntheticIDEStateEventsFromMCP(
+        payload: [String: String],
+        item: [String: Any]
+    ) -> [(type: String, payload: [String: String])] {
+        let rawTool = (
+            payload["tool"] ?? payload["mcp_tool"] ?? payload["tool_raw"] ?? ""
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTool = rawTool.lowercased()
+            .replacingOccurrences(of: "coderide_", with: "")
+            .replacingOccurrences(of: "-", with: "_")
+
+        let arguments = (item["arguments"] as? [String: Any]) ?? [:]
+
+        switch normalizedTool {
+        case "todo_write":
+            var todoPayload: [String: String] = [:]
+            // Batch: "todos" is a JSON array string
+            if let todosRaw = firstString(in: arguments, keys: ["todos"]),
+               let todosData = todosRaw.data(using: .utf8),
+               let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]],
+               !todosArray.isEmpty {
+                if let reEncoded = try? JSONSerialization.data(withJSONObject: todosArray),
+                   let reString = String(data: reEncoded, encoding: .utf8) {
+                    todoPayload["todos_json"] = reString
+                }
+                todoPayload["title"] = "Todo updated"
+            } else {
+                // Single-item shorthand
+                if let t = firstString(in: arguments, keys: ["title", "content"]) { todoPayload["title"] = t }
+                if let s = firstString(in: arguments, keys: ["status"]) { todoPayload["status"] = s }
+                if let p = firstString(in: arguments, keys: ["priority"]) { todoPayload["priority"] = p }
+                if let n = firstString(in: arguments, keys: ["notes"]) { todoPayload["notes"] = n }
+            }
+            // Fallback from outer payload
+            if todoPayload["title"] == nil, let t = payload["title"] { todoPayload["title"] = t }
+            if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
+            if todoPayload.isEmpty { return [] }
+            return [("todo_write", todoPayload)]
+
+        case "todo_read":
+            return [("todo_read", [:])]
+
+        case "plan_step_update", "plan_step":
+            var planPayload: [String: String] = [:]
+            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) {
+                planPayload["step_id"] = stepId
+            }
+            if let status = firstString(in: arguments, keys: ["status"]) {
+                planPayload["status"] = status
+            }
+            if let title = firstString(in: arguments, keys: ["title"]) {
+                planPayload["title"] = title
+            }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_step_update", planPayload)]
+
+        default:
+            return []
+        }
+    }
+
     /// Parses Codex JSONL for structured events (file_change, command_execution, mcp_tool_call, web_search)
     static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
         let eventType = normalizedEventType((json["type"] as? String) ?? "")

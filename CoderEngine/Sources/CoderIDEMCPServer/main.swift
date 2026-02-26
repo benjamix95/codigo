@@ -261,6 +261,57 @@ struct CoderIDETools {
             ]),
             annotations: .init(title: "Regex Replace", destructiveHint: false)
         ),
+
+        // --- IDE Integration (Todo / Plan) ---
+        Tool(
+            name: "coderide_todo_write",
+            description: """
+                Update the IDE todo list. Pass a JSON array of todo items via the 'todos' parameter. \
+                Each item must have 'content' (string) and 'status' (pending|in_progress|done). \
+                Optional fields: 'activeForm' (present-tense label shown during execution), 'priority' (low|medium|high). \
+                Use this tool to track multi-step task progress in the IDE live card.
+                """,
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "todos": .object([
+                        "type": "string",
+                        "description": "JSON array of todo items, e.g. [{\"content\":\"Fix bug\",\"status\":\"pending\",\"activeForm\":\"Fixing bug\"}]",
+                    ]),
+                    // Single-item shorthand
+                    "title": .object(["type": "string", "description": "Single todo title (shorthand — use 'todos' for batch updates)"]),
+                    "status": .object(["type": "string", "description": "Status: pending, in_progress, done"]),
+                    "priority": .object(["type": "string", "description": "Priority: low, medium, high"]),
+                ]),
+            ]),
+            annotations: .init(title: "Todo Write", readOnlyHint: false, idempotentHint: true)
+        ),
+        Tool(
+            name: "coderide_todo_read",
+            description: "Read the current IDE todo list. Returns the current state of all tracked todo items.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([:]),
+            ]),
+            annotations: .init(title: "Todo Read", readOnlyHint: true, idempotentHint: true)
+        ),
+        Tool(
+            name: "coderide_plan_step_update",
+            description: """
+                Update the status of a plan step in the IDE plan panel. \
+                Use this during plan execution to track progress of each step.
+                """,
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "step_id": .object(["type": "string", "description": "The step identifier (e.g. '1', '2')"]),
+                    "status": .object(["type": "string", "description": "Step status: pending, running, done, failed"]),
+                    "title": .object(["type": "string", "description": "Optional step title"]),
+                ]),
+                "required": .array([.string("step_id"), .string("status")]),
+            ]),
+            annotations: .init(title: "Plan Step Update", readOnlyHint: false, idempotentHint: true)
+        ),
     ]
 
     /// Map MCP tool name → UnifiedToolRuntime tool name by stripping the "coderide_" prefix.
@@ -347,6 +398,12 @@ struct CoderIDEMCPServerApp {
                 }
             }
 
+            // IDE state tools (todo/plan) are pass-through: accepted by MCP server,
+            // actual state management happens on the UI side via stream event pipeline.
+            if toolName == "todo_write" || toolName == "todo_read" || toolName == "plan_step_update" {
+                return handleIDEStateTool(name: toolName, args: stringArgs)
+            }
+
             let call = ToolCall(
                 id: UUID().uuidString,
                 name: toolName,
@@ -393,6 +450,104 @@ struct CoderIDEMCPServerApp {
         let transport = StdioTransport()
         try await server.start(transport: transport)
         await server.waitUntilCompleted()
+    }
+
+    /// IDE state tools are pass-through. The MCP server acknowledges the call
+    /// and returns a confirmation. The actual state update happens when the host
+    /// process (CoderIDE) sees the MCP tool call event in the Codex CLI stream
+    /// and routes it through EventNormalizer → TodoStore / ChatStore.
+    static func handleIDEStateTool(name: String, args: [String: String]) -> CallTool.Result {
+        switch name {
+        case "todo_write":
+            let todosRaw = (args["todos"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let titleRaw = (args["title"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !todosRaw.isEmpty {
+                // Validate JSON structure
+                guard let data = todosRaw.data(using: .utf8),
+                      let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                      !array.isEmpty else {
+                    return CallTool.Result(
+                        content: [.text("Error: 'todos' must be a valid JSON array of objects")],
+                        isError: true
+                    )
+                }
+                for (i, item) in array.enumerated() {
+                    let content = (item["content"] as? String ?? item["title"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    if content.isEmpty {
+                        return CallTool.Result(
+                            content: [.text("Error: item \(i) missing 'content' or 'title'")],
+                            isError: true
+                        )
+                    }
+                }
+            } else if titleRaw.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: provide either 'todos' (JSON array) or 'title' parameter")],
+                    isError: true
+                )
+            }
+
+            // Validate status value if provided (single-item shorthand)
+            if let status = args["status"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+               !status.isEmpty,
+               !["pending", "in_progress", "done", "blocked"].contains(status) {
+                return CallTool.Result(
+                    content: [.text("Error: invalid status '\(status)'. Use: pending, in_progress, done, blocked")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — todo list updated")], isError: nil)
+
+        case "todo_read":
+            // Read from the shared state file written by the main IDE app.
+            let todos = MCPSharedState.readTodos()
+            if todos.isEmpty {
+                return CallTool.Result(content: [.text("No todos found.")], isError: nil)
+            }
+            var lines: [String] = []
+            var doneCount = 0
+            for todo in todos {
+                let title = (todo["title"] as? String) ?? "(untitled)"
+                let status = (todo["status"] as? String) ?? "pending"
+                let priority = (todo["priority"] as? String) ?? "medium"
+                let activeForm = (todo["activeForm"] as? String) ?? ""
+                let icon: String
+                switch status {
+                case "done":
+                    icon = "[x]"
+                    doneCount += 1
+                case "in_progress": icon = "[~]"
+                case "blocked": icon = "[!]"
+                default: icon = "[ ]"
+                }
+                let formSuffix = status == "in_progress" && !activeForm.isEmpty ? " — \(activeForm)" : ""
+                lines.append("\(icon) \(title)\(formSuffix) (\(priority))")
+            }
+            lines.append("--- \(todos.count) total, \(doneCount) done ---")
+            return CallTool.Result(content: [.text(lines.joined(separator: "\n"))], isError: nil)
+
+        case "plan_step_update":
+            let stepId = (args["step_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let status = (args["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if stepId.isEmpty || status.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'step_id' and 'status' are required")],
+                    isError: true
+                )
+            }
+            if !["pending", "running", "done", "failed"].contains(status.lowercased()) {
+                return CallTool.Result(
+                    content: [.text("Error: invalid status '\(status)'. Use: pending, running, done, failed")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — plan step \(stepId) updated to \(status)")], isError: nil)
+
+        default:
+            return CallTool.Result(content: [.text("Unknown IDE state tool: \(name)")], isError: true)
+        }
     }
 
     static func valueToString(_ value: Value) -> String {

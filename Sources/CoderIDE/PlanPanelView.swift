@@ -503,21 +503,21 @@ struct PlanPanelView: View {
                         Label("Download .md", systemImage: "arrow.down.doc")
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: 8, weight: .bold))
                         Text("Built")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 10, weight: .semibold))
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 7, weight: .bold))
+                            .font(.system(size: 6, weight: .bold))
                             .foregroundStyle(.white.opacity(0.7))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
                     .background(
                         DesignSystem.Colors.planGradient,
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                     )
                 }
                 .menuStyle(.borderlessButton)
@@ -533,28 +533,23 @@ struct PlanPanelView: View {
                         performBuild()
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 3) {
                         if isCurrentConversationLoading {
                             ProgressView()
                                 .controlSize(.mini)
                                 .tint(.white)
                         }
-                        Text(isCurrentConversationLoading ? "Building…" : (resolvedBuildChoice?.isFallback == true ? "Build (fallback)" : "Build"))
-                            .font(.system(size: 11, weight: .semibold))
-                        HStack(spacing: 1) {
-                            Image(systemName: "command")
-                                .font(.system(size: 7, weight: .bold))
-                            Image(systemName: "return")
-                                .font(.system(size: 7, weight: .bold))
-                        }
-                        .foregroundStyle(.white.opacity(0.7))
+                        Image(systemName: isCurrentConversationLoading ? "stop.fill" : "play.fill")
+                            .font(.system(size: 8, weight: .bold))
+                        Text(isCurrentConversationLoading ? "Stop" : "Build")
+                            .font(.system(size: 10, weight: .semibold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
                     .background(
                         DesignSystem.Colors.planGradient,
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                     )
                     .opacity(isCurrentConversationLoading ? 0.8 : 1)
                 }
@@ -958,7 +953,14 @@ struct PlanPanelView: View {
     }
 
     private func todosSection(canonicalTodos: [TodoItem]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let total = canonicalTodos.count
+        let done = canonicalTodos.filter { $0.status == .done }.count
+        let inProgress = canonicalTodos.filter { $0.status == .inProgress }.count
+        let blocked = canonicalTodos.filter { $0.status == .blocked }.count
+        let ratio = total > 0 ? Double(done) / Double(total) : 0.0
+
+        return VStack(alignment: .leading, spacing: 8) {
+            // Header
             HStack {
                 Image(systemName: "checklist")
                     .font(.system(size: 10, weight: .medium))
@@ -967,41 +969,102 @@ struct PlanPanelView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                let total = canonicalTodos.count
-                let done = canonicalTodos.filter { $0.status == .done }.count
+                if blocked > 0 {
+                    Text("\(blocked) blocked")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.error)
+                }
+                if inProgress > 0 {
+                    Text("\(inProgress) running")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(planColor)
+                }
                 Text("\(done)/\(total)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(done > 0 ? DesignSystem.Colors.success : DesignSystem.Colors.textTertiary)
+                    .contentTransition(.numericText())
+                Text("\(Int(ratio * 100))%")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(ratio >= 1.0 ? DesignSystem.Colors.success : .secondary)
+                    .contentTransition(.numericText())
             }
 
-            ForEach(canonicalTodos) { todo in
-                HStack(spacing: 8) {
-                    Button {
-                        let newStatus: TodoStatus = todo.status == .done ? .pending : .done
-                        todoStore.setStatus(id: todo.id, status: newStatus)
-                        if let conversationId {
-                            let canonical = todoStore.todos.filter(\.isPlanCanonical)
-                            chatStore.syncPlanStepsFromCanonicalTodos(canonical, in: conversationId)
-                        }
-                    } label: {
-                        Image(systemName: todo.status == .done ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 13))
-                            .foregroundStyle(
-                                todo.status == .done
-                                    ? planColor
-                                    : Color.secondary.opacity(0.4)
-                            )
-                    }
-                    .buttonStyle(.plain)
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.secondary.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(ratio >= 1.0 ? DesignSystem.Colors.success : planColor)
+                        .frame(width: geo.size.width * CGFloat(ratio))
+                        .animation(.easeInOut(duration: 0.4), value: ratio)
+                }
+            }
+            .frame(height: 4)
 
-                    Text(todo.title)
-                        .font(.system(size: 12))
-                        .strikethrough(todo.status == .done, color: .secondary)
-                        .foregroundStyle(todo.status == .done ? .tertiary : .primary)
-                        .lineLimit(2)
+            // Todo items
+            ForEach(canonicalTodos) { todo in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Button {
+                            let newStatus: TodoStatus = todo.status == .done ? .pending : .done
+                            todoStore.setStatus(id: todo.id, status: newStatus)
+                            if let conversationId {
+                                let canonical = todoStore.todos.filter(\.isPlanCanonical)
+                                chatStore.syncPlanStepsFromCanonicalTodos(canonical, in: conversationId)
+                            }
+                        } label: {
+                            Image(systemName: todo.status.icon)
+                                .font(.system(size: 13))
+                                .foregroundStyle(todo.status.color)
+                                .symbolEffect(.pulse, isActive: todo.status == .inProgress)
+                        }
+                        .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(todo.title)
+                                .font(.system(size: 12))
+                                .strikethrough(todo.status == .done, color: .secondary)
+                                .foregroundStyle(todo.status == .done ? .tertiary : .primary)
+                                .lineLimit(2)
+                            if todo.status == .inProgress, !todo.activeForm.isEmpty {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(planColor)
+                                        .frame(width: 5, height: 5)
+                                    Text(todo.activeForm)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(planColor.opacity(0.8))
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+
+                    // Linked files
+                    if !todo.linkedFiles.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.tertiary)
+                            ForEach(todo.linkedFiles.prefix(2), id: \.self) { file in
+                                Text((file as NSString).lastPathComponent)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                            if todo.linkedFiles.count > 2 {
+                                Text("+\(todo.linkedFiles.count - 2)")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.quaternary)
+                            }
+                        }
+                        .padding(.leading, 21)
+                    }
                 }
                 .padding(.vertical, 2)
             }
+            .animation(.easeInOut(duration: 0.25), value: canonicalTodos.map { "\($0.id)-\($0.status.rawValue)" })
         }
         .padding(12)
         .background(

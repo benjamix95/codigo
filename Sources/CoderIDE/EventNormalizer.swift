@@ -6,6 +6,7 @@ struct TodoWritePayload {
     let status: TodoStatus?
     let priority: TodoPriority?
     let notes: String?
+    let activeForm: String?
     let files: [String]
 }
 
@@ -103,14 +104,23 @@ enum EventNormalizer {
                     guard !content.isEmpty else { continue }
                     let statusStr = todoItem["status"] as? String
                     let status = normalizedTodoStatus(statusStr)
-                    let activeForm = todoItem["activeForm"] as? String
+                    let activeForm = (todoItem["activeForm"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let priorityStr = todoItem["priority"] as? String
+                    let priority = normalizedTodoPriority(priorityStr)
+                    let notes = (todoItem["notes"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let linkedFiles = (todoItem["linkedFiles"] as? [String])
+                        ?? (todoItem["files"] as? [String])
+                        ?? []
                     events.append(.todoWrite(TodoWritePayload(
                         id: nil,
                         title: content,
                         status: status,
-                        priority: nil,
-                        notes: activeForm,
-                        files: []
+                        priority: priority,
+                        notes: notes,
+                        activeForm: activeForm,
+                        files: linkedFiles
                     )))
                     summaryParts.append(content)
                 }
@@ -519,8 +529,9 @@ enum EventNormalizer {
         let status = normalizedTodoStatus(payload["status"])
         let priority = normalizedTodoPriority(payload["priority"])
         let notes = payload["notes"]
+        let activeForm = payload["activeForm"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let files = payload["files"]?.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } ?? []
-        return TodoWritePayload(id: id, title: title, status: status, priority: priority, notes: notes, files: files)
+        return TodoWritePayload(id: id, title: title, status: status, priority: priority, notes: notes, activeForm: activeForm, files: files)
     }
 
     private static func normalizedTodoStatus(_ raw: String?) -> TodoStatus? {
