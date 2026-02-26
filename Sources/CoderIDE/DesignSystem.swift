@@ -403,7 +403,7 @@ struct PanelResizeHandle: View {
 enum WindowResizeHelper {
     /// Expands or shrinks the window width by `delta` points, keeping the left edge fixed.
     /// Positive delta = wider, negative = narrower. Respects screen bounds.
-    static func adjustWidth(by delta: CGFloat) {
+    static func adjustWidth(by delta: CGFloat, animate: Bool? = nil) {
         guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first(where: { $0.canBecomeMain }) else { return }
         let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first!
         var frame = window.frame
@@ -411,7 +411,9 @@ enum WindowResizeHelper {
         let maxRight = screen.visibleFrame.maxX
         let clampedWidth = min(newWidth, maxRight - frame.minX)
         frame.size.width = clampedWidth
-        window.setFrame(frame, display: true, animate: true)
+        // Large jumps are typically panel open/close; disable animation to avoid visible jank.
+        let shouldAnimate = animate ?? (abs(delta) < 220)
+        window.setFrame(frame, display: true, animate: shouldAnimate)
     }
 }
 

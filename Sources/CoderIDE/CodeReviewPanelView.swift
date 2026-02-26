@@ -39,57 +39,66 @@ struct CodeReviewPanelView: View {
         case config = "Config"
     }
 
-    // MARK: - Data
+    // MARK: - Derived Data
 
-    private var reviewCards: [SwarmLiveCardState] {
-        SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+    private typealias WorkerInfoRow = (
+        id: String, description: String, severity: String, fileCount: String, files: String
+    )
+
+    private struct PanelMetrics {
+        let reviewCards: [SwarmLiveCardState]
+        let activeReviewCount: Int
+        let workerInfo: [WorkerInfoRow]
+        let currentRoundInfo: (round: String, maxRounds: String)?
     }
 
-    private var activeReviewCount: Int {
-        reviewCards.filter { $0.status == .running }.count
-    }
+    private func panelMetrics() -> PanelMetrics {
+        let cards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+        let activeCount = cards.filter { $0.status == .running }.count
 
-    /// Extract dynamic worker info from recent task activities
-    private var workerInfo: [(id: String, description: String, severity: String, fileCount: String, files: String)] {
-        taskActivityStore.activities
-            .filter { $0.type == "review-worker-plan" }
-            .compactMap { activity -> (String, String, String, String, String)? in
-                guard let wid = activity.payload["worker_id"],
-                      let desc = activity.payload["description"],
-                      let severity = activity.payload["severity"],
-                      let fileCount = activity.payload["fileCount"],
-                      let files = activity.payload["files"]
-                else { return nil }
-                return (wid, desc, severity, fileCount, files)
+        let activities = taskActivityStore.activities
+        let workers: [WorkerInfoRow] = activities.compactMap { activity in
+            guard activity.type == "review-worker-plan",
+                  let wid = activity.payload["worker_id"],
+                  let desc = activity.payload["description"],
+                  let severity = activity.payload["severity"],
+                  let fileCount = activity.payload["fileCount"],
+                  let files = activity.payload["files"] else {
+                return nil
             }
-    }
+            return (wid, desc, severity, fileCount, files)
+        }
 
-    /// Extract current review round info
-    private var currentRoundInfo: (round: String, maxRounds: String)? {
-        taskActivityStore.activities
-            .reversed()
-            .compactMap { activity -> (String, String)? in
-                guard activity.type == "review-fix-round",
-                      let round = activity.payload["round"],
-                      let maxRounds = activity.payload["maxRounds"]
-                else { return nil }
-                return (round, maxRounds)
+        let roundInfo = activities.reversed().compactMap { activity -> (String, String)? in
+            guard activity.type == "review-fix-round",
+                  let round = activity.payload["round"],
+                  let maxRounds = activity.payload["maxRounds"] else {
+                return nil
             }
-            .first
+            return (round, maxRounds)
+        }.first
+
+        return PanelMetrics(
+            reviewCards: cards,
+            activeReviewCount: activeCount,
+            workerInfo: workers,
+            currentRoundInfo: roundInfo
+        )
     }
 
     // MARK: - Body
 
     var body: some View {
+        let metrics = panelMetrics()
         VStack(spacing: 0) {
             Color.clear
                 .frame(height: topInteractiveInset)
                 .allowsHitTesting(false)
-            topBar
+            topBar(metrics: metrics)
             Rectangle().fill(reviewColor.opacity(0.3)).frame(height: 1)
             tabSelector
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
-            mainContent
+            mainContent(metrics: metrics)
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
             bottomBar
         }
@@ -104,7 +113,7 @@ struct CodeReviewPanelView: View {
 
     // MARK: - Top Bar
 
-    private var topBar: some View {
+    private func topBar(metrics: PanelMetrics) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
@@ -121,7 +130,7 @@ struct CodeReviewPanelView: View {
             Spacer()
 
             // Round counter badge
-            if let roundInfo = currentRoundInfo, isTaskRunning {
+            if let roundInfo = metrics.currentRoundInfo, isTaskRunning {
                 Text("Round \(roundInfo.round)/\(roundInfo.maxRounds)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white)
@@ -130,8 +139,8 @@ struct CodeReviewPanelView: View {
                     .background(Capsule().fill(reviewColor))
             }
 
-            if activeReviewCount > 0 {
-                Text("\(activeReviewCount) active")
+            if metrics.activeReviewCount > 0 {
+                Text("\(metrics.activeReviewCount) active")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(reviewColor)
                     .padding(.horizontal, 6)
@@ -188,10 +197,10 @@ struct CodeReviewPanelView: View {
     // MARK: - Main Content
 
     @ViewBuilder
-    private var mainContent: some View {
+    private func mainContent(metrics: PanelMetrics) -> some View {
         switch selectedTab {
         case .commands:
-            commandsTab
+            commandsTab(metrics: metrics)
         case .config:
             configTab
         }
@@ -199,7 +208,7 @@ struct CodeReviewPanelView: View {
 
     // MARK: - Commands Tab
 
-    private var commandsTab: some View {
+    private func commandsTab(metrics: PanelMetrics) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 // Against-commit section
@@ -213,14 +222,14 @@ struct CodeReviewPanelView: View {
                 Divider().opacity(0.3)
 
                 // Dynamic worker info during live review
-                if coderMode == .codeReviewMultiSwarm && !workerInfo.isEmpty {
-                    workerInfoSection
+                if coderMode == .codeReviewMultiSwarm && !metrics.workerInfo.isEmpty {
+                    workerInfoSection(workerInfo: metrics.workerInfo)
                     Divider().opacity(0.3)
                 }
 
                 // Live review status
-                if coderMode == .codeReviewMultiSwarm && !reviewCards.isEmpty {
-                    liveStatusSection
+                if coderMode == .codeReviewMultiSwarm && !metrics.reviewCards.isEmpty {
+                    liveStatusSection(reviewCards: metrics.reviewCards)
                 }
             }
             .padding(14)
@@ -331,7 +340,7 @@ struct CodeReviewPanelView: View {
 
     // MARK: - Worker Info Section
 
-    private var workerInfoSection: some View {
+    private func workerInfoSection(workerInfo: [WorkerInfoRow]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Dynamic Workers", systemImage: "person.3.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -386,7 +395,7 @@ struct CodeReviewPanelView: View {
 
     // MARK: - Live Status Section
 
-    private var liveStatusSection: some View {
+    private func liveStatusSection(reviewCards: [SwarmLiveCardState]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Live Status", systemImage: "waveform.path.ecg")
                 .font(.system(size: 12, weight: .semibold))

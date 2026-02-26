@@ -105,7 +105,15 @@ struct PlanPanelView: View {
 
     private let planColor = DesignSystem.Colors.planColor
 
+    private struct PlanRenderSnapshot {
+        let planContent: String
+        let planBodyContent: String
+        let mermaidBlocks: [String]
+        let canonicalTodos: [TodoItem]
+    }
+
     var body: some View {
+        let snapshot = makeRenderSnapshot()
         VStack(spacing: 0) {
             Color.clear
                 .frame(height: topInteractiveInset)
@@ -148,12 +156,12 @@ struct PlanPanelView: View {
                     }
 
                     // 4) Final todos
-                    if !canonicalPlanTodos.isEmpty {
-                        todosSection
+                    if !snapshot.canonicalTodos.isEmpty {
+                        todosSection(canonicalTodos: snapshot.canonicalTodos)
                     }
 
                     // 5) Mermaid (if present)
-                    if let firstMermaid = extractedMermaidBlocks.first {
+                    if let firstMermaid = snapshot.mermaidBlocks.first {
                         MermaidDiagramView(
                             mermaidCode: firstMermaid,
                             accentColor: planColor
@@ -161,7 +169,7 @@ struct PlanPanelView: View {
                     }
 
                     // 6) Final plan body (cause/approach), clean and deduplicated
-                    planContentSection
+                    planContentSection(snapshot: snapshot)
 
                     // 7) Live activity (compact)
                     if !taskActivityStore.activities.isEmpty {
@@ -184,7 +192,7 @@ struct PlanPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             thinSeparator
-            bottomBar
+            bottomBar(canonicalTodos: snapshot.canonicalTodos)
         }
         .background(DesignSystem.Colors.backgroundDeep)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -576,10 +584,10 @@ struct PlanPanelView: View {
 
     // MARK: - Bottom Bar
 
-    private var bottomBar: some View {
+    private func bottomBar(canonicalTodos: [TodoItem]) -> some View {
         HStack(spacing: 6) {
-            let total = canonicalPlanTodos.count
-            let done = canonicalPlanTodos.filter { $0.status == .done }.count
+            let total = canonicalTodos.count
+            let done = canonicalTodos.filter { $0.status == .done }.count
             if total > 0 {
                 Text("\(done)/\(total) todos completed")
                     .font(.system(size: 10, weight: .medium))
@@ -616,7 +624,7 @@ struct PlanPanelView: View {
                !chosen.isEmpty {
                 return chosen
             }
-            if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+            if let first = firstOption(byId: board.options) {
                 return first.fullText
             }
         }
@@ -639,11 +647,19 @@ struct PlanPanelView: View {
         return planText
     }
 
-    private var displayPlanBodyContent: String {
-        PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(displayPlanContent)
+    private func makeRenderSnapshot() -> PlanRenderSnapshot {
+        let content = displayPlanContent
+        let planBody = PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(content)
+        let mermaidBlocks = content.isEmpty ? [] : PlanOptionsParser.extractMermaidBlocksForDisplay(content)
+        return PlanRenderSnapshot(
+            planContent: content,
+            planBodyContent: planBody,
+            mermaidBlocks: mermaidBlocks,
+            canonicalTodos: canonicalPlanTodos
+        )
     }
 
-    private var planContentSection: some View {
+    private func planContentSection(snapshot: PlanRenderSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Plan")
@@ -652,7 +668,7 @@ struct PlanPanelView: View {
                 Spacer()
                 Button {
                     if !isEditing {
-                        planText = displayPlanContent
+                        planText = snapshot.planContent
                     }
                     isEditing.toggle()
                 } label: {
@@ -694,9 +710,9 @@ struct PlanPanelView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 24)
                 .padding(.horizontal, 12)
-            } else if !displayPlanBodyContent.isEmpty {
+            } else if !snapshot.planBodyContent.isEmpty {
                 MarkdownContentView(
-                    content: displayPlanBodyContent,
+                    content: snapshot.planBodyContent,
                     context: nil,
                     onFileClicked: { _ in },
                     textAlignment: .leading
@@ -917,19 +933,12 @@ struct PlanPanelView: View {
 
     // MARK: - Mermaid Blocks
 
-    /// Extract mermaid diagram blocks from the current plan content.
-    private var extractedMermaidBlocks: [String] {
-        let content = displayPlanContent
-        guard !content.isEmpty else { return [] }
-        return PlanOptionsParser.extractMermaidBlocksForDisplay(content)
-    }
-
     private var canonicalPlanTodos: [TodoItem] {
         let canonical = todoStore.todos.filter { $0.isPlanCanonical }
         return todoStore.sortedCanonicalFirstTodos(canonical)
     }
 
-    private var todosSection: some View {
+    private func todosSection(canonicalTodos: [TodoItem]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "checklist")
@@ -1081,6 +1090,10 @@ struct PlanPanelView: View {
         }
     }
 
+    private func firstOption(byId options: [PlanOption]) -> PlanOption? {
+        options.min(by: { $0.id < $1.id })
+    }
+
     private func resolveBuildChoice() -> (text: String, isFallback: Bool)? {
         let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !workspaceText.isEmpty {
@@ -1098,12 +1111,12 @@ struct PlanPanelView: View {
                !chosen.isEmpty {
                 return (chosen, false)
             }
-            if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+            if let first = firstOption(byId: board.options) {
                 return (first.fullText, PlanOptionsParser.isFallbackOption(first))
             }
         }
         if case .awaitingChoice(_, let options) = planningState,
-           let first = options.sorted(by: { $0.id < $1.id }).first {
+           let first = firstOption(byId: options) {
             return (first.fullText, PlanOptionsParser.isFallbackOption(first))
         }
         return nil
@@ -1139,7 +1152,7 @@ struct PlanPanelView: View {
         let content: String
         if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines), !chosen.isEmpty {
             content = chosen
-        } else if let first = board.options.sorted(by: { $0.id < $1.id }).first {
+        } else if let first = firstOption(byId: board.options) {
             content = first.fullText
         } else {
             content = "# \(board.goal)\n\n"
