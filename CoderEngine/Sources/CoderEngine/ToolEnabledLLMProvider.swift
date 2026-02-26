@@ -220,6 +220,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
                                         didEmitPolicyAck = true
                                     }
+                                    // Emit a real-time "started" event BEFORE tool execution
+                                    // so the tool trace shows live progress (like Codex CLI).
+                                    let startType = Self.toolStartEventType(for: name)
+                                    let startPayload = Self.toolStartPayload(for: name, args: args)
+                                    continuation.yield(.raw(type: startType, payload: startPayload))
+
                                     let produced = await events(for: marker, context: context)
                                     for e in produced {
                                         if case .raw(let innerType, let innerPayload) = e,
@@ -1349,5 +1355,100 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
 
         return results
+    }
+
+    // MARK: - Real-time tool start events
+
+    /// Maps a tool name to the event type used for its "started" trace event.
+    /// These types must pass ToolTraceVisibility and have isRunning == true.
+    private static func toolStartEventType(for toolName: String) -> String {
+        switch toolName {
+        case "bash":
+            return "command_execution"
+        case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
+             "rename_symbol", "find_and_replace_all", "undo_edit":
+            return "file_change"
+        case "web_search":
+            return "web_search_started"
+        case "web_fetch":
+            return "web_fetch_started"
+        default:
+            return "read_batch_started"
+        }
+    }
+
+    /// Builds a payload for the real-time "started" event emitted before tool execution.
+    private static func toolStartPayload(for toolName: String, args: [String: String]) -> [String: String] {
+        var payload: [String: String] = [
+            "tool": toolName,
+            "name": toolName,
+            "status": "started",
+            "tool_call_id": args["id"] ?? "",
+        ]
+        if let command = args["command"], !command.isEmpty {
+            payload["command"] = command
+            payload["title"] = "Bash"
+            payload["detail"] = command
+        }
+        if let path = args["path"], !path.isEmpty { payload["path"] = path }
+        if let query = args["query"], !query.isEmpty { payload["query"] = query }
+        if let url = args["url"], !url.isEmpty { payload["url"] = url }
+        if let server = args["server"] ?? args["server_id"], !server.isEmpty {
+            payload["server_id"] = server
+            payload["mcp_server"] = server
+        }
+        if let swarmId = args["swarm_id"], !swarmId.isEmpty {
+            payload["swarm_id"] = swarmId
+            payload["group_id"] = "swarm-\(swarmId)"
+        }
+        if payload["title"] == nil {
+            payload["title"] = toolStartTitle(for: toolName, args: args)
+        }
+        return payload
+    }
+
+    private static func toolStartTitle(for toolName: String, args: [String: String]) -> String {
+        let pathComponent = { (key: String) -> String in
+            ((args[key] ?? "") as NSString).lastPathComponent
+        }
+        switch toolName {
+        case "bash":
+            return "Bash"
+        case "edit", "str_replace":
+            let file = pathComponent("path")
+            return file.isEmpty ? "Edit" : "Edit • \(file)"
+        case "write", "create_file":
+            let file = pathComponent("path")
+            return file.isEmpty ? "Write" : "Write • \(file)"
+        case "read", "read_range":
+            let file = pathComponent("path")
+            return file.isEmpty ? "Read" : "Read • \(file)"
+        case "glob":
+            let pattern = args["pattern"] ?? ""
+            return pattern.isEmpty ? "Glob" : "Glob • \(pattern)"
+        case "grep":
+            let query = args["query"] ?? ""
+            return query.isEmpty ? "Grep" : "Grep • \(query)"
+        case "semantic_search":
+            return "Semantic search"
+        case "codebase_search":
+            return "Codebase search"
+        case "find_symbol":
+            return "Find symbol"
+        case "find_references":
+            return "Find references"
+        case "web_search":
+            return "Web search"
+        case "web_fetch":
+            return "Fetching web page"
+        case "diagnostics":
+            return "Diagnostics"
+        case "build_project":
+            return "Building project"
+        case "run_tests", "run_single_test":
+            return "Running tests"
+        default:
+            return toolName.replacingOccurrences(of: "_", with: " ").capitalized
+        }
     }
 }

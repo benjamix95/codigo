@@ -377,6 +377,8 @@ enum EventNormalizer {
             return status == "started" || status == "running" || status == "in_progress"
         case "mcp_tool_call":
             return status == "started" || status == "running" || status == "in_progress"
+        case "file_change":
+            return status == "started" || status == "running" || status == "in_progress"
         case "agent":
             let detail = payload["detail"]?.lowercased()
             return detail == "started" || status == "started" || status == "running"
