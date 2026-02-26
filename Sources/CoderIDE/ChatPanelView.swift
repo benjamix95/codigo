@@ -5619,14 +5619,28 @@ struct ChatPanelView: View {
                 swarmProgressStore.markCompleted(name: title)
             }
         }
-        if t == "usage", let selectedId = providerRegistry.selectedProviderId,
-            selectedId.hasSuffix("-api"),
-            let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
-            let inp = Int(inpStr), let out = Int(outStr)
-        {
-            providerUsageStore.addApiUsage(
-                inputTokens: inp, outputTokens: out,
-                model: p["model"] ?? "gpt-4o-mini")
+        if t == "usage",
+           let inpStr = p["input_tokens"], let outStr = p["output_tokens"],
+           let inp = Int(inpStr), let out = Int(outStr) {
+            if pid.hasSuffix("-api") {
+                providerUsageStore.addApiUsage(
+                    inputTokens: inp,
+                    outputTokens: out,
+                    model: p["model"] ?? "gpt-4o-mini"
+                )
+            } else if pid == "claude-cli" {
+                let current = providerUsageStore.claudeUsage
+                let merged = ClaudeUsage(
+                    sessionCost: current?.sessionCost,
+                    inputTokens: max(current?.inputTokens ?? 0, inp),
+                    outputTokens: max(current?.outputTokens ?? 0, out),
+                    cacheReadTokens: current?.cacheReadTokens,
+                    cacheWriteTokens: current?.cacheWriteTokens,
+                    totalDuration: current?.totalDuration
+                )
+                providerUsageStore.claudeUsage = merged
+                providerUsageStore.claudeUsageMessage = nil
+            }
         }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
     }

@@ -97,11 +97,24 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                     var didEmitInvokeSwarm = false
                     var emittedMarkers = Set<String>()
                     var markerCarry = ""
+                    var lastUsageSignature = ""
 
                     for try await line in stream {
                         guard let data = line.data(using: .utf8),
                               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                             continue
+                        }
+
+                        if let usagePayload = Self.extractUsagePayload(from: json, defaultModel: model) {
+                            let signature = [
+                                usagePayload["model"] ?? "claude",
+                                usagePayload["input_tokens"] ?? "0",
+                                usagePayload["output_tokens"] ?? "0",
+                            ].joined(separator: "|")
+                            if signature != lastUsageSignature {
+                                lastUsageSignature = signature
+                                continuation.yield(.raw(type: "usage", payload: usagePayload))
+                            }
                         }
 
                         let eventType = json["type"] as? String ?? ""
@@ -373,6 +386,67 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
             .replacingOccurrences(of: "\\\\", with: "\\")
             .replacingOccurrences(of: "\\|", with: "|")
             .replacingOccurrences(of: "\\]", with: "]")
+    }
+
+    private static func extractUsagePayload(
+        from json: [String: Any],
+        defaultModel: String?
+    ) -> [String: String]? {
+        guard let usage = extractUsageDictionary(from: json) else { return nil }
+        let input = intValue(usage["input_tokens"])
+            ?? intValue(usage["prompt_tokens"])
+            ?? intValue(usage["input_token_count"])
+            ?? 0
+        let output = intValue(usage["output_tokens"])
+            ?? intValue(usage["completion_tokens"])
+            ?? intValue(usage["output_token_count"])
+            ?? 0
+        guard input > 0 || output > 0 else { return nil }
+
+        let model = firstString(in: json, keys: ["model"])
+            ?? defaultModel
+            ?? "claude"
+
+        return [
+            "input_tokens": "\(input)",
+            "output_tokens": "\(output)",
+            "model": model,
+        ]
+    }
+
+    private static func extractUsageDictionary(from json: [String: Any]) -> [String: Any]? {
+        if let usage = json["usage"] as? [String: Any] {
+            return usage
+        }
+        if let message = json["message"] as? [String: Any],
+           let usage = message["usage"] as? [String: Any] {
+            return usage
+        }
+        if let event = json["event"] as? [String: Any] {
+            if let usage = event["usage"] as? [String: Any] {
+                return usage
+            }
+            if let delta = event["delta"] as? [String: Any],
+               let usage = delta["usage"] as? [String: Any] {
+                return usage
+            }
+        }
+        if let result = json["result"] as? [String: Any],
+           let usage = result["usage"] as? [String: Any] {
+            return usage
+        }
+        return nil
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        switch value {
+        case let number as NSNumber:
+            return number.intValue
+        case let string as String:
+            return Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
     }
 
     private static func firstString(in input: [String: Any], keys: [String]) -> String? {
