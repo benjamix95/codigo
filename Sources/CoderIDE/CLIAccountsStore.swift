@@ -15,6 +15,18 @@ final class CLIAccountsStore: ObservableObject {
     init() {
         self.multiAccountEnabled = UserDefaults.standard.bool(forKey: multiEnabledKey)
         load()
+        ensureDefaultAccountsIfNeeded()
+    }
+
+    /// Ensure each CLI provider has at least one profile/account entry.
+    /// This keeps Sidebar + Settings consistent across Codex/Claude/Gemini.
+    func ensureDefaultAccountsIfNeeded() {
+        for provider in CLIProviderKind.allCases {
+            if accounts(for: provider).isEmpty {
+                let label = "\(provider.displayName) 1"
+                addAccount(provider: provider, label: label, apiKey: nil)
+            }
+        }
     }
 
     func accounts(for provider: CLIProviderKind) -> [CLIAccount] {

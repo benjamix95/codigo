@@ -311,6 +311,8 @@ struct PlanClarificationWizardView: View {
         selectedOptionByQuestionId[question.id] = option.id
         if PlanOptionsParser.isOtherLikeClarificationOption(option) {
             focusedField = .customQuestion(question.id)
+            // Don't auto-advance for "Other" options - user needs to type custom text.
+            return
         } else {
             customTextByQuestionId[question.id] = ""
             if focusedField == .customQuestion(question.id) {
@@ -318,8 +320,10 @@ struct PlanClarificationWizardView: View {
             }
         }
 
+        // Only auto-advance for non-"Other" options, and guard against stale state.
+        let targetQuestionId = question.id
         Task { @MainActor in
-            guard currentQuestion?.id == question.id else { return }
+            guard currentQuestion?.id == targetQuestionId else { return }
             advanceFromQuestion(question)
         }
     }
@@ -385,6 +389,7 @@ struct PlanOptionsView: View {
 
     @State private var customText = ""
     @State private var tappedOptionId: Int?
+    @State private var showCustomField = false
     @FocusState private var isCustomFocused: Bool
 
     init(
@@ -415,6 +420,14 @@ struct PlanOptionsView: View {
                         tappedOptionId = opt.id
                     }
                     onSelectOption(opt)
+                    // Reset tap visual state after brief feedback
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if tappedOptionId == opt.id {
+                            withAnimation(.easeOut(duration: 0.15)) {
+                                tappedOptionId = nil
+                            }
+                        }
+                    }
                 } label: {
                     HStack(alignment: .top, spacing: 8) {
                         Text("\(opt.id)")
@@ -436,7 +449,7 @@ struct PlanOptionsView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Image(systemName: "arrow.right.circle")
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "arrow.right.circle")
                             .font(.subheadline)
                             .foregroundStyle(isSelected ? planColor : planColor.opacity(0.7))
                     }
@@ -458,13 +471,29 @@ struct PlanOptionsView: View {
                 .buttonStyle(.plain)
             }
 
-            Divider()
+            // Collapsible custom response
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showCustomField.toggle()
+                }
+                if showCustomField {
+                    isCustomFocused = true
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "pencil.line")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("Custom response")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Image(systemName: showCustomField ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Custom response")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+            if showCustomField {
                 HStack(alignment: .bottom, spacing: 6) {
                     TextField("Write your response...", text: $customText, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
@@ -476,6 +505,7 @@ struct PlanOptionsView: View {
                         guard !t.isEmpty else { return }
                         onCustomResponse(t)
                         customText = ""
+                        showCustomField = false
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title2)

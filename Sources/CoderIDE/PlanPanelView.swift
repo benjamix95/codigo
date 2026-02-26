@@ -19,28 +19,25 @@ func planBuildDisabledReason(
     hasBuildChoice: Bool,
     providerExecutionCapable: Bool
 ) -> String? {
-    // Check phase-level reasons first so users see the most actionable
-    // message instead of a generic provider error while the plan is still
-    // in progress.
     switch phase {
     case .idle:
-        return "No plan available."
+        return "No plan"
     case .analyzing:
-        return "Analysis in progress..."
+        return "Analyzing..."
     case .questioning:
-        return "Answer the questions first."
+        return "Answer questions first"
     case .generating:
-        return "Generating plan..."
+        return "Generating..."
     case .building:
         return "Building..."
     case .proposalReady, .readyToBuild:
         break
     }
     if !hasBuildChoice {
-        return "No option selected."
+        return "No option selected"
     }
     if !providerExecutionCapable {
-        return "Provider not authenticated."
+        return "Auth required"
     }
     return nil
 }
@@ -206,6 +203,7 @@ struct PlanPanelView: View {
             isEditing = false
             buildHint = nil
             walkthroughExpanded = false
+            planProviderId = nil
         }
         .onChange(of: conversationId) { _, _ in
             // New conversation => plan panel should immediately reflect the new context.
@@ -214,6 +212,7 @@ struct PlanPanelView: View {
             buildHint = nil
             walkthroughExpanded = false
             historySelectionVersion = 0
+            planProviderId = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
             performBuild()
@@ -464,21 +463,15 @@ struct PlanPanelView: View {
         case .idle:
             return buildHint ?? buildDisabledReason
         case .analyzing:
-            return "Analyzing codebase..."
+            return "Analyzing..."
         case .questioning:
-            return "Waiting for answers..."
+            return "Awaiting answers"
         case .generating:
-            return "Generating plan..."
+            return "Generating..."
         case .proposalReady:
-            if let reason = buildDisabledReason {
-                return reason
-            }
-            return "Select an option to build."
+            return buildDisabledReason ?? "Select an option"
         case .readyToBuild:
-            if let reason = buildDisabledReason {
-                return reason
-            }
-            return "Ready to build."
+            return buildDisabledReason ?? "Ready"
         case .building:
             return "Building..."
         }
@@ -585,18 +578,45 @@ struct PlanPanelView: View {
     // MARK: - Bottom Bar
 
     private func bottomBar(canonicalTodos: [TodoItem]) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             let total = canonicalTodos.count
             let done = canonicalTodos.filter { $0.status == .done }.count
             if total > 0 {
-                Text("\(done)/\(total) todos completed")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 4) {
+                    Image(systemName: "checklist")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(planColor.opacity(0.6))
+                    Text("\(done)/\(total)")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+                if total > 0 {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.secondary.opacity(0.15))
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(planColor.opacity(0.5))
+                                .frame(width: geo.size.width * (total > 0 ? CGFloat(done) / CGFloat(total) : 0))
+                        }
+                    }
+                    .frame(maxWidth: 60, maxHeight: 3)
+                }
             }
             Spacer()
+            if planFlowPhase == .building, isCurrentConversationLoading {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.6)
+                    Text("Building")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Plan Content
@@ -790,7 +810,7 @@ struct PlanPanelView: View {
                                 .foregroundStyle(.tertiary)
                         }
                         Spacer()
-                        Button("Preview") {
+                        Button {
                             if planHistoryStore.selectedEntryId == entry.id {
                                 planHistoryStore.setSelectedEntry(id: nil)
                             } else {
@@ -803,9 +823,13 @@ struct PlanPanelView: View {
                                 }
                             }
                             historySelectionVersion &+= 1
+                        } label: {
+                            let isActive = planHistoryStore.selectedEntryId == entry.id
+                            Text(isActive ? "Hide" : "Preview")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(isActive ? planColor : .secondary)
                         }
                         .buttonStyle(.plain)
-                        .font(.system(size: 10, weight: .medium))
                         Button {
                             guard isPlanBuildEnabled(
                                 phase: planFlowPhase,
@@ -948,14 +972,14 @@ struct PlanPanelView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                let total = canonicalPlanTodos.count
-                let done = canonicalPlanTodos.filter { $0.status == .done }.count
+                let total = canonicalTodos.count
+                let done = canonicalTodos.filter { $0.status == .done }.count
                 Text("\(done)/\(total)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
             }
 
-            ForEach(canonicalPlanTodos) { todo in
+            ForEach(canonicalTodos) { todo in
                 HStack(spacing: 8) {
                     Button {
                         let newStatus: TodoStatus = todo.status == .done ? .pending : .done
@@ -1095,9 +1119,12 @@ struct PlanPanelView: View {
     }
 
     private func resolveBuildChoice() -> (text: String, isFallback: Bool)? {
-        let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !workspaceText.isEmpty {
-            return (workspaceText, false)
+        // Only use the local edit buffer when actively editing.
+        if isEditing {
+            let workspaceText = planText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !workspaceText.isEmpty {
+                return (workspaceText, false)
+            }
         }
         if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
             if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1209,31 +1236,34 @@ struct PlanPhaseProgressView: View {
     }
 
     private var steps: [PhaseStep] {
-        let phaseOrder: [PlanFlowPhase] = [.analyzing, .questioning, .generating]
-        guard let currentIndex = phaseOrder.firstIndex(of: phase) else {
+        switch phase {
+        case .analyzing:
+            return [
+                PhaseStep(label: "Analysis", isActive: true, isCompleted: false),
+                PhaseStep(label: "Questions", isActive: false, isCompleted: false),
+                PhaseStep(label: "Plan", isActive: false, isCompleted: false),
+            ]
+        case .questioning:
+            return [
+                PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
+                PhaseStep(label: "Questions", isActive: true, isCompleted: false),
+                PhaseStep(label: "Plan", isActive: false, isCompleted: false),
+            ]
+        case .generating:
+            // Questions step shows as completed only if the phase was visited;
+            // otherwise it's skipped (shown as completed to avoid confusion).
+            return [
+                PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
+                PhaseStep(label: "Questions", isActive: false, isCompleted: true),
+                PhaseStep(label: "Plan", isActive: true, isCompleted: false),
+            ]
+        default:
             return [
                 PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
                 PhaseStep(label: "Questions", isActive: false, isCompleted: true),
                 PhaseStep(label: "Plan", isActive: false, isCompleted: true),
             ]
         }
-        return [
-            PhaseStep(
-                label: "Analysis",
-                isActive: currentIndex == 0,
-                isCompleted: currentIndex > 0
-            ),
-            PhaseStep(
-                label: "Questions",
-                isActive: currentIndex == 1,
-                isCompleted: currentIndex > 1
-            ),
-            PhaseStep(
-                label: "Plan",
-                isActive: currentIndex == 2,
-                isCompleted: false
-            ),
-        ]
     }
 
     var body: some View {

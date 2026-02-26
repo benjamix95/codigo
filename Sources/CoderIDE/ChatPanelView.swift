@@ -848,8 +848,8 @@ struct ChatPanelView: View {
             // Restore the plan state if the destination conversation already has a plan.
             activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
-            restorePlanStateIfNeeded(for: newId)
             syncProviderFromConversation()
+            restorePlanStateIfNeeded(for: newId)
         }
         .onAppear {
             migrateSwarmProviderDefaultsIfNeeded()
@@ -3318,6 +3318,21 @@ struct ChatPanelView: View {
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         coderMode = mode
+        // When switching away from plan mode, only reset plan state if the
+        // flow is in a non-recoverable phase. Preserve in-flight state for
+        // questioning/generating so switching back to plan doesn't lose work.
+        if mode != .plan {
+            if planFlowPhase != .idle
+                && planFlowPhase != .building
+                && planFlowPhase != .questioning
+                && planFlowPhase != .generating
+            {
+                planFlowPhase = .idle
+                planningState = .idle
+                planStreamingContent = ""
+            }
+            planToggleEnabled = false
+        }
     }
 
     private func modeColor(for m: CoderMode) -> Color {
@@ -3570,8 +3585,6 @@ struct ChatPanelView: View {
             return
         }
         coderMode = mode
-        planningState = .idle
-        planFlowPhase = .idle
         switch mode {
         case .ide:
             if let preferred = conv.preferredProviderId,

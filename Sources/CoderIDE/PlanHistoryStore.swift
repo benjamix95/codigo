@@ -94,8 +94,12 @@ final class PlanHistoryStore: ObservableObject {
     }
 
     func save() {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        try? data.write(to: Self.fileURL, options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(entries)
+            try data.write(to: Self.fileURL, options: .atomic)
+        } catch {
+            print("[PlanHistoryStore] save failed: \(error.localizedDescription)")
+        }
     }
 
     private func sanitizeTitle(_ raw: String) -> String {
@@ -184,8 +188,12 @@ final class PlanHistoryStore: ObservableObject {
             selectedEntryId = nil
         } else {
             entries.removeAll { entry in
-                entry.contextId == contextId
-                    && (contextFolderPath == nil || entry.contextFolderPath == contextFolderPath)
+                let matchesContext = contextId != nil && entry.contextId == contextId
+                let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
+                if contextId != nil && contextFolderPath != nil {
+                    return matchesContext && matchesFolder
+                }
+                return matchesContext || matchesFolder
             }
             if let sid = selectedEntryId,
                !entries.contains(where: { $0.id == sid }) {
@@ -200,10 +208,17 @@ final class PlanHistoryStore: ObservableObject {
     }
 
     func entriesForContext(contextId: UUID?, contextFolderPath: String?) -> [PlanHistoryEntry] {
-        entries
+        guard contextId != nil || contextFolderPath != nil else {
+            return entries.sorted { $0.createdAt > $1.createdAt }
+        }
+        return entries
             .filter { entry in
-                entry.contextId == contextId
-                    && (contextFolderPath == nil || entry.contextFolderPath == contextFolderPath)
+                let matchesContext = contextId != nil && entry.contextId == contextId
+                let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
+                if contextId != nil && contextFolderPath != nil {
+                    return matchesContext && matchesFolder
+                }
+                return matchesContext || matchesFolder
             }
             .sorted { $0.createdAt > $1.createdAt }
     }

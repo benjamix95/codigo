@@ -7,7 +7,7 @@ struct PlanOption: Identifiable, Equatable, Codable {
     let fullText: String
 }
 
-struct PlanClarificationOption: Identifiable, Equatable, Codable {
+struct PlanClarificationOption: Identifiable, Equatable, Codable, Hashable {
     let id: String
     let text: String
 }
@@ -55,6 +55,15 @@ enum PlanOptionsParser {
     ]
     private static let otherLikeContextualTokens: Set<String> = ["specifica", "specify"]
 
+    // Pre-compiled regexes for hot paths
+    private static let questionRegex = try? NSRegularExpression(pattern: #"^\s*(\d+)[.)]\s*(.+)$"#)
+    private static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
+    private static let numberedLineRegex = try? NSRegularExpression(pattern: #"^\s*\d+[.)]\s+(.+)$"#)
+    private static let bulletLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s+(.+)$"#)
+    private static let checklistLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#)
+    private static let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#)
+    private static let fallbackNumberedRegex = try? NSRegularExpression(pattern: #"^(\d+)[.)]\s*(.+)"#)
+
     static func isOtherLikeClarificationOption(_ option: PlanClarificationOption) -> Bool {
         let normalized = option.text
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
@@ -89,10 +98,6 @@ enum PlanOptionsParser {
         var currentPrompt = ""
         var currentOptions: [PlanClarificationOption] = []
         var isInvalidStructuredBlock = false
-        let questionPattern = #"^\s*(\d+)[.)]\s*(.+)$"#
-        let optionPattern = #"^\s*(?:[-*•]\s*)?([A-Za-z])[.)]\s+(.+)$"#
-        let questionRegex = try? NSRegularExpression(pattern: questionPattern)
-        let optionRegex = try? NSRegularExpression(pattern: optionPattern)
 
         func flushQuestion() {
             guard let questionId = currentQuestionId else { return }
@@ -120,8 +125,8 @@ enum PlanOptionsParser {
             if trimmed.hasPrefix("#") { break }
             if trimmed.isEmpty { continue }
 
-            if let questionRegex,
-               let match = questionRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+            if let qRegex = Self.questionRegex,
+               let match = qRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
                let idRange = Range(match.range(at: 1), in: trimmed),
                let promptRange = Range(match.range(at: 2), in: trimmed),
                let parsedId = Int(trimmed[idRange])
@@ -134,8 +139,8 @@ enum PlanOptionsParser {
                 continue
             }
 
-            if let optionRegex,
-               let match = optionRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
+            if let oRegex = Self.clarificationOptionRegex,
+               let match = oRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
                let keyRange = Range(match.range(at: 1), in: trimmed),
                let textRange = Range(match.range(at: 2), in: trimmed),
                currentQuestionId != nil
@@ -184,8 +189,6 @@ enum PlanOptionsParser {
         let lines = normalized.components(separatedBy: .newlines)
         var inBlock = false
         var questions: [String] = []
-        let numberedPattern = #"^\s*(\d+)[.)]\s*(.+)$"#
-        let bulletPattern = #"^\s*[-*•]\s+(.+)$"#
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.range(of: clarificationHeaderPattern, options: .regularExpression) != nil {
@@ -193,17 +196,16 @@ enum PlanOptionsParser {
                 continue
             }
             if inBlock {
-                // Exit the block if another Markdown heading is found.
                 if trimmed.hasPrefix("#") {
                     break
                 }
                 if trimmed.isEmpty { continue }
-                if let regex = try? NSRegularExpression(pattern: numberedPattern),
+                if let regex = Self.questionRegex,
                    let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
                    let r2 = Range(match.range(at: 2), in: trimmed) {
                     let q = String(trimmed[r2]).trimmingCharacters(in: .whitespaces)
                     if !q.isEmpty { questions.append(q) }
-                } else if let regex = try? NSRegularExpression(pattern: bulletPattern),
+                } else if let regex = Self.bulletLineRegex,
                           let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
                           let r1 = Range(match.range(at: 1), in: trimmed) {
                     let q = String(trimmed[r1]).trimmingCharacters(in: .whitespaces)
@@ -228,7 +230,7 @@ enum PlanOptionsParser {
             if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
                 var title = "Option"
-                if let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#),
+                if let digitsRegex = Self.digitsRegex,
                    let digitMatch = digitsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
                    let digitRange = Range(digitMatch.range, in: line),
                    let n = Int(String(line[digitRange])) {
@@ -300,7 +302,7 @@ enum PlanOptionsParser {
         for para in paragraphs {
             let p = para.trimmingCharacters(in: .whitespaces)
             guard p.count >= 20 else { continue }
-            if let regex = try? NSRegularExpression(pattern: #"^(\d+)[.)]\s*(.+)"#),
+            if let regex = Self.fallbackNumberedRegex,
                let match = regex.firstMatch(in: p, range: NSRange(p.startIndex..., in: p)),
                let r1 = Range(match.range(at: 1), in: p), let num = Int(p[r1]),
                num >= 1, num <= 20 {
@@ -348,16 +350,13 @@ enum PlanOptionsParser {
         let lines = optionText.components(separatedBy: .newlines)
         let taskHeaderPattern =
             #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do|tasks?|implementation\s+steps?|execution\s+steps?|next\s+steps?|checklist|action\s+items?|work\s*plan)\b"#
-        let checklistPattern = #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#
-        let bulletPattern = #"^\s*[-*•]\s+(.+)$"#
-        let numberedPattern = #"^\s*\d+[.)]\s+(.+)$"#
 
         var todos: [String] = []
         var seen = Set<String>()
         var inTaskSection = false
 
-        func capture(_ text: String, pattern: String) -> String? {
-            guard let regex = try? NSRegularExpression(pattern: pattern),
+        func capture(_ text: String, regex: NSRegularExpression?) -> String? {
+            guard let regex,
                   let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
                   let range = Range(match.range(at: 1), in: text)
             else { return nil }
@@ -399,13 +398,13 @@ enum PlanOptionsParser {
         }
 
         func parseTaskLine(_ trimmed: String, allowPlainBullets: Bool) -> String? {
-            if let checklist = capture(trimmed, pattern: checklistPattern) {
+            if let checklist = capture(trimmed, regex: Self.checklistLineRegex) {
                 return checklist
             }
-            if allowPlainBullets, let bullet = capture(trimmed, pattern: bulletPattern) {
+            if allowPlainBullets, let bullet = capture(trimmed, regex: Self.bulletLineRegex) {
                 return bullet
             }
-            if allowPlainBullets, let numbered = capture(trimmed, pattern: numberedPattern) {
+            if allowPlainBullets, let numbered = capture(trimmed, regex: Self.numberedLineRegex) {
                 return numbered
             }
             return nil
