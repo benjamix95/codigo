@@ -671,6 +671,8 @@ struct ChatPanelView: View {
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
     @State private var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
     @State private var policyAckStateByMessage: [UUID: PolicyAckState] = [:]
+    /// Assistant message ids that already triggered a policy-ack violation.
+    @State private var policyAckFailedMessages: Set<UUID> = []
     /// Events queued while waiting for policy_ack, keyed by assistant message id.
     @State private var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?)]] = [:]
     @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
@@ -2167,8 +2169,10 @@ struct ChatPanelView: View {
     private func initializePolicyAckStateIfNeeded(for assistantMessageId: UUID) {
         guard let expectedHash = expectedPolicyAckHash() else {
             policyAckStateByMessage.removeValue(forKey: assistantMessageId)
+            policyAckFailedMessages.remove(assistantMessageId)
             return
         }
+        guard !policyAckFailedMessages.contains(assistantMessageId) else { return }
         if policyAckStateByMessage[assistantMessageId] == nil {
             policyAckStateByMessage[assistantMessageId] = PolicyAckState(expectedHash: expectedHash)
         }
@@ -2203,15 +2207,18 @@ struct ChatPanelView: View {
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
             // Flush any remaining blocked events before discarding the queue
             if let remainingQueued = policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
-                for event in remainingQueued {
-                    recordTaskActivity(
-                        type: event.type,
-                        payload: event.payload,
-                        providerId: event.providerId,
-                        conversationId: event.conversationId
-                    )
+                if !policyAckFailedMessages.contains(previous.assistantMessageId) {
+                    for event in remainingQueued {
+                        recordTaskActivity(
+                            type: event.type,
+                            payload: event.payload,
+                            providerId: event.providerId,
+                            conversationId: event.conversationId
+                        )
+                    }
                 }
             }
+            policyAckFailedMessages.remove(previous.assistantMessageId)
             autoTodoIdByMessage.removeValue(forKey: previous.assistantMessageId)
             autoTodoCompletedOperationsByMessage.removeValue(forKey: previous.assistantMessageId)
             didReceiveExplicitTodoByMessage.remove(previous.assistantMessageId)
@@ -2255,6 +2262,7 @@ struct ChatPanelView: View {
         toolTraceOperationalSeenByMessage.removeValue(forKey: active.assistantMessageId)
         toolTraceOperationalCountByMessage.removeValue(forKey: active.assistantMessageId)
         policyAckStateByMessage.removeValue(forKey: active.assistantMessageId)
+        policyAckBlockedQueue.removeValue(forKey: active.assistantMessageId)
         autoTodoIdByMessage.removeValue(forKey: active.assistantMessageId)
         autoTodoCompletedOperationsByMessage.removeValue(forKey: active.assistantMessageId)
         didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
@@ -5485,9 +5493,11 @@ struct ChatPanelView: View {
             // Queue the event instead of silently dropping it.
             // It will be flushed when the policy_ack arrives.
             if let turn = resolveToolTraceTurn(conversationId: convId, providerId: pid) {
-                policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
-                    (type: t, payload: p, providerId: pid, conversationId: convId)
-                )
+                if !policyAckFailedMessages.contains(turn.assistantMessageId) {
+                    policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
+                        (type: t, payload: p, providerId: pid, conversationId: convId)
+                    )
+                }
             }
             return
         }
@@ -5548,6 +5558,7 @@ struct ChatPanelView: View {
 
         if receivedHash == state.expectedHash {
             state.acknowledgedHash = receivedHash
+            policyAckFailedMessages.remove(turn.assistantMessageId)
             enriched["status"] = "acknowledged"
             enriched["title"] = payload["title"] ?? "Policy acknowledged"
             enriched["detail"] = payload["detail"] ?? "Policy hash accepted"
@@ -5572,6 +5583,9 @@ struct ChatPanelView: View {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
         }
+        if policyAckFailedMessages.contains(turn.assistantMessageId) {
+            return true
+        }
         guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
             return false
         }
@@ -5580,6 +5594,8 @@ struct ChatPanelView: View {
 
         state.violationEmitted = true
         policyAckStateByMessage[turn.assistantMessageId] = state
+        policyAckFailedMessages.insert(turn.assistantMessageId)
+        policyAckBlockedQueue.removeValue(forKey: turn.assistantMessageId)
         emitPolicyAckViolation(
             expectedHash: state.expectedHash,
             incomingType: type,
