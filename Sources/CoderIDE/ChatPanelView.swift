@@ -2242,10 +2242,7 @@ struct ChatPanelView: View {
                 assistantMessageId: previous.assistantMessageId
             )
             let hasRunningOperations = previousEvents.contains(where: \.isRunning)
-            let rolloverOutcome = rolloverAutoTodoOutcome(
-                for: flowCoordinator.state,
-                hasRunningOperations: hasRunningOperations
-            )
+            let rolloverOutcome: ToolTraceTurnOutcome = hasRunningOperations ? .aborted : .success
             finalizeAutoTodoIfNeeded(
                 messageId: previous.assistantMessageId,
                 outcome: rolloverOutcome,
@@ -6092,7 +6089,7 @@ struct ChatPanelView: View {
             return agentProvider
         }()
 
-        await flowCoordinator.runDelegatedSwarm(
+        let delegatedSwarmState = await flowCoordinator.runDelegatedSwarm(
             task: task,
             swarmProvider: swarm,
             context: ctx,
@@ -6123,7 +6120,7 @@ struct ChatPanelView: View {
         )
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
-        let traceOutcome = toolTraceTurnOutcome(for: flowCoordinator.state)
+        let traceOutcome = toolTraceTurnOutcome(for: delegatedSwarmState)
         finalizeToolTraceTurn(conversationId: conversationId, outcome: traceOutcome)
         chatStore.endTask(conversationId: conversationId)
         await trySummarizeIfNeeded(ctx: ctx)
@@ -6194,13 +6191,14 @@ struct ChatPanelView: View {
 
     private func isInterruptedStreamError(_ error: Error) -> Bool {
         if error is CancellationError { return true }
+        if Task.isCancelled { return true }
 
         let nsError = error as NSError
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
             return true
         }
 
-        if executionController.runState == .stopping || flowCoordinator.state == .interrupted {
+        if executionController.runState == .stopping {
             return true
         }
 

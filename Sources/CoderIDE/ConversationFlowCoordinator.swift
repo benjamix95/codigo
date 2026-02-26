@@ -255,7 +255,7 @@ final class ConversationFlowCoordinator: ObservableObject {
         onRaw: @escaping (String, [String: String], String) -> Void,
         onFollowUpText: @escaping (String) -> Void,
         onError: @escaping (String) -> Void
-    ) async {
+    ) async -> State {
         await setState(.delegatedSwarm)
         do {
             var swarmFull = ""
@@ -341,7 +341,7 @@ final class ConversationFlowCoordinator: ObservableObject {
 
             guard let agentProvider = agentFollowUpProvider else {
                 await setState(.completed)
-                return
+                return .completed
             }
 
             await setState(.followUp)
@@ -437,11 +437,17 @@ final class ConversationFlowCoordinator: ObservableObject {
                 await Task.yield()
             }
             await setState(.completed)
+            return .completed
         } catch {
             await MainActor.run {
                 onError("[Error swarm/follow-up: \(error.localizedDescription)]")
             }
+            if error is CancellationError {
+                await setState(.interrupted)
+                return .interrupted
+            }
             await setState(.error)
+            return .error
         }
     }
 

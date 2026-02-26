@@ -16,6 +16,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             preferOpenAIResponsesWireAPI: false
         )
 
+        XCTAssertFalse(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
 
@@ -33,6 +34,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             preferOpenAIResponsesWireAPI: true
         )
 
+        XCTAssertTrue(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertTrue(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
 
@@ -50,6 +52,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             preferOpenAIResponsesWireAPI: true
         )
 
+        XCTAssertFalse(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
 }
