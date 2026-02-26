@@ -25,7 +25,13 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
     ) {
-        self.claudePath = claudePath ?? PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude"
+        if let candidate = claudePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !candidate.isEmpty,
+           FileManager.default.isExecutableFile(atPath: candidate) {
+            self.claudePath = candidate
+        } else {
+            self.claudePath = PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude"
+        }
         let normalizedModel = model?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.model = (normalizedModel?.isEmpty == false) ? normalizedModel : nil
         self.allowedTools = Self.normalizeTools(allowedTools)

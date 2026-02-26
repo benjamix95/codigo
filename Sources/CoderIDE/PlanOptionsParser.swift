@@ -235,6 +235,15 @@ enum PlanOptionsParser {
                    let digitRange = Range(digitMatch.range, in: line),
                    let n = Int(String(line[digitRange])) {
                     num = n
+                } else if let letterMatch = line.range(
+                    of: #"(?i)(?:Option|Approach)\s+([A-Z])"#,
+                    options: .regularExpression
+                ) {
+                    let matched = line[letterMatch]
+                    if let letter = matched.last?.uppercased().first,
+                       letter.isLetter {
+                        num = Int(letter.asciiValue ?? 65) - 64 // A=1, B=2, ...
+                    }
                 }
 
                 let separators = [":", "-", "–", "—"]
@@ -366,7 +375,7 @@ enum PlanOptionsParser {
         func normalizeTodo(_ raw: String) -> String {
             raw
                 .replacingOccurrences(of: #"`"#, with: "")
-                .replacingOccurrences(of: #"\*\*"#, with: "")
+                .replacingOccurrences(of: "**", with: "")
                 .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -468,10 +477,13 @@ enum PlanOptionsParser {
             return ("Plan", "")
         }
 
-        let titleLine = lines.first(where: { $0.hasPrefix("#") }) ?? lines[0]
-        let title = titleLine.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let bodyLines = Array(lines.dropFirst().prefix(20))
-        let body = bodyLines.joined(separator: "\n")
+        let titleIndex = lines.firstIndex(where: { $0.hasPrefix("#") }) ?? 0
+        let titleLine = lines[titleIndex]
+        let title = titleLine.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Drop the title line itself to avoid it appearing in both title and body.
+        var bodyLines = lines
+        bodyLines.remove(at: titleIndex)
+        let body = bodyLines.prefix(20).joined(separator: "\n")
         return (title.isEmpty ? "Plan" : title, body)
     }
 

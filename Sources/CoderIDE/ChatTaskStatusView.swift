@@ -415,20 +415,6 @@ struct TaskActivityPanel: View {
             TaskActivityStore.isConcreteVisibleEvent($0)
         }
 
-        SwarmLiveBoardView(
-            cards: cards,
-            isTaskRunning: chatStore.isTaskActive(for: conversationId),
-            selectedSwarmId: effectiveSwarmId,
-            workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
-            onOpenFile: onOpenFile,
-            onSelectSwarm: { selected in
-                selectedSwarmLaneId = selected
-            },
-            onSetCollapsed: { swarmId, collapsed in
-                taskActivityStore.setSwarmCardCollapsed(swarmId, collapsed: collapsed)
-            }
-        )
-
         if let swarmId = effectiveSwarmId, !selectedLaneActivities.isEmpty {
             HStack {
                 Text("Live details • Swarm \(swarmId)")

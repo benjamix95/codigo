@@ -188,9 +188,15 @@ final class AccountUsageDashboardStore: ObservableObject {
     private func providerExecutablePath(for provider: CLIProviderKind) -> String? {
         let defaults = UserDefaults.standard
         switch provider {
-        case .codex: return defaults.string(forKey: "codex_path")
-        case .claude: return defaults.string(forKey: "claude_path")
-        case .gemini: return defaults.string(forKey: "gemini_cli_path")
+        case .codex:
+            let custom = defaults.string(forKey: "codex_path")
+            return CLIAccountAuthDetector.resolveExecutable(provider: .codex, providerPath: custom)
+        case .claude:
+            let custom = defaults.string(forKey: "claude_path")
+            return CLIAccountAuthDetector.resolveExecutable(provider: .claude, providerPath: custom)
+        case .gemini:
+            let custom = defaults.string(forKey: "gemini_cli_path")
+            return CLIAccountAuthDetector.resolveExecutable(provider: .gemini, providerPath: custom)
         }
     }
 
@@ -209,9 +215,15 @@ final class AccountUsageDashboardStore: ObservableObject {
         let claudePath = defaults.string(forKey: "claude_path")
         let geminiPath = defaults.string(forKey: "gemini_cli_path")
 
-        let effectiveCodexPath = (codexPath?.isEmpty == false) ? codexPath! : (PathFinder.find(executable: "codex") ?? "")
-        let effectiveClaudePath = (claudePath?.isEmpty == false) ? claudePath! : (PathFinder.find(executable: "claude") ?? "")
-        let effectiveGeminiPath = (geminiPath?.isEmpty == false) ? geminiPath! : (GeminiDetector.findGeminiPath(customPath: nil) ?? "")
+        let effectiveCodexPath = CodexDetector.findCodexPath(
+            customPath: (codexPath?.isEmpty == false) ? codexPath : nil
+        ) ?? ""
+        let effectiveClaudePath = ClaudeDetector.findClaudePath(
+            customPath: (claudePath?.isEmpty == false) ? claudePath : nil
+        ) ?? ""
+        let effectiveGeminiPath = GeminiDetector.findGeminiPath(
+            customPath: (geminiPath?.isEmpty == false) ? geminiPath : nil
+        ) ?? ""
 
         await providerUsage.fetchCodexUsage(
             codexPath: effectiveCodexPath,

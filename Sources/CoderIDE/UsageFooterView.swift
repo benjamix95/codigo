@@ -294,28 +294,27 @@ struct UsageFooterView: View {
         let wd = effectiveContext.primaryPath
         Task {
             if pid == "codex-cli" {
-                let path =
-                    codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
+                let path = CodexDetector.findCodexPath(
+                    customPath: codexPath.isEmpty ? nil : codexPath
+                ) ?? ""
                 await providerUsageStore.fetchCodexUsage(
                     codexPath: path,
                     workingDirectory: wd,
                     environmentOverride: usageEnvironmentOverride(for: .codex)
                 )
             } else if pid == "claude-cli" {
-                let path =
-                    claudePath.isEmpty
-                    ? (PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude")
-                    : claudePath
+                let path = ClaudeDetector.findClaudePath(
+                    customPath: claudePath.isEmpty ? nil : claudePath
+                ) ?? ""
                 await providerUsageStore.fetchClaudeUsage(
                     claudePath: path,
                     workingDirectory: wd,
                     environmentOverride: usageEnvironmentOverride(for: .claude)
                 )
             } else if pid == "gemini-cli" {
-                let path =
-                    geminiCliPath.isEmpty
-                    ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini")
-                    : geminiCliPath
+                let path = GeminiDetector.findGeminiPath(
+                    customPath: geminiCliPath.isEmpty ? nil : geminiCliPath
+                ) ?? ""
                 await providerUsageStore.fetchGeminiUsage(
                     geminiPath: path,
                     workingDirectory: wd,

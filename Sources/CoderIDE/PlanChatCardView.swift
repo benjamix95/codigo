@@ -9,19 +9,18 @@ struct PlanChatCardView: View {
     let onRemove: () -> Void
     let onExpandPlan: () -> Void
 
-    private var truncatedMarkdown: String {
+    private var nonEmptyLines: [String] {
         entry.markdown
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .prefix(12)
-            .joined(separator: "\n")
+    }
+
+    private var truncatedMarkdown: String {
+        nonEmptyLines.prefix(12).joined(separator: "\n")
     }
 
     private var isTruncated: Bool {
-        let nonEmptyLines = entry.markdown
-            .components(separatedBy: .newlines)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        return nonEmptyLines.count > 12
+        nonEmptyLines.count > 12
     }
 
     var body: some View {

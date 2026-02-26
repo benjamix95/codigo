@@ -203,6 +203,7 @@ struct SettingsView: View {
         }
         .onAppear {
             FontPreferences.registerBundledFonts()
+            cliAccountsStore.bootstrapAccountsIfNeeded()
             normalizeStoredSelections()
             loadCodexAdvanced()
             codexMCPHealth.refresh()
@@ -1451,9 +1452,9 @@ struct SettingsView: View {
     }
 
     private func refreshUsageSnapshotsForSettings() async {
-        let codexBin = codexPath.isEmpty ? (CodexDetector.findCodexPath(customPath: nil) ?? "") : codexPath
-        let claudeBin = claudePath.isEmpty ? (PathFinder.find(executable: "claude") ?? "") : claudePath
-        let geminiBin = geminiCliPath.isEmpty ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "") : geminiCliPath
+        let codexBin = CodexDetector.findCodexPath(customPath: codexPath.isEmpty ? nil : codexPath) ?? ""
+        let claudeBin = ClaudeDetector.findClaudePath(customPath: claudePath.isEmpty ? nil : claudePath) ?? ""
+        let geminiBin = GeminiDetector.findGeminiPath(customPath: geminiCliPath.isEmpty ? nil : geminiCliPath) ?? ""
         await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
         await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
         await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)

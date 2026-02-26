@@ -155,19 +155,28 @@ final class CLIAccountLoginCoordinator: ObservableObject {
     }
 
     func disconnect(account: CLIAccount) {
-        let url = URL(fileURLWithPath: account.profilePath)
-        do {
-            let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-            for file in files {
-                try? FileManager.default.removeItem(at: file)
+        if CLIAccountsStore.shared.isManagedProfilePath(account.profilePath) {
+            let url = URL(fileURLWithPath: account.profilePath)
+            do {
+                let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+                for file in files {
+                    try? FileManager.default.removeItem(at: file)
+                }
+                try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+                if account.provider == .codex {
+                    CLIProfileProvisioner.reseedCodexProfile(at: url)
+                }
+                statusByAccount[account.id] = "Disconnected"
+            } catch {
+                statusByAccount[account.id] = "Logout error: \(error.localizedDescription)"
             }
-            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            if account.provider == .codex {
-                CLIProfileProvisioner.reseedCodexProfile(at: url)
-            }
+            return
+        }
+
+        if runProviderLogout(account: account) {
             statusByAccount[account.id] = "Disconnected"
-        } catch {
-            statusByAccount[account.id] = "Logout error: \(error.localizedDescription)"
+        } else {
+            statusByAccount[account.id] = "Global profile linked (logout unavailable)"
         }
     }
 
@@ -191,6 +200,42 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             case .deviceCode: return ["auth", "login", "--device-code"]
             case .apiKey: return ["auth", "login", "--api-key"]
             }
+        }
+    }
+
+    private func runProviderLogout(account: CLIAccount) -> Bool {
+        guard let executable = CLIAccountAuthDetector.resolveExecutable(
+            provider: account.provider,
+            providerPath: nil
+        ),
+        FileManager.default.isExecutableFile(atPath: executable) else {
+            return false
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = logoutArgs(provider: account.provider)
+        process.environment = CLIAccountAuthDetector.buildEnvironment(for: account)
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private func logoutArgs(provider: CLIProviderKind) -> [String] {
+        switch provider {
+        case .codex:
+            return ["logout"]
+        case .claude:
+            return ["auth", "logout"]
+        case .gemini:
+            return ["auth", "logout"]
         }
     }
 

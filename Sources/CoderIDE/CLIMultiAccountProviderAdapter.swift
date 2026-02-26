@@ -38,7 +38,9 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
         AsyncThrowingStream { continuation in
             Task {
                 var attempted = Set<UUID>()
-                var account = await MainActor.run { router.selectAccount(for: providerKind) }
+                var account = await MainActor.run {
+                    router.selectedOrNextAvailableAccount(for: providerKind)
+                }
                 var lastErrorMessage = ""
 
                 while let selected = account, !attempted.contains(selected.id) {

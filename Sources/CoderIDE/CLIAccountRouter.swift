@@ -63,6 +63,17 @@ final class CLIAccountRouter: ObservableObject {
         return selected
     }
 
+    func selectedOrNextAvailableAccount(for provider: CLIProviderKind) -> CLIAccount? {
+        let candidates = availableAccounts(for: provider)
+        guard !candidates.isEmpty else { return nil }
+
+        if let selectedId = currentActiveAccountByProvider[provider],
+           let selected = candidates.first(where: { $0.id == selectedId }) {
+            return selected
+        }
+        return selectAccount(for: provider)
+    }
+
     func currentAvailability(provider: CLIProviderKind) -> CLIAvailabilityState {
         if availableAccounts(for: provider).isEmpty {
             return .allExhausted(reason: "No available account")

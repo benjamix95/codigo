@@ -32,7 +32,7 @@ struct PlanClarificationView: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(planColor.opacity(0.3), lineWidth: 0.5)
+                .strokeBorder(planColor.opacity(0.3), lineWidth: 0.5)
         )
     }
 }
@@ -98,7 +98,7 @@ struct PlanClarificationWizardView: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(planColor.opacity(0.3), lineWidth: 0.5)
+                .strokeBorder(planColor.opacity(0.3), lineWidth: 0.5)
         )
         .onChange(of: isConfirmStep) { _, newValue in
             guard newValue else { return }
@@ -460,7 +460,7 @@ struct PlanOptionsView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(
+                            .strokeBorder(
                                 (isSelected || isTapped) ? planColor.opacity(0.65) : Color(nsColor: .separatorColor),
                                 lineWidth: (isSelected || isTapped) ? 1.0 : 0.5
                             )
@@ -500,19 +500,19 @@ struct PlanOptionsView: View {
                         .lineLimit(1...4)
                         .focused($isCustomFocused)
 
+                    let trimmedCustom = customText.trimmingCharacters(in: .whitespacesAndNewlines)
                     Button {
-                        let t = customText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        onCustomResponse(t)
+                        guard !trimmedCustom.isEmpty else { return }
+                        onCustomResponse(trimmedCustom)
                         customText = ""
                         showCustomField = false
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.secondary : planColor)
+                            .foregroundStyle(trimmedCustom.isEmpty ? Color.secondary : planColor)
                     }
                     .buttonStyle(.plain)
-                    .disabled(customText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(trimmedCustom.isEmpty)
                 }
             }
         }
@@ -520,7 +520,7 @@ struct PlanOptionsView: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
     }
 }
@@ -593,7 +593,7 @@ struct PlanBoardView: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
     }
 

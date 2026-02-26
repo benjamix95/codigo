@@ -23,7 +23,13 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
     ) {
-        self.geminiPath = geminiPath ?? GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini"
+        if let candidate = geminiPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !candidate.isEmpty,
+           FileManager.default.isExecutableFile(atPath: candidate) {
+            self.geminiPath = candidate
+        } else {
+            self.geminiPath = GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini"
+        }
         self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
         self.executionController = executionController
         self.executionScope = executionScope

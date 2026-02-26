@@ -170,6 +170,9 @@ final class PlanHistoryStore: ObservableObject {
         copy.updatedAt = .now
         copy.sourceMessageId = nil
         entries.append(copy)
+        if entries.count > maxPlanHistoryEntries {
+            entries = Array(entries.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+        }
         selectedEntryId = copy.id
         save()
         return copy

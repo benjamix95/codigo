@@ -69,14 +69,14 @@ struct PlanSummaryCardView: View {
                 .padding(.top, 4)
             }
         }
-        .padding(14)
+        .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.28))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.25))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
     }
 }

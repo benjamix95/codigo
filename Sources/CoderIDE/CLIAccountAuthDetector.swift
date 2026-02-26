@@ -79,7 +79,8 @@ enum CLIAccountAuthDetector {
     }
 
     static func resolveExecutable(provider: CLIProviderKind, providerPath: String?) -> String? {
-        if let providerPath, !providerPath.isEmpty {
+        if let providerPath, !providerPath.isEmpty,
+           FileManager.default.isExecutableFile(atPath: providerPath) {
             return providerPath
         }
         switch provider {
@@ -125,6 +126,9 @@ enum CLIAccountAuthDetector {
 
     private static func profileBasedStatus(account: CLIAccount) -> CLIAccountAuthStatus {
         if let secret = CLIAccountSecretsStore().secret(for: account.id), !secret.isEmpty {
+            return .loggedIn(method: .apiKey)
+        }
+        if hasEnvironmentCredential(account: account) {
             return .loggedIn(method: .apiKey)
         }
         if let identity = identity(account: account),
@@ -279,5 +283,21 @@ enum CLIAccountAuthDetector {
             return profileEmail
         }
         return nil
+    }
+
+    private static func hasEnvironmentCredential(account: CLIAccount) -> Bool {
+        let env = buildEnvironment(for: account)
+        switch account.provider {
+        case .codex:
+            let key = env["OPENAI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !key.isEmpty
+        case .claude:
+            let key = env["ANTHROPIC_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !key.isEmpty
+        case .gemini:
+            let gemini = env["GEMINI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let google = env["GOOGLE_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !gemini.isEmpty || !google.isEmpty
+        }
     }
 }

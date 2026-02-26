@@ -116,6 +116,7 @@ struct CodigoApp: App {
                         chatStore.migrateLegacyContextsIfNeeded(
                             contextStore: projectContextStore, workspaceStore: workspaceStore)
                         chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)
+                        CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
                         CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
                         CodexMCPHealthStore.shared.refresh()
                         registerProviders()

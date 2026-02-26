@@ -55,7 +55,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         executionScope: ExecutionScope = .agent,
         environmentOverride: [String: String]? = nil
     ) {
-        self.codexPath = codexPath ?? PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
+        if let candidate = codexPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !candidate.isEmpty,
+           FileManager.default.isExecutableFile(atPath: candidate) {
+            self.codexPath = candidate
+        } else {
+            self.codexPath = PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
+        }
         self.sandboxMode = sandboxMode
         self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
         self.modelReasoningEffort = modelReasoningEffort?.isEmpty == true ? nil : modelReasoningEffort

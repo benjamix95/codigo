@@ -291,7 +291,9 @@ struct PlanPanelView: View {
         }
         let slug = conv.title
             .lowercased()
-            .replacingOccurrences(of: " ", with: "_")
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
             .prefix(30)
         return "\(slug).plan.md"
     }
@@ -590,18 +592,16 @@ struct PlanPanelView: View {
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.tertiary)
                 }
-                if total > 0 {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.secondary.opacity(0.15))
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(planColor.opacity(0.5))
-                                .frame(width: geo.size.width * (total > 0 ? CGFloat(done) / CGFloat(total) : 0))
-                        }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.15))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(planColor.opacity(0.5))
+                            .frame(width: geo.size.width * CGFloat(done) / CGFloat(total))
                     }
-                    .frame(maxWidth: 60, maxHeight: 3)
                 }
+                .frame(maxWidth: 60, maxHeight: 3)
             }
             Spacer()
             if planFlowPhase == .building, isCurrentConversationLoading {
@@ -815,8 +815,7 @@ struct PlanPanelView: View {
                                 planHistoryStore.setSelectedEntry(id: nil)
                             } else {
                                 planHistoryStore.setSelectedEntry(id: entry.id)
-                                let choice = entry.chosenPath?.isEmpty == false
-                                    ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                                let choice = resolvedContent(for: entry)
                                 if PlanOptionsParser.hasRequiredTodoHeader(choice),
                                    !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
                                     onHistoryEntrySelectedForBuild?()
@@ -840,8 +839,7 @@ struct PlanPanelView: View {
                                 return
                             }
                             planHistoryStore.setSelectedEntry(id: entry.id)
-                            let choice = entry.chosenPath?.isEmpty == false
-                                ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                            let choice = resolvedContent(for: entry)
                             let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
                             let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
                             guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
@@ -913,49 +911,7 @@ struct PlanPanelView: View {
         }
     }
 
-    // MARK: - Plan Board
-
-    private func planBoardSection(_ board: PlanBoard) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(board.goal)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(2)
-
-            let total = board.steps.count
-            let done = board.steps.filter { $0.status == .done }.count
-            let progress = total > 0 ? Double(done) / Double(total) : 0
-
-            ProgressView(value: progress)
-                .progressViewStyle(.linear)
-                .tint(planColor)
-
-            ForEach(board.steps.prefix(20)) { step in
-                HStack(spacing: 6) {
-                    Image(systemName: stepIcon(step.status))
-                        .font(.system(size: 9))
-                        .foregroundStyle(stepColor(step.status))
-                        .frame(width: 14)
-                    Text(step.title)
-                        .font(.system(size: 11))
-                        .lineLimit(1)
-                    Spacer()
-                }
-            }
-        }
-        .padding(12)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.3),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
-        )
-    }
-
     // MARK: - Todos Section
-
-    // MARK: - Mermaid Blocks
 
     private var canonicalPlanTodos: [TodoItem] {
         let canonical = todoStore.todos.filter { $0.isPlanCanonical }
@@ -1090,28 +1046,17 @@ struct PlanPanelView: View {
 
     // MARK: - Helpers
 
+    private func resolvedContent(for entry: PlanHistoryEntry) -> String {
+        if let chosen = entry.chosenPath, !chosen.isEmpty {
+            return chosen
+        }
+        return entry.markdown
+    }
+
     private var thinSeparator: some View {
         Rectangle()
             .fill(DesignSystem.Colors.border.opacity(0.4))
             .frame(height: 0.5)
-    }
-
-    private func stepIcon(_ status: PlanStepStatus) -> String {
-        switch status {
-        case .pending: return "circle"
-        case .running: return "play.circle.fill"
-        case .done: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
-        }
-    }
-
-    private func stepColor(_ status: PlanStepStatus) -> Color {
-        switch status {
-        case .pending: return .secondary
-        case .running: return .orange
-        case .done: return .green
-        case .failed: return .red
-        }
     }
 
     private func firstOption(byId options: [PlanOption]) -> PlanOption? {
@@ -1184,32 +1129,31 @@ struct PlanPanelView: View {
         } else {
             content = "# \(board.goal)\n\n"
         }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.plainText]
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = planFileName
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            try? content.write(to: url, atomically: true, encoding: .utf8)
-        }
+        savePlanToFile(content: content, suggestedName: planFileName)
     }
 
     private func downloadPlan(_ entry: PlanHistoryEntry) {
-        let content: String
-        if let chosen = entry.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !chosen.isEmpty {
-            content = chosen
-        } else {
-            content = entry.markdown
-        }
+        let content = resolvedContent(for: entry)
+        let baseName = entry.title.isEmpty ? "PLAN" : entry.title
+        let safeName = baseName
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: "_")
+        savePlanToFile(content: content, suggestedName: "\(safeName).md")
+    }
+
+    private func savePlanToFile(content: String, suggestedName: String) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
         panel.canCreateDirectories = true
-        let baseName = entry.title.isEmpty ? "PLAN" : entry.title
-        panel.nameFieldStringValue = "\(baseName.replacingOccurrences(of: " ", with: "_")).md"
+        panel.nameFieldStringValue = suggestedName
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            try? content.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                try content.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                print("[PlanPanel] Failed to save plan: \(error.localizedDescription)")
+            }
         }
     }
 }
@@ -1282,7 +1226,7 @@ struct PlanPhaseProgressView: View {
                     if step.isCompleted {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(planColor)
+                            .foregroundStyle(planColor)
                     } else if step.isActive {
                         ProgressView()
                             .controlSize(.mini)
@@ -1295,7 +1239,7 @@ struct PlanPhaseProgressView: View {
 
                     Text(step.label)
                         .font(.system(size: 11, weight: step.isActive ? .semibold : .regular))
-                        .foregroundColor(step.isActive ? planColor : .secondary)
+                        .foregroundStyle(step.isActive ? planColor : .secondary)
                 }
             }
         }

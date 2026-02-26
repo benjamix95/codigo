@@ -5,6 +5,7 @@ import CoderEngine
 /// Shows the active account's initial/avatar. Clicking opens a popover
 /// listing all accounts grouped by provider for quick switching.
 struct ProfileSwitcherView: View {
+    @EnvironmentObject var providerRegistry: ProviderRegistry
     @StateObject private var accountsStore = CLIAccountsStore.shared
     @StateObject private var router = CLIAccountRouter.shared
 
@@ -64,6 +65,7 @@ struct ProfileSwitcherView: View {
             )
         }
         .onAppear {
+            accountsStore.bootstrapAccountsIfNeeded()
             router.bootstrapActiveSelectionsIfNeeded()
         }
         .onChange(of: accountsStore.accounts) { _, _ in
@@ -240,6 +242,8 @@ struct ProfileSwitcherView: View {
                 provider: account.provider,
                 reason: "manual_switch"
             )
+            providerRegistry.selectedProviderId = account.provider.providerId
+            Task { await AccountUsageDashboardStore.shared.refresh() }
             showPopover = false
         } label: {
             HStack(spacing: 8) {

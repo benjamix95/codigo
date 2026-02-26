@@ -35,10 +35,7 @@ enum PlanOutputClassifier {
         }
 
         let clarifications = PlanOptionsParser.parseClarificationQuestions(from: fullText) ?? []
-        let strictOptions = PlanOptionsParser.parseStrict(from: fullText)
-        let strictTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: strictOptions)
         let hasClarificationQuestions = !clarifications.isEmpty
-        let hasStrictOptions = !strictOptions.isEmpty && strictTodoCompliant.count == strictOptions.count
 
         // Clarification questions always take priority over options.
         // LLMs should never combine ## Questions and ## Options in the same
@@ -46,11 +43,15 @@ enum PlanOutputClassifier {
         if hasClarificationQuestions {
             return PlanOutputClassification(
                 hasClarificationQuestions: true,
-                hasStrictOptions: hasStrictOptions,
+                hasStrictOptions: false,
                 nextPhase: .questioning,
                 planningState: .awaitingClarification(questions: fullText)
             )
         }
+
+        let strictOptions = PlanOptionsParser.parseStrict(from: fullText)
+        let strictTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: strictOptions)
+        let hasStrictOptions = !strictOptions.isEmpty && strictTodoCompliant.count == strictOptions.count
 
         if hasStrictOptions {
             return PlanOutputClassification(

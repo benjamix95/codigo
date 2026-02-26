@@ -2080,6 +2080,10 @@ struct ChatPanelView: View {
         cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: targetConversationId)
         activeBuildPlanConversationId = nil
+        resetPlanFlowAfterInterruption()
+    }
+
+    private func resetPlanFlowAfterInterruption() {
         switch planFlowPhase {
         case .building:
             planFlowPhase = .readyToBuild
@@ -5691,16 +5695,7 @@ struct ChatPanelView: View {
         cancelFallbackTurnStartEvent()
         chatStore.endTask(conversationId: conversationId)
         activeBuildPlanConversationId = nil
-        switch planFlowPhase {
-        case .building:
-            planFlowPhase = .readyToBuild
-        case .analyzing, .questioning, .generating:
-            planFlowPhase = .idle
-            planningState = .idle
-            planStreamingContent = ""
-        default:
-            break
-        }
+        resetPlanFlowAfterInterruption()
     }
 
     static func shouldShowFinalChatActions(

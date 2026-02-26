@@ -53,7 +53,7 @@ private struct PlanTraceItem: Identifiable {
         timestamp = activity.timestamp
         status = PlanTraceItem.status(for: activity)
         fileChange = mappedFileChange
-        isExpandable = mappedFileChange != nil || !(rawOutput?.isEmpty ?? true)
+        isExpandable = mappedFileChange != nil || rawOutput?.isEmpty == false
     }
 
     private static func title(for activity: TaskActivity, fileChange: ToolTraceFileChange?) -> String {
@@ -123,9 +123,9 @@ private struct PlanTraceItem: Identifiable {
 
     private static func status(for activity: TaskActivity) -> Status {
         switch activity.type {
-        case "web_search_failed":
+        case "web_search_failed", "web_fetch_failed":
             return .failed
-        case "read_batch_completed", "web_search_completed", "process_resumed":
+        case "read_batch_completed", "web_search_completed", "web_fetch_completed", "process_resumed":
             return .completed
         default:
             return activity.isRunning ? .running : .completed
@@ -180,11 +180,8 @@ struct PlanLiveTraceView: View {
     @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
 
-    private var traceItems: [PlanTraceItem] {
-        activities.map(PlanTraceItem.init(activity:))
-    }
-
     var body: some View {
+        let traceItems = activities.map(PlanTraceItem.init(activity:))
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Plan Live Trace")
