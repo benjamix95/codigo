@@ -12,23 +12,17 @@ struct CompactActivityTraceView: View {
     @State private var autoScrollId: UUID?
 
     /// How many items to show in compact mode
-    private let compactLimit = 4
+    private let compactLimit = 6
 
     private var hasRunningActivity: Bool {
         activities.contains(where: \.isRunning)
-    }
-
-    private var compactCompletedSummary: String? {
-        guard !activities.isEmpty, !hasRunningActivity, !isExpanded else { return nil }
-        guard let last = activities.last else { return nil }
-        return "\(last.title) • \(activities.count) eventi"
     }
 
     private var displayActivities: [TaskActivity] {
         if isExpanded {
             return activities
         }
-        // In compact: show only the last N activities, prioritizing running ones
+        // In compact: show the last N activities, prioritizing running ones
         let running = activities.filter(\.isRunning)
         if !running.isEmpty {
             return Array(running.suffix(compactLimit))
@@ -72,22 +66,8 @@ struct CompactActivityTraceView: View {
             }
             .buttonStyle(.plain)
 
-            // Activity list / compact completed summary
-            if let summary = compactCompletedSummary {
-                Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.15)).frame(height: 0.5)
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.8))
-                    Text(summary)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-            } else if !displayActivities.isEmpty {
+            // Activity list (always show last N activities for all providers)
+            if !displayActivities.isEmpty {
                 Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.15)).frame(height: 0.5)
 
                 ScrollViewReader { proxy in
