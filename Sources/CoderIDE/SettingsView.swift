@@ -49,6 +49,7 @@ struct SettingsView: View {
     @AppStorage("openai_model") private var openaiModel = "gpt-4o-mini"
     @AppStorage("reasoning_effort") private var reasoningEffort = "medium"
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
+    @AppStorage("anthropic_admin_api_key") private var anthropicAdminApiKey = ""
     @AppStorage("anthropic_model") private var anthropicModel = "claude-sonnet-4-6"
     @AppStorage("google_api_key") private var googleApiKey = ""
     @AppStorage("google_model") private var googleModel = "gemini-2.5-pro"
@@ -148,6 +149,7 @@ struct SettingsView: View {
     @State private var projectRuleContentDraft: String = ""
     @State private var loginSheetAccount: CLIAccount?
     @State private var showDeleteConfirmation: UUID?
+    @State private var pendingLoginAccountIds: Set<UUID> = []
     @State private var indexStatusText: String = "Loading..."
     @State private var indexStatsText: String = ""
     @State private var statusRefreshTask: Task<Void, Never>?
@@ -303,6 +305,15 @@ struct SettingsView: View {
                         SecureField("sk-ant-...", text: $anthropicApiKey).textFieldStyle(.roundedBorder)
                         statusBadge(connected: !anthropicApiKey.isEmpty, label: anthropicApiKey.isEmpty ? "Not configured" : "Configured")
                     }
+                    HStack {
+                        fieldLabel("Admin key (usage online)")
+                        SecureField("sk-ant-admin-...", text: $anthropicAdminApiKey).textFieldStyle(.roundedBorder)
+                        statusBadge(
+                            connected: !anthropicAdminApiKey.isEmpty,
+                            label: anthropicAdminApiKey.isEmpty ? "Optional" : "Configured"
+                        )
+                    }
+                    hintBox("Used only to fetch online Claude usage via Anthropic Admin API. Fallback remains local session usage.")
                 }.padding(4)
             }
 
@@ -517,16 +528,7 @@ struct SettingsView: View {
                 account: account,
                 providerPath: providerPath(for: account.provider),
                 onDismiss: {
-                    let status = accountAuthStatus(account)
-                    cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
-                    if status.isLoggedIn {
-                        CLIAccountRouter.shared.markAccountSelected(
-                            accountId: account.id,
-                            provider: account.provider,
-                            reason: "login_success"
-                        )
-                    }
-                    syncProviders()
+                    handleLoginSheetDismiss(for: account)
                 }
             )
         }
@@ -943,6 +945,7 @@ struct SettingsView: View {
 
                 Button {
                     let account = cliAccountsStore.addAccountQuick(provider: provider)
+                    pendingLoginAccountIds.insert(account.id)
                     loginSheetAccount = account
                 } label: {
                     Label("Add Account", systemImage: "plus")
@@ -985,6 +988,12 @@ struct SettingsView: View {
                 .labelsHidden()
             }
 
+            if let displayName = identity?.displayName, !displayName.isEmpty {
+                Text(displayName)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if let email = identity?.email, !email.isEmpty {
                 Text(email)
                     .font(.system(size: 10))
@@ -1055,8 +1064,10 @@ struct SettingsView: View {
 
     private func accountAvatar(_ account: CLIAccount) -> some View {
         let fallback = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
-        let email = CLIAccountAuthDetector.identity(account: account)?.email ?? ""
-        let seed = email.isEmpty ? fallback : email
+        let identity = CLIAccountAuthDetector.identity(account: account)
+        let displayName = identity?.displayName ?? ""
+        let email = identity?.email ?? ""
+        let seed = !displayName.isEmpty ? displayName : (email.isEmpty ? fallback : email)
         let initial = seed.isEmpty ? "?" : String(seed.prefix(1)).uppercased()
 
         return ZStack {
@@ -1128,8 +1139,37 @@ struct SettingsView: View {
                 loginSheetAccount = first
             } else {
                 let account = cliAccountsStore.addAccountQuick(provider: .codex)
+                pendingLoginAccountIds.insert(account.id)
                 loginSheetAccount = account
             }
+        }
+    }
+
+    private func handleLoginSheetDismiss(for account: CLIAccount) {
+        defer {
+            pendingLoginAccountIds.remove(account.id)
+            syncProviders()
+        }
+        guard cliAccountsStore.accounts.contains(where: { $0.id == account.id }) else { return }
+
+        let status = accountAuthStatus(account)
+        cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
+
+        if status.isLoggedIn {
+            let primaryId = cliAccountsStore.finalizePostLogin(
+                accountId: account.id,
+                preferredActiveAccountId: CLIAccountRouter.shared.currentActiveAccountByProvider[account.provider]
+            ) ?? account.id
+            CLIAccountRouter.shared.markAccountSelected(
+                accountId: primaryId,
+                provider: account.provider,
+                reason: "login_success"
+            )
+            return
+        }
+
+        if pendingLoginAccountIds.contains(account.id) {
+            cliAccountsStore.delete(accountId: account.id)
         }
     }
 
@@ -1456,7 +1496,11 @@ struct SettingsView: View {
         let claudeBin = ClaudeDetector.findClaudePath(customPath: claudePath.isEmpty ? nil : claudePath) ?? ""
         let geminiBin = GeminiDetector.findGeminiPath(customPath: geminiCliPath.isEmpty ? nil : geminiCliPath) ?? ""
         await providerUsageStore.fetchCodexUsage(codexPath: codexBin, workingDirectory: nil)
-        await providerUsageStore.fetchClaudeUsage(claudePath: claudeBin, workingDirectory: nil)
+        await providerUsageStore.fetchClaudeUsage(
+            claudePath: claudeBin,
+            workingDirectory: nil,
+            anthropicAdminApiKey: anthropicAdminApiKey
+        )
         await providerUsageStore.fetchGeminiUsage(geminiPath: geminiBin, workingDirectory: nil)
     }
 }

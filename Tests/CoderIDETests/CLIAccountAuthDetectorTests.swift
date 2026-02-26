@@ -131,6 +131,38 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         XCTAssertEqual(identity?.authMethod, .oauth)
     }
 
+    func testClaudeIdentityReadsDisplayNameAndEmailFromClaudeJSON() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let json: [String: Any] = [
+            "oauthAccount": [
+                "emailAddress": "claude-profile@example.com",
+                "displayName": "Claude Profile",
+                "organizationUuid": "org-display-123"
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+        try data.write(to: profile.appendingPathComponent(".claude.json"))
+
+        let account = CLIAccount(
+            id: UUID(),
+            provider: .claude,
+            label: "Claude Account",
+            isEnabled: true,
+            priority: 0,
+            profilePath: profile.path,
+            quota: .empty,
+            health: .healthy,
+            createdAt: .now,
+            updatedAt: .now
+        )
+
+        let identity = CLIAccountAuthDetector.identity(account: account)
+        XCTAssertEqual(identity?.email, "claude-profile@example.com")
+        XCTAssertEqual(identity?.displayName, "Claude Profile")
+        XCTAssertEqual(identity?.accountId, "org-display-123")
+        XCTAssertEqual(identity?.authMethod, .oauth)
+    }
+
     private func makeTemporaryProfileDirectory() throws -> URL {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("cli-auth-tests-\(UUID().uuidString)", isDirectory: true)

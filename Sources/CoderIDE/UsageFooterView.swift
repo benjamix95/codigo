@@ -20,6 +20,7 @@ struct UsageFooterView: View {
     @AppStorage("openrouter_model") private var openrouterModelSetting = "anthropic/claude-sonnet-4-6"
     @AppStorage("minimax_model") private var minimaxModelSetting = "MiniMax-M2.5"
     @AppStorage("grok_model") private var grokModelSetting = "grok-4-1-fast-reasoning"
+    @AppStorage("anthropic_admin_api_key") private var anthropicAdminApiKey = ""
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     let effectiveContext: EffectiveContext
@@ -309,7 +310,8 @@ struct UsageFooterView: View {
                 await providerUsageStore.fetchClaudeUsage(
                     claudePath: path,
                     workingDirectory: wd,
-                    environmentOverride: usageEnvironmentOverride(for: .claude)
+                    environmentOverride: usageEnvironmentOverride(for: .claude),
+                    anthropicAdminApiKey: anthropicAdminApiKey
                 )
             } else if pid == "gemini-cli" {
                 let path = GeminiDetector.findGeminiPath(
@@ -421,6 +423,22 @@ struct UsageFooterView: View {
                 ProgressView().controlSize(.mini)
             }
             if let u = providerUsageStore.claudeUsage {
+                if let source = providerUsageStore.claudeUsageSourceLabel, !source.isEmpty {
+                    Text(source)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
+                }
+                if let message = providerUsageStore.claudeUsageMessage,
+                   !message.isEmpty,
+                   providerUsageStore.claudeUsageSourceLabel == "Local session" {
+                    Text("fallback")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .help(message)
+                }
                 if let c = u.sessionCost {
                     Text(c)
                         .font(.system(size: 10, weight: .medium))
@@ -459,7 +477,7 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .help("Claude Code — current session cost and tokens")
+        .help("Claude Code — usage online (Admin API) con fallback sessione locale")
     }
 
     private var geminiUsageRow: some View {

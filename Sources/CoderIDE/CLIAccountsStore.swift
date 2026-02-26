@@ -25,6 +25,7 @@ final class CLIAccountsStore: ObservableObject {
     func bootstrapAccountsIfNeeded() {
         ensureGlobalAccountsIfNeeded()
         ensureDefaultAccountsIfNeeded()
+        _ = deduplicateAccounts(provider: .claude, preferredActiveAccountId: nil)
     }
 
     /// Ensure each CLI provider has at least one profile/account entry.
@@ -77,6 +78,86 @@ final class CLIAccountsStore: ObservableObject {
         let label = "Account \(nextNum)"
         addAccount(provider: provider, label: label, apiKey: nil)
         return accounts.last!
+    }
+
+    /// Finalize a just-authenticated account and returns the primary account id
+    /// after deduplication (can differ from input when merged as duplicate).
+    @discardableResult
+    func finalizePostLogin(accountId: UUID, preferredActiveAccountId: UUID?) -> UUID? {
+        guard let account = accounts.first(where: { $0.id == accountId }) else { return nil }
+        let mergedInto = deduplicateAccounts(
+            provider: account.provider,
+            preferredActiveAccountId: preferredActiveAccountId ?? accountId
+        )
+        return mergedInto[accountId] ?? accountId
+    }
+
+    /// Finds duplicate account ids for a provider without mutating state.
+    func findDuplicates(provider: CLIProviderKind) -> [UUID] {
+        let providerAccounts = accounts(for: provider)
+        var grouped: [String: [CLIAccount]] = [:]
+        for account in providerAccounts {
+            guard let key = canonicalIdentityKey(for: account) else { continue }
+            grouped[key, default: []].append(account)
+        }
+        var duplicates: [UUID] = []
+        for group in grouped.values where group.count > 1 {
+            let sorted = group.sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            duplicates.append(contentsOf: sorted.dropFirst().map(\.id))
+        }
+        return duplicates
+    }
+
+    /// Auto-merge safe duplicates:
+    /// keep one primary account enabled and mark duplicates disabled.
+    /// Returns map: duplicateAccountId -> primaryAccountId.
+    @discardableResult
+    func deduplicateAccounts(
+        provider: CLIProviderKind,
+        preferredActiveAccountId: UUID?
+    ) -> [UUID: UUID] {
+        let providerAccounts = accounts(for: provider)
+        var grouped: [String: [CLIAccount]] = [:]
+        for account in providerAccounts {
+            guard let key = canonicalIdentityKey(for: account) else { continue }
+            grouped[key, default: []].append(account)
+        }
+
+        var mergeMap: [UUID: UUID] = [:]
+        var changed = false
+        for group in grouped.values where group.count > 1 {
+            let sorted = group.sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            let primaryId: UUID
+            if let preferredActiveAccountId,
+               sorted.contains(where: { $0.id == preferredActiveAccountId }) {
+                primaryId = preferredActiveAccountId
+            } else {
+                primaryId = sorted[0].id
+            }
+            for account in sorted where account.id != primaryId {
+                guard let idx = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+                var updated = accounts[idx]
+                updated.isEnabled = false
+                if !updated.label.lowercased().contains("(duplicate)") {
+                    updated.label = "\(updated.label) (duplicate)"
+                }
+                updated.updatedAt = .now
+                accounts[idx] = updated
+                mergeMap[updated.id] = primaryId
+                changed = true
+            }
+        }
+
+        if changed {
+            save()
+        }
+        return mergeMap
     }
 
     func update(_ account: CLIAccount) {
@@ -254,5 +335,20 @@ final class CLIAccountsStore: ObservableObject {
             .standardizedFileURL
             .resolvingSymlinksInPath()
             .path
+    }
+
+    private func canonicalIdentityKey(for account: CLIAccount) -> String? {
+        guard let identity = CLIAccountAuthDetector.identity(account: account) else {
+            return nil
+        }
+        if let email = identity.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !email.isEmpty {
+            return "email:\(email.lowercased())"
+        }
+        if let accountId = identity.accountId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !accountId.isEmpty {
+            return "account:\(accountId.lowercased())"
+        }
+        return nil
     }
 }

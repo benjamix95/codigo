@@ -213,6 +213,7 @@ final class AccountUsageDashboardStore: ObservableObject {
         let defaults = UserDefaults.standard
         let codexPath = defaults.string(forKey: "codex_path")
         let claudePath = defaults.string(forKey: "claude_path")
+        let anthropicAdminApiKey = defaults.string(forKey: "anthropic_admin_api_key")
         let geminiPath = defaults.string(forKey: "gemini_cli_path")
 
         let effectiveCodexPath = CodexDetector.findCodexPath(
@@ -233,7 +234,8 @@ final class AccountUsageDashboardStore: ObservableObject {
         await providerUsage.fetchClaudeUsage(
             claudePath: effectiveClaudePath,
             workingDirectory: nil,
-            environmentOverride: usageEnvironmentOverride(provider: .claude)
+            environmentOverride: usageEnvironmentOverride(provider: .claude),
+            anthropicAdminApiKey: anthropicAdminApiKey
         )
         await providerUsage.fetchGeminiUsage(
             geminiPath: effectiveGeminiPath,

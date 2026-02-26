@@ -22,6 +22,7 @@ enum CLIAccountAuthStatus: Equatable {
 
 struct CLIAccountIdentity: Equatable {
     let email: String?
+    let displayName: String?
     let accountId: String?
     let authMethod: CLIAccountAuthMethod?
 }
@@ -174,12 +175,13 @@ enum CLIAccountAuthDetector {
             method = .file
         }
 
-        return CLIAccountIdentity(email: email, accountId: accountId, authMethod: method)
+        return CLIAccountIdentity(email: email, displayName: nil, accountId: accountId, authMethod: method)
     }
 
     private static func claudeIdentity(account: CLIAccount) -> CLIAccountIdentity? {
         let base = URL(fileURLWithPath: account.profilePath, isDirectory: true)
         let candidates = [
+            ".claude.json",
             ".claude/.credentials.json",
             ".claude/credentials.json",
             ".credentials.json",
@@ -197,10 +199,20 @@ enum CLIAccountAuthDetector {
 
             let dicts = identityLookupDictionaries(root: raw)
             let email = dicts.lazy.compactMap {
-                stringValue($0, keys: ["email", "user_email", "account_email"])
+                stringValue($0, keys: ["email", "user_email", "account_email", "emailAddress"])
+            }.first
+            let displayName = dicts.lazy.compactMap {
+                stringValue($0, keys: ["displayName", "name", "fullName", "username"])
             }.first
             let accountId = dicts.lazy.compactMap {
-                stringValue($0, keys: ["orgId", "org_id", "account_id", "accountId", "user_id", "userId"])
+                stringValue(
+                    $0,
+                    keys: [
+                        "orgId", "org_id", "organizationUuid",
+                        "account_id", "accountId", "accountUuid",
+                        "user_id", "userId"
+                    ]
+                )
             }.first
 
             let hasOAuthTokens = dicts.contains { dict in
@@ -208,8 +220,8 @@ enum CLIAccountAuthDetector {
             }
             let loggedInFlag = raw["loggedIn"] as? Bool == true
 
-            if hasOAuthTokens || loggedInFlag || email != nil || accountId != nil {
-                return CLIAccountIdentity(email: email, accountId: accountId, authMethod: .oauth)
+            if hasOAuthTokens || loggedInFlag || email != nil || accountId != nil || displayName != nil {
+                return CLIAccountIdentity(email: email, displayName: displayName, accountId: accountId, authMethod: .oauth)
             }
         }
         return nil
@@ -227,16 +239,16 @@ enum CLIAccountAuthDetector {
             let email = stringValue(raw, keys: ["email", "user_email", "account_email"])
             let accountId = stringValue(raw, keys: ["account_id", "accountId", "user_id", "userId"])
             if email != nil || accountId != nil {
-                return CLIAccountIdentity(email: email, accountId: accountId, authMethod: .oauth)
+                return CLIAccountIdentity(email: email, displayName: nil, accountId: accountId, authMethod: .oauth)
             }
-            return CLIAccountIdentity(email: nil, accountId: nil, authMethod: .file)
+            return CLIAccountIdentity(email: nil, displayName: nil, accountId: nil, authMethod: .file)
         }
         return nil
     }
 
     private static func identityLookupDictionaries(root: [String: Any]) -> [[String: Any]] {
         var result: [[String: Any]] = [root]
-        let nestedKeys = ["auth", "oauth", "user", "account", "profile", "claudeAiOauth"]
+        let nestedKeys = ["auth", "oauth", "user", "account", "profile", "claudeAiOauth", "oauthAccount"]
         for key in nestedKeys {
             if let nested = root[key] as? [String: Any] {
                 result.append(nested)

@@ -8,6 +8,7 @@ public struct ClaudeUsage: Sendable {
     public let cacheReadTokens: Int?
     public let cacheWriteTokens: Int?
     public let totalDuration: String?
+    public let source: String?
 
     public init(
         sessionCost: String? = nil,
@@ -15,7 +16,8 @@ public struct ClaudeUsage: Sendable {
         outputTokens: Int? = nil,
         cacheReadTokens: Int? = nil,
         cacheWriteTokens: Int? = nil,
-        totalDuration: String? = nil
+        totalDuration: String? = nil,
+        source: String? = nil
     ) {
         self.sessionCost = sessionCost
         self.inputTokens = inputTokens
@@ -23,6 +25,7 @@ public struct ClaudeUsage: Sendable {
         self.cacheReadTokens = cacheReadTokens
         self.cacheWriteTokens = cacheWriteTokens
         self.totalDuration = totalDuration
+        self.source = source
     }
 }
 
@@ -217,7 +220,8 @@ public enum ClaudeUsageFetcher {
             outputTokens: outputTokens,
             cacheReadTokens: cacheReadTokens,
             cacheWriteTokens: cacheWriteTokens,
-            totalDuration: totalDuration
+            totalDuration: totalDuration,
+            source: "local"
         )
     }
 
@@ -322,7 +326,8 @@ public enum ClaudeUsageFetcher {
             outputTokens: outputTokens,
             cacheReadTokens: cacheReadTokens,
             cacheWriteTokens: cacheWriteTokens,
-            totalDuration: totalDuration
+            totalDuration: totalDuration,
+            source: "local"
         )
     }
 
@@ -375,7 +380,12 @@ public enum ClaudeUsageFetcher {
             }
         }
 
-        return ClaudeUsage(sessionCost: cost, inputTokens: inTokens, outputTokens: outTokens)
+        return ClaudeUsage(
+            sessionCost: cost,
+            inputTokens: inTokens,
+            outputTokens: outTokens,
+            source: "local"
+        )
     }
 
     private static func mergedEnvironment(_ override: [String: String]?) -> [String: String] {

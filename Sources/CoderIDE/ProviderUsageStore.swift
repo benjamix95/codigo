@@ -8,6 +8,7 @@ final class ProviderUsageStore: ObservableObject {
     @Published var codexUsageMessage: String?
     @Published var claudeUsage: ClaudeUsage?
     @Published var claudeUsageMessage: String?
+    @Published var claudeUsageSourceLabel: String?
     @Published var geminiUsage: GeminiCLIUsage?
     @Published var geminiUsageMessage: String?
     @Published var apiTokensIn: Int = 0
@@ -107,7 +108,8 @@ final class ProviderUsageStore: ObservableObject {
     func fetchClaudeUsage(
         claudePath: String,
         workingDirectory: String? = nil,
-        environmentOverride: [String: String]? = nil
+        environmentOverride: [String: String]? = nil,
+        anthropicAdminApiKey: String? = nil
     ) async {
         let refreshId = scopedProviderRefreshId(
             providerId: "claude-cli",
@@ -117,11 +119,28 @@ final class ProviderUsageStore: ObservableObject {
         guard !claudePath.isEmpty, FileManager.default.fileExists(atPath: claudePath) else {
             claudeUsage = nil
             claudeUsageMessage = "Claude CLI not found"
+            claudeUsageSourceLabel = nil
             return
         }
         isRefreshing = true
         defer { isRefreshing = false }
-        let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
+        let trimmedAdminKey = anthropicAdminApiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let attemptedOnline = !trimmedAdminKey.isEmpty
+        if attemptedOnline {
+            let onlineUsage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
+                await Task.detached(priority: .userInitiated) {
+                    await ClaudeOnlineUsageFetcher.fetch(adminApiKey: trimmedAdminKey)
+                }.value
+            }
+            if let onlineUsage {
+                claudeUsage = onlineUsage
+                claudeUsageMessage = nil
+                claudeUsageSourceLabel = "Online"
+                return
+            }
+        }
+
+        let localUsage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
                 await ClaudeUsageFetcher.fetch(
                     claudePath: claudePath,
@@ -130,12 +149,22 @@ final class ProviderUsageStore: ObservableObject {
                 )
             }.value
         }
-        if let usage {
-            claudeUsage = usage
-            claudeUsageMessage = nil
+        if let localUsage {
+            claudeUsage = localUsage
+            claudeUsageSourceLabel = "Local session"
+            if attemptedOnline {
+                claudeUsageMessage = "Online usage unavailable, fallback to local session"
+            } else {
+                claudeUsageMessage = nil
+            }
         } else {
             claudeUsage = nil
-            claudeUsageMessage = "Claude usage unavailable or timeout"
+            claudeUsageSourceLabel = nil
+            if attemptedOnline {
+                claudeUsageMessage = "Claude usage unavailable (online + local fallback)"
+            } else {
+                claudeUsageMessage = "Claude usage unavailable or timeout"
+            }
         }
     }
 

@@ -11,6 +11,9 @@ struct ProfileSwitcherView: View {
 
     @State private var showPopover = false
     @State private var loginSheetAccount: CLIAccount?
+    @State private var pendingLoginAccountIds: Set<UUID> = []
+    @State private var renamingAccountId: UUID?
+    @State private var renameDraft = ""
 
     /// The "primary" active account — first provider that has an active selection.
     private var primaryActiveAccount: CLIAccount? {
@@ -48,19 +51,7 @@ struct ProfileSwitcherView: View {
                 account: account,
                 providerPath: resolveProviderPath(account.provider),
                 onDismiss: {
-                    let status = CLIAccountAuthDetector.detect(
-                        account: account,
-                        providerPath: resolveProviderPath(account.provider)
-                    )
-                    CLIAccountsStore.shared.updateAuthStatus(accountId: account.id, status: status)
-                    if status.isLoggedIn {
-                        router.markAccountSelected(
-                            accountId: account.id,
-                            provider: account.provider,
-                            reason: "login_success"
-                        )
-                    }
-                    router.bootstrapActiveSelectionsIfNeeded()
+                    handleLoginSheetDismiss(for: account)
                 }
             )
         }
@@ -164,6 +155,7 @@ struct ProfileSwitcherView: View {
                 ForEach(CLIProviderKind.allCases) { provider in
                     Button {
                         let account = accountsStore.addAccountQuick(provider: provider)
+                        pendingLoginAccountIds.insert(account.id)
                         showPopover = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             loginSheetAccount = account
@@ -235,56 +227,101 @@ struct ProfileSwitcherView: View {
     private func accountRow(_ account: CLIAccount) -> some View {
         let isActive = router.currentActiveAccountByProvider[account.provider] == account.id
         let identity = CLIAccountAuthDetector.identity(account: account)
+        let isRenaming = renamingAccountId == account.id
 
-        return Button {
-            router.markAccountSelected(
-                accountId: account.id,
-                provider: account.provider,
-                reason: "manual_switch"
-            )
-            providerRegistry.selectedProviderId = account.provider.providerId
-            Task { await AccountUsageDashboardStore.shared.refresh() }
-            showPopover = false
-        } label: {
-            HStack(spacing: 8) {
-                smallAvatar(for: account)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Button {
+                    guard !isRenaming else { return }
+                    router.markAccountSelected(
+                        accountId: account.id,
+                        provider: account.provider,
+                        reason: "manual_switch"
+                    )
+                    providerRegistry.selectedProviderId = account.provider.providerId
+                    Task { await AccountUsageDashboardStore.shared.refresh() }
+                    showPopover = false
+                } label: {
+                    HStack(spacing: 8) {
+                        smallAvatar(for: account)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(account.label)
-                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
-                        .lineLimit(1)
-                    if let email = identity?.email, !email.isEmpty {
-                        Text(email)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else if let method = identity?.authMethod {
-                        Text(method.rawValue)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    } else {
-                        Text("Not connected")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(account.label)
+                                .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                                .lineLimit(1)
+                            if let displayName = identity?.displayName, !displayName.isEmpty {
+                                Text(displayName)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                            if let email = identity?.email, !email.isEmpty {
+                                Text(email)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            } else if let method = identity?.authMethod {
+                                Text(method.rawValue)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            } else {
+                                Text("Not connected")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer()
+
+                        if isActive {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.accentColor)
+                        }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .background(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
 
-                Spacer()
-
-                if isActive {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                if account.provider == .claude {
+                    Button {
+                        startRename(account)
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Rename account")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
+            if isRenaming {
+                HStack(spacing: 6) {
+                    TextField("Account label", text: $renameDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
+                    Button("Save") {
+                        saveRename(account)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                    .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel") {
+                        renamingAccountId = nil
+                        renameDraft = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 4)
+            }
         }
-        .buttonStyle(.plain)
-        .background(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
     }
 
     // MARK: - Helpers
@@ -313,6 +350,9 @@ struct ProfileSwitcherView: View {
 
     private var primaryTitle: String {
         guard let account = primaryActiveAccount else { return "No profile" }
+        if let displayName = CLIAccountAuthDetector.identity(account: account)?.displayName, !displayName.isEmpty {
+            return displayName
+        }
         if let email = CLIAccountAuthDetector.identity(account: account)?.email, !email.isEmpty {
             return email
         }
@@ -322,6 +362,49 @@ struct ProfileSwitcherView: View {
     private var primarySubtitle: String {
         guard let account = primaryActiveAccount else { return "Click to configure" }
         return account.provider.displayName
+    }
+
+    private func startRename(_ account: CLIAccount) {
+        renamingAccountId = account.id
+        renameDraft = account.label
+    }
+
+    private func saveRename(_ account: CLIAccount) {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var updated = account
+        updated.label = trimmed
+        accountsStore.update(updated)
+        renamingAccountId = nil
+        renameDraft = ""
+    }
+
+    private func handleLoginSheetDismiss(for account: CLIAccount) {
+        defer {
+            pendingLoginAccountIds.remove(account.id)
+            router.bootstrapActiveSelectionsIfNeeded()
+        }
+        guard accountsStore.accounts.contains(where: { $0.id == account.id }) else { return }
+        let status = CLIAccountAuthDetector.detect(
+            account: account,
+            providerPath: resolveProviderPath(account.provider)
+        )
+        CLIAccountsStore.shared.updateAuthStatus(accountId: account.id, status: status)
+        if status.isLoggedIn {
+            let primaryId = CLIAccountsStore.shared.finalizePostLogin(
+                accountId: account.id,
+                preferredActiveAccountId: router.currentActiveAccountByProvider[account.provider]
+            ) ?? account.id
+            router.markAccountSelected(
+                accountId: primaryId,
+                provider: account.provider,
+                reason: "login_success"
+            )
+            return
+        }
+        if pendingLoginAccountIds.contains(account.id) {
+            CLIAccountsStore.shared.delete(accountId: account.id)
+        }
     }
 }
 

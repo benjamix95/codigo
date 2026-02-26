@@ -118,6 +118,8 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                    proc.terminationStatus == 0,
                    self.statusByAccount[account.id] != "Login cancelled" {
                     self.statusByAccount[account.id] = "Connected"
+                } else if self.statusByAccount[account.id] != "Login cancelled" {
+                    self.statusByAccount[account.id] = "Login failed (exit code \(proc.terminationStatus))"
                 }
             }
         }
@@ -175,8 +177,8 @@ final class CLIAccountLoginCoordinator: ObservableObject {
 
     @discardableResult
     func submitInteractiveInput(accountId: UUID, text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        let normalized = Self.normalizeInteractiveCode(text)
+        guard !normalized.isEmpty else {
             statusByAccount[accountId] = "Authentication code is empty"
             return false
         }
@@ -186,7 +188,7 @@ final class CLIAccountLoginCoordinator: ObservableObject {
         }
         do {
             try inputPipe.fileHandleForWriting.write(
-                contentsOf: (trimmed + "\n").data(using: .utf8) ?? Data()
+                contentsOf: (normalized + "\n").data(using: .utf8) ?? Data()
             )
             statusByAccount[accountId] = "Code submitted, waiting for confirmation..."
             awaitingInputByAccount[accountId] = false
@@ -324,5 +326,16 @@ final class CLIAccountLoginCoordinator: ObservableObject {
             "if prompted, paste"
         ]
         return claudeHints.contains(where: { lower.contains($0) })
+    }
+
+    nonisolated private static func normalizeInteractiveCode(_ raw: String) -> String {
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("code"), trimmed.count > 4 {
+            let maybeCode = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !maybeCode.isEmpty {
+                trimmed = maybeCode
+            }
+        }
+        return trimmed
     }
 }
