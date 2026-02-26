@@ -99,14 +99,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fileManager = FileManager.default
         let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
         let macOSURL = contentsURL.appendingPathComponent("MacOS", isDirectory: true)
+        let resourcesURL = contentsURL.appendingPathComponent("Resources", isDirectory: true)
         let bundledExecutableURL = macOSURL.appendingPathComponent("Codigo")
         let bundledInfoURL = contentsURL.appendingPathComponent("Info.plist")
 
         try fileManager.createDirectory(at: macOSURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
         if fileManager.fileExists(atPath: bundledExecutableURL.path) {
             try fileManager.removeItem(at: bundledExecutableURL)
         }
         try fileManager.copyItem(at: executableURL, to: bundledExecutableURL)
+        try copySiblingExecutableIfPresent(
+            named: "coderide-mcp-server",
+            from: executableURL.deletingLastPathComponent(),
+            to: macOSURL
+        )
+        try copyResourceBundles(
+            from: executableURL.deletingLastPathComponent(),
+            to: resourcesURL
+        )
 
         let plistCandidates = [
             workingDirectoryURL.appendingPathComponent("Package/Codigo.app/Contents/Info.plist"),
@@ -119,28 +130,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try fileManager.copyItem(at: plistURL, to: bundledInfoURL)
         }
 
-        let entitlementsURL = workingDirectoryURL.appendingPathComponent(
-            "Package/Codigo.app/Contents/Entitlements.plist"
-        )
-        let codesignArgs: [String] = {
-            if fileManager.fileExists(atPath: entitlementsURL.path) {
-                return ["--force", "--deep", "-s", "-", "--entitlements", entitlementsURL.path, appURL.path]
-            }
-            return ["--force", "--deep", "-s", "-", appURL.path]
-        }()
-        _ = runProcess(executablePath: "/usr/bin/codesign", arguments: codesignArgs)
+        // During local SwiftPM runs we avoid blocking the main thread on codesign.
+        // Gatekeeper signing is handled by the packaging workflow.
     }
 
-    private func runProcess(executablePath: String, arguments: [String]) -> Int32 {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus
-        } catch {
-            return -1
+    private func copySiblingExecutableIfPresent(named name: String, from sourceDir: URL, to targetDir: URL) throws {
+        let fileManager = FileManager.default
+        let source = sourceDir.appendingPathComponent(name)
+        let destination = targetDir.appendingPathComponent(name)
+        guard fileManager.fileExists(atPath: source.path) else { return }
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.copyItem(at: source, to: destination)
+    }
+
+    private func copyResourceBundles(from sourceDir: URL, to resourcesDir: URL) throws {
+        let fileManager = FileManager.default
+        let entries = try fileManager.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
+        for entry in entries where entry.pathExtension == "bundle" {
+            let destination = resourcesDir.appendingPathComponent(entry.lastPathComponent)
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: entry, to: destination)
         }
     }
 

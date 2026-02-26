@@ -1328,6 +1328,9 @@ struct ChatPanelView: View {
 
     private func restorePlanStateIfNeeded(for conversationId: UUID?) {
         planStreamingContent = ""
+        planAnalysisContext = ""
+        planUserRequest = ""
+        planClarificationAnswers = ""
         guard let conversationId else {
             planningState = .idle
             planFlowPhase = .idle
@@ -3815,7 +3818,7 @@ struct ChatPanelView: View {
         )
 
         // Store answers and continue to Phase 3 (don't restart full flow via sendMessage)
-        planClarificationAnswers = prompt
+        planClarificationAnswers = String(prompt.prefix(16_000))
         planningState = .idle
 
         if coderMode == .agent {
@@ -3859,6 +3862,7 @@ struct ChatPanelView: View {
         providerOverrideId: String? = nil,
         allowIdleRebuild: Bool = false
     ) {
+        guard conversationId != nil else { return }
         guard canStartPlanBuild(isLoading: isLoadingForCurrentConversation, phase: planFlowPhase) else {
             return
         }
@@ -4060,7 +4064,7 @@ struct ChatPanelView: View {
                     chatStore.updatePlanStepStatus(stepId: "1", status: .failed, in: planConversationId)
                     await MainActor.run {
                         flowCoordinator.interrupt()
-                        planFlowPhase = .proposalReady
+                        planFlowPhase = .readyToBuild
                     }
                 } else {
                     traceOutcome = .failed
@@ -4069,7 +4073,7 @@ struct ChatPanelView: View {
                         content: userFacingStreamError(error), in: agentConvId)
                     await MainActor.run {
                         flowCoordinator.fail()
-                        planFlowPhase = .proposalReady
+                        planFlowPhase = .readyToBuild
                     }
                 }
             }
@@ -5687,7 +5691,7 @@ struct ChatPanelView: View {
         activeBuildPlanConversationId = nil
         switch planFlowPhase {
         case .building:
-            planFlowPhase = .proposalReady
+            planFlowPhase = .readyToBuild
         case .analyzing, .questioning, .generating:
             planFlowPhase = .idle
             planningState = .idle
