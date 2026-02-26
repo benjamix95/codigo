@@ -850,6 +850,12 @@ struct ChatPanelView: View {
             // Restore the plan state if the destination conversation already has a plan.
             activeBuildPlanConversationId = nil
             planHistoryStore.setSelectedEntry(id: nil)
+            // Close side panels that are scoped to the previous conversation.
+            showSwarmPanel = false
+            // Clear per-turn activity data so the swarm panel doesn't show
+            // activities from the previous conversation when reopened.
+            taskActivityStore.clearSwarmCards()
+            swarmProgressStore.clear()
             syncProviderFromConversation()
             restorePlanStateIfNeeded(for: newId)
         }
@@ -2952,6 +2958,14 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleAutoActivatePlanMode(reason: String?) {
+        // Skip if already in plan mode or a plan flow is actively running.
+        guard coderMode != .plan else { return }
+        switch planFlowPhase {
+        case .analyzing, .questioning, .generating, .building:
+            return
+        default:
+            break
+        }
         planToggleEnabled = true
         guard !showPlanPanel else { return }
         openPlanPanelForCurrentContext(
@@ -5317,11 +5331,13 @@ struct ChatPanelView: View {
                 if agentAutoDelegateSwarm || coderMode == .agentSwarm {
                     let swarmInstructions =
                         """
-                        Swarm delegation is optional and must be conservative.
-                        - Do NOT delegate if you can complete the task yourself in one linear flow (roughly <=2 concrete operations).
-                        - Delegate only when there are independent workstreams or clearly different specialist roles that benefit from parallel execution.
-                        - Do not delegate for basic read/search/edit/command sequences that a single agent can handle.
-                        - If you delegate, provide a precise objective with concrete workstreams using:
+                        Swarm delegation policy:
+                        - Delegate when there are independent workstreams that benefit from parallel execution.
+                        - ALWAYS delegate for broad codebase exploration: if you need to understand 3+ areas of the codebase simultaneously (e.g. architecture analysis, large refactor scoping, cross-cutting concern discovery), launch parallel exploration agents.
+                        - Delegate when the task has clearly separable specialist roles (e.g. coder + test writer, security audit + implementation).
+                        - Do NOT delegate for simple linear tasks you can complete yourself in <=2 operations (single edit, one search+edit, etc.).
+                        - Do NOT delegate for trivial sequential work (read one file → edit it → done).
+                        - When delegating, provide a precise objective with concrete workstreams using:
                         \(CoderIDEMarkers.invokeSwarmPrefix)TASK_DESCRIPTION\(CoderIDEMarkers.invokeSwarmSuffix)
 
                         """
@@ -6204,8 +6220,8 @@ struct ChatPanelView: View {
     }
 
     private func isInterruptedStreamError(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
         if Task.isCancelled { return true }
+        if error is CancellationError { return true }
 
         let nsError = error as NSError
         if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {

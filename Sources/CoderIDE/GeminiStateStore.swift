@@ -7,11 +7,21 @@ final class GeminiStateStore: ObservableObject {
     @AppStorage("gemini_cli_path") private var storedPath = ""
 
     init() {
-        refresh()
+        // Defer detection to avoid running Process.waitUntilExit() during
+        // SwiftUI graph construction, which can trigger AttributeGraph preconditions.
+        Task { @MainActor [weak self] in
+            self?.refresh()
+        }
     }
 
     func refresh() {
         let path = storedPath.isEmpty ? nil : storedPath
-        status = GeminiDetector.detect(customPath: path)
+        // Run blocking detection off the main thread.
+        Task.detached(priority: .utility) { [path] in
+            let result = GeminiDetector.detect(customPath: path)
+            await MainActor.run { [weak self] in
+                self?.status = result
+            }
+        }
     }
 }

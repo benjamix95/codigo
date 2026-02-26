@@ -427,6 +427,17 @@ final class TaskActivityStore: ObservableObject {
         swarmEventsFallbackCount = 0
     }
 
+    /// Clears only swarm-related data (cards, dedup keys, counters).
+    /// Used when switching conversations so the swarm panel doesn't
+    /// show activities from a different thread.
+    func clearSwarmCards() {
+        swarmCards.removeAll()
+        swarmCardDedupKeys.removeAll()
+        swarmEventsReceivedCount = 0
+        swarmEventsAssignedCount = 0
+        swarmEventsFallbackCount = 0
+    }
+
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {
         guard SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil
         else {

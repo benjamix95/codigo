@@ -24,6 +24,7 @@ struct CLIAccountLoginSheet: View {
     @State private var copiedURLHint = false
     @State private var authCodeInput = ""
     @State private var authCodeHint = ""
+    @State private var deviceCodeCopied = false
     @State private var availableBrowsers: [BrowserApp] = []
 
     private enum LoginPhase {
@@ -76,26 +77,56 @@ struct CLIAccountLoginSheet: View {
 
     private var optionsView: some View {
         VStack(spacing: 16) {
-            // Primary: Browser OAuth
-            Button(action: loginWithBrowser) {
-                HStack(spacing: 12) {
-                    Image(systemName: "safari")
-                        .font(.title3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Sign in with Browser")
-                            .font(.subheadline.weight(.medium))
-                        Text(browserSubtitle)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.8))
+            // Primary: Browser OAuth (with browser chooser)
+            if availableBrowsers.count > 1 {
+                Menu {
+                    ForEach(availableBrowsers) { browser in
+                        Button {
+                            loginWithBrowser(browserAppURL: browser.url)
+                        } label: {
+                            Text(browser.isDefault ? "\(browser.name) (default)" : browser.name)
+                        }
                     }
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "safari")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sign in with Browser")
+                                .font(.subheadline.weight(.medium))
+                            Text(browserSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                    }
+                    .padding(12)
+                    .foregroundColor(.white)
+                    .background(providerColor, in: RoundedRectangle(cornerRadius: 10))
                 }
-                .padding(12)
-                .foregroundColor(.white)
-                .background(providerColor, in: RoundedRectangle(cornerRadius: 10))
+                .menuStyle(.borderlessButton)
+            } else {
+                Button(action: { loginWithBrowser() }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "safari")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Sign in with Browser")
+                                .font(.subheadline.weight(.medium))
+                            Text(browserSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.8))
+                        }
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .padding(12)
+                    .foregroundColor(.white)
+                    .background(providerColor, in: RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             if supportsDeviceCode {
                 dividerLine
@@ -232,6 +263,38 @@ struct CLIAccountLoginSheet: View {
                         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
                     }
 
+                    if let deviceCode = coordinator.deviceCodeByAccount[account.id] {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Your device code")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            HStack {
+                                Text(deviceCode)
+                                    .font(.system(size: 20, weight: .bold, design: .monospaced))
+                                    .textSelection(.enabled)
+                                Spacer()
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(deviceCode, forType: .string)
+                                    deviceCodeCopied = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                                        deviceCodeCopied = false
+                                    }
+                                } label: {
+                                    Label(deviceCodeCopied ? "Copied" : "Copy code", systemImage: "doc.on.doc")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            Text("Enter this code in the browser page above")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
                     if let output = coordinator.lastOutputByAccount[account.id], !output.isEmpty {
                         Text(output)
                             .font(.caption.monospaced())
@@ -242,10 +305,10 @@ struct CLIAccountLoginSheet: View {
 
                     if shouldShowAuthCodeInput {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Claude authentication code (not API key)")
+                            Text("Authentication code")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                            TextField("Paste the code shown in browser", text: $authCodeInput)
+                            TextField("Paste the code from browser or terminal", text: $authCodeInput)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.system(size: 12, design: .monospaced))
                             HStack(spacing: 8) {
@@ -325,9 +388,11 @@ struct CLIAccountLoginSheet: View {
 
     // MARK: - Actions
 
-    private func loginWithBrowser() {
+    private func loginWithBrowser(browserAppURL: URL? = nil) {
+        coordinator.setSelectedBrowser(browserAppURL, forAccount: account.id)
         authCodeInput = ""
         authCodeHint = ""
+        deviceCodeCopied = false
         phase = .polling(message: "Opening browser...")
         coordinator.startLogin(
             account: account,
@@ -417,7 +482,6 @@ struct CLIAccountLoginSheet: View {
         if coordinator.awaitingInputByAccount[account.id] == true {
             return true
         }
-        guard account.provider == .claude else { return false }
         if case .polling = phase {
             return true
         }

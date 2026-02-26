@@ -61,8 +61,16 @@ enum PromptToolsPolicy {
     - Do not rewrite or discard unrelated user changes while isolating the commit.
 
     Mode auto-activation policy:
-    - When you determine a task is complex enough to benefit from planning (multi-step, multi-file, architectural), emit an `activate_plan_mode` event with reason before starting. This opens the Plan panel automatically.
-    - When you detect errors, bugs, test failures, or the user asks to debug something, emit an `activate_debug_mode` event with reason. This opens the Debug panel automatically.
+    - `activate_plan_mode`: Emit this event ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY of these apply:
+      • The task touches 3+ files with interdependent changes (e.g. refactor, new feature with model/view/controller).
+      • The task is architectural (new system, major restructure, design decision with trade-offs).
+      • The user explicitly asks for a plan, analysis, or comparison of approaches.
+      Do NOT emit `activate_plan_mode` for:
+      • Simple bug fixes, single-file edits, quick additions, or tasks you can resolve in <=2 operations.
+      • Routine tasks like renaming, formatting, adding imports, small refactors within one file.
+      • Tasks where the path is obvious and doesn't need user choice between alternatives.
+      When in doubt, do NOT activate plan mode — just execute the task directly. Plan mode is for deliberate, complex work.
+    - `activate_debug_mode`: Emit when you detect errors, bugs, test failures, or the user asks to debug something. This opens the Debug panel automatically.
     - Emit these events early, before you start the actual work, so the user sees the right panel from the start.
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
     """
