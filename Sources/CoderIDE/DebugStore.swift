@@ -410,11 +410,18 @@ final class DebugStore: ObservableObject {
     // MARK: - Phase Management
 
     func startDebugSession(errorContext: String = "") {
+        logs.removeAll()
+        hypotheses.removeAll()
+        breakpoints.removeAll()
+        runtimeLogs.removeAll()
+        instrumentationPoints.removeAll()
+        debugMarkers.removeAll()
         phase = .describing
         errorSummary = errorContext
         streamingContent = ""
         clarificationQuestions = ""
         resolutionSummary = ""
+        userConfirmedReproduce = false
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram

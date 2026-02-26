@@ -257,6 +257,16 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertNil(resolveDebugFlowPhaseAlias("unexpected_phase"))
     }
 
+    func testShouldStartDebugSessionOnAutoActivateOnlyWhenIdleOrResolved() {
+        XCTAssertTrue(shouldStartDebugSessionOnAutoActivate(currentPhase: .idle))
+        XCTAssertTrue(shouldStartDebugSessionOnAutoActivate(currentPhase: .resolved))
+        XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .describing))
+        XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .reproducing))
+        XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .fixing))
+        XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .instrumenting))
+        XCTAssertFalse(shouldStartDebugSessionOnAutoActivate(currentPhase: .verifying))
+    }
+
     func testResolveShouldRunPlanInlineOneShotBehaviorForSlashPlan() {
         let firstSend = resolveShouldRunPlanInline(
             forcePlanInline: true,

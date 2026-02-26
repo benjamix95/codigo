@@ -1,0 +1,42 @@
+import XCTest
+@testable import CoderIDE
+
+@MainActor
+final class DebugStoreTests: XCTestCase {
+    func testStartDebugSessionResetsSessionState() {
+        let store = DebugStore()
+
+        store.addLog(severity: .error, source: "runtime", message: "previous")
+        _ = store.addHypothesis(title: "old", description: "old")
+        store.addBreakpoint(filePath: "A.swift", line: 10)
+        store.addRuntimeLog(location: "A.swift:10", message: "old runtime")
+        store.addInstrumentation(filePath: "A.swift", lineNumber: 11, type: .logging, code: "print(1)")
+        store.addDebugMarker(DebugMarker(filePath: "A.swift", lineNumber: 12, markerComment: "old marker"))
+        store.userConfirmedReproduce = true
+        store.phase = .fixing
+        store.streamingContent = "old stream"
+        store.clarificationQuestions = "old question"
+        store.resolutionSummary = "old summary"
+        store.fixLoopIteration = 3
+        store.currentRunId = "old-run"
+
+        store.startDebugSession(errorContext: "new context")
+
+        XCTAssertEqual(store.phase, .describing)
+        XCTAssertEqual(store.errorSummary, "new context")
+        XCTAssertEqual(store.logs.count, 1)
+        XCTAssertEqual(store.logs.first?.message, "Debug session started")
+        XCTAssertTrue(store.hypotheses.isEmpty)
+        XCTAssertTrue(store.breakpoints.isEmpty)
+        XCTAssertTrue(store.runtimeLogs.isEmpty)
+        XCTAssertTrue(store.instrumentationPoints.isEmpty)
+        XCTAssertTrue(store.debugMarkers.isEmpty)
+        XCTAssertFalse(store.userConfirmedReproduce)
+        XCTAssertTrue(store.streamingContent.isEmpty)
+        XCTAssertTrue(store.clarificationQuestions.isEmpty)
+        XCTAssertTrue(store.resolutionSummary.isEmpty)
+        XCTAssertEqual(store.fixLoopIteration, 0)
+        XCTAssertNil(store.currentRunId)
+        XCTAssertEqual(store.debugFlowDiagram, DebugStore.defaultDebugFlowDiagram)
+    }
+}

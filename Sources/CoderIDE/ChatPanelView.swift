@@ -271,6 +271,15 @@ func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     }
 }
 
+func shouldStartDebugSessionOnAutoActivate(currentPhase: DebugFlowPhase) -> Bool {
+    switch currentPhase {
+    case .idle, .resolved:
+        return true
+    case .describing, .reproducing, .fixing, .instrumenting, .verifying:
+        return false
+    }
+}
+
 func resolveDebugFlowPhaseAlias(_ rawValue: String?) -> DebugFlowPhase? {
     guard let rawValue else { return nil }
     let normalized = rawValue
@@ -2882,6 +2891,8 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleAutoActivateDebugMode(reason: String?) {
+        let normalizedReason = reason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if !showDebugPanel {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 debugToggleEnabled = true
@@ -2890,10 +2901,15 @@ struct ChatPanelView: View {
         } else {
             debugToggleEnabled = true
         }
-        if let reason = reason, !reason.isEmpty {
-            debugStore.startDebugSession(errorContext: reason)
-        } else {
-            debugStore.startDebugSession()
+
+        if shouldStartDebugSessionOnAutoActivate(currentPhase: debugStore.phase) {
+            debugStore.startDebugSession(errorContext: normalizedReason ?? "")
+            return
+        }
+
+        guard let normalizedReason, !normalizedReason.isEmpty else { return }
+        if debugStore.errorSummary.isEmpty {
+            debugStore.errorSummary = normalizedReason
         }
     }
 
