@@ -15,9 +15,9 @@ struct ConversationCheckpointGitStore {
         var errorDescription: String? {
             switch self {
             case .notGitRepository(let path):
-                return "Checkpoint non disponibile: \(path) non e' una repository git."
+                return "Checkpoint unavailable: \(path) is not a git repository."
             case .snapshotNotFound(let ref):
-                return "Snapshot git non trovato: \(ref)."
+                return "Git snapshot not found: \(ref)."
             case .invalidGitRoot(let root):
                 return "Root git non valida: \(root)."
             case .commandFailed(let message):

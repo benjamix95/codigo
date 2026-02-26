@@ -24,7 +24,7 @@ struct PlanClarificationView: View {
             )
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("Answer the questions below to continue analysis and planning.")
+            Text("Reply in the chat below to continue.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }
@@ -155,7 +155,7 @@ struct PlanClarificationWizardView: View {
 
         if shouldShowCustomField(for: question) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Custom response (optional, overrides selection)")
+                Text("Custom response (overrides selection)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
@@ -384,6 +384,7 @@ struct PlanOptionsView: View {
     let planColor: Color
 
     @State private var customText = ""
+    @State private var tappedOptionId: Int?
     @FocusState private var isCustomFocused: Bool
 
     init(
@@ -408,7 +409,13 @@ struct PlanOptionsView: View {
 
             ForEach(options) { opt in
                 let isSelected = selectedOptionId == opt.id
-                Button { onSelectOption(opt) } label: {
+                let isTapped = tappedOptionId == opt.id
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        tappedOptionId = opt.id
+                    }
+                    onSelectOption(opt)
+                } label: {
                     HStack(alignment: .top, spacing: 8) {
                         Text("\(opt.id)")
                             .font(.caption.weight(.medium))
@@ -435,16 +442,18 @@ struct PlanOptionsView: View {
                     }
                     .padding(10)
                     .background(
-                        (isSelected ? planColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor)),
+                        ((isSelected || isTapped) ? planColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor)),
                         in: RoundedRectangle(cornerRadius: 8)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(
-                                isSelected ? planColor.opacity(0.65) : Color(nsColor: .separatorColor),
-                                lineWidth: isSelected ? 1.0 : 0.5
+                                (isSelected || isTapped) ? planColor.opacity(0.65) : Color(nsColor: .separatorColor),
+                                lineWidth: (isSelected || isTapped) ? 1.0 : 0.5
                             )
                     )
+                    .opacity(isTapped ? 0.85 : 1.0)
+                    .scaleEffect(isTapped ? 0.98 : 1.0)
                 }
                 .buttonStyle(.plain)
             }

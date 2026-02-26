@@ -42,17 +42,17 @@ final class TodoStoreTests: XCTestCase {
 
     func testRuntimeUpsertBindsToCanonicalTodo() {
         let store = TodoStore()
-        store.upsertCanonicalPlanTodos(["Mappare flusso plan"])
+        store.upsertCanonicalPlanTodos(["Map plan flow"])
 
         let canonicalBefore = store.todos.first { $0.isPlanCanonical }
         XCTAssertNotNil(canonicalBefore)
 
         store.upsertFromAgent(
             id: nil,
-            title: "mappare   flusso PLAN",
+            title: "map   plan FLOW",
             status: .inProgress,
             priority: .high,
-            notes: "in corso",
+            notes: "in progress",
             linkedFiles: []
         )
 
@@ -164,14 +164,14 @@ final class TodoStoreTests: XCTestCase {
 
     func testUpsertCanonicalOnlyFromAgentUpdatesExistingCanonicalTodo() {
         let store = TodoStore()
-        store.upsertCanonicalPlanTodos(["Implementare parser wizard"])
+        store.upsertCanonicalPlanTodos(["Implement parser wizard"])
 
         let updated = store.upsertCanonicalOnlyFromAgent(
             id: nil,
-            title: "implementare   parser WIZARD",
+            title: "implement   parser WIZARD",
             status: .inProgress,
             priority: .high,
-            notes: "in corso",
+            notes: "in progress",
             linkedFiles: ["Sources/CoderIDE/PlanOptionsParser.swift"]
         )
 
@@ -184,11 +184,11 @@ final class TodoStoreTests: XCTestCase {
 
     func testUpsertCanonicalOnlyFromAgentIgnoresUnknownRuntimeTodo() {
         let store = TodoStore()
-        store.upsertCanonicalPlanTodos(["Task canonica"])
+        store.upsertCanonicalPlanTodos(["Canonical task"])
 
         let updated = store.upsertCanonicalOnlyFromAgent(
             id: nil,
-            title: "Task runtime non canonica",
+            title: "Non-canonical runtime task",
             status: .pending,
             priority: .medium,
             notes: nil,
@@ -197,6 +197,6 @@ final class TodoStoreTests: XCTestCase {
 
         XCTAssertFalse(updated)
         XCTAssertEqual(store.todos.count, 1)
-        XCTAssertEqual(store.todos.first?.title, "Task canonica")
+        XCTAssertEqual(store.todos.first?.title, "Canonical task")
     }
 }

@@ -34,7 +34,7 @@ public enum ClaudeModelsCache {
         knownModels
     }
 
-    /// Trova il displayName per uno slug o shortName. Ritorna lo slug stesso se non trovato.
+    /// Finds the displayName for a slug or shortName. Returns the slug itself if not found.
     public static func displayName(for modelId: String) -> String {
         let trimmed = modelId.trimmingCharacters(in: .whitespacesAndNewlines)
         if let model = knownModels.first(where: { $0.slug == trimmed }) {

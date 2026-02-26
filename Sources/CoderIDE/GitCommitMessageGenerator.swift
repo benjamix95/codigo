@@ -9,13 +9,13 @@ struct GitCommitMessageGenerator {
     ) async throws -> String {
         let cappedDiff = String(diff.prefix(20_000))
         let prompt = """
-        Genera un messaggio di commit Git conciso e professionale.
-        Vincoli:
-        - usa un subject singolo
-        - massimo 72 caratteri
-        - niente virgolette
-        - preferisci stile conventional commit (feat/fix/chore/refactor/docs/test) quando sensato
-        - rispondi SOLO con il subject
+        Generate a concise, professional Git commit message.
+        Constraints:
+        - use a single subject line
+        - maximum 72 characters
+        - no quotes
+        - prefer conventional commit style (feat/fix/chore/refactor/docs/test) when appropriate
+        - respond ONLY with the subject
 
         Diff:
         \(cappedDiff)
@@ -31,7 +31,7 @@ struct GitCommitMessageGenerator {
             .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard var msg = line, !msg.isEmpty else {
-            throw NSError(domain: "GitCommitMessageGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "Messaggio commit AI vuoto"])
+            throw NSError(domain: "GitCommitMessageGenerator", code: 1, userInfo: [NSLocalizedDescriptionKey: "AI commit message is empty"])
         }
         if msg.count > 72 {
             msg = String(msg.prefix(72)).trimmingCharacters(in: .whitespacesAndNewlines)

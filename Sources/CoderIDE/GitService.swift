@@ -247,7 +247,7 @@ struct GitService {
         let url = try runCommand(executable: "/usr/bin/env", args: ["gh"] + args, cwd: gitRoot)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if url.isEmpty {
-            throw GitServiceError.commandFailed("PR creata ma URL non disponibile.")
+            throw GitServiceError.commandFailed("PR created but URL not available.")
         }
         return GitPRResult(url: url)
     }

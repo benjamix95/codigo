@@ -23,6 +23,17 @@ enum PlanOutputClassifier {
             )
         }
 
+        // During the build phase output should not be re-classified — it
+        // is execution output, not plan content.
+        guard current != .building else {
+            return PlanOutputClassification(
+                hasClarificationQuestions: false,
+                hasStrictOptions: false,
+                nextPhase: current,
+                planningState: nil
+            )
+        }
+
         let clarifications = PlanOptionsParser.parseClarificationQuestions(from: fullText) ?? []
         let strictOptions = PlanOptionsParser.parseStrict(from: fullText)
         let strictTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: strictOptions)

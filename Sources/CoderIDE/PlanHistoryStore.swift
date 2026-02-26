@@ -52,9 +52,9 @@ struct PlanHistoryEntry: Identifiable, Codable, Equatable {
     }
 }
 
-private let planHistoryStorageKey = "CoderIDE.planHistory"
-private let maxPlanHistoryEntries = 200
-private let maxPlanMarkdownLength = 65_536
+private let planHistoryUserDefaultsKey = "CoderIDE.planHistory"
+private let maxPlanHistoryEntries = 50
+private let maxPlanMarkdownLength = 32_768
 private let maxPlanOptionsPersisted = 8
 private let maxPlanTitleLength = 120
 
@@ -63,21 +63,39 @@ final class PlanHistoryStore: ObservableObject {
     @Published private(set) var entries: [PlanHistoryEntry] = []
     @Published var selectedEntryId: UUID?
 
+    private static var fileURL: URL {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        let dir = appSupport.appendingPathComponent("CoderIDE", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("planHistory.json")
+    }
+
     init() {
         load()
     }
 
     func load() {
-        guard let data = UserDefaults.standard.data(forKey: planHistoryStorageKey),
-              let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) else {
+        // Try file-based storage first, then fall back to UserDefaults for migration.
+        if let data = try? Data(contentsOf: Self.fileURL),
+           let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) {
+            entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
             return
         }
-        entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+        // Migrate from UserDefaults if present.
+        if let data = UserDefaults.standard.data(forKey: planHistoryUserDefaultsKey),
+           let decoded = try? JSONDecoder().decode([PlanHistoryEntry].self, from: data) {
+            entries = Array(decoded.sorted(by: { $0.createdAt > $1.createdAt }).prefix(maxPlanHistoryEntries))
+            save()
+            UserDefaults.standard.removeObject(forKey: planHistoryUserDefaultsKey)
+            return
+        }
     }
 
     func save() {
         guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: planHistoryStorageKey)
+        try? data.write(to: Self.fileURL, options: .atomic)
     }
 
     private func sanitizeTitle(_ raw: String) -> String {

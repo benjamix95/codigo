@@ -51,7 +51,7 @@ enum AttachmentIntakeService {
 
         for url in urls {
             if currentCount >= maxAttachmentsPerMessage {
-                rejected.append("Limite raggiunto: massimo \(maxAttachmentsPerMessage) allegati per messaggio.")
+                rejected.append("Limit reached: maximum \(maxAttachmentsPerMessage) attachments per message.")
                 break
             }
 

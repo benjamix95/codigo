@@ -7,6 +7,14 @@ struct PlanSummaryCardView: View {
     let onToggleCollapse: () -> Void
     let onExpandPlan: () -> Void
 
+    private var summaryPreview: String {
+        summaryMarkdown
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .prefix(14)
+            .joined(separator: "\n")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -29,17 +37,13 @@ struct PlanSummaryCardView: View {
                     .lineLimit(2)
                     .foregroundStyle(.primary)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    let lines = summaryMarkdown
-                        .components(separatedBy: .newlines)
-                        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    ForEach(Array(lines.prefix(14).enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
+                MarkdownContentView(
+                    content: summaryPreview,
+                    context: nil,
+                    onFileClicked: { _ in },
+                    textAlignment: .leading
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack {
                     Spacer()

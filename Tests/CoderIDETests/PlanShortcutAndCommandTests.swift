@@ -4,10 +4,10 @@ import XCTest
 
 final class PlanShortcutAndCommandTests: XCTestCase {
     func testParsePlanCommandInputWithExplicitPrompt() {
-        let parsed = parsePlanCommandInput("  /plan crea una strategia di rollout  ")
+        let parsed = parsePlanCommandInput("  /plan create a rollout strategy  ")
         XCTAssertTrue(parsed.forcePlanInline)
-        XCTAssertEqual(parsed.displayedInput, "crea una strategia di rollout")
-        XCTAssertEqual(parsed.llmPromptInput, "crea una strategia di rollout")
+        XCTAssertEqual(parsed.displayedInput, "create a rollout strategy")
+        XCTAssertEqual(parsed.llmPromptInput, "create a rollout strategy")
     }
 
     func testParsePlanCommandInputWithEmptyPromptUsesFallback() {
@@ -25,24 +25,24 @@ final class PlanShortcutAndCommandTests: XCTestCase {
     }
 
     func testParsePlanCommandInputDoesNotTriggerForPlannerPrefix() {
-        let parsed = parsePlanCommandInput("/planner analizza il parser")
+        let parsed = parsePlanCommandInput("/planner analyze the parser")
         XCTAssertFalse(parsed.forcePlanInline)
-        XCTAssertEqual(parsed.displayedInput, "/planner analizza il parser")
-        XCTAssertEqual(parsed.llmPromptInput, "/planner analizza il parser")
+        XCTAssertEqual(parsed.displayedInput, "/planner analyze the parser")
+        XCTAssertEqual(parsed.llmPromptInput, "/planner analyze the parser")
     }
 
     func testParsePlanCommandInputDoesNotTriggerForPlanxPrefix() {
-        let parsed = parsePlanCommandInput("/planx analizza il parser")
+        let parsed = parsePlanCommandInput("/planx analyze the parser")
         XCTAssertFalse(parsed.forcePlanInline)
-        XCTAssertEqual(parsed.displayedInput, "/planx analizza il parser")
-        XCTAssertEqual(parsed.llmPromptInput, "/planx analizza il parser")
+        XCTAssertEqual(parsed.displayedInput, "/planx analyze the parser")
+        XCTAssertEqual(parsed.llmPromptInput, "/planx analyze the parser")
     }
 
     func testShouldUseClarificationPromptInPlanMode() {
         XCTAssertTrue(
             shouldUseClarificationPrompt(
                 coderMode: .plan,
-                planningState: .awaitingClarification(questions: "## Domande di chiarimento\n1. A?\n2. B?"),
+                planningState: .awaitingClarification(questions: "## Clarification questions\n1. A?\n2. B?"),
                 shouldRunPlanInline: false
             )
         )
@@ -52,7 +52,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(
             shouldUseClarificationPrompt(
                 coderMode: .agent,
-                planningState: .awaitingClarification(questions: "## Domande di chiarimento\n1. A?\n2. B?"),
+                planningState: .awaitingClarification(questions: "## Clarification questions\n1. A?\n2. B?"),
                 shouldRunPlanInline: true
             )
         )
@@ -113,10 +113,10 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         let result = evaluateShiftTabPlanShortcut(
             now: now,
             primedUntil: now.addingTimeInterval(1.0),
-            currentInputText: "analizza il refactor"
+            currentInputText: "analyze the refactor"
         )
 
-        XCTAssertEqual(result.nextInputText, "/plan analizza il refactor")
+        XCTAssertEqual(result.nextInputText, "/plan analyze the refactor")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
         XCTAssertNil(result.nextPrimedUntil)

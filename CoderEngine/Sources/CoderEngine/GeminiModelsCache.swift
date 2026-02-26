@@ -14,7 +14,7 @@ public struct GeminiModel: Sendable {
 /// Lista statica dei modelli Gemini disponibili via Gemini CLI.
 /// Non esiste un comando `gemini models list`; la documentazione ufficiale indica
 /// Auto (Gemini 3), Auto (Gemini 2.5), oppure Manual con qualsiasi modello disponibile.
-/// Questa cache espone i modelli più comuni per la selezione manuale.
+/// This cache exposes the most common models for manual selection.
 public enum GeminiModelsCache {
     /// Modelli statici basati sulla documentazione Gemini CLI (geminicli.com/docs/cli/model).
     /// Per "Default (auto)" non passare --model: usare geminiModelOverride = "".

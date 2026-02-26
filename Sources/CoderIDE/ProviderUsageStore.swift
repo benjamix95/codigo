@@ -63,7 +63,7 @@ final class ProviderUsageStore: ObservableObject {
         guard shouldRefresh(providerId: "codex-cli") else { return }
         guard !codexPath.isEmpty, FileManager.default.fileExists(atPath: codexPath) else {
             codexUsage = nil
-            codexUsageMessage = "Codex CLI non trovato"
+            codexUsageMessage = "Codex CLI not found"
             return
         }
         isRefreshing = true
@@ -79,7 +79,7 @@ final class ProviderUsageStore: ObservableObject {
             codexUsageMessage = nil
         } else {
             codexUsage = nil
-            codexUsageMessage = "Rate limits non disponibili o timeout"
+            codexUsageMessage = "Rate limits unavailable or timeout"
         }
     }
 
@@ -97,7 +97,7 @@ final class ProviderUsageStore: ObservableObject {
         guard shouldRefresh(providerId: "claude-cli") else { return }
         guard !claudePath.isEmpty, FileManager.default.fileExists(atPath: claudePath) else {
             claudeUsage = nil
-            claudeUsageMessage = "Claude CLI non trovato"
+            claudeUsageMessage = "Claude CLI not found"
             return
         }
         isRefreshing = true
@@ -113,7 +113,7 @@ final class ProviderUsageStore: ObservableObject {
             claudeUsageMessage = nil
         } else {
             claudeUsage = nil
-            claudeUsageMessage = "Usage Claude non disponibile o timeout"
+            claudeUsageMessage = "Claude usage unavailable or timeout"
         }
     }
 
@@ -121,7 +121,7 @@ final class ProviderUsageStore: ObservableObject {
         guard shouldRefresh(providerId: "gemini-cli") else { return }
         guard !geminiPath.isEmpty, FileManager.default.fileExists(atPath: geminiPath) else {
             geminiUsage = nil
-            geminiUsageMessage = "Gemini CLI non trovato"
+            geminiUsageMessage = "Gemini CLI not found"
             return
         }
         isRefreshing = true
@@ -137,7 +137,7 @@ final class ProviderUsageStore: ObservableObject {
             geminiUsageMessage = usage.note
         } else {
             geminiUsage = nil
-            geminiUsageMessage = "Usage Gemini non disponibile o timeout"
+            geminiUsageMessage = "Gemini usage unavailable or timeout"
         }
     }
 

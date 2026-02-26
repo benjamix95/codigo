@@ -1,6 +1,6 @@
 import Foundation
 
-/// Task assegnato a un agente nel piano dell'orchestratore
+/// Task assigned to an agent in the orchestrator plan
 public struct AgentTask: Codable, Sendable {
     public let role: AgentRole
     public let taskDescription: String

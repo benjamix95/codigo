@@ -66,7 +66,7 @@ final class TestProjectDetectorTests: XCTestCase {
 
         let cmd = TestProjectDetector.testCommand(workspacePath: tempDir)
         guard let cmd else {
-            XCTFail("Atteso comando di test Swift non nil")
+            XCTFail("Expected Swift test command to be non-nil")
             return
         }
         XCTAssertTrue(cmd.arguments.contains("test"))

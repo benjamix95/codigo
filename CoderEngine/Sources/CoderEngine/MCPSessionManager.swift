@@ -75,7 +75,7 @@ public actor MCPSessionManager {
     public func reconnect(serverId: String) async throws {
         let servers = resolveServers()
         guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-            throw ToolRuntimeError.mcpUnavailable("Server MCP non trovato: \(serverId)")
+            throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
         try await resetSession(cfg.id)
         _ = try await session(for: cfg)
@@ -91,13 +91,13 @@ public actor MCPSessionManager {
         await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
         let servers = resolveServers()
         guard !servers.isEmpty else {
-            throw ToolRuntimeError.mcpUnavailable("Nessun server MCP configurato")
+            throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
         }
 
         let target: MCPConfigLoader.DetectedServer
         if let serverId, !serverId.isEmpty {
             guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-                throw ToolRuntimeError.mcpUnavailable("Server MCP non trovato: \(serverId)")
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
             }
             target = cfg
         } else {
@@ -110,7 +110,7 @@ public actor MCPSessionManager {
                 }
             }
             if matches.isEmpty {
-                throw ToolRuntimeError.mcpUnavailable("Tool MCP non trovato: \(toolName)")
+                throw ToolRuntimeError.mcpUnavailable("MCP tool not found: \(toolName)")
             }
             if matches.count > 1 {
                 let names = matches.map(\.name).joined(separator: ", ")
@@ -251,7 +251,7 @@ public actor MCPSessionManager {
     }
 
     private func flattenContent(_ content: [Tool.Content]) -> String {
-        if content.isEmpty { return "(nessun contenuto)" }
+        if content.isEmpty { return "(no content)" }
         var chunks: [String] = []
         for item in content {
             switch item {

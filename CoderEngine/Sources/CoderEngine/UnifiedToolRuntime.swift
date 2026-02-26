@@ -1041,19 +1041,19 @@ public actor UnifiedToolRuntime {
             existingObj = [String: Any]()
         }
         guard var merged = existingObj as? [String: Any] else {
-            throw ToolRuntimeError.validation("write_json supporta solo JSON object root")
+            throw ToolRuntimeError.validation("write_json supports only JSON object root")
         }
         if let patchDict = patchObj as? [String: Any] {
             for (k, v) in patchDict { merged[k] = v }
         } else {
-            throw ToolRuntimeError.validation("patch deve essere un oggetto JSON")
+            throw ToolRuntimeError.validation("patch must be a JSON object")
         }
         let output = try JSONSerialization.data(withJSONObject: merged, options: [.prettyPrinted, .sortedKeys])
         try output.write(to: URL(fileURLWithPath: path), options: .atomic)
         return success([
             "title": "Write JSON \(path)",
             "path": path,
-            "detail": "Patch applicata",
+            "detail": "Patch applied",
             "output": String(data: output, encoding: .utf8) ?? ""
         ], startDate: startDate)
     }
@@ -1153,7 +1153,7 @@ public actor UnifiedToolRuntime {
                     throw ToolRuntimeError.timeout(tool: "bash", ms: timeoutMs)
                 }
                 guard let first = try await group.next() else {
-                    throw ToolRuntimeError.transport("Nessuna risposta dal processo")
+                    throw ToolRuntimeError.transport("No response from process")
                 }
                 group.cancelAll()
                 return first

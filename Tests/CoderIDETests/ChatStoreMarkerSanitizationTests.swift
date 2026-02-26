@@ -5,16 +5,16 @@ import XCTest
 final class ChatStoreMarkerSanitizationTests: XCTestCase {
     func testStripCoderideMarkersRemovesCompleteAndIncompleteMarkers() {
         let input = """
-        Prima [CODERIDE:read|path=Sources/A.swift] dopo
-        metà [CODERIDE:grep|query=foo
+        Before [CODERIDE:read|path=Sources/A.swift] after
+        half [CODERIDE:grep|query=foo
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
 
         XCTAssertFalse(sanitized.contains("CODERIDE"))
-        XCTAssertTrue(sanitized.contains("Prima"))
-        XCTAssertTrue(sanitized.contains("dopo"))
-        XCTAssertTrue(sanitized.contains("metà"))
+        XCTAssertTrue(sanitized.contains("Before"))
+        XCTAssertTrue(sanitized.contains("after"))
+        XCTAssertTrue(sanitized.contains("half"))
     }
 
     func testStripCoderideMarkersHandlesWhitespaceVariant() {
@@ -29,7 +29,7 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         title=Mappare struttura progetto e componenti principali|
         status=pending|priority=medium|notes=Identificare entrypoint, moduli|
         files=Package.swift,README.md,Sources|
-        Procedo con il task t1.
+        Proceeding with task t1.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
@@ -38,23 +38,23 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("status=pending"))
         XCTAssertFalse(sanitized.contains("priority=medium"))
         XCTAssertFalse(sanitized.contains("files=Package.swift"))
-        XCTAssertTrue(sanitized.contains("Procedo con il task t1."))
+        XCTAssertTrue(sanitized.contains("Proceeding with task t1."))
     }
 
     func testStripCoderideMarkersRemovesPlanningBugReviewWorkflow() {
         let input = """
         Planning bug review workflow
 
-        Ecco la mia analisi del codice...
+        Here is my analysis of the code...
         """
         let sanitized = ChatStore.stripCoderideMarkers(input)
         XCTAssertFalse(sanitized.contains("Planning bug review workflow"))
-        XCTAssertTrue(sanitized.contains("Ecco la mia analisi"))
+        XCTAssertTrue(sanitized.contains("Here is my analysis"))
     }
 
     func testStripCoderideMarkersRemovesInlineMarkerPrefixAndKeepsReadableSpacing() {
         let input = """
-        Initiating workflow with markers:todo_write|files=README.md,Package.swift|Inizio con una verifica non invasiva del repository.
+        Initiating workflow with markers:todo_write|files=README.md,Package.swift|Starting with a non-invasive repository verification.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
@@ -62,13 +62,13 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("markers:todo_write"))
         XCTAssertFalse(sanitized.contains("files=README.md"))
         XCTAssertTrue(sanitized.contains("Initiating workflow with"))
-        XCTAssertTrue(sanitized.contains("Inizio con una verifica"))
+        XCTAssertTrue(sanitized.contains("Starting with a"))
         XCTAssertFalse(sanitized.contains("workflow withInizio"))
     }
 
     func testStripCoderideMarkersRemovesPlanStepInlineMarkerVariant() {
         let input = """
-        Procedo markers:plan_step|step_id=1|status=running|poi continuo con l'analisi.
+        Proceeding markers:plan_step|step_id=1|status=running|then continuing with the analysis.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
@@ -76,31 +76,33 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("plan_step|"))
         XCTAssertFalse(sanitized.contains("step_id=1"))
         XCTAssertFalse(sanitized.contains("status=running"))
-        XCTAssertTrue(sanitized.contains("Procedo"))
-        XCTAssertTrue(sanitized.contains("poi continuo con l'analisi"))
+        XCTAssertTrue(sanitized.contains("Proceeding"))
+        XCTAssertTrue(sanitized.contains("then continuing with the analysis"))
     }
 
     func testStripCoderideMarkersKeepsFollowingLinesWhenMarkerIsIncomplete() {
         let input = """
         [CODERIDE:todo_write|id=t1|title=Init
-        Risposta utile visibile durante lo streaming.
+        Useful response visible during streaming.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
 
         XCTAssertFalse(sanitized.contains("CODERIDE"))
-        XCTAssertTrue(sanitized.contains("Risposta utile visibile durante lo streaming."))
+        XCTAssertTrue(sanitized.contains("Useful response visible during streaming."))
     }
 
-    func testStripCoderideMarkersRemovesInlineOperationalPrefixButKeepsItalianContent() {
+    func testStripCoderideMarkersRemovesInlineOperationalPrefixButKeepsNaturalLanguageContent() {
+        // Italian kept: initBoilerplate strips English "Starting task panel..." and removes the whole line
+        // when followed by English; non-English content after the prefix survives.
         let input = """
-        Starting task panel and todo update Procedo con l’implementazione dell’opzione selezionata: prima metto il TODO 1 in in_progress, poi individuo i test esistenti.
+        Starting task panel and todo update Procedo con l'implementazione dell'opzione selezionata: prima metto il TODO 1 in in_progress, poi individuo i test esistenti.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
 
         XCTAssertFalse(sanitized.lowercased().contains("starting task panel and todo update"))
-        XCTAssertTrue(sanitized.contains("Procedo con l’implementazione dell’opzione selezionata"))
+        XCTAssertTrue(sanitized.contains("Procedo con l'implementazione dell'opzione selezionata"))
         XCTAssertTrue(sanitized.contains("TODO 1 in in_progress"))
     }
 
@@ -110,7 +112,7 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         Inspecting related test files
         Ran codex --version
 
-        Risposta utile finale.
+        Final useful response.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input)
@@ -118,35 +120,35 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertFalse(sanitized.contains("Explored 2 files"))
         XCTAssertFalse(sanitized.contains("Inspecting related test files"))
         XCTAssertFalse(sanitized.contains("Ran codex --version"))
-        XCTAssertTrue(sanitized.contains("Risposta utile finale."))
+        XCTAssertTrue(sanitized.contains("Final useful response."))
     }
 
     func testNonAggressiveSanitizationKeepsGenericKeyValueText() {
         let input = """
-        Config attuale:
+        Current config:
         status=ok
         id=abc123
-        notes=valore visibile
+        notes=visible value
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input, aggressive: false)
 
         XCTAssertTrue(sanitized.contains("status=ok"))
         XCTAssertTrue(sanitized.contains("id=abc123"))
-        XCTAssertTrue(sanitized.contains("notes=valore visibile"))
+        XCTAssertTrue(sanitized.contains("notes=visible value"))
     }
 
     func testNonAggressiveSanitizationRemovesExplicitCodexMarkersButKeepsText() {
         let input = """
-        Prima del marker [CODERIDE:todo_read]
+        Before the marker [CODERIDE:todo_read]
         todo_write|id=t1|title=Task|
-        Contenuto visibile.
+        Visible content.
         """
 
         let sanitized = ChatStore.stripCoderideMarkers(input, aggressive: false)
 
         XCTAssertFalse(sanitized.contains("CODERIDE"))
         XCTAssertFalse(sanitized.contains("todo_write|"))
-        XCTAssertTrue(sanitized.contains("Contenuto visibile."))
+        XCTAssertTrue(sanitized.contains("Visible content."))
     }
 }

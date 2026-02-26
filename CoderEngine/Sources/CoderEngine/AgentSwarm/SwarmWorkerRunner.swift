@@ -1,33 +1,33 @@
 import Foundation
 
-/// Prompt di sistema per ogni ruolo
+/// System prompt for each role
 private func systemPrompt(for role: AgentRole) -> String {
     switch role {
     case .planner:
-        return "Sei il Planner. Analizza la richiesta e produci un piano strutturato con passi chiari. Non scrivere codice."
+        return "You are the Planner. Analyze the request and produce a structured plan with clear steps. Do not write code."
     case .coder:
-        return "Sei il Coder. Esegui le modifiche al codice secondo il piano. Usa gli strumenti disponibili (edit file, run command, etc)."
+        return "You are the Coder. Execute code changes according to the plan. Use the available tools (edit file, run command, etc)."
     case .debugger:
-        return "Sei il Debugger. Identifica bug, analizza stack trace e risolvi i problemi. Modifica il codice per correggere."
+        return "You are the Debugger. Identify bugs, analyze stack traces and resolve issues. Modify code to fix them."
     case .reviewer:
-        return "Sei il Reviewer. Revisiona il codice per stile, best practice e possibili miglioramenti. Suggerisci ottimizzazioni."
+        return "You are the Reviewer. Review the code for style, best practices and possible improvements. Suggest optimizations."
     case .docWriter:
-        return "Sei il DocWriter. Scrivi documentazione chiara: README, commenti, docstrings. Mantieni coerenza con il codice."
+        return "You are the DocWriter. Write clear documentation: README, comments, docstrings. Keep consistency with the code."
     case .securityAuditor:
-        return "Sei il SecurityAuditor. Analizza il codice per vulnerabilità, dipendenze insicure, esposizione di dati sensibili."
+        return "You are the SecurityAuditor. Analyze the code for vulnerabilities, insecure dependencies, and sensitive data exposure."
     case .testWriter:
         return """
-        Sei il TestWriter. Scrivi test per il codice modificato.
-        - Swift: usa XCTest, crea file in Tests/<Target>Tests/ con naming *Tests.swift
-        - Node: usa Jest o Vitest, file *.test.ts oppure __tests__/*.ts
-        - Python: usa pytest, file test_*.py
-        Includi: unit test (funzioni isolate), smoke test (avvio/componenti base funzionano), integration test (componenti insieme) dove appropriato.
-        Copri casi principali e edge case.
+        You are the TestWriter. Write tests for the modified code.
+        - Swift: use XCTest, create files in Tests/<Target>Tests/ with naming *Tests.swift
+        - Node: use Jest or Vitest, file *.test.ts or __tests__/*.ts
+        - Python: use pytest, file test_*.py
+        Include: unit tests (isolated functions), smoke tests (startup/base components work), integration tests (components together) where appropriate.
+        Cover main cases and edge cases.
         """
     }
 }
 
-/// Esegue i worker per ogni task del piano, usando qualsiasi LLMProvider
+/// Runs the workers for each task in the plan, using any LLMProvider
 public struct SwarmWorkerRunner: Sendable {
     private let provider: any LLMProvider
     private let isCancelled: (@Sendable () -> Bool)?
@@ -37,7 +37,7 @@ public struct SwarmWorkerRunner: Sendable {
         self.isCancelled = isCancelled
     }
 
-    /// Esegue i task; task con stesso order vengono eseguiti in parallelo
+    /// Runs tasks; tasks with the same order are executed in parallel
     public func run(tasks: [AgentTask], context: WorkspaceContext, imageURLs: [URL]? = nil) -> AsyncThrowingStream<StreamEvent, Error> {
         let checkCancelled = isCancelled
         return AsyncThrowingStream { continuation in
@@ -169,17 +169,17 @@ public struct SwarmWorkerRunner: Sendable {
         parts.append(systemPrompt(for: task.role))
         parts.append("\n**Task:** \(task.taskDescription)")
         if !previousOutputs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            parts.append("\n**Output degli agenti precedenti:**\n\(previousOutputs)")
+            parts.append("\n**Output from previous agents:**\n\(previousOutputs)")
         }
-        parts.append("\nEsegui il task. Rispondi e agisci nel workspace.")
-        parts.append("\nSe vuoi mostrare all'utente il pannello delle attività in corso, includi nella risposta: \(CoderIDEMarkers.showTaskPanel)")
+        parts.append("\nExecute the task. Respond and act in the workspace.")
+        parts.append("\nIf you want to show the user the tasks panel, include in the response: \(CoderIDEMarkers.showTaskPanel)")
 
         parts.append("""
 
-        **Sub-agent policy:** usa sub-agent/Task tool/parallel execution solo quando il task
-        richiede davvero workstream indipendenti o ruoli specialistici distinti.
-        Non avviare sub-agent per operazioni lineari o brevi che puoi completare direttamente.
-        Rispetta le istruzioni in AGENTS.md / CLAUDE.md se presenti nel workspace.
+        **Sub-agent policy:** use sub-agent/Task tool/parallel execution only when the task
+        really requires independent workstreams or distinct specialist roles.
+        Do not start sub-agents for linear or short operations you can complete directly.
+        Follow instructions in AGENTS.md / CLAUDE.md if present in the workspace.
         """)
         return parts.joined()
     }

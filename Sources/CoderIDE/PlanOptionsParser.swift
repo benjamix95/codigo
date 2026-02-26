@@ -294,7 +294,7 @@ enum PlanOptionsParser {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
-        // Fallback: blocchi numerati "1. ..." o "1) ..." con contenuto lungo
+        // Fallback: numbered blocks "1. ..." or "1) ..." with substantial content
         let paragraphs = trimmed.components(separatedBy: "\n\n")
         var options: [(num: Int, title: String, full: String)] = []
         for para in paragraphs {

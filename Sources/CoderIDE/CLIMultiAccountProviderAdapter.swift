@@ -103,7 +103,7 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                     }
                 }
 
-                continuation.yield(.error("Tutti gli account \(providerKind.displayName) sono esauriti o non disponibili."))
+                continuation.yield(.error("All \(providerKind.displayName) accounts are exhausted or unavailable."))
                 continuation.finish(throwing: CoderEngineError.notAuthenticated)
             }
         }

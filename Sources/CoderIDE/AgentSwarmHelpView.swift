@@ -2,7 +2,6 @@ import SwiftUI
 
 struct AgentSwarmHelpView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("swarm_help_lang") private var helpLang = "en"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,17 +10,10 @@ struct AgentSwarmHelpView: View {
                     Image(systemName: "ant.fill")
                         .font(.title3)
                         .foregroundStyle(.cyan)
-                    Text(helpLang == "it" ? "Agent Swarm -- Guida" : "Agent Swarm -- Guide")
+                    Text("Agent Swarm -- Guide")
                         .font(.title3)
                 }
                 Spacer()
-
-                Picker("", selection: $helpLang) {
-                    Text("EN").tag("en")
-                    Text("IT").tag("it")
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 100)
 
                 Button { dismiss() } label: {
                     Image(systemName: "xmark.circle.fill")
@@ -36,8 +28,7 @@ struct AgentSwarmHelpView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if helpLang == "en" { englishContent }
-                    else { italianContent }
+                    englishContent
                 }
                 .padding(16)
             }
@@ -70,31 +61,6 @@ struct AgentSwarmHelpView: View {
 
             sectionTitle("Configuration")
             bodyText("- **Chat**: Select Orchestrator (OpenAI / Codex) under the input when in Agent Swarm mode.\n- **Settings**: Agent Swarm tab to change the orchestrator backend.")
-        }
-    }
-
-    private var italianContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("What is Agent Swarm?")
-            bodyText("Agent Swarm is a multi-agent system that coordinates seven specialized AI agents to solve complex tasks. An orchestrator analyzes the request, creates a structured plan and assigns tasks to expert agents (Planner, Coder, Debugger, Reviewer, DocWriter, SecurityAuditor, TestWriter).")
-
-            sectionTitle("How It Works")
-            bodyText("1. You send a message in Agent Swarm mode.\n2. The orchestrator (OpenAI or Codex) produces a JSON plan: an ordered list of tasks with assigned roles.\n3. Workers execute tasks sequentially as Codex instances with specialized prompts.\n4. The chat streams the combined output with headers per agent.")
-
-            sectionTitle("The Seven Specialist Roles")
-            roleRow("Planner", "Breaks down the task into clear steps without writing code.")
-            roleRow("Coder", "Implements code changes according to the plan.")
-            roleRow("Debugger", "Identifies bugs and resolves issues.")
-            roleRow("Reviewer", "Reviews code for style and best practices.")
-            roleRow("DocWriter", "Writes documentation: README, comments, docstrings.")
-            roleRow("SecurityAuditor", "Analyzes for vulnerabilities and insecure dependencies.")
-            roleRow("TestWriter", "Writes unit and integration tests.")
-
-            sectionTitle("Orchestrator Backend")
-            bodyText("The orchestrator decides which agents to run. You can choose:\n- **OpenAI** (default): Fast and lightweight.\n- **Codex**: No extra API key needed, but slower.")
-
-            sectionTitle("Configuration")
-            bodyText("- **Chat**: Select Orchestrator under the input field in Agent Swarm mode.\n- **Settings**: Agent Swarm tab to change backend.")
         }
     }
 

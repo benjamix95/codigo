@@ -109,12 +109,12 @@ struct UsageFooterView: View {
             }
         }
         if total > 0 {
-            return "Totale \(total.formatted()) tok"
+            return "Total \(total.formatted()) tok"
         }
         if providerUsageStore.apiEstimatedCost > 0 {
-            return String(format: "Totale $%.3f", providerUsageStore.apiEstimatedCost)
+            return String(format: "Total $%.3f", providerUsageStore.apiEstimatedCost)
         }
-        return "Totale —"
+        return "Total —"
     }
 
     var body: some View {
@@ -303,12 +303,12 @@ struct UsageFooterView: View {
                 Image(systemName: "octagon.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(.red)
-                    .help(providerUsageStore.codexRateLimitMessage ?? "Rate limit raggiunto")
+                    .help(providerUsageStore.codexRateLimitMessage ?? "Rate limit reached")
             } else if providerUsageStore.isCodexUsageHigh {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
-                    .help("Usage elevato — rallenta per evitare il rate limit")
+                    .help("High usage — slow down to avoid rate limiting")
             }
 
             if let u = providerUsageStore.codexUsage {
@@ -325,7 +325,7 @@ struct UsageFooterView: View {
                 }
                 if let pw = u.weeklyPct {
                     Text("·")
-                    Text("Settimana")
+                    Text("Week")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Text("\(Int(pw))%")
@@ -343,7 +343,7 @@ struct UsageFooterView: View {
         }
         .help(
             providerUsageStore.isCodexRateLimited
-                ? (providerUsageStore.codexRateLimitMessage ?? "Rate limit raggiunto")
+                ? (providerUsageStore.codexRateLimitMessage ?? "Rate limit reached")
                 : "Codex CLI usage"
         )
     }
@@ -382,7 +382,7 @@ struct UsageFooterView: View {
                 if u.sessionCost == nil || u.sessionCost == "$0.0000",
                     (u.inputTokens ?? 0) == 0, (u.outputTokens ?? 0) == 0
                 {
-                    Text("Sessione vuota")
+                    Text("Empty session")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
@@ -392,7 +392,7 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .help("Claude Code — costo e token della sessione corrente")
+        .help("Claude Code — current session cost and tokens")
     }
 
     private var geminiUsageRow: some View {
@@ -429,7 +429,7 @@ struct UsageFooterView: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .help("Gemini CLI — usage dalla sessione locale")
+        .help("Gemini CLI — session local usage")
     }
 
     private var apiUsageRow: some View {
@@ -456,6 +456,6 @@ struct UsageFooterView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .help("Contesto finestra: \(Int(pct * 100))% utilizzato")
+        .help("Window context: \(Int(pct * 100))% used")
     }
 }

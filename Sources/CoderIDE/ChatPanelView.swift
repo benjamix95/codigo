@@ -608,6 +608,7 @@ struct ChatPanelView: View {
     @State private var planUserRequest: String = ""
     @State private var planClarificationAnswers: String = ""
     @State private var planStreamingContent: String = ""
+    @State private var planShouldRunInline: Bool = false
     @State private var activeBuildPlanConversationId: UUID?
     @State private var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
     @State private var isProviderReady = false
@@ -621,7 +622,7 @@ struct ChatPanelView: View {
     @State private var isPlanSummaryCollapsed = false
     @State private var isPlanTabHovered = false
     @State private var planShortcutPrimedUntil: Date?
-    @State private var lastPlanShortcutCycleAt: Date?
+    @State private var isPlanShortcutCycling = false
     @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State private var hasJustCompletedTask = false
     @State private var showRateLimitAlert = false
@@ -844,6 +845,7 @@ struct ChatPanelView: View {
             syncPlanProvider()
             checkProviderAuth()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            restorePlanStateIfNeeded(for: selectedConversationId)
         }
     }
 
@@ -1355,10 +1357,13 @@ struct ChatPanelView: View {
     }
 
     private func cyclePlanShortcutState() {
-        // Debounce: skip if called again within 300ms
-        let now = Date()
-        if let last = lastPlanShortcutCycleAt, now.timeIntervalSince(last) < 0.3 { return }
-        lastPlanShortcutCycleAt = now
+        guard !isPlanShortcutCycling else { return }
+        isPlanShortcutCycling = true
+        defer {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [self] in
+                isPlanShortcutCycling = false
+            }
+        }
 
         let transition = evaluateCmdShiftPPlanShortcut(
             currentPlanToggleEnabled: planToggleEnabled,
@@ -2063,6 +2068,7 @@ struct ChatPanelView: View {
         switch planFlowPhase {
         case .building:
             planFlowPhase = .proposalReady
+            planStreamingContent = ""
         case .analyzing, .questioning, .generating:
             planFlowPhase = .idle
             planningState = .idle
@@ -2261,11 +2267,11 @@ struct ChatPanelView: View {
             let notes: String = {
                 switch finalStatus {
                 case .done:
-                    return "Auto-generated: tutte le attivita trace completate."
+                    return "Auto-generated: all trace activities completed."
                 case .blocked:
-                    return "Auto-generated: esecuzione interrotta o fallita."
+                    return "Auto-generated: execution interrupted or failed."
                 default:
-                    return "Auto-generated: stato aggiornato."
+                    return "Auto-generated: status updated."
                 }
             }()
             emitAutoTodoTraceUpdate(
@@ -2541,15 +2547,15 @@ struct ChatPanelView: View {
         if let path = activity.payload["path"] ?? activity.payload["file"],
            !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let base = (path as NSString).lastPathComponent
-            return "Completare modifiche su \(base)"
+            return "Complete changes on \(base)"
         }
         if let query = activity.payload["query"], !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Completare analisi: \(String(query.prefix(80)))"
+            return "Complete analysis: \(String(query.prefix(80)))"
         }
         if let command = activity.payload["command"], !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Completare esecuzione: \(String(command.prefix(80)))"
+            return "Complete execution: \(String(command.prefix(80)))"
         }
-        return "Completare i passaggi operativi richiesti"
+        return "Complete the required operational steps"
     }
 
     private func autoTodoLinkedFiles(from payload: [String: String]) -> [String] {
@@ -2866,6 +2872,7 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleAutoActivatePlanMode(reason: String?) {
+        planToggleEnabled = true
         guard !showPlanPanel else { return }
         openPlanPanelForCurrentContext(
             preserveHistorySelection: false,
@@ -3838,7 +3845,7 @@ struct ChatPanelView: View {
             allowIdleRebuild: allowIdleRebuild
         ) else {
             appendTechnicalErrorMessage(
-                "[Plan] Build not available: complete discovery/clarifications and generate a valid plan before executing.",
+                "[Plan] Build not available. Generate a valid plan first.",
                 in: conversationId
             )
             return
@@ -3847,7 +3854,7 @@ struct ChatPanelView: View {
         let planTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
         guard hasRequiredTodoHeader, !planTodos.isEmpty else {
             appendTechnicalErrorMessage(
-                "[Plan] Build blocked: the selected option must include an explicit `## Todo` section with checklist items.",
+                "[Plan] Build requires a todo checklist in the selected option.",
                 in: conversationId
             )
             if !showPlanPanel {
@@ -3864,14 +3871,14 @@ struct ChatPanelView: View {
         if let overrideId = normalizedOverride, !overrideId.isEmpty {
             guard isPlanExecutionProviderIdAllowed(overrideId) else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Invalid provider for build (\(overrideId)).",
+                    "[Plan] Invalid provider (\(overrideId)).",
                     in: conversationId
                 )
                 return
             }
             guard isPlanBuildExecutionCapableProvider(overrideId, registry: providerRegistry) else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Provider not suitable for operational build (\(overrideId)). Select an execution-capable provider.",
+                    "[Plan] Provider not execution-capable (\(overrideId)).",
                     in: conversationId
                 )
                 return
@@ -3881,7 +3888,7 @@ struct ChatPanelView: View {
                     provider = overrideProvider
                 } else {
                     appendTechnicalErrorMessage(
-                        "[Plan] Selected panel provider not authenticated (\(overrideProvider.displayName)). Using fallback real provider.",
+                        "[Plan] Provider not authenticated (\(overrideProvider.displayName)). Using fallback.",
                         in: conversationId
                     )
                     guard let backendProvider = resolvePreferredRealProvider() else {
@@ -3891,7 +3898,7 @@ struct ChatPanelView: View {
                 }
             } else {
                 appendTechnicalErrorMessage(
-                    "[Plan] Selected panel provider not available (\(overrideId)). Using fallback real provider.",
+                    "[Plan] Provider not available (\(overrideId)). Using fallback.",
                     in: conversationId
                 )
                 guard let backendProvider = resolvePreferredRealProvider() else {
@@ -4153,11 +4160,11 @@ struct ChatPanelView: View {
             preamble = ""
         } else {
             preamble = """
-            ## Allegati disponibili per questa richiesta
-            I seguenti file NON sono supportati nativamente dal provider e sono disponibili via path locale:
+            ## Attachments available for this request
+            The following files are NOT natively supported by the provider and are available via local path:
             \(fallbackLines.joined(separator: "\n"))
 
-            Se necessario, usa i tool di lettura file per analizzarli.
+            Use file reading tools to analyze them if needed.
             """
         }
 
@@ -4210,6 +4217,7 @@ struct ChatPanelView: View {
             planAnalysisContext = ""
             planUserRequest = text
             planClarificationAnswers = ""
+            planShouldRunInline = shouldRunPlanInline
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
         }
@@ -4450,7 +4458,7 @@ struct ChatPanelView: View {
             planAnalysisContext = analysisResult.fullText
             planStreamingContent = analysisResult.fullText
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Phase 1/3 — Analysis complete.** Generating questions…",
+                content: "Analysis complete. Generating questions...",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -4539,7 +4547,7 @@ struct ChatPanelView: View {
         // No questions needed — proceed directly to Phase 3
         await MainActor.run {
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Phase 2/3 — No questions needed.** Generating plan...",
+                content: "No questions needed. Generating plan...",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -4632,7 +4640,7 @@ struct ChatPanelView: View {
             await MainActor.run {
                 planStreamingContent = ""
                 chatStore.updateLastAssistantMessage(
-                    content: "Plan format validation failed: every option must include `## Todo` with checklist items. Regenerating (attempt \(repairAttempt)/\(maxRepairAttempts))...",
+                    content: "Regenerating plan... (attempt \(repairAttempt)/\(maxRepairAttempts))",
                     in: conversationId,
                     persistImmediately: true
                 )
@@ -4684,7 +4692,7 @@ struct ChatPanelView: View {
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
             let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-            let summaryContent = "Plan ready: \(parsedSummary.title)\n\nOpen the Planning panel to select an option."
+            let summaryContent = "Plan ready: \(parsedSummary.title)"
             chatStore.updateLastAssistantMessage(content: summaryContent, in: conversationId, persistImmediately: true)
 
             let entry = planHistoryStore.createEntry(
@@ -4732,7 +4740,7 @@ struct ChatPanelView: View {
         } else {
             // Invalid format: no executable options with mandatory `## Todo`.
             chatStore.updateLastAssistantMessage(
-                content: "Plan format invalid after \(maxRepairAttempts) retries: every option must include `## Todo` with checklist items. Please run Plan again.",
+                content: "Plan generation failed. Please try again.",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -4755,7 +4763,7 @@ struct ChatPanelView: View {
                 effectiveProvider = fallback
             } else {
                 appendTechnicalErrorMessage(
-                    "[Plan] No authenticated provider available to continue.",
+                    "[Plan] No authenticated provider available.",
                     in: targetConversationId
                 )
                 return
@@ -4775,8 +4783,6 @@ struct ChatPanelView: View {
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
 
-        let shouldRunPlanInline = (coderMode == .agent && planToggleEnabled)
-
         chatStore.beginTask(conversationId: targetConversationId)
         Task {
             var traceOutcome: ToolTraceTurnOutcome = .success
@@ -4785,7 +4791,7 @@ struct ChatPanelView: View {
                     provider: effectiveProvider,
                     ctx: ctx,
                     conversationId: targetConversationId,
-                    shouldRunPlanInline: shouldRunPlanInline
+                    shouldRunPlanInline: planShouldRunInline
                 )
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
@@ -4900,7 +4906,7 @@ struct ChatPanelView: View {
         await MainActor.run {
             planAnalysisContext += "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
             chatStore.updateLastAssistantMessage(
-                content: "✅ **Analysis complete.** Generating plan…",
+                content: "Analysis complete. Generating plan...",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -5808,7 +5814,7 @@ struct ChatPanelView: View {
                 chatStore.setPlanBoard(board, for: streamConversationId)
                 let currentConv = chatStore.conversation(for: streamConversationId)
                 let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-                let summaryContent = "Plan ready: \(parsedSummary.title)\n\nOpen the Planning panel to select an option."
+                let summaryContent = "Plan ready: \(parsedSummary.title)"
                 chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
                 let entry = planHistoryStore.createEntry(
                     conversationId: streamConversationId,

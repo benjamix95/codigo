@@ -1,6 +1,6 @@
 import Foundation
 
-/// Orchestratore che produce un piano di task per il swarm
+/// Orchestrator that produces a task plan for the swarm
 public actor SwarmOrchestrator {
     private let config: SwarmConfig
     private let provider: any LLMProvider
@@ -13,31 +13,31 @@ public actor SwarmOrchestrator {
         self.provider = provider
     }
 
-    /// Prompt di sistema per l'orchestratore
+    /// System prompt for the orchestrator
     private static let systemPrompt = """
-        Sei un orchestratore per un sistema di agenti specializzati. Ruoli disponibili:
-        - planner: scompone il compito in passi chiari
-        - coder: scrive o modifica codice
-        - debugger: identifica e risolve bug
-        - reviewer: revisiona codice e suggerisce miglioramenti
-        - docWriter: scrive documentazione
-        - securityAuditor: analisi sicurezza e vulnerabilità
-        - testWriter: scrive test
+        You are an orchestrator for a system of specialized agents. Available roles:
+        - planner: breaks down the task into clear steps
+        - coder: writes or modifies code
+        - debugger: identifies and fixes bugs
+        - reviewer: reviews code and suggests improvements
+        - docWriter: writes documentation
+        - securityAuditor: security analysis and vulnerability assessment
+        - testWriter: writes tests
 
-        Produci UN SOLO blocco JSON: un array di task. Formato: [{"role":"planner","taskDescription":"...","order":1}, ...]
-        Usa solo i ruoli necessari per la richiesta. Ordina per dipendenze (es. planner prima di coder).
-        Non includere testo fuori dal JSON. Solo l'array JSON.
+        Produce a SINGLE JSON block: an array of tasks. Format: [{"role":"planner","taskDescription":"...","order":1}, ...]
+        Use only the roles needed for the request. Order by dependencies (e.g. planner before coder).
+        Do not include text outside the JSON. Only the JSON array.
         """
 
-    /// Produce un piano di task per la richiesta dell'utente
+    /// Produces a task plan for the user request
     public func plan(userPrompt: String, context: WorkspaceContext) async throws -> [AgentTask] {
         let enabledRolesList = config.enabledRoles.map { $0.rawValue }.joined(separator: ", ")
         let userMessage = """
-            Richiesta utente: \(userPrompt)
+            User request: \(userPrompt)
             \(context.contextPrompt())
 
-            Ruoli abilitati: \(enabledRolesList)
-            Produci l'array JSON di task.
+            Enabled roles: \(enabledRolesList)
+            Produce the JSON array of tasks.
             """
 
         let fullPrompt = "\(Self.systemPrompt)\n\n\(userMessage)"
@@ -47,7 +47,7 @@ public actor SwarmOrchestrator {
         return try parseTasks(from: rawOutput)
     }
 
-    /// Raccolta output completo da un LLMProvider
+    /// Collects full output from an LLMProvider
     private func collectProviderOutput(
         provider: any LLMProvider, prompt: String, context: WorkspaceContext
     ) async throws -> String {
@@ -127,7 +127,7 @@ public actor SwarmOrchestrator {
             tasks.append(
                 AgentTask(
                     role: .planner,
-                    taskDescription: "Scomponi la richiesta in passi implementabili e dipendenze.",
+                    taskDescription: "Break down the request into implementable steps and dependencies.",
                     order: 1))
         }
         if config.enabledRoles.contains(.coder) {
@@ -135,14 +135,14 @@ public actor SwarmOrchestrator {
                 AgentTask(
                     role: .coder,
                     taskDescription:
-                        "Implementa la richiesta utente in modo completo e verificabile.",
+                        "Implement the user request completely and verifiably.",
                     order: tasks.isEmpty ? 1 : 2))
         } else if config.enabledRoles.contains(.debugger) {
             tasks.append(
                 AgentTask(
                     role: .debugger,
                     taskDescription:
-                        "Analizza e correggi i problemi principali segnalati dalla richiesta.",
+                        "Analyze and fix the main issues reported in the request.",
                     order: tasks.isEmpty ? 1 : 2))
         }
         return tasks

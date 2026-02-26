@@ -34,8 +34,8 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
     func testRunStreamExtractsPendingSwarmTaskFromRawEvent() async throws {
         let provider = MockStreamingProvider(events: [
             .started,
-            .raw(type: "coderide_invoke_swarm", payload: ["task": "Analizza bug streaming"]),
-            .textDelta("Ricevuto"),
+            .raw(type: "coderide_invoke_swarm", payload: ["task": "Analyze streaming bug"]),
+            .textDelta("Received"),
             .completed,
         ])
         let coordinator = ConversationFlowCoordinator()
@@ -51,8 +51,8 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
             onError: { _ in }
         )
 
-        XCTAssertEqual(result.fullText, "Ricevuto")
-        XCTAssertEqual(result.pendingSwarmTask, "Analizza bug streaming")
+        XCTAssertEqual(result.fullText, "Received")
+        XCTAssertEqual(result.pendingSwarmTask, "Analyze streaming bug")
         XCTAssertEqual(coordinator.state, .completed)
     }
 
@@ -64,7 +64,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 "status": "in_progress"
             ]))
         }
-        events.append(.textDelta("Output finale"))
+        events.append(.textDelta("Final output"))
         events.append(.completed)
 
         let provider = MockStreamingProvider(events: events)
@@ -84,8 +84,8 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(rawCount, 250)
-        XCTAssertEqual(snapshots.last, "Output finale")
-        XCTAssertEqual(result.fullText, "Output finale")
+        XCTAssertEqual(snapshots.last, "Final output")
+        XCTAssertEqual(result.fullText, "Final output")
         XCTAssertEqual(coordinator.state, .completed)
     }
 
@@ -112,7 +112,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                     XCTAssertTrue(Thread.isMainThread)
                 },
                 onError: { _ in
-                    XCTFail("onError non atteso")
+                    XCTFail("onError not expected")
                 }
             )
             let state = await MainActor.run { coordinator.state }

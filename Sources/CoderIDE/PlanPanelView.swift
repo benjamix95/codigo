@@ -19,26 +19,30 @@ func planBuildDisabledReason(
     hasBuildChoice: Bool,
     providerExecutionCapable: Bool
 ) -> String? {
-    if !providerExecutionCapable {
-        return "Provider not ready: select an authenticated execution-capable provider."
-    }
-    if !hasBuildChoice {
-        return "No executable option available."
-    }
+    // Check phase-level reasons first so users see the most actionable
+    // message instead of a generic provider error while the plan is still
+    // in progress.
     switch phase {
     case .idle:
-        return "Build unavailable in idle state: generate or select a plan first."
+        return "No plan available."
     case .analyzing:
-        return "Codebase analysis in progress: wait for completion."
+        return "Analysis in progress..."
     case .questioning:
-        return "Clarifications required: answer the questions before Build."
+        return "Answer the questions first."
     case .generating:
-        return "Plan generation in progress: wait for completion."
+        return "Generating plan..."
     case .building:
-        return "Build in progress..."
+        return "Building..."
     case .proposalReady, .readyToBuild:
-        return nil
+        break
     }
+    if !hasBuildChoice {
+        return "No option selected."
+    }
+    if !providerExecutionCapable {
+        return "Provider not authenticated."
+    }
+    return nil
 }
 
 func hasPlanContext(
@@ -288,9 +292,16 @@ struct PlanPanelView: View {
     // MARK: - Provider Picker
 
     private var providerPicker: some View {
-        Menu {
-            ForEach(Array(providerRegistry.providers.enumerated()), id: \.offset) { _, provider in
-                if isPlanExecutionProviderIdAllowed(provider.id) {
+        let allowedProviders = providerRegistry.providers.filter {
+            isPlanExecutionProviderIdAllowed($0.id)
+        }
+
+        return Menu {
+            if allowedProviders.isEmpty {
+                Text("No providers available")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(allowedProviders.enumerated()), id: \.offset) { _, provider in
                     Button {
                         planProviderId = provider.id
                     } label: {
@@ -445,23 +456,23 @@ struct PlanPanelView: View {
         case .idle:
             return buildHint ?? buildDisabledReason
         case .analyzing:
-            return "Codebase analysis in progress…"
+            return "Analyzing codebase..."
         case .questioning:
-            return "Waiting for clarifications…"
+            return "Waiting for answers..."
         case .generating:
-            return "Plan generation in progress…"
+            return "Generating plan..."
         case .proposalReady:
             if let reason = buildDisabledReason {
                 return reason
             }
-            return "Proposal ready: select/confirm an option and start Build."
+            return "Select an option to build."
         case .readyToBuild:
             if let reason = buildDisabledReason {
                 return reason
             }
-            return "Plan ready: you can start Build."
+            return "Ready to build."
         case .building:
-            return "Build in progress..."
+            return "Building..."
         }
     }
 
@@ -546,17 +557,17 @@ struct PlanPanelView: View {
 
     private func performBuild() {
         guard isBuildEnabledByPhase else {
-            buildHint = buildDisabledReason ?? phaseHint ?? "Build unavailable in this phase."
+            buildHint = buildDisabledReason ?? phaseHint ?? "Build unavailable."
             return
         }
         guard let choice = resolvedBuildChoice?.text else {
-            buildHint = "No executable option available."
+            buildHint = "No option selected."
             return
         }
         let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
         let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
         guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
-            buildHint = "Build blocked: selected plan must include an explicit `## Todo` section with checklist items."
+            buildHint = "Build requires a todo checklist. Edit the plan or select a valid option."
             return
         }
         buildHint = "Build started..."
@@ -570,29 +581,11 @@ struct PlanPanelView: View {
             let total = canonicalPlanTodos.count
             let done = canonicalPlanTodos.filter { $0.status == .done }.count
             if total > 0 {
-                Text("\(done) To-dos · Completed In Order")
+                Text("\(done)/\(total) todos completed")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            Button {
-                // TODO: Add new todo
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 8, weight: .bold))
-                    Text("New Todo")
-                        .font(.system(size: 10, weight: .medium))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Color(nsColor: .controlBackgroundColor).opacity(0.3),
-                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                )
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -604,6 +597,11 @@ struct PlanPanelView: View {
     /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     private var displayPlanContent: String {
         if isEditing { return planText }
+
+        // During active plan phases, always prefer live streaming content over stale board data.
+        if [.analyzing, .questioning, .generating].contains(planFlowPhase), !planStreamingContent.isEmpty {
+            return planStreamingContent
+        }
 
         if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
             if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -621,11 +619,6 @@ struct PlanPanelView: View {
             if let first = board.options.sorted(by: { $0.id < $1.id }).first {
                 return first.fullText
             }
-        }
-
-        // During active plan phases, show streaming content from the multi-turn flow.
-        if [.analyzing, .questioning, .generating].contains(planFlowPhase), !planStreamingContent.isEmpty {
-            return planStreamingContent
         }
 
         let hasBoard = chatStore.planBoard(for: conversationId) != nil
@@ -693,7 +686,7 @@ struct PlanPanelView: View {
                         Text("Analysis in progress")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text("The provider is exploring the codebase…")
+                        Text("Exploring codebase...")
                             .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(.tertiary)
                     }
@@ -715,7 +708,7 @@ struct PlanPanelView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 16))
                         .foregroundStyle(.quaternary)
-                    Text("The final plan will appear here when ready.")
+                    Text("Plan content will appear here.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
@@ -784,15 +777,16 @@ struct PlanPanelView: View {
                         Button("Preview") {
                             if planHistoryStore.selectedEntryId == entry.id {
                                 planHistoryStore.setSelectedEntry(id: nil)
+                            } else {
+                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                let choice = entry.chosenPath?.isEmpty == false
+                                    ? (entry.chosenPath ?? entry.markdown) : entry.markdown
+                                if PlanOptionsParser.hasRequiredTodoHeader(choice),
+                                   !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
+                                    onHistoryEntrySelectedForBuild?()
+                                }
                             }
-                            planHistoryStore.setSelectedEntry(id: entry.id)
                             historySelectionVersion &+= 1
-                            let choice = entry.chosenPath?.isEmpty == false
-                                ? (entry.chosenPath ?? entry.markdown) : entry.markdown
-                            if PlanOptionsParser.hasRequiredTodoHeader(choice),
-                               !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
-                                onHistoryEntrySelectedForBuild?()
-                            }
                         }
                         .buttonStyle(.plain)
                         .font(.system(size: 10, weight: .medium))
@@ -811,7 +805,7 @@ struct PlanPanelView: View {
                             let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
                             let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
                             guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
-                                buildHint = "Build blocked: selected plan must include an explicit `## Todo` section with checklist items."
+                                buildHint = "Build requires a todo checklist."
                                 return
                             }
                             onBuild(choice, planProviderId, true)
@@ -1161,6 +1155,13 @@ struct PlanPanelView: View {
     }
 
     private func downloadPlan(_ entry: PlanHistoryEntry) {
+        let content: String
+        if let chosen = entry.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !chosen.isEmpty {
+            content = chosen
+        } else {
+            content = entry.markdown
+        }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.plainText]
         panel.canCreateDirectories = true
@@ -1168,7 +1169,7 @@ struct PlanPanelView: View {
         panel.nameFieldStringValue = "\(baseName.replacingOccurrences(of: " ", with: "_")).md"
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            try? entry.markdown.write(to: url, atomically: true, encoding: .utf8)
+            try? content.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 }

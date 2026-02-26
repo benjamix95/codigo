@@ -15,7 +15,7 @@ enum VoiceInputError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .microphonePermissionDenied:
-            return "Permesso microfono negato. Abilitalo nelle impostazioni di macOS."
+            return "Microphone permission denied. Enable it in macOS settings."
         case .speechPermissionDenied:
             return "Speech Recognition permission denied. Enable it in macOS settings."
         case .missingPrivacyUsageDescription(let key):
