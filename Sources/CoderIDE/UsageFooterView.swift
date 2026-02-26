@@ -175,9 +175,7 @@ struct UsageFooterView: View {
 
     private func gitButton(showBranch: Bool) -> some View {
         Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                gitPanelStore.isOpen.toggle()
-            }
+            gitPanelStore.isOpen.toggle()
         } label: {
             gitButtonLabel(showBranch: showBranch)
         }

@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
     @AppStorage("git_panel_width") private var gitPanelWidth: Double = 380
+    @AppStorage("auto_resize_side_panels") private var autoResizeSidePanels = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -69,7 +70,6 @@ struct ContentView: View {
                         )
                         .environmentObject(providerRegistry)
                         .frame(width: clampedGitWidth)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -135,11 +135,12 @@ struct ContentView: View {
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
         .onChange(of: gitPanelStore.isOpen) { wasOpen, isOpen in
+            guard autoResizeSidePanels else { return }
             let panelWidth = CGFloat(gitPanelWidth) + 12 // panel + handle + spacing
             if isOpen && !wasOpen {
-                WindowResizeHelper.adjustWidth(by: panelWidth)
+                WindowResizeHelper.adjustWidth(by: panelWidth, animate: false)
             } else if !isOpen && wasOpen {
-                WindowResizeHelper.adjustWidth(by: -panelWidth)
+                WindowResizeHelper.adjustWidth(by: -panelWidth, animate: false)
             }
         }
         .navigationSplitViewStyle(.prominentDetail)

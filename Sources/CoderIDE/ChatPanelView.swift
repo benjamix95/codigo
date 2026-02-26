@@ -603,6 +603,7 @@ struct ChatPanelView: View {
     @AppStorage("debug_panel_width") private var debugPanelWidthStorage: Double = 340
     @AppStorage("swarm_panel_width") private var swarmPanelWidthStorage: Double = 360
     @AppStorage("code_review_panel_width") private var codeReviewPanelWidthStorage: Double = 380
+    @AppStorage("auto_resize_side_panels") private var autoResizeSidePanels = false
     @State private var planToggleEnabled = false
     @State private var debugToggleEnabled = false
     @Binding var showPlanPanel: Bool
@@ -819,6 +820,10 @@ struct ChatPanelView: View {
                 codeReviewPanelSidebar
             }
         }
+        .animation(.none, value: showPlanPanel)
+        .animation(.none, value: showDebugPanel)
+        .animation(.none, value: showSwarmPanel)
+        .animation(.none, value: showCodeReviewPanel)
     }
 
     private func applyProviderSelectionModifiers<Content: View>(to content: Content) -> some View {
@@ -860,6 +865,14 @@ struct ChatPanelView: View {
         }
     }
 
+    private func adjustWindowForPanelToggle(isOpening: Bool, width: CGFloat) {
+        guard autoResizeSidePanels else { return }
+        let delta = isOpening ? (width + 12) : -(width + 12)
+        DispatchQueue.main.async {
+            WindowResizeHelper.adjustWidth(by: delta, animate: false)
+        }
+    }
+
     private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
         let lifecycleTracked = content
             .onChange(of: showSwarmPanel) { wasOpen, isShowing in
@@ -869,34 +882,40 @@ struct ChatPanelView: View {
                 if !isShowing && coderMode == .agentSwarm {
                     selectMode(.agent)
                 }
-                let w = CGFloat(swarmPanelWidthStorage) + 12
-                if isShowing && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
-                else if !isShowing && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+                if isShowing && !wasOpen {
+                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(swarmPanelWidthStorage))
+                } else if !isShowing && wasOpen {
+                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(swarmPanelWidthStorage))
+                }
             }
             .onChange(of: showDebugPanel) { wasOpen, isShowing in
                 if debugToggleEnabled != isShowing {
                     debugToggleEnabled = isShowing
                 }
-                let w = CGFloat(debugPanelWidthStorage) + 12
-                if isShowing && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
-                else if !isShowing && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+                if isShowing && !wasOpen {
+                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(debugPanelWidthStorage))
+                } else if !isShowing && wasOpen {
+                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(debugPanelWidthStorage))
+                }
             }
             .onChange(of: debugToggleEnabled) { _, isEnabled in
                 guard showDebugPanel != isEnabled else { return }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showDebugPanel = isEnabled
-                }
+                showDebugPanel = isEnabled
             }
             // Auto-expand/shrink window when side panels open/close
             .onChange(of: showPlanPanel) { wasOpen, isOpen in
-                let w = CGFloat(planPanelWidthStorage) + 12
-                if isOpen && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
-                else if !isOpen && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+                if isOpen && !wasOpen {
+                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
+                } else if !isOpen && wasOpen {
+                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
+                }
             }
             .onChange(of: showCodeReviewPanel) { wasOpen, isOpen in
-                let w = CGFloat(codeReviewPanelWidthStorage) + 12
-                if isOpen && !wasOpen { WindowResizeHelper.adjustWidth(by: w) }
-                else if !isOpen && wasOpen { WindowResizeHelper.adjustWidth(by: -w) }
+                if isOpen && !wasOpen {
+                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(codeReviewPanelWidthStorage))
+                } else if !isOpen && wasOpen {
+                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(codeReviewPanelWidthStorage))
+                }
             }
             .onChange(of: effectiveContext.primaryPath) { _, newPath in
                 gitPanelStore.refresh(workingDirectory: newPath)
@@ -1044,9 +1063,7 @@ struct ChatPanelView: View {
             showHistorySection: shouldShowPlanPanelHistory(source: planPanelPresentationSource),
             workspaceSource: planPanelPresentationSource,
             onClose: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showPlanPanel = false
-                }
+                showPlanPanel = false
             },
             onSelectOption: { option, _ in
                 selectPlanChoice(
@@ -1079,7 +1096,6 @@ struct ChatPanelView: View {
             }
         )
         .frame(width: CGFloat(planPanelWidthStorage))
-        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     @ViewBuilder
@@ -1089,10 +1105,8 @@ struct ChatPanelView: View {
             taskActivityStore: taskActivityStore,
             todoStore: todoStore,
             onClose: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    debugToggleEnabled = false
-                    showDebugPanel = false
-                }
+                debugToggleEnabled = false
+                showDebugPanel = false
             },
             onSubmitQuestion: { question in
                 let debugPrompt = "[DEBUG] \(question)"
@@ -1123,7 +1137,6 @@ struct ChatPanelView: View {
             }
         )
         .frame(width: CGFloat(debugPanelWidthStorage))
-        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     @ViewBuilder
@@ -1138,15 +1151,12 @@ struct ChatPanelView: View {
             swarmOrchestrator: $swarmOrchestrator,
             swarmWorkerBackend: $swarmWorkerBackend,
             onClose: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showSwarmPanel = false
-                }
+                showSwarmPanel = false
             },
             onOpenFile: { openFilesStore.openFile($0) },
             onSyncSwarmProvider: syncSwarmProvider
         )
         .frame(width: CGFloat(swarmPanelWidthStorage))
-        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     private var codeReviewPanelSidebar: some View {
@@ -1164,9 +1174,7 @@ struct ChatPanelView: View {
             codeReviewAnalysisBackend: $codeReviewAnalysisBackend,
             codeReviewExecutionBackend: $codeReviewExecutionBackend,
             onClose: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showCodeReviewPanel = false
-                }
+                showCodeReviewPanel = false
             },
             onOpenFile: { openFilesStore.openFile($0) },
             onRunSlashCommand: { command in
@@ -1175,13 +1183,10 @@ struct ChatPanelView: View {
                 sendMessage()
             },
             onSelectMode: { mode in
-                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                    selectMode(mode)
-                }
+                selectMode(mode)
             }
         )
         .frame(width: CGFloat(codeReviewPanelWidthStorage))
-        .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     @ViewBuilder
@@ -1279,9 +1284,7 @@ struct ChatPanelView: View {
             if event.modifierFlags.contains([.command, .shift]),
                event.charactersIgnoringModifiers?.lowercased() == "d" {
                 DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        debugToggleEnabled.toggle()
-                    }
+                    debugToggleEnabled.toggle()
                 }
                 return nil
             }
@@ -2729,18 +2732,14 @@ struct ChatPanelView: View {
     private func handleDebugPanelUpdate(action: String, phase: String?) {
         switch action.lowercased() {
         case "open":
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                debugToggleEnabled = true
-                showDebugPanel = true
-            }
+            debugToggleEnabled = true
+            showDebugPanel = true
             if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
                 debugStore.setPhase(debugPhase)
             }
         case "close":
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                debugToggleEnabled = false
-                showDebugPanel = false
-            }
+            debugToggleEnabled = false
+            showDebugPanel = false
             debugStore.phase = .idle
         case "phase":
             if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
@@ -2755,17 +2754,13 @@ struct ChatPanelView: View {
             if let phaseStr = phase {
                 debugStore.clarificationQuestions = phaseStr
                 debugStore.phase = .describing
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    debugToggleEnabled = true
-                    showDebugPanel = true
-                }
-            }
-        case "reproduce":
-            debugStore.setPhase(.reproducing)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 debugToggleEnabled = true
                 showDebugPanel = true
             }
+        case "reproduce":
+            debugStore.setPhase(.reproducing)
+            debugToggleEnabled = true
+            showDebugPanel = true
         case "resolve":
             let summary = phase?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -2903,10 +2898,8 @@ struct ChatPanelView: View {
         let normalizedReason = reason?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !showDebugPanel {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                debugToggleEnabled = true
-                showDebugPanel = true
-            }
+            debugToggleEnabled = true
+            showDebugPanel = true
         } else {
             debugToggleEnabled = true
         }
@@ -3097,17 +3090,13 @@ struct ChatPanelView: View {
             swarmToggleEnabled: Binding(
                 get: { showSwarmPanel },
                 set: { newValue in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showSwarmPanel = newValue
-                    }
+                    showSwarmPanel = newValue
                 }
             ),
             codeReviewToggleEnabled: Binding(
                 get: { showCodeReviewPanel },
                 set: { newValue in
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showCodeReviewPanel = newValue
-                    }
+                    showCodeReviewPanel = newValue
                 }
             ),
             highlightPlanButton: isPlanTabHovered

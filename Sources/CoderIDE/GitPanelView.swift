@@ -111,9 +111,7 @@ struct GitPanelView: View {
             .help("Refresh")
 
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    store.isOpen = false
-                }
+                store.isOpen = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
