@@ -222,9 +222,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     }
                                     // Emit a real-time "started" event BEFORE tool execution
                                     // so the tool trace shows live progress (like Codex CLI).
-                                    let startType = Self.toolStartEventType(for: name)
-                                    let startPayload = Self.toolStartPayload(for: name, args: args)
-                                    continuation.yield(.raw(type: startType, payload: startPayload))
+                                    // Todo updates are lightweight state events and should not
+                                    // be represented as generic running tool operations.
+                                    if name != "todo_write", name != "todo_read" {
+                                        let startType = Self.toolStartEventType(for: name)
+                                        let startPayload = Self.toolStartPayload(for: name, args: args)
+                                        continuation.yield(.raw(type: startType, payload: startPayload))
+                                    }
 
                                     let produced = await events(for: marker, context: context)
                                     for e in produced {
@@ -627,6 +631,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         switch marker.kind {
         case "policy_ack", "todo_read", "todo_write", "plan_step", "debug_panel":
             return false
+        case "tool_call":
+            let toolName = inferredToolName(from: marker.payload)
+            if toolName == "todo_read" || toolName == "todo_write" {
+                return false
+            }
+            return true
         default:
             return true
         }
@@ -771,6 +781,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "tool_call":
             let toolName = inferredToolName(from: marker.payload)
             guard !toolName.isEmpty else { return [] }
+            if toolName == "todo_read" {
+                return [.raw(type: "todo_read", payload: [:])]
+            }
+            if toolName == "todo_write" {
+                return [.raw(type: "todo_write", payload: marker.payload)]
+            }
             let call = ToolCall(
                 id: marker.payload["id"] ?? UUID().uuidString,
                 name: toolName,
@@ -793,6 +809,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
             "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
             "mcp_list_servers", "mcp_reconnect",
+            "todo_write", "todo_read",
             // Codebase index tools
             "codebase_search", "find_symbol", "list_symbols", "find_references",
             "project_structure", "file_outline", "find_files", "codebase_stats",
