@@ -657,7 +657,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Respect .gitignore", isOn: $codebaseIndexRespectGitignore)
                         .toggleStyle(.switch)
-                        .onChange(of: codebaseIndexRespectGitignore) { _ in
+                        .onChange(of: codebaseIndexRespectGitignore) {
                             workspaceStore.indexActiveWorkspace()
                         }
                     hintBox("When enabled, files and directories listed in .gitignore are excluded from indexing.")
@@ -669,7 +669,7 @@ struct SettingsView: View {
                     fieldLabel("Excluded file patterns")
                     TextField("*.generated.swift, *.pb.swift, *.min.js", text: $codebaseIndexExcludedFilePatterns)
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: codebaseIndexExcludedFilePatterns) { _ in
+                        .onChange(of: codebaseIndexExcludedFilePatterns) {
                             // Debounce: only re-index after a short pause
                         }
                     hintBox("Comma-separated glob patterns for files to exclude (e.g. *.generated.swift, *.pb.swift).")
