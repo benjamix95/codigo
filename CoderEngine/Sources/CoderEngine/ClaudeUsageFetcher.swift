@@ -39,8 +39,25 @@ public enum ClaudeUsageFetcher {
     public static func fetch(claudePath: String, workingDirectory: String? = nil) async
         -> ClaudeUsage?
     {
+        await fetch(
+            claudePath: claudePath,
+            workingDirectory: workingDirectory,
+            environmentOverride: nil
+        )
+    }
+
+    public static func fetch(
+        claudePath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async
+        -> ClaudeUsage?
+    {
         let command = await runClaudeCost(
-            claudePath: claudePath, workingDirectory: workingDirectory)
+            claudePath: claudePath,
+            workingDirectory: workingDirectory,
+            environmentOverride: environmentOverride
+        )
         guard command.exitCode == 0, !command.output.isEmpty else { return nil }
 
         // Strategy:
@@ -57,7 +74,11 @@ public enum ClaudeUsageFetcher {
 
     // MARK: - Run Claude CLI
 
-    private static func runClaudeCost(claudePath: String, workingDirectory: String?) async
+    private static func runClaudeCost(
+        claudePath: String,
+        workingDirectory: String?,
+        environmentOverride: [String: String]?
+    ) async
         -> ClaudeCommandOutput
     {
         let process = Process()
@@ -69,7 +90,7 @@ public enum ClaudeUsageFetcher {
         process.standardOutput = outPipe
         process.standardError = nil
         process.standardInput = nil
-        process.environment = ClaudeDetector.shellEnvironment()
+        process.environment = mergedEnvironment(environmentOverride)
         process.currentDirectoryURL =
             (workingDirectory.flatMap {
                 FileManager.default.fileExists(atPath: $0) ? $0 : nil
@@ -355,5 +376,13 @@ public enum ClaudeUsageFetcher {
         }
 
         return ClaudeUsage(sessionCost: cost, inputTokens: inTokens, outputTokens: outTokens)
+    }
+
+    private static func mergedEnvironment(_ override: [String: String]?) -> [String: String] {
+        var env = ClaudeDetector.shellEnvironment()
+        if let override {
+            env.merge(override) { _, new in new }
+        }
+        return env
     }
 }

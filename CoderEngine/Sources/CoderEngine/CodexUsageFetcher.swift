@@ -39,16 +39,32 @@ private struct CodexRateWindow {
 /// 1) app-server JSON-RPC account/rateLimits/read (affidabile)
 /// 2) fallback best-effort su `/status` (legacy)
 public enum CodexUsageFetcher {
-    public static func fetch(codexPath: String, workingDirectory: String? = nil) async -> CodexUsage? {
-        if let usage = await fetchViaAppServer(codexPath: codexPath, workingDirectory: workingDirectory) {
+    public static func fetch(
+        codexPath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async -> CodexUsage? {
+        if let usage = await fetchViaAppServer(
+            codexPath: codexPath,
+            workingDirectory: workingDirectory,
+            environmentOverride: environmentOverride
+        ) {
             return usage
         }
-        let (output, status) = await runCodexStatus(codexPath: codexPath, workingDirectory: workingDirectory)
+        let (output, status) = await runCodexStatus(
+            codexPath: codexPath,
+            workingDirectory: workingDirectory,
+            environmentOverride: environmentOverride
+        )
         guard status == 0, !output.isEmpty else { return nil }
         return parseStatusOutput(output)
     }
 
-    private static func fetchViaAppServer(codexPath: String, workingDirectory: String?) async -> CodexUsage? {
+    private static func fetchViaAppServer(
+        codexPath: String,
+        workingDirectory: String?,
+        environmentOverride: [String: String]?
+    ) async -> CodexUsage? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: codexPath)
         process.arguments = ["app-server"]
@@ -57,7 +73,7 @@ public enum CodexUsageFetcher {
         process.standardOutput = outPipe
         process.standardError = nil
         process.standardInput = inPipe
-        process.environment = CodexDetector.shellEnvironment()
+        process.environment = mergedEnvironment(environmentOverride)
         process.currentDirectoryURL = workingDirectory.flatMap {
             FileManager.default.fileExists(atPath: $0) ? URL(fileURLWithPath: $0) : nil
         } ?? URL(fileURLWithPath: NSHomeDirectory())
@@ -165,7 +181,11 @@ public enum CodexUsageFetcher {
         return formatter.string(from: date)
     }
 
-    private static func runCodexStatus(codexPath: String, workingDirectory: String?) async -> (output: String, exitCode: Int32) {
+    private static func runCodexStatus(
+        codexPath: String,
+        workingDirectory: String?,
+        environmentOverride: [String: String]?
+    ) async -> (output: String, exitCode: Int32) {
         var args = ["exec", "--json", "--skip-git-repo-check"]
         if let wd = workingDirectory, !wd.isEmpty, FileManager.default.fileExists(atPath: wd) {
             args += ["-C", wd]
@@ -177,7 +197,7 @@ public enum CodexUsageFetcher {
         let outPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = nil
-        process.environment = CodexDetector.shellEnvironment()
+        process.environment = mergedEnvironment(environmentOverride)
         process.currentDirectoryURL = workingDirectory
             .flatMap { FileManager.default.fileExists(atPath: $0) ? URL(fileURLWithPath: $0) : nil }
             ?? URL(fileURLWithPath: "/tmp")
@@ -283,5 +303,13 @@ public enum CodexUsageFetcher {
             return nil
         }
         return Double(text[range])
+    }
+
+    private static func mergedEnvironment(_ override: [String: String]?) -> [String: String] {
+        var env = CodexDetector.shellEnvironment()
+        if let override {
+            env.merge(override) { _, new in new }
+        }
+        return env
     }
 }

@@ -128,6 +128,7 @@ struct SettingsView: View {
 
     // MARK: - State Objects
     @StateObject private var codexState = CodexStateStore()
+    @StateObject private var codexMCPHealth = CodexMCPHealthStore.shared
     @StateObject private var geminiState = GeminiStateStore()
     @StateObject private var cliAccountsStore = CLIAccountsStore.shared
     @StateObject private var cliUsageLedger = CLIAccountUsageLedgerStore.shared
@@ -204,6 +205,7 @@ struct SettingsView: View {
             FontPreferences.registerBundledFonts()
             normalizeStoredSelections()
             loadCodexAdvanced()
+            codexMCPHealth.refresh()
             syncProviders()
             reloadRulesFromDisk()
         }
@@ -401,6 +403,27 @@ struct SettingsView: View {
                     Button("Connect to Codex") { connectToCodex() }
                         .buttonStyle(.borderedProminent).controlSize(.small)
 
+                    HStack(spacing: 8) {
+                        statusBadge(
+                            connected: codexMCPHealth.isHealthy,
+                            label: codexMCPHealth.statusLabel
+                        )
+                        Spacer()
+                        Button("Re-check") {
+                            codexMCPHealth.refresh()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        if codexMCPHealth.canRepair {
+                            Button("Repair profiles") {
+                                codexMCPHealth.repairProfiles()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+                    }
+
                     Divider()
                     fieldLabel("Sandbox")
                     Picker("", selection: $codexSandbox) {
@@ -495,6 +518,13 @@ struct SettingsView: View {
                 onDismiss: {
                     let status = accountAuthStatus(account)
                     cliAccountsStore.updateAuthStatus(accountId: account.id, status: status)
+                    if status.isLoggedIn {
+                        CLIAccountRouter.shared.markAccountSelected(
+                            accountId: account.id,
+                            provider: account.provider,
+                            reason: "login_success"
+                        )
+                    }
                     syncProviders()
                 }
             )
@@ -929,6 +959,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func accountCard(_ account: CLIAccount, provider: CLIProviderKind) -> some View {
         let isConnected = accountAuthStatus(account).isLoggedIn
+        let identity = CLIAccountAuthDetector.identity(account: account)
 
         VStack(alignment: .leading, spacing: 8) {
             // Row 1: Avatar + Label + Enabled toggle
@@ -951,6 +982,13 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .controlSize(.mini)
                 .labelsHidden()
+            }
+
+            if let email = identity?.email, !email.isEmpty {
+                Text(email)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             // Row 2: Status + usage
@@ -1015,11 +1053,16 @@ struct SettingsView: View {
     }
 
     private func accountAvatar(_ account: CLIAccount) -> some View {
-        ZStack {
+        let fallback = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = CLIAccountAuthDetector.identity(account: account)?.email ?? ""
+        let seed = email.isEmpty ? fallback : email
+        let initial = seed.isEmpty ? "?" : String(seed.prefix(1)).uppercased()
+
+        return ZStack {
             Circle()
                 .fill(providerAvatarColor(account.provider))
                 .frame(width: 28, height: 28)
-            Text(String(account.label.prefix(1)).uppercased())
+            Text(initial)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
         }

@@ -58,6 +58,7 @@ final class AccountUsageDashboardStore: ObservableObject {
     private let ledger = CLIAccountUsageLedgerStore.shared
     private let router = CLIAccountRouter.shared
     private let providerUsage = ProviderUsageStore.shared
+    private let secretsStore = CLIAccountSecretsStore()
 
     func refresh() async {
         if isRefreshing { return }
@@ -212,8 +213,31 @@ final class AccountUsageDashboardStore: ObservableObject {
         let effectiveClaudePath = (claudePath?.isEmpty == false) ? claudePath! : (PathFinder.find(executable: "claude") ?? "")
         let effectiveGeminiPath = (geminiPath?.isEmpty == false) ? geminiPath! : (GeminiDetector.findGeminiPath(customPath: nil) ?? "")
 
-        await providerUsage.fetchCodexUsage(codexPath: effectiveCodexPath, workingDirectory: nil)
-        await providerUsage.fetchClaudeUsage(claudePath: effectiveClaudePath, workingDirectory: nil)
-        await providerUsage.fetchGeminiUsage(geminiPath: effectiveGeminiPath, workingDirectory: nil)
+        await providerUsage.fetchCodexUsage(
+            codexPath: effectiveCodexPath,
+            workingDirectory: nil,
+            environmentOverride: usageEnvironmentOverride(provider: .codex)
+        )
+        await providerUsage.fetchClaudeUsage(
+            claudePath: effectiveClaudePath,
+            workingDirectory: nil,
+            environmentOverride: usageEnvironmentOverride(provider: .claude)
+        )
+        await providerUsage.fetchGeminiUsage(
+            geminiPath: effectiveGeminiPath,
+            workingDirectory: nil,
+            environmentOverride: usageEnvironmentOverride(provider: .gemini)
+        )
+    }
+
+    private func usageEnvironmentOverride(provider: CLIProviderKind) -> [String: String]? {
+        guard let account = router.activeAccount(for: provider) else { return nil }
+        let secret = secretsStore.secret(for: account.id)
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: provider,
+            profilePath: account.profilePath,
+            secret: secret
+        )
+        return env.isEmpty ? nil : env
     }
 }

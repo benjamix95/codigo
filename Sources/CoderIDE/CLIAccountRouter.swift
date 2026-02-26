@@ -1,5 +1,6 @@
 import Foundation
 import CoderEngine
+import Combine
 
 struct CLIClassifiedFailure {
     let isQuotaExhaustion: Bool
@@ -22,13 +23,21 @@ final class CLIAccountRouter: ObservableObject {
 
     private let accountsStore: CLIAccountsStore
     private let ledger: CLIAccountUsageLedgerStore
+    private var cancellables: Set<AnyCancellable> = []
 
     init(accountsStore: CLIAccountsStore, ledger: CLIAccountUsageLedgerStore) {
         self.accountsStore = accountsStore
         self.ledger = ledger
+        accountsStore.$accounts
+            .sink { [weak self] _ in
+                self?.bootstrapActiveSelectionsIfNeeded()
+            }
+            .store(in: &cancellables)
+        bootstrapActiveSelectionsIfNeeded()
     }
 
     func selectAccount(for provider: CLIProviderKind) -> CLIAccount? {
+        bootstrapActiveSelectionsIfNeeded()
         let candidates = availableAccounts(for: provider)
         guard !candidates.isEmpty else { return nil }
         let idx = (roundRobinIndex[provider] ?? 0) % candidates.count
@@ -55,9 +64,17 @@ final class CLIAccountRouter: ObservableObject {
     }
 
     func currentAvailability(provider: CLIProviderKind) -> CLIAvailabilityState {
-        availableAccounts(for: provider).isEmpty
-        ? .allExhausted(reason: "No available account")
-        : .available
+        bootstrapActiveSelectionsIfNeeded()
+        if availableAccounts(for: provider).isEmpty {
+            return .allExhausted(reason: "No available account")
+        }
+        return .available
+    }
+
+    func activeAccount(for provider: CLIProviderKind) -> CLIAccount? {
+        bootstrapActiveSelectionsIfNeeded()
+        guard let activeId = currentActiveAccountByProvider[provider] else { return nil }
+        return accountsStore.accounts(for: provider).first(where: { $0.id == activeId })
     }
 
     func markUsage(accountId: UUID, provider: CLIProviderKind, inputTokens: Int, outputTokens: Int, estimatedCost: Double) {
@@ -95,6 +112,30 @@ final class CLIAccountRouter: ObservableObject {
         lastSwitchAtByProvider[provider] = Date()
         if let reason, !reason.isEmpty {
             lastFailoverReasonByProvider[provider] = reason
+        }
+    }
+
+    func bootstrapActiveSelectionsIfNeeded() {
+        for provider in CLIProviderKind.allCases {
+            let enabled = accountsStore.accounts(for: provider).filter(\.isEnabled)
+            guard !enabled.isEmpty else {
+                currentActiveAccountByProvider.removeValue(forKey: provider)
+                continue
+            }
+
+            if let selectedId = currentActiveAccountByProvider[provider],
+               enabled.contains(where: { $0.id == selectedId }) {
+                continue
+            }
+
+            let path = providerExecutablePath(for: provider)
+            if let connected = enabled.first(where: {
+                CLIAccountAuthDetector.detect(account: $0, providerPath: path).isLoggedIn
+            }) {
+                currentActiveAccountByProvider[provider] = connected.id
+            } else {
+                currentActiveAccountByProvider[provider] = enabled[0].id
+            }
         }
     }
 

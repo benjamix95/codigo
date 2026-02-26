@@ -9,32 +9,34 @@ struct ProfileSwitcherView: View {
     @StateObject private var router = CLIAccountRouter.shared
 
     @State private var showPopover = false
-    @State private var addAccountProvider: CLIProviderKind?
     @State private var loginSheetAccount: CLIAccount?
 
     /// The "primary" active account — first provider that has an active selection.
     private var primaryActiveAccount: CLIAccount? {
         for provider in CLIProviderKind.allCases {
-            if let accountId = router.currentActiveAccountByProvider[provider],
-               let account = accountsStore.accounts.first(where: { $0.id == accountId }) {
+            if let account = router.activeAccount(for: provider) {
                 return account
             }
         }
         return nil
     }
 
-    /// Providers that have at least one enabled account.
-    private var activeProviders: [CLIProviderKind] {
-        CLIProviderKind.allCases.filter { provider in
-            accountsStore.accounts.contains { $0.provider == provider && $0.isEnabled }
-        }
-    }
-
     var body: some View {
         Button {
             showPopover.toggle()
         } label: {
-            avatarCircle(for: primaryActiveAccount)
+            HStack(spacing: 8) {
+                avatarCircle(for: primaryActiveAccount)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(primaryTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Text(primarySubtitle)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showPopover, arrowEdge: .top) {
@@ -43,8 +45,29 @@ struct ProfileSwitcherView: View {
         .sheet(item: $loginSheetAccount) { account in
             CLIAccountLoginSheet(
                 account: account,
-                providerPath: resolveProviderPath(account.provider)
+                providerPath: resolveProviderPath(account.provider),
+                onDismiss: {
+                    let status = CLIAccountAuthDetector.detect(
+                        account: account,
+                        providerPath: resolveProviderPath(account.provider)
+                    )
+                    CLIAccountsStore.shared.updateAuthStatus(accountId: account.id, status: status)
+                    if status.isLoggedIn {
+                        router.markAccountSelected(
+                            accountId: account.id,
+                            provider: account.provider,
+                            reason: "login_success"
+                        )
+                    }
+                    router.bootstrapActiveSelectionsIfNeeded()
+                }
             )
+        }
+        .onAppear {
+            router.bootstrapActiveSelectionsIfNeeded()
+        }
+        .onChange(of: accountsStore.accounts) { _, _ in
+            router.bootstrapActiveSelectionsIfNeeded()
         }
     }
 
@@ -209,6 +232,7 @@ struct ProfileSwitcherView: View {
 
     private func accountRow(_ account: CLIAccount) -> some View {
         let isActive = router.currentActiveAccountByProvider[account.provider] == account.id
+        let identity = CLIAccountAuthDetector.identity(account: account)
 
         return Button {
             router.markAccountSelected(
@@ -221,9 +245,27 @@ struct ProfileSwitcherView: View {
             HStack(spacing: 8) {
                 smallAvatar(for: account)
 
-                Text(account.label)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.label)
+                        .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                        .lineLimit(1)
+                    if let email = identity?.email, !email.isEmpty {
+                        Text(email)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else if let method = identity?.authMethod {
+                        Text(method.rawValue)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    } else {
+                        Text("Not connected")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
 
                 Spacer()
 
@@ -263,6 +305,19 @@ struct ProfileSwitcherView: View {
             let custom = UserDefaults.standard.string(forKey: "gemini_cli_path")
             return CLIAccountAuthDetector.resolveExecutable(provider: .gemini, providerPath: custom)
         }
+    }
+
+    private var primaryTitle: String {
+        guard let account = primaryActiveAccount else { return "No profile" }
+        if let email = CLIAccountAuthDetector.identity(account: account)?.email, !email.isEmpty {
+            return email
+        }
+        return account.label
+    }
+
+    private var primarySubtitle: String {
+        guard let account = primaryActiveAccount else { return "Click to configure" }
+        return account.provider.displayName
     }
 }
 

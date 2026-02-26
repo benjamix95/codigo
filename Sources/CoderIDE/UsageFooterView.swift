@@ -7,6 +7,8 @@ struct UsageFooterView: View {
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
+    @StateObject private var cliAccountsStore = CLIAccountsStore.shared
+    @StateObject private var cliAccountRouter = CLIAccountRouter.shared
     @Binding var selectedConversationId: UUID?
     @AppStorage("context_scope_mode") private var contextScopeModeRaw = "auto"
     @AppStorage("codex_path") private var codexPath = ""
@@ -31,6 +33,7 @@ struct UsageFooterView: View {
     @State private var contextEstimateWorkItem: DispatchWorkItem?
     @State private var contextEstimateGeneration: Int = 0
     private static let contextEstimateQueue = DispatchQueue(label: "com.codigo.context-estimate", qos: .utility)
+    private let cliSecretsStore = CLIAccountSecretsStore()
 
     private var effectiveProviderId: String? {
         providerRegistry.selectedProviderId
@@ -110,6 +113,7 @@ struct UsageFooterView: View {
         .padding(.vertical, 8)
         .padding(.vertical, 2)
         .onAppear {
+            cliAccountRouter.bootstrapActiveSelectionsIfNeeded()
             scheduleRefresh()
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
@@ -131,6 +135,9 @@ struct UsageFooterView: View {
             scheduleRefresh()
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+        }
+        .onChange(of: cliAccountRouter.currentActiveAccountByProvider) { _, _ in
+            scheduleRefresh()
         }
         .onDisappear {
             usageRefreshTask?.cancel()
@@ -291,21 +298,51 @@ struct UsageFooterView: View {
             if pid == "codex-cli" {
                 let path =
                     codexPath.isEmpty ? (PathFinder.find(executable: "codex") ?? "") : codexPath
-                await providerUsageStore.fetchCodexUsage(codexPath: path, workingDirectory: wd)
+                await providerUsageStore.fetchCodexUsage(
+                    codexPath: path,
+                    workingDirectory: wd,
+                    environmentOverride: usageEnvironmentOverride(for: .codex)
+                )
             } else if pid == "claude-cli" {
                 let path =
                     claudePath.isEmpty
                     ? (PathFinder.find(executable: "claude") ?? "/usr/local/bin/claude")
                     : claudePath
-                await providerUsageStore.fetchClaudeUsage(claudePath: path, workingDirectory: wd)
+                await providerUsageStore.fetchClaudeUsage(
+                    claudePath: path,
+                    workingDirectory: wd,
+                    environmentOverride: usageEnvironmentOverride(for: .claude)
+                )
             } else if pid == "gemini-cli" {
                 let path =
                     geminiCliPath.isEmpty
                     ? (GeminiDetector.findGeminiPath(customPath: nil) ?? "/opt/homebrew/bin/gemini")
                     : geminiCliPath
-                await providerUsageStore.fetchGeminiUsage(geminiPath: path, workingDirectory: wd)
+                await providerUsageStore.fetchGeminiUsage(
+                    geminiPath: path,
+                    workingDirectory: wd,
+                    environmentOverride: usageEnvironmentOverride(for: .gemini)
+                )
             }
         }
+    }
+
+    private func usageEnvironmentOverride(for provider: CLIProviderKind) -> [String: String]? {
+        guard let account = activeAccount(for: provider) else { return nil }
+        let secret = cliSecretsStore.secret(for: account.id)
+        let env = CLIProfileProvisioner.environmentOverrides(
+            provider: provider,
+            profilePath: account.profilePath,
+            secret: secret
+        )
+        return env.isEmpty ? nil : env
+    }
+
+    private func activeAccount(for provider: CLIProviderKind) -> CLIAccount? {
+        if let active = cliAccountRouter.activeAccount(for: provider) {
+            return active
+        }
+        return cliAccountsStore.accounts(for: provider).first(where: \.isEnabled)
     }
 
 

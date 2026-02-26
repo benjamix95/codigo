@@ -29,8 +29,22 @@ public enum GeminiCLIUsageFetcher {
     public static func fetch(geminiPath: String, workingDirectory: String? = nil) async
         -> GeminiCLIUsage?
     {
+        await fetch(
+            geminiPath: geminiPath,
+            workingDirectory: workingDirectory,
+            environmentOverride: nil
+        )
+    }
+
+    public static func fetch(
+        geminiPath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async
+        -> GeminiCLIUsage?
+    {
         // 1. Verify Gemini CLI is installed and reachable via --version (fast, never hangs)
-        let versionOk = await checkVersion(geminiPath: geminiPath)
+        let versionOk = await checkVersion(geminiPath: geminiPath, environmentOverride: environmentOverride)
         guard versionOk else {
             return GeminiCLIUsage(note: "Gemini CLI non raggiungibile")
         }
@@ -48,7 +62,7 @@ public enum GeminiCLIUsageFetcher {
 
     // MARK: - Version health-check
 
-    private static func checkVersion(geminiPath: String) async -> Bool {
+    private static func checkVersion(geminiPath: String, environmentOverride: [String: String]?) async -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: geminiPath)
         process.arguments = ["--version"]
@@ -56,7 +70,7 @@ public enum GeminiCLIUsageFetcher {
         process.standardOutput = outPipe
         process.standardError = outPipe
         process.standardInput = nil
-        process.environment = CodexDetector.shellEnvironment()
+        process.environment = mergedEnvironment(environmentOverride)
         process.currentDirectoryURL = URL(fileURLWithPath: NSHomeDirectory())
 
         do {
@@ -235,5 +249,13 @@ public enum GeminiCLIUsageFetcher {
             }
         }
         return nil
+    }
+
+    private static func mergedEnvironment(_ override: [String: String]?) -> [String: String] {
+        var env = CodexDetector.shellEnvironment()
+        if let override {
+            env.merge(override) { _, new in new }
+        }
+        return env
     }
 }

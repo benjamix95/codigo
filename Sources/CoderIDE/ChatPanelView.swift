@@ -1391,8 +1391,6 @@ struct ChatPanelView: View {
                     planningState = .idle
                     planFlowPhase = .idle
                     planStreamingContent = ""
-                    planAnalysisContext = ""
-                    planClarificationAnswers = ""
                     planHistoryStore.setSelectedEntry(id: nil)
                 }
             }
@@ -2078,7 +2076,7 @@ struct ChatPanelView: View {
         activeBuildPlanConversationId = nil
         switch planFlowPhase {
         case .building:
-            planFlowPhase = .proposalReady
+            planFlowPhase = .readyToBuild
             planStreamingContent = ""
         case .analyzing, .questioning, .generating:
             planFlowPhase = .idle
@@ -3844,6 +3842,7 @@ struct ChatPanelView: View {
     ) {
         let normalized = choice.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
+        guard planFlowPhase != .building else { return }
         let planConversationId = explicitPlanConversationId ?? conversationId
         chatStore.choosePlanPath(normalized, for: planConversationId)
         if let selected = planHistoryStore.selectedEntryId {
@@ -4237,9 +4236,20 @@ struct ChatPanelView: View {
             planToggleEnabled: planToggleEnabled
         )
         if coderMode == .plan || shouldRunPlanInline {
+            // Guard against launching a new plan flow while one is already in progress
+            switch planFlowPhase {
+            case .analyzing, .questioning, .generating:
+                appendTechnicalErrorMessage(
+                    "[Plan] A plan flow is already in progress. Please wait for it to finish or interrupt it first.",
+                    in: targetConversationId
+                )
+                return
+            default:
+                break
+            }
             planFlowPhase = .analyzing
             planAnalysisContext = ""
-            planUserRequest = text
+            planUserRequest = String(text.prefix(16_000))
             planClarificationAnswers = ""
             planShouldRunInline = shouldRunPlanInline
         } else if planFlowPhase != .building {
@@ -4493,8 +4503,8 @@ struct ChatPanelView: View {
         // PHASE 2: Clarification Questions
         // ========================
         await MainActor.run {
-            planFlowPhase = .questioning
             planStreamingContent = ""
+            planFlowPhase = .questioning
             let questionAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: questionAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -4565,10 +4575,12 @@ struct ChatPanelView: View {
                 }
             }
             // STOP — Phase 3 will be triggered by submitPlanClarificationAnswers() → continuePlanFlowPhase3()
+            finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
             return
         }
 
         // No questions needed — proceed directly to Phase 3
+        finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
         await MainActor.run {
             chatStore.updateLastAssistantMessage(
                 content: "No questions needed. Generating plan...",
@@ -4769,6 +4781,7 @@ struct ChatPanelView: View {
                 persistImmediately: true
             )
             await MainActor.run {
+                planStreamingContent = ""
                 planFlowPhase = .idle
                 planningState = .idle
             }
@@ -4778,6 +4791,7 @@ struct ChatPanelView: View {
     @MainActor
     private func continuePlanFlowPhase3() {
         guard let targetConversationId = conversationId else { return }
+        guard !isLoadingForCurrentConversation else { return }
 
         let effectiveProvider: any LLMProvider
         if let selected = providerRegistry.selectedProvider {
@@ -4905,7 +4919,8 @@ struct ChatPanelView: View {
         if case .awaitingClarification(let q) = classification.planningState {
             // LLM needs more answers — pause again for user input
             await MainActor.run {
-                planAnalysisContext += "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
+                let followUp = "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
+                planAnalysisContext = String((planAnalysisContext + followUp).suffix(32_000))
                 planFlowPhase = .questioning
                 planningState = .awaitingClarification(questions: q)
                 planStreamingContent = reAnalysisText
@@ -4928,7 +4943,8 @@ struct ChatPanelView: View {
 
         // No more questions — update analysis context and proceed to Phase 3
         await MainActor.run {
-            planAnalysisContext += "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
+            let postClarification = "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
+            planAnalysisContext = String((planAnalysisContext + postClarification).suffix(32_000))
             chatStore.updateLastAssistantMessage(
                 content: "Analysis complete. Generating plan...",
                 in: conversationId,

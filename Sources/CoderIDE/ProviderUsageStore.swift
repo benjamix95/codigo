@@ -59,8 +59,16 @@ final class ProviderUsageStore: ObservableObject {
         return !isCodexRateLimited && (fiveH >= 80.0 || weekly >= 80.0)
     }
 
-    func fetchCodexUsage(codexPath: String, workingDirectory: String? = nil) async {
-        guard shouldRefresh(providerId: "codex-cli") else { return }
+    func fetchCodexUsage(
+        codexPath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async {
+        let refreshId = scopedProviderRefreshId(
+            providerId: "codex-cli",
+            scope: environmentOverride?["CODEX_HOME"]
+        )
+        guard shouldRefresh(providerId: refreshId) else { return }
         guard !codexPath.isEmpty, FileManager.default.fileExists(atPath: codexPath) else {
             codexUsage = nil
             codexUsageMessage = "Codex CLI not found"
@@ -71,7 +79,10 @@ final class ProviderUsageStore: ObservableObject {
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
                 await CodexUsageFetcher.fetch(
-                    codexPath: codexPath, workingDirectory: workingDirectory)
+                    codexPath: codexPath,
+                    workingDirectory: workingDirectory,
+                    environmentOverride: environmentOverride
+                )
             }.value
         }
         if let usage {
@@ -93,8 +104,16 @@ final class ProviderUsageStore: ObservableObject {
         return nil
     }
 
-    func fetchClaudeUsage(claudePath: String, workingDirectory: String? = nil) async {
-        guard shouldRefresh(providerId: "claude-cli") else { return }
+    func fetchClaudeUsage(
+        claudePath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async {
+        let refreshId = scopedProviderRefreshId(
+            providerId: "claude-cli",
+            scope: environmentOverride?["CLAUDE_HOME"]
+        )
+        guard shouldRefresh(providerId: refreshId) else { return }
         guard !claudePath.isEmpty, FileManager.default.fileExists(atPath: claudePath) else {
             claudeUsage = nil
             claudeUsageMessage = "Claude CLI not found"
@@ -105,7 +124,10 @@ final class ProviderUsageStore: ObservableObject {
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
                 await ClaudeUsageFetcher.fetch(
-                    claudePath: claudePath, workingDirectory: workingDirectory)
+                    claudePath: claudePath,
+                    workingDirectory: workingDirectory,
+                    environmentOverride: environmentOverride
+                )
             }.value
         }
         if let usage {
@@ -117,8 +139,16 @@ final class ProviderUsageStore: ObservableObject {
         }
     }
 
-    func fetchGeminiUsage(geminiPath: String, workingDirectory: String? = nil) async {
-        guard shouldRefresh(providerId: "gemini-cli") else { return }
+    func fetchGeminiUsage(
+        geminiPath: String,
+        workingDirectory: String? = nil,
+        environmentOverride: [String: String]? = nil
+    ) async {
+        let refreshId = scopedProviderRefreshId(
+            providerId: "gemini-cli",
+            scope: environmentOverride?["GEMINI_CONFIG_DIR"]
+        )
+        guard shouldRefresh(providerId: refreshId) else { return }
         guard !geminiPath.isEmpty, FileManager.default.fileExists(atPath: geminiPath) else {
             geminiUsage = nil
             geminiUsageMessage = "Gemini CLI not found"
@@ -129,7 +159,10 @@ final class ProviderUsageStore: ObservableObject {
         let usage = await withTimeout(timeoutNs: usageFetchTimeoutNs) {
             await Task.detached(priority: .userInitiated) {
                 await GeminiCLIUsageFetcher.fetch(
-                    geminiPath: geminiPath, workingDirectory: workingDirectory)
+                    geminiPath: geminiPath,
+                    workingDirectory: workingDirectory,
+                    environmentOverride: environmentOverride
+                )
             }.value
         }
         if let usage {
@@ -183,5 +216,13 @@ final class ProviderUsageStore: ObservableObject {
         }
         lastFetchAtByProvider[providerId] = now
         return true
+    }
+
+    private func scopedProviderRefreshId(providerId: String, scope: String?) -> String {
+        let trimmed = scope?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty {
+            return providerId
+        }
+        return "\(providerId)#\(trimmed)"
     }
 }
