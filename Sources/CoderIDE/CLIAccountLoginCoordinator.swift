@@ -138,6 +138,9 @@ final class CLIAccountLoginCoordinator: ObservableObject {
                 try? FileManager.default.removeItem(at: file)
             }
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            if account.provider == .codex {
+                CLIProfileProvisioner.reseedCodexProfile(at: url)
+            }
             statusByAccount[account.id] = "Disconnected"
         } catch {
             statusByAccount[account.id] = "Logout error: \(error.localizedDescription)"
