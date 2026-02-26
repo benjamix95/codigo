@@ -1,6 +1,8 @@
 import Foundation
 
 enum CLIProfileProvisioner {
+    private static let mcpServerPathOverrideEnv = "CODERIDE_MCP_SERVER_PATH"
+
     static func baseProfilesDir() -> URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
@@ -26,7 +28,8 @@ enum CLIProfileProvisioner {
         var env: [String: String] = [:]
         switch provider {
         case .codex:
-            // Self-heal old/broken profiles where config.toml or instructions.md was deleted.
+            // Self-heal old/broken profiles where config.toml/AGENTS.md were deleted
+            // or where the MCP server block is missing/outdated.
             ensureCodexProfileFiles(at: URL(fileURLWithPath: profilePath, isDirectory: true), overwrite: false)
             env["CODEX_HOME"] = profilePath
             if let secret, !secret.isEmpty { env["OPENAI_API_KEY"] = secret }
@@ -50,6 +53,13 @@ enum CLIProfileProvisioner {
 
     /// Resolves the path to the bundled coderide-mcp-server binary.
     static func mcpServerBinaryPath() -> String? {
+        // Fast-path explicit override (used by tests and advanced debugging).
+        let overridePath = ProcessInfo.processInfo.environment[mcpServerPathOverrideEnv]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !overridePath.isEmpty, FileManager.default.isExecutableFile(atPath: overridePath) {
+            return overridePath
+        }
+
         // Check inside the app bundle first
         if let bundled = Bundle.main.url(forResource: "coderide-mcp-server", withExtension: nil)?.path,
            FileManager.default.isExecutableFile(atPath: bundled) {
@@ -63,9 +73,13 @@ enum CLIProfileProvisioner {
             }
         }
         // Dev fallback: locate the binary in CoderEngine/.build from workspace root.
-        if let workspaceRoot = locateWorkspaceRoot(),
-           let fromBuild = findMCPBinary(in: workspaceRoot.appendingPathComponent("CoderEngine/.build", isDirectory: true)) {
-            return fromBuild
+        if let workspaceRoot = locateWorkspaceRoot() {
+            if let fromEngineBuild = findMCPBinary(in: workspaceRoot.appendingPathComponent("CoderEngine/.build", isDirectory: true)) {
+                return fromEngineBuild
+            }
+            if let fromRootBuild = findMCPBinary(in: workspaceRoot.appendingPathComponent(".build", isDirectory: true)) {
+                return fromRootBuild
+            }
         }
         // Legacy fallback near App Support.
         let appSupportBuild = baseProfilesDir()
@@ -141,13 +155,17 @@ enum CLIProfileProvisioner {
     private static func ensureCodexProfileFiles(at profileURL: URL, overwrite: Bool) {
         try? FileManager.default.createDirectory(at: profileURL, withIntermediateDirectories: true)
         seedCodexConfigToml(at: profileURL, overwrite: overwrite)
+        seedCodexAgentsMd(at: profileURL, overwrite: overwrite)
+        // Legacy compatibility for older profiles/tooling still looking for instructions.md.
         seedCodexInstructionsMd(at: profileURL, overwrite: overwrite)
     }
 
     private static func seedCodexConfigToml(at profileURL: URL, overwrite: Bool) {
         let configURL = profileURL.appendingPathComponent("config.toml")
-        // Don't overwrite if user has customized it unless explicitly requested.
-        if !overwrite && FileManager.default.fileExists(atPath: configURL.path) {
+        // Don't overwrite user customizations unless explicitly requested.
+        // Still self-heal MCP block for existing configs.
+        if FileManager.default.fileExists(atPath: configURL.path), !overwrite {
+            repairCodexConfigTomlIfNeeded(at: configURL)
             return
         }
 
@@ -159,18 +177,74 @@ enum CLIProfileProvisioner {
             "network_access = true",
         ]
 
-        // Register coderide-mcp-server if binary is available
+        // Register coderide-mcp-server if binary is available.
         if let mcpPath = mcpServerBinaryPath() {
-            configLines += [
-                "",
-                "[mcp_servers.coderide]",
-                "command = \"\(mcpPath)\"",
-                "args = [ \"--workspace\", \".\" ]",
-            ]
+            configLines.append("")
+            configLines.append(contentsOf: coderideMCPSectionLines(binaryPath: mcpPath))
         }
 
         let content = configLines.joined(separator: "\n") + "\n"
         try? content.write(to: configURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func repairCodexConfigTomlIfNeeded(at configURL: URL) {
+        guard let existing = try? String(contentsOf: configURL, encoding: .utf8),
+              let mcpPath = mcpServerBinaryPath() else {
+            return
+        }
+
+        let lines = existing.components(separatedBy: .newlines)
+        let updated = upsertCoderideMCPSection(in: lines, binaryPath: mcpPath)
+        let normalizedExisting = existing.hasSuffix("\n") ? existing : existing + "\n"
+        let normalizedUpdated = updated.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n"
+        guard normalizedUpdated != normalizedExisting else { return }
+        try? normalizedUpdated.write(to: configURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func upsertCoderideMCPSection(in lines: [String], binaryPath: String) -> [String] {
+        let sectionHeader = "[mcp_servers.coderide]"
+        let replacement = coderideMCPSectionLines(binaryPath: binaryPath)
+        var output = lines
+
+        if let start = output.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == sectionHeader }) {
+            var end = start + 1
+            while end < output.count {
+                let trimmed = output[end].trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                    break
+                }
+                end += 1
+            }
+            output.replaceSubrange(start..<end, with: replacement)
+            return output
+        }
+
+        while let last = output.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            output.removeLast()
+        }
+        if !output.isEmpty {
+            output.append("")
+        }
+        output.append(contentsOf: replacement)
+        return output
+    }
+
+    private static func coderideMCPSectionLines(binaryPath: String) -> [String] {
+        [
+            "[mcp_servers.coderide]",
+            "command = \"\(binaryPath)\"",
+            "args = [ \"--workspace\", \".\" ]",
+        ]
+    }
+
+    private static func seedCodexAgentsMd(at profileURL: URL, overwrite: Bool) {
+        let agentsURL = profileURL.appendingPathComponent("AGENTS.md")
+        if !overwrite && FileManager.default.fileExists(atPath: agentsURL.path) {
+            return
+        }
+
+        let content = codexInstructionsTemplate
+        try? content.write(to: agentsURL, atomically: true, encoding: .utf8)
     }
 
     private static func seedCodexInstructionsMd(at profileURL: URL, overwrite: Bool) {
@@ -185,7 +259,7 @@ enum CLIProfileProvisioner {
 
     /// The instructions.md template for Codex profiles.
     /// This bridges Codex CLI's native tools with CoderIDE's UI markers.
-    /// Codex will load this automatically from CODEX_HOME/instructions.md.
+    /// Main modern entrypoint is CODEX_HOME/AGENTS.md (also generated above).
     static let codexInstructionsTemplate = """
     # CoderIDE Integration
 

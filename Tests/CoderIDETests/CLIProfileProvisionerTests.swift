@@ -1,5 +1,6 @@
 import XCTest
 @testable import CoderIDE
+import Darwin
 
 final class CLIProfileProvisionerTests: XCTestCase {
     private var temporaryDirectories: [URL] = []
@@ -14,46 +15,118 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
     func testCodexEnvironmentOverridesSeedsMissingProfileFiles() throws {
         let profile = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
 
-        let env = CLIProfileProvisioner.environmentOverrides(
-            provider: .codex,
-            profilePath: profile.path,
-            secret: nil
-        )
+        let env = withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.environmentOverrides(
+                provider: .codex,
+                profilePath: profile.path,
+                secret: nil
+            )
+        }
 
         XCTAssertEqual(env["CODEX_HOME"], profile.path)
         XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("config.toml").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("AGENTS.md").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("instructions.md").path))
 
         let config = try String(contentsOf: profile.appendingPathComponent("config.toml"), encoding: .utf8)
         XCTAssertTrue(config.contains("sandbox_mode = \"danger-full-access\""))
         XCTAssertTrue(config.contains("[sandbox_workspace_write]"))
+        XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
+        XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
 
-        let instructions = try String(contentsOf: profile.appendingPathComponent("instructions.md"), encoding: .utf8)
-        XCTAssertTrue(instructions.contains("# CoderIDE Integration"))
+        let agents = try String(contentsOf: profile.appendingPathComponent("AGENTS.md"), encoding: .utf8)
+        XCTAssertTrue(agents.contains("# CoderIDE Integration"))
     }
 
     func testReseedCodexProfileOverwritesStaleFiles() throws {
         let profile = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
         let configURL = profile.appendingPathComponent("config.toml")
+        let agentsURL = profile.appendingPathComponent("AGENTS.md")
         let instructionsURL = profile.appendingPathComponent("instructions.md")
 
         try "legacy config\n".write(to: configURL, atomically: true, encoding: .utf8)
+        try "legacy agents\n".write(to: agentsURL, atomically: true, encoding: .utf8)
         try "legacy instructions\n".write(to: instructionsURL, atomically: true, encoding: .utf8)
 
-        CLIProfileProvisioner.reseedCodexProfile(at: profile)
+        withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.reseedCodexProfile(at: profile)
+        }
 
         let config = try String(contentsOf: configURL, encoding: .utf8)
-        let instructions = try String(contentsOf: instructionsURL, encoding: .utf8)
+        let agents = try String(contentsOf: agentsURL, encoding: .utf8)
         XCTAssertNotEqual(config, "legacy config\n")
-        XCTAssertNotEqual(instructions, "legacy instructions\n")
+        XCTAssertNotEqual(agents, "legacy agents\n")
         XCTAssertTrue(config.contains("sandbox_mode = \"danger-full-access\""))
-        XCTAssertTrue(instructions.contains("# CoderIDE Integration"))
+        XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
+        XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
+        XCTAssertTrue(agents.contains("# CoderIDE Integration"))
+    }
+
+    func testCodexEnvironmentOverridesRepairsMissingMCPBlockInExistingConfig() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let configURL = profile.appendingPathComponent("config.toml")
+
+        try """
+        # Existing profile
+        sandbox_mode = "danger-full-access"
+
+        [sandbox_workspace_write]
+        network_access = true
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        _ = withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.environmentOverrides(
+                provider: .codex,
+                profilePath: profile.path,
+                secret: nil
+            )
+        }
+
+        let config = try String(contentsOf: configURL, encoding: .utf8)
+        XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
+        XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
+    }
+
+    func testCodexEnvironmentOverridesUpdatesExistingCoderIDEMCPPath() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let oldMCP = try makeTemporaryExecutable(named: "old-coderide-mcp-server")
+        let newMCP = try makeTemporaryExecutable(named: "new-coderide-mcp-server")
+        let configURL = profile.appendingPathComponent("config.toml")
+
+        try """
+        # Existing profile
+        sandbox_mode = "danger-full-access"
+
+        [sandbox_workspace_write]
+        network_access = true
+
+        [mcp_servers.coderide]
+        command = "\(oldMCP.path)"
+        args = [ "--workspace", "." ]
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        _ = withMCPServerPathOverride(newMCP.path) {
+            CLIProfileProvisioner.environmentOverrides(
+                provider: .codex,
+                profilePath: profile.path,
+                secret: nil
+            )
+        }
+
+        let config = try String(contentsOf: configURL, encoding: .utf8)
+        XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
+        XCTAssertFalse(config.contains("command = \"\(oldMCP.path)\""))
+        XCTAssertTrue(config.contains("command = \"\(newMCP.path)\""))
     }
 
     @MainActor
     func testDisconnectReseedsCodexProfile() throws {
         let profile = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
         let staleFile = profile.appendingPathComponent("stale.txt")
         try "stale".write(to: staleFile, atomically: true, encoding: .utf8)
 
@@ -71,11 +144,18 @@ final class CLIProfileProvisionerTests: XCTestCase {
         )
         let coordinator = CLIAccountLoginCoordinator()
 
-        coordinator.disconnect(account: account)
+        withMCPServerPathOverride(fakeMCP.path) {
+            coordinator.disconnect(account: account)
+        }
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleFile.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("config.toml").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("AGENTS.md").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: profile.appendingPathComponent("instructions.md").path))
+
+        let config = try String(contentsOf: profile.appendingPathComponent("config.toml"), encoding: .utf8)
+        XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
+        XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
     }
 
     private func makeTemporaryProfileDirectory() throws -> URL {
@@ -84,5 +164,27 @@ final class CLIProfileProvisionerTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         temporaryDirectories.append(directory)
         return directory
+    }
+
+    private func makeTemporaryExecutable(named name: String) throws -> URL {
+        let directory = try makeTemporaryProfileDirectory()
+        let executable = directory.appendingPathComponent(name)
+        try "#!/bin/sh\nexit 0\n".write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: executable.path)
+        return executable
+    }
+
+    private func withMCPServerPathOverride<T>(_ path: String, operation: () throws -> T) rethrows -> T {
+        let key = "CODERIDE_MCP_SERVER_PATH"
+        let previous = getenv(key).map { String(cString: $0) }
+        setenv(key, path, 1)
+        defer {
+            if let previous {
+                setenv(key, previous, 1)
+            } else {
+                unsetenv(key)
+            }
+        }
+        return try operation()
     }
 }
