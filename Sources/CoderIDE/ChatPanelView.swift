@@ -667,7 +667,7 @@ struct ChatPanelView: View {
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
     @State private var streamThrottleTask: Task<Void, Never>?
-    @State private var activeToolTraceTurn: ToolTraceTurnContext?
+    @State private var activeToolTraceTurnsByConversation: [UUID: ToolTraceTurnContext] = [:]
     @State private var toolTraceNextSequenceByMessage: [UUID: Int] = [:]
     @State private var toolTraceOperationalSeenByMessage: [UUID: Bool] = [:]
     @State private var toolTraceOperationalCountByMessage: [UUID: Int] = [:]
@@ -2188,7 +2188,7 @@ struct ChatPanelView: View {
 
     @MainActor
     private func startToolTraceTurn(conversationId: UUID, assistantMessageId: UUID, providerId: String) {
-        if let previous = activeToolTraceTurn,
+        if let previous = activeToolTraceTurnsByConversation[conversationId],
            previous.assistantMessageId != assistantMessageId {
             let previousEvents = toolTraceStore.events(
                 conversationId: previous.conversationId,
@@ -2236,7 +2236,7 @@ struct ChatPanelView: View {
             assistantMessageId: assistantMessageId,
             providerId: providerId
         )
-        activeToolTraceTurn = turn
+        activeToolTraceTurnsByConversation[conversationId] = turn
         toolTraceNextSequenceByMessage[assistantMessageId] = 1
         toolTraceOperationalSeenByMessage[assistantMessageId] = false
         toolTraceOperationalCountByMessage[assistantMessageId] = 0
@@ -2253,12 +2253,30 @@ struct ChatPanelView: View {
 
     @MainActor
     private func finalizeToolTraceTurn(conversationId: UUID?, outcome: ToolTraceTurnOutcome? = nil) {
-        guard let active = activeToolTraceTurn else { return }
-        guard conversationId == nil || active.conversationId == conversationId else { return }
         let finalOutcome = outcome ?? toolTraceTurnOutcome(for: flowCoordinator.state)
+
+        if let conversationId {
+            guard let active = activeToolTraceTurnsByConversation[conversationId] else { return }
+            finalizeToolTraceTurn(active, outcome: finalOutcome)
+            activeToolTraceTurnsByConversation.removeValue(forKey: conversationId)
+            return
+        }
+
+        let activeTurns = Array(activeToolTraceTurnsByConversation.values)
+        for active in activeTurns {
+            finalizeToolTraceTurn(active, outcome: finalOutcome)
+        }
+        activeToolTraceTurnsByConversation.removeAll()
+    }
+
+    @MainActor
+    private func finalizeToolTraceTurn(
+        _ active: ToolTraceTurnContext,
+        outcome: ToolTraceTurnOutcome
+    ) {
         finalizeAutoTodoIfNeeded(
             messageId: active.assistantMessageId,
-            outcome: finalOutcome,
+            outcome: outcome,
             providerId: active.providerId,
             conversationId: active.conversationId
         )
@@ -2274,7 +2292,6 @@ struct ChatPanelView: View {
         autoTodoIdByMessage.removeValue(forKey: active.assistantMessageId)
         autoTodoCompletedOperationsByMessage.removeValue(forKey: active.assistantMessageId)
         didReceiveExplicitTodoByMessage.remove(active.assistantMessageId)
-        activeToolTraceTurn = nil
     }
 
     @MainActor
@@ -2314,11 +2331,13 @@ struct ChatPanelView: View {
 
     @MainActor
     private func resolveToolTraceTurn(conversationId: UUID?, providerId: String) -> ToolTraceTurnContext? {
-        let activeTarget = activeToolTraceTurn.map {
-            ToolTraceBindingTarget(
-                conversationId: $0.conversationId,
-                assistantMessageId: $0.assistantMessageId
-            )
+        let activeTarget = conversationId.flatMap { id in
+            activeToolTraceTurnsByConversation[id].map {
+                ToolTraceBindingTarget(
+                    conversationId: $0.conversationId,
+                    assistantMessageId: $0.assistantMessageId
+                )
+            }
         }
         let fallbackAssistantMessageId = conversationId.flatMap { id in
             chatStore.conversation(for: id)?
@@ -2372,7 +2391,7 @@ struct ChatPanelView: View {
             assistantMessageId: target.assistantMessageId,
             providerId: providerId
         )
-        activeToolTraceTurn = fallbackTurn
+        activeToolTraceTurnsByConversation[target.conversationId] = fallbackTurn
         return fallbackTurn
     }
 
@@ -2661,7 +2680,7 @@ struct ChatPanelView: View {
     }
 
     private func currentAssistantMessageIdForTrace(conversationId: UUID) -> UUID? {
-        if let active = activeToolTraceTurn, active.conversationId == conversationId {
+        if let active = activeToolTraceTurnsByConversation[conversationId] {
             return active.assistantMessageId
         }
         return chatStore.conversation(for: conversationId)?
