@@ -209,12 +209,21 @@ struct CLIAccountLoginSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            Button("Cancel") {
-                coordinator.cancelLogin(accountId: account.id)
-                phase = .options
+            if isLoginSuccess {
+                Button("Done") {
+                    dismiss()
+                    onDismiss?()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+            } else {
+                Button("Cancel") {
+                    coordinator.cancelLogin(accountId: account.id)
+                    phase = .options
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, 8)
             }
-            .buttonStyle(.bordered)
-            .padding(.top, 8)
         }
         .padding(32)
     }
@@ -292,6 +301,12 @@ struct CLIAccountLoginSheet: View {
 
     private var supportsDeviceCode: Bool {
         account.provider != .claude
+    }
+
+    private var isLoginSuccess: Bool {
+        guard let status = coordinator.statusByAccount[account.id] else { return false }
+        let lower = status.lowercased()
+        return lower.contains("successfully") || lower.contains("logged in") || status == "Connected"
     }
 
     private var dividerLine: some View {

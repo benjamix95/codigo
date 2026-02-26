@@ -468,49 +468,67 @@ struct ChatComposerView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Array(attachedAttachments.enumerated()), id: \.element.id) { index, item in
-                    HStack(spacing: 8) {
-                        attachmentPreview(for: item)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.originalName)
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                            if let size = item.sizeBytes {
-                                Text(readableBytes(size))
-                                    .font(.system(size: 9.5, weight: .regular))
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(1)
+                    if item.kind == .image {
+                        // Images: thumbnail only with remove overlay
+                        ZStack(alignment: .topTrailing) {
+                            attachmentPreview(for: item)
+                            Button {
+                                attachedAttachments.remove(at: index)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(3)
+                                    .background(Color.black.opacity(0.55), in: Circle())
                             }
+                            .buttonStyle(.plain)
+                            .offset(x: 4, y: -4)
                         }
-                        .frame(maxWidth: item.kind == .image ? 140 : 190, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        Text(kindLabel(item.kind))
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(.secondary.opacity(0.85))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(Color.white.opacity(0.07), in: Capsule())
-                        Button {
-                            attachedAttachments.remove(at: index)
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.secondary)
-                                .padding(4)
-                                .background(Color.white.opacity(0.08), in: Circle())
+                    } else {
+                        HStack(spacing: 8) {
+                            attachmentPreview(for: item)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.originalName)
+                                    .font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if let size = item.sizeBytes {
+                                    Text(readableBytes(size))
+                                        .font(.system(size: 9.5, weight: .regular))
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            .frame(maxWidth: 190, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            Text(kindLabel(item.kind))
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(.secondary.opacity(0.85))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.white.opacity(0.07), in: Capsule())
+                            Button {
+                                attachedAttachments.remove(at: index)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(4)
+                                    .background(Color.white.opacity(0.08), in: Circle())
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.11), lineWidth: 0.6)
+                        )
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.06))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.11), lineWidth: 0.6)
-                    )
                 }
             }
         }
