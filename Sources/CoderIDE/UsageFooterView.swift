@@ -27,6 +27,10 @@ struct UsageFooterView: View {
     let claudeModel: String
     let contextRefreshTick: Int
     @State private var usageRefreshTask: Task<Void, Never>?
+    @State private var contextEstimateSnapshot: (tokens: Int, size: Int, pct: Double) = (0, 128_000, 0)
+    @State private var contextEstimateWorkItem: DispatchWorkItem?
+    @State private var contextEstimateGeneration: Int = 0
+    private static let contextEstimateQueue = DispatchQueue(label: "com.codigo.context-estimate", qos: .utility)
 
     private var effectiveProviderId: String? {
         providerRegistry.selectedProviderId
@@ -74,28 +78,6 @@ struct UsageFooterView: View {
         return ContextEstimator.contextSize(for: providerId, model: model)
     }
 
-    private var contextEstimate: (tokens: Int, size: Int, pct: Double) {
-        _ = contextRefreshTick
-        guard let conv = chatStore.conversation(for: selectedConversationId) else {
-            return (0, 128_000, 0)
-        }
-        let ctx = effectiveContext.toWorkspaceContext(
-            openFiles: openFilesStore.openFilesForContext(),
-            activeSelection: nil,
-            activeFilePath: openFilesStore.openFilePath,
-            scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
-        )
-        let ctxPrompt = ctx.contextPrompt()
-        let model = effectiveContextModel
-        let size = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
-        let (tokens, ctxSize, pct) = ContextEstimator.estimate(
-            messages: conv.messages,
-            contextPrompt: ctxPrompt,
-            modelContextSize: size
-        )
-        return (tokens, ctxSize, pct)
-    }
-
     private var totalUsageText: String {
         var total = providerUsageStore.apiTokensIn + providerUsageStore.apiTokensOut
         if let c = providerUsageStore.claudeUsage {
@@ -129,20 +111,32 @@ struct UsageFooterView: View {
         .padding(.vertical, 2)
         .onAppear {
             scheduleRefresh()
+            scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
-        .onChange(of: effectiveProviderId) { _, _ in scheduleRefresh() }
+        .onChange(of: effectiveProviderId) { _, _ in
+            scheduleRefresh()
+            scheduleContextEstimateRefresh()
+        }
+        .onChange(of: effectiveContextModel) { _, _ in scheduleContextEstimateRefresh() }
+        .onChange(of: contextScopeModeRaw) { _, _ in scheduleContextEstimateRefresh() }
+        .onChange(of: contextRefreshTick) { _, _ in scheduleContextEstimateRefresh() }
+        .onChange(of: openFilesStore.openFilePath) { _, _ in scheduleContextEstimateRefresh() }
         .onChange(of: effectiveContext.primaryPath) { _, _ in
             scheduleRefresh()
+            scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
         .onChange(of: selectedConversationId) { _, _ in
             scheduleRefresh()
+            scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
         }
         .onDisappear {
             usageRefreshTask?.cancel()
             usageRefreshTask = nil
+            contextEstimateWorkItem?.cancel()
+            contextEstimateWorkItem = nil
         }
     }
 
@@ -249,6 +243,45 @@ struct UsageFooterView: View {
             guard !Task.isCancelled else { return }
             refreshUsage()
         }
+    }
+
+    private func scheduleContextEstimateRefresh() {
+        contextEstimateWorkItem?.cancel()
+        contextEstimateGeneration += 1
+        let generation = contextEstimateGeneration
+
+        let model = effectiveContextModel
+        let contextWindowSize = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
+        guard let conversation = chatStore.conversation(for: selectedConversationId) else {
+            contextEstimateSnapshot = (0, contextWindowSize, 0)
+            return
+        }
+
+        let messages = conversation.messages
+        let scopedContext = effectiveContext
+        let openFiles = openFilesStore.openFilesForContext()
+        let activeFilePath = openFilesStore.openFilePath
+        let scopeMode = ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+        let workItem = DispatchWorkItem {
+            let workspaceContext = scopedContext.toWorkspaceContext(
+                openFiles: openFiles,
+                activeSelection: nil,
+                activeFilePath: activeFilePath,
+                scopeMode: scopeMode
+            )
+            let prompt = workspaceContext.contextPrompt()
+            let estimate = ContextEstimator.estimate(
+                messages: messages,
+                contextPrompt: prompt,
+                modelContextSize: contextWindowSize
+            )
+            Task { @MainActor in
+                guard generation == contextEstimateGeneration else { return }
+                contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
+            }
+        }
+        contextEstimateWorkItem = workItem
+        Self.contextEstimateQueue.asyncAfter(deadline: .now() + 0.15, execute: workItem)
     }
 
     private func refreshUsage() {
@@ -445,7 +478,7 @@ struct UsageFooterView: View {
     }
 
     private var contextSection: some View {
-        let (tokens, size, pct) = contextEstimate
+        let (tokens, size, pct) = contextEstimateSnapshot
         return HStack(spacing: 6) {
             CircularProgressView(progress: pct, lineWidth: 1.5, size: 14)
                 .animation(.easeOut(duration: 0.18), value: pct)

@@ -158,4 +158,41 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         XCTAssertEqual(payload["path"], sourceFile.path)
         XCTAssertTrue((payload["output"] ?? "").contains("let value = 1"))
     }
+
+    func testInjectsSyntheticPolicyAckBeforeOperationalRawEvent() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("policy-ack-raw-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "command_execution", payload: [
+                "id": "cmd-raw-1",
+                "status": "started",
+                "title": "Running command",
+                "detail": "ls -la",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
+        let stream = try await provider.send(
+            prompt: "Mostra file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var rawTypes: [String] = []
+        for try await event in stream {
+            if case .raw(let type, _) = event {
+                rawTypes.append(type)
+            }
+        }
+
+        let ackIndex = try XCTUnwrap(rawTypes.firstIndex(of: "policy_ack"))
+        let commandIndex = try XCTUnwrap(rawTypes.firstIndex(of: "command_execution"))
+        XCTAssertLessThan(ackIndex, commandIndex)
+    }
 }

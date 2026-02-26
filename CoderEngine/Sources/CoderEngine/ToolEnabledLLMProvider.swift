@@ -165,6 +165,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     continuation.yield(event)
                                     continue
                                 }
+                                if let hash = requiredPolicyHash,
+                                   shouldEmitSyntheticPolicyAck(
+                                    forRawEventType: type,
+                                    requiredHash: hash,
+                                    didEmitPolicyAck: didEmitPolicyAck
+                                   ) {
+                                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
+                                    didEmitPolicyAck = true
+                                }
                                 if type == "tool_call_suggested" {
                                     let isPartial = (payload["is_partial"] ?? "").lowercased() == "true"
                                     if isPartial { continue }
@@ -611,6 +620,25 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     private func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
         switch marker.kind {
         case "policy_ack", "todo_read", "todo_write", "plan_step", "debug_panel":
+            return false
+        default:
+            return true
+        }
+    }
+
+    private func shouldEmitSyntheticPolicyAck(
+        forRawEventType type: String,
+        requiredHash: String,
+        didEmitPolicyAck: Bool
+    ) -> Bool {
+        guard !didEmitPolicyAck, !requiredHash.isEmpty else { return false }
+        return rawEventRequiresPolicyAck(type)
+    }
+
+    private func rawEventRequiresPolicyAck(_ type: String) -> Bool {
+        switch type {
+        case "policy_ack", "turn_started", "turn_completed", "usage", "reasoning",
+            "todo_read", "todo_write", "plan_step_update", "debug_panel_update", "context_compacted":
             return false
         default:
             return true
