@@ -106,15 +106,8 @@ enum SwarmLiveReducer {
         for activity: TaskActivity,
         includeOrchestratorFallback: Bool
     ) -> String? {
-        if let swarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !swarmId.isEmpty
-        {
+        if let swarmId = SwarmMetadata.swarmId(from: activity.payload) {
             return swarmId
-        }
-        if let groupId = activity.payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            groupId.hasPrefix("swarm-")
-        {
-            return String(groupId.dropFirst("swarm-".count))
         }
         return includeOrchestratorFallback ? "orchestrator" : nil
     }
@@ -196,7 +189,7 @@ enum SwarmLiveReducer {
     private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {
         let bucket = Int(activity.timestamp.timeIntervalSince1970)
         let status = (activity.payload["status"] ?? "").lowercased()
-        let gid = activity.groupId ?? activity.payload["group_id"] ?? "-"
+        let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
         return [
             owner, gid, activity.type, activity.title, status, "\(bucket)",
         ].joined(separator: "|")

@@ -42,6 +42,27 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertTrue(cards.contains(where: { $0.swarmId == "orchestrator" }))
     }
 
+    func testSwarmIdsAndLaneFilteringUseGroupIdFallback() {
+        let store = TaskActivityStore()
+
+        store.addActivity(
+            TaskActivity(
+                type: "read_batch_started",
+                title: "Group only read",
+                detail: "started",
+                payload: ["group_id": "swarm-reviewer"],
+                phase: .editing,
+                isRunning: true
+            ))
+
+        XCTAssertEqual(store.swarmIds(), ["reviewer"])
+        XCTAssertEqual(store.activities(forSwarmId: "reviewer").count, 1)
+
+        let reviewerLane = store.activitiesForSwarmLane("reviewer")
+        XCTAssertEqual(reviewerLane.count, 1)
+        XCTAssertEqual(reviewerLane.first?.payload["group_id"], "swarm-reviewer")
+    }
+
     func testAppendOrMergeBatchEventPreservesSwarmStartedAndCompleted() {
         let store = TaskActivityStore()
         let started = TaskActivity(

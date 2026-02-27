@@ -172,12 +172,6 @@ enum ToolTraceVisibility {
     }
 
     private static func isSwarmPayload(_ payload: [String: String]) -> Bool {
-        let swarmId = (payload["swarm_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !swarmId.isEmpty { return true }
-        let groupId = (payload["group_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return groupId.hasPrefix("swarm-")
+        return SwarmMetadata.isSwarmEvent(payload)
     }
 }

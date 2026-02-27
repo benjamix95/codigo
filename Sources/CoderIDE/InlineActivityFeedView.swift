@@ -180,8 +180,7 @@ struct InlineActivityFeedView: View {
                 detailField(label: "Detail", value: detail, icon: "info.circle", color: phaseColor)
             }
             // Swarm / sub-agent info
-            if let swarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !swarmId.isEmpty
+            if let swarmId = SwarmMetadata.swarmId(from: activity.payload)
             {
                 detailField(label: "Sub-agent", value: swarmId, icon: "person.2", color: DesignSystem.Colors.swarmColor)
             }

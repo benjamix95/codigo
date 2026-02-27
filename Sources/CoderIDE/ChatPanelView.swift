@@ -5938,15 +5938,13 @@ struct ChatPanelView: View {
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "coderide_show_swarm_panel" {
             showSwarmPanel = true
-            if let swarmId = p["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !swarmId.isEmpty {
+            if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
             }
         }
         if t == "coderide_invoke_swarm", !showSwarmPanel {
             showSwarmPanel = true
-            if let swarmId = p["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !swarmId.isEmpty {
+            if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
             }
         }
@@ -6073,13 +6071,7 @@ struct ChatPanelView: View {
 
     @MainActor
     private func hasSwarmTraceMetadata(_ payload: [String: String]) -> Bool {
-        let swarmId = (payload["swarm_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !swarmId.isEmpty { return true }
-        let groupId = (payload["group_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return groupId.hasPrefix("swarm-")
+        return SwarmMetadata.isSwarmEvent(payload)
     }
 
     @MainActor

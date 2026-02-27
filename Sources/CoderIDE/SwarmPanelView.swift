@@ -329,8 +329,7 @@ struct SwarmPanelView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
-                    if let swarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                       !swarmId.isEmpty
+                    if let swarmId = SwarmMetadata.swarmId(from: activity.payload)
                     {
                         Text(swarmId)
                             .font(.system(size: 8, weight: .semibold, design: .monospaced))

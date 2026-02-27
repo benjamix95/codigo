@@ -506,26 +506,29 @@ final class TaskActivityStore: ObservableObject {
     }
 
     func swarmIds() -> [String] {
-        let ids = activities.compactMap { $0.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let ids = activities.compactMap { SwarmMetadata.swarmId(from: $0.payload) }
             .filter { !$0.isEmpty }
         return Array(Set(ids)).sorted()
     }
 
     func activities(forSwarmId swarmId: String, limit: Int = 80) -> [TaskActivity] {
-        recentActivities(limit: max(limit, 1)).filter { $0.payload["swarm_id"] == swarmId }
+        recentActivities(limit: max(limit, 1)).filter { SwarmMetadata.swarmId(from: $0.payload) == swarmId }
     }
 
     func activitiesForSwarmLane(_ swarmId: String, limit: Int = 120) -> [TaskActivity] {
         let maxLimit = max(limit, 1)
         let sorted = activities.sorted { $0.timestamp < $1.timestamp }
         let direct = sorted.filter {
-            $0.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) == swarmId
+            SwarmMetadata.swarmId(from: $0.payload) == swarmId
         }
         let correlated = sorted.filter {
-            guard let groupId = $0.payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            let directSwarmId = $0.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard directSwarmId.isEmpty,
+                  let resolvedSwarmId = SwarmMetadata.swarmId(from: $0.payload),
+                  resolvedSwarmId == swarmId else {
                 return false
             }
-            return groupId == "swarm-\(swarmId)"
+            return true
         }
         var seen = Set<UUID>()
         let merged = (direct + correlated).filter { seen.insert($0.id).inserted }
@@ -542,8 +545,7 @@ final class TaskActivityStore: ObservableObject {
 
         var grouped: [String: [TaskActivity]] = [:]
         for activity in sorted {
-            guard let swarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !swarmId.isEmpty else { continue }
+            guard let swarmId = SwarmMetadata.swarmId(from: activity.payload), !swarmId.isEmpty else { continue }
             grouped[swarmId, default: []].append(activity)
         }
 
@@ -571,11 +573,11 @@ final class TaskActivityStore: ObservableObject {
         guard !swarmIds.isEmpty else { return [:] }
         var out: [String: [TaskActivity]] = [:]
         for activity in activities {
-            let hasDirectSwarm = !(activity.payload["swarm_id"] ?? "").isEmpty
-            if hasDirectSwarm { continue }
-            guard let groupId = activity.payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  groupId.hasPrefix("swarm-") else { continue }
-            let swarmId = String(groupId.dropFirst("swarm-".count))
+            if let directSwarmId = activity.payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !directSwarmId.isEmpty {
+                continue
+            }
+            guard let swarmId = SwarmMetadata.swarmId(from: activity.payload) else { continue }
             guard swarmIds.contains(swarmId) else { continue }
             out[swarmId, default: []].append(activity)
         }

@@ -854,7 +854,7 @@ enum EventNormalizer {
     }
 
     private static func withSwarmPrefix(_ title: String, payload: [String: String]) -> String {
-        guard let swarmId = payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !swarmId.isEmpty else {
+        guard let swarmId = SwarmMetadata.swarmId(from: payload) else {
             return title
         }
         if title.hasPrefix("Swarm \(swarmId)") {
