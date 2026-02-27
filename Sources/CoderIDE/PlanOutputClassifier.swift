@@ -5,6 +5,7 @@ struct PlanOutputClassification: Equatable {
     let hasStrictOptions: Bool
     let nextPhase: PlanFlowPhase
     let planningState: PlanningState?
+    let isConfident: Bool
 }
 
 enum PlanOutputClassifier {
@@ -19,7 +20,8 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: false,
                 hasStrictOptions: false,
                 nextPhase: current,
-                planningState: nil
+                planningState: nil,
+                isConfident: false
             )
         }
 
@@ -30,7 +32,8 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: false,
                 hasStrictOptions: false,
                 nextPhase: current,
-                planningState: nil
+                planningState: nil,
+                isConfident: false
             )
         }
 
@@ -45,7 +48,8 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: true,
                 hasStrictOptions: false,
                 nextPhase: .questioning,
-                planningState: .awaitingClarification(questions: fullText)
+                planningState: .awaitingClarification(questions: fullText),
+                isConfident: true
             )
         }
 
@@ -58,20 +62,22 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: false,
                 hasStrictOptions: true,
                 nextPhase: .proposalReady,
-                planningState: .awaitingChoice(planContent: fullText, options: strictTodoCompliant)
+                planningState: .awaitingChoice(planContent: fullText, options: strictTodoCompliant),
+                isConfident: true
             )
         }
 
         let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
-            let fallbackOptions = PlanOptionsParser.parse(from: fullText)
+            let fallbackOptions = PlanOptionsParser.parseForPlanClassification(from: fullText)
             let fallbackTodoCompliant = PlanOptionsParser.todoCompliantOptions(from: fallbackOptions)
             if !fallbackOptions.isEmpty, fallbackTodoCompliant.count == fallbackOptions.count {
                 return PlanOutputClassification(
                     hasClarificationQuestions: false,
                     hasStrictOptions: false,
                     nextPhase: .proposalReady,
-                    planningState: .awaitingChoice(planContent: fullText, options: fallbackTodoCompliant)
+                    planningState: .awaitingChoice(planContent: fullText, options: fallbackTodoCompliant),
+                    isConfident: true
                 )
             }
         }
@@ -80,7 +86,8 @@ enum PlanOutputClassifier {
             hasClarificationQuestions: false,
             hasStrictOptions: false,
             nextPhase: current,
-            planningState: nil
+            planningState: nil,
+            isConfident: false
         )
     }
 }

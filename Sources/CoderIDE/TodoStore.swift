@@ -179,6 +179,36 @@ final class TodoStore: ObservableObject {
             .replacingOccurrences(of: #"[^\p{L}\p{N}\s]"#, with: "", options: .regularExpression)
     }
 
+    private func canonicalTokens(for key: String) -> Set<String> {
+        Set(
+            key
+                .components(separatedBy: .whitespacesAndNewlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    private func isLikelyCanonicalMatch(titleKey: String, canonicalKey: String) -> Bool {
+        let titleTokens = canonicalTokens(for: titleKey)
+        let canonicalTokens = canonicalTokens(for: canonicalKey)
+
+        guard titleTokens.count >= 2 && canonicalTokens.count >= 2 else {
+            return false
+        }
+        if canonicalKey.count >= 12 && titleKey.count >= 12 {
+            if canonicalKey.contains(titleKey) || titleKey.contains(canonicalKey) {
+                return true
+            }
+        }
+
+        let overlap = Double(titleTokens.intersection(canonicalTokens).count)
+        guard overlap > 0 else { return false }
+        let shortSetSize = min(titleTokens.count, canonicalTokens.count)
+        guard shortSetSize > 0 else { return false }
+        let overlapRatio = overlap / Double(shortSetSize)
+        return overlapRatio >= 0.7 && overlap >= 2
+    }
+
     private func sortCanonicalFirst(_ lhs: TodoItem, _ rhs: TodoItem) -> Bool {
         if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
         if lhs.status.rank != rhs.status.rank { return lhs.status.rank < rhs.status.rank }
@@ -393,18 +423,13 @@ final class TodoStore: ObservableObject {
         if let exact = todos.first(where: { $0.isPlanCanonical && canonicalKey(for: $0.title) == key }) {
             return exact.id
         }
-        // Fallback contenitivo bidirezionale solo per chiavi sufficientemente lunghe.
-        // Require the shorter string to be ≥ 70% of the longer one to avoid
-        // false positives like "Refactor database" matching "Refactor database schema for performance".
+        // Fallback fuzzy match only for sufficiently long canonical keys
+        // to reduce accidental collisions with short or generic titles.
         guard key.count >= 12 else { return nil }
         return todos.first(where: {
             guard $0.isPlanCanonical else { return false }
             let canonical = canonicalKey(for: $0.title)
-            guard canonical.count >= 12 else { return false }
-            let shorter = min(key.count, canonical.count)
-            let longer = max(key.count, canonical.count)
-            guard Double(shorter) / Double(longer) >= 0.7 else { return false }
-            return canonical.contains(key) || key.contains(canonical)
+            return isLikelyCanonicalMatch(titleKey: key, canonicalKey: canonical)
         })?.id
     }
 
@@ -418,6 +443,7 @@ final class TodoStore: ObservableObject {
             guard seenKeys.insert(key).inserted else { return nil }
             return trimmed
         }
+        guard !cleaned.isEmpty else { return }
         let desiredKeys = seenKeys
 
         for idx in todos.indices where todos[idx].isPlanCanonical {

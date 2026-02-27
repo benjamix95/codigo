@@ -121,7 +121,7 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(removed?.notes, "Removed from current plan")
     }
 
-    func testEmptyPlanTodosBlocksPendingCanonicalTasks() {
+    func testEmptyPlanTodosDoesNotMutateCanonicalTasks() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Task 1", "Task 2"])
         store.upsertFromAgent(
@@ -138,8 +138,8 @@ final class TodoStoreTests: XCTestCase {
         let doneTask = store.todos.first { $0.isPlanCanonical && $0.title == "Task 1" }
         let removedTask = store.todos.first { $0.isPlanCanonical && $0.title == "Task 2" }
         XCTAssertEqual(doneTask?.status, .done)
-        XCTAssertEqual(removedTask?.status, .blocked)
-        XCTAssertEqual(removedTask?.notes, "Removed from current plan")
+        XCTAssertEqual(removedTask?.status, .pending)
+        XCTAssertEqual(removedTask?.notes, "")
     }
 
     func testRuntimeExtraTaskStaysNonCanonical() {

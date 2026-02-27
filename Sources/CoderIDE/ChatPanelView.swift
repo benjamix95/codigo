@@ -130,12 +130,13 @@ func nextPlanFlowPhaseForOutput(
     coderMode: CoderMode,
     shouldRunPlanInline: Bool
 ) -> PlanFlowPhase {
-    PlanOutputClassifier.classify(
+    let classification = PlanOutputClassifier.classify(
         fullText: fullText,
         current: current,
         coderMode: coderMode,
         shouldRunPlanInline: shouldRunPlanInline
-    ).nextPhase
+    )
+    return classification.isConfident ? classification.nextPhase : current
 }
 
 func isPlanExecutionProviderIdAllowed(_ providerId: String) -> Bool {
@@ -163,10 +164,11 @@ func hasNoQuestionsNeededSignal(_ text: String) -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
     let normalized = trimmed
-        .replacingOccurrences(of: #"[.!]"#, with: "", options: .regularExpression)
-        .replacingOccurrences(of: #"[_\-\s]+"#, with: "", options: .regularExpression)
         .lowercased()
-    return normalized == "noquestionsneeded"
+        .replacingOccurrences(of: #"[._!?,;:()\[\]{}\\/\\-]+"#, with: "", options: .regularExpression)
+        .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+    guard !normalized.isEmpty else { return false }
+    return normalized.hasPrefix("noquestionsneeded")
 }
 
 func decidePlanQuestionPhaseOutput(
@@ -183,7 +185,7 @@ func decidePlanQuestionPhaseOutput(
         coderMode: coderMode,
         shouldRunPlanInline: shouldRunPlanInline
     )
-    if case .awaitingClarification(let questions) = classification.planningState {
+    if classification.isConfident, case .awaitingClarification(let questions) = classification.planningState {
         return .clarification(questions)
     }
     return .proceedToGeneration
@@ -1444,16 +1446,28 @@ struct ChatPanelView: View {
             return
         }
         let chosenPath = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !chosenPath.isEmpty,
-           PlanOptionsParser.hasRequiredTodoHeader(chosenPath),
-           !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty {
+        let hasValidChosenPath =
+            !chosenPath.isEmpty &&
+            PlanOptionsParser.hasRequiredTodoHeader(chosenPath) &&
+            !PlanOptionsParser.extractTodosFromOptionText(chosenPath).isEmpty
+        if hasValidChosenPath {
             planFlowPhase = .readyToBuild
             planningState = .idle
             return
         }
-        if !board.options.isEmpty {
+        let compliantOptions = PlanOptionsParser.todoCompliantOptions(from: board.options)
+        if !compliantOptions.isEmpty {
+            let proposalContent: String
+            if !chosenPath.isEmpty {
+                proposalContent = chosenPath
+            } else if let first = compliantOptions.min(by: { $0.id < $1.id })?.fullText,
+                      !first.isEmpty {
+                proposalContent = first
+            } else {
+                proposalContent = board.goal
+            }
             planFlowPhase = .proposalReady
-            planningState = .awaitingChoice(planContent: board.goal, options: board.options)
+            planningState = .awaitingChoice(planContent: proposalContent, options: compliantOptions)
             return
         }
         planningState = .idle
@@ -4129,6 +4143,8 @@ struct ChatPanelView: View {
         // Store answers and continue to Phase 3 (don't restart full flow via sendMessage)
         planClarificationAnswers = String(prompt.prefix(16_000))
         planningState = .idle
+        planStreamingContent = ""
+        planFlowPhase = .questioning
 
         // Safety net: ensure any lingering task from the questioning phase is ended
         // before we attempt to continue. This prevents the guard in continuePlanFlowPhase3
@@ -4556,7 +4572,7 @@ struct ChatPanelView: View {
         if coderMode == .plan || shouldRunPlanInline {
             // Guard against launching a new plan flow while one is already in progress
             switch planFlowPhase {
-            case .analyzing, .questioning, .generating:
+            case .analyzing, .questioning, .generating, .building:
                 appendTechnicalErrorMessage(
                     "[Plan] A plan flow is already in progress. Please wait for it to finish or interrupt it first.",
                     in: targetConversationId
@@ -4566,12 +4582,16 @@ struct ChatPanelView: View {
                 break
             }
             planFlowPhase = .analyzing
+            planningState = .idle
             planAnalysisContext = ""
             planUserRequest = String(text.prefix(16_000))
             planClarificationAnswers = ""
+            planStreamingContent = ""
             planShouldRunInline = shouldRunPlanInline
         } else if planFlowPhase != .building {
             planFlowPhase = .idle
+            planningState = .idle
+            planStreamingContent = ""
         }
 
         // 1. Resolve the runtime provider
@@ -5242,7 +5262,7 @@ struct ChatPanelView: View {
             shouldRunPlanInline: shouldRunPlanInline
         )
 
-        if case .awaitingClarification(let q) = classification.planningState {
+        if classification.isConfident, case .awaitingClarification(let q) = classification.planningState {
             // LLM needs more answers — pause again for user input
             await MainActor.run {
                 let followUp = "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
@@ -6250,67 +6270,67 @@ struct ChatPanelView: View {
                 coderMode: coderMode,
                 shouldRunPlanInline: shouldRunPlanInline
             )
-            await MainActor.run {
-                planFlowPhase = classification.nextPhase
-                if let state = classification.planningState {
-                    planningState = state
-                }
-            }
-            if case .awaitingClarification = classification.planningState {
-                let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."
-                chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
+            if classification.isConfident, let classificationState = classification.planningState {
                 await MainActor.run {
-                    if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
-                        openPlanPanelForCurrentContext(
-                            preserveHistorySelection: false,
-                            source: .automaticFlow
-                        )
+                    planFlowPhase = classification.nextPhase
+                    planningState = classificationState
+                }
+                if case .awaitingClarification = classificationState {
+                    let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."
+                    chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
+                    await MainActor.run {
+                        if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                            openPlanPanelForCurrentContext(
+                                preserveHistorySelection: false,
+                                source: .automaticFlow
+                            )
+                        }
                     }
                 }
-            }
-            if case .awaitingChoice(_, let opts) = classification.planningState {
-                let board = PlanBoard.build(from: full, options: opts)
-                chatStore.setPlanBoard(board, for: streamConversationId)
-                let currentConv = chatStore.conversation(for: streamConversationId)
-                let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-                let summaryContent = "Plan ready: \(parsedSummary.title)"
-                chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
-                let entry = planHistoryStore.createEntry(
-                    conversationId: streamConversationId,
-                    contextId: currentConv?.contextId,
-                    contextFolderPath: currentConv?.contextFolderPath,
-                    title: parsedSummary.title,
-                    markdown: full,
-                    options: opts,
-                    chosenPath: board.chosenPath,
-                    tags: [],
-                    sourceMessageId: nil
-                )
-                let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
-                    conversationId: streamConversationId,
-                    entry: entry
-                )
-                planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
-                if shouldRunPlanInline {
-                    let cid = streamConversationId
-                    inlinePlanSummaries[cid] = {
-                        let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
-                        return InlinePlanSummary(title: parsed.title, body: parsed.body)
-                    }()
-                    isPlanSummaryCollapsed = false
-                    let contextId = currentConv?.contextId
-                    let contextFolderPath = currentConv?.contextFolderPath
-                    let planConvId = chatStore.getOrCreateConversationForMode(
-                        contextId: contextId, contextFolderPath: contextFolderPath,
-                        mode: .plan)
-                    chatStore.setPlanBoard(board, for: planConvId)
-                }
-                await MainActor.run {
-                    if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
-                        openPlanPanelForCurrentContext(
-                            preserveHistorySelection: false,
-                            source: .automaticFlow
-                        )
+                if case .awaitingChoice(_, let opts) = classificationState {
+                    let board = PlanBoard.build(from: full, options: opts)
+                    chatStore.setPlanBoard(board, for: streamConversationId)
+                    let currentConv = chatStore.conversation(for: streamConversationId)
+                    let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+                    let summaryContent = "Plan ready: \(parsedSummary.title)"
+                    chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
+                    let entry = planHistoryStore.createEntry(
+                        conversationId: streamConversationId,
+                        contextId: currentConv?.contextId,
+                        contextFolderPath: currentConv?.contextFolderPath,
+                        title: parsedSummary.title,
+                        markdown: full,
+                        options: opts,
+                        chosenPath: board.chosenPath,
+                        tags: [],
+                        sourceMessageId: nil
+                    )
+                    let sourceMessageId = chatStore.attachPlanEntryToLastAssistant(
+                        conversationId: streamConversationId,
+                        entry: entry
+                    )
+                    planHistoryStore.updateSourceMessageId(id: entry.id, sourceMessageId: sourceMessageId)
+                    if shouldRunPlanInline {
+                        let cid = streamConversationId
+                        inlinePlanSummaries[cid] = {
+                            let parsed = PlanOptionsParser.extractDisplaySummary(from: full)
+                            return InlinePlanSummary(title: parsed.title, body: parsed.body)
+                        }()
+                        isPlanSummaryCollapsed = false
+                        let contextId = currentConv?.contextId
+                        let contextFolderPath = currentConv?.contextFolderPath
+                        let planConvId = chatStore.getOrCreateConversationForMode(
+                            contextId: contextId, contextFolderPath: contextFolderPath,
+                            mode: .plan)
+                        chatStore.setPlanBoard(board, for: planConvId)
+                    }
+                    await MainActor.run {
+                        if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
+                            openPlanPanelForCurrentContext(
+                                preserveHistorySelection: false,
+                                source: .automaticFlow
+                            )
+                        }
                     }
                 }
             }

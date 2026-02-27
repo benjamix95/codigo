@@ -118,9 +118,17 @@ final class PlanOptionsParserTests: XCTestCase {
         let strict = PlanOptionsParser.parseStrict(from: input)
         let display = PlanOptionsParser.parse(from: input)
         XCTAssertTrue(strict.isEmpty)
-        XCTAssertEqual(display.count, 1)
-        XCTAssertEqual(display.first?.id, 1)
-        XCTAssertTrue(PlanOptionsParser.isFallbackOption(display[0]))
+        XCTAssertEqual(display.count, 0)
+    }
+
+    func testTodoHeaderDetectionAcceptsAlternativeHeaders() {
+        let input = "### Checklist\n- [ ] Review implementation\n- [ ] Update tests"
+        XCTAssertTrue(PlanOptionsParser.hasRequiredTodoHeader(input))
+        XCTAssertTrue(
+            PlanOptionsParser.isTodoCompliantOption(
+                PlanOption(id: 1, title: "Option 1", fullText: input)
+            )
+        )
     }
 
     func testParseClarificationQuestionsSupportsLevelThreeHeader() {
@@ -225,6 +233,18 @@ final class PlanOptionsParserTests: XCTestCase {
                 PlanClarificationOption(id: "Z", text: "Motherboard compatibility")
             )
         )
+    }
+
+    func testParseFallbackDoesNotTreatNumberedLinesInsideCodeFencesAsPlanSignals() {
+        let input = """
+        ```markdown
+        1. First line inside code fence
+        2. Second line inside code fence
+        ```
+        """
+
+        let parsed = PlanOptionsParser.parse(from: input)
+        XCTAssertTrue(parsed.isEmpty)
     }
 
     func testExtractTodosFromOptionText() {

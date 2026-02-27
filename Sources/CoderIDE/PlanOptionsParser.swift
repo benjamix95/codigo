@@ -110,6 +110,9 @@ enum PlanOptionsParser {
     private static let digitsRegex = try? NSRegularExpression(pattern: #"\d+"#)
     private static let fallbackNumberedRegex = try? NSRegularExpression(pattern: #"^(\d+)[.)]\s*(.+)"#)
 
+    private static let taskHeaderPatternForSignals =
+        #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do|tasks?|implementation\s+steps?|execution\s+steps?|next\s+steps?|checklist|action\s+items?|work\s*plan)\b"#
+
     private static func isFenceDelimiter(_ line: String) -> Bool {
         line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
     }
@@ -424,8 +427,62 @@ enum PlanOptionsParser {
             }
         }
 
-        // Final fallback: whole text as one option.
+        // Final fallback: whole text as one option only when the payload looks
+        // like a real plan document (to avoid accidental false positives).
+        guard hasLikelyPlanSignal(in: trimmed) else { return [] }
         return [PlanOption(id: 1, title: "Full plan", fullText: trimmed)]
+    }
+
+    /// Parse plan output for classification decisions.
+    /// Unlike `parse`, this excludes very low-confidence full-text fallbacks.
+    static func parseForPlanClassification(from text: String) -> [PlanOption] {
+        let strict = parseStrict(from: text)
+        if !strict.isEmpty { return strict }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        // Reuse the permissive numbered paragraph fallback without accepting
+        // low-signal full-text blobs.
+        let fallbackOptions = parse(from: text)
+        guard !fallbackOptions.isEmpty else { return [] }
+        if fallbackOptions.count == 1, isFallbackOption(fallbackOptions[0]) {
+            return hasLikelyPlanSignal(in: trimmed) ? fallbackOptions : []
+        }
+        return fallbackOptions
+    }
+
+    private static func hasLikelyPlanSignal(in text: String) -> Bool {
+        if text.range(of: optionHeaderPattern, options: .regularExpression) != nil {
+            return true
+        }
+        if text.range(of: taskHeaderPatternForSignals, options: .regularExpression) != nil {
+            return true
+        }
+        let numberedLinePattern = #"(?im)^\s*(?:\d+|[A-Za-z])[.)]\s+"#
+        let checklistPattern = #"(?im)^\s*[-*•]\s*\[[ xX ]?\]?"#
+        var inFence = false
+        let lines = text.components(separatedBy: .newlines)
+        let filteredLines = lines.filter { line in
+            if isFenceDelimiter(line) {
+                inFence.toggle()
+                return false
+            }
+            return !inFence
+        }
+        let numberedCount = filteredLines.filter { line in
+            line.range(of: numberedLinePattern, options: .regularExpression) != nil
+        }.count
+        if numberedCount >= 2 {
+            return true
+        }
+        let checklistCount = filteredLines.filter { line in
+            line.range(of: checklistPattern, options: .regularExpression) != nil
+        }.count
+        if checklistCount >= 2 {
+            return true
+        }
+        return false
     }
 
     static func isFallbackOption(_ option: PlanOption) -> Bool {
@@ -433,7 +490,7 @@ enum PlanOptionsParser {
     }
 
     static func hasRequiredTodoHeader(_ optionText: String) -> Bool {
-        let todoHeaderPattern = #"(?im)^\s*##\s*todo\b"#
+        let todoHeaderPattern = #"(?im)\#(taskHeaderPatternForSignals)"#
         return optionText.range(of: todoHeaderPattern, options: .regularExpression) != nil
     }
 
