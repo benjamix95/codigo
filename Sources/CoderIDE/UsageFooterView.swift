@@ -1,6 +1,19 @@
 import CoderEngine
 import SwiftUI
 
+func formatContextPercentLabel(_ pct: Double) -> String {
+    let percentValue = min(100, max(0, pct * 100))
+    if percentValue > 0 && percentValue < 10 {
+        return String(format: "%.1f%%", percentValue)
+    }
+    return "\(Int(percentValue.rounded()))%"
+}
+
+func formatContextPercentHelpText(_ pct: Double) -> String {
+    let percentValue = min(100, max(0, pct * 100))
+    return "Window context: \(String(format: "%.1f", percentValue))% used"
+}
+
 struct UsageFooterView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
@@ -67,6 +80,22 @@ struct UsageFooterView: View {
         }
     }
 
+    private var contextEstimateConversationSignature: String {
+        guard let conversation = chatStore.conversation(for: selectedConversationId) else {
+            return "no-conversation"
+        }
+        let lastMessageId = conversation.messages.last?.id.uuidString ?? "none"
+        let memoryTimestamp = conversation.contextMemoryGeneratedAt?.timeIntervalSince1970 ?? 0
+        let memoryCount = conversation.contextMemorySourceMessageCount ?? -1
+        return [
+            conversation.id.uuidString,
+            "\(conversation.messages.count)",
+            lastMessageId,
+            "\(Int(memoryTimestamp))",
+            "\(memoryCount)",
+        ].joined(separator: "|")
+    }
+
     private func resolvedContextWindowSize(providerId: String?, model: String) -> Int {
         let normalized = model.lowercased()
         if normalized.contains("gemini") {
@@ -127,6 +156,7 @@ struct UsageFooterView: View {
         .onChange(of: contextScopeModeRaw) { _, _ in scheduleContextEstimateRefresh() }
         .onChange(of: contextRefreshTick) { _, _ in scheduleContextEstimateRefresh() }
         .onChange(of: openFilesStore.openFilePath) { _, _ in scheduleContextEstimateRefresh() }
+        .onChange(of: contextEstimateConversationSignature) { _, _ in scheduleContextEstimateRefresh() }
         .onChange(of: effectiveContext.primaryPath) { _, _ in
             scheduleRefresh()
             scheduleContextEstimateRefresh()
@@ -263,7 +293,12 @@ struct UsageFooterView: View {
             return
         }
 
-        let messages = conversation.messages
+        let promptContext = chatStore.buildPromptContext(
+            conversationId: conversation.id,
+            maxMessages: 8,
+            maxCharsPerMessage: 700,
+            includeMemorySummary: true
+        )
         let scopedContext = effectiveContext
         let openFiles = openFilesStore.openFilesForContext()
         let activeFilePath = openFilesStore.openFilePath
@@ -276,8 +311,15 @@ struct UsageFooterView: View {
                 scopeMode: scopeMode
             )
             let prompt = workspaceContext.contextPrompt()
+            let compactConversation = promptContext.trimmingCharacters(in: .whitespacesAndNewlines)
+            let compactMessages: [ChatMessage]
+            if compactConversation.isEmpty {
+                compactMessages = []
+            } else {
+                compactMessages = [ChatMessage(role: .assistant, content: compactConversation)]
+            }
             let estimate = ContextEstimator.estimate(
-                messages: messages,
+                messages: compactMessages,
                 contextPrompt: prompt,
                 modelContextSize: contextWindowSize
             )
@@ -534,13 +576,13 @@ struct UsageFooterView: View {
         return HStack(spacing: 6) {
             CircularProgressView(progress: pct, lineWidth: 1.5, size: 14)
                 .animation(.easeOut(duration: 0.18), value: pct)
-            Text("\(Int((pct * 100).rounded()))%")
+            Text(formatContextPercentLabel(pct))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text("\(tokens.formatted()) / \((size / 1000).formatted())k")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .help("Window context: \(Int(pct * 100))% used")
+        .help(formatContextPercentHelpText(pct))
     }
 }

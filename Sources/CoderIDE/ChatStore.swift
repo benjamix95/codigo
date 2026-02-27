@@ -140,6 +140,9 @@ struct Conversation: Identifiable, Codable {
     var contextFolderPath: String?
     var mode: CoderMode?
     var preferredProviderId: String?
+    var contextMemorySummaryMarkdown: String?
+    var contextMemoryGeneratedAt: Date?
+    var contextMemorySourceMessageCount: Int?
     var isArchived: Bool
     var isPinned: Bool
     var isFavorite: Bool
@@ -158,6 +161,9 @@ struct Conversation: Identifiable, Codable {
         contextFolderPath: String? = nil,
         mode: CoderMode? = nil,
         preferredProviderId: String? = nil,
+        contextMemorySummaryMarkdown: String? = nil,
+        contextMemoryGeneratedAt: Date? = nil,
+        contextMemorySourceMessageCount: Int? = nil,
         isArchived: Bool = false,
         isPinned: Bool = false,
         isFavorite: Bool = false,
@@ -173,6 +179,9 @@ struct Conversation: Identifiable, Codable {
         self.contextFolderPath = contextFolderPath
         self.mode = mode
         self.preferredProviderId = preferredProviderId
+        self.contextMemorySummaryMarkdown = contextMemorySummaryMarkdown
+        self.contextMemoryGeneratedAt = contextMemoryGeneratedAt
+        self.contextMemorySourceMessageCount = contextMemorySourceMessageCount
         self.isArchived = isArchived
         self.isPinned = isPinned
         self.isFavorite = isFavorite
@@ -182,7 +191,7 @@ struct Conversation: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, isArchived, isPinned, isFavorite, workspaceId, adHocFolderPaths, checkpoints
+        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, contextMemorySummaryMarkdown, contextMemoryGeneratedAt, contextMemorySourceMessageCount, isArchived, isPinned, isFavorite, workspaceId, adHocFolderPaths, checkpoints
     }
 
     init(from decoder: Decoder) throws {
@@ -205,6 +214,9 @@ struct Conversation: Identifiable, Codable {
             mode = nil
         }
         preferredProviderId = try? c.decode(String.self, forKey: .preferredProviderId)
+        contextMemorySummaryMarkdown = try? c.decode(String.self, forKey: .contextMemorySummaryMarkdown)
+        contextMemoryGeneratedAt = try? c.decode(Date.self, forKey: .contextMemoryGeneratedAt)
+        contextMemorySourceMessageCount = try? c.decode(Int.self, forKey: .contextMemorySourceMessageCount)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -217,6 +229,9 @@ struct Conversation: Identifiable, Codable {
         try c.encode(contextFolderPath, forKey: .contextFolderPath)
         try c.encode(mode?.rawValue, forKey: .mode)
         try c.encodeIfPresent(preferredProviderId, forKey: .preferredProviderId)
+        try c.encodeIfPresent(contextMemorySummaryMarkdown, forKey: .contextMemorySummaryMarkdown)
+        try c.encodeIfPresent(contextMemoryGeneratedAt, forKey: .contextMemoryGeneratedAt)
+        try c.encodeIfPresent(contextMemorySourceMessageCount, forKey: .contextMemorySourceMessageCount)
         try c.encode(isArchived, forKey: .isArchived)
         try c.encode(isPinned, forKey: .isPinned)
         try c.encode(isFavorite, forKey: .isFavorite)
@@ -1238,12 +1253,12 @@ final class ChatStore: ObservableObject {
         guard msgs.count > safeKeepLast + 2 else { return false }
 
         let toSummarize = Array(msgs.prefix(msgs.count - safeKeepLast))
-        let recent = Array(msgs.suffix(safeKeepLast))
-        let previousSummary = msgs.first(where: {
-            $0.role == .assistant
-                && ($0.content.contains("[Conversation summary]")
-                    || $0.content.contains("[Previous summary]"))
-        })
+        let previousSummary = conversations[idx].contextMemorySummaryMarkdown
+            ?? msgs.first(where: {
+                $0.role == .assistant
+                    && ($0.content.contains("[Conversation summary]")
+                        || $0.content.contains("[Previous summary]"))
+            })?.content
 
         let textToSummarize = toSummarize.map { message in
             let roleLabel = message.role == .user ? "User" : "Assistant"
@@ -1255,7 +1270,7 @@ final class ChatStore: ObservableObject {
 
         let previousSummaryBlock: String = {
             guard let previousSummary else { return "" }
-            let cleaned = ChatStore.stripCoderideMarkers(previousSummary.content)
+            let cleaned = ChatStore.stripCoderideMarkers(previousSummary)
                 .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { return "" }
@@ -1303,14 +1318,61 @@ final class ChatStore: ObservableObject {
             if case .error(let e) = ev { summary += "\n[Error: \(e)]" }
         }
         guard !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        let summaryMsg = ChatMessage(
-            role: .assistant,
-            content: "[Conversation summary]\n\n\(summary.trimmingCharacters(in: .whitespacesAndNewlines))",
-            isStreaming: false
-        )
-        conversations[idx].messages = [summaryMsg] + recent
+        let cleanedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        conversations[idx].contextMemorySummaryMarkdown = cleanedSummary
+        conversations[idx].contextMemoryGeneratedAt = .now
+        conversations[idx].contextMemorySourceMessageCount = msgs.count
         saveConversations()
         return true
+    }
+
+    /// Builds compact conversation context for prompts without mutating visible chat history.
+    /// Combines optional persistent memory summary with recent cleaned turns.
+    func buildPromptContext(
+        conversationId: UUID?,
+        maxMessages: Int = 8,
+        maxCharsPerMessage: Int = 700,
+        includeMemorySummary: Bool = true,
+        maxSummaryChars: Int = 6_000
+    ) -> String {
+        guard let conv = conversation(for: conversationId) else { return "" }
+        var sections: [String] = []
+
+        if includeMemorySummary,
+           let memory = conv.contextMemorySummaryMarkdown?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !memory.isEmpty {
+            let cleanedMemory = ChatStore.stripCoderideMarkers(memory)
+            if !cleanedMemory.isEmpty {
+                let clippedMemory = cleanedMemory.count > maxSummaryChars
+                    ? String(cleanedMemory.prefix(maxSummaryChars)) + "…"
+                    : cleanedMemory
+                sections.append("### Conversation memory\n\(clippedMemory)")
+            }
+        }
+
+        let cleanedTurns = conv.messages
+            .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .suffix(maxMessages)
+
+        var lines: [String] = []
+        for msg in cleanedTurns {
+            let roleLabel = msg.role == .user ? "User" : "Assistant"
+            let normalized = ChatStore.stripCoderideMarkers(msg.content)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+            let excerpt = normalized.count > maxCharsPerMessage
+                ? String(normalized.prefix(maxCharsPerMessage)) + "…"
+                : normalized
+            lines.append("- \(roleLabel): \(excerpt)")
+        }
+
+        if !lines.isEmpty {
+            sections.append(lines.joined(separator: "\n"))
+        }
+
+        return sections.joined(separator: "\n\n")
     }
 
     func createCheckpoint(for conversationId: UUID?, gitStates: [ConversationCheckpointGitState]) {

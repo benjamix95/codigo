@@ -1,5 +1,13 @@
 import SwiftUI
 
+func renderedCircularProgress(_ progress: Double) -> Double {
+    let clamped = min(1, max(0, progress))
+    if clamped > 0 && clamped < 0.01 {
+        return 0.01
+    }
+    return clamped
+}
+
 struct CircularProgressView: View {
     let progress: Double
     let lineWidth: CGFloat
@@ -18,12 +26,12 @@ struct CircularProgressView: View {
     }
 
     var body: some View {
-        let clamped = min(1, max(0, progress))
+        let renderedProgress = renderedCircularProgress(progress)
         ZStack {
             Circle()
                 .stroke(Color(nsColor: .separatorColor), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: clamped)
+                .trim(from: 0, to: renderedProgress)
                 .stroke(progressColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }

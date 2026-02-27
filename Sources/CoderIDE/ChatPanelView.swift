@@ -163,12 +163,22 @@ enum PlanQuestionPhaseDecision: Equatable {
 func hasNoQuestionsNeededSignal(_ text: String) -> Bool {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
-    let normalized = trimmed
+    let withoutFenceDelimiters = trimmed.replacingOccurrences(
+        of: #"(?m)^```[^\n]*$"#,
+        with: " ",
+        options: .regularExpression
+    )
+    let candidate = withoutFenceDelimiters
+        .components(separatedBy: .newlines)
+        .prefix(6)
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
         .lowercased()
-        .replacingOccurrences(of: #"[._!?,;:()\[\]{}\\/\\-]+"#, with: "", options: .regularExpression)
-        .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
-    guard !normalized.isEmpty else { return false }
-    return normalized.hasPrefix("noquestionsneeded")
+    guard !candidate.isEmpty else { return false }
+    return candidate.range(
+        of: #"\bno[\s_\-]*questions[\s_\-]*needed\b"#,
+        options: .regularExpression
+    ) != nil
 }
 
 func decidePlanQuestionPhaseOutput(
@@ -528,7 +538,9 @@ enum PlanPanelAutoOpenTrigger: Equatable {
 
 func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
     switch trigger {
-    case .awaitingClarification, .awaitingChoice:
+    case .awaitingClarification:
+        return false
+    case .awaitingChoice:
         return true
     case .flowStarted, .planStepUpdate:
         return false
@@ -772,10 +784,31 @@ struct ChatPanelView: View {
             || planFlowPhase == .building
         return !planFlowActive
     }
+    private var isPlanPreChoiceState: Bool {
+        if planningState != .idle {
+            return true
+        }
+        switch planFlowPhase {
+        case .analyzing, .questioning, .generating, .proposalReady:
+            return true
+        case .idle, .readyToBuild, .building:
+            return false
+        }
+    }
+    private var hasInlinePlanSession: Bool {
+        coderMode == .plan || (coderMode == .agent && planToggleEnabled)
+    }
     private var shouldShowPlanTodosInChat: Bool {
+        if hasInlinePlanSession && isPlanPreChoiceState {
+            return false
+        }
         if coderMode != .plan {
             return true
         }
+        return planFlowPhase == .readyToBuild || planFlowPhase == .building
+    }
+    private var shouldShowPlanBoardInChat: Bool {
+        guard coderMode == .plan else { return false }
         return planFlowPhase == .readyToBuild || planFlowPhase == .building
     }
     private var showsSwarmViewOnly: Bool { shouldShowSwarmViewOnly(for: coderMode) }
@@ -1167,10 +1200,11 @@ struct ChatPanelView: View {
             onClose: {
                 showPlanPanel = false
             },
-            onSelectOption: { option, _ in
+            onSelectOption: { option, providerId in
                 selectPlanChoice(
                     option.fullText,
-                    fromPlanConversationId: planPanelConversationId
+                    fromPlanConversationId: planPanelConversationId,
+                    providerOverrideId: providerId
                 )
             },
             onCustomResponse: { response in
@@ -1855,7 +1889,7 @@ struct ChatPanelView: View {
                             .padding(.bottom, 8)
                             .id("plan-summary-card")
                         }
-                        if coderMode == .plan, let board = chatStore.planBoard(for: conversationId) {
+                        if shouldShowPlanBoardInChat, let board = chatStore.planBoard(for: conversationId) {
                             PlanBoardView(
                                 board: board,
                                 onSelectOption: { selectPlanChoice($0.fullText) }
@@ -1915,14 +1949,13 @@ struct ChatPanelView: View {
             }
             .onChange(of: planningState) { _, new in
                 if case .awaitingChoice = new {
-                    scheduleAutoScroll(proxy: proxy, target: "plan-options", animated: true, delay: 0)
+                    if let target = latestMessageScrollTarget() {
+                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                    }
                 } else if case .awaitingClarification = new {
-                    scheduleAutoScroll(
-                        proxy: proxy,
-                        target: "plan-clarification",
-                        animated: true,
-                        delay: 0
-                    )
+                    if let target = latestMessageScrollTarget() {
+                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                    }
                 }
             }
             .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
@@ -3171,11 +3204,9 @@ struct ChatPanelView: View {
             break
         }
         planToggleEnabled = true
-        guard !showPlanPanel else { return }
-        openPlanPanelForCurrentContext(
-            preserveHistorySelection: false,
-            source: .automaticFlow
-        )
+        if showPlanPanel {
+            planPanelPresentationSource = .automaticFlow
+        }
     }
 
     @MainActor
@@ -4181,7 +4212,8 @@ struct ChatPanelView: View {
     @MainActor
     private func selectPlanChoice(
         _ choice: String,
-        fromPlanConversationId explicitPlanConversationId: UUID? = nil
+        fromPlanConversationId explicitPlanConversationId: UUID? = nil,
+        providerOverrideId: String? = nil
     ) {
         let normalized = choice.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return }
@@ -4194,6 +4226,17 @@ struct ChatPanelView: View {
         if planFlowPhase == .proposalReady || planFlowPhase == .idle {
             planFlowPhase = .readyToBuild
         }
+        guard canExecutePlanBuild(
+            phase: planFlowPhase,
+            choice: normalized
+        ) else {
+            return
+        }
+        executeWithPlanChoice(
+            normalized,
+            fromPlanConversationId: planConversationId,
+            providerOverrideId: providerOverrideId
+        )
     }
 
     private func executeWithPlanChoice(
@@ -4923,6 +4966,7 @@ struct ChatPanelView: View {
             ? "No questions needed. Generating plan..."
             : "Question phase completed. Generating plan..."
         await MainActor.run {
+            planningState = .idle
             chatStore.updateLastAssistantMessage(
                 content: phase2Summary,
                 in: conversationId,
@@ -5647,25 +5691,12 @@ struct ChatPanelView: View {
     }
 
     private func recentConversationContextForPrompt(maxMessages: Int = 8, maxCharsPerMessage: Int = 700) -> String {
-        guard let conv = chatStore.conversation(for: conversationId) else { return "" }
-        let cleaned = conv.messages
-            .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .suffix(maxMessages)
-
-        guard !cleaned.isEmpty else { return "" }
-        var lines: [String] = []
-        for msg in cleaned {
-            let roleLabel = msg.role == .user ? "User" : "Assistant"
-            let normalized = ChatStore.stripCoderideMarkers(msg.content)
-                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalized.isEmpty else { continue }
-            let excerpt = normalized.count > maxCharsPerMessage
-                ? String(normalized.prefix(maxCharsPerMessage)) + "…"
-                : normalized
-            lines.append("- \(roleLabel): \(excerpt)")
-        }
-        return lines.joined(separator: "\n")
+        chatStore.buildPromptContext(
+            conversationId: conversationId,
+            maxMessages: maxMessages,
+            maxCharsPerMessage: maxCharsPerMessage,
+            includeMemorySummary: true
+        )
     }
 
     // MARK: - Phase-Specific Plan Prompts

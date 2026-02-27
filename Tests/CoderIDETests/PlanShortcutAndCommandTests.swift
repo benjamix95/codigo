@@ -234,7 +234,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
     func testPlanPanelAutoOpenPolicy() {
         XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .planStepUpdate))
         XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .flowStarted))
-        XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
+        XCTAssertFalse(shouldAutoOpenPlanPanel(trigger: .awaitingClarification))
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
     }
 

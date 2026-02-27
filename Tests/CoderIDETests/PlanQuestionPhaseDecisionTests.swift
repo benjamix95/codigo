@@ -8,6 +8,8 @@ final class PlanQuestionPhaseDecisionTests: XCTestCase {
         XCTAssertTrue(hasNoQuestionsNeededSignal("No_Questions_Needed."))
         XCTAssertTrue(hasNoQuestionsNeededSignal("  NO_QUESTIONS_NEEDED!  "))
         XCTAssertTrue(hasNoQuestionsNeededSignal("No questions needed"))
+        XCTAssertTrue(hasNoQuestionsNeededSignal("```md\nNO_QUESTIONS_NEEDED\n```"))
+        XCTAssertTrue(hasNoQuestionsNeededSignal("## Decision\nNo-Questions-Needed"))
         XCTAssertFalse(hasNoQuestionsNeededSignal("I still need clarifications"))
     }
 
@@ -40,5 +42,25 @@ final class PlanQuestionPhaseDecisionTests: XCTestCase {
             shouldRunPlanInline: false
         )
         XCTAssertEqual(decision, .proceedToGeneration)
+    }
+
+    func testClassifierPrioritizesNoQuestionsSignalOverQuestionsBlock() {
+        let text = """
+        NO_QUESTIONS_NEEDED
+
+        ## Questions
+        1. Which module?
+        A) Parser
+        B) UI
+        """
+        let classification = PlanOutputClassifier.classify(
+            fullText: text,
+            current: .questioning,
+            coderMode: .plan,
+            shouldRunPlanInline: false
+        )
+        XCTAssertTrue(classification.isConfident)
+        XCTAssertEqual(classification.nextPhase, .generating)
+        XCTAssertNil(classification.planningState)
     }
 }

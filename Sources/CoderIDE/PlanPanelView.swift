@@ -163,31 +163,35 @@ struct PlanPanelView: View {
                         todosSection(canonicalTodos: snapshot.canonicalTodos)
                     }
 
-                    // 5) Mermaid (if present)
-                    if let firstMermaid = snapshot.mermaidBlocks.first {
-                        MermaidDiagramView(
-                            mermaidCode: firstMermaid,
-                            accentColor: planColor
-                        )
-                    }
+                    if shouldShowPlanDetailsSection {
+                        // 5) Mermaid (if present)
+                        if let firstMermaid = snapshot.mermaidBlocks.first {
+                            MermaidDiagramView(
+                                mermaidCode: firstMermaid,
+                                accentColor: planColor
+                            )
+                        }
 
-                    // 6) Final plan body (cause/approach), clean and deduplicated
-                    planContentSection(snapshot: snapshot)
+                        // 6) Final plan body (cause/approach), clean and deduplicated
+                        planContentSection(snapshot: snapshot)
+                    }
 
                     // 7) Live activity (compact)
                     if !taskActivityStore.activities.isEmpty {
                         traceSection
                     }
 
-                    // 8) Walkthrough (compact + expandable)
-                    if let board = chatStore.planBoard(for: conversationId),
-                       let wt = board.walkthroughMarkdown, !wt.isEmpty {
-                        walkthroughSection(wt)
-                    }
+                    if shouldShowPlanDetailsSection {
+                        // 8) Walkthrough (compact + expandable)
+                        if let board = chatStore.planBoard(for: conversationId),
+                           let wt = board.walkthroughMarkdown, !wt.isEmpty {
+                            walkthroughSection(wt)
+                        }
 
-                    // 9) History (manual panel opening only)
-                    if showHistorySection {
-                        historySection
+                        // 9) History (manual panel opening only)
+                        if showHistorySection {
+                            historySection
+                        }
                     }
                 }
                 .padding(16)
@@ -467,6 +471,22 @@ struct PlanPanelView: View {
         }
     }
 
+    private var isPreBuildPlanState: Bool {
+        if planningState != .idle {
+            return true
+        }
+        switch planFlowPhase {
+        case .analyzing, .questioning, .generating, .proposalReady:
+            return true
+        case .idle, .readyToBuild, .building:
+            return false
+        }
+    }
+
+    private var shouldShowPlanDetailsSection: Bool {
+        !isPreBuildPlanState
+    }
+
     private var buildDisabledReason: String? {
         planBuildDisabledReason(
             phase: planFlowPhase,
@@ -639,6 +659,16 @@ struct PlanPanelView: View {
     /// During multi-turn plan phases, prefer planStreamingContent which is routed directly from the flow.
     private var displayPlanContent: String {
         if isEditing { return planText }
+
+        if isPreBuildPlanState {
+            if !planStreamingContent.isEmpty {
+                return planStreamingContent
+            }
+            if case .awaitingClarification(let questions) = planningState {
+                return questions
+            }
+            return ""
+        }
 
         // During active plan phases, always prefer live streaming content over stale board data.
         if [.analyzing, .questioning, .generating].contains(planFlowPhase), !planStreamingContent.isEmpty {
