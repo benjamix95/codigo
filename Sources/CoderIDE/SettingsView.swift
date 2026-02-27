@@ -42,6 +42,7 @@ struct SettingsView: View {
     @EnvironmentObject var providerRegistry: ProviderRegistry
     @EnvironmentObject var executionController: ExecutionController
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
+    @EnvironmentObject var appUpdateCenter: AppUpdateCenter
     @State private var selectedSection: SettingsSection = .apiKeys
 
     // MARK: - Provider API Keys
@@ -115,6 +116,8 @@ struct SettingsView: View {
     @AppStorage("full_auto_tools") private var fullAutoTools = true
     @AppStorage(planHistoryMaxEntriesPreferenceKey) private var planHistoryMaxEntries = 200
     @AppStorage(planHistoryMaxMarkdownLengthPreferenceKey) private var planHistoryMaxMarkdownLength = 65_536
+    @AppStorage("app_update_check_enabled") private var appUpdateCheckEnabled = true
+    @AppStorage("app_update_manifest_url") private var appUpdateManifestURL = AppUpdateCenter.defaultManifestURL
 
     // MARK: - Appearance
     @AppStorage("appearance") private var appearance = "system"
@@ -214,6 +217,8 @@ struct SettingsView: View {
             codexMCPHealth.refresh()
             syncProviders()
             reloadRulesFromDisk()
+            appUpdateCenter.setUpdateCheckEnabled(appUpdateCheckEnabled)
+            appUpdateCenter.setManifestURL(appUpdateManifestURL)
         }
     }
 
@@ -256,6 +261,12 @@ struct SettingsView: View {
     private func applyBehaviorSyncs<V: View>(_ content: V) -> some View {
         content
             .onChange(of: globalYolo) { _, _ in syncCodex(); syncPlanProvider(); syncCodeReview() }
+            .onChange(of: appUpdateCheckEnabled) { _, isEnabled in
+                appUpdateCenter.setUpdateCheckEnabled(isEnabled)
+            }
+            .onChange(of: appUpdateManifestURL) { _, newURL in
+                appUpdateCenter.setManifestURL(newURL)
+            }
             .onChange(of: codebaseIndexEnabled) { _, _ in
                 workspaceStore.indexActiveWorkspace()
                 Task { await refreshIndexStatus() }
@@ -779,6 +790,48 @@ struct SettingsView: View {
                         Stepper("Keep last \(summarizeKeepLast) messages", value: $summarizeKeepLast, in: 2...20)
                     }
                     hintBox("Automatically summarizes chat when context exceeds the threshold, keeping the latest messages untouched.")
+                }.padding(4)
+            }
+
+            GroupBox("Application updates") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Controlla aggiornamenti all'avvio", isOn: $appUpdateCheckEnabled)
+                    TextField("URL manifest aggiornamenti", text: $appUpdateManifestURL)
+                        .textFieldStyle(.roundedBorder)
+                    HStack(spacing: 8) {
+                        Button("Ripristina URL predefinito") {
+                            appUpdateManifestURL = AppUpdateCenter.defaultManifestURL
+                            appUpdateCenter.setManifestURL(appUpdateManifestURL)
+                        }
+                        Button("Controlla ora") {
+                            Task {
+                                appUpdateCenter.setManifestURL(appUpdateManifestURL)
+                                appUpdateCenter.setUpdateCheckEnabled(appUpdateCheckEnabled)
+                                await appUpdateCenter.checkForUpdates(force: true)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    switch appUpdateCenter.state {
+                    case .idle:
+                        Text(appUpdateCenter.statusSummary)
+                    case .checking:
+                        Text(appUpdateCenter.statusSummary)
+                    case .disabled:
+                        Text(appUpdateCenter.statusSummary)
+                    case .upToDate:
+                        Text(appUpdateCenter.statusSummary)
+                    case .available(let manifest):
+                        Text("Nuovo aggiornamento: \(manifest.version) (\(manifest.displayBuild))")
+                    case .failed(let error):
+                        Text(error).foregroundStyle(.red)
+                    }
+                    if let last = appUpdateCenter.lastCheckedAt {
+                        Text("Ultimo controllo: \(last.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }.padding(4)
             }
 

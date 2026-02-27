@@ -15,6 +15,7 @@ struct ContentView: View {
     @EnvironmentObject var taskActivityStore: TaskActivityStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
+    @EnvironmentObject var appUpdateCenter: AppUpdateCenter
     @StateObject private var debugStore = DebugStore()
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
@@ -25,6 +26,8 @@ struct ContentView: View {
     @State private var showDebugPanel = false
     @State private var showSwarmPanel = false
     @State private var showCodeReviewPanel = false
+    @State private var showAppUpdateAlert = false
+    @State private var pendingAppUpdate: AppUpdateCenter.AppUpdateManifest?
     @State private var isSelectingProjectFolders = false
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
     @AppStorage("git_panel_width") private var gitPanelWidth: Double = 380
@@ -126,10 +129,15 @@ struct ContentView: View {
                 .environmentObject(providerRegistry)
                 .environmentObject(executionController)
                 .environmentObject(providerUsageStore)
+                .environmentObject(appUpdateCenter)
         }
         .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
             showSettings = true
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onReceive(appUpdateCenter.$availableUpdate.compactMap { $0 }) { update in
+            pendingAppUpdate = update
+            showAppUpdateAlert = true
         }
         .onChange(of: isSelectingProjectFolders) { _, isPresented in
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
@@ -169,6 +177,30 @@ struct ContentView: View {
                 selectedConversationId = chatStore.createConversation(contextId: newContextId, contextFolderPath: folderScope)
             }
         }
+        .alert(
+            "Aggiornamento disponibile",
+            isPresented: $showAppUpdateAlert,
+            presenting: pendingAppUpdate
+        ) { update in
+            if let downloadURL = update.downloadURL, !downloadURL.isEmpty {
+                Button("Scarica ora") {
+                    openExternalURL(downloadURL)
+                }
+            }
+            if let notesURL = update.releaseNotesURL, !notesURL.isEmpty {
+                Button("Vedi note tecniche") {
+                    openExternalURL(notesURL)
+                }
+            }
+            Button("Chiudi") { }
+        } message: { update in
+            Text(update.shortNotes)
+        }
+    }
+
+    private func openExternalURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private var showEditorPanel: Bool {

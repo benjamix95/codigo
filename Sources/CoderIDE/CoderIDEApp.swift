@@ -20,6 +20,7 @@ struct CodigoApp: App {
     @StateObject private var gitPanelStore = GitPanelStore()
     @StateObject private var planHistoryStore = PlanHistoryStore()
     @StateObject private var accountUsageDashboardStore = AccountUsageDashboardStore.shared
+    @StateObject private var appUpdateCenter = AppUpdateCenter()
     @AppStorage("openai_api_key") private var apiKey = ""
     @AppStorage("openai_model") private var model = "gpt-4o-mini"
     @AppStorage("anthropic_api_key") private var anthropicApiKey = ""
@@ -107,6 +108,7 @@ struct CodigoApp: App {
                 .environmentObject(gitPanelStore)
                 .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)
+                .environmentObject(appUpdateCenter)
                 .onAppear {
                     configureWindow()
                     // Defer heavy initialization to let the first frame render immediately.
@@ -119,6 +121,7 @@ struct CodigoApp: App {
                         CLIAccountsStore.shared.bootstrapAccountsIfNeeded()
                         CLIAccountRouter.shared.bootstrapActiveSelectionsIfNeeded()
                         CodexMCPHealthStore.shared.refresh()
+                        await appUpdateCenter.checkForUpdates()
                         registerProviders()
                     }
                 }

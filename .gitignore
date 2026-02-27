@@ -10,3 +10,6 @@ DerivedData/
 # macOS
 .DS_Store
 Codigo.app
+
+# Release artifacts
+dist/

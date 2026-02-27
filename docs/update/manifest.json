@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "app_name": "Codigo",
+  "version": "1.0.0",
+  "build": "1",
+  "minimum_system_version": "14.0",
+  "release_date": "2026-02-27T16:05:23Z",
+  "required": false,
+  "download_url": "https://github.com/benjamix95/codigo/releases/download/v1.0.0/Codigo.app.zip",
+  "release_notes": "# Codigo 1.0.0  Release notes tecniche (prima release)  ## Novità principali ",
+  "release_notes_url": "https://raw.githubusercontent.com/benjamix95/codigo/main/docs/release-notes/1.0.0.md"
+}
