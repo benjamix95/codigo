@@ -16,14 +16,21 @@ struct SwarmDelegationPolicyEvaluator {
         "swam",
         "multi-agent",
         "multi agent",
-        "parallel",
-        "in parallel",
-        "delegate to swarm",
-        "parallelize",
-        "parallelise",
         "delegate to swarm",
         "delegate to sub-agent",
         "delegate to sub agent"
+    ]
+
+    /// Signals that the text describes already-completed work (not a new task to delegate).
+    private static let completedWorkSignals: [String] = [
+        "build complete",
+        "all steps done",
+        "steps completed",
+        "implementation complete",
+        "changes applied",
+        "task completed",
+        "successfully implemented",
+        "build finished"
     ]
 
     private static let multiFlowSignals: [String] = [
@@ -116,6 +123,14 @@ struct SwarmDelegationPolicyEvaluator {
         let normalizedUser = normalize(userPrompt)
         let normalizedTask = normalize(suggestedTask)
         let combined = "\(normalizedUser)\n\(normalizedTask)"
+
+        // If the response describes already-completed work, never delegate.
+        if containsAnySignal(in: normalizedTask, from: Self.completedWorkSignals) {
+            return SwarmDelegationEvaluation(
+                decision: .noDelegate,
+                reason: "response describes completed work, not a new task"
+            )
+        }
 
         if containsAnySignal(in: combined, from: Self.explicitDelegationSignals) {
             return SwarmDelegationEvaluation(

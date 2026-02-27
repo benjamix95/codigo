@@ -4567,6 +4567,17 @@ struct ChatPanelView: View {
                         ChatMessage(id: UUID(), role: .assistant, content: recap),
                         to: agentConvId
                     )
+
+                    // Add a Code Review & Test todo after plan build completion
+                    todoStore.upsertFromAgent(
+                        id: nil,
+                        title: "Code Review & Test",
+                        status: .pending,
+                        priority: .high,
+                        notes: "Review changes and run tests",
+                        activeForm: "Reviewing code and running tests",
+                        linkedFiles: []
+                    )
                 }
                 activeBuildPlanConversationId = nil
             }
@@ -5819,7 +5830,7 @@ struct ChatPanelView: View {
                     For concurrent web searches (max 4 queries in parallel), emit status markers:
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
-                if agentAutoDelegateSwarm || coderMode == .agentSwarm {
+                if (agentAutoDelegateSwarm || coderMode == .agentSwarm) && planFlowPhase != .building {
                     let swarmInstructions =
                         """
                         Swarm delegation policy:
@@ -6110,13 +6121,13 @@ struct ChatPanelView: View {
             streamingReasoningConversationId = convId
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
-        if t == "coderide_show_swarm_panel" {
+        if t == "coderide_show_swarm_panel", planFlowPhase != .building {
             showSwarmPanel = true
             if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
             }
         }
-        if t == "coderide_invoke_swarm", !showSwarmPanel {
+        if t == "coderide_invoke_swarm", !showSwarmPanel, planFlowPhase != .building {
             showSwarmPanel = true
             if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
@@ -6599,7 +6610,13 @@ struct ChatPanelView: View {
         }
 
         // Handle delegated swarm if pending
-        if let task = pendingSwarmTask {
+        // Skip swarm delegation during plan builds — plan execution is strictly sequential.
+        let isPlanBuildContext = (planFlowPhase == .building || planFlowPhase == .readyToBuild)
+        if isPlanBuildContext {
+            if let task = pendingSwarmTask {
+                NSLog("[SwarmDelegation] Suppressed during plan build — task: %@", task)
+            }
+        } else if let task = pendingSwarmTask {
             NSLog("[SwarmDelegation] invoke_swarm received — task: %@", task)
             let evaluation = SwarmDelegationPolicyEvaluator().evaluate(
                 userPrompt: prompt,
@@ -6664,6 +6681,28 @@ struct ChatPanelView: View {
                 await handleDelegatedSwarm(
                     task: synthesized, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
                 )
+            }
+        }
+
+        // After any agent turn with file edits (non-plan), add a Code Review todo
+        if !isPlanBuildContext,
+           taskActivityStore.activities.contains(where: { $0.phase == .editing })
+        {
+            let alreadyHasReview = todoStore.todos.contains {
+                $0.title == "Code Review & Test" && $0.status != .done
+            }
+            if !alreadyHasReview {
+                await MainActor.run {
+                    todoStore.upsertFromAgent(
+                        id: nil,
+                        title: "Code Review & Test",
+                        status: .pending,
+                        priority: .high,
+                        notes: "Review changes and run tests",
+                        activeForm: "Reviewing code and running tests",
+                        linkedFiles: []
+                    )
+                }
             }
         }
     }
