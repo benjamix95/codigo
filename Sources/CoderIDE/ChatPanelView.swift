@@ -103,8 +103,22 @@ func normalizeBuildFinalResponse(_ text: String) -> String {
     guard looksLikePlanEcho else { return text }
     var kept: [String] = []
     var skippingPlanBlock = false
+    var inFence = false
     for line in lines {
         let l = line.trimmingCharacters(in: .whitespaces)
+        if l.hasPrefix("```") {
+            inFence.toggle()
+            if !skippingPlanBlock {
+                kept.append(line)
+            }
+            continue
+        }
+        if inFence {
+            if !skippingPlanBlock {
+                kept.append(line)
+            }
+            continue
+        }
         let low = l.lowercased()
         if low.hasPrefix("## option") || low.hasPrefix("## todo") {
             skippingPlanBlock = true
@@ -937,6 +951,18 @@ struct ChatPanelView: View {
             checkProviderAuth()
         }
         .onChange(of: selectedConversationId) { oldId, newId in
+            // Save draft text for the previous conversation.
+            if let oldId {
+                let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    chatStore.draftTexts.removeValue(forKey: oldId)
+                } else {
+                    chatStore.draftTexts[oldId] = inputText
+                }
+            }
+            // Restore draft text for the new conversation (or clear).
+            inputText = chatStore.draftTexts[newId ?? UUID()] ?? ""
+
             if ignoreNextConversationChangeReset {
                 ignoreNextConversationChangeReset = false
             } else {
@@ -1074,6 +1100,15 @@ struct ChatPanelView: View {
                 composerTimerAutoHideTask?.cancel()
                 composerTimerAutoHideTask = nil
                 lastTaskEndedByManualStop = false
+            }
+            .onChange(of: inputText) { _, newValue in
+                guard let cid = conversationId else { return }
+                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    chatStore.draftTexts.removeValue(forKey: cid)
+                } else {
+                    chatStore.draftTexts[cid] = newValue
+                }
             }
             .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
                 guard let cid = conversationId else { return }
@@ -1588,7 +1623,7 @@ struct ChatPanelView: View {
         }
 
         if transition.shouldHighlightPlanToggle, let scheduledUntil = transition.nextPrimedUntil {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in
                 // Do not clear if a newer shortcut cycle has already updated the timer.
                 if planShortcutPrimedUntil == scheduledUntil {
                     isPlanTabHovered = false
@@ -1607,11 +1642,13 @@ struct ChatPanelView: View {
         savePanel.canCreateDirectories = true
         let baseName = entry.title.isEmpty ? "PLAN" : entry.title
         savePanel.nameFieldStringValue = "\(baseName.replacingOccurrences(of: " ", with: "_")).md"
+        let content = entry.markdown
         savePanel.begin { response in
             guard response == .OK, let url = savePanel.url else { return }
             do {
-                try entry.markdown.write(to: url, atomically: true, encoding: .utf8)
+                try content.write(to: url, atomically: true, encoding: .utf8)
             } catch {
+                NSAlert(error: error).runModal()
             }
         }
     }
@@ -1621,7 +1658,7 @@ struct ChatPanelView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(markdown, forType: .string)
         didCopyAllChat = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in
             didCopyAllChat = false
         }
     }
@@ -1637,6 +1674,7 @@ struct ChatPanelView: View {
             do {
                 try markdown.write(to: url, atomically: true, encoding: .utf8)
             } catch {
+                NSAlert(error: error).runModal()
             }
         }
     }

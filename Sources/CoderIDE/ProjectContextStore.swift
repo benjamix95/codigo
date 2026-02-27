@@ -69,8 +69,10 @@ final class ProjectContextStore: ObservableObject {
     func remove(id: UUID) {
         contexts.removeAll { $0.id == id }
         if activeContextId == id {
-            activeContextId = contexts.first?.id
+            // Fall back to another context, or nil if none remain.
+            activeContextId = contexts.first?.id ?? nil
         }
+        clearLastActiveEntries(forContextId: id)
         save()
     }
 
@@ -80,7 +82,7 @@ final class ProjectContextStore: ObservableObject {
             if let existing = contexts.first(where: { $0.id == workspace.id }) {
                 context.createdAt = existing.createdAt
                 context.updatedAt = .now
-                context.lastActiveFolderPath = existing.lastActiveFolderPath ?? workspace.folderPaths.first
+                context.lastActiveFolderPath = existing.lastActiveFolderPath ?? (workspace.folderPaths.isEmpty ? nil : workspace.folderPaths.first)
             }
             upsert(context)
         }
@@ -138,9 +140,7 @@ final class ProjectContextStore: ObservableObject {
     func setLastActiveConversation(contextId: UUID, folderPath: String?, conversationId: UUID) {
         var map = loadLastActiveMap()
         map[contextKey(contextId: contextId, folderPath: folderPath)] = conversationId.uuidString
-        if let data = try? JSONEncoder().encode(map) {
-            UserDefaults.standard.set(data, forKey: lastActiveConversationKey)
-        }
+        saveLastActiveMap(map)
     }
 
     func lastActiveConversationId(contextId: UUID, folderPath: String?) -> UUID? {
@@ -150,10 +150,32 @@ final class ProjectContextStore: ObservableObject {
         return id
     }
 
+    /// Remove all lastActive entries for a given context (used when context is deleted).
+    func clearLastActiveEntries(forContextId contextId: UUID) {
+        var map = loadLastActiveMap()
+        let prefix = contextId.uuidString + "|"
+        map = map.filter { !$0.key.hasPrefix(prefix) }
+        saveLastActiveMap(map)
+    }
+
+    /// Remove a specific conversation from the lastActive map (used when conversation is deleted).
+    func clearLastActiveConversation(conversationId: UUID) {
+        var map = loadLastActiveMap()
+        let idStr = conversationId.uuidString
+        map = map.filter { $0.value != idStr }
+        saveLastActiveMap(map)
+    }
+
     private func loadLastActiveMap() -> [String: String] {
         guard let data = UserDefaults.standard.data(forKey: lastActiveConversationKey),
               let map = try? JSONDecoder().decode([String: String].self, from: data) else { return [:] }
         return map
+    }
+
+    private func saveLastActiveMap(_ map: [String: String]) {
+        if let data = try? JSONEncoder().encode(map) {
+            UserDefaults.standard.set(data, forKey: lastActiveConversationKey)
+        }
     }
 
     private func normalize(paths: [String]) -> [String] {

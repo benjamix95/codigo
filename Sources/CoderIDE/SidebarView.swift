@@ -100,24 +100,28 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                quickActions
-                Divider().opacity(0.4)
-                contextSection
-                Divider().opacity(0.4)
-                threadsSection
-
-                if isIDEMode, let context = currentContext, !context.folderPaths.isEmpty {
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    quickActions
                     Divider().opacity(0.4)
-                    explorerSection(context: context)
-                }
+                    contextSection
+                    Divider().opacity(0.4)
+                    threadsSection
 
-                Divider().opacity(0.4)
-                taskCloudSection
+                    if isIDEMode, let context = currentContext, !context.folderPaths.isEmpty {
+                        Divider().opacity(0.4)
+                        explorerSection(context: context)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 12)
+
+            Divider().opacity(0.4)
+            taskCloudSection
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
         }
         .safeAreaInset(edge: .bottom) { footer }
         .sheet(isPresented: $showCreateWorkspace) {
@@ -148,12 +152,15 @@ struct SidebarView: View {
             actionRow("New thread", icon: "plus.message.fill") {
                 createThread(contextId: currentContext?.id)
             }
+            .accessibilityLabel("Create new thread")
             actionRow("Open project", icon: "folder.badge.plus") {
                 isSelectingProjectFolders = true
             }
+            .accessibilityLabel("Open project folder")
             actionRow("New workspace", icon: "folder.badge.gearshape") {
                 showCreateWorkspace = true
             }
+            .accessibilityLabel("Create new workspace")
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
@@ -169,6 +176,7 @@ struct SidebarView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
                 }
             }
             .padding(.top, 6)
@@ -456,10 +464,21 @@ struct SidebarView: View {
 
     private func threadRow(_ conv: Conversation) -> some View {
         let selected = selectedConversationId == conv.id
+        let hasDraft = !(chatStore.draftTexts[conv.id]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         return HStack(spacing: 8) {
-            Image(systemName: selected ? "message.fill" : "message")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(selected ? Color.accentColor : .secondary)
+            if hasDraft {
+                Image(systemName: "pencil.line")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+            } else if conv.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.yellow)
+            } else {
+                Image(systemName: selected ? "message.fill" : "message")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+            }
             Text(conv.title)
                 .font(.system(size: 12, weight: selected ? .semibold : .regular))
                 .lineLimit(1)
@@ -501,7 +520,7 @@ struct SidebarView: View {
             .help(conv.isArchived ? "Restore thread" : "Archive thread")
             Button {
                 let wasSelected = selectedConversationId == conv.id
-                cleanupCheckpointSnapshots(for: conv)
+                cleanupConversationData(for: conv)
                 chatStore.deleteConversation(id: conv.id)
                 if wasSelected {
                     selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
@@ -518,10 +537,6 @@ struct SidebarView: View {
         .padding(.vertical, 7)
         .background(selected ? Color.white.opacity(0.08) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(conv.isPinned ? Color.yellow : Color.clear, lineWidth: 2)
-        )
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contextMenu {
             Button {
@@ -547,7 +562,7 @@ struct SidebarView: View {
             Divider()
             Button(role: .destructive) {
                 let wasSelected = selectedConversationId == conv.id
-                cleanupCheckpointSnapshots(for: conv)
+                cleanupConversationData(for: conv)
                 chatStore.deleteConversation(id: conv.id)
                 if wasSelected {
                     selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
@@ -578,11 +593,12 @@ struct SidebarView: View {
         )
     }
 
-    private func cleanupCheckpointSnapshots(for conversation: Conversation) {
+    private func cleanupConversationData(for conversation: Conversation) {
         let roots = Set(conversation.checkpoints.flatMap { $0.gitStates.map(\.gitRootPath) })
         for root in roots {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
         }
+        projectContextStore.clearLastActiveConversation(conversationId: conversation.id)
     }
 
     private func deleteAllVisibleThreads() {
@@ -590,7 +606,7 @@ struct SidebarView: View {
         let deletedIds = Set(toDelete.map(\.id))
         let wasSelectingOne = deletedIds.contains(selectedConversationId ?? UUID())
         for conv in toDelete {
-            cleanupCheckpointSnapshots(for: conv)
+            cleanupConversationData(for: conv)
             chatStore.deleteConversation(id: conv.id)
         }
         if wasSelectingOne {
@@ -762,6 +778,7 @@ struct SidebarView: View {
                     .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -825,6 +842,23 @@ struct SidebarView: View {
 
     private func createThread(contextId: UUID?) {
         let folderScope = (currentContext?.kind == .workspace) ? currentContext?.activeFolderPath : nil
+
+        // Reuse an existing empty thread (no user messages) with the same context
+        // instead of creating duplicate blank threads.
+        if let existing = chatStore.conversations.first(where: {
+            !$0.isArchived
+            && $0.contextId == contextId
+            && $0.contextFolderPath == folderScope
+            && !$0.messages.contains(where: { $0.role == .user })
+        }) {
+            selectedConversationId = existing.id
+            if let contextId {
+                projectContextStore.activeContextId = contextId
+                syncActiveWorkspaceIfNeeded(contextId: contextId)
+            }
+            return
+        }
+
         let newId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         selectedConversationId = newId
         if let contextId {

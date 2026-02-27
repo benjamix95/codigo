@@ -286,6 +286,8 @@ final class ChatStore: ObservableObject {
     @Published var activeTaskConversationIds: Set<UUID> = []
     @Published var taskStartDates: [UUID: Date] = [:]
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
+    /// In-memory draft text per conversation (not persisted).
+    @Published var draftTexts: [UUID: String] = [:]
     private let userDefaults: UserDefaults
 
     /// Debounce task for coalescing rapid `saveConversations()` calls.
@@ -395,7 +397,7 @@ final class ChatStore: ObservableObject {
         Task.detached(priority: .userInitiated) {
             guard let boards = decode() else { return }
             await MainActor.run {
-                self.planBoards.merge(boards) { _, loaded in loaded }
+                self.planBoards.merge(boards) { existing, _ in existing }
             }
         }
     }
@@ -482,6 +484,7 @@ final class ChatStore: ObservableObject {
     func deleteConversation(id: UUID) {
         conversations.removeAll { $0.id == id }
         planBoards.removeValue(forKey: id)
+        draftTexts.removeValue(forKey: id)
         if conversations.isEmpty { createConversation(contextId: nil, contextFolderPath: nil, mode: nil) }
         saveConversations()
         savePlanBoards()
@@ -544,16 +547,14 @@ final class ChatStore: ObservableObject {
 
             let assistantAndUser = conv.messages.map(\.content).joined(separator: "\n")
             let bodyLower = assistantAndUser.lowercased()
-            if bodyLower.contains(q) {
+            if let range = assistantAndUser.range(of: q, options: .caseInsensitive) {
                 score += 1
-                if let range = bodyLower.range(of: q) {
-                    let idx = bodyLower.distance(from: bodyLower.startIndex, to: range.lowerBound)
-                    let start = max(0, idx - 60)
-                    let end = min(bodyLower.count, idx + 140)
-                    let sIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: start)
-                    let eIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: end)
-                    snippet = String(assistantAndUser[sIdx..<eIdx]).replacingOccurrences(of: "\n", with: " ")
-                }
+                let idx = assistantAndUser.distance(from: assistantAndUser.startIndex, to: range.lowerBound)
+                let start = max(0, idx - 60)
+                let end = min(assistantAndUser.count, idx + 140)
+                let sIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: start)
+                let eIdx = assistantAndUser.index(assistantAndUser.startIndex, offsetBy: end)
+                snippet = String(assistantAndUser[sIdx..<eIdx]).replacingOccurrences(of: "\n", with: " ")
             }
 
             guard score > 0 else { continue }
@@ -594,10 +595,13 @@ final class ChatStore: ObservableObject {
     }
 
     func clearWorkspaceReferences(workspaceId: UUID) {
-        for i in conversations.indices where conversations[i].contextId == workspaceId || conversations[i].workspaceId == workspaceId {
-            conversations[i].contextId = nil
-            conversations[i].workspaceId = nil
-            conversations[i].adHocFolderPaths = []
+        conversations = conversations.map { conv in
+            guard conv.contextId == workspaceId || conv.workspaceId == workspaceId else { return conv }
+            var updated = conv
+            updated.contextId = nil
+            updated.workspaceId = nil
+            updated.adHocFolderPaths = []
+            return updated
         }
         saveConversations()
     }
@@ -1439,7 +1443,16 @@ final class ChatStore: ObservableObject {
         guard messageCount >= 0, messageCount <= conversations[idx].messages.count else { return false }
         conversations[idx].messages = Array(conversations[idx].messages.prefix(messageCount))
         conversations[idx].checkpoints.removeAll { $0.messageCount > messageCount }
+        // Restore the plan board from the most recent remaining checkpoint,
+        // or clear it if no checkpoints remain.
+        if let lastCheckpoint = conversations[idx].checkpoints.last,
+           let snapshot = lastCheckpoint.planBoardSnapshot {
+            planBoards[conversations[idx].id] = snapshot
+        } else {
+            planBoards.removeValue(forKey: conversations[idx].id)
+        }
         saveConversations()
+        savePlanBoards()
         return true
     }
 }

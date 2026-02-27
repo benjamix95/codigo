@@ -77,7 +77,11 @@ final class CLIAccountsStore: ObservableObject {
         let nextNum = accounts(for: provider).count + 1
         let label = "Account \(nextNum)"
         addAccount(provider: provider, label: label, apiKey: nil)
-        return accounts.last!
+        // addAccount appends to `accounts` immediately above, so last is guaranteed non-nil.
+        guard let account = accounts.last else {
+            fatalError("addAccount did not append — accounts array is empty after addAccount call")
+        }
+        return account
     }
 
     /// Finalize a just-authenticated account and returns the primary account id

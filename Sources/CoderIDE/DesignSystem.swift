@@ -419,7 +419,7 @@ enum WindowResizeHelper {
     /// Positive delta = wider, negative = narrower. Respects screen bounds.
     static func adjustWidth(by delta: CGFloat, animate: Bool? = nil) {
         guard let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first(where: { $0.canBecomeMain }) else { return }
-        let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first!
+        guard let screen = window.screen ?? NSScreen.main ?? NSScreen.screens.first else { return }
         var frame = window.frame
         let newWidth = max(frame.width + delta, window.minSize.width)
         let maxRight = screen.visibleFrame.maxX

@@ -1303,11 +1303,12 @@ struct PlanPanelView: View {
     }
 
     private func downloadCurrentPlan() {
-        if let entry = latestPlanHistoryEntry(),
-           !resolvedPreviewContent(for: entry).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if let entry = latestPlanHistoryEntry() {
             let content = resolvedPreviewContent(for: entry).trimmingCharacters(in: .whitespacesAndNewlines)
-            savePlanToFile(content: content, suggestedName: planFileName)
-            return
+            if !content.isEmpty {
+                savePlanToFile(content: content, suggestedName: planFileName)
+                return
+            }
         }
 
         guard let board = chatStore.planBoard(for: conversationId) else { return }

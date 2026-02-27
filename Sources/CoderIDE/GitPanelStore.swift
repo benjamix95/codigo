@@ -108,6 +108,8 @@ final class GitPanelStore: ObservableObject {
     private let commitMessageGenerator = GitCommitMessageGenerator()
     private let refreshQueue = DispatchQueue(label: "com.codigo.git-panel.refresh", qos: .utility)
     private var pendingRefreshWorkItem: DispatchWorkItem?
+    /// Monotonic counter incremented on each refresh call to discard stale results.
+    /// Only accessed on @MainActor (this class is @MainActor-isolated).
     private var refreshGeneration: Int = 0
 
     var stagedFiles: [GitChangedFile] { changedFiles.filter(\.isStaged) }
