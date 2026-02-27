@@ -189,12 +189,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         executable: String,
         arguments: [String]
     ) -> (executable: String, arguments: [String]) {
-        let scriptPath = "/usr/bin/script"
-        guard FileManager.default.isExecutableFile(atPath: scriptPath) else {
-            return (executable, arguments)
-        }
-        // Use PTY to reduce cases of stdout buffered until EOF.
-        return (scriptPath, ["-q", "/dev/null", executable] + arguments)
+        // Avoid PTY wrapping via `/usr/bin/script`: it may inject control bytes
+        // (e.g. ^D/backspaces) and occasionally exit with code 1 and empty stderr
+        // during delegated swarm follow-up runs. `codex exec --json` already
+        // streams newline-delimited events reliably on a regular pipe.
+        (executable, arguments)
     }
 
     static func buildExecArguments(
