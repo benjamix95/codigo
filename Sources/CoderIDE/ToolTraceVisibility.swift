@@ -125,6 +125,7 @@ enum ToolTraceVisibility {
         let type = normalizedType(rawType)
         if type == "policy_ack" { return false }
         if type == "todo_read" || type == "todo_write" { return false }
+        if isSwarmPayload(payload) { return false }
         if hiddenDisplayTypes.contains(type) { return false }
         if [
             "tool_execution_error", "tool_validation_error", "tool_timeout",
@@ -183,5 +184,15 @@ enum ToolTraceVisibility {
             .filter { !$0.isEmpty }
         guard let last = parts.last else { return normalized }
         return last
+    }
+
+    private static func isSwarmPayload(_ payload: [String: String]) -> Bool {
+        let swarmId = (payload["swarm_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !swarmId.isEmpty { return true }
+        let groupId = (payload["group_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return groupId.hasPrefix("swarm-")
     }
 }

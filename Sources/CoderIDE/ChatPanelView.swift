@@ -2384,7 +2384,12 @@ struct ChatPanelView: View {
         autoTodoIdByMessage.removeValue(forKey: assistantMessageId)
         autoTodoCompletedOperationsByMessage.removeValue(forKey: assistantMessageId)
         didReceiveExplicitTodoByMessage.remove(assistantMessageId)
-        initializePolicyAckStateIfNeeded(for: assistantMessageId)
+        if isSwarmPolicyAckExemptProvider(providerId) {
+            policyAckStateByMessage.removeValue(forKey: assistantMessageId)
+            policyAckFailedMessages.remove(assistantMessageId)
+        } else {
+            initializePolicyAckStateIfNeeded(for: assistantMessageId)
+        }
         toolTraceStore.startTurn(
             conversationId: conversationId,
             assistantMessageId: assistantMessageId,
@@ -2526,7 +2531,12 @@ struct ChatPanelView: View {
                 }
             }
         }
-        initializePolicyAckStateIfNeeded(for: target.assistantMessageId)
+        if isSwarmPolicyAckExemptProvider(providerId) {
+            policyAckStateByMessage.removeValue(forKey: target.assistantMessageId)
+            policyAckFailedMessages.remove(target.assistantMessageId)
+        } else {
+            initializePolicyAckStateIfNeeded(for: target.assistantMessageId)
+        }
         toolTraceStore.startTurn(
             conversationId: target.conversationId,
             assistantMessageId: target.assistantMessageId,
@@ -5962,6 +5972,9 @@ struct ChatPanelView: View {
         conversationId: UUID?
     ) -> Bool {
         guard agentsHardBlockEnabled else { return false }
+        if isSwarmPolicyAckExemptProvider(providerId) || hasSwarmTraceMetadata(payload) {
+            return false
+        }
         guard ToolTraceVisibility.requiresPolicyAck(type: type, payload: payload) else { return false }
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
@@ -5986,6 +5999,29 @@ struct ChatPanelView: View {
             conversationId: conversationId
         )
         return true
+    }
+
+    @MainActor
+    private func isSwarmPolicyAckExemptProvider(_ providerId: String) -> Bool {
+        let normalized = providerId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalized.isEmpty { return false }
+        return normalized == "swarm-runtime-internal"
+            || normalized == "code-review-multi-swarm"
+            || normalized.hasPrefix("swarm-")
+            || normalized.contains("multi-swarm")
+    }
+
+    @MainActor
+    private func hasSwarmTraceMetadata(_ payload: [String: String]) -> Bool {
+        let swarmId = (payload["swarm_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !swarmId.isEmpty { return true }
+        let groupId = (payload["group_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return groupId.hasPrefix("swarm-")
     }
 
     @MainActor
