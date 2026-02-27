@@ -149,9 +149,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                 "detail": String(text.prefix(200)) + (text.count > 200 ? "…" : ""),
                 "output": String(text.prefix(6_000)),
             ]
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
-                payload["swarm_id"] = swarmId
-                payload["group_id"] = "swarm-\(swarmId)"
+            if SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item, forceGroupID: true) {
                 return ("reasoning", payload)
             }
             payload["group_id"] = "reasoning-stream"
@@ -185,10 +183,7 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
         item: [String: Any]
     ) -> (type: String, payload: [String: String]) {
         var payload = mapped.payload
-        if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
-            payload["swarm_id"] = swarmId
-            payload["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
-        }
+        SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item)
         return (mapped.type, payload)
     }
 

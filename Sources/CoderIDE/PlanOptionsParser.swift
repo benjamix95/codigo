@@ -522,7 +522,7 @@ enum PlanOptionsParser {
         if optionText.range(of: todoHeaderPattern, options: .regularExpression) != nil {
             return true
         }
-        return !extractTodosFromOptionText(optionText).isEmpty
+        return false
     }
 
     static func isTodoCompliantOption(_ option: PlanOption) -> Bool {
@@ -565,7 +565,7 @@ enum PlanOptionsParser {
                 .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 .lowercased()
             if normalized.isEmpty { return true }
-            if normalized.hasPrefix("pros") || normalized.hasPrefix("cons")
+            if normalized.range(of: #"^(?:pros?|cons?)\b"#, options: .regularExpression) != nil
                 || normalized.hasPrefix("complexity")
                 || normalized.hasPrefix("trade-off")
                 || normalized.hasPrefix("tradeoff")
@@ -647,10 +647,6 @@ enum PlanOptionsParser {
         if !todos.isEmpty {
             return todos
         }
-        if let fallback = fallbackTodoFromPlanText(optionText) {
-            appendTodo(fallback)
-        }
-
         return todos
     }
 

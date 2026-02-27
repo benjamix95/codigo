@@ -946,10 +946,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 "output": output,
                 "detail": detail
             ]
-
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
-                payload["swarm_id"] = swarmId
-                payload["group_id"] = "swarm-\(swarmId)"
+            if SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item, forceGroupID: true) {
                 return ("reasoning", payload)
             }
 
@@ -1146,12 +1143,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                   let id = payload["id"], !id.isEmpty {
             payload["tool_call_id"] = id
         }
-        if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
-            payload["swarm_id"] = swarmId
-            if payload["group_id"] == nil || payload["group_id"]?.isEmpty == true {
-                payload["group_id"] = "swarm-\(swarmId)"
-            }
-        }
+        SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item)
 
         return (mapped.type, payload)
     }

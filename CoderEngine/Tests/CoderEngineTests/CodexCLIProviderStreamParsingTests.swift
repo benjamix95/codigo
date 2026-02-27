@@ -108,6 +108,56 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(reasoningPayloads.first?["group_id"], "swarm-s-arch")
     }
 
+    func testReasoningTrimmedSwarmIdGetsCanonicalGroupId() {
+        let events = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "reasoning-legacy-2",
+                    "type": "reasoning",
+                    "swarm_id": "  s-ops  ",
+                    "text": "Trimming is expected before group assignment"
+                ],
+            ],
+        ])
+
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
+
+        XCTAssertEqual(reasoningPayloads.count, 1)
+        XCTAssertEqual(reasoningPayloads.first?["swarm_id"], "s-ops")
+        XCTAssertEqual(reasoningPayloads.first?["group_id"], "swarm-s-ops")
+    }
+
+    func testReasoningSkipsDoubleSwarmPrefixInGroupId() {
+        let events = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "reasoning-legacy-3",
+                    "type": "reasoning",
+                    "swarm_id": "swarm-s-prefixed",
+                    "text": "Prefixed swarm IDs should remain single-prefixed"
+                ],
+            ],
+        ])
+
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
+
+        XCTAssertEqual(reasoningPayloads.count, 1)
+        XCTAssertEqual(reasoningPayloads.first?["swarm_id"], "swarm-s-prefixed")
+        XCTAssertEqual(reasoningPayloads.first?["group_id"], "swarm-s-prefixed")
+    }
+
     func testReasoningUpdatesAreNotDedupedWhenOutputGrows() {
         let events = runParser(events: [
             ["type": "turn.started"],

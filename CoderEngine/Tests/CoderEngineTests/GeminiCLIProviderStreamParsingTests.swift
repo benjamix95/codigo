@@ -50,6 +50,29 @@ final class GeminiCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertNil(reasoningPayloads.first?["swarm_id"])
     }
 
+    func testReasoningTrimmedSwarmIdGetsCanonicalGroupId() async throws {
+        let script = try createMockGeminiScript(
+            lines: ["{\"item\":{\"type\":\"reasoning\",\"swarm_id\":\"  swarm-analytics  \",\"text\":\"Whitespace normalization\"}}"]
+        )
+        let workspace = script.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let provider = GeminiCLIProvider(geminiPath: script.path)
+        let context = WorkspaceContext(workspacePath: FileManager.default.temporaryDirectory)
+
+        let events = try await collectRawEvents(from: provider, context: context)
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
+
+        XCTAssertEqual(reasoningPayloads.count, 1)
+        XCTAssertEqual(reasoningPayloads.first?["swarm_id"], "swarm-analytics")
+        XCTAssertEqual(reasoningPayloads.first?["group_id"], "swarm-analytics")
+    }
+
     private func collectRawEvents(
         from provider: GeminiCLIProvider,
         context: WorkspaceContext
