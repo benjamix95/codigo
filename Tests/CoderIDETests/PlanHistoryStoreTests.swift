@@ -124,4 +124,55 @@ final class PlanHistoryStoreTests: XCTestCase {
 
         XCTAssertEqual(store.entries.first?.markdown.count, 32_768)
     }
+
+    func testFindLatestEntryForConversation() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        _ = store.createEntry(
+            conversationId: conversationA,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan A 1",
+            markdown: "# Plan A 1",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+        _ = store.createEntry(
+            conversationId: conversationB,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan B",
+            markdown: "# Plan B",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+        let second = store.createEntry(
+            conversationId: conversationA,
+            contextId: nil,
+            contextFolderPath: nil,
+            title: "Plan A 2",
+            markdown: "# Plan A 2",
+            options: [],
+            chosenPath: nil,
+            tags: [],
+            sourceMessageId: nil
+        )
+
+        let latest = store.findLatestEntry(for: conversationA)
+        XCTAssertNotNil(latest)
+        XCTAssertEqual(latest?.id, second.id)
+        XCTAssertEqual(latest?.title, "Plan A 2")
+    }
+
+    func testFindLatestEntryForConversationReturnsNilWhenMissing() {
+        let store = makeStore()
+        let latest = store.findLatestEntry(for: UUID())
+        XCTAssertNil(latest)
+    }
 }

@@ -238,6 +238,12 @@ final class PlanHistoryStore: ObservableObject {
         entries.first(where: { $0.conversationId == conversationId && $0.sourceMessageId == sourceMessageId })
     }
 
+    func findLatestEntry(for conversationId: UUID) -> PlanHistoryEntry? {
+        entries
+            .filter { $0.conversationId == conversationId }
+            .max(by: { $0.createdAt < $1.createdAt })
+    }
+
     @discardableResult
     func duplicateEntry(id: UUID) -> PlanHistoryEntry? {
         guard var copy = findEntry(id: id) else { return nil }

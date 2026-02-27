@@ -634,12 +634,14 @@ struct PlanPanelView: View {
             return planStreamingContent
         }
 
-        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
+        if let selected = latestPlanHistoryEntry() {
+            if !selected.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return selected.markdown
+            }
             if let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                !chosen.isEmpty {
                 return chosen
             }
-            return selected.markdown
         }
 
         if let board = chatStore.planBoard(for: conversationId) {
@@ -653,7 +655,7 @@ struct PlanPanelView: View {
         }
 
         let hasBoard = chatStore.planBoard(for: conversationId) != nil
-        let hasSelectedHistoryEntry = planHistoryStore.selectedEntryId != nil
+        let hasSelectedHistoryEntry = latestPlanHistoryEntry() != nil
         let hasContext = hasPlanContext(
             phase: planFlowPhase,
             planningState: planningState,
@@ -1153,10 +1155,27 @@ struct PlanPanelView: View {
     // MARK: - Helpers
 
     private func resolvedPreviewContent(for entry: PlanHistoryEntry) -> String {
+        if !entry.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return entry.markdown
+        }
         if let chosen = entry.chosenPath, !chosen.isEmpty {
             return chosen
         }
         return entry.markdown
+    }
+
+    private func selectedHistoryEntryForConversation() -> PlanHistoryEntry? {
+        guard let conversationId else { return nil }
+        guard let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) else { return nil }
+        return selected.conversationId == conversationId ? selected : nil
+    }
+
+    private func latestPlanHistoryEntry() -> PlanHistoryEntry? {
+        if let selected = selectedHistoryEntryForConversation() {
+            return selected
+        }
+        guard let conversationId else { return nil }
+        return planHistoryStore.findLatestEntry(for: conversationId)
     }
 
     private func resolvedBuildContent(for entry: PlanHistoryEntry) -> String? {
@@ -1175,7 +1194,7 @@ struct PlanPanelView: View {
     }
 
     private func resolveBuildChoice() -> (text: String, isFallback: Bool)? {
-        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) {
+        if let selected = selectedHistoryEntryForConversation() {
             if let chosen = resolvedBuildContent(for: selected) {
                 return (chosen, false)
             }
@@ -1200,7 +1219,7 @@ struct PlanPanelView: View {
         {
             return match.id
         }
-        if let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId),
+        if let selected = selectedHistoryEntryForConversation(),
            let chosen = selected.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !chosen.isEmpty,
            let match = options.first(where: { normalizedPlanText($0.fullText) == normalizedPlanText(chosen) })
@@ -1226,6 +1245,13 @@ struct PlanPanelView: View {
     }
 
     private func downloadCurrentPlan() {
+        if let entry = latestPlanHistoryEntry(),
+           !resolvedPreviewContent(for: entry).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let content = resolvedPreviewContent(for: entry).trimmingCharacters(in: .whitespacesAndNewlines)
+            savePlanToFile(content: content, suggestedName: planFileName)
+            return
+        }
+
         guard let board = chatStore.planBoard(for: conversationId) else { return }
         let content: String
         if let chosen = board.chosenPath?.trimmingCharacters(in: .whitespacesAndNewlines), !chosen.isEmpty {
