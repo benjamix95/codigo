@@ -53,15 +53,32 @@ final class ToolTraceVisibilityTests: XCTestCase {
         let namespaced = TaskActivity(
             type: "mcp_tool_call",
             title: "MCP discovery",
-            payload: ["tool": "functions.mcp_list_servers"],
+            payload: [
+                "tool": "functions.mcp_list_servers",
+                "is_mcp": "true"
+            ],
             phase: .executing,
             isRunning: false
         )
 
         XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: namespaced))
 
-        let event = makeEvent(type: "mcp_tool_call", payload: ["tool": "functions.mcp_list_servers"])
+        let event = makeEvent(type: "mcp_tool_call", payload: [
+            "tool": "functions.mcp_list_servers",
+            "is_mcp": "true"
+        ])
         XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
+    func testMCPLikeToolNameWithoutMarkerIsFiltered() {
+        let fakeMCP = TaskActivity(
+            type: "mcp_tool_call",
+            title: "Fake MCP",
+            payload: ["tool": "check_mcp_status"],
+            phase: .executing,
+            isRunning: false
+        )
+        XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: fakeMCP))
     }
 
     func testTodoWriteIsIncludedButNotDisplayedAndDoesNotRequirePolicyAck() {
@@ -85,6 +102,20 @@ final class ToolTraceVisibilityTests: XCTestCase {
                 payload: activity.payload
             )
         )
+    }
+
+    func testActivatePlanModeIsNotIncludedAndNotDisplayed() {
+        let activity = TaskActivity(
+            type: "activate_plan_mode",
+            title: "Plan mode auto-activated",
+            payload: ["reason": "User requested planning"],
+            phase: .planning,
+            isRunning: false
+        )
+
+        XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: activity))
+        let event = makeEvent(type: "activate_plan_mode", payload: ["reason": "User requested planning"])
+        XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
     func testSkillInvocationIsDisplayed() {

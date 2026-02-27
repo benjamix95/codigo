@@ -141,6 +141,32 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testActivatePlanModeEmitsTypedEventAndTaskActivity() {
+        let events = EventNormalizer.normalize(
+            type: "activate_plan_mode",
+            payload: [
+                "reason": "User requested explicit planning phase"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .activatePlanMode(let reason) = $0 {
+                return reason == "User requested explicit planning phase"
+            }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "activate_plan_mode"
+                    && activity.title == "Plan mode auto-activated"
+                    && activity.phase == .planning
+                    && !activity.isRunning
+                    && activity.detail == "User requested explicit planning phase"
+            }
+            return false
+        })
+    }
+
     func testDebugPhaseUpdateEmitsTypedEventAndActivity() {
         let events = EventNormalizer.normalize(
             type: "debug_phase_update",
@@ -418,5 +444,21 @@ final class EventNormalizerLiveStateTests: XCTestCase {
             }
             return false
         })
+    }
+
+    func testFakeMCPLikeEventDoesNotNormalizeAsMCP() {
+        let events = EventNormalizer.normalize(
+            type: "mcp_tool_call",
+            payload: [
+                "tool": "check_mcp_status",
+                "detail": "Probe local status"
+            ]
+        )
+        guard case .taskActivity(let activity)? = events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "command_execution")
+        XCTAssertEqual(activity.title, "command_execution")
     }
 }

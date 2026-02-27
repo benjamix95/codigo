@@ -454,6 +454,15 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "completed")
     }
 
+    func testMCPReconnectAcceptsMcpServerAlias() async {
+        let runtime = UnifiedToolRuntime()
+        let (call, ctx) = makeCall(name: "mcp_reconnect", args: ["mcp_server": "missing-server"])
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+    }
+
     // MARK: - JSON
 
     func testReadJSONValidationOnInvalidJSON() async throws {

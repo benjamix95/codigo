@@ -258,8 +258,9 @@ public actor UnifiedToolRuntime {
         let normalizedName = normalizeToolName(call.name)
         let start = Date()
         let basePayload = buildBasePayload(call: call, normalizedName: normalizedName)
+        let startEventType = startEventTypeForTool(name: normalizedName, payload: basePayload)
 
-        var events: [StreamEvent] = [.raw(type: "mcp_tool_call", payload: basePayload)]
+        var events: [StreamEvent] = [.raw(type: startEventType, payload: basePayload)]
         let result = await run(call, normalizedName: normalizedName, context: context, startDate: start)
 
         var completedPayload = result.payload
@@ -272,7 +273,7 @@ public actor UnifiedToolRuntime {
             completedPayload["group_id"] = "swarm-\(swarmId)"
         }
 
-        let eventType = eventTypeForTool(name: normalizedName, ok: result.ok)
+        let eventType = eventTypeForTool(name: normalizedName, ok: result.ok, payload: completedPayload)
         events.append(.raw(type: eventType, payload: completedPayload))
 
         // Auto-reindex modified files so semantic search stays fresh
@@ -434,7 +435,7 @@ public actor UnifiedToolRuntime {
             case "mcp_reconnect":
                 return await executeMCPReconnect(call: call, context: context, startDate: startDate)
             default:
-                if context.policy.enableMCP {
+                if context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call) {
                     return await executeMCPDirectToolFallback(
                         toolName: normalizedName,
                         call: call,
@@ -445,10 +446,123 @@ public actor UnifiedToolRuntime {
                 throw ToolRuntimeError.validation("Unsupported tool: \(normalizedName)")
             }
         } catch let err as ToolRuntimeError {
-            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
+            let mcpPayload = (context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call))
+                ? ["is_mcp": "true"]
+                : [:]
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: mcpPayload)
         } catch {
-            return failure(error.localizedDescription, errorCode: "unknown", startDate: startDate)
+            let mcpPayload = (context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call))
+                ? ["is_mcp": "true"]
+                : [:]
+            return failure(error.localizedDescription, errorCode: "unknown", startDate: startDate, payload: mcpPayload)
         }
+    }
+
+    private func canFallbackToMCP(toolName: String, call: ToolCall) -> Bool {
+        if toolName == "mcp" || toolName == "mcp_call" || toolName.hasPrefix("mcp_") {
+            return true
+        }
+        if isQualifiedMCPToolReference(toolName) {
+            return true
+        }
+        if toolName.hasPrefix("coderide_") {
+            return true
+        }
+        let hasToolArg = call.args["tool"] != nil || call.args["mcp_tool"] != nil
+        let hasServerArg = call.args["server"] != nil || call.args["server_id"] != nil || call.args["mcp_server"] != nil
+        return hasToolArg && (hasServerArg || toolName == "mcp" || toolName == "mcp_call")
+    }
+
+    private func resolveMCPServerArg(from args: [String: String]) -> String {
+        (args["server"] ?? args["server_id"] ?? args["mcp_server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isQualifiedMCPToolReference(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2 else { return false }
+        return isValidMCPIdentifier(parts[0]) && isValidMCPIdentifier(parts[1])
+    }
+
+    private func isValidMCPIdentifier(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let pattern = #"^[A-Za-z0-9_.:-]{1,128}$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private struct MCPInvocation {
+        let serverId: String?
+        let toolName: String
+        let arguments: [String: String]
+    }
+
+    private static let mcpWrapperKeys: Set<String> = [
+        "name", "id", "tool", "mcp_tool", "server", "server_id", "mcp_server", "args"
+    ]
+
+    private func buildMCPInvocation(
+        call: ToolCall,
+        fallbackToolName: String? = nil
+    ) throws -> MCPInvocation {
+        let toolFromArgs = (call.args["tool"] ?? call.args["mcp_tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTool = (fallbackToolName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestedToolRaw = !toolFromArgs.isEmpty ? toolFromArgs : fallbackTool
+        guard !requestedToolRaw.isEmpty else {
+            throw ToolRuntimeError.validation("Missing MCP tool name")
+        }
+
+        let server = (call.args["server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverID = (call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let mcpServer = (call.args["mcp_server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverCandidates = [server, serverID, mcpServer].filter { !$0.isEmpty }
+        if Set(serverCandidates).count > 1 {
+            throw ToolRuntimeError.validation("Conflicting MCP server values in server/server_id/mcp_server")
+        }
+        let explicitServer = serverCandidates.first
+
+        let parsedServer: String?
+        let parsedTool: String
+        if requestedToolRaw.contains("/") {
+            let parts = requestedToolRaw.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 2 else {
+                throw ToolRuntimeError.validation("Ambiguous MCP tool reference '\(requestedToolRaw)'")
+            }
+            guard isValidMCPIdentifier(parts[0]), isValidMCPIdentifier(parts[1]) else {
+                throw ToolRuntimeError.validation("Invalid MCP server/tool identifier in '\(requestedToolRaw)'")
+            }
+            if let explicitServer, explicitServer != parts[0] {
+                throw ToolRuntimeError.validation("Conflicting MCP server between tool reference and server argument")
+            }
+            parsedServer = parts[0]
+            parsedTool = parts[1]
+        } else {
+            guard isValidMCPIdentifier(requestedToolRaw) else {
+                throw ToolRuntimeError.validation("Invalid MCP tool identifier '\(requestedToolRaw)'")
+            }
+            if let explicitServer, !explicitServer.isEmpty, !isValidMCPIdentifier(explicitServer) {
+                throw ToolRuntimeError.validation("Invalid MCP server identifier '\(explicitServer)'")
+            }
+            parsedServer = explicitServer
+            parsedTool = requestedToolRaw
+        }
+
+        var mergedArgs: [String: String] = [:]
+        let embeddedArgs = parseEmbeddedArgs(call.args["args"])
+        for (key, value) in embeddedArgs {
+            mergedArgs[key] = value
+        }
+        for (key, value) in call.args where !Self.mcpWrapperKeys.contains(key) {
+            let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isValidMCPIdentifier(trimmedKey) else {
+                throw ToolRuntimeError.validation("Unsupported MCP argument key '\(key)'")
+            }
+            mergedArgs[trimmedKey] = value
+        }
+
+        return MCPInvocation(serverId: parsedServer, toolName: parsedTool, arguments: mergedArgs)
     }
 
     public func executeMCP(call: ToolCall, context: ToolExecutionContext) async -> ToolResult {
@@ -460,60 +574,37 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
-
-        let requestedToolRaw = (call.args["tool"] ?? call.args["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let serverArg = (call.args["server"] ?? call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let serverId: String?
-        let toolName: String
-        if requestedToolRaw.contains("/") {
-            let parts = requestedToolRaw.split(separator: "/", maxSplits: 1).map(String.init)
-            serverId = parts.first
-            toolName = parts.count > 1 ? parts[1] : ""
-        } else {
-            serverId = serverArg.isEmpty ? nil : serverArg
-            toolName = requestedToolRaw
+        let invocation: MCPInvocation
+        do {
+            invocation = try buildMCPInvocation(call: call)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        } catch {
+            return failure(error.localizedDescription, errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
         }
-
-        guard !toolName.isEmpty else {
-            return failure(
-                "Missing MCP tool name",
-                errorCode: ToolRuntimeError.validation("Missing MCP tool name").errorCode,
-                startDate: startDate
-            )
-        }
-
-        var args = call.args
-        let embeddedArgs = parseEmbeddedArgs(call.args["args"])
-        for (k, v) in embeddedArgs { args[k] = v }
-        args.removeValue(forKey: "name")
-        args.removeValue(forKey: "id")
-        args.removeValue(forKey: "tool")
-        args.removeValue(forKey: "mcp_tool")
-        args.removeValue(forKey: "server")
-        args.removeValue(forKey: "server_id")
-        args.removeValue(forKey: "args")
 
         do {
             let result = try await mcpSessions.callTool(
-                serverId: serverId,
-                toolName: toolName,
-                arguments: args,
+                serverId: invocation.serverId,
+                toolName: invocation.toolName,
+                arguments: invocation.arguments,
                 timeoutMs: context.policy.mcpPerCallTimeoutMs,
                 idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
             )
 
             var payload: [String: String] = [
-                "title": "MCP \(result.serverName)/\(toolName)",
+                "title": "MCP \(result.serverName)/\(invocation.toolName)",
                 "tool": "mcp",
                 "mcp_server": result.serverName,
                 "server_id": result.serverId,
-                "mcp_tool": toolName,
+                "mcp_tool": invocation.toolName,
                 "output": truncate(result.content, maxBytes: context.policy.maxBashOutputBytes),
-                "mcp_latency_ms": "\(max(1, Int(Date().timeIntervalSince(startDate) * 1000)))"
+                "mcp_latency_ms": "\(max(1, Int(Date().timeIntervalSince(startDate) * 1000)))",
+                "is_mcp": "true"
             ]
             if result.isError {
                 payload["detail"] = "MCP server responded with isError=true"
@@ -525,13 +616,15 @@ public actor UnifiedToolRuntime {
             )
         } catch let err as ToolRuntimeError {
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: [
-                "mcp_tool": toolName,
-                "server_id": serverId ?? ""
+                "mcp_tool": invocation.toolName,
+                "server_id": invocation.serverId ?? "",
+                "is_mcp": "true"
             ])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: [
-                "mcp_tool": toolName,
-                "server_id": serverId ?? ""
+                "mcp_tool": invocation.toolName,
+                "server_id": invocation.serverId ?? "",
+                "is_mcp": "true"
             ])
         }
     }
@@ -541,12 +634,14 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
 
         do {
-            let serverId = call.args["server"] ?? call.args["server_id"]
+            let server = resolveMCPServerArg(from: call.args)
+            let serverId = server.isEmpty ? nil : server
             let tools = try await mcpSessions.listTools(
                 serverId: serverId,
                 idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
@@ -557,12 +652,13 @@ public actor UnifiedToolRuntime {
                 "tool": "mcp_list_tools",
                 "server_id": serverId ?? "",
                 "output": truncate(lines.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
-                "detail": "\(tools.count) tools discovered"
+                "detail": "\(tools.count) tools discovered",
+                "is_mcp": "true"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
-            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
-            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate)
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
     }
 
@@ -571,7 +667,8 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
         let toolName = (call.args["tool"] ?? call.args["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -579,18 +676,21 @@ public actor UnifiedToolRuntime {
             return failure(
                 "Missing tool name",
                 errorCode: ToolRuntimeError.validation("tool missing").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
 
         do {
-            let serverId = call.args["server"] ?? call.args["server_id"]
+            let serverArg = resolveMCPServerArg(from: call.args)
+            let serverId = serverArg.isEmpty ? nil : serverArg
             let desc = try await mcpSessions.describeTool(serverId: serverId, toolName: toolName)
             guard let desc else {
                 return failure(
                     "MCP tool not found",
                     errorCode: ToolRuntimeError.mcpUnavailable("MCP tool not found").errorCode,
-                    startDate: startDate
+                    startDate: startDate,
+                    payload: ["is_mcp": "true"]
                 )
             }
             return success([
@@ -599,12 +699,13 @@ public actor UnifiedToolRuntime {
                 "server_id": desc.serverId,
                 "mcp_tool": desc.name,
                 "detail": desc.description,
-                "output": truncate(desc.schema, maxBytes: context.policy.maxBashOutputBytes)
+                "output": truncate(desc.schema, maxBytes: context.policy.maxBashOutputBytes),
+                "is_mcp": "true"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
-            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
-            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate)
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
     }
 
@@ -613,18 +714,20 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
-        let server = call.args["server"] ?? call.args["server_id"]
+        let server = resolveMCPServerArg(from: call.args)
         let states = await mcpSessions.health(serverId: server)
         let lines = states.keys.sorted().map { "\($0): \(states[$0] ?? "unknown")" }
         return success([
             "title": "MCP health",
             "tool": "mcp_health",
-            "server_id": server ?? "",
+            "server_id": server,
             "output": lines.joined(separator: "\n"),
-            "detail": "\(states.count) servers"
+            "detail": "\(states.count) servers",
+            "is_mcp": "true"
         ], startDate: startDate)
     }
 
@@ -633,7 +736,8 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
         let servers = await mcpSessions.listServers()
@@ -642,7 +746,8 @@ public actor UnifiedToolRuntime {
             "title": "MCP servers",
             "tool": "mcp_list_servers",
             "output": lines.joined(separator: "\n"),
-            "detail": "\(servers.count) servers"
+            "detail": "\(servers.count) servers",
+            "is_mcp": "true"
         ], startDate: startDate)
     }
 
@@ -651,12 +756,13 @@ public actor UnifiedToolRuntime {
             return failure(
                 "MCP disabled by policy",
                 errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
-                startDate: startDate
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
             )
         }
-        let serverId = (call.args["server"] ?? call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverId = resolveMCPServerArg(from: call.args)
         guard !serverId.isEmpty else {
-            return failure("Missing required server", errorCode: "validation", startDate: startDate)
+            return failure("Missing required server", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
         }
         do {
             try await mcpSessions.reconnect(serverId: serverId)
@@ -664,12 +770,13 @@ public actor UnifiedToolRuntime {
                 "title": "MCP reconnect",
                 "tool": "mcp_reconnect",
                 "server_id": serverId,
-                "detail": "Connection re-established"
+                "detail": "Connection re-established",
+                "is_mcp": "true"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
-            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
-            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate)
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
     }
 
@@ -680,32 +787,30 @@ public actor UnifiedToolRuntime {
         startDate: Date
     ) async -> ToolResult {
         do {
-            var args = call.args
-            let embedded = parseEmbeddedArgs(call.args["args"])
-            for (k, v) in embedded { args[k] = v }
-            args.removeValue(forKey: "args")
+            let invocation = try buildMCPInvocation(call: call, fallbackToolName: toolName)
             let result = try await mcpSessions.callTool(
-                serverId: call.args["server"] ?? call.args["server_id"],
-                toolName: toolName,
-                arguments: args,
+                serverId: invocation.serverId,
+                toolName: invocation.toolName,
+                arguments: invocation.arguments,
                 timeoutMs: context.policy.mcpPerCallTimeoutMs,
                 idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
             )
             return success([
-                "title": "MCP fallback \(result.serverName)/\(toolName)",
-                "tool": toolName,
+                "title": "MCP fallback \(result.serverName)/\(invocation.toolName)",
+                "tool": invocation.toolName,
                 "server_id": result.serverId,
                 "mcp_server": result.serverName,
-                "mcp_tool": toolName,
-                "output": truncate(result.content, maxBytes: context.policy.maxBashOutputBytes)
+                "mcp_tool": invocation.toolName,
+                "output": truncate(result.content, maxBytes: context.policy.maxBashOutputBytes),
+                "is_mcp": "true"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
             if err.errorCode == "mcp_unavailable" {
-                return failure("Unsupported tool: \(toolName)", errorCode: "validation", startDate: startDate)
+                return failure("Unsupported tool: \(toolName)", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
             }
-            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate)
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
-            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate)
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
     }
 
@@ -1349,10 +1454,12 @@ public actor UnifiedToolRuntime {
                 throw ToolRuntimeError.validation("command is required")
             }
         case "mcp_reconnect":
-            let server = (call.args["server"] ?? call.args["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let server = resolveMCPServerArg(from: call.args)
             if server.isEmpty {
                 throw ToolRuntimeError.validation("server is required")
             }
+        case "mcp", "mcp_call":
+            _ = try buildMCPInvocation(call: call)
         default:
             break
         }
@@ -1429,6 +1536,10 @@ public actor UnifiedToolRuntime {
             "tool": normalizedName,
             "status": "started"
         ]
+        let mcpLikeInvocation = canFallbackToMCP(toolName: normalizedName, call: call)
+        if mcpLikeInvocation {
+            payload["is_mcp"] = "true"
+        }
         if let command = call.args["command"], !command.isEmpty {
             payload["command"] = command
             payload["title"] = "Bash"
@@ -1440,10 +1551,16 @@ public actor UnifiedToolRuntime {
         if let query = call.args["query"], !query.isEmpty {
             payload["query"] = query
         }
+        let requestedMCPTool = (call.args["tool"] ?? call.args["mcp_tool"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !requestedMCPTool.isEmpty {
+            payload["mcp_tool"] = requestedMCPTool
+        }
         if let url = call.args["url"], !url.isEmpty {
             payload["url"] = url
         }
-        if let server = call.args["server"] ?? call.args["server_id"], !server.isEmpty {
+        let server = resolveMCPServerArg(from: call.args)
+        if !server.isEmpty {
             payload["server_id"] = server
             payload["mcp_server"] = server
         }
@@ -1454,7 +1571,29 @@ public actor UnifiedToolRuntime {
         return payload
     }
 
-    private func eventTypeForTool(name: String, ok: Bool) -> String {
+    private func startEventTypeForTool(name: String, payload: [String: String]) -> String {
+        if payload["is_mcp"] == "true" {
+            return "mcp_tool_call"
+        }
+        switch name {
+        case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
+             "rename_symbol", "find_and_replace_all", "undo_edit":
+            return "file_change"
+        case "bash":
+            return "command_execution"
+        case "web_search":
+            return "web_search_started"
+        case "web_fetch":
+            return "web_fetch_started"
+        default:
+            return "read_batch_started"
+        }
+    }
+
+    private func eventTypeForTool(name: String, ok: Bool, payload: [String: String]) -> String {
+        if payload["is_mcp"] == "true" {
+            return ok ? "mcp_tool_call" : "tool_execution_error"
+        }
         switch name {
         case "read", "glob", "grep", "read_range", "list_dir", "git_diff", "search_symbols",
              "run_tests", "build_project", "list_processes", "read_json", "write_json",
@@ -1478,7 +1617,7 @@ public actor UnifiedToolRuntime {
         case "web_fetch":
             return ok ? "web_fetch_completed" : "web_fetch_failed"
         default:
-            return ok ? "mcp_tool_call" : "tool_execution_error"
+            return ok ? "command_execution" : "tool_execution_error"
         }
     }
 

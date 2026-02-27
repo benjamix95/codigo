@@ -19,6 +19,13 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         return nil
     }
 
+    private func rawTypes(_ events: [StreamEvent]) -> [String] {
+        events.compactMap { event in
+            if case .raw(let type, _) = event { return type }
+            return nil
+        }
+    }
+
     private func makeCall(
         name: String,
         args: [String: String] = [:],
@@ -48,6 +55,7 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "failed")
         let message = completed?["detail"] ?? completed?["output"] ?? ""
         XCTAssertTrue(message.contains("pattern (or query) is required"))
+        XCTAssertFalse(rawTypes(events).contains("mcp_tool_call"))
     }
 
     func testFindFilesSupportsPathScopeAlias() async throws {
@@ -120,5 +128,38 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "completed")
         XCTAssertTrue(output.contains("ScopeA/ScopedSymbol.swift"), "Output codebase_search inatteso: \(output)")
         XCTAssertFalse(output.contains("ScopeB/ScopedSymbol.swift"), "Output codebase_search inatteso: \(output)")
+    }
+
+    func testMCPInvocationRejectsConflictingServerAliases() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "mcp_call",
+            args: [
+                "tool": "server-a/tool-x",
+                "server_id": "server-b"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+    }
+
+    func testAmbiguousQualifiedToolNameDoesNotFallbackToMCP() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(name: "server/tool/extra", workspace: tmp)
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertNil(completed?["is_mcp"])
     }
 }

@@ -233,7 +233,10 @@ enum CLIProfileProvisioner {
                 }
                 end += 1
             }
-            output.replaceSubrange(start..<end, with: replacement)
+            var section = Array(output[start..<end])
+            section = upsertTomlAssignment(in: section, key: "command", value: "\"\(binaryPath)\"")
+            section = upsertTomlAssignment(in: section, key: "args", value: "[ \"--workspace\", \".\" ]")
+            output.replaceSubrange(start..<end, with: section)
             return output
         }
 
@@ -245,6 +248,25 @@ enum CLIProfileProvisioner {
         }
         output.append(contentsOf: replacement)
         return output
+    }
+
+    private static func upsertTomlAssignment(in sectionLines: [String], key: String, value: String) -> [String] {
+        var updated = sectionLines
+        if let lineIndex = updated.firstIndex(where: { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.hasPrefix("\(key)=")
+                || (trimmed.hasPrefix("\(key) ") && trimmed.contains("="))
+        }) {
+            let existingLine = updated[lineIndex]
+            let leadingWhitespace = String(existingLine.prefix { $0 == " " || $0 == "\t" })
+            updated[lineIndex] = "\(leadingWhitespace)\(key) = \(value)"
+            return updated
+        }
+
+        // Insert near end of section, preserving comment and unknown keys.
+        let insertIndex = max(1, updated.count)
+        updated.insert("\(key) = \(value)", at: insertIndex)
+        return updated
     }
 
     private static func coderideMCPSectionLines(binaryPath: String) -> [String] {

@@ -39,9 +39,9 @@ struct MCPSettingsSection: View {
                         name: server.name,
                         command: server.command,
                         source: server.source,
-                        isEnabled: !disabledIds.contains(server.id),
+                        isEnabled: isDetectedEnabled(server),
                         isDetected: true,
-                        onToggle: { toggleDetected(server.id) },
+                        onToggle: { toggleDetected(server) },
                         onEdit: nil
                     )
                 }
@@ -103,13 +103,27 @@ struct MCPSettingsSection: View {
         manualServers = MCPConfigLoader.loadManualServers()
     }
 
-    private func toggleDetected(_ id: String) {
+    private func toggleDetected(_ server: MCPConfigLoader.DetectedServer) {
         var ids = disabledIds
-        if ids.contains(id) { ids.remove(id) } else { ids.insert(id) }
+        let identifiers = [server.id, server.legacyID].compactMap { $0 }
+        let isCurrentlyDisabled = identifiers.contains { ids.contains($0) }
+        if isCurrentlyDisabled {
+            for identifier in identifiers {
+                ids.remove(identifier)
+            }
+        } else {
+            ids.insert(server.id)
+        }
         if let data = try? JSONEncoder().encode(Array(ids)),
            let str = String(data: data, encoding: .utf8) {
             disabledIdsJson = str
         }
+    }
+
+    private func isDetectedEnabled(_ server: MCPConfigLoader.DetectedServer) -> Bool {
+        if disabledIds.contains(server.id) { return false }
+        if let legacyID = server.legacyID, disabledIds.contains(legacyID) { return false }
+        return true
     }
 
     private func saveNew(_ server: MCPServerConfig) {

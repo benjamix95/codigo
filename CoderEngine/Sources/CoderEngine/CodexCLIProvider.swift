@@ -768,13 +768,15 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         item: [String: Any]
     ) -> [(type: String, payload: [String: String])] {
         let rawTool = (
-            payload["tool"] ?? payload["mcp_tool"] ?? payload["tool_raw"] ?? ""
+            payload["mcp_tool"] ?? payload["tool"] ?? payload["tool_raw"] ?? ""
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedTool = rawTool.lowercased()
             .replacingOccurrences(of: "coderide_", with: "")
             .replacingOccurrences(of: "-", with: "_")
 
-        let arguments = (item["arguments"] as? [String: Any]) ?? [:]
+        let arguments = decodedJSONObject(from: item["arguments"])
+            ?? decodedJSONObject(from: item["input"])
+            ?? [:]
 
         switch normalizedTool {
         case "todo_write":
@@ -888,6 +890,35 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return []
         }
     }
+
+    private static func decodedJSONObject(from value: Any?) -> [String: Any]? {
+        if let dict = value as? [String: Any] {
+            return dict
+        }
+        guard let raw = value as? String else {
+            return nil
+        }
+        return decodeJSONObjectString(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func decodeJSONObjectString(_ raw: String) -> [String: Any]? {
+        let candidates: [String] = [
+            raw,
+            raw.replacingOccurrences(of: "\\\"", with: "\""),
+        ]
+
+        for candidate in candidates {
+            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else { continue }
+            guard let data = trimmed.data(using: .utf8),
+                  let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            return decoded
+        }
+        return nil
+    }
+
 
     /// Parses Codex JSONL for structured events (file_change, command_execution, mcp_tool_call, web_search)
     static func parseRawEvent(from json: [String: Any]) -> (type: String, payload: [String: String])? {
@@ -1034,6 +1065,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         if let duration = item["duration_ms"] as? Int { payload["duration_ms"] = "\(duration)" }
         if let edits = item["edit_count"] as? Int { payload["editCount"] = "\(edits)" }
         if type == "mcp_tool_call" {
+            payload["is_mcp"] = "true"
             payload["title"] = mcpEventTitle(from: item)
             let detail = mcpEventDetail(from: item)
             if !detail.isEmpty {

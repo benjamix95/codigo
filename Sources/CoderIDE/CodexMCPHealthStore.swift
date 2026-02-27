@@ -1,4 +1,5 @@
 import Foundation
+import CoderEngine
 
 enum CodexMCPHealthState: Equatable {
     case idle
@@ -18,7 +19,7 @@ final class CodexMCPHealthStore: ObservableObject {
     func refresh() {
         state = .checking
         Task.detached(priority: .utility) {
-            let report = Self.collectReport()
+            let report = await Self.collectReport()
             await MainActor.run {
                 self.state = report.state
                 self.lastCheckedAt = Date()
@@ -33,7 +34,7 @@ final class CodexMCPHealthStore: ObservableObject {
             for profile in profiles {
                 CLIProfileProvisioner.selfHealCodexProfile(at: profile)
             }
-            let report = Self.collectReport()
+            let report = await Self.collectReport()
             await MainActor.run {
                 self.state = report.state
                 self.lastCheckedAt = Date()
@@ -69,7 +70,7 @@ final class CodexMCPHealthStore: ObservableObject {
         return false
     }
 
-    nonisolated private static func collectReport() -> (state: CodexMCPHealthState, issues: [String]) {
+    nonisolated private static func collectReport() async -> (state: CodexMCPHealthState, issues: [String]) {
         let profiles = codexProfileDirectories()
         if profiles.isEmpty {
             return (.healthy(profileCount: 0), [])
@@ -82,9 +83,33 @@ final class CodexMCPHealthStore: ObservableObject {
             }
         }
         if issues.isEmpty {
-            return (.healthy(profileCount: profiles.count), [])
+            let capabilityFailures = await collectCapabilityFailures()
+            if capabilityFailures.isEmpty {
+                return (.healthy(profileCount: profiles.count), [])
+            }
+            return (
+                .degraded(profileCount: profiles.count, failingCount: capabilityFailures.count),
+                capabilityFailures
+            )
         }
         return (.degraded(profileCount: profiles.count, failingCount: issues.count), issues)
+    }
+
+    nonisolated private static func collectCapabilityFailures() async -> [String] {
+        let servers = MCPConfigLoader.loadDetectedServers()
+        guard !servers.isEmpty else { return [] }
+
+        let manager = MCPSessionManager()
+        var failures: [String] = []
+        for server in servers {
+            do {
+                _ = try await manager.listTools(serverId: server.id, idleTTLSeconds: 60)
+            } catch {
+                failures.append("\(server.name): capability check failed (\(error.localizedDescription))")
+            }
+        }
+        await manager.shutdownAll()
+        return failures
     }
 
     nonisolated private static func codexProfileDirectories() -> [URL] {

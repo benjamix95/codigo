@@ -2,6 +2,16 @@ import XCTest
 @testable import CoderEngine
 
 final class CodexCLIProviderInvocationTests: XCTestCase {
+    func testStreamInvocationUsesDirectCodexProcessWithoutPTYWrapper() {
+        let invocation = CodexCLIProvider.streamInvocation(
+            executable: "/usr/local/bin/codex",
+            arguments: ["exec", "--json", "prompt"]
+        )
+
+        XCTAssertEqual(invocation.executable, "/usr/local/bin/codex")
+        XCTAssertEqual(invocation.arguments, ["exec", "--json", "prompt"])
+    }
+
     func testBuildExecArgumentsDoesNotInjectResponsesWireAPIByDefault() {
         let args = CodexCLIProvider.buildExecArguments(
             fullPrompt: "prompt",

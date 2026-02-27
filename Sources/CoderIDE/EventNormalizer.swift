@@ -537,7 +537,7 @@ enum EventNormalizer {
         let phase = phaseForType(normalizedType, payload: payload)
         let running = runningStateForType(normalizedType, payload: payload)
         let resolvedTitleDetail: (title: String, detail: String?) = {
-            if normalizedType == "mcp_tool_call" {
+            if normalizedType == "mcp_tool_call", isTrustedMCPPayload(payload) {
                 return mcpTitleAndDetail(payload: payload)
             }
             return (payload["title"] ?? defaultTitle(for: normalizedType), payload["detail"])
@@ -559,6 +559,9 @@ enum EventNormalizer {
         let normalized = type
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
+        if normalized == "mcp_tool_call", !isTrustedMCPPayload(payload) {
+            return "command_execution"
+        }
         let normalizedCanonicalType = normalizedToolIdentifier(normalized)
         if [
             "semantic_search", "read_lints", "debug_context",
@@ -772,6 +775,9 @@ enum EventNormalizer {
     }
 
     private static func mcpTitleAndDetail(payload: [String: String]) -> (title: String, detail: String?) {
+        guard isTrustedMCPPayload(payload) else {
+            return (payload["title"] ?? "MCP operation", payload["detail"])
+        }
         let rawTool = (payload["tool"] ?? payload["name"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let tool = rawTool.lowercased()
@@ -798,9 +804,7 @@ enum EventNormalizer {
             let target = server.isEmpty ? "server" : server
             return ("MCP reconnect • \(target)", detail ?? "Reconnecting MCP server")
         default:
-            let isMCPLikeTool = tool.hasPrefix("mcp")
-                || !mcpTool.isEmpty
-                || !server.isEmpty
+            let isMCPLikeTool = !mcpTool.isEmpty || !server.isEmpty || isTrustedMCPPayload(payload)
             if isMCPLikeTool {
                 var target = !mcpTool.isEmpty ? mcpTool : rawTool
                 if target.isEmpty { target = "tool" }
@@ -829,6 +833,25 @@ enum EventNormalizer {
         "multi_edit",
         "multiedit",
     ]
+
+    private static func isTrustedMCPPayload(_ payload: [String: String]) -> Bool {
+        let marker = (payload["is_mcp"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if marker == "true" || marker == "1" || marker == "yes" {
+            return true
+        }
+        if !(payload["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        if !(payload["mcp_server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        if !(payload["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return false
+    }
 
     private static func withSwarmPrefix(_ title: String, payload: [String: String]) -> String {
         guard let swarmId = payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !swarmId.isEmpty else {

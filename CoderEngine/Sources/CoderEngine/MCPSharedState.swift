@@ -28,7 +28,8 @@ public enum MCPSharedState {
     /// Write the full todo list (authoritative). Called by the main IDE app.
     public static func writeTodos(_ items: [[String: Any]]) {
         ensureDirectory()
-        guard let data = try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys]) else {
+        let canonical = canonicalizedTodos(items, defaultSource: "ide")
+        guard let data = try? JSONSerialization.data(withJSONObject: canonical, options: [.prettyPrinted, .sortedKeys]) else {
             print("[MCPSharedState] ⚠️ Failed to serialize todos to JSON")
             return
         }
@@ -50,7 +51,7 @@ public enum MCPSharedState {
         case "running", "active", "doing", "started": return "in_progress"
         case "todo", "open", "queued", "waiting": return "pending"
         case "failed", "error", "stuck": return "blocked"
-        default: return normalized
+        default: return "pending"
         }
     }
 
@@ -60,13 +61,21 @@ public enum MCPSharedState {
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return []
         }
-        return array
+        return canonicalizedTodos(array, defaultSource: "agent")
     }
 
     /// Append / upsert a single todo item from the MCP server side.
     /// The MCP server writes here; the IDE will overwrite with authoritative
     /// state on its next save cycle.
-    public static func upsertTodoFromMCP(title: String, status: String?, priority: String?, notes: String?, activeForm: String? = nil, linkedFiles: [String]? = nil) {
+    public static func upsertTodoFromMCP(
+        title: String,
+        status: String?,
+        priority: String?,
+        notes: String?,
+        activeForm: String? = nil,
+        linkedFiles: [String]? = nil,
+        sourceServer: String? = nil
+    ) {
         var todos = readTodos()
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return }
@@ -74,6 +83,7 @@ public enum MCPSharedState {
         if let idx = todos.firstIndex(where: {
             ($0["title"] as? String)?.caseInsensitiveCompare(normalizedTitle) == .orderedSame
         }) {
+            print("[MCPSharedState] ⚠️ Legacy todo upsert matched by title (no id provided): '\(normalizedTitle)'")
             if let status { todos[idx]["status"] = normalizeStatus(status) }
             if let priority { todos[idx]["priority"] = priority }
             if let notes, !notes.isEmpty { todos[idx]["notes"] = notes }
@@ -81,12 +91,13 @@ public enum MCPSharedState {
             if let linkedFiles, !linkedFiles.isEmpty { todos[idx]["linkedFiles"] = linkedFiles }
             todos[idx]["updatedAt"] = ISO8601DateFormatter().string(from: .now)
         } else {
+            let source = sourceServer?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let item: [String: Any] = [
                 "id": UUID().uuidString,
                 "title": normalizedTitle,
                 "status": normalizeStatus(status),
                 "priority": priority ?? "medium",
-                "source": "agent",
+                "source": source.isEmpty ? "agent" : source,
                 "createdAt": ISO8601DateFormatter().string(from: .now),
                 "updatedAt": ISO8601DateFormatter().string(from: .now),
                 "notes": notes ?? "",
@@ -103,48 +114,136 @@ public enum MCPSharedState {
     public static func batchWriteTodosFromMCP(_ todosArray: [[String: Any]]) {
         var existing = readTodos()
         for todoItem in todosArray {
-            let content = (todoItem["content"] as? String ?? todoItem["title"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !content.isEmpty else { continue }
-            let status = normalizeStatus(todoItem["status"] as? String)
+            guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
+            let id = (canonicalItem["id"] as? String) ?? UUID().uuidString
+            canonicalItem["id"] = id
 
-            if let idx = existing.firstIndex(where: {
-                ($0["title"] as? String)?.caseInsensitiveCompare(content) == .orderedSame
+            if let idIndex = existing.firstIndex(where: {
+                (($0["id"] as? String) ?? "").caseInsensitiveCompare(id) == .orderedSame
             }) {
-                existing[idx]["status"] = status
-                if let activeForm = todoItem["activeForm"] as? String, !activeForm.isEmpty {
-                    existing[idx]["activeForm"] = activeForm
-                }
-                if let notes = todoItem["notes"] as? String, !notes.isEmpty {
-                    existing[idx]["notes"] = notes
-                }
-                if let files = todoItem["linkedFiles"] as? [String], !files.isEmpty {
-                    existing[idx]["linkedFiles"] = files
-                }
-                if let priority = todoItem["priority"] as? String, !priority.isEmpty {
-                    existing[idx]["priority"] = priority
-                }
-                existing[idx]["updatedAt"] = ISO8601DateFormatter().string(from: .now)
-            } else {
-                existing.append([
-                    "id": UUID().uuidString,
-                    "title": content,
-                    "status": status,
-                    "priority": (todoItem["priority"] as? String) ?? "medium",
-                    "source": "agent",
-                    "createdAt": ISO8601DateFormatter().string(from: .now),
-                    "updatedAt": ISO8601DateFormatter().string(from: .now),
-                    "notes": (todoItem["notes"] as? String) ?? "",
-                    "activeForm": (todoItem["activeForm"] as? String) ?? "",
-                    "linkedFiles": (todoItem["linkedFiles"] as? [String]) ?? [],
-                    "isPlanCanonical": false,
-                ])
+                mergeTodoFields(from: canonicalItem, into: &existing[idIndex])
+                continue
             }
+
+            let content = (canonicalItem["title"] as? String ?? "")
+            if let titleIndex = existing.firstIndex(where: {
+                (($0["title"] as? String) ?? "").caseInsensitiveCompare(content) == .orderedSame
+            }) {
+                print("[MCPSharedState] ⚠️ Legacy batch merge matched by title (id missing/new): '\(content)'")
+                mergeTodoFields(from: canonicalItem, into: &existing[titleIndex])
+                continue
+            }
+
+            existing.append(canonicalItem)
         }
-        writeTodos(existing)
+        writeTodos(canonicalizedTodos(existing, defaultSource: "agent"))
     }
 
     // MARK: - Helpers
+
+    private static func canonicalizedTodos(_ items: [[String: Any]], defaultSource: String) -> [[String: Any]] {
+        var byID: [String: [String: Any]] = [:]
+        var idOrder: [String] = []
+        var titleIndex: [String: String] = [:]
+
+        for raw in items {
+            guard var item = canonicalTodo(raw, defaultSource: defaultSource) else { continue }
+            let id = (item["id"] as? String) ?? UUID().uuidString
+            item["id"] = id
+            let title = ((item["title"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+
+            let existingID: String? = byID[id] != nil ? id : titleIndex[title]
+            if let existingID, let existing = byID[existingID] {
+                var merged = existing
+                mergeTodoFields(from: item, into: &merged)
+                byID[existingID] = merged
+                if existingID != id {
+                    print("[MCPSharedState] ⚠️ Legacy dedupe matched by title '\(title)' (missing/shared id).")
+                }
+                continue
+            }
+
+            byID[id] = item
+            idOrder.append(id)
+            titleIndex[title] = id
+        }
+
+        return idOrder.compactMap { byID[$0] }
+    }
+
+    private static func canonicalTodo(_ raw: [String: Any], defaultSource: String) -> [String: Any]? {
+        let title = (raw["title"] as? String ?? raw["content"] as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+
+        let now = ISO8601DateFormatter().string(from: .now)
+        let id = (raw["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveID: String = {
+            if let id, !id.isEmpty { return id }
+            return UUID().uuidString
+        }()
+        let createdAt = normalizeTimestamp(raw["createdAt"] as? String) ?? now
+        let updatedAt = normalizeTimestamp(raw["updatedAt"] as? String) ?? now
+        let sourceRaw = (raw["source"] as? String ?? defaultSource).trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = sourceRaw.isEmpty ? defaultSource : sourceRaw
+        let linkedFilesRaw = (raw["linkedFiles"] as? [String]) ?? (raw["files"] as? [String]) ?? []
+        let linkedFiles = Array(Set(linkedFilesRaw.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty })).sorted()
+
+        return [
+            "id": effectiveID,
+            "title": title,
+            "status": normalizeStatus(raw["status"] as? String),
+            "priority": normalizePriority(raw["priority"] as? String),
+            "source": source,
+            "createdAt": createdAt,
+            "updatedAt": updatedAt,
+            "notes": (raw["notes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            "activeForm": (raw["activeForm"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            "linkedFiles": linkedFiles,
+            "isPlanCanonical": (raw["isPlanCanonical"] as? Bool) ?? false,
+        ]
+    }
+
+    private static func mergeTodoFields(from incoming: [String: Any], into target: inout [String: Any]) {
+        if let status = incoming["status"] as? String { target["status"] = normalizeStatus(status) }
+        if let priority = incoming["priority"] as? String { target["priority"] = normalizePriority(priority) }
+        if let notes = incoming["notes"] as? String { target["notes"] = notes }
+        if let activeForm = incoming["activeForm"] as? String { target["activeForm"] = activeForm }
+        if let files = incoming["linkedFiles"] as? [String] { target["linkedFiles"] = files }
+        if let source = incoming["source"] as? String, !source.isEmpty { target["source"] = source }
+        if let createdAt = incoming["createdAt"] as? String, !createdAt.isEmpty {
+            target["createdAt"] = normalizeTimestamp(createdAt) ?? createdAt
+        } else if target["createdAt"] == nil {
+            target["createdAt"] = ISO8601DateFormatter().string(from: .now)
+        }
+        target["updatedAt"] = normalizeTimestamp(incoming["updatedAt"] as? String)
+            ?? ISO8601DateFormatter().string(from: .now)
+    }
+
+    private static func normalizePriority(_ raw: String?) -> String {
+        guard let raw else { return "medium" }
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "low", "medium", "high":
+            return raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        default:
+            return "medium"
+        }
+    }
+
+    private static func normalizeTimestamp(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        if let parsed = formatter.date(from: trimmed) {
+            return formatter.string(from: parsed)
+        }
+        return nil
+    }
 
     private static func ensureDirectory() {
         let dir = sharedDirectory

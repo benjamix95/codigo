@@ -155,12 +155,10 @@ enum ToolTraceVisibility {
     }
 
     private static func isRealMCPEvent(payload: [String: String]) -> Bool {
-        let rawTool = normalizedType(payload["tool"] ?? payload["name"] ?? "")
-        let tool = normalizedToolIdentifier(rawTool)
-        if rawTool.hasPrefix("mcp") || rawTool.contains(".mcp_") || rawTool.contains("/mcp_") {
+        let marker = normalizedType(payload["is_mcp"] ?? "")
+        if marker == "true" || marker == "1" || marker == "yes" {
             return true
         }
-        if tool.hasPrefix("mcp") { return true }
         if !(payload["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
@@ -171,19 +169,6 @@ enum ToolTraceVisibility {
             return true
         }
         return false
-    }
-
-    private static func normalizedToolIdentifier(_ value: String) -> String {
-        let normalized = normalizedType(value)
-        guard !normalized.isEmpty else { return "" }
-        let parts = normalized
-            .split(whereSeparator: { ch in
-                ch == "." || ch == ":" || ch == "/" || ch == "\\"
-            })
-            .map(String.init)
-            .filter { !$0.isEmpty }
-        guard let last = parts.last else { return normalized }
-        return last
     }
 
     private static func isSwarmPayload(_ payload: [String: String]) -> Bool {

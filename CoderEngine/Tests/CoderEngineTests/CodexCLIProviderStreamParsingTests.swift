@@ -330,6 +330,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(parsed.type, "mcp_tool_call")
         XCTAssertEqual(parsed.payload["status"], "started")
         XCTAssertEqual(parsed.payload["tool_call_id"], "mcp-1")
+        XCTAssertEqual(parsed.payload["is_mcp"], "true")
         XCTAssertTrue((parsed.payload["title"] ?? "").contains("MCP discovery"))
     }
 
@@ -351,6 +352,7 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(parsed.type, "mcp_tool_call")
         XCTAssertEqual(parsed.payload["tool"], "mcp_list_servers")
         XCTAssertEqual(parsed.payload["tool_raw"], "functions.mcp_list_servers")
+        XCTAssertEqual(parsed.payload["is_mcp"], "true")
     }
 
     func testFunctionCallNamespacedSemanticSearchMapsToSemanticSearch() {
@@ -387,6 +389,122 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         ]
 
         XCTAssertNil(CodexCLIProvider.parseRawEvent(from: json))
+    }
+
+    func testParseStreamJSONEventSynthesizesTodoWriteFromMCPToolCallJSONArguments() {
+        let mcpPayload = """
+        {"title":"Fix login","status":"in_progress","priority":"high","notes":"critical"}
+        """
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-todo",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_todo_write",
+                    "arguments": mcpPayload,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let rawTypes = rawEvents.map { $0.0 }
+        XCTAssertTrue(rawTypes.contains("mcp_tool_call"))
+        XCTAssertTrue(rawTypes.contains("todo_write"))
+
+        let todoPayload = rawEvents.first(where: { $0.0 == "todo_write" })?.1
+        XCTAssertEqual(todoPayload?["title"], "Fix login")
+        XCTAssertEqual(todoPayload?["status"], "in_progress")
+        XCTAssertEqual(todoPayload?["priority"], "high")
+        XCTAssertEqual(todoPayload?["notes"], "critical")
+    }
+
+    func testParseStreamJSONEventSynthesizesPlanAndSwarmSignalsFromMCPToolCallJSONArguments() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "mcp-ide-plan",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_step_update",
+                    "arguments": #"{\"step_id\":\"2\",\"status\":\"running\",\"title\":\"Implement parser\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-mode",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_activate_plan_mode",
+                    "input": #"{\"reason\":\"complex multi-step change\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-swarm",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_invoke_swarm",
+                    "arguments": #"{\"task\":\"Review codebase for regression\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-panel",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_show_task_panel",
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-swarm-panel",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_show_swarm_panel",
+                    "arguments": #"{\"swarm_id\":\"reviewer-1\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        let rawTypes = rawEvents.map { $0.0 }
+        XCTAssertEqual(rawTypes.filter { $0 == "mcp_tool_call" }.count, 5)
+        XCTAssertEqual(rawTypes.filter { $0 == "plan_step_update" }.count, 1)
+        XCTAssertTrue(rawTypes.contains("activate_plan_mode"))
+        XCTAssertTrue(rawTypes.contains("coderide_invoke_swarm"))
+        XCTAssertTrue(rawTypes.contains("coderide_show_task_panel"))
+        XCTAssertTrue(rawTypes.contains("coderide_show_swarm_panel"))
+
+        XCTAssertEqual(
+            rawEvents.first(where: { $0.0 == "plan_step_update" })?.1["status"],
+            "running"
+        )
+        XCTAssertEqual(
+            rawEvents.first(where: { $0.0 == "activate_plan_mode" })?.1["reason"],
+            "complex multi-step change"
+        )
+        XCTAssertEqual(
+            rawEvents.first(where: { $0.0 == "coderide_invoke_swarm" })?.1["task"],
+            "Review codebase for regression"
+        )
+        XCTAssertEqual(
+            rawEvents.first(where: { $0.0 == "coderide_show_swarm_panel" })?.1["swarm_id"],
+            "reviewer-1"
+        )
     }
 
     private func runParser(events input: [[String: Any]]) -> [StreamEvent] {

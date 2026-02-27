@@ -43,6 +43,7 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.type, "mcp_tool_call")
         XCTAssertEqual(mapped?.payload["mcp_server"], "xcodebuild")
         XCTAssertEqual(mapped?.payload["mcp_tool"], "run_tests")
+        XCTAssertEqual(mapped?.payload["is_mcp"], "true")
     }
 
     func testMCPStrReplaceSummaryInfersLineCounters() {
@@ -58,6 +59,7 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.type, "mcp_tool_call")
         XCTAssertEqual(mapped?.payload["linesAdded"], "55")
         XCTAssertEqual(mapped?.payload["linesRemoved"], "23")
+        XCTAssertEqual(mapped?.payload["is_mcp"], "true")
     }
 
     func testUnknownToolFallsBackToCommandExecution() {
@@ -68,6 +70,15 @@ final class ProviderToolEventMapperTests: XCTestCase {
 
         XCTAssertEqual(mapped?.type, "command_execution")
         XCTAssertEqual(mapped?.payload["tool"], "custom_tool")
+    }
+
+    func testMCPLikeNameWithoutMarkerDoesNotMapAsMCP() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "check_mcp_status",
+            payload: ["detail": "local preflight"]
+        )
+        XCTAssertEqual(mapped?.type, "command_execution")
+        XCTAssertEqual(mapped?.payload["is_mcp"], nil)
     }
 
     func testNamespacedExecCommandMapsToCommandExecution() {
@@ -104,6 +115,7 @@ final class ProviderToolEventMapperTests: XCTestCase {
 
         XCTAssertEqual(mapped?.type, "mcp_tool_call")
         XCTAssertEqual(mapped?.payload["tool"], "mcp_list_servers")
+        XCTAssertEqual(mapped?.payload["is_mcp"], "true")
         XCTAssertTrue((mapped?.payload["title"] ?? "").contains("MCP discovery"))
     }
 
@@ -298,6 +310,30 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.type, "debug_user_request")
         XCTAssertEqual(mapped?.payload["kind"], "question")
         XCTAssertEqual(mapped?.payload["prompt"], "Can you reproduce this?")
+    }
+
+    func testMCPCallCoderideActivatePlanModeMapsToActivatePlanMode() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "functions.mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_activate_plan_mode",
+                "arguments": #"{\"reason\":\"User requested explicit planning mode\"}"#
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "activate_plan_mode")
+        XCTAssertEqual(mapped?.payload["reason"], "User requested explicit planning mode")
+    }
+
+    func testNamespacedActivatePlanModeMapsToActivatePlanMode() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_activate_plan_mode",
+            payload: ["reason": "Manual activation"]
+        )
+
+        XCTAssertEqual(mapped?.type, "activate_plan_mode")
+        XCTAssertEqual(mapped?.payload["reason"], "Manual activation")
     }
 
     func testLegacyDebugPanelMapsToValidationError() {

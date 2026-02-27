@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import os
 
 public struct MCPToolDescriptor: Sendable {
     public let name: String
@@ -18,10 +19,41 @@ public struct MCPServerSession {
     public var cachedTools: [MCPToolDescriptor]
 }
 
-public actor MCPSessionManager {
-    private var sessions: [String: MCPServerSession] = [:]
+public enum MCPErrorCategory: String, Sendable {
+    case transport
+    case protocolViolation = "protocol"
+    case timeout
+    case tool
+    case user
+    case unknown
+}
 
-    public init() {}
+public struct MCPRetryPolicy: Sendable {
+    public let maxAttempts: Int
+    public let backoffDelaysMs: [Int]
+    public let jitterMs: Int
+
+    public static let `default` = MCPRetryPolicy(
+        maxAttempts: 2,
+        backoffDelaysMs: [150, 350],
+        jitterMs: 25
+    )
+
+    public init(maxAttempts: Int, backoffDelaysMs: [Int], jitterMs: Int) {
+        self.maxAttempts = max(1, maxAttempts)
+        self.backoffDelaysMs = backoffDelaysMs.map { max(0, $0) }
+        self.jitterMs = max(0, jitterMs)
+    }
+}
+
+public actor MCPSessionManager {
+    private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
+    private var sessions: [String: MCPServerSession] = [:]
+    private let retryPolicy: MCPRetryPolicy
+
+    public init(retryPolicy: MCPRetryPolicy = .default) {
+        self.retryPolicy = retryPolicy
+    }
 
     public func listTools(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws
         -> [MCPToolDescriptor]
@@ -120,40 +152,49 @@ public actor MCPSessionManager {
             target = matches[0]
         }
 
-        var currentSession = try await session(for: target)
         let valueArgs = arguments.reduce(into: [String: Value]()) { partialResult, kv in
             partialResult[kv.key] = parseValue(kv.value)
         }
 
-        let result: (content: [Tool.Content], isError: Bool?)
-        do {
-            result = try await withThrowingTaskGroup(of: (content: [Tool.Content], isError: Bool?).self) { group in
-                group.addTask {
-                    try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
+        var finalResult: (content: [Tool.Content], isError: Bool?)?
+        var attempt = 0
+        while true {
+            attempt += 1
+            var currentSession = try await session(for: target)
+            do {
+                let callResult = try await withThrowingTaskGroup(of: (content: [Tool.Content], isError: Bool?).self) { group in
+                    group.addTask {
+                        try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(max(1_000, timeoutMs)) * 1_000_000)
+                        throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
+                    }
+                    guard let first = try await group.next() else {
+                        throw ToolRuntimeError.transport("MCP call interrotta")
+                    }
+                    group.cancelAll()
+                    return first
                 }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(max(1_000, timeoutMs)) * 1_000_000)
-                    throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
+                currentSession.lastUsedAt = Date()
+                sessions[target.id] = currentSession
+                finalResult = callResult
+                break
+            } catch {
+                let category = classifyMCPError(error)
+                let canRetry = shouldRetry(error: error, category: category, attempt: attempt)
+                let logMessage = "MCP call failed server=\(target.id) tool=\(toolName) attempt=\(attempt) category=\(category.rawValue) retry=\(canRetry) error=\(error.localizedDescription)"
+                Self.logger.error("\(logMessage, privacy: .public)")
+                guard canRetry else {
+                    throw normalizeMCPError(error, category: category, toolName: toolName, timeoutMs: timeoutMs)
                 }
-                guard let first = try await group.next() else {
-                    throw ToolRuntimeError.transport("MCP call interrotta")
-                }
-                group.cancelAll()
-                return first
-            }
-        } catch {
-            // Retry singolo su errori transienti di trasporto.
-            if isTransientMCPError(error) {
-                try await resetSession(target.id)
-                currentSession = try await session(for: target)
-                result = try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
-            } else {
-                throw error
+                try? await resetSession(target.id)
+                try await backoffBeforeRetry(forAttempt: attempt)
             }
         }
-
-        currentSession.lastUsedAt = Date()
-        sessions[target.id] = currentSession
+        guard let result = finalResult else {
+            throw ToolRuntimeError.transport("MCP call interrotta")
+        }
         let text = flattenContent(result.content)
         return (
             serverId: target.id,
@@ -174,12 +215,25 @@ public actor MCPSessionManager {
     }
 
     private func resolveServers() -> [MCPConfigLoader.DetectedServer] {
+        let disabledIds = MCPConfigLoader.loadDisabledServerIDs()
         var detected = MCPConfigLoader.loadDetectedServers()
+            .filter { server in
+                if disabledIds.contains(server.id) { return false }
+                if let legacyID = server.legacyID, disabledIds.contains(legacyID) { return false }
+                return true
+            }
         let manual = MCPConfigLoader.loadManualServers()
             .filter(\.enabled)
             .map {
                 MCPConfigLoader.DetectedServer(
                     id: "manual-\($0.id.uuidString.lowercased())",
+                    identity: MCPServerIdentity.make(
+                        source: "manual",
+                        name: $0.name,
+                        origin: "manual",
+                        sourcePath: MCPConfigLoader.localMCPConfigPath.path
+                    ),
+                    legacyID: nil,
                     name: $0.name,
                     command: $0.command,
                     args: $0.args,
@@ -206,7 +260,8 @@ public actor MCPSessionManager {
             command: cfg.command,
             arguments: cfg.args,
             workingDirectory: nil,
-            environment: cfg.env
+            environment: cfg.env,
+            serverLabel: cfg.id
         )
         let client = Client(
             name: "codigo-mcp-client",
@@ -235,7 +290,21 @@ public actor MCPSessionManager {
             sessions[cfg.id] = s
             return s.cachedTools
         }
-        let (tools, _) = try await s.client.listTools()
+        let tools: [Tool]
+        do {
+            let listed = try await s.client.listTools()
+            tools = listed.0
+        } catch {
+            let category = classifyMCPError(error)
+            if shouldRetry(error: error, category: category, attempt: 1) {
+                try? await resetSession(cfg.id)
+                s = try await session(for: cfg)
+                let listed = try await s.client.listTools()
+                tools = listed.0
+            } else {
+                throw normalizeMCPError(error, category: category, toolName: "list_tools", timeoutMs: 30_000)
+            }
+        }
         let descriptors = tools.map {
             MCPToolDescriptor(
                 name: $0.name,
@@ -316,12 +385,95 @@ public actor MCPSessionManager {
         }
     }
 
-    private func isTransientMCPError(_ error: Error) -> Bool {
+    private func classifyMCPError(_ error: Error) -> MCPErrorCategory {
+        if let runtimeError = error as? ToolRuntimeError {
+            switch runtimeError {
+            case .timeout:
+                return .timeout
+            case .validation:
+                return .user
+            case .mcpUnavailable:
+                return .tool
+            case .transport, .sandboxViolation, .budgetExceeded:
+                return .transport
+            }
+        }
+
         let msg = error.localizedDescription.lowercased()
-        return msg.contains("broken pipe")
+        if msg.contains("timeout") || msg.contains("timed out") {
+            return .timeout
+        }
+        if msg.contains("invalid params")
+            || msg.contains("validation")
+            || msg.contains("missing required")
+            || msg.contains("bad request")
+        {
+            return .user
+        }
+        if msg.contains("tool not found")
+            || msg.contains("method not found")
+            || msg.contains("unknown tool")
+            || msg.contains("unsupported tool")
+        {
+            return .tool
+        }
+        if msg.contains("parse error")
+            || msg.contains("invalid json")
+            || msg.contains("protocol")
+        {
+            return .protocolViolation
+        }
+        if msg.contains("broken pipe")
             || msg.contains("connection reset")
-            || msg.contains("transport")
             || msg.contains("not connected")
+            || msg.contains("transport")
+            || msg.contains("econnreset")
+        {
+            return .transport
+        }
+        return .unknown
+    }
+
+    private func shouldRetry(error: Error, category: MCPErrorCategory, attempt: Int) -> Bool {
+        guard attempt < retryPolicy.maxAttempts else { return false }
+        switch category {
+        case .transport, .timeout, .protocolViolation:
+            return true
+        case .tool, .user, .unknown:
+            return false
+        }
+    }
+
+    private func backoffBeforeRetry(forAttempt attempt: Int) async throws {
+        let index = max(0, attempt - 1)
+        let baseDelay = index < retryPolicy.backoffDelaysMs.count
+            ? retryPolicy.backoffDelaysMs[index]
+            : retryPolicy.backoffDelaysMs.last ?? 0
+        let jitter = retryPolicy.jitterMs > 0 ? Int.random(in: 0...retryPolicy.jitterMs) : 0
+        let totalDelay = max(0, baseDelay + jitter)
+        guard totalDelay > 0 else { return }
+        try await Task.sleep(nanoseconds: UInt64(totalDelay) * 1_000_000)
+    }
+
+    private func normalizeMCPError(
+        _ error: Error,
+        category: MCPErrorCategory,
+        toolName: String,
+        timeoutMs: Int
+    ) -> Error {
+        if let runtimeError = error as? ToolRuntimeError {
+            return runtimeError
+        }
+        switch category {
+        case .timeout:
+            return ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
+        case .user:
+            return ToolRuntimeError.validation(error.localizedDescription)
+        case .tool:
+            return ToolRuntimeError.mcpUnavailable(error.localizedDescription)
+        case .transport, .protocolViolation, .unknown:
+            return ToolRuntimeError.transport(error.localizedDescription)
+        }
     }
 
     private func healthForServer(_ cfg: MCPConfigLoader.DetectedServer) async -> String {

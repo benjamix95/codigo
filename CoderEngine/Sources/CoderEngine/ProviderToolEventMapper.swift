@@ -1,6 +1,98 @@
 import Foundation
 
 enum ProviderToolEventMapper {
+    private enum MappingRoute {
+        case command
+        case read
+        case fileChange
+        case semantic
+        case search
+        case mcp
+        case webSearch
+        case webFetch
+        case skill
+        case agent
+        case todo
+        case ideState
+    }
+
+    /// Explicit declarative mapping table `input_tool -> routing category`.
+    /// Heuristic fallback remains only for backward-compat payloads.
+    private static let declaredRoutes: [String: MappingRoute] = [
+        "bash": .command,
+        "command_execution": .command,
+        "read": .read,
+        "read_file": .read,
+        "fetch_file": .read,
+        "read_range": .read,
+        "file_read": .read,
+        "notebookread": .read,
+        "notebook_read": .read,
+        "edit": .fileChange,
+        "write": .fileChange,
+        "write_file": .fileChange,
+        "multiedit": .fileChange,
+        "multi_edit": .fileChange,
+        "create_file": .fileChange,
+        "delete_file": .fileChange,
+        "str_replace": .fileChange,
+        "regex_replace": .fileChange,
+        "parallel_apply": .fileChange,
+        "apply_patch": .fileChange,
+        "rename_symbol": .fileChange,
+        "find_and_replace_all": .fileChange,
+        "undo_edit": .fileChange,
+        "notebook_edit": .fileChange,
+        "notebook_write": .fileChange,
+        "semantic_search": .semantic,
+        "codebase_search": .semantic,
+        "find_symbol": .semantic,
+        "find_references": .semantic,
+        "file_outline": .semantic,
+        "list_symbols": .semantic,
+        "grep": .search,
+        "search": .search,
+        "instant_grep": .search,
+        "rg": .search,
+        "glob": .search,
+        "ls": .search,
+        "list_dir": .search,
+        "find_files": .search,
+        "mcp": .mcp,
+        "mcp_call": .mcp,
+        "mcp_list_servers": .mcp,
+        "mcp_list_tools": .mcp,
+        "mcp_describe_tool": .mcp,
+        "mcp_health": .mcp,
+        "mcp_reconnect": .mcp,
+        "web_search": .webSearch,
+        "web_search_started": .webSearch,
+        "web_search_completed": .webSearch,
+        "web_search_failed": .webSearch,
+        "web_fetch": .webFetch,
+        "web_fetch_started": .webFetch,
+        "web_fetch_completed": .webFetch,
+        "web_fetch_failed": .webFetch,
+        "skill": .skill,
+        "agent": .agent,
+        "run_agent": .agent,
+        "sub_agent": .agent,
+        "subagent": .agent,
+        "task": .agent,
+        "todo_write": .todo,
+        "todo_read": .todo,
+        "debug_set_phase": .ideState,
+        "debug_request_user": .ideState,
+        "debug_resolve": .ideState,
+        "policy_ack": .ideState,
+        "mermaid_render": .ideState,
+        "activate_plan_mode": .ideState,
+        "activate_debug_mode": .ideState,
+        "show_task_panel": .ideState,
+        "invoke_swarm": .ideState,
+        "show_swarm_panel": .ideState,
+    ]
+
     static func map(
         toolName rawToolName: String,
         payload: [String: Any],
@@ -22,6 +114,15 @@ enum ProviderToolEventMapper {
                     "error_code": "legacy_debug_panel_removed",
                     "tool": "debug_panel",
                 ]
+            )
+        }
+
+        if let declared = declaredRoutes[tool] {
+            return mapViaDeclaredRoute(
+                route: declared,
+                tool: mappedToolName,
+                payload: normalizedPayload,
+                typeHint: normalizedHint
             )
         }
 
@@ -70,6 +171,43 @@ enum ProviderToolEventMapper {
             return mapFallback(tool: mappedToolName, payload: normalizedPayload)
         }
         return nil
+    }
+
+    private static func mapViaDeclaredRoute(
+        route: MappingRoute,
+        tool rawToolName: String,
+        payload: [String: Any],
+        typeHint: String
+    ) -> (type: String, payload: [String: String])? {
+        switch route {
+        case .command:
+            return mapCommand(tool: rawToolName, payload: payload)
+        case .read:
+            return mapRead(tool: rawToolName, payload: payload)
+        case .fileChange:
+            return mapFileChange(tool: rawToolName, payload: payload, typeHint: typeHint)
+        case .semantic:
+            return mapSemantic(tool: rawToolName, payload: payload)
+        case .search:
+            return mapSearch(tool: rawToolName, payload: payload)
+        case .mcp:
+            if let ideRemap = remapMCPIDEStateTool(tool: rawToolName, payload: payload) {
+                return ideRemap
+            }
+            return mapMCP(tool: rawToolName, payload: payload)
+        case .webSearch:
+            return mapWebSearch(tool: rawToolName, payload: payload)
+        case .webFetch:
+            return mapWebFetch(tool: rawToolName, payload: payload)
+        case .skill:
+            return mapSkill(tool: rawToolName, payload: payload)
+        case .agent:
+            return mapAgent(tool: rawToolName, payload: payload)
+        case .todo:
+            return mapTodo(tool: rawToolName, payload: payload)
+        case .ideState:
+            return mapIDEState(tool: normalizeToolIdentifier(rawToolName), payload: payload)
+        }
     }
 
     static func firstString(in input: [String: Any], keys: [String]) -> String? {
@@ -315,13 +453,21 @@ enum ProviderToolEventMapper {
     }
 
     private static func decodeJSONObjectString(_ raw: String) -> [String: Any]? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else { return nil }
-        guard let data = trimmed.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
+        let candidates: [String] = [
+            raw,
+            raw.replacingOccurrences(of: "\\\"", with: "\""),
+        ]
+
+        for candidate in candidates {
+            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, trimmed.hasPrefix("{"), trimmed.hasSuffix("}") else { continue }
+            guard let data = trimmed.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            return object
         }
-        return object
+        return nil
     }
 
     // MARK: - Private mapping
@@ -368,10 +514,19 @@ enum ProviderToolEventMapper {
     }
 
     private static func isMCPTool(_ tool: String, payload: [String: Any]) -> Bool {
-        if tool.hasPrefix("mcp_") || tool == "mcp" || tool == "mcp_call" {
+        if let marker = firstString(in: payload, keys: ["is_mcp"]),
+           ["1", "true", "yes"].contains(marker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        {
             return true
         }
-        if firstString(in: payload, keys: ["mcp_tool", "mcp_server", "server_id", "server"]) != nil {
+        let explicitMCPTools: Set<String> = [
+            "mcp", "mcp_call", "mcp_list_tools", "mcp_list_servers",
+            "mcp_describe_tool", "mcp_health", "mcp_reconnect"
+        ]
+        if explicitMCPTools.contains(tool) {
+            return true
+        }
+        if firstString(in: payload, keys: ["mcp_tool", "mcp_server", "server_id"]) != nil {
             return true
         }
         return false
@@ -596,7 +751,8 @@ enum ProviderToolEventMapper {
         var mapped: [String: String] = [
             "title": title,
             "detail": firstString(in: payload, keys: ["detail", "query", "arguments", "args"]) ?? "",
-            "tool": rawTool
+            "tool": rawTool,
+            "is_mcp": "true"
         ]
         if !mcpTool.isEmpty { mapped["mcp_tool"] = mcpTool }
         if !mcpServer.isEmpty {
