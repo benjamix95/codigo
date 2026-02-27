@@ -947,6 +947,12 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 "detail": detail
             ]
 
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
+                payload["swarm_id"] = swarmId
+                payload["group_id"] = "swarm-\(swarmId)"
+                return ("reasoning", payload)
+            }
+
             let reasoningId =
                 firstString(in: item, keys: ["group_id", "id", "reasoning_id"])
                 ?? firstString(in: json, keys: ["turn_id", "id"])

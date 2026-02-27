@@ -83,6 +83,31 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(rawTurnEvents, ["turn_started", "turn_completed"])
     }
 
+    func testReasoningUsesSwarmGroupIdWhenSwarmIdPresent() {
+        let events = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "reasoning-legacy-1",
+                    "type": "reasoning",
+                    "swarm_id": "s-arch",
+                    "text": "Coalescing stream updates for stable grouping"
+                ],
+            ],
+        ])
+
+        let reasoningPayloads = events.compactMap { event -> [String: String]? in
+            if case .raw(let type, let payload) = event, type == "reasoning" {
+                return payload
+            }
+            return nil
+        }
+
+        XCTAssertEqual(reasoningPayloads.count, 1)
+        XCTAssertEqual(reasoningPayloads.first?["swarm_id"], "s-arch")
+        XCTAssertEqual(reasoningPayloads.first?["group_id"], "swarm-s-arch")
+    }
+
     func testReasoningUpdatesAreNotDedupedWhenOutputGrows() {
         let events = runParser(events: [
             ["type": "turn.started"],

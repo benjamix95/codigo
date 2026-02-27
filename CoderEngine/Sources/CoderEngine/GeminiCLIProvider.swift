@@ -148,9 +148,13 @@ public final class GeminiCLIProvider: LLMProvider, @unchecked Sendable {
                 "title": "Reasoning",
                 "detail": String(text.prefix(200)) + (text.count > 200 ? "…" : ""),
                 "output": String(text.prefix(6_000)),
-                "group_id": "reasoning-stream"
             ]
-            if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId }
+            if let swarmId = firstString(in: item, keys: ["swarm_id"]), !swarmId.isEmpty {
+                payload["swarm_id"] = swarmId
+                payload["group_id"] = "swarm-\(swarmId)"
+                return ("reasoning", payload)
+            }
+            payload["group_id"] = "reasoning-stream"
             return ("reasoning", payload)
         }
 
