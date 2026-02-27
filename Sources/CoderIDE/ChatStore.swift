@@ -50,6 +50,7 @@ struct ChatMessage: Identifiable, Codable {
     var imagePaths: [String]?
     var attachments: [ChatAttachment]?
     var planAttachment: PlanAttachment?
+    var reasoningText: String?
 
     enum Role: String, Codable {
         case user
@@ -88,7 +89,7 @@ struct ChatMessage: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, role, content, isStreaming, imagePaths, attachments, planAttachment
+        case id, role, content, isStreaming, imagePaths, attachments, planAttachment, reasoningText
     }
 
     init(from decoder: Decoder) throws {
@@ -114,6 +115,7 @@ struct ChatMessage: Identifiable, Codable {
             attachments = nil
         }
         planAttachment = try? c.decode(PlanAttachment.self, forKey: .planAttachment)
+        reasoningText = try? c.decode(String.self, forKey: .reasoningText)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -128,6 +130,7 @@ struct ChatMessage: Identifiable, Codable {
             .filter { $0.kind == .image }
             .map(\.localPath)
         try c.encodeIfPresent(legacyImagePaths, forKey: .imagePaths)
+        try c.encodeIfPresent(reasoningText, forKey: .reasoningText)
     }
 }
 
@@ -781,25 +784,22 @@ final class ChatStore: ObservableObject {
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        // During streaming use a conservative sanitization:
-        // avoid removing legitimate "operational" phrases that otherwise make
-        // the text appear stuck after the first chunk.
-        let stripped = Self.stripCoderideMarkers(content, aggressive: persistImmediately)
-        let rawTrimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedContent: String
-        if stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !rawTrimmed.isEmpty {
-            // Defensive fallback: never lose assistant content on non-Codex providers.
-            // If aggressive sanitization empties everything, retry in conservative mode.
-            let conservative = Self.stripCoderideMarkers(content, aggressive: false)
-            resolvedContent = conservative.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? content
-                : conservative
-        } else {
-            resolvedContent = stripped
-        }
+        // Store raw content; display-time stripping is handled by MarkdownContentView.
+        // Only strip low-level CODERIDE markers (non-aggressive) to keep messages clean
+        // without losing legitimate content.
+        let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
         // Mutate in-place to avoid creating intermediate array copies on every streaming token.
         conversations[idx].messages[lastIdx].content = resolvedContent
         if persistImmediately { saveConversations() }
+    }
+
+    func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        let trimmed = reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        conversations[idx].messages[lastIdx].reasoningText = trimmed
+        saveConversations()
     }
 
     func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
@@ -1135,6 +1135,9 @@ final class ChatStore: ObservableObject {
         }
     }
 
+    /// Returns a deterministic hash for plan content deduplication.
+    /// Swift's `String.hashValue` is randomized per process, so it cannot be
+    /// used for cross-session comparison. We use a simple djb2 hash instead.
     private func normalizedPlanContentHash(_ raw: String) -> Int {
         let normalized = raw
             .components(separatedBy: .newlines)
@@ -1142,7 +1145,11 @@ final class ChatStore: ObservableObject {
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
             .lowercased()
-        return normalized.hashValue
+        var hash: UInt64 = 5381
+        for byte in normalized.utf8 {
+            hash = ((hash &<< 5) &+ hash) &+ UInt64(byte)
+        }
+        return Int(bitPattern: UInt(hash))
     }
 
     func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversationId: UUID?) {

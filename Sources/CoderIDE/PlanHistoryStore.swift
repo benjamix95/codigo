@@ -265,6 +265,9 @@ final class PlanHistoryStore: ObservableObject {
     }
 
     /// Deletes all planning entries for the specified context (or all if nil).
+    /// Uses OR matching: an entry is removed if it matches by contextId OR by
+    /// contextFolderPath, so entries created before one of the fields was
+    /// populated are not missed.
     func deleteAllForContext(contextId: UUID?, contextFolderPath: String?) {
         if contextId == nil && contextFolderPath == nil {
             entries.removeAll()
@@ -273,9 +276,6 @@ final class PlanHistoryStore: ObservableObject {
             entries.removeAll { entry in
                 let matchesContext = contextId != nil && entry.contextId == contextId
                 let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
-                if contextId != nil && contextFolderPath != nil {
-                    return matchesContext && matchesFolder
-                }
                 return matchesContext || matchesFolder
             }
             if let sid = selectedEntryId,
@@ -298,9 +298,6 @@ final class PlanHistoryStore: ObservableObject {
             .filter { entry in
                 let matchesContext = contextId != nil && entry.contextId == contextId
                 let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
-                if contextId != nil && contextFolderPath != nil {
-                    return matchesContext && matchesFolder
-                }
                 return matchesContext || matchesFolder
             }
             .sorted { $0.createdAt > $1.createdAt }

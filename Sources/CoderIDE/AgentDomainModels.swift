@@ -77,7 +77,10 @@ struct PlanBoard: Codable, Equatable {
     private static func extractGoal(from text: String) -> String {
         let lines = text.split(separator: "\n").map(String.init)
         if let firstHeader = lines.first(where: { $0.hasPrefix("#") }) {
-            return firstHeader.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespaces)
+            // Strip only leading '#' characters (markdown header prefix),
+            // not '#' appearing mid-text (e.g. "C#", "F#").
+            let stripped = firstHeader.drop(while: { $0 == "#" })
+            return String(stripped).trimmingCharacters(in: .whitespaces)
         }
         return String(text.prefix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
     }

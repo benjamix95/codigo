@@ -539,7 +539,7 @@ enum PlanPanelAutoOpenTrigger: Equatable {
 func shouldAutoOpenPlanPanel(trigger: PlanPanelAutoOpenTrigger) -> Bool {
     switch trigger {
     case .awaitingClarification:
-        return false
+        return true
     case .awaitingChoice:
         return true
     case .flowStarted, .planStepUpdate:
@@ -1956,6 +1956,13 @@ struct ChatPanelView: View {
                     scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
                 }
             }
+            .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _, _ in
+                if let last = chatStore.conversation(for: conversationId)?.messages.last,
+                    isFollowingLive
+                {
+                    scheduleAutoScroll(proxy: proxy, target: last.id, animated: true, delay: 0.05)
+                }
+            }
             .onChange(of: liveTraceEventCount) { _, _ in
                 guard isLoadingForCurrentConversation, isFollowingLive else { return }
                 if let target = liveScrollTarget() {
@@ -2005,7 +2012,7 @@ struct ChatPanelView: View {
                 }
             }
             .simultaneousGesture(
-                DragGesture(minimumDistance: 3).onChanged { _ in
+                DragGesture(minimumDistance: 30).onChanged { _ in
                     if isLoadingForCurrentConversation {
                         isFollowingLive = false
                     }
@@ -2202,7 +2209,7 @@ struct ChatPanelView: View {
     ) {
         let now = Date()
         if lastAutoScrollTarget == target,
-           now.timeIntervalSince(lastAutoScrollAt) < 0.06 {
+           now.timeIntervalSince(lastAutoScrollAt) < 0.03 {
             return
         }
         lastAutoScrollTarget = target
@@ -3682,15 +3689,18 @@ struct ChatPanelView: View {
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         coderMode = mode
-        // When switching away from plan mode, only reset plan state if the
-        // flow is in a non-recoverable phase. Preserve in-flight state for
-        // questioning/generating so switching back to plan doesn't lose work.
+        // When switching away from plan mode, only preserve plan state for
+        // actively in-flight phases (questioning/generating) so switching back
+        // doesn't lose work. Reset all other phases to avoid orphaned state
+        // since planToggleEnabled is disabled below.
         if mode != .plan {
-            if planFlowPhase != .idle
-                && planFlowPhase != .building
-                && planFlowPhase != .questioning
-                && planFlowPhase != .generating
-            {
+            switch planFlowPhase {
+            case .questioning, .generating, .building:
+                // Preserve — these are actively in-flight and recoverable.
+                break
+            case .idle:
+                break
+            case .analyzing, .proposalReady, .readyToBuild:
                 planFlowPhase = .idle
                 planningState = .idle
                 planStreamingContent = ""
@@ -4200,6 +4210,8 @@ struct ChatPanelView: View {
                 question: answer.question,
                 optionId: answer.optionId,
                 optionText: answer.optionText,
+                optionIds: answer.optionIds,
+                optionTexts: answer.optionTexts,
                 customResponse: (normalizedCustom?.isEmpty == false) ? normalizedCustom : nil
             )
         }
@@ -4210,11 +4222,13 @@ struct ChatPanelView: View {
             )
         )
 
-        // Store answers and continue to Phase 3 (don't restart full flow via sendMessage)
+        // Store answers and continue to Phase 3 (don't restart full flow via sendMessage).
+        // Phase is set to .generating (not .questioning) because the user already submitted
+        // their answers — the next step is re-analysis / plan generation, not waiting for input.
         planClarificationAnswers = String(prompt.prefix(16_000))
         planningState = .idle
         planStreamingContent = ""
-        planFlowPhase = .questioning
+        planFlowPhase = .generating
 
         // Safety net: ensure any lingering task from the questioning phase is ended
         // before we attempt to continue. This prevents the guard in continuePlanFlowPhase3
@@ -4978,14 +4992,6 @@ struct ChatPanelView: View {
                 persistImmediately: true
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
-            chatStore.addMessage(
-                ChatMessage(
-                    id: UUID(),
-                    role: .assistant,
-                    content: "Analysis complete. Preparing clarification..."
-                ),
-                to: conversationId
-            )
         }
 
         // ========================
@@ -5318,6 +5324,24 @@ struct ChatPanelView: View {
             scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
         )
 
+        // Create a checkpoint before the post-clarification flow so we can
+        // rewind if the re-analysis or plan generation causes unwanted changes.
+        do {
+            try createCheckpointBeforeTurn(conversationId: targetConversationId, workspaceContext: ctx)
+        } catch {
+            appendTechnicalErrorMessage(
+                "[Checkpoint error: \(error.localizedDescription)]", in: targetConversationId)
+            return
+        }
+
+        // Recompute inline flag fresh instead of relying on the stale captured
+        // planShouldRunInline — the user may have toggled modes since the original request.
+        let currentShouldRunInline = resolveShouldRunPlanInline(
+            forcePlanInline: false,
+            coderMode: coderMode,
+            planToggleEnabled: planToggleEnabled
+        ) || planShouldRunInline // preserve original intent as fallback
+
         chatStore.beginTask(conversationId: targetConversationId)
         launchRunTask(for: targetConversationId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
@@ -5326,7 +5350,7 @@ struct ChatPanelView: View {
                     provider: effectiveProvider,
                     ctx: ctx,
                     conversationId: targetConversationId,
-                    shouldRunPlanInline: planShouldRunInline
+                    shouldRunPlanInline: currentShouldRunInline
                 )
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
@@ -5442,10 +5466,6 @@ struct ChatPanelView: View {
         await MainActor.run {
             let postClarification = "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
             planAnalysisContext = String((planAnalysisContext + postClarification).suffix(32_000))
-            chatStore.addMessage(
-                ChatMessage(id: UUID(), role: .assistant, content: "Analysis complete. Generating plan..."),
-                to: conversationId
-            )
             chatStore.updateLastAssistantMessage(
                 content: "Questions answered. Generating definitive plan...",
                 in: conversationId,
@@ -6340,6 +6360,10 @@ struct ChatPanelView: View {
         // Flush any pending throttled content before switching away from streaming mode.
         flushStreamingContent()
         guard let id = conversationId, streamingReasoningConversationId == id else { return }
+        // Persist reasoning into the message before clearing
+        if let reasoning = streamingReasoningText, !reasoning.isEmpty {
+            chatStore.saveReasoningToLastAssistant(reasoning: reasoning, in: id)
+        }
         streamingReasoningText = nil
         streamingReasoningConversationId = nil
     }
@@ -6466,7 +6490,12 @@ struct ChatPanelView: View {
             if classification.isConfident, let classificationState = classification.planningState {
                 await MainActor.run {
                     planFlowPhase = classification.nextPhase
-                    planningState = classificationState
+                    // Only update planningState for non-idle classifications;
+                    // idle means the classifier found a signal (e.g. "no questions needed")
+                    // but doesn't need to change the planning state.
+                    if classificationState != .idle {
+                        planningState = classificationState
+                    }
                 }
                 if case .awaitingClarification = classificationState {
                     let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."

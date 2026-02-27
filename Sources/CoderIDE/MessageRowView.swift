@@ -139,11 +139,13 @@ struct MessageRow: View {
                 }
             }
             if isUser {
-                ClickableMessageContent(
+                MarkdownContentView(
                     content: message.content,
                     context: context,
                     onFileClicked: onFileClicked,
-                    textAlignment: .leading
+                    textAlignment: .leading,
+                    isStreaming: false,
+                    aggressiveSanitization: false
                 )
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -156,9 +158,9 @@ struct MessageRow: View {
                     messageActionsRow
                 }
             } else {
-                // Thinking block
-                if isActivelyStreaming,
-                   let reasoning = streamingReasoningText, !reasoning.isEmpty
+                // Thinking block — show live reasoning during streaming, or persisted reasoning on historical messages
+                if let reasoning = isActivelyStreaming ? streamingReasoningText : message.reasoningText,
+                   !reasoning.isEmpty
                 {
                     ThinkingBlockView(text: reasoning)
                         .padding(.bottom, 8)

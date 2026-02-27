@@ -98,6 +98,8 @@ struct PlanPanelView: View {
     @State private var planText: String = ""
     @State private var isEditing = false
     @State private var buildHint: String?
+    /// Guards single-option auto-select so it fires only once per planningState.
+    @State private var didAutoSelectSingleOption = false
     @State private var showDeleteAllHistoryConfirmation = false
     @State private var walkthroughExpanded = false
     @State private var historySelectionVersion = 0
@@ -149,6 +151,8 @@ struct PlanPanelView: View {
                     if case .awaitingChoice(_, let options) = planningState {
                         if options.count == 1 {
                             Color.clear.frame(width: 0, height: 0).onAppear {
+                                guard !didAutoSelectSingleOption else { return }
+                                didAutoSelectSingleOption = true
                                 onSelectOption(options[0], planProviderId)
                             }
                         } else {
@@ -222,6 +226,7 @@ struct PlanPanelView: View {
             buildHint = nil
             walkthroughExpanded = false
             planProviderId = nil
+            didAutoSelectSingleOption = false
         }
         .onChange(of: conversationId) { _, _ in
             // New conversation => plan panel should immediately reflect the new context.
@@ -231,6 +236,12 @@ struct PlanPanelView: View {
             walkthroughExpanded = false
             historySelectionVersion = 0
             planProviderId = nil
+            didAutoSelectSingleOption = false
+        }
+        .onChange(of: planningState) { _, _ in
+            // Reset single-option auto-select guard when planningState changes,
+            // so a new awaitingChoice with a single option can fire again.
+            didAutoSelectSingleOption = false
         }
         .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
             performBuild()
@@ -452,6 +463,9 @@ struct PlanPanelView: View {
     // MARK: - Build Button
 
     private var isPlanFullyBuilt: Bool {
+        // Don't show "Built" during active building phase — wait until phase
+        // transitions to readyToBuild/idle to avoid brief UI flicker.
+        guard planFlowPhase != .building else { return false }
         let canonical = canonicalPlanTodos
         guard !canonical.isEmpty else {
             return false
@@ -674,11 +688,6 @@ struct PlanPanelView: View {
                 return questions
             }
             return ""
-        }
-
-        // During active plan phases, always prefer live streaming content over stale board data.
-        if [.analyzing, .questioning, .generating].contains(planFlowPhase), !planStreamingContent.isEmpty {
-            return planStreamingContent
         }
 
         if let selected = latestPlanHistoryEntry() {
@@ -1208,7 +1217,9 @@ struct PlanPanelView: View {
         if let chosen = entry.chosenPath, !chosen.isEmpty {
             return chosen
         }
-        return entry.markdown
+        // Both markdown and chosenPath are empty — return a descriptive fallback
+        // so download/preview never produces blank content.
+        return "# \(entry.title.isEmpty ? "Plan" : entry.title)\n\n(No plan content available.)"
     }
 
     private func selectedHistoryEntryForConversation() -> PlanHistoryEntry? {

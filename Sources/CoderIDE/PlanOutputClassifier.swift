@@ -42,7 +42,7 @@ enum PlanOutputClassifier {
                 hasClarificationQuestions: false,
                 hasStrictOptions: false,
                 nextPhase: .generating,
-                planningState: nil,
+                planningState: .idle,
                 isConfident: true
             )
         }

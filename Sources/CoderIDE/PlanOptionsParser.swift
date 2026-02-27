@@ -117,9 +117,14 @@ private static let optionHeaderPattern =
         line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
     }
 
+    // Use a fixed locale for folding to ensure consistent matching regardless
+    // of the user's system locale. The token sets include Italian words, so we
+    // need deterministic ASCII folding rather than locale-dependent behavior.
+    private static let foldingLocale = Locale(identifier: "en")
+
     static func isOtherLikeClarificationOption(_ option: PlanClarificationOption) -> Bool {
         let normalized = option.text
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: foldingLocale)
             .lowercased()
         let tokens = normalized.components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }

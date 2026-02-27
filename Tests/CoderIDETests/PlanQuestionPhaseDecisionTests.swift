@@ -61,6 +61,6 @@ final class PlanQuestionPhaseDecisionTests: XCTestCase {
         )
         XCTAssertTrue(classification.isConfident)
         XCTAssertEqual(classification.nextPhase, .generating)
-        XCTAssertNil(classification.planningState)
+        XCTAssertEqual(classification.planningState, .idle)
     }
 }
