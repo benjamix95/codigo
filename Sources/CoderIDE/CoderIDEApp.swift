@@ -42,6 +42,7 @@ struct CodigoApp: App {
         "Read,Edit,Bash,Write,Search"
     @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
+    @AppStorage("mcp_edit_enforcement_enabled") private var mcpEditEnforcementEnabled = true
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
@@ -295,6 +296,7 @@ struct CodigoApp: App {
             geminiModelOverride: geminiModelOverride,
             unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
             agentsHardBlockEnabled: agentsHardBlockEnabled,
+            mcpEditEnforcementEnabled: mcpEditEnforcementEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,

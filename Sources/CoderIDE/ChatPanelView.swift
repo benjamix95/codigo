@@ -649,6 +649,7 @@ struct ChatPanelView: View {
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
+    @AppStorage("mcp_edit_enforcement_enabled") private var mcpEditEnforcementEnabled = true
     @AppStorage("web_search_provider") private var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key") private var braveSearchApiKey = ""
     @AppStorage("tavily_api_key") private var tavilyApiKey = ""
@@ -1117,6 +1118,9 @@ struct ChatPanelView: View {
             .onChange(of: unifiedToolRuntimeEnabled) { _, _ in
                 syncClaudeProvider()
                 syncGeminiProvider()
+                syncToolRuntimePolicy()
+            }
+            .onChange(of: mcpEditEnforcementEnabled) { _, _ in
                 syncToolRuntimePolicy()
             }
             .onChange(of: globalYolo) { _, _ in
@@ -4057,6 +4061,7 @@ struct ChatPanelView: View {
             geminiModelOverride: geminiModelOverride,
             unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
             agentsHardBlockEnabled: agentsHardBlockEnabled,
+            mcpEditEnforcementEnabled: mcpEditEnforcementEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,
@@ -5924,6 +5929,20 @@ struct ChatPanelView: View {
             }
             return
         }
+        if t == "tool_validation_error",
+           isMCPEditRequiredViolation(payload: p) {
+            var enriched = p
+            enriched["status"] = "failed"
+            if (enriched["title"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                enriched["title"] = "MCP-only editing policy violation"
+            }
+            if (enriched["detail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                enriched["detail"] = "Edit requests must use the coderide MCP tools."
+            }
+            recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
+            emitMCPEditRequiredViolation(payload: enriched, conversationId: convId)
+            return
+        }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
             let existing =
                 streamingReasoningConversationId == convId
@@ -6097,6 +6116,25 @@ struct ChatPanelView: View {
         )
         appendTechnicalErrorMessage(
             "[Policy error] Mandatory AGENTS/SKILL acknowledgment missing. Emit [CODERIDE:policy_ack|hash=\(expectedHash)] before using tools.",
+            in: conversationId
+        )
+        stopTaskForPolicyViolation(conversationId: conversationId)
+    }
+
+    @MainActor
+    private func isMCPEditRequiredViolation(payload: [String: String]) -> Bool {
+        let code = (payload["error_code"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return code == "mcp_edit_required"
+    }
+
+    @MainActor
+    private func emitMCPEditRequiredViolation(payload: [String: String], conversationId: UUID?) {
+        let detail = (payload["detail"] ?? "Edit requests must use the coderide MCP tools.")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        appendTechnicalErrorMessage(
+            "[Policy error] \(detail)",
             in: conversationId
         )
         stopTaskForPolicyViolation(conversationId: conversationId)

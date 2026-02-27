@@ -206,6 +206,7 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             geminiModelOverride: "",
             unifiedToolRuntimeEnabled: true,
             agentsHardBlockEnabled: true,
+            mcpEditEnforcementEnabled: true,
             webSearchProvider: "duckduckgo",
             braveSearchApiKey: "",
             tavilyApiKey: "",

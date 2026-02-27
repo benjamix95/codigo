@@ -62,6 +62,25 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["is_mcp"], "true")
     }
 
+    func testMCPStructuredEditOutputPreservesCountersAndDiffPreview() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_str_replace",
+                "output": #"{"change_type":"str_replace","diffPreview":"@@ -1 +1 @@\n-let a = 1\n+let a = 2","linesAdded":"1","linesRemoved":"1","path":"Sources/App.swift","source":"mcp","status":"completed","tool_call_id":"tc-123"}"#,
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["path"], "Sources/App.swift")
+        XCTAssertEqual(mapped?.payload["diffPreview"], "@@ -1 +1 @@\n-let a = 1\n+let a = 2")
+        XCTAssertEqual(mapped?.payload["linesAdded"], "1")
+        XCTAssertEqual(mapped?.payload["linesRemoved"], "1")
+        XCTAssertEqual(mapped?.payload["source"], "mcp")
+        XCTAssertEqual(mapped?.payload["tool_call_id"], "tc-123")
+    }
+
     func testUnknownToolFallsBackToCommandExecution() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "custom_tool",

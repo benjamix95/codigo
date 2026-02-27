@@ -73,6 +73,7 @@ public struct ToolRuntimePolicy: Sendable {
     public let maxReadBytesPerFile: Int
     public let allowDangerousShellPatterns: Bool
     public let enableMCP: Bool
+    public let enforceMCPEditOnly: Bool
     public let mcpPerCallTimeoutMs: Int
     public let mcpSessionIdleTTLSeconds: Int
 
@@ -86,6 +87,7 @@ public struct ToolRuntimePolicy: Sendable {
         maxReadBytesPerFile: Int = 256_000,
         allowDangerousShellPatterns: Bool = false,
         enableMCP: Bool = true,
+        enforceMCPEditOnly: Bool = true,
         mcpPerCallTimeoutMs: Int = 30_000,
         mcpSessionIdleTTLSeconds: Int = 300
     ) {
@@ -98,6 +100,7 @@ public struct ToolRuntimePolicy: Sendable {
         self.maxReadBytesPerFile = max(1_024, maxReadBytesPerFile)
         self.allowDangerousShellPatterns = allowDangerousShellPatterns
         self.enableMCP = enableMCP
+        self.enforceMCPEditOnly = enforceMCPEditOnly
         self.mcpPerCallTimeoutMs = max(1_000, mcpPerCallTimeoutMs)
         self.mcpSessionIdleTTLSeconds = max(60, mcpSessionIdleTTLSeconds)
     }

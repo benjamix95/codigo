@@ -53,6 +53,11 @@ struct GitFileDiff: Equatable {
     let isBinary: Bool
 }
 
+enum GitDiffBaseline: Equatable {
+    case head
+    case worktree
+}
+
 struct GitLogEntry: Identifiable, Equatable {
     let id = UUID()
     let sha: String
@@ -316,8 +321,19 @@ struct GitService {
             }
     }
 
-    func fileDiff(gitRoot: String, path: String) throws -> GitFileDiff {
-        let raw = try runGit(["diff", "--", path], gitRoot: gitRoot)
+    func fileDiff(
+        gitRoot: String,
+        path: String,
+        baseline: GitDiffBaseline = .head
+    ) throws -> GitFileDiff {
+        let diffArgs: [String]
+        switch baseline {
+        case .head:
+            diffArgs = ["diff", "HEAD", "--", path]
+        case .worktree:
+            diffArgs = ["diff", "--", path]
+        }
+        let raw = try runGit(diffArgs, gitRoot: gitRoot)
         if raw.contains("Binary files") {
             return GitFileDiff(path: path, chunks: [], isBinary: true)
         }

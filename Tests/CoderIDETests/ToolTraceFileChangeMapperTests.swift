@@ -113,6 +113,37 @@ final class ToolTraceFileChangeMapperTests: XCTestCase {
 
         XCTAssertEqual(mapped?.added, 2)
         XCTAssertEqual(mapped?.removed, 1)
+        XCTAssertEqual(mapped?.diffSource, .payload)
+    }
+
+    func testMapperMarksGitFallbackDiffSourceAsDerived() {
+        let event = makeEvent(
+            title: "Edited Derived.swift",
+            payload: [
+                "path": "Sources/CoderIDE/Derived.swift",
+                "linesAdded": "4",
+                "linesRemoved": "1",
+                "diff_source": "git_head_fallback",
+                "diffPreview": "@@ -1 +1 @@\n-old\n+new",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertEqual(mapped?.diffSource, .gitFallback)
+    }
+
+    func testMapperMarksUnknownDiffSourceWhenCountersAndDiffAreMissing() {
+        let event = makeEvent(
+            title: "Edited Unknown.swift",
+            payload: [
+                "path": "Sources/CoderIDE/Unknown.swift",
+            ]
+        )
+
+        let mapped = ToolTraceFileChangeMapper.from(event: event)
+
+        XCTAssertEqual(mapped?.diffSource, .unknown)
     }
 
     func testMapperTreatsApplyPatchAsFileChangeEvenWhenTypeIsCommandExecution() {

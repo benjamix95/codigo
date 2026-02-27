@@ -46,6 +46,7 @@ struct ProviderFactoryConfig {
     var geminiModelOverride: String
     var unifiedToolRuntimeEnabled: Bool
     var agentsHardBlockEnabled: Bool
+    var mcpEditEnforcementEnabled: Bool
 
     var webSearchProvider: String
     var braveSearchApiKey: String
@@ -87,7 +88,8 @@ enum ProviderFactory {
     static func toolRuntimePolicy(from config: ProviderFactoryConfig) -> ToolRuntimePolicy {
         ToolRuntimePolicy(
             sandboxMode: sandbox(from: config).rawValue,
-            askForApproval: askForApproval(from: config)
+            askForApproval: askForApproval(from: config),
+            enforceMCPEditOnly: config.mcpEditEnforcementEnabled
         )
     }
 

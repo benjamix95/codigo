@@ -48,6 +48,36 @@ final class GitServiceTests: XCTestCase {
         XCTAssertThrowsError(try git.push(gitRoot: root, branch: try git.currentBranch(gitRoot: root)))
     }
 
+    func testFileDiffHeadIncludesStagedAndUnstagedChanges() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+        let fileURL = repo.appendingPathComponent("a.txt")
+
+        try "hello\nstaged\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "a.txt"], cwd: repo.path)
+        try "hello\nstaged\nunstaged\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let headDiff = try git.fileDiff(gitRoot: root, path: "a.txt", baseline: .head)
+        let worktreeDiff = try git.fileDiff(gitRoot: root, path: "a.txt", baseline: .worktree)
+
+        let headAdded = countAddedLines(in: headDiff)
+        let worktreeAdded = countAddedLines(in: worktreeDiff)
+
+        XCTAssertGreaterThanOrEqual(headAdded, 2)
+        XCTAssertLessThan(worktreeAdded, headAdded)
+    }
+
+    private func countAddedLines(in diff: GitFileDiff) -> Int {
+        diff.chunks
+            .flatMap(\.lines)
+            .reduce(into: 0) { count, line in
+                guard line.hasPrefix("+"),
+                      !line.hasPrefix("+++"),
+                      !line.hasPrefix("@@") else { return }
+                count += 1
+            }
+    }
+
     private func runGit(_ args: [String], cwd: String) throws {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/git")

@@ -724,6 +724,8 @@ enum ProviderToolEventMapper {
         let normalizedTool = normalizeToolIdentifier(rawTool)
         let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name", "tool"]) ?? ""
         let mcpServer = firstString(in: payload, keys: ["mcp_server", "server_id", "server"]) ?? ""
+        let structuredOutput = firstString(in: payload, keys: ["output", "result", "content"])
+            .flatMap(decodeJSONObjectString)
         let title: String = {
             switch normalizedTool {
             case "mcp_list_servers":
@@ -767,6 +769,39 @@ enum ProviderToolEventMapper {
         }
         if let output = firstString(in: payload, keys: ["output", "result", "content"]), !output.isEmpty {
             mapped["output"] = String(output.prefix(6_000))
+        }
+        if let structuredOutput {
+            if let path = firstString(in: structuredOutput, keys: ["path", "file", "file_path", "relative_path", "target_path"]), !path.isEmpty {
+                mapped["path"] = mapped["path"] ?? path
+                mapped["file"] = mapped["file"] ?? path
+                mapped["detail"] = mapped["detail"]?.isEmpty == false ? mapped["detail"] : path
+            }
+            if let changeType = firstString(in: structuredOutput, keys: ["change_type", "operation", "action", "edit_type"]), !changeType.isEmpty {
+                mapped["change_type"] = changeType
+            }
+            if let status = firstString(in: structuredOutput, keys: ["status"]), !status.isEmpty {
+                mapped["status"] = status
+            }
+            if let toolCallId = firstString(in: structuredOutput, keys: ["tool_call_id", "call_id", "id"]), !toolCallId.isEmpty {
+                mapped["tool_call_id"] = toolCallId
+            }
+            if let source = firstString(in: structuredOutput, keys: ["source"]), !source.isEmpty {
+                mapped["source"] = source
+            }
+            if mapped["linesAdded"] == nil,
+               let added = firstInt(in: structuredOutput, keys: ["linesAdded", "additions", "insertions", "added"]) {
+                mapped["linesAdded"] = "\(max(0, added))"
+            }
+            if mapped["linesRemoved"] == nil,
+               let removed = firstInt(in: structuredOutput, keys: ["linesRemoved", "deletions", "removed", "deletions_count"]) {
+                mapped["linesRemoved"] = "\(max(0, removed))"
+            }
+            if let diff = firstString(
+                in: structuredOutput,
+                keys: ["diffPreview", "diff", "patch", "unified_diff", "changes_preview"]
+            ), !diff.isEmpty {
+                mapped["diffPreview"] = String(diff.prefix(12_000))
+            }
         }
         if mapped["linesAdded"] == nil || mapped["linesRemoved"] == nil {
             let toolForCounters = firstString(in: payload, keys: ["mcp_tool", "tool_name", "tool_raw", "tool"])

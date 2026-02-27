@@ -86,6 +86,7 @@ struct SettingsView: View {
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
+    @AppStorage("mcp_edit_enforcement_enabled") private var mcpEditEnforcementEnabled = true
 
     // MARK: - Hidden runtime keys (no UI, consumed by ProviderFactoryConfig)
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
@@ -1409,6 +1410,7 @@ struct SettingsView: View {
             geminiCliPath: geminiCliPath, geminiModelOverride: geminiModelOverride,
             unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
             agentsHardBlockEnabled: agentsHardBlockEnabled,
+            mcpEditEnforcementEnabled: mcpEditEnforcementEnabled,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,

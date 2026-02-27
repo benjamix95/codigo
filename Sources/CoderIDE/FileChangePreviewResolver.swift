@@ -120,7 +120,11 @@ actor FileChangePreviewResolver {
         }
 
         do {
-            let diff = try gitService.fileDiff(gitRoot: context.gitRoot, path: context.relativePath)
+            let diff = try gitService.fileDiff(
+                gitRoot: context.gitRoot,
+                path: context.relativePath,
+                baseline: .head
+            )
             if diff.isBinary {
                 return .metadataOnly(metadataSummary(for: change, absolutePath: absolutePath, note: "Binary file."))
             }

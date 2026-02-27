@@ -361,6 +361,69 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(parsed.payload["detail"], "")
     }
 
+    func testFileChangeMinimalPayloadUsesGitHeadFallback() throws {
+        let repo = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "codex-stream-fallback-\(UUID().uuidString)"
+        )
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: repo) }
+
+        try runGit(["init"], cwd: repo.path)
+        try runGit(["config", "user.email", "test@example.com"], cwd: repo.path)
+        try runGit(["config", "user.name", "Codex Parser Test"], cwd: repo.path)
+
+        let tracked = repo.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: tracked, atomically: true, encoding: .utf8)
+        try runGit(["add", "Sample.swift"], cwd: repo.path)
+        try runGit(["commit", "-m", "init"], cwd: repo.path)
+
+        try "let value = 2\nlet extra = true\n".write(to: tracked, atomically: true, encoding: .utf8)
+
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "fc-minimal-1",
+                "type": "file_change",
+                "path": "Sample.swift",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json, workspacePath: repo.path) else {
+            XCTFail("Expected file_change event with git fallback")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "file_change")
+        XCTAssertEqual(parsed.payload["diff_source"], "git_head_fallback")
+        XCTAssertNotNil(parsed.payload["linesAdded"])
+        XCTAssertNotNil(parsed.payload["linesRemoved"])
+        XCTAssertTrue((parsed.payload["diffPreview"] ?? "").contains("let value = 2"))
+    }
+
+    func testFileChangeFallbackMarksUnavailableOutsideGitRepo() throws {
+        let workspace = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "codex-stream-no-repo-\(UUID().uuidString)"
+        )
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "fc-minimal-2",
+                "type": "file_change",
+                "path": "Sample.swift",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json, workspacePath: workspace.path) else {
+            XCTFail("Expected file_change event")
+            return
+        }
+
+        XCTAssertEqual(parsed.payload["diff_source"], "unavailable")
+    }
+
     func testFunctionCallToolEventMapsToInstantGrep() {
         let json: [String: Any] = [
             "type": "item.completed",
@@ -590,5 +653,30 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         }
         out.append(contentsOf: CodexCLIProvider.finalizeStreamJSONState(state: &state))
         return out
+    }
+
+    private func runGit(_ args: [String], cwd: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = args
+        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus == 0 {
+            return
+        }
+        let out = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let err = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        throw NSError(
+            domain: "CodexCLIProviderStreamParsingTests",
+            code: Int(process.terminationStatus),
+            userInfo: [
+                NSLocalizedDescriptionKey: "git \(args.joined(separator: " ")) failed: \(out) \(err)"
+            ]
+        )
     }
 }

@@ -16,6 +16,21 @@ enum ToolTraceFileChangeKind: String, CaseIterable {
     }
 }
 
+enum ToolTraceFileChangeDiffSource: String, CaseIterable {
+    case payload
+    case gitFallback
+    case unknown
+
+    var isDerived: Bool {
+        switch self {
+        case .payload:
+            return false
+        case .gitFallback, .unknown:
+            return true
+        }
+    }
+}
+
 struct ToolTraceFileChange: Identifiable, Hashable {
     let eventId: UUID
     let path: String?
@@ -25,6 +40,7 @@ struct ToolTraceFileChange: Identifiable, Hashable {
     let removed: Int
     let diffPreview: String?
     let rawOutput: String?
+    let diffSource: ToolTraceFileChangeDiffSource
     let sequence: Int
     let timestamp: Date
     let isRunning: Bool
@@ -123,6 +139,12 @@ enum ToolTraceFileChangeMapper {
             diffPreview: diffPreview,
             replacementSummary: replacementSummary
         )
+        let diffSource = detectDiffSource(
+            payload: payload,
+            explicitAdded: explicitAdded,
+            explicitRemoved: explicitRemoved,
+            diffPreview: diffPreview
+        )
         let rawOutput = firstNonEmpty(payload: payload, keys: [
             "output", "result", "stdout",
         ])
@@ -136,6 +158,7 @@ enum ToolTraceFileChangeMapper {
             removed: max(0, inferred.removed),
             diffPreview: diffPreview,
             rawOutput: rawOutput,
+            diffSource: diffSource,
             sequence: sequence,
             timestamp: timestamp,
             isRunning: isRunning
@@ -266,6 +289,30 @@ enum ToolTraceFileChangeMapper {
         }
 
         return (added, removed)
+    }
+
+    private static func detectDiffSource(
+        payload: [String: String],
+        explicitAdded: Int,
+        explicitRemoved: Int,
+        diffPreview: String?
+    ) -> ToolTraceFileChangeDiffSource {
+        let rawSource = firstNonEmpty(payload: payload, keys: [
+            "diff_source", "counter_source", "source",
+        ])?.lowercased() ?? ""
+        if rawSource.contains("git_head_fallback") || rawSource.contains("git_fallback") {
+            return .gitFallback
+        }
+        if rawSource == "payload" || rawSource == "mcp" {
+            return .payload
+        }
+        if explicitAdded > 0 || explicitRemoved > 0 {
+            return .payload
+        }
+        if let diffPreview, !diffPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .payload
+        }
+        return .unknown
     }
 
     private static let replacementSummaryRegex = try! NSRegularExpression(

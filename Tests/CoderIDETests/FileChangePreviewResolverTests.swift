@@ -109,6 +109,7 @@ final class FileChangePreviewResolverTests: XCTestCase {
             removed: removed,
             diffPreview: diffPreview,
             rawOutput: nil,
+            diffSource: diffPreview == nil ? .unknown : .payload,
             sequence: 1,
             timestamp: .now,
             isRunning: false

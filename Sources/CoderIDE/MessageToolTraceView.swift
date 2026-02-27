@@ -307,6 +307,18 @@ struct MessageToolTraceView: View {
                 }
                 .buttonStyle(.plain)
 
+                if change.diffSource.isDerived {
+                    Text("derived")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
+                        )
+                }
+
                 Spacer(minLength: 0)
 
                 Text("+\(max(0, change.added))")

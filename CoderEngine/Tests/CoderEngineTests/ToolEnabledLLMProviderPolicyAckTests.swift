@@ -195,4 +195,71 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         let commandIndex = try XCTUnwrap(rawTypes.firstIndex(of: "command_execution"))
         XCTAssertLessThan(ackIndex, commandIndex)
     }
+
+    func testMCPEditRerouteMapsWriteToCoderideWrite() {
+        let reroute = ToolEnabledLLMProvider.rerouteEditToolToMCP(
+            toolName: "write",
+            args: [
+                "path": "Sources/CoderIDE/Trace.swift",
+                "content": "let value = 1\n",
+            ]
+        )
+
+        XCTAssertEqual(reroute?.mcpTool, "coderide_write")
+        XCTAssertEqual(reroute?.args["path"], "Sources/CoderIDE/Trace.swift")
+        XCTAssertEqual(reroute?.args["content"], "let value = 1\n")
+    }
+
+    func testMCPEditRerouteReturnsNilForApplyPatch() {
+        let reroute = ToolEnabledLLMProvider.rerouteEditToolToMCP(
+            toolName: "apply_patch",
+            args: [
+                "patch": "*** Begin Patch\n*** End Patch\n",
+            ]
+        )
+        XCTAssertNil(reroute)
+    }
+
+    func testEnforcedMCPEditEmitsValidationErrorWhenMCPDisabled() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-edit-policy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let target = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: target, atomically: true, encoding: .utf8)
+
+        let args = #"{"path":"\#(target.path)","content":"let value = 2\n"}"#
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-mcp-enforce",
+                "name": "write",
+                "args": args,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            policy: ToolRuntimePolicy(enableMCP: false, enforceMCPEditOnly: true),
+            maxToolRounds: 1
+        )
+        let stream = try await provider.send(
+            prompt: "Aggiorna il file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var validationPayload: [String: String]?
+        for try await event in stream {
+            if case .raw(let type, let payload) = event,
+               type == "tool_validation_error",
+               payload["error_code"] == "mcp_edit_required" {
+                validationPayload = payload
+            }
+        }
+
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required")
+        XCTAssertEqual(validationPayload?["tool"], "write")
+    }
 }
