@@ -45,6 +45,21 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["mcp_tool"], "run_tests")
     }
 
+    func testMCPStrReplaceSummaryInfersLineCounters() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_str_replace",
+                "detail": "Replaced at line 1534 (23 lines \u{2192} 55 lines)",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["linesAdded"], "55")
+        XCTAssertEqual(mapped?.payload["linesRemoved"], "23")
+    }
+
     func testUnknownToolFallsBackToCommandExecution() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "custom_tool",

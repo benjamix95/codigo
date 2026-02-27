@@ -668,6 +668,16 @@ struct MessageToolTraceView: View {
             return diffLineCounts(from: diff)
         }
 
+        if let summary = nonEmpty(
+            payload["detail"]
+                ?? payload["output"]
+                ?? payload["result"]
+                ?? payload["stdout"]
+        ),
+            let summaryCounters = replacementSummaryLineCounts(from: summary) {
+            return summaryCounters
+        }
+
         if ToolTraceFileChangeMapper.isFileChangeEvent(event) {
             return (0, 0)
         }
@@ -699,6 +709,25 @@ struct MessageToolTraceView: View {
             }
         }
         return nil
+    }
+
+    private static let replacementSummaryRegex = try! NSRegularExpression(
+        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|\u{2192})\\s*(\\d+)\\s+lines?\\)",
+        options: [.caseInsensitive]
+    )
+
+    private func replacementSummaryLineCounts(from summary: String) -> (added: Int, removed: Int)? {
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = Self.replacementSummaryRegex.firstMatch(in: trimmed, options: [], range: range),
+              let oldRange = Range(match.range(at: 1), in: trimmed),
+              let newRange = Range(match.range(at: 2), in: trimmed),
+              let oldLines = Int(trimmed[oldRange]),
+              let newLines = Int(trimmed[newRange]) else {
+            return nil
+        }
+        return (added: max(0, newLines), removed: max(0, oldLines))
     }
 
     private func nonEmpty(_ value: String?) -> String? {

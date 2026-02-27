@@ -114,10 +114,14 @@ enum ToolTraceFileChangeMapper {
         let diffPreview = firstNonEmpty(payload: payload, keys: [
             "diffPreview", "diff", "patch", "unified_diff", "changes_preview",
         ])
+        let replacementSummary = firstNonEmpty(payload: payload, keys: [
+            "detail", "output", "result", "stdout",
+        ])
         let inferred = inferCounters(
             added: explicitAdded,
             removed: explicitRemoved,
-            diffPreview: diffPreview
+            diffPreview: diffPreview,
+            replacementSummary: replacementSummary
         )
         let rawOutput = firstNonEmpty(payload: payload, keys: [
             "output", "result", "stdout",
@@ -230,27 +234,58 @@ enum ToolTraceFileChangeMapper {
     private static func inferCounters(
         added: Int,
         removed: Int,
-        diffPreview: String?
+        diffPreview: String?,
+        replacementSummary: String?
     ) -> (added: Int, removed: Int) {
-        guard added == 0, removed == 0, let diffPreview else {
+        guard added == 0, removed == 0 else {
             return (added, removed)
         }
-        let trimmed = diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return (added, removed) }
 
-        var inferredAdded = 0
-        var inferredRemoved = 0
-        for line in trimmed.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("@@") {
-                continue
-            }
-            if line.hasPrefix("+") {
-                inferredAdded += 1
-            } else if line.hasPrefix("-") {
-                inferredRemoved += 1
+        if let diffPreview {
+            let trimmed = diffPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                var inferredAdded = 0
+                var inferredRemoved = 0
+                for line in trimmed.split(separator: "\n", omittingEmptySubsequences: false) {
+                    if line.hasPrefix("+++") || line.hasPrefix("---") || line.hasPrefix("@@") {
+                        continue
+                    }
+                    if line.hasPrefix("+") {
+                        inferredAdded += 1
+                    } else if line.hasPrefix("-") {
+                        inferredRemoved += 1
+                    }
+                }
+                return (inferredAdded, inferredRemoved)
             }
         }
-        return (inferredAdded, inferredRemoved)
+
+        if let replacementSummary,
+           let summaryCounters = parseReplacementSummaryCounts(from: replacementSummary) {
+            return summaryCounters
+        }
+
+        return (added, removed)
+    }
+
+    private static let replacementSummaryRegex = try! NSRegularExpression(
+        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|\u{2192})\\s*(\\d+)\\s+lines?\\)",
+        options: [.caseInsensitive]
+    )
+
+    private static func parseReplacementSummaryCounts(from summary: String) -> (added: Int, removed: Int)? {
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = replacementSummaryRegex.firstMatch(in: trimmed, options: [], range: range),
+              let oldRange = Range(match.range(at: 1), in: trimmed),
+              let newRange = Range(match.range(at: 2), in: trimmed),
+              let oldCount = Int(trimmed[oldRange]),
+              let newCount = Int(trimmed[newRange]) else {
+            return nil
+        }
+        return (added: max(0, newCount), removed: max(0, oldCount))
     }
 
     private static func isFileChangeType(rawType: String, payload: [String: String]) -> Bool {

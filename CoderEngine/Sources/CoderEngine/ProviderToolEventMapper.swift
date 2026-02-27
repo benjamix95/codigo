@@ -573,8 +573,22 @@ enum ProviderToolEventMapper {
             mapped["mcp_server"] = mcpServer
             mapped["server_id"] = mcpServer
         }
+        if let added = firstInt(in: payload, keys: ["linesAdded", "additions", "insertions", "added"]) {
+            mapped["linesAdded"] = "\(max(0, added))"
+        }
+        if let removed = firstInt(in: payload, keys: ["linesRemoved", "deletions", "removed"]) {
+            mapped["linesRemoved"] = "\(max(0, removed))"
+        }
         if let output = firstString(in: payload, keys: ["output", "result", "content"]), !output.isEmpty {
             mapped["output"] = String(output.prefix(6_000))
+        }
+        if mapped["linesAdded"] == nil || mapped["linesRemoved"] == nil {
+            let toolForCounters = firstString(in: payload, keys: ["mcp_tool", "tool_name", "tool_raw", "tool"])
+                ?? mcpTool
+            if let inferred = inferReplacementSummaryLineCounters(payload: payload, toolName: toolForCounters) {
+                mapped["linesAdded"] = mapped["linesAdded"] ?? "\(inferred.added)"
+                mapped["linesRemoved"] = mapped["linesRemoved"] ?? "\(inferred.removed)"
+            }
         }
         return ("mcp_tool_call", mapped)
     }
@@ -779,6 +793,45 @@ enum ProviderToolEventMapper {
         if ["completed", "ok", "success", "done"].contains(normalized) { return "completed" }
         if ["failed", "error", "timeout"].contains(normalized) { return "failed" }
         return "completed"
+    }
+
+    private static let replacementSummaryRegex = try! NSRegularExpression(
+        pattern: "\\((\\d+)\\s+lines?\\s*(?:->|\u{2192})\\s*(\\d+)\\s+lines?\\)",
+        options: [.caseInsensitive]
+    )
+
+    private static func inferReplacementSummaryLineCounters(
+        payload: [String: Any],
+        toolName: String
+    ) -> (added: Int, removed: Int)? {
+        let normalizedTool = normalizeToolIdentifier(toolName)
+        let acceptsSummary = normalizedTool == "str_replace"
+            || normalizedTool == "regex_replace"
+            || normalizedTool == "find_and_replace_all"
+            || normalizedTool == "parallel_apply"
+            || normalizedTool == "multi_edit"
+            || normalizedTool == "multiedit"
+            || normalizedTool == "apply_patch"
+            || normalizedTool == "edit"
+            || normalizedTool == "write"
+            || normalizedTool == "write_file"
+            || normalizedTool.contains("replace")
+        guard acceptsSummary else { return nil }
+
+        let summary = firstString(in: payload, keys: ["detail", "output", "result", "content"])
+            ?? ""
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = replacementSummaryRegex.firstMatch(in: trimmed, options: [], range: range),
+              let oldRange = Range(match.range(at: 1), in: trimmed),
+              let newRange = Range(match.range(at: 2), in: trimmed),
+              let oldLines = Int(trimmed[oldRange]),
+              let newLines = Int(trimmed[newRange]) else {
+            return nil
+        }
+        return (added: max(0, newLines), removed: max(0, oldLines))
     }
 
     private static func intValue(from raw: Any) -> Int? {
