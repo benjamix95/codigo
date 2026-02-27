@@ -1296,7 +1296,7 @@ public actor UnifiedToolRuntime {
             let query = (call.args["query"] ?? call.args["pattern"] ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if query.isEmpty {
-                throw ToolRuntimeError.validation("query is required")
+                throw ToolRuntimeError.validation("pattern (or query) is required")
             }
         case "find_symbol", "find_references":
             let query = (call.args["query"] ?? call.args["name"] ?? "")
@@ -1308,7 +1308,7 @@ public actor UnifiedToolRuntime {
             let query = (call.args["query"] ?? call.args["pattern"] ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if query.isEmpty {
-                throw ToolRuntimeError.validation("query is required")
+                throw ToolRuntimeError.validation("pattern (or query) is required")
             }
         case "web_search", "search_symbols", "codebase_search", "rename_symbol", "semantic_search":
             let query = call.args["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

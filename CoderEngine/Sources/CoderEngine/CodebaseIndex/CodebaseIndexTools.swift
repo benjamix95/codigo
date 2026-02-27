@@ -454,24 +454,28 @@ public actor CodebaseIndexTools {
         }
 
         let ext = args["extension"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filePattern = normalizedFilePattern(from: args["filePattern"] ?? args["path"])
 
-        let results = await index.findFiles(query: query, extensionFilter: ext, limit: 50)
+        let candidateResults = await index.findFiles(query: query, extensionFilter: ext, limit: 200)
+        let scopedResults = await applyFilePattern(candidateResults, filePattern: filePattern)
 
-        if results.isEmpty {
+        if scopedResults.isEmpty {
             // Try glob
-            let globResults = await index.glob(pattern: query, limit: 50)
-            if !globResults.isEmpty {
-                return formatFileResults(globResults, title: "find_files: \(query)")
+            let globResults = await index.glob(pattern: query, limit: 200)
+            let scopedGlobResults = await applyFilePattern(globResults, filePattern: filePattern)
+            if !scopedGlobResults.isEmpty {
+                return formatFileResults(Array(scopedGlobResults.prefix(50)), title: "find_files: \(query)")
             }
+            let scopeDetail = filePattern.map { " in '\($0)'" } ?? ""
             return ToolOutput(
                 ok: true,
                 title: "find_files: \(query)",
-                output: "No files found matching '\(query)'",
+                output: "No files found matching '\(query)'\(scopeDetail)",
                 detail: "0 results"
             )
         }
 
-        return formatFileResults(results, title: "find_files: \(query)")
+        return formatFileResults(Array(scopedResults.prefix(50)), title: "find_files: \(query)")
     }
 
     private func executeCodebaseStats() async -> ToolOutput {
@@ -703,6 +707,37 @@ public actor CodebaseIndexTools {
             normalized.insert(value)
         }
         return normalized.sorted()
+    }
+
+    private func normalizedFilePattern(from rawValue: String?) -> String? {
+        guard var value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else { return nil }
+        if value == "." { return nil }
+        if value.hasPrefix("./") {
+            value = String(value.dropFirst(2))
+        }
+        while value.hasSuffix("/") {
+            value.removeLast()
+        }
+        guard !value.isEmpty, value != "." else { return nil }
+        return value
+    }
+
+    private func applyFilePattern(_ files: [FileNode], filePattern: String?) async -> [FileNode] {
+        guard let filePattern else { return files }
+        let normalizedPattern = filePattern.lowercased()
+        if normalizedPattern.contains("*") {
+            let allowed = Set((await index.glob(pattern: filePattern, limit: 5_000)).map { $0.relativePath.lowercased() })
+            return files.filter { allowed.contains($0.relativePath.lowercased()) }
+        }
+
+        return files.filter { node in
+            let path = node.relativePath.lowercased()
+            if path == normalizedPattern { return true }
+            if path.hasPrefix(normalizedPattern + "/") { return true }
+            return path.contains(normalizedPattern)
+        }
     }
 
     // MARK: - Formatting Helpers

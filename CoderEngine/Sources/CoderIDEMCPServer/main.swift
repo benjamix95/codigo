@@ -93,16 +93,17 @@ struct CoderIDETools {
         // --- Search & Navigation ---
         Tool(
             name: "coderide_grep",
-            description: "Search file contents using regex patterns. Returns matching lines with context.",
+            description: "Search file contents using regex patterns. Accepts 'pattern' (or 'query') and returns matching lines with context.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
+                    "query": .object(["type": "string", "description": "Regex/text query to search (alias of pattern)"]),
                     "pattern": .object(["type": "string", "description": "Regex pattern to search for"]),
                     "path": .object(["type": "string", "description": "Directory or file to search in"]),
                     "fileType": .object(["type": "string", "description": "File extension filter (e.g. 'swift', 'py')"]),
                     "maxResults": .object(["type": "string", "description": "Maximum number of results"]),
                 ]),
-                "required": .array([.string("pattern")]),
+                "required": .array([]),
             ]),
             annotations: .init(title: "Grep Search", readOnlyHint: true)
         ),
@@ -121,25 +122,30 @@ struct CoderIDETools {
         ),
         Tool(
             name: "coderide_find_files",
-            description: "Find files by name pattern using the codebase index. Faster than glob for indexed repos.",
+            description: "Find files by name pattern using the codebase index. Supports optional scope filters via 'path'/'filePattern'.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "pattern": .object(["type": "string", "description": "File name pattern to search"]),
-                    "path": .object(["type": "string", "description": "Optional directory scope"]),
+                    "query": .object(["type": "string", "description": "File name query (alias of pattern)"]),
+                    "pattern": .object(["type": "string", "description": "File name pattern to search (alias of query)"]),
+                    "path": .object(["type": "string", "description": "Optional directory scope (alias of filePattern)"]),
+                    "filePattern": .object(["type": "string", "description": "Optional file path/glob filter (e.g. Sources/**)"]),
+                    "extension": .object(["type": "string", "description": "Optional extension filter"]),
                 ]),
-                "required": .array([.string("pattern")]),
+                "required": .array([]),
             ]),
             annotations: .init(title: "Find Files", readOnlyHint: true, idempotentHint: true)
         ),
         Tool(
             name: "coderide_codebase_search",
-            description: "Semantic search across the codebase. Use natural language queries like 'where is authentication handled?'.",
+            description: "Search symbols/functions with the codebase index. 'path' is a compatibility alias of 'filePattern'.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
                     "query": .object(["type": "string", "description": "Natural language search query"]),
-                    "path": .object(["type": "string", "description": "Optional directory scope"]),
+                    "kind": .object(["type": "string", "description": "Optional symbol kind filter"]),
+                    "filePattern": .object(["type": "string", "description": "Optional file path/glob filter"]),
+                    "path": .object(["type": "string", "description": "Compatibility alias for filePattern"]),
                 ]),
                 "required": .array([.string("query")]),
             ]),
