@@ -147,15 +147,21 @@ struct PlanPanelView: View {
 
                     // 3) Option chooser (proposal ready)
                     if case .awaitingChoice(_, let options) = planningState {
-                        PlanOptionsView(
-                            options: options,
-                            selectedOptionId: selectedOptionId(in: options),
-                            planColor: planColor,
-                            onSelectOption: { option in
-                                onSelectOption(option, planProviderId)
-                            },
-                            onCustomResponse: onCustomResponse
-                        )
+                        if options.count == 1 {
+                            Color.clear.frame(width: 0, height: 0).onAppear {
+                                onSelectOption(options[0], planProviderId)
+                            }
+                        } else {
+                            PlanOptionsView(
+                                options: options,
+                                selectedOptionId: selectedOptionId(in: options),
+                                planColor: planColor,
+                                onSelectOption: { option in
+                                    onSelectOption(option, planProviderId)
+                                },
+                                onCustomResponse: onCustomResponse
+                            )
+                        }
                     }
 
                     // 4) Final todos

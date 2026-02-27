@@ -81,12 +81,12 @@ struct PlanClarificationSubmission: Equatable {
 
 /// Extracts numbered options from plan text (e.g. "## Option 1: ...", "Option 2:", etc.).
 enum PlanOptionsParser {
-    private static let optionHeaderPattern =
-        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]"#
+private static let optionHeaderPattern =
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)\s*[:\-\u{2013}\u{2014}]"#
     private static let nextOptionPattern =
-        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)"#
     private static let optionWithTitlePattern =
-        #"(?i)^\s*(?:#{1,3}\s*)?(?:Option|Approach)\s+(?:\d+|[A-Z])\s*[:\-\u{2013}\u{2014}]\s*.+$"#
+        #"(?i)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)\s*[:\-\u{2013}\u{2014}]\s*.+$"#
     private static let clarificationHeaderPattern =
         #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
     private static let otherLikePrimaryTokens: Set<String> = [
@@ -383,10 +383,9 @@ enum PlanOptionsParser {
         let options = parseStructured(from: text)
         guard !options.isEmpty else { return [] }
 
-        // Hardening: avoid false positives on noisy text. Require at least two options,
-        // or one option with a strong heading + title.
-        if options.count >= 2 { return options }
-        guard options.count == 1 else { return [] }
+        // Hardening: avoid false positives on noisy text. Accept one option when it has
+        // a strong heading + title (for the single-plan flow).
+        if options.count > 1 { return options }
         let firstLine = options[0].fullText.components(separatedBy: .newlines).first ?? ""
         let hasStrongHeader = firstLine.range(of: optionWithTitlePattern, options: .regularExpression) != nil
         return hasStrongHeader ? options : []

@@ -240,7 +240,7 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
 
     After these answers, run additional codebase analysis using the selected constraints.
     If new ambiguities appear, you may ask follow-up questions again using ## Questions.
-    Propose final options (## Option + ## Todo) only when you are fully confident.
+    Propose the definitive plan (## Plan: Title + ## Todo) only when you are fully confident.
     """
 }
 
@@ -993,11 +993,16 @@ struct ChatPanelView: View {
             if let activeId = chatStore.activeTaskConversationId,
                var board = chatStore.planBoard(for: activeId),
                let idx = board.steps.firstIndex(where: {
-                   $0.title.caseInsensitiveCompare(title) == .orderedSame
-               }) {
+                    $0.title.caseInsensitiveCompare(title) == .orderedSame
+                }) {
                 board.steps[idx].status = planStatus
                 board.updatedAt = .now
                 chatStore.setPlanBoard(board, for: activeId)
+            }
+
+            let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
+            if let activeId = chatStore.activeTaskConversationId, !canonicalTodos.isEmpty {
+                chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
             }
         }
     }
@@ -4492,6 +4497,25 @@ struct ChatPanelView: View {
                     in: agentConvId
                 )
                 suppressedEmptyBuildAssistantMessageIds.remove(planBuildAssistantMessageId)
+                if traceOutcome == .success, let planConvId = activeBuildPlanConversationId {
+                    let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
+                    let walkthroughMd = buildWalkthroughMarkdown(
+                        canonicalTodos: canonicalTodos,
+                        planBoard: chatStore.planBoard(for: planConvId)
+                    )
+                    chatStore.setWalkthrough(walkthroughMd, for: planConvId)
+
+                    let doneCount = canonicalTodos.filter { $0.status == .done }.count
+                    let totalCount = canonicalTodos.count
+                    let goalText = chatStore.planBoard(for: planConvId)?.goal ?? "Plan"
+                    let recap = doneCount == totalCount
+                        ? "Build complete. All \(totalCount) steps done: \(goalText)"
+                        : "Build finished. \(doneCount)/\(totalCount) steps completed: \(goalText)"
+                    chatStore.addMessage(
+                        ChatMessage(id: UUID(), role: .assistant, content: recap),
+                        to: agentConvId
+                    )
+                }
                 activeBuildPlanConversationId = nil
             }
         }
@@ -4932,10 +4956,6 @@ struct ChatPanelView: View {
             attachments: attachmentsToSend,
             onText: { [self] content in
                 planStreamingContent = content
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: conversationId
-                )
             },
             onRaw: { [self] t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
@@ -4949,14 +4969,23 @@ struct ChatPanelView: View {
         )
 
         await MainActor.run {
-            planAnalysisContext = analysisResult.fullText
-            planStreamingContent = analysisResult.fullText
+            let analysisText = analysisResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+            planAnalysisContext = analysisText
+            planStreamingContent = analysisText
             chatStore.updateLastAssistantMessage(
-                content: "Analysis complete. Generating questions...",
+                content: analysisText,
                 in: conversationId,
                 persistImmediately: true
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
+            chatStore.addMessage(
+                ChatMessage(
+                    id: UUID(),
+                    role: .assistant,
+                    content: "Analysis complete. Preparing clarification..."
+                ),
+                to: conversationId
+            )
         }
 
         // ========================
@@ -4969,6 +4998,11 @@ struct ChatPanelView: View {
             chatStore.addMessage(
                 ChatMessage(id: questionAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: conversationId
+            )
+            chatStore.updateLastAssistantMessage(
+                content: "Generating clarification questions...",
+                in: conversationId,
+                persistImmediately: true
             )
             startToolTraceTurn(
                 conversationId: conversationId,
@@ -4988,10 +5022,6 @@ struct ChatPanelView: View {
             attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: conversationId
-                )
             },
             onRaw: { [self] t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
@@ -5017,7 +5047,9 @@ struct ChatPanelView: View {
                 planningState = .awaitingClarification(questions: questions)
                 planStreamingContent = questionText
                 chatStore.updateLastAssistantMessage(
-                    content: questionText, in: conversationId, persistImmediately: true
+                    content: "Questions ready — answer in the plan panel.",
+                    in: conversationId,
+                    persistImmediately: true
                 )
                 chatStore.setLastAssistantStreaming(false, in: conversationId)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
@@ -5039,10 +5071,9 @@ struct ChatPanelView: View {
             : "Question phase completed. Generating plan..."
         await MainActor.run {
             planningState = .idle
-            chatStore.updateLastAssistantMessage(
-                content: phase2Summary,
-                in: conversationId,
-                persistImmediately: true
+            chatStore.addMessage(
+                ChatMessage(id: UUID(), role: .assistant, content: phase2Summary),
+                to: conversationId
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
             planStreamingContent = ""
@@ -5078,6 +5109,11 @@ struct ChatPanelView: View {
                 assistantMessageId: generationAssistantMessageId,
                 providerId: provider.id
             )
+            chatStore.updateLastAssistantMessage(
+                content: "Generating definitive plan...",
+                in: conversationId,
+                persistImmediately: true
+            )
         }
 
         let generationPrompt = buildPhase3GenerationPrompt(
@@ -5093,10 +5129,6 @@ struct ChatPanelView: View {
             attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: conversationId
-                )
             },
             onRaw: { [self] t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
@@ -5154,10 +5186,6 @@ struct ChatPanelView: View {
                 attachments: nil,
                 onText: { [self] content in
                     planStreamingContent = content
-                    applyStreamingUpdate(
-                        content: content,
-                        conversationId: conversationId
-                    )
                 },
                 onRaw: { [self] t, p, pid in
                     handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
@@ -5175,7 +5203,6 @@ struct ChatPanelView: View {
         }
 
         await MainActor.run { planStreamingContent = full }
-        chatStore.updateLastAssistantMessage(content: full, in: conversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
 
@@ -5185,8 +5212,13 @@ struct ChatPanelView: View {
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
             let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
-            let summaryContent = "Plan ready: \(parsedSummary.title)"
-            chatStore.updateLastAssistantMessage(content: summaryContent, in: conversationId, persistImmediately: true)
+            let mermaidBlocks = PlanOptionsParser.extractMermaidBlocksForDisplay(full)
+            let mermaidSection = mermaidBlocks.first.map { "\n\n```mermaid\n\($0)\n```" } ?? ""
+            let summaryContent = "Plan ready: \(parsedSummary.title)\(mermaidSection)"
+            chatStore.addMessage(
+                ChatMessage(id: UUID(), role: .assistant, content: summaryContent),
+                to: conversationId
+            )
 
             let entry = planHistoryStore.createEntry(
                 conversationId: conversationId,
@@ -5359,10 +5391,6 @@ struct ChatPanelView: View {
             attachments: nil,
             onText: { [self] content in
                 planStreamingContent = content
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: conversationId
-                )
             },
             onRaw: { [self] t, p, pid in
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
@@ -5394,7 +5422,7 @@ struct ChatPanelView: View {
                 planningState = .awaitingClarification(questions: q)
                 planStreamingContent = reAnalysisText
                 chatStore.updateLastAssistantMessage(
-                    content: q,
+                    content: "Questions ready — answer in the plan panel.",
                     in: conversationId,
                     persistImmediately: true
                 )
@@ -5414,8 +5442,12 @@ struct ChatPanelView: View {
         await MainActor.run {
             let postClarification = "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
             planAnalysisContext = String((planAnalysisContext + postClarification).suffix(32_000))
+            chatStore.addMessage(
+                ChatMessage(id: UUID(), role: .assistant, content: "Analysis complete. Generating plan..."),
+                to: conversationId
+            )
             chatStore.updateLastAssistantMessage(
-                content: "Analysis complete. Generating plan...",
+                content: "Questions answered. Generating definitive plan...",
                 in: conversationId,
                 persistImmediately: true
             )
@@ -5631,7 +5663,7 @@ struct ChatPanelView: View {
             Next steps:
             1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
             2. If you need MORE information, output ANOTHER ## Questions section (same A/B/C/D format).
-            3. If you have ALL information needed, proceed to propose 2-4 options with ## Option and ## Todo sections.
+            3. If you have ALL information needed, proceed to generate ONE definitive plan with ## Plan: Title and ## Todo sections.
             CRITICAL: Do NOT skip additional analysis. You are ALLOWED to ask follow-up questions.
             """
         }
@@ -5683,12 +5715,12 @@ struct ChatPanelView: View {
             Mark the best option with "(Recommended)" suffix, e.g.: A) Use SwiftUI (Recommended)
             For questions where multiple answers can be selected, add "(select all that apply)" to the question.
             DO NOT output anything else besides the ## Questions section.
-            NEVER include ## Option or ## Todo in a response with ## Questions.
+            NEVER include ## Plan or ## Todo in a response with ## Questions.
 
-            ## PHASE 3: PLAN PROPOSAL (ONLY after Phases 1+2 resolved)
-            Propose 2-4 concrete options:
-            ## Option 1: Title
-            Description, pros/cons.
+            ## PHASE 3: DEFINITIVE PLAN (ONLY after Phases 1+2 resolved)
+            Generate ONE definitive implementation plan (the best approach):
+            ## Plan: Title
+            Description, rationale, trade-offs.
             ## Todo
             - [ ] Step 1
             - [ ] Step 2
@@ -5700,7 +5732,7 @@ struct ChatPanelView: View {
             - Implementation step dependencies
             Use a ```mermaid code block in your response. The IDE will render it as an interactive diagram.
 
-            CRITICAL: NEVER combine ## Questions and ## Option in the same response.
+            CRITICAL: NEVER combine ## Questions and ## Plan in the same response.
             Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
             """
             prompt = planningInstructions + "\n\n" + prompt
@@ -5786,9 +5818,10 @@ struct ChatPanelView: View {
         2. Identify key files, dependencies, current architecture, and constraints.
         3. Report your findings as structured analysis text.
         4. Do NOT propose solutions, options, or clarification questions.
-        5. Do NOT generate ## Todo sections or ## Option headers.
+            5. Do NOT generate ## Todo sections or ## Plan headers.
         6. Focus on WHAT EXISTS, not what should change.
         7. Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
+        8. Include a ```mermaid diagram showing the architecture, component relationships, or data flow relevant to this request.
 
         Output format: A structured analysis report of your findings.
         """
@@ -5824,7 +5857,7 @@ struct ChatPanelView: View {
         C) Other (specify)
 
         4. If you have SUFFICIENT information, provide an analysis report without questions.
-        5. Do NOT generate ## Option, ## Todo or plan proposals in this phase.
+        5. Do NOT generate ## Plan, ## Todo or plan proposals in this phase.
         6. Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
         """
     }
@@ -5861,7 +5894,7 @@ struct ChatPanelView: View {
         - Options must be mutually exclusive and concrete (not vague)
         - Include "D) Other (specify)" ONLY for genuinely open-ended questions
         - The header MUST be exactly "## Questions" (no localized alternatives)
-        - Do NOT include ## Option, ## Todo or plan proposals
+        - Do NOT include ## Plan, ## Todo or plan proposals
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         - The format must be EXACTLY as above: number + text + options A) B) C) on separate lines
         """
@@ -5875,7 +5908,7 @@ struct ChatPanelView: View {
         var prompt = """
         **Phase: Plan Generation**
 
-        Generate 2-4 concrete implementation options based on the analysis and context below.
+        Generate ONE definitive implementation plan based on the analysis and context below.
 
         User request: \(userRequest)
 
@@ -5894,26 +5927,21 @@ struct ChatPanelView: View {
         prompt += """
 
         Instructions:
-        - Propose 2-4 concrete options using this EXACT format for each:
+        - Generate ONE definitive implementation plan using this EXACT format:
 
-        ## Option 1: Title
-        Description of the approach...
-
-        **Pros:** ...
-        **Cons:** ...
-        **Complexity:** Low/Medium/High
+        ## Plan: Title
+        Description of the approach, rationale, trade-offs, and key implementation notes.
 
         ## Todo
         - [ ] Step 1
         - [ ] Step 2
         - [ ] Step 3
 
-        ## Option 2: Title
-        ...
+        - Include a ```mermaid diagram showing the implementation plan dependencies and flow.
 
         Rules:
-        - Each option MUST include a section header exactly `## Todo` (double hash).
-        - Under each `## Todo`, include 3-8 checklist items using `- [ ] ...`.
+        - The plan MUST include the exact header `## Todo`.
+        - Under `## Todo`, include 3-8 checklist items using `- [ ] ...`.
         - Do NOT use alternative headers like "Tasks", "Steps", or "Checklist".
         - Steps must be concrete and directly implementable.
         - Do NOT ask questions or request clarifications
@@ -5933,7 +5961,7 @@ struct ChatPanelView: View {
         var prompt = """
         **Phase: Plan Format Repair**
 
-        Your previous output is INVALID because one or more options are missing the required `## Todo` section.
+        Your previous output is INVALID because the plan is missing the required `## Todo` section.
         Rewrite the plan from scratch.
 
         User request: \(userRequest)
@@ -5956,9 +5984,9 @@ struct ChatPanelView: View {
         \(clippedInvalidOutput)
 
         Hard constraints (MANDATORY):
-        - Output 2-4 options using headers like `## Option 1: ...`
-        - Every option MUST contain the exact header `## Todo`
-        - Under every `## Todo`, include 3-8 checklist items using `- [ ]`
+        - Output ONE plan using a `## Plan: Title` header.
+        - The plan MUST contain the exact header `## Todo`
+        - Under `## Todo`, include 3-8 checklist items using `- [ ]`
         - Do NOT use alternative headers like Tasks/Steps/Checklist
         - Output only the final markdown plan (no commentary)
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
@@ -6316,14 +6344,43 @@ struct ChatPanelView: View {
         streamingReasoningConversationId = nil
     }
 
+    private func buildWalkthroughMarkdown(
+        canonicalTodos: [TodoItem],
+        planBoard: PlanBoard?
+    ) -> String {
+        var lines: [String] = ["## Build Complete", ""]
+        if let goal = planBoard?.goal, !goal.isEmpty {
+            lines.append("**Objective:** \(goal)")
+            lines.append("")
+        }
+        lines.append("### Completed Steps")
+        for todo in canonicalTodos {
+            let icon = todo.status == .done ? "x" : " "
+            lines.append("- [\(icon)] \(todo.title)")
+            if !todo.linkedFiles.isEmpty {
+                lines.append("  Files: \(todo.linkedFiles.joined(separator: ", "))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func stripPlanCheckboxes(_ content: String) -> String {
+        content.replacingOccurrences(
+            of: #"(?m)^(\s*[-*]\s*)\[\s*[xX ]?\s*\]\s*"#,
+            with: "$1",
+            options: .regularExpression
+        )
+    }
+
     private func applyStreamingUpdate(
         content: String,
         conversationId: UUID?
     ) {
+        let sanitizedContent = (planFlowPhase == .building) ? stripPlanCheckboxes(content) : content
         // Keep off-screen/background thread updates isolated from the visible stream throttle state.
         if conversationId != self.conversationId {
             chatStore.updateLastAssistantMessage(
-                content: content,
+                content: sanitizedContent,
                 in: conversationId,
                 persistImmediately: false
             )
@@ -6331,7 +6388,7 @@ struct ChatPanelView: View {
         }
 
         // Always store the latest content so we never lose data.
-        pendingStreamContent = content
+        pendingStreamContent = sanitizedContent
         pendingStreamConversationId = conversationId
 
         // If a throttle is already scheduled, let it pick up the latest content.
@@ -6350,7 +6407,7 @@ struct ChatPanelView: View {
                 if let pending = pendingStreamContent {
                     pendingStreamContent = nil
                     chatStore.updateLastAssistantMessage(
-                        content: pending,
+                        content: (planFlowPhase == .building) ? stripPlanCheckboxes(pending) : pending,
                         in: pendingStreamConversationId,
                         persistImmediately: false
                     )
@@ -6365,8 +6422,9 @@ struct ChatPanelView: View {
         streamThrottleTask = nil
         guard let content = pendingStreamContent else { return }
         pendingStreamContent = nil
+        let sanitizedContent = (planFlowPhase == .building) ? stripPlanCheckboxes(content) : content
         chatStore.updateLastAssistantMessage(
-            content: content,
+            content: sanitizedContent,
             in: pendingStreamConversationId,
             persistImmediately: false
         )
