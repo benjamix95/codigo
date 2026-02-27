@@ -50,9 +50,13 @@ enum SwarmLiveReducer {
         }
 
         card.currentDetail = bestDetail(for: activity) ?? card.currentDetail
-        card.activeOpsCount = card.recentEvents.suffix(limitRecentEvents).filter(\.isRunning).count
-        if !isDuplicate && isErrorEvent(activity) {
-            card.errorCount += 1
+        if !isDuplicate {
+            if activity.isRunning {
+                card.activeOpsCount += 1
+            }
+            if isErrorEvent(activity) {
+                card.errorCount += 1
+            }
         }
 
         let transition = statusTransition(for: activity)
@@ -61,6 +65,7 @@ enum SwarmLiveReducer {
             card.status = .running
             card.completedAt = nil
             card.summary = nil
+            card.errorCount = 0
             if card.isCollapsed {
                 card.hasUnreadSinceCollapse = true
             }
@@ -68,12 +73,15 @@ enum SwarmLiveReducer {
             card.status = .completed
             card.completedAt = activity.timestamp
             card.summary = summary(for: card.recentEvents)
+            card.activeOpsCount = 0
             card.isCollapsed = true
             card.hasUnreadSinceCollapse = false
         case .failed:
             card.status = .failed
-            card.isCollapsed = false
-            card.hasUnreadSinceCollapse = false
+            card.activeOpsCount = 0
+            if !card.isCollapsed {
+                card.hasUnreadSinceCollapse = false
+            }
         case .none:
             if card.status == .idle || card.status == .completed {
                 // Allow transition back from completed/idle to running if a new
@@ -82,8 +90,11 @@ enum SwarmLiveReducer {
                     card.status = .running
                     card.completedAt = nil
                     card.summary = nil
+                    card.errorCount = 0
                 } else if card.status == .idle && !activity.isRunning {
                     card.status = .completed
+                    card.completedAt = activity.timestamp
+                    card.summary = summary(for: card.recentEvents)
                 }
             }
             if card.isCollapsed && !isDuplicate {
@@ -200,7 +211,7 @@ enum SwarmLiveReducer {
     }
 
     private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {
-        let bucket = Int(activity.timestamp.timeIntervalSince1970)
+        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 10)
         let status = (activity.payload["status"] ?? "").lowercased()
         let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
         return [

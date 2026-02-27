@@ -6773,7 +6773,7 @@ struct ChatPanelView: View {
             )
         }
         chatStore.beginTask(conversationId: swarmConversationId)
-        taskActivityStore.clear()
+        taskActivityStore.clearSwarmCards()
         if let swarmConversationId {
             scheduleFallbackTurnStartEvent(
                 conversationId: swarmConversationId,
@@ -6783,7 +6783,8 @@ struct ChatPanelView: View {
         swarmProgressStore.clear()
 
         let followUpProvider: (any LLMProvider)? = {
-            guard let agentId = agentProviderIdBeforeSwarm,
+            guard let swarmConversationId,
+                let agentId = agentProviderIdBeforeSwarm,
                 ProviderSupport.isAgentCompatibleProvider(id: agentId),
                 let agentProvider = providerRegistry.provider(for: agentId),
                 agentProvider.isAuthenticated()
@@ -6798,13 +6799,11 @@ struct ChatPanelView: View {
             chatStore.addMessage(
                 ChatMessage(id: followUpAssistantMessageId, role: .assistant, content: "", isStreaming: true),
                 to: swarmConversationId)
-            if let swarmConversationId {
-                startToolTraceTurn(
-                    conversationId: swarmConversationId,
-                    assistantMessageId: followUpAssistantMessageId,
-                    providerId: agentProvider.id
-                )
-            }
+            startToolTraceTurn(
+                conversationId: swarmConversationId,
+                assistantMessageId: followUpAssistantMessageId,
+                providerId: agentProvider.id
+            )
             return agentProvider
         }()
 

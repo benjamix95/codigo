@@ -647,7 +647,9 @@ final class TaskActivityStore: ObservableObject {
         }
         let t = activity.title.lowercased()
         let d = (activity.detail ?? "").lowercased()
-        return t.contains("error") || t.contains("failed") || d.contains("error") || d.contains("failed")
+        let status = (activity.payload["status"] ?? "").lowercased()
+        return t.contains("error") || t.contains("failed") || d.contains("error")
+            || d.contains("failed") || status == "failed"
     }
 
     private func ingestSwarmCard(activity: TaskActivity) {

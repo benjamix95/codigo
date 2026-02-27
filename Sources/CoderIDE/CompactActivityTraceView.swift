@@ -9,7 +9,6 @@ struct CompactActivityTraceView: View {
     let title: String
 
     @State private var isExpanded = false
-    @State private var autoScrollId: UUID?
 
     /// How many items to show in compact mode
     private let compactLimit = 6
@@ -28,6 +27,13 @@ struct CompactActivityTraceView: View {
             return Array(running.suffix(compactLimit))
         }
         return Array(activities.suffix(compactLimit))
+    }
+
+    private var displayFingerprint: [String] {
+        displayActivities.map { activity in
+            let ts = Int(activity.timestamp.timeIntervalSince1970 * 1000)
+            return "\(activity.id.uuidString)-\(ts)"
+        }
     }
 
     var body: some View {
@@ -81,18 +87,14 @@ struct CompactActivityTraceView: View {
                         .padding(.vertical, 4)
                     }
                     .frame(maxHeight: isExpanded ? 300 : 140)
-                    .onChange(of: activities.count) { _, _ in
-                        // Auto-scroll to latest
-                        if let last = displayActivities.last {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
-                        }
-                    }
                     .onAppear {
-                        if let last = displayActivities.last {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
+                        scrollToLatest(proxy: proxy)
+                    }
+                    .onChange(of: isExpanded) { _, _ in
+                        scrollToLatest(proxy: proxy)
+                    }
+                    .onChange(of: displayFingerprint) { _, _ in
+                        scrollToLatest(proxy: proxy)
                     }
                 }
 
@@ -113,6 +115,13 @@ struct CompactActivityTraceView: View {
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(accentColor.opacity(0.12), lineWidth: 0.5)
         )
+    }
+
+    private func scrollToLatest(proxy: ScrollViewProxy) {
+        guard let last = displayActivities.last else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(last.id, anchor: .bottom)
+        }
     }
 
     // MARK: - Compact Row
