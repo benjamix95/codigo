@@ -826,19 +826,49 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return p["code"] != nil ? [("mermaid_render", p)] : []
 
         case "debug_panel", "debug_panel_update":
+            return [(
+                "tool_validation_error",
+                [
+                    "title": "Legacy debug_panel is not supported",
+                    "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
+                    "status": "failed",
+                    "error_code": "legacy_debug_panel_removed",
+                    "tool": normalizedTool,
+                ]
+            )]
+
+        case "debug_set_phase":
             var p: [String: String] = [:]
-            if let a = firstString(in: arguments, keys: ["action"]) { p["action"] = a }
             if let ph = firstString(in: arguments, keys: ["phase"]) { p["phase"] = ph }
-            return p.isEmpty ? [] : [("debug_panel_update", p)]
+            if let d = firstString(in: arguments, keys: ["detail"]) { p["detail"] = d }
+            return p["phase"] != nil ? [("debug_phase_update", p)] : []
+
+        case "debug_request_user":
+            var p: [String: String] = [:]
+            if let kind = firstString(in: arguments, keys: ["kind"]) { p["kind"] = kind }
+            if let prompt = firstString(in: arguments, keys: ["prompt"]) { p["prompt"] = prompt }
+            return (p["kind"] != nil && p["prompt"] != nil) ? [("debug_user_request", p)] : []
+
+        case "debug_resolve":
+            if let summary = firstString(in: arguments, keys: ["summary"]) {
+                return [("debug_resolved", ["summary": summary])]
+            }
+            return []
 
         case "policy_ack":
             if let h = firstString(in: arguments, keys: ["hash"]) { return [("policy_ack", ["hash": h])] }
             return []
 
         case "activate_plan_mode":
+            if let reason = firstString(in: arguments, keys: ["reason"]) {
+                return [("activate_plan_mode", ["reason": reason])]
+            }
             return [("activate_plan_mode", [:])]
 
         case "activate_debug_mode":
+            if let reason = firstString(in: arguments, keys: ["reason"]) {
+                return [("activate_debug_mode", ["reason": reason])]
+            }
             return [("activate_debug_mode", [:])]
 
         case "show_task_panel":
@@ -847,6 +877,12 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         case "invoke_swarm":
             if let t = firstString(in: arguments, keys: ["task"]) { return [("coderide_invoke_swarm", ["task": t])] }
             return []
+
+        case "show_swarm_panel":
+            if let swarmId = firstString(in: arguments, keys: ["swarm_id"]) {
+                return [("coderide_show_swarm_panel", ["swarm_id": swarmId])]
+            }
+            return [("coderide_show_swarm_panel", [:])]
 
         default:
             return []

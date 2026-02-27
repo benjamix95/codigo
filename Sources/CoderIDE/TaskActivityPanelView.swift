@@ -446,7 +446,7 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
         case "todo_write", "todo_read": return "checklist"
         case "plan_step_update": return "list.bullet.rectangle"
-        case "debug_panel", "debug_panel_update", "debug_hypothesize": return "ladybug.fill"
+        case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return "ladybug.fill"
         case "debug_log": return "text.badge.plus"
         case "debug_query": return "text.magnifyingglass"
         case "debug_session": return "play.circle.fill"
@@ -474,7 +474,7 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return .secondary
         case "todo_write", "todo_read": return .secondary
         case "plan_step_update": return .secondary
-        case "debug_panel", "debug_panel_update", "debug_hypothesize": return DesignSystem.Colors.debugColor
+        case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return DesignSystem.Colors.debugColor
         case "debug_log", "debug_query", "debug_session", "debug_mark", "debug_clean":
             return DesignSystem.Colors.debugColor
         case "activate_plan_mode": return DesignSystem.Colors.planColor

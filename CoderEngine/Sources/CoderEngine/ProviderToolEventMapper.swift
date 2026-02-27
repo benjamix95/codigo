@@ -12,6 +12,18 @@ enum ProviderToolEventMapper {
         let tool = normalizedTool.isEmpty ? normalizedHint : normalizedTool
 
         let mappedToolName = tool.isEmpty ? rawToolName : tool
+        if tool == "debug_panel" || normalizedHint == "debug_panel" {
+            return (
+                "tool_validation_error",
+                [
+                    "title": "Legacy debug_panel is not supported",
+                    "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
+                    "status": "failed",
+                    "error_code": "legacy_debug_panel_removed",
+                    "tool": "debug_panel",
+                ]
+            )
+        }
 
         if isCommandTool(tool: tool, payload: normalizedPayload, typeHint: normalizedHint) {
             return mapCommand(tool: mappedToolName, payload: normalizedPayload)
@@ -137,7 +149,7 @@ enum ProviderToolEventMapper {
     private static let canonicalToolNames: Set<String> = [
         "agent", "apply_patch", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
         "debug_clean", "debug_context", "debug_hypothesize", "debug_log", "debug_mark",
-        "debug_panel", "debug_query", "debug_session",
+        "debug_query", "debug_session", "debug_set_phase", "debug_request_user", "debug_resolve",
         "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
@@ -149,13 +161,16 @@ enum ProviderToolEventMapper {
         "run_agent", "search", "search_symbols", "semantic_search", "skill", "str_replace", "sub_agent",
         "subagent", "todo_write", "todo_read", "undo_edit", "web_fetch", "web_search", "write", "write_file",
         // IDE state tools (mode activation, task panel, swarm)
-        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm",
+        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm", "show_swarm_panel",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
         "applypatch": "apply_patch",
         "codebasesearch": "codebase_search",
         "debugcontext": "debug_context",
+        "debugsetphase": "debug_set_phase",
+        "debugrequestuser": "debug_request_user",
+        "debugresolve": "debug_resolve",
         "exec_command": "bash",
         "execute_command": "bash",
         "fileoutline": "file_outline",
@@ -177,6 +192,7 @@ enum ProviderToolEventMapper {
         "readlints": "read_lints",
         "readrange": "read_range",
         "strreplace": "str_replace",
+        "showswarmpanel": "show_swarm_panel",
         "todowrite": "todo_write",
         "todoread": "todo_read",
         "webfetch": "web_fetch",
@@ -379,9 +395,10 @@ enum ProviderToolEventMapper {
 
     private static func isIDEStateTool(_ tool: String) -> Bool {
         [
-            "debug_panel", "policy_ack", "mermaid_render",
+            "debug_set_phase", "debug_request_user", "debug_resolve",
+            "policy_ack", "mermaid_render",
             "activate_plan_mode", "activate_debug_mode",
-            "show_task_panel", "invoke_swarm",
+            "show_task_panel", "invoke_swarm", "show_swarm_panel",
         ].contains(tool)
     }
 
@@ -518,6 +535,19 @@ enum ProviderToolEventMapper {
         // Extract the actual MCP tool name (e.g. "coderide_todo_write")
         let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name"]) ?? ""
         let normalizedMCP = normalizeToolIdentifier(mcpTool)
+
+        if normalizedMCP == "debug_panel" {
+            return (
+                "tool_validation_error",
+                [
+                    "title": "Legacy debug_panel is not supported",
+                    "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
+                    "status": "failed",
+                    "error_code": "legacy_debug_panel_removed",
+                    "tool": normalizedMCP,
+                ]
+            )
+        }
 
         if normalizedMCP == "todo_write" || normalizedMCP == "todo_read" {
             return mapTodo(tool: normalizedMCP, payload: payload)
@@ -664,11 +694,22 @@ enum ProviderToolEventMapper {
 
     private static func mapIDEState(tool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
         switch tool {
-        case "debug_panel":
+        case "debug_set_phase":
             var mapped: [String: String] = [:]
-            if let action = firstString(in: payload, keys: ["action"]) { mapped["action"] = action }
             if let phase = firstString(in: payload, keys: ["phase"]) { mapped["phase"] = phase }
-            return ("debug_panel_update", mapped)
+            if let detail = firstString(in: payload, keys: ["detail"]) { mapped["detail"] = detail }
+            return ("debug_phase_update", mapped)
+
+        case "debug_request_user":
+            var mapped: [String: String] = [:]
+            if let kind = firstString(in: payload, keys: ["kind"]) { mapped["kind"] = kind }
+            if let prompt = firstString(in: payload, keys: ["prompt"]) { mapped["prompt"] = prompt }
+            return ("debug_user_request", mapped)
+
+        case "debug_resolve":
+            var mapped: [String: String] = [:]
+            if let summary = firstString(in: payload, keys: ["summary"]) { mapped["summary"] = summary }
+            return ("debug_resolved", mapped)
 
         case "mermaid_render":
             var mapped: [String: String] = [:]
@@ -698,6 +739,11 @@ enum ProviderToolEventMapper {
             var mapped: [String: String] = [:]
             if let task = firstString(in: payload, keys: ["task"]) { mapped["task"] = task }
             return ("coderide_invoke_swarm", mapped)
+
+        case "show_swarm_panel":
+            var mapped: [String: String] = [:]
+            if let swarmId = firstString(in: payload, keys: ["swarm_id"]) { mapped["swarm_id"] = swarmId }
+            return ("coderide_show_swarm_panel", mapped)
 
         default:
             return ("command_execution", ["title": tool, "tool": tool])

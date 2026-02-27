@@ -69,7 +69,9 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return "Process paused"
         case "process_resumed": return "Process resumed"
         case "plan_step_update": return "Plan step updated"
-        case "debug_panel", "debug_panel_update": return "Debug panel"
+        case "debug_phase_update": return "Debug phase"
+        case "debug_user_request": return "Debug user request"
+        case "debug_resolved": return "Debug resolved"
         case "debug_log": return "Debug log"
         case "debug_query": return "Debug query"
         case "debug_session": return "Debug session"
@@ -158,7 +160,7 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
-        case "debug_panel", "debug_panel_update", "debug_hypothesize": return "ladybug.fill"
+        case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return "ladybug.fill"
         case "debug_log": return "text.badge.plus"
         case "debug_query": return "text.magnifyingglass"
         case "debug_session": return "play.circle.fill"
@@ -182,7 +184,7 @@ private struct PlanTraceItem: Identifiable {
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "plan_step_update": return DesignSystem.Colors.planColor
-        case "debug_panel", "debug_panel_update", "debug_hypothesize": return DesignSystem.Colors.debugColor
+        case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return DesignSystem.Colors.debugColor
         case "debug_log", "debug_query", "debug_session", "debug_mark", "debug_clean":
             return DesignSystem.Colors.debugColor
         case "semantic_search": return DesignSystem.Colors.info

@@ -11,13 +11,13 @@ struct SwarmPanelView: View {
 
     let conversationId: UUID?
     let isTaskRunning: Bool
+    @Binding var selectedSwarmId: String?
     @Binding var swarmOrchestrator: String
     @Binding var swarmWorkerBackend: String
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
     let onSyncSwarmProvider: () -> Void
 
-    @State private var selectedSwarmId: String? = nil
     @State private var expandedCardIds: Set<String> = []
     @State private var expandedEventIds: Set<UUID> = []
     @State private var isFollowingLive = true
@@ -72,6 +72,17 @@ struct SwarmPanelView: View {
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+        .onAppear {
+            if selectedSwarmId == nil {
+                selectedSwarmId = sortedCards.first(where: { $0.status == .running })?.swarmId
+            }
+        }
+        .onChange(of: liveSignature) { _, _ in
+            if let selectedSwarmId,
+               !sortedCards.contains(where: { $0.swarmId == selectedSwarmId }) {
+                self.selectedSwarmId = nil
+            }
+        }
     }
 
     // MARK: - Top Bar

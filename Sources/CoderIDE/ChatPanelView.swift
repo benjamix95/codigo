@@ -7,6 +7,7 @@ enum CoderMode: String, CaseIterable {
     case agent = "Agent"
     case agentSwarm = "Agent Swarm"
     case codeReviewMultiSwarm = "Code Review"
+    case debug = "Debug"
     case plan = "Plan"
     case ide = "IDE"
     case mcpServer = "MCP Server"
@@ -307,7 +308,7 @@ func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
 
 func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     switch mode {
-    case .agent, .plan, .codeReviewMultiSwarm, .agentSwarm:
+    case .agent, .debug, .plan, .codeReviewMultiSwarm, .agentSwarm:
         return true
     case .ide, .mcpServer:
         return false
@@ -654,6 +655,7 @@ struct ChatPanelView: View {
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
     @Binding var showCodeReviewPanel: Bool
+    @State private var selectedSwarmId: String?
     @State private var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
     @State private var planningState: PlanningState = .idle
@@ -802,7 +804,11 @@ struct ChatPanelView: View {
                     SwarmProgressView(
                         store: swarmProgressStore,
                         activities: taskActivityStore.activities,
-                        isTaskRunning: isLoadingForCurrentConversation
+                        isTaskRunning: isLoadingForCurrentConversation,
+                        onSelectSwarm: { swarmId in
+                            showSwarmPanel = true
+                            selectedSwarmId = swarmId
+                        }
                     )
                 }
 
@@ -896,6 +902,7 @@ struct ChatPanelView: View {
             planHistoryStore.setSelectedEntry(id: nil)
             // Close side panels that are scoped to the previous conversation.
             showSwarmPanel = false
+            selectedSwarmId = nil
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
             taskActivityStore.clearSwarmCards()
@@ -958,7 +965,7 @@ struct ChatPanelView: View {
     private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
         let lifecycleTracked = content
             .onChange(of: showSwarmPanel) { wasOpen, isShowing in
-                if isShowing && coderMode != .agentSwarm {
+                if isShowing && coderMode == .agent {
                     selectMode(.agentSwarm)
                 }
                 if !isShowing && coderMode == .agentSwarm {
@@ -973,6 +980,11 @@ struct ChatPanelView: View {
             .onChange(of: showDebugPanel) { wasOpen, isShowing in
                 if debugToggleEnabled != isShowing {
                     debugToggleEnabled = isShowing
+                }
+                if isShowing && coderMode != .debug {
+                    selectMode(.debug)
+                } else if !isShowing && coderMode == .debug && !debugStore.phase.isActive {
+                    selectMode(.agent)
                 }
                 if isShowing && !wasOpen {
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(debugPanelWidthStorage))
@@ -1189,6 +1201,9 @@ struct ChatPanelView: View {
             onClose: {
                 debugToggleEnabled = false
                 showDebugPanel = false
+                if coderMode == .debug && !debugStore.phase.isActive {
+                    selectMode(.agent)
+                }
             },
             onSubmitQuestion: { question in
                 let debugPrompt = "[DEBUG] \(question)"
@@ -1227,6 +1242,7 @@ struct ChatPanelView: View {
             chatStore: chatStore,
             conversationId: conversationId,
             isTaskRunning: isLoadingForCurrentConversation,
+            selectedSwarmId: $selectedSwarmId,
             swarmOrchestrator: $swarmOrchestrator,
             swarmWorkerBackend: $swarmWorkerBackend,
             onClose: {
@@ -1275,7 +1291,11 @@ struct ChatPanelView: View {
                 SwarmProgressView(
                     store: swarmProgressStore,
                     activities: taskActivityStore.activities,
-                    isTaskRunning: isLoadingForCurrentConversation
+                    isTaskRunning: isLoadingForCurrentConversation,
+                    onSelectSwarm: { swarmId in
+                        showSwarmPanel = true
+                        selectedSwarmId = swarmId
+                    }
                 )
                 if taskPanelEnabled {
                     if !taskActivityStore.concreteRecentActivities(limit: 1).isEmpty || !todoStore.todos.isEmpty {
@@ -2663,8 +2683,12 @@ struct ChatPanelView: View {
                         )
                     }
                 }
-            case .debugPanelUpdate(let action, let phase):
-                handleDebugPanelUpdate(action: action, phase: phase)
+            case .debugPhaseUpdate(let phase, let detail):
+                handleDebugPhaseUpdate(phase: phase, detail: detail)
+            case .debugUserRequest(let kind, let prompt):
+                handleDebugUserRequest(kind: kind, prompt: prompt)
+            case .debugResolved(let summary):
+                handleDebugResolved(summary: summary)
             case .debugLog(let payload):
                 handleDebugLogPayload(payload)
             case .debugHypothesize(let payload):
@@ -2936,164 +2960,52 @@ struct ChatPanelView: View {
     }
 
     @MainActor
-    private func handleDebugPanelUpdate(action: String, phase: String?) {
-        let normalizedAction = action.lowercased()
-        let legacyPayloadActions: Set<String> = [
-            "marker", "instrument", "runtime_log", "loop_back", "new_run", "hypothesize", "hypothesis_update", "diagram"
-        ]
-        if legacyPayloadActions.contains(normalizedAction) {
-            debugStore.addLegacyDebugPanelWarning(action: normalizedAction)
+    private func handleDebugPhaseUpdate(phase: DebugFlowPhase, detail: String?) {
+        debugToggleEnabled = true
+        showDebugPanel = true
+        if coderMode != .debug {
+            selectMode(.debug)
+        }
+        debugStore.setPhase(phase)
+        if let detail, !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            debugStore.addLog(
+                severity: .info,
+                source: "debug_set_phase",
+                message: "Phase → \(phase.label)",
+                detail: detail,
+                category: "system"
+            )
+        }
+    }
+
+    @MainActor
+    private func handleDebugUserRequest(kind: String, prompt: String) {
+        let normalizedKind = kind.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPrompt.isEmpty else { return }
+
+        debugToggleEnabled = true
+        showDebugPanel = true
+        if coderMode != .debug {
+            selectMode(.debug)
         }
 
-        switch normalizedAction {
-        case "open":
-            debugToggleEnabled = true
-            showDebugPanel = true
-            if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
-                debugStore.setPhase(debugPhase)
-            }
-        case "close":
-            debugToggleEnabled = false
-            showDebugPanel = false
-            debugStore.phase = .idle
-        case "phase":
-            if let debugPhase = resolveDebugFlowPhaseAlias(phase) {
-                debugStore.setPhase(debugPhase)
-            }
-        case "stream":
-            // Append streaming content from agent
-            if let phaseStr = phase {
-                debugStore.streamingContent += phaseStr
-            }
-        case "question":
-            if let phaseStr = phase {
-                debugStore.clarificationQuestions = phaseStr
-                debugStore.phase = .describing
-                debugToggleEnabled = true
-                showDebugPanel = true
-            }
+        switch normalizedKind {
         case "reproduce":
             debugStore.setPhase(.reproducing)
-            debugToggleEnabled = true
-            showDebugPanel = true
-        case "resolve":
-            let summary = phase?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            debugStore.resolveSession(
-                summary: summary.isEmpty ? "Debug session resolved" : summary
-            )
-        case "marker":
-            // Agent inserted a debug marker — track it
-            if let phaseStr = phase {
-                // Format: "filePath|lineNumber|comment"
-                let parts = phaseStr.split(separator: "|", maxSplits: 2).map(String.init)
-                if parts.count >= 2, let line = Int(parts[1]) {
-                    let comment = parts.count >= 3 ? parts[2] : "debug marker"
-                    debugStore.addDebugMarker(DebugMarker(
-                        filePath: parts[0],
-                        lineNumber: line,
-                        markerComment: comment
-                    ))
-                }
-            }
-        case "instrument":
-            // Agent inserted instrumentation — track it
-            // Format: "filePath|lineNumber|type|code|hypothesisId"
-            if let phaseStr = phase {
-                let parts = phaseStr.split(separator: "|", maxSplits: 4).map(String.init)
-                if parts.count >= 4, let line = Int(parts[1]) {
-                    let typeStr = parts[2].lowercased()
-                    let instrumentType: InstrumentationPoint.InstrumentationType
-                    switch typeStr {
-                    case "assertion":  instrumentType = .assertion
-                    case "timing":     instrumentType = .timing
-                    case "variable":   instrumentType = .variable
-                    default:           instrumentType = .logging
-                    }
-                    let code = parts[3]
-                    let hypothesisId = parts.count >= 5 ? parts[4] : nil
-                    debugStore.addInstrumentation(
-                        filePath: parts[0],
-                        lineNumber: line,
-                        type: instrumentType,
-                        code: code,
-                        hypothesisId: hypothesisId
-                    )
-                    // Also transition to instrumenting sub-phase if in fixing
-                    if debugStore.phase == .fixing {
-                        debugStore.phase = .instrumenting
-                    }
-                }
-            }
-        case "runtime_log":
-            // Agent reports a runtime log entry
-            // Format: "location|message|key1=val1,key2=val2|hypothesisId"
-            if let phaseStr = phase {
-                let parts = phaseStr.split(separator: "|", maxSplits: 3).map(String.init)
-                if parts.count >= 2 {
-                    let location = parts[0]
-                    let message = parts[1]
-                    var data: [String: String] = [:]
-                    if parts.count >= 3 {
-                        for pair in parts[2].split(separator: ",") {
-                            let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
-                            if kv.count == 2 {
-                                data[kv[0].trimmingCharacters(in: .whitespaces)] = kv[1].trimmingCharacters(in: .whitespaces)
-                            }
-                        }
-                    }
-                    let hypothesisId = parts.count >= 4 ? parts[3] : nil
-                    debugStore.addRuntimeLog(
-                        location: location,
-                        message: message,
-                        data: data,
-                        hypothesisId: hypothesisId
-                    )
-                }
-            }
-        case "loop_back":
-            // Verify failed → loop back to instrument phase
-            let reason = phase ?? "Verification failed"
-            debugStore.loopBackToInstrument(reason: reason)
-        case "new_run":
-            // Start a new reproduce run
-            debugStore.startNewRun()
-        case "hypothesize":
-            // Agent proposes a hypothesis
-            // Format: "title|description"
-            if let phaseStr = phase {
-                let parts = phaseStr.split(separator: "|", maxSplits: 1).map(String.init)
-                if parts.count >= 2 {
-                    _ = debugStore.addHypothesis(title: parts[0], description: parts[1])
-                } else if !phaseStr.isEmpty {
-                    _ = debugStore.addHypothesis(title: phaseStr, description: "")
-                }
-            }
-        case "hypothesis_update":
-            // Update hypothesis status
-            // Format: "hypothesisId|status|evidence"
-            if let phaseStr = phase {
-                let parts = phaseStr.split(separator: "|", maxSplits: 2).map(String.init)
-                if parts.count >= 2, let uuid = UUID(uuidString: parts[0]) {
-                    let status: DebugHypothesis.HypothesisStatus
-                    switch parts[1].lowercased() {
-                    case "investigating": status = .investigating
-                    case "confirmed":    status = .confirmed
-                    case "rejected":     status = .rejected
-                    default:             status = .proposed
-                    }
-                    let evidence = parts.count >= 3 ? parts[2] : nil
-                    debugStore.updateHypothesis(id: uuid, status: status, evidence: evidence)
-                }
-            }
-        case "diagram":
-            // Agent sends a custom mermaid diagram for the debug flow
-            if let phaseStr = phase, !phaseStr.isEmpty {
-                debugStore.debugFlowDiagram = phaseStr
-            }
+            debugStore.clarificationQuestions = normalizedPrompt
         default:
-            break
+            debugStore.setPhase(.describing)
+            debugStore.clarificationQuestions = normalizedPrompt
         }
+    }
+
+    @MainActor
+    private func handleDebugResolved(summary: String) {
+        let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        debugStore.resolveSession(
+            summary: normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
+        )
     }
 
     @MainActor
@@ -3239,6 +3151,9 @@ struct ChatPanelView: View {
     private func handleAutoActivateDebugMode(reason: String?) {
         let normalizedReason = reason?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        if coderMode != .debug {
+            selectMode(.debug)
+        }
         if !showDebugPanel {
             debugToggleEnabled = true
             showDebugPanel = true
@@ -3490,6 +3405,7 @@ struct ChatPanelView: View {
         case .codeReviewMultiSwarm:
             return
                 "Using Code Review Multi-Swarm: the request will be split into partitions."
+        case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
         case .plan: return "Plan with options + custom response"
         case .ide: return "IDE mode: API chat + manual editing in the editor"
         case .mcpServer: return "Send to configured MCP server"
@@ -3643,6 +3559,19 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
+        case .debug:
+            if let preferred = currentConv?.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
+            debugToggleEnabled = true
+            showDebugPanel = true
         case .plan:
             if let preferred = currentConv?.preferredProviderId,
                ProviderSupport.isAgentCompatibleProvider(id: preferred),
@@ -3675,6 +3604,11 @@ struct ChatPanelView: View {
             }
             planToggleEnabled = false
         }
+        if mode != .debug && !debugStore.phase.isActive {
+            debugToggleEnabled = false
+            showDebugPanel = false
+        }
+        chatStore.updateConversationMode(conversationId: selectedConversationId, mode: mode)
     }
 
     private func modeColor(for m: CoderMode) -> Color {
@@ -3682,6 +3616,7 @@ struct ChatPanelView: View {
         case .agent: return DesignSystem.Colors.agentColor
         case .agentSwarm: return DesignSystem.Colors.swarmColor
         case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
+        case .debug: return DesignSystem.Colors.debugColor
         case .plan: return DesignSystem.Colors.planColor
         case .ide: return DesignSystem.Colors.ideColor
         case .mcpServer: return DesignSystem.Colors.mcpColor
@@ -3692,6 +3627,7 @@ struct ChatPanelView: View {
         case .agent: return "brain"
         case .agentSwarm: return "ant.fill"
         case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
+        case .debug: return "ladybug.fill"
         case .plan: return "list.bullet.rectangle"
         case .ide: return "sparkles"
         case .mcpServer: return "server.rack"
@@ -3702,6 +3638,7 @@ struct ChatPanelView: View {
         case .agent: return DesignSystem.Colors.agentGradient
         case .agentSwarm: return DesignSystem.Colors.swarmGradient
         case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewGradient
+        case .debug: return DesignSystem.Colors.debugGradient
         case .plan: return DesignSystem.Colors.planGradient
         case .ide: return DesignSystem.Colors.ideGradient
         case .mcpServer: return DesignSystem.Colors.mcpGradient
@@ -3962,6 +3899,20 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
+            debugToggleEnabled = false
+        case .debug:
+            if let preferred = conv.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
+            debugToggleEnabled = true
+            showDebugPanel = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         checkProviderAuth()
@@ -3973,7 +3924,11 @@ struct ChatPanelView: View {
         }
         guard let id = pid else { return }
         if ProviderSupport.isAgentCompatibleProvider(id: id) {
-            coderMode = .agent
+            if showDebugPanel || debugStore.phase.isActive {
+                coderMode = .debug
+            } else {
+                coderMode = .agent
+            }
             planningState = .idle
             planFlowPhase = .idle
             return
@@ -5533,6 +5488,18 @@ struct ChatPanelView: View {
                 "Reply with text only. Do not modify files or run commands.\n\n" + prompt
         }
         if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
+        if coderMode == .debug || showDebugPanel {
+            let debugModeContract = """
+            [DEBUG MODE ACTIVE]
+            Use MCP-first typed debug panel controls only:
+            - `debug_set_phase` with phase in: describing, reproducing, fixing, instrumenting, verifying, resolved.
+            - `debug_request_user` with kind question|reproduce and a concrete prompt.
+            - `debug_resolve` with final summary.
+            Legacy `debug_panel` is invalid and must not be used.
+            Keep debug artifacts tracked through `debug_mark`, `debug_log`, `debug_query`, `debug_hypothesize`, `debug_clean`.
+            """
+            prompt = debugModeContract + "\n\n" + prompt
+        }
         let isPlanningDiscoveryFlow =
             (coderMode == .plan || shouldRunPlanInline)
             && planFlowPhase != .building
@@ -5616,8 +5583,8 @@ struct ChatPanelView: View {
                         - Delegate when the task has clearly separable specialist roles (e.g. coder + test writer, security audit + implementation).
                         - Do NOT delegate for simple linear tasks you can complete yourself in <=2 operations (single edit, one search+edit, etc.).
                         - Do NOT delegate for trivial sequential work (read one file → edit it → done).
-                        - When delegating, provide a precise objective with concrete workstreams using:
-                        \(CoderIDEMarkers.invokeSwarmPrefix)TASK_DESCRIPTION\(CoderIDEMarkers.invokeSwarmSuffix)
+                        - When delegating, call the MCP IDE-state tool `invoke_swarm` with a precise `task`.
+                        - Use optional `show_swarm_panel` when you need immediate UI focus on the swarm board.
 
                         """
                     prompt = baseInstructions + swarmInstructions + prompt
@@ -5901,6 +5868,20 @@ struct ChatPanelView: View {
             streamingReasoningConversationId = convId
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
+        if t == "coderide_show_swarm_panel" {
+            showSwarmPanel = true
+            if let swarmId = p["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !swarmId.isEmpty {
+                selectedSwarmId = swarmId
+            }
+        }
+        if t == "coderide_invoke_swarm", !showSwarmPanel {
+            showSwarmPanel = true
+            if let swarmId = p["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !swarmId.isEmpty {
+                selectedSwarmId = swarmId
+            }
+        }
         if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
             let n = s.split(separator: ",").map {
                 String($0).trimmingCharacters(in: .whitespaces)
@@ -6301,7 +6282,7 @@ struct ChatPanelView: View {
 
         // Handle delegated swarm if pending
         if let task = pendingSwarmTask {
-            NSLog("[SwarmDelegation] Marker detected — task: %@", task)
+            NSLog("[SwarmDelegation] invoke_swarm received — task: %@", task)
             let evaluation = SwarmDelegationPolicyEvaluator().evaluate(
                 userPrompt: prompt,
                 suggestedTask: task,
@@ -6332,10 +6313,10 @@ struct ChatPanelView: View {
                 )
             }
         } else if swarmFallbackAutoEvaluate && agentAutoDelegateSwarm {
-            // Fallback: LLM did not emit invoke_swarm marker.
+            // Fallback: LLM did not emit invoke_swarm event.
             // Evaluate the full response text with the policy to decide if
             // swarm delegation should still happen.
-            NSLog("[SwarmFallback] No invoke_swarm marker detected — evaluating response with policy")
+            NSLog("[SwarmFallback] No invoke_swarm event detected — evaluating response with policy")
             let fallbackEvaluation = SwarmDelegationPolicyEvaluator().evaluate(
                 userPrompt: prompt,
                 suggestedTask: full,

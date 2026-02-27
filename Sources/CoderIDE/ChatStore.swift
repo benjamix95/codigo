@@ -495,6 +495,16 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
+    func updateConversationMode(conversationId: UUID?, mode: CoderMode?) {
+        guard let id = conversationId,
+              let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
+        if conversations[idx].mode == mode {
+            return
+        }
+        conversations[idx].mode = mode
+        saveConversations()
+    }
+
     func updatePreferredProvider(conversationId: UUID?, providerId: String?) {
         guard let id = conversationId,
               let idx = conversations.firstIndex(where: { $0.id == id }) else { return }
@@ -823,7 +833,7 @@ final class ChatStore: ObservableObject {
         static let inlineMarkerBroken = try! NSRegularExpression(
             pattern: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
         static let technicalEvents = try! NSRegularExpression(
-            pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#, options: [])
+            pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_invoke_swarm|coderide_show_swarm_panel|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#, options: [])
         static let stickyKeyValue = try! NSRegularExpression(
             pattern: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#, options: [])
         static let singleKeyValue = try! NSRegularExpression(

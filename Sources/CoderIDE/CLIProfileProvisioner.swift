@@ -368,7 +368,7 @@ enum CLIProfileProvisioner {
     ```
     [CODERIDE:todo_write|title=Task description|status=pending|priority=medium|activeForm=Doing task]
     [CODERIDE:plan_step|step_id=1|status=running|title=Analysis]
-    [CODERIDE:debug_panel|action=open|phase=analyzing]
+    [CODERIDE:tool_call|name=debug_set_phase|phase=describing]
     ```
 
     ## Rules

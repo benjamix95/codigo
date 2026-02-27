@@ -4,6 +4,7 @@ struct SwarmProgressView: View {
     @ObservedObject var store: SwarmProgressStore
     let activities: [TaskActivity]
     let isTaskRunning: Bool
+    let onSelectSwarm: ((String) -> Void)?
 
     var body: some View {
         let cards = SwarmLiveReducer.sorted(
@@ -23,7 +24,11 @@ struct SwarmProgressView: View {
             ForEach(store.steps) { step in
                 SwarmStepRow(step: step)
             }
-            SwarmLiveBoardView(cards: cards, isTaskRunning: isTaskRunning)
+            SwarmLiveBoardView(
+                cards: cards,
+                isTaskRunning: isTaskRunning,
+                onSelectSwarm: onSelectSwarm
+            )
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
         }

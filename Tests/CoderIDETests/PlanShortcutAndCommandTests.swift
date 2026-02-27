@@ -240,6 +240,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
 
     func testShouldEnableTaskPanelForOperationalModes() {
         XCTAssertTrue(shouldEnableTaskPanelForMode(.agent))
+        XCTAssertTrue(shouldEnableTaskPanelForMode(.debug))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.plan))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.codeReviewMultiSwarm))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.agentSwarm))

@@ -272,6 +272,57 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertTrue(mapped?.type.hasPrefix("web_fetch") ?? false)
     }
 
+    func testDebugSetPhaseMapsToTypedDebugPhaseEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_set_phase",
+            payload: [
+                "phase": "fixing",
+                "detail": "Applying patch"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_phase_update")
+        XCTAssertEqual(mapped?.payload["phase"], "fixing")
+        XCTAssertEqual(mapped?.payload["detail"], "Applying patch")
+    }
+
+    func testDebugRequestUserMapsToTypedRequestEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_request_user",
+            payload: [
+                "kind": "question",
+                "prompt": "Can you reproduce this?"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_user_request")
+        XCTAssertEqual(mapped?.payload["kind"], "question")
+        XCTAssertEqual(mapped?.payload["prompt"], "Can you reproduce this?")
+    }
+
+    func testLegacyDebugPanelMapsToValidationError() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_panel",
+            payload: [
+                "action": "open",
+                "phase": "describing"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "tool_validation_error")
+        XCTAssertEqual(mapped?.payload["error_code"], "legacy_debug_panel_removed")
+    }
+
+    func testShowSwarmPanelMapsToIDEEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_show_swarm_panel",
+            payload: ["swarm_id": "reviewer-1"]
+        )
+
+        XCTAssertEqual(mapped?.type, "coderide_show_swarm_panel")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "reviewer-1")
+    }
+
     // MARK: - Skill Tool
 
     func testSkillToolMapsToSkillInvocation() {

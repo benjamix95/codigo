@@ -161,7 +161,7 @@ struct CompactActivityTraceView: View {
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
-        case "debug_panel", "debug_panel_update": return "ladybug.fill"
+        case "debug_phase_update", "debug_user_request", "debug_resolved": return "ladybug.fill"
         case "file_change", "edit": return "doc.text.fill"
         default: return "circle.fill"
         }

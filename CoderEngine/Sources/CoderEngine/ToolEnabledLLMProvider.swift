@@ -417,11 +417,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
     private func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
         switch marker.kind {
-        case "policy_ack", "todo_read", "todo_write", "plan_step", "debug_panel":
+        case "policy_ack", "todo_read", "todo_write", "plan_step":
             return false
         case "tool_call":
             let toolName = inferredToolName(from: marker.payload)
-            if toolName == "todo_read" || toolName == "todo_write" {
+            if [
+                "todo_read", "todo_write", "plan_step_update", "mermaid_render",
+                "debug_set_phase", "debug_request_user", "debug_resolve",
+                "policy_ack", "activate_plan_mode", "activate_debug_mode",
+                "show_task_panel", "invoke_swarm", "show_swarm_panel",
+            ].contains(toolName) {
                 return false
             }
             return true
@@ -442,7 +447,11 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     private func rawEventRequiresPolicyAck(_ type: String) -> Bool {
         switch type {
         case "policy_ack", "turn_started", "turn_completed", "usage", "reasoning",
-            "todo_read", "todo_write", "plan_step_update", "debug_panel_update", "context_compacted":
+            "todo_read", "todo_write", "plan_step_update", "context_compacted",
+            "debug_phase_update", "debug_user_request", "debug_resolved",
+            "activate_plan_mode", "activate_debug_mode",
+            "coderide_show_task_panel", "coderide_invoke_swarm", "coderide_show_swarm_panel",
+            "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied":
             return false
         default:
             return true
@@ -491,17 +500,31 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "plan_step_update":
             return [.raw(type: "plan_step_update", payload: marker.payload)]
         case "debug_panel":
-            return [.raw(type: "debug_panel_update", payload: marker.payload)]
+            return [.raw(type: "tool_validation_error", payload: [
+                "title": "Legacy debug_panel is not supported",
+                "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
+                "status": "failed",
+                "error_code": "legacy_debug_panel_removed",
+                "tool": "debug_panel",
+            ])]
+        case "debug_set_phase":
+            return [.raw(type: "debug_phase_update", payload: marker.payload)]
+        case "debug_request_user":
+            return [.raw(type: "debug_user_request", payload: marker.payload)]
+        case "debug_resolve":
+            return [.raw(type: "debug_resolved", payload: marker.payload)]
         case "mermaid_render":
             return [.raw(type: "mermaid_render", payload: marker.payload)]
         case "activate_plan_mode":
-            return [.raw(type: "activate_plan_mode", payload: [:])]
+            return [.raw(type: "activate_plan_mode", payload: marker.payload)]
         case "activate_debug_mode":
-            return [.raw(type: "activate_debug_mode", payload: [:])]
+            return [.raw(type: "activate_debug_mode", payload: marker.payload)]
         case "show_task_panel":
             return [.raw(type: "coderide_show_task_panel", payload: [:])]
         case "invoke_swarm":
             return [.raw(type: "coderide_invoke_swarm", payload: marker.payload)]
+        case "show_swarm_panel":
+            return [.raw(type: "coderide_show_swarm_panel", payload: marker.payload)]
         default:
             break
         }
@@ -526,7 +549,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
             "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
             "mcp_list_servers", "mcp_reconnect",
-            "todo_write", "todo_read",
+            "todo_write", "todo_read", "plan_step_update", "mermaid_render", "policy_ack",
+            "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm", "show_swarm_panel",
+            "debug_set_phase", "debug_request_user", "debug_resolve",
             // Codebase index tools
             "codebase_search", "find_symbol", "list_symbols", "find_references",
             "project_structure", "file_outline", "find_files", "codebase_stats",
@@ -552,6 +577,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             let rawName = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !rawName.isEmpty else { continue }
             let name = ProviderToolEventMapper.normalizeToolIdentifier(rawName)
+            if name == "debug_panel" {
+                // Legacy hard-cut: never execute, always route to validation error.
+                return name
+            }
             if supportedTools.contains(name) {
                 return name
             }
@@ -828,41 +857,38 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **debug_mark** — Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup. Args: `path`, `line` (line number), `comment` (description), `code` (optional code to insert).
         - **debug_clean** — Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace. Args: `path` (optional, cleans all files if omitted).
 
-        ### Debug Flow (Cursor-style structured debugging)
-        When debugging, follow this structured flow:
+        ### Debug Flow (MCP-first, typed events)
+        When debugging, use only the canonical typed debug tools for panel control:
+        - `debug_set_phase` (phase: describing|reproducing|fixing|instrumenting|verifying|resolved, detail optional)
+        - `debug_request_user` (kind: question|reproduce, prompt)
+        - `debug_resolve` (summary)
+        - `debug_panel` is legacy and invalid.
 
-        **Phase 1: Context Gathering**
-        1. Open debug panel: use `debug_panel` with action=open, phase=analyzing
-        2. Gather full context with `debug_context` (git status, open files, lints, terminal state)
-        3. Start a debug session: `debug_session action=start`
+        **Phase 1: Describe**
+        1. `debug_set_phase phase=describing`
+        2. Gather context with `debug_context`
+        3. Start/ensure session with `debug_session action=start`
+        4. Log symptoms with `debug_log`
 
-        **Phase 2: Error Analysis**
-        4. Log observable symptoms: `debug_log severity=error source=... message=...`
-        5. Use `read_lints` to check current diagnostic state
-        6. If error comes from a tool failure or terminal, log the error message and exit code
+        **Phase 2: Reproduce**
+        5. `debug_set_phase phase=reproducing`
+        6. If user action is needed, call `debug_request_user kind=reproduce prompt=...`
 
-        **Phase 3: Context Reconstruction**
-        7. Use `semantic_search` to find related code by meaning ("where is the auth handler?")
-        8. Use `read`, `grep`, `find_references` to understand implementation
-        9. Use `file_outline` and `dependency_graph` to understand structure
+        **Phase 3: Fix**
+        7. `debug_set_phase phase=fixing`
+        8. Hypothesize with `debug_hypothesize`
+        9. Instrument with `debug_mark` and `debug_set_phase phase=instrumenting` when relevant
+        10. Observe via `debug_log` + `debug_query`
+        11. Apply minimal fix and update hypothesis status
 
-        **Phase 4: Hypothesis Formation**
-        10. Formulate testable hypotheses: `debug_hypothesize title=... description=... status=proposed`
-        11. Ask user questions if needed: use `debug_panel` with action=question, phase=<your question>
+        **Phase 4: Verify**
+        12. `debug_set_phase phase=verifying`
+        13. Verify via `read_lints` and targeted tests/diagnostics
+        14. Clean instrumentation with `debug_clean`
 
-        **Phase 5: Reproduction (optional)**
-        12. Ask user to reproduce: use `debug_panel` with action=reproduce
-        13. Insert debug markers to observe state: `debug_mark path=... line=... comment=... code=...`
-
-        **Phase 6: Investigation & Fix**
-        14. Verify one hypothesis at a time with evidence
-        15. Update hypothesis status: `debug_hypothesize action=update hypothesis_id=... status=confirmed|rejected`
-        16. Apply the fix using `str_replace` / `parallel_apply`
-
-        **Phase 7: Verification**
-        17. Verify with `read_lints` (fast) then `diagnostics` or tests
-        18. Clean debug markers: `debug_clean`
-        19. Mark resolved: use `debug_panel` with action=resolve, phase=<description of fix>
+        **Phase 5: Resolve**
+        15. Resolve with `debug_resolve summary=...`
+        16. Optionally mirror terminal phase with `debug_set_phase phase=resolved`
 
         ### Utility
         - **workspace_stats** — Get file/dir counts and size.
@@ -875,12 +901,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **todo_read** — Read the current todo list. No required args.
         - **plan_step_update** — Update a plan step status. Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
         - **mermaid_render** — Render a Mermaid diagram in the LiveCard. Args: `code` (Mermaid syntax), `title` (optional).
-        - **debug_panel** — Control the debug panel. Args: `action` (open/close/question/reproduce/marker/resolve), `phase` (optional context string).
+        - **debug_set_phase** — Set debug pipeline phase. Args: `phase`, `detail` (optional).
+        - **debug_request_user** — Request explicit user input in debug flow. Args: `kind` (question/reproduce), `prompt`.
+        - **debug_resolve** — Resolve debug flow with summary. Args: `summary`.
         - **policy_ack** — Acknowledge a mandatory policy hash. Args: `hash`.
         - **activate_plan_mode** — Activate the plan panel. Args: `reason` (optional).
         - **activate_debug_mode** — Activate the debug panel. Args: `reason` (optional).
         - **show_task_panel** — Show the task panel. No required args.
         - **invoke_swarm** — Invoke a swarm agent for parallel work. Args: `task`.
+        - **show_swarm_panel** — Open/focus swarm panel. Args: `swarm_id` (optional).
         """
     }
 

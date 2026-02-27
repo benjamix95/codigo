@@ -11,8 +11,8 @@ final class DebugFlowToolE2ETests: XCTestCase {
         XCTAssertEqual(debugStore.phase, .describing)
 
         ingest(
-            type: "debug_panel_update",
-            payload: ["action": "reproduce"],
+            type: "debug_phase_update",
+            payload: ["phase": "reproducing"],
             debugStore: debugStore,
             taskStore: taskStore
         )
@@ -106,10 +106,14 @@ final class DebugFlowToolE2ETests: XCTestCase {
             switch event {
             case .taskActivity(let activity):
                 taskStore.addActivity(activity)
-            case .debugPanelUpdate(let action, _):
-                if action == "reproduce" {
+            case .debugPhaseUpdate(let phase, _):
+                debugStore.setPhase(phase)
+            case .debugUserRequest(let kind, _):
+                if kind == "reproduce" {
                     debugStore.setPhase(.reproducing)
                 }
+            case .debugResolved(let summary):
+                debugStore.resolveSession(summary: summary)
             case .debugLog(let logPayload):
                 debugStore.addLog(
                     severity: logPayload.severity,

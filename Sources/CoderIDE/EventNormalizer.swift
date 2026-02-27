@@ -64,7 +64,9 @@ enum NormalizedEvent {
     case todoWrite(TodoWritePayload)
     case todoRead
     case planStepUpdate(stepId: String, status: PlanStepStatus, title: String?)
-    case debugPanelUpdate(action: String, phase: String?)
+    case debugPhaseUpdate(phase: DebugFlowPhase, detail: String?)
+    case debugUserRequest(kind: String, prompt: String)
+    case debugResolved(summary: String)
     case debugLog(DebugLogToolPayload)
     case debugHypothesize(DebugHypothesizeToolPayload)
     case debugMark(DebugMarkToolPayload)
@@ -85,7 +87,9 @@ enum EventKind: String, Codable {
     case instantGrep = "instant_grep"
     case todoUpdate = "todo_update"
     case planStepUpdate = "plan_step_update"
-    case debugPanelUpdate = "debug_panel_update"
+    case debugPhaseUpdate = "debug_phase_update"
+    case debugUserRequest = "debug_user_request"
+    case debugResolved = "debug_resolved"
     case debugToolUpdate = "debug_tool_update"
     case modeActivation = "mode_activation"
     case swarmProgress = "swarm_progress"
@@ -126,13 +130,18 @@ enum EventNormalizer {
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
         case "mermaid_render": kind = .generic
-        case "debug_panel", "debug_panel_update": kind = .debugPanelUpdate
+        case "debug_phase_update": kind = .debugPhaseUpdate
+        case "debug_user_request": kind = .debugUserRequest
+        case "debug_resolved": kind = .debugResolved
         case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
             kind = .debugToolUpdate
+        case "debug_panel", "debug_panel_update":
+            kind = .errorDiagnostic
         case "activate_plan_mode", "activate_debug_mode": kind = .modeActivation
         case "swarm_steps", "agent": kind = .swarmProgress
         case "usage": kind = .usageUpdate
-        case "error": kind = .errorDiagnostic
+        case "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error":
+            kind = .errorDiagnostic
         default: kind = .generic
         }
         return NormalizedEventEnvelope(
@@ -295,18 +304,77 @@ enum EventNormalizer {
             return events
         }
 
-        if type == "debug_panel" || type == "debug_panel_update" {
-            let action = payload["action"] ?? "open"
-            let phase = payload["phase"]
-            events.append(.debugPanelUpdate(action: action, phase: phase))
+        if type == "debug_phase_update" {
+            let phaseValue = payload["phase"]
+            let phase = debugFlowPhase(from: phaseValue) ?? .describing
+            let detail = payload["detail"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            events.append(.debugPhaseUpdate(phase: phase, detail: detail))
             events.append(.taskActivity(TaskActivity(
                 type: type,
-                title: "Debug: \(action)",
-                detail: phase.map { "Phase: \($0)" },
+                title: "Debug phase • \(phase.label)",
+                detail: detail,
                 payload: payload,
                 timestamp: timestamp,
                 phase: .executing,
-                isRunning: action != "close"
+                isRunning: phase != .resolved
+            )))
+            return events
+        }
+
+        if type == "debug_user_request" {
+            let kind = (payload["kind"] ?? "question")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let prompt = (
+                payload["prompt"]
+                    ?? payload["detail"]
+                    ?? payload["message"]
+                    ?? ""
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !prompt.isEmpty else { return events }
+            events.append(.debugUserRequest(kind: kind, prompt: prompt))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: kind == "reproduce" ? "Debug request • reproduce" : "Debug request • question",
+                detail: prompt,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .executing,
+                isRunning: false
+            )))
+            return events
+        }
+
+        if type == "debug_resolved" {
+            let summary = (
+                payload["summary"]
+                    ?? payload["detail"]
+                    ?? payload["message"]
+                    ?? "Debug session resolved"
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            events.append(.debugResolved(summary: summary.isEmpty ? "Debug session resolved" : summary))
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: "Debug resolved",
+                detail: summary,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .executing,
+                isRunning: false
+            )))
+            return events
+        }
+
+        if type == "debug_panel" || type == "debug_panel_update" {
+            let detail = payload["detail"] ?? "Use debug_set_phase, debug_request_user, debug_resolve"
+            events.append(.taskActivity(TaskActivity(
+                type: "tool_validation_error",
+                title: "Legacy debug_panel is not supported",
+                detail: detail,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .planning,
+                isRunning: false
             )))
             return events
         }
@@ -495,6 +563,7 @@ enum EventNormalizer {
         if [
             "semantic_search", "read_lints", "debug_context",
             "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+            "debug_phase_update", "debug_user_request", "debug_resolved",
         ].contains(normalizedCanonicalType) {
             return normalizedCanonicalType
         }
@@ -506,6 +575,7 @@ enum EventNormalizer {
            [
                "semantic_search", "read_lints", "debug_context",
                "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+               "debug_phase_update", "debug_user_request", "debug_resolved",
            ].contains(normalizedToolIdentifier(rawToolName))
         {
             return normalizedToolIdentifier(rawToolName)
@@ -556,7 +626,8 @@ enum EventNormalizer {
             return .executing
         case "semantic_search":
             return .searching
-        case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize":
+        case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize",
+             "debug_phase_update", "debug_user_request", "debug_resolved":
             return .executing
         case "debug_mark", "debug_clean":
             return .editing
@@ -578,8 +649,6 @@ enum EventNormalizer {
             return .searching
         case "plan_step", "plan_step_update":
             return .planning
-        case "debug_panel", "debug_panel_update":
-            return .executing
         case "policy_ack":
             return .planning
         default:
@@ -609,6 +678,9 @@ enum EventNormalizer {
             return false
         case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
             return status == "started" || status == "running" || status == "in_progress"
+        case "debug_phase_update":
+            let normalizedPhase = (payload["phase"] ?? "").lowercased()
+            return normalizedPhase != "resolved"
         default:
             return false
         }
@@ -660,10 +732,42 @@ enum EventNormalizer {
             return "Debug marker"
         case "debug_clean":
             return "Debug clean"
+        case "debug_phase_update":
+            return "Debug phase update"
+        case "debug_user_request":
+            return "Debug user request"
+        case "debug_resolved":
+            return "Debug resolved"
         case "policy_ack":
             return "Policy acknowledged"
         default:
             return type
+        }
+    }
+
+    private static func debugFlowPhase(from raw: String?) -> DebugFlowPhase? {
+        guard let raw else { return nil }
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let phase = DebugFlowPhase(rawValue: normalized) {
+            return phase
+        }
+        switch normalized {
+        case "analyze", "analysis", "analyzing", "describe":
+            return .describing
+        case "reproduce":
+            return .reproducing
+        case "fix":
+            return .fixing
+        case "instrument":
+            return .instrumenting
+        case "verify":
+            return .verifying
+        case "resolve":
+            return .resolved
+        default:
+            return nil
         }
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import CoderEngine
 
-// MARK: - Debug Flow Phase (Cursor-style 4-phase: Describe → Reproduce → Fix → Verify)
+// MARK: - Debug Flow Phase (linear: Describe → Reproduce → Fix → Verify → Resolve)
 
 enum DebugFlowPhase: String, Equatable, CaseIterable {
     case idle
@@ -18,8 +18,8 @@ enum DebugFlowPhase: String, Equatable, CaseIterable {
     // Terminal: Bug resolved
     case resolved
 
-    /// The 4 main phases for the progress bar (excluding sub-phases and terminal states)
-    static var mainPhases: [DebugFlowPhase] { [.describing, .reproducing, .fixing, .verifying] }
+    /// Main linear phases for the progress bar.
+    static var mainPhases: [DebugFlowPhase] { [.describing, .reproducing, .fixing, .verifying, .resolved] }
 
     /// Human-readable label for each phase
     var label: String {
@@ -302,7 +302,6 @@ final class DebugStore: ObservableObject {
     }
 
     private var pendingResolutionAfterClean: String?
-    private var emittedLegacyWarnings: Set<String> = []
 
     // MARK: - Log Management
 
@@ -469,7 +468,6 @@ final class DebugStore: ObservableObject {
         userConfirmedReproduce = false
         awaitingDebugClean = false
         pendingResolutionAfterClean = nil
-        emittedLegacyWarnings.removeAll()
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram
@@ -513,7 +511,6 @@ final class DebugStore: ObservableObject {
         userConfirmedReproduce = false
         awaitingDebugClean = false
         pendingResolutionAfterClean = nil
-        emittedLegacyWarnings.removeAll()
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = ""
@@ -602,30 +599,16 @@ final class DebugStore: ObservableObject {
         return (markers, instrumentation)
     }
 
-    func addLegacyDebugPanelWarning(action: String) {
-        let normalized = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else { return }
-        guard emittedLegacyWarnings.insert(normalized).inserted else { return }
-        addLog(
-            severity: .warning,
-            source: "debug_panel",
-            message: "Legacy debug_panel action '\(normalized)' is deprecated",
-            detail: "Use debug_* tool events (debug_log/debug_hypothesize/debug_mark/debug_clean).",
-            category: "deprecation"
-        )
-    }
-
     // MARK: - Default Debug Flow Diagram
 
     static let defaultDebugFlowDiagram = """
     flowchart LR
-        A[Describe Bug] --> B[Reproduce]
+        A[Describe] --> B[Reproduce]
         B --> C[Fix]
         C --> D[Verify]
-        D -->|Pass| E[Resolved]
-        D -->|Fail| C
-        C -.->|Instrument| C1[Add Logging]
-        C1 -.->|Observe| C2[Read Logs]
-        C2 -.->|Hypothesize| C
+        D --> E[Resolve]
+        C -.-> C1[Hypothesize]
+        C1 -.-> C2[Instrument]
+        C2 -.-> C3[Observe]
     """
 }

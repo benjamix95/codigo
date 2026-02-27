@@ -469,6 +469,7 @@ struct TaskActivityPanel: View {
             case .plan: return "Plan"
             case .codeReviewMultiSwarm: return "Review"
             case .agentSwarm: return "Swarm"
+            case .debug: return "Debug"
             default: return "Agent"
             }
         }()
@@ -496,6 +497,8 @@ struct TaskActivityPanel: View {
                 return "Code Review: Phase 1 (multi-swarm analysis)"
             case .agentSwarm:
                 return "Swarm: orchestrating agents"
+            case .debug:
+                return "Debug: investigating and verifying"
             default:
                 return "Agent: task running"
             }

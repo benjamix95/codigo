@@ -448,14 +448,14 @@ struct ModeBadge: View {
     private var iconName: String {
         switch mode {
         case .agent: return "brain.head.profile"; case .ide: return "sparkles"; case .mcpServer: return "server.rack"
-        case .agentSwarm: return "ant.fill"; case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"; case .plan: return "list.bullet.rectangle"
+        case .agentSwarm: return "ant.fill"; case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"; case .debug: return "ladybug.fill"; case .plan: return "list.bullet.rectangle"
         }
     }
     private var modeColor: Color {
         switch mode {
         case .agent: return DesignSystem.Colors.agentColor; case .ide: return DesignSystem.Colors.ideColor
         case .mcpServer: return DesignSystem.Colors.mcpColor; case .agentSwarm: return DesignSystem.Colors.swarmColor
-        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor; case .plan: return DesignSystem.Colors.planColor
+        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor; case .debug: return DesignSystem.Colors.debugColor; case .plan: return DesignSystem.Colors.planColor
         }
     }
 }

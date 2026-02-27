@@ -141,6 +141,66 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testDebugPhaseUpdateEmitsTypedEventAndActivity() {
+        let events = EventNormalizer.normalize(
+            type: "debug_phase_update",
+            payload: [
+                "phase": "fixing",
+                "detail": "Applying targeted patch"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugPhaseUpdate(let phase, let detail) = $0 {
+                return phase == .fixing && detail == "Applying targeted patch"
+            }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "debug_phase_update"
+            }
+            return false
+        })
+    }
+
+    func testDebugUserRequestEmitsTypedEventAndActivity() {
+        let events = EventNormalizer.normalize(
+            type: "debug_user_request",
+            payload: [
+                "kind": "question",
+                "prompt": "Mi confermi i passaggi per riprodurre?"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugUserRequest(let kind, let prompt) = $0 {
+                return kind == "question" && prompt.contains("riprodurre")
+            }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "debug_user_request"
+            }
+            return false
+        })
+    }
+
+    func testLegacyDebugPanelEmitsValidationError() {
+        let events = EventNormalizer.normalize(
+            type: "debug_panel_update",
+            payload: ["action": "open", "phase": "describing"]
+        )
+
+        guard case .taskActivity(let activity)? = events.first else {
+            XCTFail("Missing taskActivity event")
+            return
+        }
+        XCTAssertEqual(activity.type, "tool_validation_error")
+        XCTAssertTrue(activity.title.contains("Legacy debug_panel"))
+    }
+
     func testReasoningEventsAreIgnored() {
         let events = EventNormalizer.normalize(
             type: "reasoning",
@@ -360,4 +420,3 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 }
-

@@ -342,23 +342,51 @@ struct CoderIDETools {
 
         // --- IDE Integration (Debug Panel / Mode Activation / Swarm) ---
         Tool(
-            name: "coderide_debug_panel",
-            description: """
-                Control the IDE debug panel. Use 'open' to start a debug session, \
-                'question' to ask the user a question (pass question text in 'phase'), \
-                'reproduce' to ask the user to reproduce the bug, \
-                'marker' to track an inserted debug marker (pass file|line|comment in 'phase'), \
-                'resolve' to mark the bug as fixed (pass fix description in 'phase').
-                """,
+            name: "coderide_debug_set_phase",
+            description: "Set the debug panel phase in a strongly-typed way.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "action": .object(["type": "string", "description": "Panel action: open, close, question, reproduce, marker, resolve"]),
-                    "phase": .object(["type": "string", "description": "Phase or context text (e.g. 'analyzing', question text, fix description)"]),
+                    "phase": .object([
+                        "type": "string",
+                        "description": "Debug phase: describing, reproducing, fixing, instrumenting, verifying, resolved"
+                    ]),
+                    "detail": .object(["type": "string", "description": "Optional human-readable context for this phase transition"]),
                 ]),
-                "required": .array([.string("action")]),
+                "required": .array([.string("phase")]),
             ]),
-            annotations: .init(title: "Debug Panel", readOnlyHint: false)
+            annotations: .init(title: "Debug Set Phase", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_debug_request_user",
+            description: "Request explicit user interaction during debugging.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "kind": .object([
+                        "type": "string",
+                        "description": "Request kind: question or reproduce"
+                    ]),
+                    "prompt": .object([
+                        "type": "string",
+                        "description": "Prompt shown to the user"
+                    ]),
+                ]),
+                "required": .array([.string("kind"), .string("prompt")]),
+            ]),
+            annotations: .init(title: "Debug Request User", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_debug_resolve",
+            description: "Resolve the active debug session with a summary.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "summary": .object(["type": "string", "description": "Resolution summary"]),
+                ]),
+                "required": .array([.string("summary")]),
+            ]),
+            annotations: .init(title: "Debug Resolve", readOnlyHint: false)
         ),
         Tool(
             name: "coderide_policy_ack",
@@ -414,6 +442,17 @@ struct CoderIDETools {
                 "required": .array([.string("task")]),
             ]),
             annotations: .init(title: "Invoke Swarm", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_show_swarm_panel",
+            description: "Request the IDE to open/focus the swarm panel.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "swarm_id": .object(["type": "string", "description": "Optional swarm id to focus immediately"]),
+                ]),
+            ]),
+            annotations: .init(title: "Show Swarm Panel", readOnlyHint: false)
         ),
 
         // --- Debug Tools ---
@@ -607,9 +646,16 @@ struct CoderIDEMCPServerApp {
             // actual state management happens on the UI side via stream event pipeline.
             let ideStateTools: Set<String> = [
                 "todo_write", "todo_read", "plan_step_update", "mermaid_render",
-                "debug_panel", "policy_ack", "activate_plan_mode", "activate_debug_mode",
-                "show_task_panel", "invoke_swarm",
+                "debug_set_phase", "debug_request_user", "debug_resolve",
+                "policy_ack", "activate_plan_mode", "activate_debug_mode",
+                "show_task_panel", "invoke_swarm", "show_swarm_panel",
             ]
+            if toolName == "debug_panel" {
+                return CallTool.Result(
+                    content: [.text("tool_validation_error: legacy tool 'debug_panel' is not supported. Use debug_set_phase/debug_request_user/debug_resolve.")],
+                    isError: true
+                )
+            }
             if ideStateTools.contains(toolName) {
                 return handleIDEStateTool(name: toolName, args: stringArgs)
             }
@@ -794,15 +840,52 @@ struct CoderIDEMCPServerApp {
             let titleInfo = title.map { " (\($0))" } ?? ""
             return CallTool.Result(content: [.text("OK — mermaid diagram rendered in IDE\(titleInfo)")], isError: nil)
 
-        case "debug_panel":
-            let action = (args["action"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if action.isEmpty {
+        case "debug_set_phase":
+            let phase = (args["phase"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let validPhases: Set<String> = [
+                "describing", "reproducing", "fixing", "instrumenting", "verifying", "resolved"
+            ]
+            if phase.isEmpty {
                 return CallTool.Result(
-                    content: [.text("Error: 'action' parameter is required (open, close, question, reproduce, marker, resolve)")],
+                    content: [.text("Error: 'phase' parameter is required")],
                     isError: true
                 )
             }
-            return CallTool.Result(content: [.text("OK — debug panel action '\(action)' applied")], isError: nil)
+            if !validPhases.contains(phase) {
+                return CallTool.Result(
+                    content: [.text("Error: invalid phase '\(phase)'. Use: describing, reproducing, fixing, instrumenting, verifying, resolved")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — debug phase set to \(phase)")], isError: nil)
+
+        case "debug_request_user":
+            let kind = (args["kind"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let prompt = (args["prompt"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let validKinds: Set<String> = ["question", "reproduce"]
+            if kind.isEmpty || prompt.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'kind' and 'prompt' parameters are required")],
+                    isError: true
+                )
+            }
+            if !validKinds.contains(kind) {
+                return CallTool.Result(
+                    content: [.text("Error: invalid kind '\(kind)'. Use: question, reproduce")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — debug user request '\(kind)' queued")], isError: nil)
+
+        case "debug_resolve":
+            let summary = (args["summary"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if summary.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'summary' parameter is required")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — debug session resolved")], isError: nil)
 
         case "policy_ack":
             let hash = (args["hash"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -832,6 +915,9 @@ struct CoderIDEMCPServerApp {
                 )
             }
             return CallTool.Result(content: [.text("OK — swarm invoked for task")], isError: nil)
+
+        case "show_swarm_panel":
+            return CallTool.Result(content: [.text("OK — swarm panel opened")], isError: nil)
 
         default:
             return CallTool.Result(content: [.text("Unknown IDE state tool: \(name)")], isError: true)

@@ -19,46 +19,38 @@ enum PromptModes {
     """
 
     static let debugger = """
-    Debugger mode (Cursor-style 4-phase debugging with Hypothesize→Instrument→Observe→Verify→Fix loop):
+    Debugger mode (MCP-first, typed debug panel control):
 
-    PHASE 1 — DESCRIBE THE BUG:
-    - Emit `debug_panel` only for panel control (`open`/`phase`) and set phase to `describing`.
-    - Start with `debug_context` to gather git status, open files, lints, terminal state.
-    - Use `semantic_search` to find related code by meaning.
-    - Log observable symptoms with `debug_log`. Use `read_lints` for current diagnostics.
-    - Read error messages carefully. Summarize: what fails, where, under what conditions.
+    PANEL CONTROL TOOLS (canonical):
+    - `debug_set_phase` with phase: `describing|reproducing|fixing|instrumenting|verifying|resolved`
+    - `debug_request_user` with kind: `question|reproduce` and `prompt`
+    - `debug_resolve` with `summary`
+    - `debug_panel` is legacy and MUST NOT be used.
 
-    PHASE 2 — REPRODUCE THE BUG:
-    - Emit `debug_panel` event with action "phase" and phase "reproducing".
-    - If the bug is not trivially reproducible, emit action "reproduce" to show Proceed button.
-    - Insert instrumentation using `debug_mark` and record runtime observations with `debug_log` (category `runtime`/`instrumentation`).
-    - Each instrumentation point should target a specific hypothesis ID.
-    - Ask the user to reproduce; wait for "Proceed" confirmation.
+    PHASE 1 — DESCRIBE:
+    - `debug_set_phase phase=describing`
+    - Run `debug_context`, then `debug_session action=start`
+    - Log symptoms with `debug_log` and inspect diagnostics with `read_lints`
 
-    PHASE 3 — FIX (inner loop: Hypothesize → Instrument → Observe → Verify → Fix):
-    - Emit `debug_panel` event with action "phase" and phase "fixing".
-    - Hypothesize: Use `debug_hypothesize` with action `propose` to create one hypothesis at a time, then keep its returned ID.
-    - Instrument: Insert targeted markers with `debug_mark` to test that hypothesis.
-    - Observe: Collect runtime logs with `debug_log` and inspect with `debug_query`.
-    - Verify hypothesis: if confirmed, apply minimal fix with `str_replace`; if rejected, call `debug_hypothesize` action `update` on the same hypothesis ID.
-    - If instrumentation reveals unexpected behavior, emit action "phase" phase "instrumenting" and add more logging.
-    - Apply minimal fix. Update hypothesis status to `confirmed` or `rejected` via `debug_hypothesize update`.
+    PHASE 2 — REPRODUCE:
+    - `debug_set_phase phase=reproducing`
+    - If user action is required, use `debug_request_user kind=reproduce prompt=...`
 
-    PHASE 4 — VERIFY THE FIX:
-    - Emit `debug_panel` event with action "phase" and phase "verifying".
-    - Run `read_lints` (fast) then tests. Check for regressions.
-    - If verification FAILS: emit action "loop_back" to return to Phase 3 with more instrumentation. The panel tracks iteration count.
-    - If verification PASSES: run `debug_clean`, verify success, then emit `debug_panel` action `resolve` with summary.
-    - ALWAYS clean all debug artifacts (`debug_clean`) before resolving.
-    - Report: root cause, fix applied, verification result, residual risk.
+    PHASE 3 — FIX:
+    - `debug_set_phase phase=fixing`
+    - Hypothesize via `debug_hypothesize`, instrument via `debug_mark`
+    - For heavy instrumentation windows use `debug_set_phase phase=instrumenting`
+    - Observe with `debug_log` + `debug_query`, then apply minimal fix
 
-    Legacy compatibility note:
-    - `debug_panel` action `instrument` may appear in older traces but is deprecated.
-    - Prefer `debug_mark` + `debug_log` + `debug_hypothesize` (ID-based) for instrumentation flow.
+    PHASE 4 — VERIFY:
+    - `debug_set_phase phase=verifying`
+    - Verify with `read_lints` and targeted tests/diagnostics
+    - Clean debug artifacts using `debug_clean`
 
-    Runtime log format (written to .codigo/debug.log as JSONL):
-    - {id, timestamp, location, message, data: {key: value}, sessionId, runId, hypothesisId}
-    - The runtime logs tab in the debug panel shows these entries.
+    PHASE 5 — RESOLVE:
+    - `debug_resolve summary=...`
+    - Optionally set final phase with `debug_set_phase phase=resolved`
+    - Report root cause, fix, verification outcome, residual risk
     """
 
     static let reviewer = """

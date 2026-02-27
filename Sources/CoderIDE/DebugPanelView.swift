@@ -37,9 +37,9 @@ struct DebugPanelView: View {
             topBar
             Rectangle().fill(debugColor.opacity(0.3)).frame(height: 1)
 
-            // 4-phase progress bar (Describe → Reproduce → Fix → Verify)
+            // Linear debug pipeline (Describe → Reproduce → Fix → Verify → Resolve)
             if debugStore.phase != .idle {
-                fourPhaseProgressBar
+                linearProgressBar
             }
 
             // Tab bar
@@ -212,108 +212,139 @@ struct DebugPanelView: View {
         .background(color.opacity(0.12), in: Capsule())
     }
 
-    // MARK: - 4-Phase Progress Bar
+    // MARK: - Linear Debug Progress
 
-    private var fourPhaseProgressBar: some View {
-        VStack(spacing: 6) {
-            // Phase steps
-            HStack(spacing: 0) {
-                ForEach(Array(DebugFlowPhase.mainPhases.enumerated()), id: \.offset) { index, mainPhase in
-                    let currentIndex = debugStore.phase.phaseIndex
-                    let isCompleted = debugStore.phase == .resolved || index < currentIndex
-                    let isCurrent = index == currentIndex && debugStore.phase.isActive
-                    let _ = index > currentIndex // isUpcoming — reserved for future styling
+    private var primaryPhases: [DebugFlowPhase] {
+        [.describing, .reproducing, .fixing, .verifying, .resolved]
+    }
+
+    private var currentPrimaryPhase: DebugFlowPhase {
+        switch debugStore.phase {
+        case .instrumenting:
+            return .fixing
+        default:
+            return debugStore.phase
+        }
+    }
+
+    private var currentPrimaryIndex: Int {
+        primaryPhases.firstIndex(of: currentPrimaryPhase) ?? 0
+    }
+
+    private var linearProgressBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 6) {
+                ForEach(Array(primaryPhases.enumerated()), id: \.offset) { index, phase in
+                    let isCompleted = index < currentPrimaryIndex || currentPrimaryPhase == .resolved
+                    let isCurrent = index == currentPrimaryIndex && currentPrimaryPhase != .resolved
+                    let stepColor: Color = isCompleted
+                        ? DesignSystem.Colors.success
+                        : (isCurrent ? debugColor : .secondary.opacity(0.45))
 
                     HStack(spacing: 4) {
-                        // Step circle
-                        ZStack {
-                            if isCompleted {
-                                Circle()
-                                    .fill(DesignSystem.Colors.success)
-                                    .frame(width: 16, height: 16)
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.white)
-                            } else if isCurrent {
-                                Circle()
-                                    .fill(debugColor)
-                                    .frame(width: 16, height: 16)
-                                if debugStore.phase == .instrumenting {
-                                    Image(systemName: "wrench.fill")
-                                        .font(.system(size: 7, weight: .bold))
-                                        .foregroundStyle(.white)
-                                } else {
-                                    ProgressView()
-                                        .scaleEffect(0.4)
-                                        .tint(.white)
-                                }
-                            } else {
-                                Circle()
-                                    .strokeBorder(Color.secondary.opacity(0.3), lineWidth: 1)
-                                    .frame(width: 16, height: 16)
-                                Text("\(index + 1)")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
+                        phaseBullet(isCompleted: isCompleted, isCurrent: isCurrent, color: stepColor)
 
-                        // Phase label
-                        Text(mainPhase.label)
-                            .font(.system(size: 9, weight: isCurrent ? .semibold : .regular))
+                        Text(shortLabel(for: phase))
+                            .font(.system(size: 9, weight: isCurrent ? .semibold : .medium, design: .monospaced))
+                            .foregroundStyle(stepColor)
+                    }
+
+                    if index < primaryPhases.count - 1 {
+                        Text("→")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundStyle(
-                                isCompleted ? DesignSystem.Colors.success :
-                                isCurrent ? debugColor :
-                                Color.secondary.opacity(0.5)
+                                isCompleted
+                                    ? DesignSystem.Colors.success.opacity(0.7)
+                                    : DesignSystem.Colors.textTertiary
                             )
-                            .lineLimit(1)
-                    }
-
-                    if index < DebugFlowPhase.mainPhases.count - 1 {
-                        Spacer(minLength: 2)
-                        // Connector line
-                        Rectangle()
-                            .fill(isCompleted ? DesignSystem.Colors.success.opacity(0.5) : Color.secondary.opacity(0.15))
-                            .frame(height: 1)
-                            .frame(maxWidth: 20)
-                        Spacer(minLength: 2)
                     }
                 }
             }
 
-            // Current phase detail
-            if debugStore.phase.isActive || debugStore.phase == .resolved {
-                HStack(spacing: 4) {
-                    if debugStore.phase == .resolved {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(DesignSystem.Colors.success)
-                    }
-                    Text(phaseDetailLabel)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(debugStore.phase == .resolved ? DesignSystem.Colors.success : .secondary)
-                    Spacer()
-                    if debugStore.phase == .instrumenting {
-                        Text("\(debugStore.instrumentationPoints.count) points")
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundStyle(DesignSystem.Colors.info)
-                    }
-                }
+            if shouldShowFixSubpipeline {
+                fixSubpipeline
             }
+
+            Text(phaseDetailLabel)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(currentPrimaryPhase == .resolved ? DesignSystem.Colors.success : .secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(debugStore.phase == .resolved ? DesignSystem.Colors.success.opacity(0.04) : debugColor.opacity(0.04))
+        .background(currentPrimaryPhase == .resolved ? DesignSystem.Colors.success.opacity(0.06) : debugColor.opacity(0.04))
+    }
+
+    private var shouldShowFixSubpipeline: Bool {
+        debugStore.phase == .fixing
+            || debugStore.phase == .instrumenting
+            || debugStore.phase == .verifying
+            || debugStore.phase == .resolved
+            || !debugStore.hypotheses.isEmpty
+            || !debugStore.instrumentationPoints.isEmpty
+            || !debugStore.runtimeLogs.isEmpty
+    }
+
+    private var fixSubpipeline: some View {
+        let hasHypothesis = !debugStore.hypotheses.isEmpty
+        let hasInstrumentation = !debugStore.instrumentationPoints.isEmpty
+        let hasObservation = !debugStore.runtimeLogs.isEmpty
+        let fixCompleted = debugStore.phase == .verifying || debugStore.phase == .resolved
+
+        return HStack(spacing: 5) {
+            subStep(label: "HYPOTHESIZE", isCompleted: hasHypothesis || fixCompleted, isCurrent: debugStore.phase == .fixing && !hasHypothesis)
+            Text("→").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.tertiary)
+            subStep(label: "INSTRUMENT", isCompleted: hasInstrumentation || fixCompleted, isCurrent: debugStore.phase == .instrumenting || (debugStore.phase == .fixing && hasHypothesis && !hasInstrumentation))
+            Text("→").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.tertiary)
+            subStep(label: "OBSERVE", isCompleted: hasObservation || fixCompleted, isCurrent: (debugStore.phase == .fixing || debugStore.phase == .instrumenting) && hasInstrumentation && !hasObservation)
+            Spacer()
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func subStep(label: String, isCompleted: Bool, isCurrent: Bool) -> some View {
+        let color: Color = isCompleted
+            ? DesignSystem.Colors.success
+            : (isCurrent ? debugColor : DesignSystem.Colors.textTertiary)
+        return Text(label)
+            .font(.system(size: 8, weight: isCurrent ? .semibold : .medium, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(isCurrent ? 0.14 : 0.08), in: Capsule())
+    }
+
+    @ViewBuilder
+    private func phaseBullet(isCompleted: Bool, isCurrent: Bool, color: Color) -> some View {
+        let base = Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle.fill")
+            .font(.system(size: isCurrent ? 9.5 : 8.5, weight: .semibold))
+            .foregroundStyle(color)
+        if isCurrent {
+            base.modifier(PulseModifier())
+        } else {
+            base
+        }
+    }
+
+    private func shortLabel(for phase: DebugFlowPhase) -> String {
+        switch phase {
+        case .describing: return "DESCRIBE"
+        case .reproducing: return "REPRODUCE"
+        case .fixing, .instrumenting: return "FIX"
+        case .verifying: return "VERIFY"
+        case .resolved: return "RESOLVE"
+        case .idle: return "IDLE"
+        }
     }
 
     private var phaseDetailLabel: String {
         switch debugStore.phase {
         case .idle:          return ""
-        case .describing:    return "Analyzing errors and logs..."
-        case .reproducing:   return "Reproduce the bug, then Proceed"
-        case .fixing:        return "Hypothesizing and applying fix..."
-        case .instrumenting: return "Inserting instrumentation..."
-        case .verifying:     return "Verifying fix..."
-        case .resolved:      return "Resolved"
+        case .describing:    return "Descrizione del problema e raccolta contesto."
+        case .reproducing:   return "Riproduci il bug o chiedi riproduzione utente."
+        case .fixing:        return "Fix in corso con ipotesi mirate."
+        case .instrumenting: return "Strumentazione attiva per osservare il comportamento."
+        case .verifying:     return "Verifica finale e cleanup debug."
+        case .resolved:      return "Debug risolto."
         }
     }
 

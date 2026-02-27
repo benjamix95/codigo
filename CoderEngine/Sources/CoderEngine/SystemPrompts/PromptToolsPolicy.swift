@@ -39,6 +39,7 @@ enum PromptToolsPolicy {
       4) execute with `mcp_call`.
     - When you use MCP, state explicitly which MCP servers and MCP tools you used.
     - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
+    - For debug panel control, use typed MCP tools only: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
     Mandatory execution workflow — follow this sequence for every task:
     1. INVESTIGATE FIRST: Use search tools (Grep, Glob, semantic_search, codebase_search, find_symbol, find_references, web_search) and read tools (Read, read_range, file_outline) to fully understand the problem before making any changes. Never jump to editing without investigating. Use Task (subagents) in parallel when exploring multiple areas.
