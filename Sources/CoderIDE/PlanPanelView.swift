@@ -159,7 +159,7 @@ struct PlanPanelView: View {
                     }
 
                     // 4) Final todos
-                    if !snapshot.canonicalTodos.isEmpty {
+                    if shouldShowCanonicalTodos && !snapshot.canonicalTodos.isEmpty {
                         todosSection(canonicalTodos: snapshot.canonicalTodos)
                     }
 
@@ -195,7 +195,9 @@ struct PlanPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             thinSeparator
-            bottomBar(canonicalTodos: snapshot.canonicalTodos)
+            if shouldShowCanonicalTodos {
+                bottomBar(canonicalTodos: snapshot.canonicalTodos)
+            }
         }
         .background(DesignSystem.Colors.backgroundDeep)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -454,6 +456,15 @@ struct PlanPanelView: View {
             allowIdleRebuild: false,
             providerExecutionCapable: isActiveProviderExecutionCapable
         )
+    }
+
+    private var shouldShowCanonicalTodos: Bool {
+        switch planFlowPhase {
+        case .readyToBuild, .building:
+            return true
+        default:
+            return false
+        }
     }
 
     private var buildDisabledReason: String? {

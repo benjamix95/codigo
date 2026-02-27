@@ -772,6 +772,12 @@ struct ChatPanelView: View {
             || planFlowPhase == .building
         return !planFlowActive
     }
+    private var shouldShowPlanTodosInChat: Bool {
+        if coderMode != .plan {
+            return true
+        }
+        return planFlowPhase == .readyToBuild || planFlowPhase == .building
+    }
     private var showsSwarmViewOnly: Bool { shouldShowSwarmViewOnly(for: coderMode) }
     private var planPanelConversationId: UUID? { conversationId }
     private var shouldShowFinalChatActions: Bool {
@@ -1801,7 +1807,8 @@ struct ChatPanelView: View {
                                                 showTopDivider: needsDivider
                                             )
                                             if message.role == .assistant {
-                                                if !todoStore.todos.isEmpty,
+                                                if shouldShowPlanTodosInChat,
+                                                   !todoStore.todos.isEmpty,
                                                    message.id == messages.last(where: { $0.role == .assistant })?.id {
                                                     TodoLiveInlineCard(
                                                         store: todoStore,
