@@ -4717,9 +4717,9 @@ struct ChatPanelView: View {
             defer { isOptimizingPrompt = false }
             do {
                 let ctx = effectiveContext.toWorkspaceContext(
-                    openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+                    openFiles: [],
                     activeSelection: nil,
-                    activeFilePath: openFilesStore.openFilePath,
+                    activeFilePath: nil,
                     scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
                 )
                 let optimized = try await PromptOptimizerService.optimize(

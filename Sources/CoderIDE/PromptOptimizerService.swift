@@ -22,20 +22,22 @@ final class PromptOptimizerService {
         }
     }
 
-    /// System prompt per l'ottimizzazione. Chiede al modello di restituire SOLO il prompt migliorato,
-    /// nella stessa lingua dell'input, senza spiegazioni aggiuntive.
+    /// System prompt per l'ottimizzazione.
     private static let systemInstruction = """
-    You are a prompt optimization expert. Your job is to take the user's prompt and rewrite it to be clearer, more specific, and more effective for an AI coding assistant.
+    You are an expert at optimizing prompts for AI coding assistants.
 
     Rules:
-    - Output ONLY the improved prompt, nothing else. No explanations, no preamble, no "Here is the improved prompt:" prefix.
-    - Keep the SAME language as the input prompt. If the user writes in Italian, respond in Italian. If in English, respond in English. Etc.
-    - Preserve the user's original intent and meaning.
-    - Make it more specific, structured, and actionable.
-    - Add relevant context clues if the original prompt is vague.
-    - Keep a similar length — don't make it excessively longer.
-    - If the prompt is already excellent, return it as-is with minimal changes.
+    - Output ONLY the optimized prompt, no explanations.
+    - Keep the same language as the input prompt.
+    - Preserve intent, make it clearer and actionable.
+    - Keep it concise and avoid unnecessary changes.
     """
+
+    private static let cacheLimit = 64
+    private static let cacheVersion = "v3"
+    private static var promptCache: [String: String] = [:]
+    private static var cacheOrder: [String] = []
+    private static var inFlight: [String: Task<String, Error>] = [:]
 
     /// Ottimizza il prompt usando il provider fornito.
     /// Restituisce il testo ottimizzato.
@@ -47,34 +49,57 @@ final class PromptOptimizerService {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OptimizeError.emptyPrompt }
 
-        let fullPrompt = """
-        \(systemInstruction)
+        let contextSignature = context.workspacePaths.map(\.path).joined(separator: "|")
+        let cacheKey = "\(Self.cacheVersion)|\(provider.id)|\(contextSignature)|\(trimmed)"
+        if let cached = promptCache[cacheKey] {
+            return cached
+        }
+        if let running = inFlight[cacheKey] {
+            return try await running.value
+        }
 
-        --- USER PROMPT TO OPTIMIZE ---
-        \(trimmed)
-        --- END ---
-        """
+        let fullPrompt = "\(systemInstruction)\n\nUSER:\n\(trimmed)"
+        let task = Task<String, Error> {
+            let stream = try await provider.send(
+                prompt: fullPrompt,
+                context: context,
+                imageURLs: nil
+            )
 
-        let stream = try await provider.send(
-            prompt: fullPrompt,
-            context: context,
-            imageURLs: nil
-        )
+            var chunks: [String] = []
+            for try await event in stream {
+                switch event {
+                case .textDelta(let delta):
+                    chunks.append(delta)
+                case .error(let msg):
+                    throw OptimizeError.streamError(msg)
+                case .started, .completed, .raw:
+                    break
+                }
+            }
 
-        var result = ""
-        for try await event in stream {
-            switch event {
-            case .textDelta(let delta):
-                result += delta
-            case .error(let msg):
-                throw OptimizeError.streamError(msg)
-            case .started, .completed, .raw:
-                break
+            let optimized = chunks.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !optimized.isEmpty else { throw OptimizeError.emptyResponse }
+            return optimized
+        }
+        inFlight[cacheKey] = task
+        defer { inFlight.removeValue(forKey: cacheKey) }
+
+        let optimized = try await task.value
+        if let existingIndex = cacheOrder.firstIndex(of: cacheKey) {
+            cacheOrder.remove(at: existingIndex)
+        }
+        cacheOrder.append(cacheKey)
+        promptCache[cacheKey] = optimized
+        if cacheOrder.count > cacheLimit {
+            let removeCount = cacheOrder.count - cacheLimit
+            let removed = cacheOrder.prefix(removeCount)
+            cacheOrder.removeFirst(removeCount)
+            for key in removed {
+                promptCache.removeValue(forKey: key)
             }
         }
 
-        let optimized = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !optimized.isEmpty else { throw OptimizeError.emptyResponse }
         return optimized
     }
 }
