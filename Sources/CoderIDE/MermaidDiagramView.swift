@@ -48,16 +48,23 @@ struct MermaidWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
+        config.userContentController = WKUserContentController()
         config.preferences.setValue(true, forKey: "javaScriptEnabled")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.hasVerticalScroller = false
+        webView.scrollView.hasHorizontalScroller = false
         webView.setValue(false, forKey: "drawsBackground")
         loadMermaid(webView: webView)
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        loadMermaid(webView: webView)
+        if context.coordinator.lastRenderedCode != mermaidCode {
+            context.coordinator.lastRenderedCode = mermaidCode
+            loadMermaid(webView: webView)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -65,10 +72,7 @@ struct MermaidWebView: NSViewRepresentable {
     }
 
     private func loadMermaid(webView: WKWebView) {
-        let escapedCode = mermaidCode
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "`", with: "\\`")
-            .replacingOccurrences(of: "$", with: "\\$")
+        let escapedCode = mermaidCode.htmlEscapedForMermaid
 
         let html = """
         <!DOCTYPE html>
@@ -112,42 +116,40 @@ struct MermaidWebView: NSViewRepresentable {
                 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
                 mermaid.initialize({
                     startOnLoad: true,
-                    theme: 'dark',
+                    theme: 'base',
                     themeVariables: {
-                        primaryColor: '#f28d1a',
-                        primaryTextColor: '#e5e5e5',
-                        primaryBorderColor: '#f28d1a',
-                        lineColor: '#888888',
-                        secondaryColor: '#2a2a3e',
-                        tertiaryColor: '#1a1a2e',
-                        mainBkg: '#1e1e2e',
-                        nodeBorder: '#f28d1a',
-                        clusterBkg: '#16162a',
-                        titleColor: '#e5e5e5',
-                        edgeLabelBackground: '#1e1e2e',
-                        nodeTextColor: '#e5e5e5'
+                        primaryColor: '#cfd3da',
+                        primaryTextColor: '#1f2937',
+                        primaryBorderColor: '#94a3b8',
+                        lineColor: '#64748b',
+                        secondaryColor: '#f8fafc',
+                        tertiaryColor: '#e2e8f0',
+                        mainBkg: '#ffffff',
+                        nodeBorder: '#94a3b8',
+                        clusterBkg: '#f1f5f9',
+                        titleColor: '#1f2937',
+                        edgeLabelBackground: '#f8fafc',
+                        nodeTextColor: '#1f2937',
+                        background: '#ffffff',
+                        textColor: '#1f2937'
                     },
                     flowchart: {
                         useMaxWidth: true,
                         htmlLabels: true,
-                        curve: 'basis'
+                        curve: 'linear'
                     },
                     securityLevel: 'loose',
                     fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
                 });
 
                 // After render, resize body to content
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                     const svg = document.querySelector('#mermaid-container svg');
                     if (svg) {
                         const rect = svg.getBoundingClientRect();
                         document.body.style.height = rect.height + 16 + 'px';
-                        window.webkit?.messageHandlers?.sizeChanged?.postMessage({
-                            width: rect.width,
-                            height: rect.height + 16
-                        });
                     }
-                }, 1000);
+                });
             </script>
         </body>
         </html>
@@ -156,6 +158,8 @@ struct MermaidWebView: NSViewRepresentable {
     }
 
     class Coordinator: NSObject, WKNavigationDelegate {
+        var lastRenderedCode: String?
+
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
                 NSWorkspace.shared.open(url)
@@ -164,6 +168,16 @@ struct MermaidWebView: NSViewRepresentable {
             }
             decisionHandler(.allow)
         }
+    }
+}
+
+private extension String {
+    var htmlEscapedForMermaid: String {
+        replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }
 
