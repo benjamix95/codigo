@@ -145,10 +145,10 @@ public actor UnifiedToolRuntime {
     private let executionScope: ExecutionScope
     private let mcpSessions: MCPSessionManager
 
-    /// Codebase index tools (nil when no index is available)
-    private let indexTools: CodebaseIndexTools?
+    /// Codebase index tools (created lazily when needed)
+    private var indexTools: CodebaseIndexTools?
     /// Direct reference to CodebaseIndex for SemanticIndex access
-    private let codebaseIndex: CodebaseIndex?
+    private var codebaseIndex: CodebaseIndex?
     private let workspacePaths: [URL]
     private let excludedPaths: [String]
 
@@ -202,6 +202,24 @@ public actor UnifiedToolRuntime {
             excludedPaths: excludedPaths,
             executionScope: executionScope
         )
+    }
+
+    private func ensureIndexTools(for context: ToolExecutionContext) async -> CodebaseIndexTools {
+        if let indexTools {
+            return indexTools
+        }
+
+        let index = codebaseIndex ?? CodebaseIndex()
+        codebaseIndex = index
+        let tools = CodebaseIndexTools(index: index)
+        indexTools = tools
+
+        let requestedPaths = preferredWorkspacePaths(for: context)
+        if !requestedPaths.isEmpty {
+            let _ = await index.indexWorkspace(paths: requestedPaths, excludedPaths: excludedPaths)
+        }
+
+        return tools
     }
 
     /// Run an external process and return (stdout, stderr, exitCode).
@@ -938,7 +956,7 @@ public actor UnifiedToolRuntime {
                 toolName: "codebase_search",
                 args: call.args,
                 callId: call.id,
-                workspacePaths: workspacePaths,
+                workspacePaths: preferredWorkspacePaths(for: context),
                 excludedPaths: excludedPaths
             )
             let result = toolResultFromIndexEvents(events, startDate: startDate)
@@ -1551,23 +1569,16 @@ public actor UnifiedToolRuntime {
     private func executeIndexTool(
         name: String,
         call: ToolCall,
-        context _: ToolExecutionContext,
+        context: ToolExecutionContext,
         startDate: Date
     ) async -> ToolResult {
-        guard let indexTools else {
-            return failure(
-                "Codebase index not available. Run 'reindex' or open a workspace first.",
-                errorCode: "validation",
-                startDate: startDate
-            )
-        }
-
+        let indexTools = await ensureIndexTools(for: context)
         let normalizedArgs = normalizedArgsForIndexTool(name: name, args: call.args)
         let events = await indexTools.execute(
             toolName: name,
             args: normalizedArgs,
             callId: call.id,
-            workspacePaths: workspacePaths,
+            workspacePaths: preferredWorkspacePaths(for: context),
             excludedPaths: excludedPaths
         )
         return toolResultFromIndexEvents(events, startDate: startDate)
@@ -1589,16 +1600,35 @@ public actor UnifiedToolRuntime {
                !pattern.isEmpty {
                 normalized["query"] = pattern
             }
+            if (normalized["filePattern"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let pathScope = normalized["path"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !pathScope.isEmpty {
+                normalized["filePattern"] = normalizePathScopeAsFilePattern(pathScope)
+            }
         case "codebase_search":
             if (normalized["filePattern"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let path = normalized["path"]?.trimmingCharacters(in: .whitespacesAndNewlines),
                !path.isEmpty {
-                normalized["filePattern"] = path
+                normalized["filePattern"] = normalizePathScopeAsFilePattern(path)
             }
         default:
             break
         }
 
+        return normalized
+    }
+
+    private func normalizePathScopeAsFilePattern(_ rawPathScope: String) -> String {
+        var normalized = rawPathScope.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "" }
+        if normalized == "." { return "" }
+        if normalized.hasPrefix("./") {
+            normalized = String(normalized.dropFirst(2))
+        }
+        while normalized.hasSuffix("/") {
+            normalized.removeLast()
+        }
+        guard !normalized.isEmpty, normalized != "." else { return "" }
         return normalized
     }
 
@@ -1657,7 +1687,7 @@ public actor UnifiedToolRuntime {
                     toolName: "codebase_search",
                     args: ["query": query, "kind": "all"],
                     callId: call.id,
-                    workspacePaths: workspacePaths,
+                    workspacePaths: preferredWorkspacePaths(for: context),
                     excludedPaths: excludedPaths
                 )
                 let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
@@ -1844,7 +1874,7 @@ public actor UnifiedToolRuntime {
                 toolName: "find_files",
                 args: ["query": pattern],
                 callId: call.id,
-                workspacePaths: workspacePaths,
+                workspacePaths: preferredWorkspacePaths(for: context),
                 excludedPaths: excludedPaths
             )
             let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)

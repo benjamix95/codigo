@@ -838,6 +838,41 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertTrue((findFilesPayload?["output"] ?? "").contains("LegacyAlias.swift"))
     }
 
+    func testIndexToolsInitializeLazilyWhenMissing() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("LazyIndex.swift")
+        try "struct LazyIndexSymbol {}\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let before = await runtime.debugSnapshot()
+        XCTAssertFalse(before.hasCodebaseIndex)
+
+        let (findFilesCall, findFilesCtx) = makeCall(
+            name: "find_files",
+            args: ["pattern": "LazyIndex.swift"],
+            workspace: tmp
+        )
+        let findFilesEvents = await runtime.execute(findFilesCall, context: findFilesCtx)
+        let findFilesPayload = extractLastPayload(findFilesEvents)
+        XCTAssertEqual(findFilesPayload?["status"], "completed")
+        XCTAssertTrue((findFilesPayload?["output"] ?? "").contains("LazyIndex.swift"))
+
+        let (searchCall, searchCtx) = makeCall(
+            name: "codebase_search",
+            args: ["query": "LazyIndexSymbol"],
+            workspace: tmp
+        )
+        let searchEvents = await runtime.execute(searchCall, context: searchCtx)
+        let searchPayload = extractLastPayload(searchEvents)
+        XCTAssertEqual(searchPayload?["status"], "completed")
+        XCTAssertTrue((searchPayload?["output"] ?? "").contains("LazyIndexSymbol"))
+
+        let after = await runtime.debugSnapshot()
+        XCTAssertTrue(after.hasCodebaseIndex)
+    }
+
     func testSemanticSearchNoResultsReturnsEmpty() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()

@@ -31,13 +31,15 @@ enum ToolSchemaCatalog {
             description: "Search text in files",
             properties: [
                 "query": ["type": "string", "description": "Text or regex query"],
+                "pattern": ["type": "string", "description": "Alias for query"],
                 "pathScope": ["type": "string", "description": "Optional folder or file scope"],
+                "path": ["type": "string", "description": "Alias for pathScope"],
                 "fileType": ["type": "string", "description": "Optional file type filter"],
                 "context_lines": ["type": "string", "description": "Optional context lines"],
                 "case_sensitive": ["type": "string", "description": "true or false"],
                 "multiline": ["type": "string", "description": "true or false"]
             ],
-            required: ["query"]
+            required: []
         ),
         ToolSchemaEntry(
             name: "edit",
@@ -91,9 +93,11 @@ enum ToolSchemaCatalog {
             properties: [
                 "path": ["type": "string", "description": "Target file path"],
                 "start": ["type": "string", "description": "Start line (1-based)"],
-                "end": ["type": "string", "description": "End line (inclusive)"]
+                "end": ["type": "string", "description": "End line (inclusive)"],
+                "start_line": ["type": "string", "description": "Alias for start"],
+                "end_line": ["type": "string", "description": "Alias for end"]
             ],
-            required: ["path", "start"]
+            required: ["path"]
         ),
         ToolSchemaEntry(
             name: "list_dir",
@@ -233,7 +237,8 @@ enum ToolSchemaCatalog {
             properties: [
                 "query": ["type": "string", "description": "Search query"],
                 "kind": ["type": "string", "description": "Symbol kind filter"],
-                "filePattern": ["type": "string", "description": "Optional file glob filter"]
+                "filePattern": ["type": "string", "description": "Optional file glob filter"],
+                "path": ["type": "string", "description": "Alias for filePattern"]
             ],
             required: ["query"]
         ),
@@ -242,9 +247,10 @@ enum ToolSchemaCatalog {
             description: "Find exact symbol definitions",
             properties: [
                 "query": ["type": "string", "description": "Exact symbol name"],
+                "name": ["type": "string", "description": "Alias for query"],
                 "kind": ["type": "string", "description": "Optional symbol kind"]
             ],
-            required: ["query"]
+            required: []
         ),
         ToolSchemaEntry(
             name: "list_symbols",
@@ -258,9 +264,10 @@ enum ToolSchemaCatalog {
             name: "find_references",
             description: "Find symbol references",
             properties: [
-                "query": ["type": "string", "description": "Symbol name"]
+                "query": ["type": "string", "description": "Symbol name"],
+                "name": ["type": "string", "description": "Alias for query"]
             ],
-            required: ["query"]
+            required: []
         ),
         ToolSchemaEntry(
             name: "project_structure",
@@ -280,12 +287,15 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "find_files",
-            description: "Find files by fuzzy name matching",
+            description: "Find files by fuzzy name matching with optional scope filters",
             properties: [
                 "query": ["type": "string", "description": "File name query"],
+                "pattern": ["type": "string", "description": "Alias for query"],
+                "path": ["type": "string", "description": "Alias for filePattern (directory scope)"],
+                "filePattern": ["type": "string", "description": "Optional path/glob filter"],
                 "extension": ["type": "string", "description": "Optional extension filter"]
             ],
-            required: ["query"]
+            required: []
         ),
         ToolSchemaEntry(
             name: "codebase_stats",
