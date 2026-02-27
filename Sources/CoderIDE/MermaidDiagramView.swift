@@ -52,9 +52,6 @@ struct MermaidWebView: NSViewRepresentable {
         config.preferences.setValue(true, forKey: "javaScriptEnabled")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        webView.scrollView.isScrollEnabled = false
-        webView.scrollView.hasVerticalScroller = false
-        webView.scrollView.hasHorizontalScroller = false
         webView.setValue(false, forKey: "drawsBackground")
         loadMermaid(webView: webView)
         return webView
