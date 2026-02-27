@@ -6745,6 +6745,9 @@ struct ChatPanelView: View {
         imageURLsToSend: [URL]?,
         prompt: String
     ) async {
+        // Capture conversationId at swarm start to avoid stale references
+        // if the user switches conversations while the swarm is running.
+        let swarmConversationId = conversationId
         let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
         guard let swarm = ProviderFactory.swarmProvider(
             config: providerFactoryConfig(),
@@ -6757,23 +6760,23 @@ struct ChatPanelView: View {
         chatStore.addMessage(
             ChatMessage(
                 role: .user, content: "[Delegated to swarm] \(task)",
-                isStreaming: false), to: conversationId)
+                isStreaming: false), to: swarmConversationId)
         let swarmAssistantMessageId = UUID()
         chatStore.addMessage(
             ChatMessage(id: swarmAssistantMessageId, role: .assistant, content: "", isStreaming: true),
-            to: conversationId)
-        if let conversationId {
+            to: swarmConversationId)
+        if let swarmConversationId {
             startToolTraceTurn(
-                conversationId: conversationId,
+                conversationId: swarmConversationId,
                 assistantMessageId: swarmAssistantMessageId,
                 providerId: swarm.id
             )
         }
-        chatStore.beginTask(conversationId: conversationId)
+        chatStore.beginTask(conversationId: swarmConversationId)
         taskActivityStore.clear()
-        if let activeConversationId = conversationId {
+        if let swarmConversationId {
             scheduleFallbackTurnStartEvent(
-                conversationId: activeConversationId,
+                conversationId: swarmConversationId,
                 providerId: swarm.id
             )
         }
@@ -6785,19 +6788,19 @@ struct ChatPanelView: View {
                 let agentProvider = providerRegistry.provider(for: agentId),
                 agentProvider.isAuthenticated()
             else { return nil }
-            chatStore.setLastAssistantStreaming(false, in: conversationId)
-            clearStreamingReasoning(for: conversationId)
+            chatStore.setLastAssistantStreaming(false, in: swarmConversationId)
+            clearStreamingReasoning(for: swarmConversationId)
             chatStore.addMessage(
                 ChatMessage(
                     role: .user, content: "[Agent follow-up after swarm]",
-                    isStreaming: false), to: conversationId)
+                    isStreaming: false), to: swarmConversationId)
             let followUpAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: followUpAssistantMessageId, role: .assistant, content: "", isStreaming: true),
-                to: conversationId)
-            if let conversationId {
+                to: swarmConversationId)
+            if let swarmConversationId {
                 startToolTraceTurn(
-                    conversationId: conversationId,
+                    conversationId: swarmConversationId,
                     assistantMessageId: followUpAssistantMessageId,
                     providerId: agentProvider.id
                 )
@@ -6815,30 +6818,30 @@ struct ChatPanelView: View {
             onSwarmText: { content in
                 applyStreamingUpdate(
                     content: content,
-                    conversationId: conversationId
+                    conversationId: swarmConversationId
                 )
             },
             onRaw: { t, p, pid in
-                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: swarmConversationId)
             },
             onFollowUpText: { content in
                 applyStreamingUpdate(
                     content: content,
-                    conversationId: conversationId
+                    conversationId: swarmConversationId
                 )
             },
             onError: { content in
                 DispatchQueue.main.async {
                     chatStore.updateLastAssistantMessage(
-                        content: content, in: conversationId)
+                        content: content, in: swarmConversationId)
                 }
             }
         )
-        chatStore.setLastAssistantStreaming(false, in: conversationId)
-        clearStreamingReasoning(for: conversationId)
+        chatStore.setLastAssistantStreaming(false, in: swarmConversationId)
+        clearStreamingReasoning(for: swarmConversationId)
         let traceOutcome = toolTraceTurnOutcome(for: delegatedSwarmState)
-        finalizeToolTraceTurn(conversationId: conversationId, outcome: traceOutcome)
-        chatStore.endTask(conversationId: conversationId)
+        finalizeToolTraceTurn(conversationId: swarmConversationId, outcome: traceOutcome)
+        chatStore.endTask(conversationId: swarmConversationId)
         await trySummarizeIfNeeded(ctx: ctx)
     }
 

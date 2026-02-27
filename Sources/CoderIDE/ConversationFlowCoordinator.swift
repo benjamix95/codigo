@@ -335,6 +335,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                     }
                 }
                 guard let ev = maybeEvent else { break }
+                if Task.isCancelled { break swarmLoop }
                 if !swarmReceivedAny {
                     let firstEventMs = Int(Date().timeIntervalSince(swarmStartedAt) * 1_000)
                     logStreamDiagnostic(
@@ -442,6 +443,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                     }
                 }
                 guard let ev = maybeEvent else { break }
+                if Task.isCancelled { break followUpLoop }
                 if !followReceivedAny {
                     let firstEventMs = Int(Date().timeIntervalSince(followStartedAt) * 1_000)
                     logStreamDiagnostic(

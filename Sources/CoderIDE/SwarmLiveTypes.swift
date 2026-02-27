@@ -30,7 +30,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         startedAt: Date? = nil,
         lastEventAt: Date? = nil,
         completedAt: Date? = nil,
-        currentStepTitle: String = "In attesa eventi",
+        currentStepTitle: String = "Awaiting events",
         currentDetail: String = "",
         activeOpsCount: Int = 0,
         errorCount: Int = 0,

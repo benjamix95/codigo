@@ -37,7 +37,7 @@ struct SwarmPanelView: View {
 
     private var liveSignature: String {
         sortedCards.map {
-            "\($0.swarmId)|\($0.status.rawValue)|\($0.lastEventAt?.timeIntervalSince1970 ?? 0)|\($0.activeOpsCount)"
+            "\($0.swarmId)|\($0.status.rawValue)|\($0.lastEventAt?.timeIntervalSince1970 ?? 0)|\($0.activeOpsCount)|\($0.recentEvents.count)|\($0.errorCount)"
         }.joined(separator: ";")
     }
 
@@ -81,6 +81,11 @@ struct SwarmPanelView: View {
             if let selectedSwarmId,
                !sortedCards.contains(where: { $0.swarmId == selectedSwarmId }) {
                 self.selectedSwarmId = nil
+            }
+            // Auto-select a newly arrived running card if nothing is selected
+            if selectedSwarmId == nil,
+               let firstRunning = sortedCards.first(where: { $0.status == .running }) {
+                selectedSwarmId = firstRunning.swarmId
             }
         }
     }
@@ -416,6 +421,7 @@ struct SwarmPanelView: View {
                             expandedCardIds.remove(card.swarmId)
                         } else {
                             expandedCardIds.insert(card.swarmId)
+                            taskActivityStore.setSwarmCardCollapsed(card.swarmId, collapsed: false)
                         }
                     }
                 }
@@ -456,6 +462,7 @@ struct SwarmPanelView: View {
                     expandedCardIds.remove(card.swarmId)
                 } else {
                     expandedCardIds.insert(card.swarmId)
+                    taskActivityStore.setSwarmCardCollapsed(card.swarmId, collapsed: false)
                 }
             }
         }

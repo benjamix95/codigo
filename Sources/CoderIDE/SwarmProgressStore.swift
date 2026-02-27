@@ -27,13 +27,15 @@ final class SwarmProgressStore: ObservableObject {
     }
 
     func markStarted(name: String) {
-        for i in steps.indices {
-            if steps[i].name == name {
-                steps[i].status = .inProgress
-            } else if steps[i].status == .inProgress {
+        guard let targetIndex = steps.firstIndex(where: { $0.name == name }) else { return }
+        // Only auto-complete steps that come BEFORE the target in sequential order.
+        // Steps after the target that are somehow inProgress should not be touched.
+        for i in 0..<targetIndex {
+            if steps[i].status == .inProgress {
                 steps[i].status = .completed
             }
         }
+        steps[targetIndex].status = .inProgress
     }
 
     func markCompleted(name: String) {

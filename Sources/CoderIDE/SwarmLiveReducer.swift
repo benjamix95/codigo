@@ -51,7 +51,9 @@ enum SwarmLiveReducer {
 
         card.currentDetail = bestDetail(for: activity) ?? card.currentDetail
         card.activeOpsCount = card.recentEvents.suffix(limitRecentEvents).filter(\.isRunning).count
-        card.errorCount = card.recentEvents.suffix(limitRecentEvents).filter(isErrorEvent).count
+        if !isDuplicate && isErrorEvent(activity) {
+            card.errorCount += 1
+        }
 
         let transition = statusTransition(for: activity)
         switch transition {
@@ -73,8 +75,16 @@ enum SwarmLiveReducer {
             card.isCollapsed = false
             card.hasUnreadSinceCollapse = false
         case .none:
-            if card.status == .idle {
-                card.status = activity.isRunning ? .running : .completed
+            if card.status == .idle || card.status == .completed {
+                // Allow transition back from completed/idle to running if a new
+                // running activity arrives (e.g. swarm resumed or restarted).
+                if activity.isRunning && card.status != .running {
+                    card.status = .running
+                    card.completedAt = nil
+                    card.summary = nil
+                } else if card.status == .idle && !activity.isRunning {
+                    card.status = .completed
+                }
             }
             if card.isCollapsed && !isDuplicate {
                 card.hasUnreadSinceCollapse = true
@@ -113,6 +123,9 @@ enum SwarmLiveReducer {
     }
 
     static func isSwarmCriticalTransition(_ activity: TaskActivity) -> Bool {
+        guard ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil else {
+            return false
+        }
         if activity.type == "agent" {
             let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
             if detail == "started" || detail == "completed" || detail == "failed" {

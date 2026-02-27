@@ -446,6 +446,8 @@ final class TaskActivityStore: ObservableObject {
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
+        // Remove swarm-tagged activities to prevent stale card rebuilds
+        activities.removeAll { SwarmMetadata.swarmId(from: $0.payload) != nil }
     }
 
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {

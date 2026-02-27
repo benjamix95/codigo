@@ -15,7 +15,10 @@ enum SwarmMetadata {
             return nil
         }
 
-        return String(groupId.dropFirst(swarmGroupPrefix.count))
+        let extracted = String(groupId.dropFirst(swarmGroupPrefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !extracted.isEmpty else { return nil }
+        return extracted
     }
 
     static func canonicalGroupId(from payload: [String: String]) -> String? {

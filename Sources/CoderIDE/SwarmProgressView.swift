@@ -7,8 +7,6 @@ struct SwarmProgressView: View {
     let onSelectSwarm: ((String) -> Void)?
 
     var body: some View {
-        let cards = SwarmLiveReducer.sorted(
-            states: Array(SwarmLiveReducer.reduce(activities: activities).values))
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Image(systemName: "checklist")
@@ -24,16 +22,8 @@ struct SwarmProgressView: View {
             ForEach(store.steps) { step in
                 SwarmStepRow(step: step)
             }
-            SwarmLiveBoardView(
-                cards: cards,
-                isTaskRunning: isTaskRunning,
-                onSelectSwarm: onSelectSwarm
-            )
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
         }
         .padding(.bottom, 8)
-        .frame(maxHeight: 320)
         .background(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
         .overlay(alignment: .bottom) {
             Rectangle().fill(DesignSystem.Colors.border).frame(height: 0.5)
