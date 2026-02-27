@@ -47,14 +47,13 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
 
         let hash = hashForPolicy(policyBody)
-        let ackMarker = "[CODERIDE:policy_ack|hash=\(hash)]"
+        let ackMarker = "policy_ack hash=\(hash)"
         let promptBlock = """
         ## Mandatory instruction policy (hard requirement)
         \(policyBody)
 
         You MUST acknowledge policy ingestion before any operational tool call.
-        Emit this exact marker once:
-        \(ackMarker)
+        Use the `policy_ack` tool with hash=\(hash)
         """
         return InstructionPolicyBundle(policyText: promptBlock, policyHash: hash, requiredAckMarker: ackMarker)
     }

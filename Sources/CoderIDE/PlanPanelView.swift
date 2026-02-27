@@ -685,7 +685,7 @@ struct PlanPanelView: View {
     private func planContentSection(snapshot: PlanRenderSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Plan")
+                Text("Technical Plan")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()

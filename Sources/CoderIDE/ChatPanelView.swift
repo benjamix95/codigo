@@ -194,8 +194,16 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
         .map { answer in
             var lines: [String] = [
                 "\(answer.questionId). \(answer.question)",
-                "   Selected answer: \(answer.optionId)) \(answer.optionText)",
             ]
+            if answer.optionIds.count > 1 {
+                // Multi-select: list all selected options
+                let selections = zip(answer.optionIds, answer.optionTexts)
+                    .map { "\($0)) \($1)" }
+                    .joined(separator: "; ")
+                lines.append("   Selected answers: \(selections)")
+            } else {
+                lines.append("   Selected answer: \(answer.optionId)) \(answer.optionText)")
+            }
             let custom = answer.customResponse?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !custom.isEmpty {
                 lines.append("   Custom response (overrides selection): \(custom)")
@@ -597,6 +605,7 @@ struct ChatPanelView: View {
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
         "planner,coder,debugger,reviewer,testWriter"
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
+    @AppStorage("swarm_fallback_auto_evaluate") private var swarmFallbackAutoEvaluate = true
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
@@ -911,7 +920,10 @@ struct ChatPanelView: View {
 
     /// Wire bidirectional sync: when a canonical todo status changes manually,
     /// propagate the change to the corresponding PlanStep in the plan board.
+    /// Idempotent — safe to call multiple times (e.g. from onAppear).
     private func wireTodoPlanBidirectionalSync() {
+        // Guard: don't re-register if callback already set (onAppear fires multiple times).
+        guard todoStore.onCanonicalTodoStatusChange == nil else { return }
         todoStore.onCanonicalTodoStatusChange = { [weak chatStore] title, todoStatus in
             guard let chatStore else { return }
             let planStatus: PlanStepStatus = {
@@ -2629,7 +2641,7 @@ struct ChatPanelView: View {
                         }
                     }()
                     let stepActiveForm: String? = status == .running ? title : nil
-                    todoStore.upsertCanonicalOnlyFromAgent(
+                    let updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: nil,
                         title: title,
                         status: todoStatus,
@@ -2638,6 +2650,18 @@ struct ChatPanelView: View {
                         activeForm: stepActiveForm,
                         linkedFiles: []
                     )
+                    if !updated {
+                        // No canonical todo matched — fall through to general upsert
+                        todoStore.upsertFromAgent(
+                            id: nil,
+                            title: title,
+                            status: todoStatus,
+                            priority: nil,
+                            notes: nil,
+                            activeForm: stepActiveForm,
+                            linkedFiles: []
+                        )
+                    }
                 }
             case .debugPanelUpdate(let action, let phase):
                 handleDebugPanelUpdate(action: action, phase: phase)
@@ -2657,6 +2681,16 @@ struct ChatPanelView: View {
                 handleAutoActivatePlanMode(reason: reason)
             case .activateDebugMode(let reason):
                 handleAutoActivateDebugMode(reason: reason)
+            case .mermaidRender(let code, let title):
+                // Insert mermaid diagram as a rendered block in the current assistant message.
+                // MarkdownContentView already detects ```mermaid blocks and renders MermaidDiagramView inline.
+                let titlePrefix = title.map { "**\($0)**\n\n" } ?? ""
+                let mermaidMarkdown = "\(titlePrefix)```mermaid\n\(code)\n```"
+                chatStore.updateLastAssistantMessage(
+                    content: mermaidMarkdown,
+                    in: conversationId,
+                    persistImmediately: true
+                )
             }
         }
     }
@@ -4131,6 +4165,14 @@ struct ChatPanelView: View {
         planClarificationAnswers = String(prompt.prefix(16_000))
         planningState = .idle
 
+        // Safety net: ensure any lingering task from the questioning phase is ended
+        // before we attempt to continue. This prevents the guard in continuePlanFlowPhase3
+        // from silently blocking the flow after event refactoring.
+        if let convId = conversationId, chatStore.isTaskActive(for: convId) {
+            NSLog("[PlanFlow] submitPlanClarificationAnswers: forcing endTask for lingering task on %@", convId.uuidString)
+            chatStore.endTask(conversationId: convId)
+        }
+
         if coderMode == .agent {
             planToggleEnabled = true
         }
@@ -5097,8 +5139,16 @@ struct ChatPanelView: View {
 
     @MainActor
     private func continuePlanFlowPhase3() {
-        guard let targetConversationId = conversationId else { return }
-        guard !isLoadingForCurrentConversation else { return }
+        guard let targetConversationId = conversationId else {
+            NSLog("[PlanFlow] continuePlanFlowPhase3 aborted: conversationId is nil")
+            return
+        }
+        // Don't silently block if a lingering task is still marked active — force-end it.
+        // The user explicitly submitted clarification answers, so the flow must continue.
+        if isLoadingForCurrentConversation {
+            NSLog("[PlanFlow] continuePlanFlowPhase3: isLoading=true for %@, force-ending lingering task", targetConversationId.uuidString)
+            chatStore.endTask(conversationId: targetConversationId)
+        }
 
         let effectiveProvider: any LLMProvider
         if let selected = providerRegistry.selectedProvider {
@@ -5510,6 +5560,8 @@ struct ChatPanelView: View {
 
             Rules: 1-4 questions max, each with 2-4 options A) B) C) D), mutually exclusive.
             Include "Other (specify)" ONLY for genuinely open-ended questions.
+            Mark the best option with "(Recommended)" suffix, e.g.: A) Use SwiftUI (Recommended)
+            For questions where multiple answers can be selected, add "(select all that apply)" to the question.
             DO NOT output anything else besides the ## Questions section.
             NEVER include ## Option or ## Todo in a response with ## Questions.
 
@@ -5520,6 +5572,13 @@ struct ChatPanelView: View {
             ## Todo
             - [ ] Step 1
             - [ ] Step 2
+
+            ## MERMAID DIAGRAMS (ALWAYS include when applicable)
+            When analyzing problems or creating plans, ALWAYS include a mermaid diagram to visualize:
+            - Architecture and component relationships
+            - Data flows and event pipelines
+            - Implementation step dependencies
+            Use a ```mermaid code block in your response. The IDE will render it as an interactive diagram.
 
             CRITICAL: NEVER combine ## Questions and ## Option in the same response.
             Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
@@ -6242,12 +6301,16 @@ struct ChatPanelView: View {
 
         // Handle delegated swarm if pending
         if let task = pendingSwarmTask {
+            NSLog("[SwarmDelegation] Marker detected — task: %@", task)
             let evaluation = SwarmDelegationPolicyEvaluator().evaluate(
                 userPrompt: prompt,
                 suggestedTask: task,
                 isAutoDelegateEnabled: agentAutoDelegateSwarm,
                 mode: coderMode
             )
+            NSLog("[SwarmDelegation] Policy decision: %@ — reason: %@",
+                  evaluation.decision == .autoDelegate ? "autoDelegate" : "noDelegate",
+                  evaluation.reason)
             switch evaluation.decision {
             case .autoDelegate:
                 let imageURLsToSend = attachmentsToSend?
@@ -6268,7 +6331,72 @@ struct ChatPanelView: View {
                     conversationId: streamConversationId
                 )
             }
+        } else if swarmFallbackAutoEvaluate && agentAutoDelegateSwarm {
+            // Fallback: LLM did not emit invoke_swarm marker.
+            // Evaluate the full response text with the policy to decide if
+            // swarm delegation should still happen.
+            NSLog("[SwarmFallback] No invoke_swarm marker detected — evaluating response with policy")
+            let fallbackEvaluation = SwarmDelegationPolicyEvaluator().evaluate(
+                userPrompt: prompt,
+                suggestedTask: full,
+                isAutoDelegateEnabled: agentAutoDelegateSwarm,
+                mode: coderMode
+            )
+            NSLog("[SwarmFallback] Policy decision: %@ — reason: %@",
+                  fallbackEvaluation.decision == .autoDelegate ? "autoDelegate" : "noDelegate",
+                  fallbackEvaluation.reason)
+            if fallbackEvaluation.decision == .autoDelegate {
+                // Synthesize a pendingSwarmTask from the response text.
+                let synthesized = synthesizeSwarmTask(from: full, prompt: prompt)
+                NSLog("[SwarmFallback] Synthesized swarm task: %@", synthesized)
+                let imageURLsToSend = attachmentsToSend?
+                    .filter { $0.kind == .image }
+                    .map(\.url)
+                handleRawStreamEvent(
+                    type: "swarm_fallback_activated",
+                    payload: [
+                        "title": "Swarm fallback delegation",
+                        "detail": "No marker emitted — policy auto-delegated based on response complexity",
+                        "task": synthesized
+                    ],
+                    providerId: providerRegistry.selectedProviderId ?? "agent-policy",
+                    conversationId: streamConversationId
+                )
+                await handleDelegatedSwarm(
+                    task: synthesized, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
+                )
+            }
         }
+    }
+
+    /// Synthesize a swarm task description from the LLM response text.
+    /// Uses the first meaningful paragraph or falls back to a truncated summary.
+    private func synthesizeSwarmTask(from responseText: String, prompt: String) -> String {
+        let lines = responseText.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // Try to find the first substantive paragraph (>30 chars, not a marker/heading).
+        for line in lines {
+            if line.hasPrefix("[CODERIDE") || line.hasPrefix("#") || line.hasPrefix("```") {
+                continue
+            }
+            if line.count >= 30 {
+                let truncated = line.count > 300 ? String(line.prefix(300)) + "…" : line
+                return truncated
+            }
+        }
+
+        // Fallback: use the user prompt itself as the task description.
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedPrompt.isEmpty {
+            let truncated = trimmedPrompt.count > 300
+                ? String(trimmedPrompt.prefix(300)) + "…"
+                : trimmedPrompt
+            return truncated
+        }
+
+        return "Execute the pending task from the agent response"
     }
 
     // MARK: - Delegated Swarm Handling

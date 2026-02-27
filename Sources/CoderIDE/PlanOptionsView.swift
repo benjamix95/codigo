@@ -1,10 +1,14 @@
 import SwiftUI
 
 func isClarificationSelectionComplete(
-    question _: PlanClarificationQuestion,
+    question: PlanClarificationQuestion,
     selectedOption: PlanClarificationOption?,
+    selectedOptions: Set<String>? = nil,
     customText: String?
 ) -> Bool {
+    if question.isMultiSelect {
+        return !(selectedOptions ?? Set()).isEmpty
+    }
     guard let selectedOption else { return false }
     if PlanOptionsParser.isOtherLikeClarificationOption(selectedOption) {
         let custom = customText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -61,7 +65,8 @@ struct PlanClarificationWizardView: View {
     let onSubmit: (PlanClarificationSubmission) -> Void
 
     @State private var currentQuestionIndex: Int = 0
-    @State private var selectedOptionByQuestionId: [Int: String] = [:]
+    /// Stores selected option IDs per question. For single-select: set with one element. For multi-select: set with multiple.
+    @State private var selectedOptionsByQuestionId: [Int: Set<String>] = [:]
     @State private var customTextByQuestionId: [Int: String] = [:]
     @State private var finalNote: String = ""
     @State private var isConfirmStep = false
@@ -130,23 +135,40 @@ struct PlanClarificationWizardView: View {
 
         VStack(alignment: .leading, spacing: 8) {
             ForEach(question.options) { option in
-                let isSelected = selectedOptionByQuestionId[question.id] == option.id
+                let isSelected = selectedOptionsByQuestionId[question.id]?.contains(option.id) == true
                 Button {
                     handleOptionSelection(option, for: question)
                 } label: {
                     HStack(alignment: .top, spacing: 8) {
-                        Text(option.id)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(isSelected ? .white : planColor)
-                            .frame(width: 22, height: 22)
-                            .background(
-                                isSelected ? AnyShapeStyle(planColor) : AnyShapeStyle(planColor.opacity(0.12)),
-                                in: Circle()
-                            )
-                        Text(option.text)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if question.isMultiSelect {
+                            Image(systemName: isSelected ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(isSelected ? planColor : .secondary)
+                                .frame(width: 22, height: 22)
+                        } else {
+                            Text(option.id)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(isSelected ? .white : planColor)
+                                .frame(width: 22, height: 22)
+                                .background(
+                                    isSelected ? AnyShapeStyle(planColor) : AnyShapeStyle(planColor.opacity(0.12)),
+                                    in: Circle()
+                                )
+                        }
+                        HStack(spacing: 5) {
+                            Text(option.text)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if option.isRecommended {
+                                Text("Recommended")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(planColor, in: Capsule())
+                            }
+                        }
                         Spacer(minLength: 0)
                     }
                     .padding(8)
@@ -222,16 +244,23 @@ struct PlanClarificationWizardView: View {
                 .foregroundStyle(.primary)
 
             ForEach(orderedQuestions) { question in
-                let selectedId = selectedOptionByQuestionId[question.id]
-                let selected = question.options.first(where: { $0.id == selectedId })
+                let selectedIds = selectedOptionsByQuestionId[question.id] ?? []
+                let selectedOptions = question.options.filter { selectedIds.contains($0.id) }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(question.id). \(question.prompt)")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    if let selected {
-                        Text("Selected answer: \(selected.id)) \(selected.text)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
+                    if !selectedOptions.isEmpty {
+                        if question.isMultiSelect {
+                            let selectedText = selectedOptions.map { "\($0.id)) \($0.text)" }.joined(separator: ", ")
+                            Text("Selected: \(selectedText)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.primary)
+                        } else if let selected = selectedOptions.first {
+                            Text("Selected answer: \(selected.id)) \(selected.text)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.primary)
+                        }
                         let custom = customTextByQuestionId[question.id]?
                             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                         if !custom.isEmpty {
@@ -302,12 +331,14 @@ struct PlanClarificationWizardView: View {
         )
     }
 
+    /// Returns the first selected option for a question (for single-select compatibility)
     private func selectedOption(for question: PlanClarificationQuestion) -> PlanClarificationOption? {
-        guard let selectedId = selectedOptionByQuestionId[question.id] else { return nil }
-        return question.options.first(where: { $0.id == selectedId })
+        guard let selectedIds = selectedOptionsByQuestionId[question.id], let firstId = selectedIds.first else { return nil }
+        return question.options.first(where: { $0.id == firstId })
     }
 
     private func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
+        guard !question.isMultiSelect else { return false } // No custom field for multi-select
         guard let selectedOption = selectedOption(for: question) else { return false }
         return PlanOptionsParser.isOtherLikeClarificationOption(selectedOption)
     }
@@ -321,7 +352,21 @@ struct PlanClarificationWizardView: View {
         _ option: PlanClarificationOption,
         for question: PlanClarificationQuestion
     ) {
-        selectedOptionByQuestionId[question.id] = option.id
+        if question.isMultiSelect {
+            // Multi-select: toggle selection
+            var current = selectedOptionsByQuestionId[question.id] ?? Set()
+            if current.contains(option.id) {
+                current.remove(option.id)
+            } else {
+                current.insert(option.id)
+            }
+            selectedOptionsByQuestionId[question.id] = current
+            // Don't auto-advance for multi-select — user must explicitly press Continue
+            return
+        }
+
+        // Single-select: replace selection
+        selectedOptionsByQuestionId[question.id] = Set([option.id])
         if PlanOptionsParser.isOtherLikeClarificationOption(option) {
             focusedField = .customQuestion(question.id)
             // Don't auto-advance for "Other" options - user needs to type custom text.
@@ -333,7 +378,7 @@ struct PlanClarificationWizardView: View {
             }
         }
 
-        // Only auto-advance for non-"Other" options, and guard against stale state.
+        // Only auto-advance for non-"Other" single-select options, and guard against stale state.
         let targetQuestionId = question.id
         Task { @MainActor in
             guard currentQuestion?.id == targetQuestionId else { return }
@@ -357,20 +402,28 @@ struct PlanClarificationWizardView: View {
 
     private func buildSubmission() -> PlanClarificationSubmission? {
         let answers = orderedQuestions.compactMap { question -> PlanClarificationAnswer? in
-            guard let optionId = selectedOptionByQuestionId[question.id],
-                  let option = question.options.first(where: { $0.id == optionId }) else {
+            guard let selectedIds = selectedOptionsByQuestionId[question.id], !selectedIds.isEmpty else {
                 return nil
             }
+            let selectedOptions = question.options.filter { selectedIds.contains($0.id) }
+            guard !selectedOptions.isEmpty else { return nil }
+
+            let primaryOption = selectedOptions.first!
             let customText = customTextByQuestionId[question.id]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let customResponse = PlanOptionsParser.isOtherLikeClarificationOption(option)
-                ? (customText.isEmpty ? nil : customText)
-                : nil
+            let customResponse: String?
+            if !question.isMultiSelect, PlanOptionsParser.isOtherLikeClarificationOption(primaryOption) {
+                customResponse = customText.isEmpty ? nil : customText
+            } else {
+                customResponse = nil
+            }
             return PlanClarificationAnswer(
                 questionId: question.id,
                 question: question.prompt,
-                optionId: option.id,
-                optionText: option.text,
+                optionId: primaryOption.id,
+                optionText: primaryOption.text,
+                optionIds: selectedOptions.map(\.id),
+                optionTexts: selectedOptions.map(\.text),
                 customResponse: customResponse
             )
         }
@@ -392,6 +445,7 @@ struct PlanClarificationWizardView: View {
         isClarificationSelectionComplete(
             question: question,
             selectedOption: selectedOption(for: question),
+            selectedOptions: selectedOptionsByQuestionId[question.id],
             customText: customTextByQuestionId[question.id]
         )
     }

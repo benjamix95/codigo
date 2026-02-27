@@ -274,6 +274,8 @@ final class ChatStore: ObservableObject {
     private var pendingSaveTask: Task<Void, Never>?
     /// Debounce task for coalescing rapid `savePlanBoards()` calls.
     private var pendingPlanSaveTask: Task<Void, Never>?
+    /// Guards against async load overwriting more recent saves.
+    private var hasSavedSinceLoad = false
     /// Background queue for serialization + UserDefaults writes.
     private static let persistQueue = DispatchQueue(label: "com.codigo.chatstore.persist", qos: .utility)
 
@@ -328,6 +330,8 @@ final class ChatStore: ObservableObject {
         Task.detached(priority: .userInitiated) {
             guard let decoded = try? JSONDecoder().decode([Conversation].self, from: data) else { return }
             await MainActor.run {
+                // If a save happened while we were decoding, don't overwrite newer data.
+                guard !self.hasSavedSinceLoad else { return }
                 if self.conversations.isEmpty || self.conversations.first?.messages.isEmpty == true {
                     self.conversations = decoded
                 } else if !decoded.isEmpty {
@@ -340,6 +344,7 @@ final class ChatStore: ObservableObject {
     }
 
     func saveConversations() {
+        hasSavedSinceLoad = true
         pendingSaveTask?.cancel()
         let snapshot = conversations
         pendingSaveTask = Task { [weak self] in

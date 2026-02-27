@@ -75,6 +75,8 @@ enum NormalizedEvent {
     case activatePlanMode(reason: String?)
     /// LLM requests to auto-activate debug mode panel
     case activateDebugMode(reason: String?)
+    /// LLM requests to render a mermaid diagram in the IDE chat
+    case mermaidRender(code: String, title: String?)
 }
 
 enum EventKind: String, Codable {
@@ -123,6 +125,7 @@ enum EventNormalizer {
              "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
+        case "mermaid_render": kind = .generic
         case "debug_panel", "debug_panel_update": kind = .debugPanelUpdate
         case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
             kind = .debugToolUpdate
@@ -152,8 +155,11 @@ enum EventNormalizer {
             // Parse the full todos array when available (serialized as JSON by mapTodo).
             if let todosJson = payload["todos_json"],
                let todosData = todosJson.data(using: .utf8),
-               let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]],
-               !todosArray.isEmpty {
+               let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]] {
+                // Empty array is valid — means "clear todos" or "no-op"; skip batch processing
+                guard !todosArray.isEmpty else {
+                    return events
+                }
                 var summaryParts: [String] = []
                 for todoItem in todosArray {
                     let content = (todoItem["content"] as? String ?? todoItem["title"] as? String)?
@@ -161,8 +167,12 @@ enum EventNormalizer {
                     guard !content.isEmpty else { continue }
                     let statusStr = todoItem["status"] as? String
                     let status = normalizedTodoStatus(statusStr)
-                    let activeForm = (todoItem["activeForm"] as? String)?
+                    var activeForm = (todoItem["activeForm"] as? String)?
                         .trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Reject nested JSON objects accidentally passed as activeForm
+                    if let af = activeForm, af.hasPrefix("{") || af.hasPrefix("[") {
+                        activeForm = nil
+                    }
                     let priorityStr = todoItem["priority"] as? String
                     let priority = normalizedTodoPriority(priorityStr)
                     let notes = (todoItem["notes"] as? String)?
@@ -237,8 +247,21 @@ enum EventNormalizer {
         }
         if (type == "plan_step" || type == "plan_step_update"),
            let stepId = payload["step_id"],
-           let statusRaw = payload["status"],
-           let status = PlanStepStatus(rawValue: statusRaw) {
+           let statusRaw = payload["status"] {
+            let status: PlanStepStatus = {
+                if let parsed = PlanStepStatus(rawValue: statusRaw) { return parsed }
+                // Handle common LLM aliases
+                let normalized = statusRaw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                switch normalized {
+                case "completed", "complete", "finished", "success": return .done
+                case "active", "doing", "started", "in_progress", "in-progress": return .running
+                case "blocked", "error", "stuck": return .failed
+                case "todo", "open", "queued", "waiting": return .pending
+                default:
+                    print("[EventNormalizer] ⚠️ Unknown plan step status '\(statusRaw)', defaulting to .pending")
+                    return .pending
+                }
+            }()
             let stepTitle = payload["title"] ?? payload["detail"]
             events.append(.planStepUpdate(stepId: stepId, status: status, title: stepTitle))
             events.append(.taskActivity(TaskActivity(
@@ -251,6 +274,24 @@ enum EventNormalizer {
                 isRunning: status == .running,
                 groupId: payload["group_id"] ?? stepId
             )))
+            return events
+        }
+
+        if type == "mermaid_render" {
+            let code = (payload["code"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !code.isEmpty {
+                let title = payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                events.append(.mermaidRender(code: code, title: title))
+                events.append(.taskActivity(TaskActivity(
+                    type: "mermaid_render",
+                    title: title ?? "Mermaid diagram",
+                    detail: "Rendered diagram in IDE",
+                    payload: payload,
+                    timestamp: timestamp,
+                    phase: .planning,
+                    isRunning: false
+                )))
+            }
             return events
         }
 
@@ -721,7 +762,15 @@ enum EventNormalizer {
             .lowercased()
             .replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: " ", with: "_")
-        return TodoStatus(rawValue: normalized)
+        if let direct = TodoStatus(rawValue: normalized) { return direct }
+        // Handle common LLM aliases
+        switch normalized {
+        case "completed", "complete", "finished": return .done
+        case "running", "active", "doing", "started": return .inProgress
+        case "todo", "open", "queued", "waiting": return .pending
+        case "failed", "error", "stuck": return .blocked
+        default: return nil
+        }
     }
 
     private static func normalizedTodoPriority(_ raw: String?) -> TodoPriority? {

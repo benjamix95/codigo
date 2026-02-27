@@ -1,5 +1,12 @@
 import Foundation
 
+/// Lightweight internal representation of a tool call used by the tool execution loop.
+/// Previously part of CoderIDEMarkerParser; kept here for the native tool_call_suggested path.
+struct CoderIDEMarker {
+    let kind: String
+    let payload: [String: String]
+}
+
 public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     public let id: String
     public let displayName: String
@@ -71,7 +78,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         var toolCallCountByKey: [String: Int] = [:]
                         var toolCallsThisRound = 0
                         var sawExecutableSuggestion = false
-                        var markerCarry = ""
 
                         for try await event in stream {
                             switch event {
@@ -83,69 +89,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     if isMeaningfulAssistantCompletion(visibleDelta) {
                                         emittedVisibleTextAfterToolRound = true
                                         hasAnyMeaningfulAssistantText = true
-                                    }
-                                }
-                                let markers = CoderIDEMarkerParser.parseStreamingChunk(
-                                    delta,
-                                    carry: &markerCarry
-                                )
-                                // Validate markers through dedup/budget checks
-                                var validatedMarkers: [CoderIDEMarker] = []
-                                for marker in markers {
-                                    if Self.isPolicyAckMarker(marker, requiredHash: requiredPolicyHash) {
-                                        didEmitPolicyAck = true
-                                    }
-                                    let dedupeId = markerDedupeKey(marker)
-                                    if emittedMarkerIds.contains(dedupeId) { continue }
-                                    if toolCallsThisRound >= policy.maxToolCallsPerRound {
-                                        continuation.yield(.raw(type: "tool_execution_error", payload: [
-                                            "title": "Tool budget exceeded",
-                                            "detail": "Reached tool limit per round (\(policy.maxToolCallsPerRound))",
-                                            "status": "failed",
-                                            "error_code": "budget_exceeded"
-                                        ]))
-                                        continue
-                                    }
-                                    let count = toolCallCountByKey[dedupeId, default: 0]
-                                    if count >= policy.maxRepeatedSameToolPerRound { continue }
-                                    toolCallCountByKey[dedupeId] = count + 1
-                                    emittedMarkerIds.insert(dedupeId)
-                                    toolCallsThisRound += 1
-                                    validatedMarkers.append(marker)
-                                }
-
-                                // Execute markers with parallel read-only optimization
-                                let batchResults = await executeMarkerBatch(validatedMarkers, context: context)
-                                for (marker, produced) in batchResults {
-                                    if let hash = requiredPolicyHash,
-                                       shouldEmitSyntheticPolicyAck(
-                                        for: marker,
-                                        requiredHash: hash,
-                                        didEmitPolicyAck: didEmitPolicyAck
-                                       ) {
-                                        continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                                        didEmitPolicyAck = true
-                                    }
-                                    for e in produced {
-                                        if case .raw(let type, let payload) = e,
-                                           type == "policy_ack",
-                                           Self.matchesRequiredPolicyHash(
-                                            payload["hash"] ?? payload["policy_hash"],
-                                            requiredHash: requiredPolicyHash
-                                           ) {
-                                            didEmitPolicyAck = true
-                                        }
-                                        continuation.yield(e)
-                                    }
-                                    if marker.kind == "tool_call" || marker.kind == "glob" || marker.kind == "read" || marker.kind == "grep" || marker.kind == "instant_grep" {
-                                        sawExecutableSuggestion = true
-                                    }
-                                    if marker.kind == "tool_call" || ["glob", "read", "grep", "instant_grep"].contains(marker.kind),
-                                       let summary = summarizeToolResultEvents(produced, marker: marker) {
-                                        roundToolResults.append(summary)
-                                    } else if marker.kind == "read_batch",
-                                       let summary = summarizeReadBatchEvents(produced, marker: marker) {
-                                        roundToolResults.append(summary)
                                     }
                                 }
                             case .started:
@@ -348,96 +291,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private func executeReadBatch(marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
-        let filesStr = marker.payload["files"] ?? ""
-        let groupId = marker.payload["group_id"] ?? UUID().uuidString
-        let workspacePath = context.workspacePath.path
-        func resolvePath(_ raw: String) -> String {
-            let t = raw.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            guard !t.isEmpty else { return "" }
-            if (t as NSString).isAbsolutePath { return t }
-            return (workspacePath as NSString).appendingPathComponent(t)
-        }
-        let filePaths = filesStr
-            .components(separatedBy: ",")
-            .map { resolvePath($0) }
-            .filter { !$0.isEmpty }
-        guard !filePaths.isEmpty else {
-            return [
-                .raw(type: "read_batch_started", payload: marker.payload),
-                .raw(type: "read_batch_completed", payload: [
-                    "title": "Read batch",
-                    "detail": "No files specified",
-                    "status": "failed",
-                    "group_id": groupId
-                ])
-            ]
-        }
-        var result: [StreamEvent] = [.raw(type: "read_batch_started", payload: marker.payload)]
-        var combinedOutput: [String] = []
-        let execContext = ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope)
-        for path in filePaths {
-            let call = ToolCall(
-                id: UUID().uuidString,
-                name: "read",
-                args: ["path": path],
-                sourceProvider: id,
-                swarmId: marker.payload["swarm_id"],
-                scope: executionScope
-            )
-            let events = await runtime.execute(call, context: execContext)
-            for event in events {
-                result.append(event)
-                if case .raw(let type, let payload) = event,
-                   (type == "read_batch_completed" || payload["status"] == "completed"),
-                   let out = payload["output"], !out.isEmpty {
-                    combinedOutput.append("--- \(path) ---\n\(out)")
-                }
-            }
-        }
-        let output = combinedOutput.joined(separator: "\n\n")
-        result.append(.raw(type: "read_batch_completed", payload: [
-            "title": "Read batch (\(filePaths.count) file)",
-            "detail": filePaths.joined(separator: ", "),
-            "path": filePaths.first ?? "",
-            "files": filePaths.joined(separator: ","),
-            "output": String(output.prefix(12_000)),
-            "status": "completed",
-            "group_id": groupId
-        ]))
-        return result
-    }
-
-    private func summarizeReadBatchEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
-        var lastCompleted: [String: String]?
-        for event in events {
-            guard case .raw(let type, let payload) = event else { continue }
-            if type == "read_batch_completed", payload["status"] == "completed" {
-                var summary: [String: String] = [
-                    "id": marker.payload["group_id"] ?? UUID().uuidString,
-                    "name": "read_batch",
-                    "status": "completed",
-                    "detail": payload["detail"] ?? payload["title"] ?? "ok"
-                ]
-                if let output = payload["output"], !output.isEmpty {
-                    summary["output"] = String(output.prefix(6000))
-                }
-                if let path = payload["path"] ?? payload["files"], !path.isEmpty {
-                    summary["path"] = path
-                }
-                lastCompleted = summary
-            } else if payload["status"] == "failed" {
-                return [
-                    "id": marker.payload["group_id"] ?? UUID().uuidString,
-                    "name": "read_batch",
-                    "status": "failed",
-                    "detail": payload["detail"] ?? payload["stderr"] ?? "read_batch failed"
-                ]
-            }
-        }
-        return lastCompleted
-    }
-
     private func summarizeToolResultEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
         var summary: [String: String] = [
             "id": marker.payload["id"] ?? UUID().uuidString,
@@ -466,71 +319,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return foundCompletion ? summary : nil
     }
 
-    private func summarizeInstantGrepResult(
-        events: [StreamEvent],
-        markerPayload: [String: String],
-        query: String,
-        fallbackScope: String
-    ) -> [String: String] {
-        var payload = markerPayload
-        var output = ""
-        var durationMs: String?
-        var pathScope = fallbackScope
-        var matchesCount: Int?
-        var previewLines = markerPayload["previewLines"] ?? ""
-
-        for event in events {
-            guard case .raw(_, let eventPayload) = event else { continue }
-            if let status = eventPayload["status"], status == "completed" {
-                if let out = eventPayload["output"], !out.isEmpty {
-                    output = out
-                }
-                if let duration = eventPayload["duration_ms"], !duration.isEmpty {
-                    durationMs = duration
-                }
-                if let scope = eventPayload["pathScope"] ?? eventPayload["path"], !scope.isEmpty {
-                    pathScope = scope
-                }
-                if let countRaw = eventPayload["count"], let parsed = Int(countRaw) {
-                    matchesCount = parsed
-                }
-                if let preview = eventPayload["previewLines"], !preview.isEmpty {
-                    previewLines = preview
-                }
-            }
-        }
-
-        let parsedPreview = grepPreviewLines(from: output, limit: 8)
-        let parsedLines = previewLines.isEmpty ? parsedPreview.joined(separator: "\n") : previewLines
-        let parsedCount = grepPreviewLines(from: output, limit: 10_000).count
-        payload["query"] = query
-        payload["pathScope"] = pathScope
-        payload["scope"] = pathScope
-        payload["matchesCount"] = "\(matchesCount ?? parsedCount)"
-        payload["previewLines"] = parsedLines
-        payload["duration_ms"] = durationMs ?? markerPayload["duration_ms"] ?? ""
-        return payload
-    }
-
-    private func grepPreviewLines(from output: String, limit: Int) -> [String] {
-        guard limit > 0 else { return [] }
-        var lines: [String] = []
-        var seen = Set<String>()
-
-        for rawLine in output.components(separatedBy: "\n") {
-            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            let parts = rawLine.split(separator: ":", maxSplits: 2).map(String.init)
-            guard parts.count >= 3, let lineNumber = Int(parts[1]) else { continue }
-            let preview = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalized = "\(parts[0]):\(lineNumber):\(preview)"
-            guard seen.insert(normalized).inserted else { continue }
-            lines.append(normalized)
-            if lines.count >= limit { break }
-        }
-        return lines
-    }
-
     private func buildFollowUpPrompt(originalPrompt: String, transcript: String, toolResults: [[String: String]]) -> String {
         let resultsSection: String
         if toolResults.isEmpty {
@@ -538,7 +326,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             (No tools used in the previous round.)
 
             Continue the task autonomously until completion.
-            If you need more tools, emit [CODERIDE:tool_call|...] markers and execute/verify/fix loops as needed.
+            If you need more tools, use tool calls and execute/verify/fix loops as needed.
             Do not stop at a plan or intention statement.
             When finished: you MUST provide a final summary to the user — what changed, which files, outcome, verification.
             """
@@ -563,7 +351,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             \(formatted)
 
             Continue using these results autonomously.
-            If you need more tools, emit new [CODERIDE:tool_call|...] markers and keep iterating until done.
+            If you need more tools, use tool calls and keep iterating until done.
             If a check fails, fix and re-check before finalizing.
             When finished: you MUST provide a final summary to the user — what changed, which files, outcome, verification.
             """
@@ -664,23 +452,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
         let prompt = context.contextPrompt()
         guard !prompt.isEmpty else { return nil }
-        for marker in CoderIDEMarkerParser.parse(from: prompt).reversed() where marker.kind == "policy_ack" {
-            let rawHash = marker.payload["hash"] ?? marker.payload["policy_hash"] ?? ""
-            let hash = rawHash.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !hash.isEmpty {
-                return hash
-            }
-        }
-        return nil
-    }
-
-    private static func isPolicyAckMarker(
-        _ marker: CoderIDEMarker,
-        requiredHash: String?
-    ) -> Bool {
-        guard marker.kind == "policy_ack" else { return false }
-        let received = marker.payload["hash"] ?? marker.payload["policy_hash"]
-        return matchesRequiredPolicyHash(received, requiredHash: requiredHash)
+        // Extract the last policy_ack hash from the context prompt.
+        // Matches both marker format [CODERIDE:policy_ack|hash=...] and plain hash= patterns.
+        let pattern = #"\bpolicy_ack\b[^]]*\bhash=([^\s|\]\n]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let nsPrompt = prompt as NSString
+        let matches = regex.matches(in: prompt, range: NSRange(location: 0, length: nsPrompt.length))
+        // Take the last match (most recent policy hash)
+        guard let lastMatch = matches.last, lastMatch.numberOfRanges >= 2 else { return nil }
+        let hash = nsPrompt.substring(with: lastMatch.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return hash.isEmpty ? nil : hash
     }
 
     private static func matchesRequiredPolicyHash(
@@ -692,113 +473,49 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return !received.isEmpty && received == requiredHash
     }
 
+    /// Resolve a tool call (from native tool_call_suggested) into stream events.
+    /// IDE-state tools are emitted as raw events; everything else goes through UnifiedToolRuntime.
     private func events(for marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
-        switch marker.kind {
+        guard marker.kind == "tool_call" else { return [] }
+        let toolName = inferredToolName(from: marker.payload)
+        guard !toolName.isEmpty else { return [] }
+
+        // IDE state tools — pass-through as raw events, not executed through runtime
+        switch toolName {
         case "todo_read":
             return [.raw(type: "todo_read", payload: [:])]
         case "todo_write":
             return [.raw(type: "todo_write", payload: marker.payload)]
         case "policy_ack":
             return [.raw(type: "policy_ack", payload: marker.payload)]
-        case "instant_grep":
-            let query = (marker.payload["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !query.isEmpty else {
-                return [.raw(type: "instant_grep", payload: marker.payload)]
-            }
-            let scope = (marker.payload["pathScope"] ?? marker.payload["scope"] ?? ".")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            var grepArgs: [String: String] = ["query": query]
-            grepArgs["pathScope"] = scope.isEmpty ? "." : scope
-            if let fileType = marker.payload["fileType"], !fileType.isEmpty {
-                grepArgs["fileType"] = fileType
-            }
-            if let contextLines = marker.payload["context_lines"], !contextLines.isEmpty {
-                grepArgs["context_lines"] = contextLines
-            }
-            if let caseSensitive = marker.payload["case_sensitive"], !caseSensitive.isEmpty {
-                grepArgs["case_sensitive"] = caseSensitive
-            }
-            if let multiline = marker.payload["multiline"], !multiline.isEmpty {
-                grepArgs["multiline"] = multiline
-            }
-
-            let call = ToolCall(
-                id: marker.payload["id"] ?? UUID().uuidString,
-                name: "grep",
-                args: grepArgs,
-                sourceProvider: id,
-                swarmId: marker.payload["swarm_id"],
-                scope: executionScope
-            )
-            let searchEvents = await runtime.execute(call, context: ToolExecutionContext(
-                workspaceContext: context, policy: policy, executionScope: executionScope))
-            let summary = summarizeInstantGrepResult(
-                events: searchEvents,
-                markerPayload: marker.payload,
-                query: query,
-                fallbackScope: scope.isEmpty ? "." : scope
-            )
-            return [.raw(type: "instant_grep", payload: summary)] + searchEvents
-        case "plan_step":
+        case "plan_step_update":
             return [.raw(type: "plan_step_update", payload: marker.payload)]
         case "debug_panel":
             return [.raw(type: "debug_panel_update", payload: marker.payload)]
-        case "read_batch":
-            return await executeReadBatch(marker: marker, context: context)
-        case "web_search":
-            var args = marker.payload
-            args["name"] = "web_search"
-            args["id"] = args["id"] ?? UUID().uuidString
-            let wsCall = ToolCall(
-                id: args["id"] ?? UUID().uuidString,
-                name: "web_search",
-                args: args,
-                sourceProvider: id,
-                swarmId: marker.payload["swarm_id"],
-                scope: executionScope
-            )
-            var searchEvents = await runtime.execute(wsCall, context: ToolExecutionContext(
-                workspaceContext: context, policy: policy, executionScope: executionScope))
-            searchEvents.insert(.raw(type: "web_search_started", payload: marker.payload), at: 0)
-            return searchEvents
-        case "glob", "read", "grep":
-            var args = marker.payload
-            args["name"] = marker.kind
-            args["id"] = args["id"] ?? UUID().uuidString
-            if marker.kind == "glob", var pat = args["pattern"], !pat.isEmpty {
-                if pat.contains("**/") { pat = pat.replacingOccurrences(of: "**/", with: "") }
-                args["pattern"] = pat
-            }
-            let call = ToolCall(
-                id: args["id"] ?? UUID().uuidString,
-                name: marker.kind,
-                args: args,
-                sourceProvider: id,
-                swarmId: marker.payload["swarm_id"],
-                scope: executionScope
-            )
-            return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
-        case "tool_call":
-            let toolName = inferredToolName(from: marker.payload)
-            guard !toolName.isEmpty else { return [] }
-            if toolName == "todo_read" {
-                return [.raw(type: "todo_read", payload: [:])]
-            }
-            if toolName == "todo_write" {
-                return [.raw(type: "todo_write", payload: marker.payload)]
-            }
-            let call = ToolCall(
-                id: marker.payload["id"] ?? UUID().uuidString,
-                name: toolName,
-                args: marker.payload,
-                sourceProvider: id,
-                swarmId: marker.payload["swarm_id"],
-                scope: executionScope
-            )
-            return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
+        case "mermaid_render":
+            return [.raw(type: "mermaid_render", payload: marker.payload)]
+        case "activate_plan_mode":
+            return [.raw(type: "activate_plan_mode", payload: [:])]
+        case "activate_debug_mode":
+            return [.raw(type: "activate_debug_mode", payload: [:])]
+        case "show_task_panel":
+            return [.raw(type: "coderide_show_task_panel", payload: [:])]
+        case "invoke_swarm":
+            return [.raw(type: "coderide_invoke_swarm", payload: marker.payload)]
         default:
-            return []
+            break
         }
+
+        // All other tools — execute through UnifiedToolRuntime
+        let call = ToolCall(
+            id: marker.payload["id"] ?? UUID().uuidString,
+            name: toolName,
+            args: marker.payload,
+            sourceProvider: id,
+            swarmId: marker.payload["swarm_id"],
+            scope: executionScope
+        )
+        return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
     }
 
     private func inferredToolName(from payload: [String: String]) -> String {
@@ -986,13 +703,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         """
         # Tool Protocol
 
-        You have access to powerful tools via CoderIDE markers. Emit them inline in your response.
+        You have access to powerful tools. Use tool calls to execute them.
 
         ## Mandatory Execution Workflow
         For EVERY task, follow this sequence strictly:
         1. **INVESTIGATE** — Use search/read tools (semantic_search, codebase_search, grep, glob, find_symbol, find_references, read, file_outline, web_search) to understand the problem BEFORE making changes.
         2. **REPORT** — State what you found: problems, root causes, affected files, scope. Be explicit.
-        3. **TODO LIST** — For multi-step tasks, emit `[CODERIDE:todo_write|...]` markers to create a structured task list in the LiveCard. This is mandatory for tasks with 3+ steps.
+        3. **TODO LIST** — For multi-step tasks, use the `todo_write` tool to create a structured task list in the LiveCard. This is mandatory for tasks with 3+ steps.
         4. **RESOLVE** — Fix issues one by one following the todo list. After each fix, verify. Update todo status as you go.
         5. **VERIFY & SUMMARIZE** — Run final verification. Report: what changed, which files, outcome.
 
@@ -1008,7 +725,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         9. After making changes, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
         11. If AGENTS.md / SKILL.md / repository runbooks are present in the prompt/context, treat them as mandatory operational policy. Do not skip skill workflows.
-        12. If the context contains a mandatory policy acknowledgment marker (`[CODERIDE:policy_ack|hash=...]`), emit it once before any operational tool action.
+        12. If the context contains a mandatory policy acknowledgment, use the `policy_ack` tool with the hash before any operational tool action.
         13. MCP availability verification is mandatory before MCP usage: `mcp_list_servers` first, then `mcp_list_tools`, then `mcp_describe_tool` (for unfamiliar tools), then `mcp_call`.
         14. Use `web_search` and `web_fetch` when you need current information, documentation, API references, or anything beyond your training data.
         15. When done, provide a clear summary: what changed, which files, outcome, and explicitly list MCP servers/tools used.
@@ -1115,7 +832,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         When debugging, follow this structured flow:
 
         **Phase 1: Context Gathering**
-        1. Open debug panel: `[CODERIDE:debug_panel|action=open|phase=analyzing]`
+        1. Open debug panel: use `debug_panel` with action=open, phase=analyzing
         2. Gather full context with `debug_context` (git status, open files, lints, terminal state)
         3. Start a debug session: `debug_session action=start`
 
@@ -1131,10 +848,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         **Phase 4: Hypothesis Formation**
         10. Formulate testable hypotheses: `debug_hypothesize title=... description=... status=proposed`
-        11. Ask user questions if needed: `[CODERIDE:debug_panel|action=question|phase=What steps cause the crash?]`
+        11. Ask user questions if needed: use `debug_panel` with action=question, phase=<your question>
 
         **Phase 5: Reproduction (optional)**
-        12. Ask user to reproduce: `[CODERIDE:debug_panel|action=reproduce]`
+        12. Ask user to reproduce: use `debug_panel` with action=reproduce
         13. Insert debug markers to observe state: `debug_mark path=... line=... comment=... code=...`
 
         **Phase 6: Investigation & Fix**
@@ -1145,14 +862,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         **Phase 7: Verification**
         17. Verify with `read_lints` (fast) then `diagnostics` or tests
         18. Clean debug markers: `debug_clean`
-        19. Mark resolved: `[CODERIDE:debug_panel|action=resolve|phase=description of fix]`
-
-        ### Debug Flow Markers
-        - `[CODERIDE:debug_panel|action=open|phase=analyzing]` — Open debug panel and set phase
-        - `[CODERIDE:debug_panel|action=reproduce]` — Ask user to reproduce the bug (shows Proceed button)
-        - `[CODERIDE:debug_panel|action=question|phase=What steps cause the crash?]` — Ask the user a question
-        - `[CODERIDE:debug_panel|action=marker|phase=path/to/file.swift|42|added print for value]` — Track inserted debug marker
-        - `[CODERIDE:debug_panel|action=resolve|phase=Fixed the nil crash by adding guard]` — Mark as resolved (shows Fixed button)
+        19. Mark resolved: use `debug_panel` with action=resolve, phase=<description of fix>
 
         ### Utility
         - **workspace_stats** — Get file/dir counts and size.
@@ -1160,117 +870,17 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **tail_log** — Read last N lines of a file. Args: `path`, `lines`.
         - **list_processes** — List running processes. Args: `filter`.
 
-        ## Marker Format
-        ```
-        [CODERIDE:tool_call|id=<uuid>|name=<tool_name>|arg1=value1|arg2=value2]
-        ```
-
-        ## Examples
-
-        Read a file:
-        [CODERIDE:tool_call|id=abc123|name=read|path=Sources/App/main.swift]
-
-        Edit a file (surgical replace):
-        [CODERIDE:tool_call|id=def456|name=str_replace|path=Sources/App/main.swift|old_string=let x = 5|new_string=let x = 10]
-
-        Semantic search (BM25 index, natural language):
-        [CODERIDE:tool_call|id=sem001|name=semantic_search|query=where is authentication handled]
-        [CODERIDE:tool_call|id=sem002|name=semantic_search|query=data saving flow|target_directories=Sources/]
-        [CODERIDE:tool_call|id=sem003|name=semantic_search|query=error handling|num_results=10]
-
-        Search for a symbol definition (prefer over grep):
-        [CODERIDE:tool_call|id=idx001|name=codebase_search|query=ToolEnabledLLMProvider|kind=class]
-
-        Find all references before refactoring:
-        [CODERIDE:tool_call|id=idx002|name=find_references|query=executeRead]
-
-        Get file outline before reading:
-        [CODERIDE:tool_call|id=idx003|name=file_outline|path=Sources/App/main.swift]
-
-        Search for code with regex:
-        [CODERIDE:tool_call|id=ghi789|name=grep|query=func viewDidLoad|fileType=swift|context_lines=3]
-
-        Find files by name:
-        [CODERIDE:tool_call|id=jkl012|name=find_files|query=ViewController]
-
-        Run a command:
-        [CODERIDE:tool_call|id=mno345|name=bash|command=swift build]
-
-        Check linter errors (fast, no build):
-        [CODERIDE:tool_call|id=lint01|name=read_lints|severity=error]
-        [CODERIDE:tool_call|id=lint02|name=read_lints|path=Sources/App/main.swift]
-
-        Multiple edits in one call:
-        [CODERIDE:tool_call|id=par001|name=parallel_apply|edits=[{"path":"a.swift","old_string":"foo","new_string":"bar"},{"path":"b.swift","old_string":"baz","new_string":"qux"}]]
-
-        Regex replace:
-        [CODERIDE:tool_call|id=reg001|name=regex_replace|path=Sources/App/main.swift|pattern=TODO:\\s*(.+)|replacement=DONE: $1|flags=i]
-
-        Get build diagnostics:
-        [CODERIDE:tool_call|id=diag01|name=diagnostics]
-
-        Signal task completion:
-        [CODERIDE:tool_call|id=done01|name=attempt_completion|result=Refactored UserService to use async/await|command=swift build]
-
-        Create a new file:
-        [CODERIDE:tool_call|id=pqr678|name=create_file|path=Sources/App/NewFile.swift|content=import Foundation]
-
-        Rename a symbol across the codebase:
-        [CODERIDE:tool_call|id=ren001|name=rename_symbol|old_name=OldClassName|new_name=NewClassName|kind=class]
-
-        Workspace-wide find and replace:
-        [CODERIDE:tool_call|id=far001|name=find_and_replace_all|search=oldFunction|replacement=newFunction|filePattern=*.swift]
-
-        Undo file edits (revert to git):
-        [CODERIDE:tool_call|id=undo01|name=undo_edit|path=Sources/App/main.swift]
-
-        Run a single test:
-        [CODERIDE:tool_call|id=tst001|name=run_single_test|test_name=testLoginFlow]
-
-        Search the web:
-        [CODERIDE:tool_call|id=ws001|name=web_search|query=Swift URLSession async await tutorial 2025]
-
-        Fetch a web page:
-        [CODERIDE:tool_call|id=wf001|name=web_fetch|url=https://developer.apple.com/documentation/foundation/urlsession]
-
-        Web search + fetch workflow:
-        [CODERIDE:tool_call|id=ws002|name=web_search|query=SwiftUI NavigationStack migration guide]
-        (after reviewing results, fetch the best URL)
-        [CODERIDE:tool_call|id=wf002|name=web_fetch|url=https://developer.apple.com/documentation/swiftui/migrating-to-new-navigation-types]
-
-        Gather full debug context:
-        [CODERIDE:tool_call|id=dctx01|name=debug_context]
-
-        Start a debug session and log an entry:
-        [CODERIDE:tool_call|id=dbg001|name=debug_session|action=start]
-        [CODERIDE:tool_call|id=dbg002|name=debug_log|severity=error|source=NetworkManager.swift:42|message=Connection refused|category=runtime]
-
-        Query debug logs:
-        [CODERIDE:tool_call|id=dbg003|name=debug_query|severity=error|format=summary]
-
-        Propose a debug hypothesis:
-        [CODERIDE:tool_call|id=dbg004|name=debug_hypothesize|action=propose|title=Timeout caused by DNS resolution|description=The connection timeout occurs because DNS resolution hangs for 30s on IPv6|status=proposed|evidence=error log at line 42,timeout value is 30s]
-
-        Insert a debug marker (print statement):
-        [CODERIDE:tool_call|id=dbg005|name=debug_mark|path=Sources/App/NetworkManager.swift|line=42|comment=checking response value|code=print("DEBUG: response = \\(response)")]
-
-        Clean all debug markers from workspace:
-        [CODERIDE:tool_call|id=dbg006|name=debug_clean]
-
-        Ask user to reproduce the bug:
-        [CODERIDE:debug_panel|action=reproduce]
-
-        Mark bug as resolved:
-        [CODERIDE:debug_panel|action=resolve|phase=Fixed nil crash by adding guard statement in NetworkManager.swift:42]
-
-        ## Additional Markers
-        - Plan steps: [CODERIDE:plan_step|step_id=1|status=running|title=Analysis]
-        - Instant search: [CODERIDE:instant_grep|query=...|id=...]
-        - Todo: [CODERIDE:todo_write|title=...|status=pending|priority=medium]
-        - Read batch: [CODERIDE:read_batch|files=a.swift,b.swift|group_id=...]
-        - Web search: [CODERIDE:web_search|query=...|status=started]
-        - Web fetch: [CODERIDE:tool_call|id=...|name=web_fetch|url=https://example.com]
-        - Debug panel: [CODERIDE:debug_panel|action=open|phase=analyzing]
+        ### IDE State Tools (LiveCard / panel control)
+        - **todo_write** — Create or update a todo item in the LiveCard. Args: `title`, `status` (pending/in_progress/done/blocked), `priority` (low/medium/high), `notes` (optional), `activeForm` (optional present-tense label), `linkedFiles` (optional file paths).
+        - **todo_read** — Read the current todo list. No required args.
+        - **plan_step_update** — Update a plan step status. Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
+        - **mermaid_render** — Render a Mermaid diagram in the LiveCard. Args: `code` (Mermaid syntax), `title` (optional).
+        - **debug_panel** — Control the debug panel. Args: `action` (open/close/question/reproduce/marker/resolve), `phase` (optional context string).
+        - **policy_ack** — Acknowledge a mandatory policy hash. Args: `hash`.
+        - **activate_plan_mode** — Activate the plan panel. Args: `reason` (optional).
+        - **activate_debug_mode** — Activate the debug panel. Args: `reason` (optional).
+        - **show_task_panel** — Show the task panel. No required args.
+        - **invoke_swarm** — Invoke a swarm agent for parallel work. Args: `task`.
         """
     }
 
@@ -1287,92 +897,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "debug_query", "semantic_search", "read_lints", "debug_context",
         "web_search", "web_fetch",
     ]
-
-    private func isReadOnlyMarker(_ marker: CoderIDEMarker) -> Bool {
-        switch marker.kind {
-        case "glob", "read", "grep":
-            return true
-        case "tool_call":
-            let name = inferredToolName(from: marker.payload).lowercased()
-            return Self.readOnlyToolNames.contains(name)
-        default:
-            return false
-        }
-    }
-
-    /// Execute a batch of markers, running consecutive read-only tools in parallel
-    /// while executing write tools sequentially. Preserves result ordering.
-    private func executeMarkerBatch(
-        _ markers: [CoderIDEMarker],
-        context: WorkspaceContext
-    ) async -> [(CoderIDEMarker, [StreamEvent])] {
-        guard !markers.isEmpty else { return [] }
-
-        // Single marker — no batching overhead
-        if markers.count == 1 {
-            let produced = await events(for: markers[0], context: context)
-            return [(markers[0], produced)]
-        }
-
-        // Group consecutive markers by read-only vs write
-        struct MarkerGroup {
-            let markers: [CoderIDEMarker]
-            let isReadOnly: Bool
-        }
-
-        var groups: [MarkerGroup] = []
-        var currentBatch: [CoderIDEMarker] = []
-        var currentIsReadOnly = isReadOnlyMarker(markers[0])
-
-        for marker in markers {
-            let readOnly = isReadOnlyMarker(marker)
-            if readOnly == currentIsReadOnly {
-                currentBatch.append(marker)
-            } else {
-                groups.append(MarkerGroup(markers: currentBatch, isReadOnly: currentIsReadOnly))
-                currentBatch = [marker]
-                currentIsReadOnly = readOnly
-            }
-        }
-        if !currentBatch.isEmpty {
-            groups.append(MarkerGroup(markers: currentBatch, isReadOnly: currentIsReadOnly))
-        }
-
-        var results: [(CoderIDEMarker, [StreamEvent])] = []
-
-        for group in groups {
-            if group.isReadOnly && group.markers.count > 1 {
-                // Execute read-only tools in parallel, preserving order
-                let batch = group.markers
-                let parallelResults = await withTaskGroup(
-                    of: (Int, CoderIDEMarker, [StreamEvent]).self
-                ) { taskGroup in
-                    for (idx, marker) in batch.enumerated() {
-                        taskGroup.addTask {
-                            let events = await self.events(for: marker, context: context)
-                            return (idx, marker, events)
-                        }
-                    }
-                    var collected: [(Int, CoderIDEMarker, [StreamEvent])] = []
-                    for await result in taskGroup {
-                        collected.append(result)
-                    }
-                    return collected.sorted { $0.0 < $1.0 }
-                }
-                for (_, marker, events) in parallelResults {
-                    results.append((marker, events))
-                }
-            } else {
-                // Execute sequentially (write tools, or single read-only)
-                for marker in group.markers {
-                    let produced = await events(for: marker, context: context)
-                    results.append((marker, produced))
-                }
-            }
-        }
-
-        return results
-    }
 
     // MARK: - Real-time tool start events
 

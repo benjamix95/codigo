@@ -24,7 +24,7 @@ final class InstructionPolicyBundleTests: XCTestCase {
         let bundle = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
         XCTAssertTrue(bundle.hasPolicy)
         XCTAssertFalse(bundle.policyHash.isEmpty)
-        XCTAssertEqual(bundle.requiredAckMarker, "[CODERIDE:policy_ack|hash=\(bundle.policyHash)]")
-        XCTAssertTrue(bundle.policyText.contains(bundle.requiredAckMarker))
+        XCTAssertEqual(bundle.requiredAckMarker, "policy_ack hash=\(bundle.policyHash)")
+        XCTAssertTrue(bundle.policyText.contains("policy_ack"))
     }
 }

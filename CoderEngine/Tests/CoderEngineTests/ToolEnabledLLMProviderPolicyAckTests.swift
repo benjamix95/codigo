@@ -87,11 +87,11 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         try "let value = 1\n".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let bundle = InstructionPolicyBundle.load(workspacePath: workspace.path)
-        let ackMarker = "[CODERIDE:policy_ack|hash=\(bundle.policyHash)]"
         let args = #"{"path":"\#(sourceFile.path)"}"#
 
         let base = SequencedEventProvider(events: [
-            .textDelta(ackMarker),
+            // Model acknowledges policy via explicit policy_ack raw event
+            .raw(type: "policy_ack", payload: ["hash": bundle.policyHash]),
             .raw(type: "tool_call_suggested", payload: [
                 "id": "tc-2",
                 "name": "read",

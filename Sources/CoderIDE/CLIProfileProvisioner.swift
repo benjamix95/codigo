@@ -317,12 +317,13 @@ enum CLIProfileProvisioner {
 
     ### IDE Integration (Todo / Plan)
     - `coderide_todo_write` — Update the IDE todo list. Use for multi-step task tracking.
-      Pass `todos` (JSON array of `{content, status, activeForm}`) for batch updates,
+      Pass `todos` (JSON array of `{content, status, activeForm, linkedFiles}`) for batch updates,
       or `title` + `status` for single-item updates.
       Status values: `pending`, `in_progress`, `done`, `blocked`.
       **IMPORTANT**: ALWAYS include `activeForm` for `in_progress` items.
       `activeForm` is a present-tense gerund phrase (e.g. "Fixing authentication bug",
       "Running tests", "Refactoring API layer") displayed as live status in the IDE.
+      `linkedFiles` is an optional array of file paths related to the task (shown in the UI).
     - `coderide_todo_read` — Read the current IDE todo list state. Use to:
       * Check progress before/after a complex operation
       * Resume work on a partially completed task list
@@ -352,8 +353,9 @@ enum CLIProfileProvisioner {
     ### Todo List (via MCP tool — preferred)
     Call `coderide_todo_write` with a JSON array:
     ```json
-    {"todos": "[{\\"content\\":\\"Fix bug\\",\\"status\\":\\"in_progress\\",\\"activeForm\\":\\"Fixing authentication bug\\"},{\\"content\\":\\"Add tests\\",\\"status\\":\\"pending\\",\\"activeForm\\":\\"Adding unit tests\\"}]"}
+    {"todos": "[{\\"content\\":\\"Fix bug\\",\\"status\\":\\"in_progress\\",\\"activeForm\\":\\"Fixing authentication bug\\",\\"linkedFiles\\":[\\"Sources/Auth.swift\\"]},{\\"content\\":\\"Add tests\\",\\"status\\":\\"pending\\"}]"}
     ```
+    Notes: `activeForm` only needed for `in_progress` items. `linkedFiles` is optional.
 
     ### Plan Steps (via MCP tool — preferred)
     Call `coderide_plan_step_update`:

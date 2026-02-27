@@ -267,8 +267,9 @@ struct CoderIDETools {
             name: "coderide_todo_write",
             description: """
                 Update the IDE todo list. Pass a JSON array of todo items via the 'todos' parameter. \
-                Each item must have 'content' (string) and 'status' (pending|in_progress|done). \
-                Optional fields: 'activeForm' (present-tense label shown during execution), 'priority' (low|medium|high). \
+                Each item must have 'content' (string) and 'status' (pending|in_progress|done|blocked). \
+                Optional fields: 'activeForm' (present-tense label shown during execution), \
+                'priority' (low|medium|high), 'linkedFiles' (array of file paths related to the task). \
                 Use this tool to track multi-step task progress in the IDE live card.
                 """,
             inputSchema: .object([
@@ -280,7 +281,7 @@ struct CoderIDETools {
                     ]),
                     // Single-item shorthand
                     "title": .object(["type": "string", "description": "Single todo title (shorthand — use 'todos' for batch updates)"]),
-                    "status": .object(["type": "string", "description": "Status: pending, in_progress, done"]),
+                    "status": .object(["type": "string", "description": "Status: pending, in_progress, done, blocked"]),
                     "priority": .object(["type": "string", "description": "Priority: low, medium, high"]),
                 ]),
             ]),
@@ -311,6 +312,203 @@ struct CoderIDETools {
                 "required": .array([.string("step_id"), .string("status")]),
             ]),
             annotations: .init(title: "Plan Step Update", readOnlyHint: false, idempotentHint: true)
+        ),
+        Tool(
+            name: "coderide_mermaid_render",
+            description: """
+                Render a mermaid diagram in the IDE chat and plan panel. \
+                Pass mermaid syntax (flowchart, sequence, class, state, etc.) and it will \
+                be displayed as an interactive rendered diagram. Use this to visualize \
+                architecture, flows, dependencies, and relationships. \
+                ALWAYS use this tool when analyzing problems or creating plans to provide \
+                visual context.
+                """,
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "code": .object(["type": "string", "description": "Mermaid diagram code (e.g. 'graph TD; A-->B;')"]),
+                    "title": .object(["type": "string", "description": "Optional title for the diagram"]),
+                ]),
+                "required": .array([.string("code")]),
+            ]),
+            annotations: .init(title: "Render Mermaid Diagram", readOnlyHint: false)
+        ),
+
+        // --- IDE Integration (Debug Panel / Mode Activation / Swarm) ---
+        Tool(
+            name: "coderide_debug_panel",
+            description: """
+                Control the IDE debug panel. Use 'open' to start a debug session, \
+                'question' to ask the user a question (pass question text in 'phase'), \
+                'reproduce' to ask the user to reproduce the bug, \
+                'marker' to track an inserted debug marker (pass file|line|comment in 'phase'), \
+                'resolve' to mark the bug as fixed (pass fix description in 'phase').
+                """,
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "action": .object(["type": "string", "description": "Panel action: open, close, question, reproduce, marker, resolve"]),
+                    "phase": .object(["type": "string", "description": "Phase or context text (e.g. 'analyzing', question text, fix description)"]),
+                ]),
+                "required": .array([.string("action")]),
+            ]),
+            annotations: .init(title: "Debug Panel", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_policy_ack",
+            description: "Acknowledge a mandatory instruction policy hash before performing tool operations.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "hash": .object(["type": "string", "description": "The policy hash to acknowledge"]),
+                ]),
+                "required": .array([.string("hash")]),
+            ]),
+            annotations: .init(title: "Policy Acknowledge", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_activate_plan_mode",
+            description: "Request the IDE to activate the plan mode panel for structured planning.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "reason": .object(["type": "string", "description": "Optional reason for activating plan mode"]),
+                ]),
+            ]),
+            annotations: .init(title: "Activate Plan Mode", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_activate_debug_mode",
+            description: "Request the IDE to activate the debug mode panel for structured debugging.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "reason": .object(["type": "string", "description": "Optional reason for activating debug mode"]),
+                ]),
+            ]),
+            annotations: .init(title: "Activate Debug Mode", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_show_task_panel",
+            description: "Show the IDE task/activity panel to display ongoing task progress.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([:]),
+            ]),
+            annotations: .init(title: "Show Task Panel", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_invoke_swarm",
+            description: "Invoke a swarm of parallel agents to work on a complex task collaboratively.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "The task description for the swarm to work on"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Invoke Swarm", readOnlyHint: false)
+        ),
+
+        // --- Debug Tools ---
+        Tool(
+            name: "coderide_debug_context",
+            description: """
+                Gather full debug context in one call: git status, open files, lint errors, \
+                recent commits, debug log summary. Use this FIRST when entering debug mode.
+                """,
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([:]),
+            ]),
+            annotations: .init(title: "Debug Context", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_debug_log",
+            description: "Write an entry to the debug log. Use to track observations, errors, and findings during debugging.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "severity": .object(["type": "string", "description": "Log severity: error, warning, info, verbose, trace"]),
+                    "source": .object(["type": "string", "description": "Source location (e.g. 'NetworkManager.swift:42')"]),
+                    "message": .object(["type": "string", "description": "Log message"]),
+                    "detail": .object(["type": "string", "description": "Optional detail (e.g. stack trace)"]),
+                    "category": .object(["type": "string", "description": "Optional category: compiler, runtime, test, network, custom"]),
+                ]),
+                "required": .array([.string("severity"), .string("source"), .string("message")]),
+            ]),
+            annotations: .init(title: "Debug Log")
+        ),
+        Tool(
+            name: "coderide_debug_query",
+            description: "Query the debug log. Filter by severity, category, source, or text search.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "severity": .object(["type": "string", "description": "Filter by severity"]),
+                    "category": .object(["type": "string", "description": "Filter by category"]),
+                    "source": .object(["type": "string", "description": "Filter by source"]),
+                    "search": .object(["type": "string", "description": "Text search in log messages"]),
+                    "format": .object(["type": "string", "description": "Output format: summary or full (default: summary)"]),
+                    "limit": .object(["type": "string", "description": "Max results (default: 100)"]),
+                ]),
+            ]),
+            annotations: .init(title: "Debug Query", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_debug_session",
+            description: "Manage debug sessions. Start a new session, end the current one, or clear all sessions.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "action": .object(["type": "string", "description": "Session action: start, end, clear"]),
+                ]),
+                "required": .array([.string("action")]),
+            ]),
+            annotations: .init(title: "Debug Session")
+        ),
+        Tool(
+            name: "coderide_debug_hypothesize",
+            description: "Propose or update a debug hypothesis. Track investigation progress with structured hypotheses.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "action": .object(["type": "string", "description": "Action: propose (new) or update (existing)"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Required for update — the hypothesis ID to update"]),
+                    "title": .object(["type": "string", "description": "Required for propose — hypothesis title"]),
+                    "description": .object(["type": "string", "description": "Detailed description of the hypothesis"]),
+                    "status": .object(["type": "string", "description": "Status: proposed, investigating, confirmed, rejected"]),
+                    "evidence": .object(["type": "string", "description": "Supporting evidence for the hypothesis"]),
+                ]),
+                "required": .array([.string("action")]),
+            ]),
+            annotations: .init(title: "Debug Hypothesize")
+        ),
+        Tool(
+            name: "coderide_debug_mark",
+            description: "Insert a debug marker (print/log/assert) into a file. The marker is tagged with 🐛 DEBUG for easy cleanup.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "path": .object(["type": "string", "description": "File path to insert the marker"]),
+                    "line": .object(["type": "string", "description": "Line number to insert at"]),
+                    "comment": .object(["type": "string", "description": "Description of what's being debugged"]),
+                    "code": .object(["type": "string", "description": "Optional code to insert (e.g. print statement)"]),
+                ]),
+                "required": .array([.string("path"), .string("line"), .string("comment")]),
+            ]),
+            annotations: .init(title: "Debug Mark")
+        ),
+        Tool(
+            name: "coderide_debug_clean",
+            description: "Remove ALL debug markers (lines containing 🐛 DEBUG) from a file or entire workspace.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "path": .object(["type": "string", "description": "Optional file path — cleans all files if omitted"]),
+                ]),
+            ]),
+            annotations: .init(title: "Debug Clean")
         ),
     ]
 
@@ -398,9 +596,14 @@ struct CoderIDEMCPServerApp {
                 }
             }
 
-            // IDE state tools (todo/plan) are pass-through: accepted by MCP server,
+            // IDE state tools are pass-through: accepted by MCP server,
             // actual state management happens on the UI side via stream event pipeline.
-            if toolName == "todo_write" || toolName == "todo_read" || toolName == "plan_step_update" {
+            let ideStateTools: Set<String> = [
+                "todo_write", "todo_read", "plan_step_update", "mermaid_render",
+                "debug_panel", "policy_ack", "activate_plan_mode", "activate_debug_mode",
+                "show_task_panel", "invoke_swarm",
+            ]
+            if ideStateTools.contains(toolName) {
                 return handleIDEStateTool(name: toolName, args: stringArgs)
             }
 
@@ -461,14 +664,31 @@ struct CoderIDEMCPServerApp {
         case "todo_write":
             let todosRaw = (args["todos"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let titleRaw = (args["title"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let validStatuses: Set<String> = [
+                "pending", "in_progress", "done", "blocked",
+                // Common LLM aliases
+                "completed", "complete", "finished",
+                "running", "active", "doing", "started",
+                "todo", "open", "queued", "waiting",
+                "failed", "error", "stuck",
+            ]
 
             if !todosRaw.isEmpty {
                 // Validate JSON structure
                 guard let data = todosRaw.data(using: .utf8),
-                      let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-                      !array.isEmpty else {
+                      let parsed = try? JSONSerialization.jsonObject(with: data) else {
                     return CallTool.Result(
-                        content: [.text("Error: 'todos' must be a valid JSON array of objects")],
+                        content: [.text("Error: 'todos' is not valid JSON. Expected a JSON array of objects, e.g. [{\"content\":\"Task\",\"status\":\"pending\"}]")],
+                        isError: true
+                    )
+                }
+                guard let array = parsed as? [[String: Any]], !array.isEmpty else {
+                    if parsed is [Any] {
+                        // Empty array — acknowledge but nothing to do
+                        return CallTool.Result(content: [.text("OK — empty todo list received, no changes")], isError: nil)
+                    }
+                    return CallTool.Result(
+                        content: [.text("Error: 'todos' must be a JSON array of objects, not \(type(of: parsed))")],
                         isError: true
                     )
                 }
@@ -478,6 +698,14 @@ struct CoderIDEMCPServerApp {
                     if content.isEmpty {
                         return CallTool.Result(
                             content: [.text("Error: item \(i) missing 'content' or 'title'")],
+                            isError: true
+                        )
+                    }
+                    if let itemStatus = (item["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                       !itemStatus.isEmpty,
+                       !validStatuses.contains(itemStatus) {
+                        return CallTool.Result(
+                            content: [.text("Error: item \(i) has invalid status '\(itemStatus)'. Use: pending, in_progress, done, blocked")],
                             isError: true
                         )
                     }
@@ -492,7 +720,7 @@ struct CoderIDEMCPServerApp {
             // Validate status value if provided (single-item shorthand)
             if let status = args["status"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                !status.isEmpty,
-               !["pending", "in_progress", "done", "blocked"].contains(status) {
+               !validStatuses.contains(status) {
                 return CallTool.Result(
                     content: [.text("Error: invalid status '\(status)'. Use: pending, in_progress, done, blocked")],
                     isError: true
@@ -523,7 +751,9 @@ struct CoderIDEMCPServerApp {
                 default: icon = "[ ]"
                 }
                 let formSuffix = status == "in_progress" && !activeForm.isEmpty ? " — \(activeForm)" : ""
-                lines.append("\(icon) \(title)\(formSuffix) (\(priority))")
+                let linkedFiles = (todo["linkedFiles"] as? [String]) ?? []
+                let filesSuffix = linkedFiles.isEmpty ? "" : " [files: \(linkedFiles.joined(separator: ", "))]"
+                lines.append("\(icon) \(title)\(formSuffix) (\(priority))\(filesSuffix)")
             }
             lines.append("--- \(todos.count) total, \(doneCount) done ---")
             return CallTool.Result(content: [.text(lines.joined(separator: "\n"))], isError: nil)
@@ -544,6 +774,57 @@ struct CoderIDEMCPServerApp {
                 )
             }
             return CallTool.Result(content: [.text("OK — plan step \(stepId) updated to \(status)")], isError: nil)
+
+        case "mermaid_render":
+            let code = (args["code"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if code.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'code' parameter is required and must contain valid mermaid syntax")],
+                    isError: true
+                )
+            }
+            let title = args["title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let titleInfo = title.map { " (\($0))" } ?? ""
+            return CallTool.Result(content: [.text("OK — mermaid diagram rendered in IDE\(titleInfo)")], isError: nil)
+
+        case "debug_panel":
+            let action = (args["action"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if action.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'action' parameter is required (open, close, question, reproduce, marker, resolve)")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — debug panel action '\(action)' applied")], isError: nil)
+
+        case "policy_ack":
+            let hash = (args["hash"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if hash.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'hash' parameter is required")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — policy acknowledged")], isError: nil)
+
+        case "activate_plan_mode":
+            return CallTool.Result(content: [.text("OK — plan mode activated")], isError: nil)
+
+        case "activate_debug_mode":
+            return CallTool.Result(content: [.text("OK — debug mode activated")], isError: nil)
+
+        case "show_task_panel":
+            return CallTool.Result(content: [.text("OK — task panel shown")], isError: nil)
+
+        case "invoke_swarm":
+            let task = (args["task"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if task.isEmpty {
+                return CallTool.Result(
+                    content: [.text("Error: 'task' parameter is required")],
+                    isError: true
+                )
+            }
+            return CallTool.Result(content: [.text("OK — swarm invoked for task")], isError: nil)
 
         default:
             return CallTool.Result(content: [.text("Unknown IDE state tool: \(name)")], isError: true)

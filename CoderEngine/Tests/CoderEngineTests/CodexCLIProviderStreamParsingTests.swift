@@ -208,32 +208,6 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(assistantDeltas, ["Final output even without intermediate deltas"])
     }
 
-    func testDebugPanelMarkerEmitsDebugPanelUpdateRawEvent() {
-        let events = runParser(events: [
-            ["type": "turn.started"],
-            [
-                "type": "item.completed",
-                "item": [
-                    "id": "message-debug",
-                    "type": "agent_message",
-                    "text": "[CODERIDE:debug_panel|action=open|phase=analyzing]"
-                ],
-            ],
-            ["type": "turn.completed"],
-        ])
-
-        let debugEvents = events.compactMap { event -> [String: String]? in
-            if case .raw(let type, let payload) = event, type == "debug_panel_update" {
-                return payload
-            }
-            return nil
-        }
-
-        XCTAssertEqual(debugEvents.count, 1)
-        XCTAssertEqual(debugEvents.first?["action"], "open")
-        XCTAssertEqual(debugEvents.first?["phase"], "analyzing")
-    }
-
     func testRawDedupKeyDiffersWhenPayloadChangesWithSameIdentifierAndStatus() {
         let base: [String: String] = [
             "id": "cmd-1",

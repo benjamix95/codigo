@@ -334,7 +334,7 @@ final class ProviderToolEventMapperTests: XCTestCase {
             toolName: "todo_read",
             payload: [:]
         )
-        XCTAssertEqual(mapped?.type, "todo_write")
+        XCTAssertEqual(mapped?.type, "todo_read")
         XCTAssertTrue((mapped?.payload["title"] ?? "").contains("Read todo"))
     }
 }

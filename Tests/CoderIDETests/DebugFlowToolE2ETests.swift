@@ -156,7 +156,7 @@ final class DebugFlowToolE2ETests: XCTestCase {
                 let success = status != "failed" && status != "error"
                 debugStore.applyDebugCleanResult(success: success, detail: cleanPayload.detail)
             case .debugSession, .debugQuery, .activatePlanMode, .activateDebugMode,
-                 .instantGrep, .todoWrite, .todoRead, .planStepUpdate:
+                 .instantGrep, .todoWrite, .todoRead, .planStepUpdate, .mermaidRender:
                 break
             }
         }

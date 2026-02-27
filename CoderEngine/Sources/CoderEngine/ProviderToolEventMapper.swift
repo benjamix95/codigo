@@ -51,6 +51,9 @@ enum ProviderToolEventMapper {
         if isTodoTool(tool) {
             return mapTodo(tool: mappedToolName, payload: normalizedPayload)
         }
+        if isIDEStateTool(tool) {
+            return mapIDEState(tool: tool, payload: normalizedPayload)
+        }
         if !tool.isEmpty {
             return mapFallback(tool: mappedToolName, payload: normalizedPayload)
         }
@@ -133,14 +136,20 @@ enum ProviderToolEventMapper {
 
     private static let canonicalToolNames: Set<String> = [
         "agent", "apply_patch", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
-        "debug_context", "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
+        "debug_clean", "debug_context", "debug_hypothesize", "debug_log", "debug_mark",
+        "debug_panel", "debug_query", "debug_session",
+        "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
-        "mcp_health", "mcp_list_servers", "mcp_list_tools", "mcp_reconnect", "multi_edit",
+        "mcp_health", "mcp_list_servers", "mcp_list_tools", "mcp_reconnect",
+        "mermaid_render", "multi_edit",
         "multiedit", "notebook_edit", "notebook_read", "notebook_write", "notebookread", "parallel_apply",
+        "policy_ack",
         "read", "read_file", "read_lints", "read_range", "regex_replace", "rename_symbol", "rg",
         "run_agent", "search", "search_symbols", "semantic_search", "skill", "str_replace", "sub_agent",
         "subagent", "todo_write", "todo_read", "undo_edit", "web_fetch", "web_search", "write", "write_file",
+        // IDE state tools (mode activation, task panel, swarm)
+        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
@@ -179,10 +188,15 @@ enum ProviderToolEventMapper {
     static func normalizeToolIdentifier(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
-        let normalized = trimmed
+        var normalized = trimmed
             .replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: " ", with: "_")
             .lowercased()
+
+        // Strip MCP server tool prefix (e.g. "coderide_todo_write" → "todo_write")
+        if normalized.hasPrefix("coderide_") {
+            normalized = String(normalized.dropFirst("coderide_".count))
+        }
 
         var candidates: [String] = [normalized]
         let components = splitToolIdentifier(normalized)
@@ -363,6 +377,14 @@ enum ProviderToolEventMapper {
         tool == "todo_write" || tool == "todo_read"
     }
 
+    private static func isIDEStateTool(_ tool: String) -> Bool {
+        [
+            "debug_panel", "policy_ack", "mermaid_render",
+            "activate_plan_mode", "activate_debug_mode",
+            "show_task_panel", "invoke_swarm",
+        ].contains(tool)
+    }
+
     private static func isAgentTool(_ tool: String) -> Bool {
         ["task", "sub_agent", "subagent", "agent", "run_agent"].contains(tool)
     }
@@ -507,6 +529,9 @@ enum ProviderToolEventMapper {
             if let title = firstString(in: payload, keys: ["title"]) { mapped["title"] = title }
             return ("plan_step_update", mapped)
         }
+        if isIDEStateTool(normalizedMCP) {
+            return mapIDEState(tool: normalizedMCP, payload: payload)
+        }
         return nil
     }
 
@@ -621,6 +646,48 @@ enum ProviderToolEventMapper {
             mapped["output"] = String(output.prefix(6_000))
         }
         return ("skill_invocation", mapped)
+    }
+
+    private static func mapIDEState(tool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
+        switch tool {
+        case "debug_panel":
+            var mapped: [String: String] = [:]
+            if let action = firstString(in: payload, keys: ["action"]) { mapped["action"] = action }
+            if let phase = firstString(in: payload, keys: ["phase"]) { mapped["phase"] = phase }
+            return ("debug_panel_update", mapped)
+
+        case "mermaid_render":
+            var mapped: [String: String] = [:]
+            if let code = firstString(in: payload, keys: ["code"]) { mapped["code"] = code }
+            if let title = firstString(in: payload, keys: ["title"]) { mapped["title"] = title }
+            return ("mermaid_render", mapped)
+
+        case "policy_ack":
+            var mapped: [String: String] = [:]
+            if let hash = firstString(in: payload, keys: ["hash"]) { mapped["hash"] = hash }
+            return ("policy_ack", mapped)
+
+        case "activate_plan_mode":
+            var mapped: [String: String] = [:]
+            if let reason = firstString(in: payload, keys: ["reason"]) { mapped["reason"] = reason }
+            return ("activate_plan_mode", mapped)
+
+        case "activate_debug_mode":
+            var mapped: [String: String] = [:]
+            if let reason = firstString(in: payload, keys: ["reason"]) { mapped["reason"] = reason }
+            return ("activate_debug_mode", mapped)
+
+        case "show_task_panel":
+            return ("coderide_show_task_panel", [:])
+
+        case "invoke_swarm":
+            var mapped: [String: String] = [:]
+            if let task = firstString(in: payload, keys: ["task"]) { mapped["task"] = task }
+            return ("coderide_invoke_swarm", mapped)
+
+        default:
+            return ("command_execution", ["title": tool, "tool": tool])
+        }
     }
 
     private static func mapTodo(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

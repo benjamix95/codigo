@@ -228,17 +228,22 @@ final class TodoStore: ObservableObject {
     }
 
     private func loadTodos() {
-        guard let data = userDefaults.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([TodoItem].self, from: data) else {
-            return
+        guard let data = userDefaults.data(forKey: storageKey) else { return }
+        do {
+            todos = try JSONDecoder().decode([TodoItem].self, from: data)
+        } catch {
+            print("[TodoStore] ⚠️ Failed to decode todos: \(error.localizedDescription)")
         }
-        todos = decoded
     }
 
     private func saveTodos() {
-        guard let data = try? JSONEncoder().encode(todos) else { return }
-        userDefaults.set(data, forKey: storageKey)
-        syncToSharedState()
+        do {
+            let data = try JSONEncoder().encode(todos)
+            userDefaults.set(data, forKey: storageKey)
+            syncToSharedState()
+        } catch {
+            print("[TodoStore] ⚠️ Failed to encode todos: \(error.localizedDescription)")
+        }
     }
 
     /// Write current todos to the shared state file so the MCP server
@@ -322,19 +327,17 @@ final class TodoStore: ObservableObject {
             return
         }
 
-        add(
+        let newTodo = TodoItem(
             title: normalizedTitle,
-            source: .agent,
+            status: status ?? .pending,
             priority: priority ?? .medium,
+            source: .agent,
             notes: notes ?? "",
-            activeForm: activeForm ?? "",
-            linkedFiles: linkedFiles
+            linkedFiles: linkedFiles,
+            activeForm: activeForm ?? ""
         )
-        if let status, let idx = todos.indices.last {
-            todos[idx].status = status
-            todos[idx].updatedAt = .now
-            saveTodos()
-        }
+        todos.append(newTodo)
+        saveTodos()
     }
 
     @discardableResult
@@ -391,20 +394,31 @@ final class TodoStore: ObservableObject {
             return exact.id
         }
         // Fallback contenitivo bidirezionale solo per chiavi sufficientemente lunghe.
+        // Require the shorter string to be ≥ 70% of the longer one to avoid
+        // false positives like "Refactor database" matching "Refactor database schema for performance".
         guard key.count >= 12 else { return nil }
         return todos.first(where: {
             guard $0.isPlanCanonical else { return false }
             let canonical = canonicalKey(for: $0.title)
             guard canonical.count >= 12 else { return false }
+            let shorter = min(key.count, canonical.count)
+            let longer = max(key.count, canonical.count)
+            guard Double(shorter) / Double(longer) >= 0.7 else { return false }
             return canonical.contains(key) || key.contains(canonical)
         })?.id
     }
 
     func upsertCanonicalPlanTodos(_ titles: [String]) {
-        let cleaned = titles
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let desiredKeys = Set(cleaned.map { canonicalKey(for: $0) })
+        // Deduplicate by canonical key, keeping first occurrence.
+        var seenKeys = Set<String>()
+        let cleaned: [String] = titles.compactMap { raw in
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let key = canonicalKey(for: trimmed)
+            guard seenKeys.insert(key).inserted else { return nil }
+            return trimmed
+        }
+        let desiredKeys = seenKeys
 
         for idx in todos.indices where todos[idx].isPlanCanonical {
             let existingKey = canonicalKey(for: todos[idx].title)
@@ -445,6 +459,9 @@ final class TodoStore: ObservableObject {
     }
 
     func remove(id: UUID) {
+        if let todo = todos.first(where: { $0.id == id }), todo.isPlanCanonical {
+            onCanonicalTodoStatusChange?(todo.title, .pending)
+        }
         todos.removeAll { $0.id == id }
         saveTodos()
     }
@@ -471,16 +488,25 @@ final class TodoStore: ObservableObject {
     }
 
     func clear() {
+        let canonicals = todos.filter(\.isPlanCanonical)
         todos.removeAll()
         saveTodos()
+        for todo in canonicals {
+            onCanonicalTodoStatusChange?(todo.title, .pending)
+        }
     }
 
     func clearAgentTodos(includePlanCanonical: Bool = false) {
+        var removedCanonicals: [TodoItem] = []
         if includePlanCanonical {
+            removedCanonicals = todos.filter { $0.source == .agent && $0.isPlanCanonical }
             todos.removeAll { $0.source == .agent }
         } else {
             todos.removeAll { $0.source == .agent && !$0.isPlanCanonical }
         }
         saveTodos()
+        for todo in removedCanonicals {
+            onCanonicalTodoStatusChange?(todo.title, .pending)
+        }
     }
 }

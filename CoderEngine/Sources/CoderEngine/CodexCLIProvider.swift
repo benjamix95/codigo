@@ -439,14 +439,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
 
         var turn = TurnState()
-        var markerCarry = ""
         var scrubCarry = ""
         var emittedRawKeys: Set<String> = []
         var emittedContextCompacted = false
+        var invokeSwarmEmitted = false
 
         mutating func resetTurn() {
             turn = TurnState()
-            markerCarry = ""
             scrubCarry = ""
         }
     }
@@ -633,22 +632,9 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         state: inout CodexStreamParserState,
         events: inout [StreamEvent]
     ) {
-        for markerEvent in parseInlineControlMarkerEvents(in: text) {
-            appendRawEvent(
-                type: markerEvent.type,
-                payload: markerEvent.payload,
-                state: &state,
-                events: &events
-            )
-        }
-        for markerEvent in parseCoderIDEMarkerEvents(in: text, carry: &state.markerCarry) {
-            appendRawEvent(
-                type: markerEvent.type,
-                payload: markerEvent.payload,
-                state: &state,
-                events: &events
-            )
-        }
+        // Marker parsing removed — IDE state tools now go exclusively through MCP.
+        // This function is kept as a no-op to preserve the call-site structure;
+        // it will be removed in the cleanup phase.
     }
 
     private static func appendRawEvent(
@@ -775,23 +761,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func parseInlineControlMarkerEvents(
-        in text: String
-    ) -> [(type: String, payload: [String: String])] {
-        var events: [(type: String, payload: [String: String])] = []
-        if text.contains(CoderIDEMarkers.showTaskPanel) {
-            events.append((type: "coderide_show_task_panel", payload: [:]))
-        }
-        if let start = text.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-           let endRange = text[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-            let task = String(text[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !task.isEmpty {
-                events.append((type: "coderide_invoke_swarm", payload: ["task": task]))
-            }
-        }
-        return events
-    }
-
     /// When an MCP tool call targets an IDE-state tool (todo/plan), produce
     /// synthetic events that feed the existing EventNormalizer → Store pipeline.
     /// The original `mcp_tool_call` event is kept for activity-panel display.
@@ -850,6 +819,35 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             }
             guard !planPayload.isEmpty else { return [] }
             return [("plan_step_update", planPayload)]
+
+        case "mermaid_render":
+            var p: [String: String] = [:]
+            if let c = firstString(in: arguments, keys: ["code"]) { p["code"] = c }
+            if let t = firstString(in: arguments, keys: ["title"]) { p["title"] = t }
+            return p["code"] != nil ? [("mermaid_render", p)] : []
+
+        case "debug_panel", "debug_panel_update":
+            var p: [String: String] = [:]
+            if let a = firstString(in: arguments, keys: ["action"]) { p["action"] = a }
+            if let ph = firstString(in: arguments, keys: ["phase"]) { p["phase"] = ph }
+            return p.isEmpty ? [] : [("debug_panel_update", p)]
+
+        case "policy_ack":
+            if let h = firstString(in: arguments, keys: ["hash"]) { return [("policy_ack", ["hash": h])] }
+            return []
+
+        case "activate_plan_mode":
+            return [("activate_plan_mode", [:])]
+
+        case "activate_debug_mode":
+            return [("activate_debug_mode", [:])]
+
+        case "show_task_panel":
+            return [("coderide_show_task_panel", [:])]
+
+        case "invoke_swarm":
+            if let t = firstString(in: arguments, keys: ["task"]) { return [("coderide_invoke_swarm", ["task": t])] }
+            return []
 
         default:
             return []
@@ -1274,95 +1272,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         // Defensive fallback: intercept any text-based payloads that include the keyword.
         let payload = String(describing: json).lowercased()
         return payload.contains("compaction")
-    }
-
-    static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
-        var events: [(type: String, payload: [String: String])] = []
-        let markers = CoderIDEMarkerParser.parseStreamingChunk(text, carry: &carry)
-        for marker in markers {
-            switch marker.kind {
-            case "todo_read":
-                events.append((type: "todo_read", payload: [:]))
-            case "todo_write":
-                events.append((type: "todo_write", payload: marker.payload))
-            case "instant_grep":
-                events.append((type: "instant_grep", payload: marker.payload))
-            case "plan_step":
-                events.append((type: "plan_step_update", payload: marker.payload))
-            case "debug_panel":
-                events.append((type: "debug_panel_update", payload: marker.payload))
-            case "read_batch":
-                events.append((type: "read_batch_started", payload: marker.payload))
-            case "web_search":
-                events.append((type: "web_search_started", payload: marker.payload))
-            case "web_fetch":
-                events.append((type: "web_fetch_started", payload: marker.payload))
-            case "policy_ack":
-                events.append((type: "policy_ack", payload: marker.payload))
-            default:
-                break
-            }
-        }
-        return events
-    }
-
-    private static func parseMarkerList(text: String, prefix: String, mappedType: String) -> [(type: String, payload: [String: String])] {
-        var events: [(type: String, payload: [String: String])] = []
-        var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
-
-        while let range = text.range(of: prefix, options: [], range: searchRange) {
-            let payloadStart = range.upperBound
-            guard let closing = text[payloadStart...].firstIndex(of: "]") else { break }
-            let payloadString = String(text[payloadStart..<closing])
-            let payload = parseMarkerPayload(payloadString)
-            events.append((mappedType, payload))
-            searchRange = closing..<text.endIndex
-        }
-
-        return events
-    }
-
-    private static func parseMarkerPayload(_ payload: String) -> [String: String] {
-        var result: [String: String] = [:]
-        for item in splitEscaped(payload, separator: "|") {
-            let pair = splitEscaped(item, separator: "=")
-            guard pair.count == 2 else { continue }
-            result[unescapeMarker(pair[0]).trimmingCharacters(in: .whitespaces)] = unescapeMarker(pair[1]).trimmingCharacters(in: .whitespaces)
-        }
-        return result
-    }
-
-    private static func splitEscaped(_ input: String, separator: String) -> [String] {
-        guard let separatorChar = separator.first else { return [input] }
-        var parts: [String] = []
-        var current = ""
-        var escaped = false
-        for ch in input {
-            if escaped {
-                current.append(ch)
-                escaped = false
-                continue
-            }
-            if ch == "\\" {
-                escaped = true
-                continue
-            }
-            if ch == separatorChar {
-                parts.append(current)
-                current.removeAll(keepingCapacity: true)
-                continue
-            }
-            current.append(ch)
-        }
-        parts.append(current)
-        return parts
-    }
-
-    private static func unescapeMarker(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\\\", with: "\\")
-            .replacingOccurrences(of: "\\|", with: "|")
-            .replacingOccurrences(of: "\\]", with: "]")
     }
 
     private static func scrubTechnicalTextChunk(_ input: String, carry: inout String) -> String {

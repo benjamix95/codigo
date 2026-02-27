@@ -93,10 +93,6 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                     continuation.yield(.started)
                     var fullContent = ""
                     var accumulatedThinking = ""
-                    var didEmitShowTaskPanel = false
-                    var didEmitInvokeSwarm = false
-                    var emittedMarkers = Set<String>()
-                    var markerCarry = ""
                     var lastUsageSignature = ""
 
                     for try await line in stream {
@@ -136,25 +132,6 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                let text = delta["text"] as? String {
                             fullContent += text
                             continuation.yield(.textDelta(text))
-                            if !didEmitShowTaskPanel, fullContent.contains(CoderIDEMarkers.showTaskPanel) {
-                                didEmitShowTaskPanel = true
-                                continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
-                            }
-                            if !didEmitInvokeSwarm, fullContent.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                               let start = fullContent.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                               let endRange = fullContent[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-                                didEmitInvokeSwarm = true
-                                let task = String(fullContent[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !task.isEmpty {
-                                    continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
-                                }
-                            }
-                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: text, carry: &markerCarry) {
-                                let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                if emittedMarkers.insert(key).inserted {
-                                    continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
-                                }
-                            }
                             }
                         }
 
@@ -179,59 +156,17 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
                                         let delta = String(fullContent.dropFirst(newLen))
                                         if !delta.isEmpty { continuation.yield(.textDelta(delta)) }
                                     }
-                                    if !didEmitShowTaskPanel, fullContent.contains(CoderIDEMarkers.showTaskPanel) {
-                                        didEmitShowTaskPanel = true
-                                        continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
-                                    }
-                                    if !didEmitInvokeSwarm, fullContent.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                                       let start = fullContent.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                                       let endRange = fullContent[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-                                        didEmitInvokeSwarm = true
-                                        let task = String(fullContent[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if !task.isEmpty {
-                                            continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
-                                        }
-                                    }
-                                    for markerEvent in Self.parseCoderIDEMarkerEvents(in: text, carry: &markerCarry) {
-                                        let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                        if emittedMarkers.insert(key).inserted {
-                                            continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
-                                        }
-                                    }
                                 }
                             }
                         }
 
                         if eventType == "result", let resultText = json["result"] as? String, !resultText.isEmpty {
-                            let previousFullContent = fullContent
                             if resultText.count > fullContent.count {
                                 let delta = String(resultText.dropFirst(fullContent.count))
                                 fullContent = resultText
                                 continuation.yield(.textDelta(delta))
                             } else {
                                 fullContent = resultText
-                            }
-                            if !didEmitShowTaskPanel, fullContent.contains(CoderIDEMarkers.showTaskPanel) {
-                                didEmitShowTaskPanel = true
-                                continuation.yield(.raw(type: "coderide_show_task_panel", payload: [:]))
-                            }
-                            if !didEmitInvokeSwarm, fullContent.contains(CoderIDEMarkers.invokeSwarmPrefix),
-                               let start = fullContent.range(of: CoderIDEMarkers.invokeSwarmPrefix)?.upperBound,
-                               let endRange = fullContent[start...].range(of: CoderIDEMarkers.invokeSwarmSuffix) {
-                                didEmitInvokeSwarm = true
-                                let task = String(fullContent[start..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !task.isEmpty {
-                                    continuation.yield(.raw(type: "coderide_invoke_swarm", payload: ["task": task]))
-                                }
-                            }
-                            let suffix = resultText.count > previousFullContent.count
-                                ? String(resultText.dropFirst(previousFullContent.count))
-                                : ""
-                            for markerEvent in Self.parseCoderIDEMarkerEvents(in: suffix, carry: &markerCarry) {
-                                let key = "\(markerEvent.type)|\(markerEvent.payload.description)"
-                                if emittedMarkers.insert(key).inserted {
-                                    continuation.yield(.raw(type: markerEvent.type, payload: markerEvent.payload))
-                                }
                             }
                         }
                     }
@@ -298,94 +233,6 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
         // (Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch,
         //  Task, TodoWrite, Skill, MCP, NotebookEdit, etc.)
         return result
-    }
-
-    static func parseCoderIDEMarkerEvents(in text: String, carry: inout String) -> [(type: String, payload: [String: String])] {
-        var events: [(type: String, payload: [String: String])] = []
-        let markers = CoderIDEMarkerParser.parseStreamingChunk(text, carry: &carry)
-        for marker in markers {
-            switch marker.kind {
-            case "todo_read":
-                events.append((type: "todo_read", payload: [:]))
-            case "todo_write":
-                events.append((type: "todo_write", payload: marker.payload))
-            case "instant_grep":
-                events.append((type: "instant_grep", payload: marker.payload))
-            case "plan_step":
-                events.append((type: "plan_step_update", payload: marker.payload))
-            case "debug_panel":
-                events.append((type: "debug_panel_update", payload: marker.payload))
-            case "read_batch":
-                events.append((type: "read_batch_started", payload: marker.payload))
-            case "web_search":
-                events.append((type: "web_search_started", payload: marker.payload))
-            case "web_fetch":
-                events.append((type: "web_fetch_started", payload: marker.payload))
-            case "policy_ack":
-                events.append((type: "policy_ack", payload: marker.payload))
-            default:
-                break
-            }
-        }
-        return events
-    }
-
-    private static func parseMarkerList(text: String, prefix: String, mappedType: String) -> [(type: String, payload: [String: String])] {
-        var events: [(type: String, payload: [String: String])] = []
-        var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
-
-        while let range = text.range(of: prefix, options: [], range: searchRange) {
-            let payloadStart = range.upperBound
-            guard let closing = text[payloadStart...].firstIndex(of: "]") else { break }
-            let payloadString = String(text[payloadStart..<closing])
-            let payload = parseMarkerPayload(payloadString)
-            events.append((mappedType, payload))
-            searchRange = closing..<text.endIndex
-        }
-        return events
-    }
-
-    private static func parseMarkerPayload(_ payload: String) -> [String: String] {
-        var result: [String: String] = [:]
-        for item in splitEscaped(payload, separator: "|") {
-            let pair = splitEscaped(item, separator: "=")
-            guard pair.count == 2 else { continue }
-            result[unescapeMarker(pair[0]).trimmingCharacters(in: .whitespaces)] = unescapeMarker(pair[1]).trimmingCharacters(in: .whitespaces)
-        }
-        return result
-    }
-
-    private static func splitEscaped(_ input: String, separator: String) -> [String] {
-        guard let separatorChar = separator.first else { return [input] }
-        var parts: [String] = []
-        var current = ""
-        var escaped = false
-        for ch in input {
-            if escaped {
-                current.append(ch)
-                escaped = false
-                continue
-            }
-            if ch == "\\" {
-                escaped = true
-                continue
-            }
-            if ch == separatorChar {
-                parts.append(current)
-                current.removeAll(keepingCapacity: true)
-                continue
-            }
-            current.append(ch)
-        }
-        parts.append(current)
-        return parts
-    }
-
-    private static func unescapeMarker(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\\\", with: "\\")
-            .replacingOccurrences(of: "\\|", with: "|")
-            .replacingOccurrences(of: "\\]", with: "]")
     }
 
     private static func extractUsagePayload(

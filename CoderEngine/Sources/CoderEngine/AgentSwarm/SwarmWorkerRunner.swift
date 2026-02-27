@@ -172,7 +172,7 @@ public struct SwarmWorkerRunner: Sendable {
             parts.append("\n**Output from previous agents:**\n\(previousOutputs)")
         }
         parts.append("\nExecute the task. Respond and act in the workspace.")
-        parts.append("\nIf you want to show the user the tasks panel, include in the response: \(CoderIDEMarkers.showTaskPanel)")
+        parts.append("\nIf you want to show the user the tasks panel, use the `show_task_panel` tool.")
 
         parts.append("""
 

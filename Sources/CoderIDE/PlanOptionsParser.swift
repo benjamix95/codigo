@@ -10,12 +10,27 @@ struct PlanOption: Identifiable, Equatable, Codable {
 struct PlanClarificationOption: Identifiable, Equatable, Codable, Hashable {
     let id: String
     let text: String
+    let isRecommended: Bool
+
+    init(id: String, text: String, isRecommended: Bool = false) {
+        self.id = id
+        self.text = text
+        self.isRecommended = isRecommended
+    }
 }
 
 struct PlanClarificationQuestion: Identifiable, Equatable, Codable {
     let id: Int
     let prompt: String
     let options: [PlanClarificationOption]
+    let isMultiSelect: Bool
+
+    init(id: Int, prompt: String, options: [PlanClarificationOption], isMultiSelect: Bool = false) {
+        self.id = id
+        self.prompt = prompt
+        self.options = options
+        self.isMultiSelect = isMultiSelect
+    }
 }
 
 struct PlanClarificationQuestionnaire: Equatable, Codable {
@@ -25,11 +40,38 @@ struct PlanClarificationQuestionnaire: Equatable, Codable {
 struct PlanClarificationAnswer: Identifiable, Equatable {
     let questionId: Int
     let question: String
+    /// Primary selected option (first selection for multi-select, single for single-select)
     let optionId: String
     let optionText: String
+    /// All selected option IDs (for multi-select questions)
+    let optionIds: [String]
+    /// All selected option texts (for multi-select questions)
+    let optionTexts: [String]
     let customResponse: String?
 
     var id: Int { questionId }
+
+    /// Convenience init for single-select backward compatibility
+    init(questionId: Int, question: String, optionId: String, optionText: String, customResponse: String?) {
+        self.questionId = questionId
+        self.question = question
+        self.optionId = optionId
+        self.optionText = optionText
+        self.optionIds = [optionId]
+        self.optionTexts = [optionText]
+        self.customResponse = customResponse
+    }
+
+    /// Full init for multi-select
+    init(questionId: Int, question: String, optionId: String, optionText: String, optionIds: [String], optionTexts: [String], customResponse: String?) {
+        self.questionId = questionId
+        self.question = question
+        self.optionId = optionId
+        self.optionText = optionText
+        self.optionIds = optionIds
+        self.optionTexts = optionTexts
+        self.customResponse = customResponse
+    }
 }
 
 struct PlanClarificationSubmission: Equatable {
@@ -57,7 +99,11 @@ enum PlanOptionsParser {
 
     // Pre-compiled regexes for hot paths
     private static let questionRegex = try? NSRegularExpression(pattern: #"^\s*(\d+)[.)]\s*(.+)$"#)
-    private static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
+    private static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
+    /// Detects checkbox-style options: "- [ ] A) ..." or "- [x] B) ..."
+    private static let checkboxOptionPattern = #"^\s*[-*•]\s*\[\s*[xX ]?\s*\]"#
+    /// Detects multi-select markers in question text
+    private static let multiSelectPattern = #"(?i)\(\s*(?:select\s+(?:all\s+that\s+apply|multiple)|multi[-\s]?select|seleziona\s+(?:tutto|multiplo|piu))\s*\)"#
     private static let numberedLineRegex = try? NSRegularExpression(pattern: #"^\s*\d+[.)]\s+(.+)$"#)
     private static let bulletLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s+(.+)$"#)
     private static let checklistLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#)
@@ -103,20 +149,33 @@ enum PlanOptionsParser {
         var currentOptions: [PlanClarificationOption] = []
         var isInvalidStructuredBlock = false
 
+        var currentHasCheckboxOptions = false
+
         func flushQuestion() {
             guard let questionId = currentQuestionId else { return }
-            let prompt = currentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            var prompt = currentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !prompt.isEmpty, currentOptions.count >= 2 else {
                 isInvalidStructuredBlock = true
                 return
+            }
+            // Detect multi-select: text marker in prompt or checkbox-style options
+            let hasTextMarker = prompt.range(of: Self.multiSelectPattern, options: .regularExpression) != nil
+            let isMulti = hasTextMarker || currentHasCheckboxOptions
+            // Strip the multi-select marker from displayed prompt
+            if hasTextMarker {
+                prompt = prompt.replacingOccurrences(
+                    of: Self.multiSelectPattern, with: "", options: .regularExpression
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
             }
             parsedQuestions.append(
                 PlanClarificationQuestion(
                     id: questionId,
                     prompt: prompt,
-                    options: currentOptions
+                    options: currentOptions,
+                    isMultiSelect: isMulti
                 )
             )
+            currentHasCheckboxOptions = false
         }
 
         for line in lines {
@@ -140,6 +199,7 @@ enum PlanOptionsParser {
                 currentQuestionId = parsedId
                 currentPrompt = String(trimmed[promptRange]).trimmingCharacters(in: .whitespacesAndNewlines)
                 currentOptions = []
+                currentHasCheckboxOptions = false
                 continue
             }
 
@@ -150,12 +210,24 @@ enum PlanOptionsParser {
                currentQuestionId != nil
             {
                 let optionId = String(trimmed[keyRange]).uppercased()
-                let optionText = String(trimmed[textRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                var optionText = String(trimmed[textRange]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if optionText.isEmpty {
                     isInvalidStructuredBlock = true
                     return nil
                 }
-                currentOptions.append(PlanClarificationOption(id: optionId, text: optionText))
+                // Detect and strip "(Recommended)" marker from option text
+                let recommendedPattern = #"\s*\((?i:recommended|consigliato|consigliata)\)\s*$"#
+                let isRecommended = optionText.range(of: recommendedPattern, options: .regularExpression) != nil
+                if isRecommended {
+                    optionText = optionText.replacingOccurrences(
+                        of: recommendedPattern, with: "", options: .regularExpression
+                    ).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                // Detect checkbox-style options: "- [ ] A)" or "- [x] B)"
+                if trimmed.range(of: Self.checkboxOptionPattern, options: .regularExpression) != nil {
+                    currentHasCheckboxOptions = true
+                }
+                currentOptions.append(PlanClarificationOption(id: optionId, text: optionText, isRecommended: isRecommended))
                 continue
             }
 
@@ -525,6 +597,25 @@ enum PlanOptionsParser {
             "tradeoff",
             "constraints",
             "assumptions",
+            // Technical plan headers
+            "architecture",
+            "design",
+            "implementation",
+            "technical",
+            "system",
+            "overview",
+            "strategy",
+            "plan",
+            "summary",
+            "scope",
+            "dependencies",
+            "risks",
+            "migration",
+            "refactor",
+            "solution",
+            "pipeline",
+            "flow",
+            "structure",
         ]
         let lines = trimmed.components(separatedBy: .newlines)
         var collected: [String] = []
@@ -582,10 +673,8 @@ enum PlanOptionsParser {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
+        // Prefer cause/technical sections when available, but don't discard other body content.
         let causeSections = extractPlanCauseSections(trimmed)
-        if !causeSections.isEmpty {
-            return causeSections
-        }
 
         let lines = trimmed.components(separatedBy: .newlines)
         var output: [String] = []
@@ -600,10 +689,10 @@ enum PlanOptionsParser {
             guard normalized.hasPrefix("#") else { return false }
             let title = normalized
                 .drop(while: { $0 == "#" || $0 == " " || $0 == "\t" })
+            // Note: "approach" removed — it's valuable technical plan content
             return title.hasPrefix("questions")
                 || title.hasPrefix("clarification")
                 || title.hasPrefix("option")
-                || title.hasPrefix("approach")
                 || title.hasPrefix("todo")
                 || title.hasPrefix("to-do")
         }
@@ -656,17 +745,27 @@ enum PlanOptionsParser {
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if !cleaned.isEmpty {
-            return cleaned
+        // Combine cause sections (if any) with the filtered body content.
+        // Cause sections provide structured technical content; the filtered body may add
+        // remaining context not captured by the cause header matching.
+        let combined: String
+        if !causeSections.isEmpty && !cleaned.isEmpty {
+            combined = "\(causeSections)\n\n\(cleaned)"
+        } else if !causeSections.isEmpty {
+            combined = causeSections
+        } else if !cleaned.isEmpty {
+            combined = cleaned
+        } else {
+            // Fallback: keep original text but remove mermaid fences to avoid duplication.
+            let withoutMermaid = trimmed.replacingOccurrences(
+                of: #"(?is)```mermaid\s+.*?```"#,
+                with: "",
+                options: .regularExpression
+            )
+            combined = withoutMermaid
         }
 
-        // Fallback: keep original text but remove mermaid fences to avoid duplication.
-        let withoutMermaid = trimmed.replacingOccurrences(
-            of: #"(?is)```mermaid\s+.*?```"#,
-            with: "",
-            options: .regularExpression
-        )
-        return withoutMermaid
+        return combined
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }

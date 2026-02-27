@@ -107,6 +107,7 @@ struct SettingsView: View {
     // MARK: - Behavior
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
+    @AppStorage("swarm_fallback_auto_evaluate") private var swarmFallbackAutoEvaluate = true
     @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
     @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
@@ -751,6 +752,8 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Auto-delegate to Agent Swarm", isOn: $agentAutoDelegateSwarm)
                     hintBox("Allows the single agent to automatically delegate complex tasks to the multi-agent swarm.")
+                    Toggle("Swarm fallback auto-evaluate", isOn: $swarmFallbackAutoEvaluate)
+                    hintBox("When the LLM does not emit a swarm marker, automatically evaluate the response with the delegation policy and delegate if complex enough.")
                 }
             }
 

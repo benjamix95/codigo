@@ -28,8 +28,30 @@ public enum MCPSharedState {
     /// Write the full todo list (authoritative). Called by the main IDE app.
     public static func writeTodos(_ items: [[String: Any]]) {
         ensureDirectory()
-        guard let data = try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys]) else { return }
-        try? data.write(to: todosFilePath, options: .atomic)
+        guard let data = try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys]) else {
+            print("[MCPSharedState] ⚠️ Failed to serialize todos to JSON")
+            return
+        }
+        do {
+            try data.write(to: todosFilePath, options: .atomic)
+        } catch {
+            print("[MCPSharedState] ⚠️ Failed to write todos file: \(error.localizedDescription)")
+        }
+    }
+
+    /// Normalize common LLM status aliases to canonical TodoStatus raw values.
+    private static func normalizeStatus(_ raw: String?) -> String {
+        guard let raw else { return "pending" }
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            .replacingOccurrences(of: "-", with: "_").replacingOccurrences(of: " ", with: "_")
+        switch normalized {
+        case "pending", "in_progress", "done", "blocked": return normalized
+        case "completed", "complete", "finished": return "done"
+        case "running", "active", "doing", "started": return "in_progress"
+        case "todo", "open", "queued", "waiting": return "pending"
+        case "failed", "error", "stuck": return "blocked"
+        default: return normalized
+        }
     }
 
     /// Read the current todo list. Called by the MCP server for `todo_read`.
@@ -52,7 +74,7 @@ public enum MCPSharedState {
         if let idx = todos.firstIndex(where: {
             ($0["title"] as? String)?.caseInsensitiveCompare(normalizedTitle) == .orderedSame
         }) {
-            if let status { todos[idx]["status"] = status }
+            if let status { todos[idx]["status"] = normalizeStatus(status) }
             if let priority { todos[idx]["priority"] = priority }
             if let notes, !notes.isEmpty { todos[idx]["notes"] = notes }
             if let activeForm, !activeForm.isEmpty { todos[idx]["activeForm"] = activeForm }
@@ -62,7 +84,7 @@ public enum MCPSharedState {
             let item: [String: Any] = [
                 "id": UUID().uuidString,
                 "title": normalizedTitle,
-                "status": status ?? "pending",
+                "status": normalizeStatus(status),
                 "priority": priority ?? "medium",
                 "source": "agent",
                 "createdAt": ISO8601DateFormatter().string(from: .now),
@@ -84,7 +106,7 @@ public enum MCPSharedState {
             let content = (todoItem["content"] as? String ?? todoItem["title"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !content.isEmpty else { continue }
-            let status = todoItem["status"] as? String ?? "pending"
+            let status = normalizeStatus(todoItem["status"] as? String)
 
             if let idx = existing.firstIndex(where: {
                 ($0["title"] as? String)?.caseInsensitiveCompare(content) == .orderedSame
