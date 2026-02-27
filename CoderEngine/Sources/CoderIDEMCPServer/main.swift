@@ -537,12 +537,13 @@ struct CoderIDEMCPServerApp {
 
         let workspaceURL = URL(fileURLWithPath: workspacePath)
 
-        // Build the runtime
+        // Build the runtime with a live codebase index so codebase_search/find_symbol/find_files work.
+        let codebaseIndex = CodebaseIndex()
         let runtime = UnifiedToolRuntime(
             executionController: nil,
             executionScope: .agent,
             mcpSessions: MCPSessionManager(),
-            index: nil,
+            index: codebaseIndex,
             workspacePaths: [workspaceURL],
             excludedPaths: [],
             webSearchProvider: nil,

@@ -740,6 +740,104 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
     }
 
+    func testReadSupportsOffsetAndLimitAliases() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("offset.txt")
+        try "one\ntwo\nthree\nfour\nfive\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "read",
+            args: ["path": file.path, "offset": "3", "limit": "2"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertEqual(completed?["detail"], "2 lines")
+        let output = completed?["output"] ?? ""
+        XCTAssertTrue(output.contains("3│three"))
+        XCTAssertTrue(output.contains("4│four"))
+        XCTAssertFalse(output.contains("2│two"))
+    }
+
+    func testReadRangeAcceptsStartLineAndEndLineAliases() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("range.txt")
+        try "alpha\nbeta\ngamma\ndelta\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "read_range",
+            args: ["path": file.path, "start_line": "2", "end_line": "3"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        let output = completed?["output"] ?? ""
+        XCTAssertTrue(output.contains("2: beta"))
+        XCTAssertTrue(output.contains("3: gamma"))
+        XCTAssertFalse(output.contains("1: alpha"))
+    }
+
+    func testGrepAcceptsPatternAlias() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("needle.swift")
+        try "let patternNeedle = true\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "grep",
+            args: ["pattern": "patternNeedle", "pathScope": "."],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
+    }
+
+    func testIndexToolsAcceptLegacyAliases() async throws {
+        let index = CodebaseIndex()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let symbolFile = tmp.appendingPathComponent("LegacyAlias.swift")
+        try "struct LegacyAliasSymbol {}\n".write(to: symbolFile, atomically: true, encoding: .utf8)
+
+        let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
+
+        let (findSymbolCall, findSymbolCtx) = makeCall(
+            name: "find_symbol",
+            args: ["name": "LegacyAliasSymbol"],
+            workspace: tmp
+        )
+        let findSymbolEvents = await runtime.execute(findSymbolCall, context: findSymbolCtx)
+        let findSymbolPayload = extractLastPayload(findSymbolEvents)
+        XCTAssertEqual(findSymbolPayload?["status"], "completed")
+        XCTAssertTrue((findSymbolPayload?["output"] ?? "").contains("LegacyAliasSymbol"))
+
+        let (findFilesCall, findFilesCtx) = makeCall(
+            name: "find_files",
+            args: ["pattern": "LegacyAlias.swift"],
+            workspace: tmp
+        )
+        let findFilesEvents = await runtime.execute(findFilesCall, context: findFilesCtx)
+        let findFilesPayload = extractLastPayload(findFilesEvents)
+        XCTAssertEqual(findFilesPayload?["status"], "completed")
+        XCTAssertTrue((findFilesPayload?["output"] ?? "").contains("LegacyAlias.swift"))
+    }
+
     func testSemanticSearchNoResultsReturnsEmpty() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()

@@ -697,29 +697,46 @@ public actor UnifiedToolRuntime {
             throw ToolRuntimeError.validation("File not found: \(path)")
         }
         defer { try? handle.close() }
+
         let data = try handle.read(upToCount: context.policy.maxReadBytesPerFile) ?? Data()
         let rawContent = String(data: data, encoding: .utf8) ?? ""
-        // Add line numbers for better readability (like cat -n)
-        let lines = rawContent.components(separatedBy: "\n")
-        let digitCount = max(1, String(lines.count).count)
-        let numberedLines = lines.enumerated().map { idx, line in
-            let num = String(idx + 1)
+        let allLines = rawContent.components(separatedBy: "\n")
+
+        let offsetLine = max(1, Int(call.args["offset"] ?? "1") ?? 1)
+        let startIndex = max(0, offsetLine - 1)
+        let requestedLimit = Int(call.args["limit"] ?? "") ?? 0
+        let endIndex: Int = {
+            guard requestedLimit > 0 else { return allLines.count }
+            return min(allLines.count, startIndex + requestedLimit)
+        }()
+
+        let selectedLines: ArraySlice<String>
+        if startIndex >= allLines.count {
+            selectedLines = []
+        } else {
+            selectedLines = allLines[startIndex..<endIndex]
+        }
+
+        let digitCount = max(1, String(allLines.count).count)
+        let numberedLines = selectedLines.enumerated().map { idx, line in
+            let num = String(startIndex + idx + 1)
             let padding = String(repeating: " ", count: max(0, digitCount - num.count))
             return "\(padding)\(num)│\(line)"
         }
         let content = numberedLines.joined(separator: "\n")
+
         return success([
             "title": "Read \(path)",
             "path": path,
             "output": content,
-            "detail": "\(lines.count) lines"
+            "detail": "\(selectedLines.count) lines"
         ], startDate: startDate)
     }
 
     private func executeReadRange(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
         let path = try resolveRequiredPath(call.args["path"], context: context)
-        let startLine = max(1, Int(call.args["start"] ?? "1") ?? 1)
-        let endLineRaw = Int(call.args["end"] ?? "0") ?? 0
+        let startLine = max(1, Int(call.args["start"] ?? call.args["start_line"] ?? "1") ?? 1)
+        let endLineRaw = Int(call.args["end"] ?? call.args["end_line"] ?? "0") ?? 0
         let content = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
         let lines = content.components(separatedBy: .newlines)
         let endLine = endLineRaw > 0 ? min(lines.count, endLineRaw) : min(lines.count, startLine + 200)
@@ -1275,8 +1292,25 @@ public actor UnifiedToolRuntime {
             if path.isEmpty && normalizedName != "list_dir" {
                 throw ToolRuntimeError.validation("path is required")
             }
-        case "grep", "web_search", "search_symbols", "codebase_search", "find_symbol", "find_references",
-             "rename_symbol", "semantic_search":
+        case "grep":
+            let query = (call.args["query"] ?? call.args["pattern"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if query.isEmpty {
+                throw ToolRuntimeError.validation("query is required")
+            }
+        case "find_symbol", "find_references":
+            let query = (call.args["query"] ?? call.args["name"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if query.isEmpty {
+                throw ToolRuntimeError.validation("query is required")
+            }
+        case "find_files":
+            let query = (call.args["query"] ?? call.args["pattern"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if query.isEmpty {
+                throw ToolRuntimeError.validation("query is required")
+            }
+        case "web_search", "search_symbols", "codebase_search", "rename_symbol", "semantic_search":
             let query = call.args["query"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if query.isEmpty {
                 throw ToolRuntimeError.validation("query is required")
@@ -1517,7 +1551,7 @@ public actor UnifiedToolRuntime {
     private func executeIndexTool(
         name: String,
         call: ToolCall,
-        context: ToolExecutionContext,
+        context _: ToolExecutionContext,
         startDate: Date
     ) async -> ToolResult {
         guard let indexTools else {
@@ -1527,14 +1561,45 @@ public actor UnifiedToolRuntime {
                 startDate: startDate
             )
         }
+
+        let normalizedArgs = normalizedArgsForIndexTool(name: name, args: call.args)
         let events = await indexTools.execute(
             toolName: name,
-            args: call.args,
+            args: normalizedArgs,
             callId: call.id,
             workspacePaths: workspacePaths,
             excludedPaths: excludedPaths
         )
         return toolResultFromIndexEvents(events, startDate: startDate)
+    }
+
+    private func normalizedArgsForIndexTool(name: String, args: [String: String]) -> [String: String] {
+        var normalized = args
+
+        switch name {
+        case "find_symbol", "find_references":
+            if (normalized["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let legacyName = normalized["name"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !legacyName.isEmpty {
+                normalized["query"] = legacyName
+            }
+        case "find_files":
+            if (normalized["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let pattern = normalized["pattern"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !pattern.isEmpty {
+                normalized["query"] = pattern
+            }
+        case "codebase_search":
+            if (normalized["filePattern"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let path = normalized["path"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !path.isEmpty {
+                normalized["filePattern"] = path
+            }
+        default:
+            break
+        }
+
+        return normalized
     }
 
     private func toolResultFromIndexEvents(_ events: [StreamEvent], startDate: Date) -> ToolResult {
@@ -1562,7 +1627,7 @@ public actor UnifiedToolRuntime {
     // MARK: - Improved Grep
 
     private func executeGrep(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = (call.args["query"] ?? call.args["pattern"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let rawScope = (call.args["pathScope"] ?? call.args["path"] ?? ".")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let scopeParts = rawScope
