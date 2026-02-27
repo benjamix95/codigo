@@ -51,6 +51,8 @@ struct ChatComposerView: View {
     let onStop: () -> Void
     let onDismissFrozenTimer: () -> Void
     let onVoiceAction: () -> Void
+    let onOptimizePrompt: () -> Void
+    let isOptimizingPrompt: Bool
 
     // MARK: - Body
 
@@ -360,6 +362,7 @@ struct ChatComposerView: View {
             if frozenTimerText != nil {
                 runtimeTimerLabel
             }
+            optimizePromptButton
             microphoneButton
             sendButton
         }
@@ -666,6 +669,32 @@ struct ChatComposerView: View {
         .buttonStyle(.plain)
         .disabled(voiceState == .requestingPermission || voiceState == .transcribing)
         .help(voiceState == .listening ? "Stop recording" : "Voice dictation")
+    }
+
+    // MARK: - Optimize Prompt Button
+
+    private var optimizePromptButton: some View {
+        let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let canOptimize = hasText && !isLoading && isProviderReady && !isOptimizingPrompt
+
+        return Button {
+            onOptimizePrompt()
+        } label: {
+            Group {
+                if isOptimizingPrompt {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(canOptimize ? .yellow : .secondary.opacity(0.5))
+                }
+            }
+            .frame(width: 32, height: 32)
+        }
+        .buttonStyle(.plain)
+        .disabled(!canOptimize)
+        .help("Ottimizza prompt con AI")
     }
 
     // MARK: - Send Button

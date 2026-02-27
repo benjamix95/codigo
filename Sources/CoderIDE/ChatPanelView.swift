@@ -707,6 +707,12 @@ struct ChatPanelView: View {
     @State private var composerTaskStartDate: Date?
     @State private var lastTaskEndedByManualStop = false
 
+    // MARK: - Prompt Optimizer State
+    @State private var isOptimizingPrompt = false
+    @State private var showPromptOptimizerPopup = false
+    @State private var optimizedPromptResult = ""
+    @State private var promptOptimizerTask: Task<Void, Never>?
+
     @State private var isAnyAgentProviderReady = false
     @State private var checkProviderAuthGeneration = 0
     @State private var userModeOverrideUntilConversationChange = false
@@ -3360,12 +3366,28 @@ struct ChatPanelView: View {
                     interruptTask()
                 },
                 onDismissFrozenTimer: { composerFrozenTimerState = nil },
-                onVoiceAction: { handleVoiceAction() }
+                onVoiceAction: { handleVoiceAction() },
+                onOptimizePrompt: { optimizeCurrentPrompt() },
+                isOptimizingPrompt: isOptimizingPrompt
             )
         }
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 20)
+        .popover(isPresented: $showPromptOptimizerPopup, arrowEdge: .bottom) {
+            PromptOptimizerPopup(
+                originalPrompt: inputText,
+                optimizedPrompt: optimizedPromptResult,
+                onAccept: { accepted in
+                    inputText = accepted
+                    showPromptOptimizerPopup = false
+                    isInputFocused = true
+                },
+                onCancel: {
+                    showPromptOptimizerPopup = false
+                }
+            )
+        }
         .alert("Rate Limit Reached", isPresented: $showRateLimitAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -4581,6 +4603,51 @@ struct ChatPanelView: View {
         }
 
         return (chatAttachments, llmAttachments, preamble)
+    }
+
+    // MARK: - Prompt Optimization
+
+    private func optimizeCurrentPrompt() {
+        let prompt = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !prompt.isEmpty else { return }
+        guard let selectedProvider = providerRegistry.selectedProvider else { return }
+
+        // Resolve the actual runtime provider (handles multi-account, auth fallback)
+        let runtimeProvider: any LLMProvider
+        if let resolved = resolveRuntimeProvider(
+            selectedProvider: selectedProvider,
+            shouldRunPlanInline: false,
+            forcePlanInline: false
+        ) {
+            runtimeProvider = resolved
+        } else {
+            runtimeProvider = selectedProvider
+        }
+
+        isOptimizingPrompt = true
+        promptOptimizerTask?.cancel()
+        promptOptimizerTask = Task {
+            defer { isOptimizingPrompt = false }
+            do {
+                let ctx = effectiveContext.toWorkspaceContext(
+                    openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
+                    activeSelection: nil,
+                    activeFilePath: openFilesStore.openFilePath,
+                    scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
+                )
+                let optimized = try await PromptOptimizerService.optimize(
+                    prompt: prompt,
+                    using: runtimeProvider,
+                    context: ctx
+                )
+                guard !Task.isCancelled else { return }
+                optimizedPromptResult = optimized
+                showPromptOptimizerPopup = true
+            } catch {
+                guard !Task.isCancelled else { return }
+                appendTechnicalErrorMessage("[Prompt Optimizer] \(error.localizedDescription)", in: conversationId)
+            }
+        }
     }
 
     private func sendMessage() {
