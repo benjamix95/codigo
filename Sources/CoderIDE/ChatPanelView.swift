@@ -894,28 +894,28 @@ struct ChatPanelView: View {
             if showPlanPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(planPanelWidthStorage) }, set: { planPanelWidthStorage = Double($0) }),
-                    minWidth: 220, maxWidth: 500, leadingEdge: false
+                    minWidth: 220, maxWidth: 500, leadingEdge: true
                 )
                 planPanelSidebar
             }
             if showDebugPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(debugPanelWidthStorage) }, set: { debugPanelWidthStorage = Double($0) }),
-                    minWidth: 240, maxWidth: 500, leadingEdge: false
+                    minWidth: 240, maxWidth: 500, leadingEdge: true
                 )
                 debugPanelSidebar
             }
             if showSwarmPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(swarmPanelWidthStorage) }, set: { swarmPanelWidthStorage = Double($0) }),
-                    minWidth: 260, maxWidth: 540, leadingEdge: false
+                    minWidth: 260, maxWidth: 540, leadingEdge: true
                 )
                 swarmPanelSidebar
             }
             if showCodeReviewPanel {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(codeReviewPanelWidthStorage) }, set: { codeReviewPanelWidthStorage = Double($0) }),
-                    minWidth: 280, maxWidth: 560, leadingEdge: false
+                    minWidth: 280, maxWidth: 560, leadingEdge: true
                 )
                 codeReviewPanelSidebar
             }
@@ -4853,7 +4853,9 @@ struct ChatPanelView: View {
         taskActivityStore.clear()
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
-        todoStore.clearAgentTodos(includePlanCanonical: true)
+        // During an active plan build, keep canonical todos so the build's todo
+        // tracking isn't wiped by a concurrent user message.
+        todoStore.clearAgentTodos(includePlanCanonical: planFlowPhase != .building)
         scheduleFallbackTurnStartEvent(
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id

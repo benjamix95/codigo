@@ -361,6 +361,8 @@ struct PanelResizeHandle: View {
     @State private var isHovering = false
     @State private var dragStartWidth: CGFloat = 0
 
+    @State private var cursorPushed = false
+
     var body: some View {
         Rectangle()
             .fill(Color.clear)
@@ -376,9 +378,21 @@ struct PanelResizeHandle: View {
             .onHover { hovering in
                 isHovering = hovering
                 if hovering {
-                    NSCursor.resizeLeftRight.push()
+                    if !cursorPushed {
+                        NSCursor.resizeLeftRight.push()
+                        cursorPushed = true
+                    }
                 } else {
+                    if cursorPushed {
+                        NSCursor.pop()
+                        cursorPushed = false
+                    }
+                }
+            }
+            .onDisappear {
+                if cursorPushed {
                     NSCursor.pop()
+                    cursorPushed = false
                 }
             }
             .gesture(

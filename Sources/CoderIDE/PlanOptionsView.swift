@@ -632,7 +632,7 @@ struct PlanBoardView: View {
                                 .font(.system(size: 11, weight: .medium))
                                 .lineLimit(1)
                             Spacer()
-                            if board.chosenPath == option.fullText {
+                            if normalizedForComparison(board.chosenPath) == normalizedForComparison(option.fullText) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(.green)
                             }
@@ -666,6 +666,12 @@ struct PlanBoardView: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
+    }
+
+    private func normalizedForComparison(_ text: String?) -> String {
+        (text ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
     }
 
     private func color(for status: PlanStepStatus) -> Color {

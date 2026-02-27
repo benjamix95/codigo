@@ -142,6 +142,23 @@ struct ContentView: View {
         .onChange(of: isSelectingProjectFolders) { _, isPresented in
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
+        // Mutual exclusion: only one side panel at a time to prevent layout overflow.
+        .onChange(of: showPlanPanel) { _, isOpen in
+            guard isOpen else { return }
+            showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+        }
+        .onChange(of: showDebugPanel) { _, isOpen in
+            guard isOpen else { return }
+            showPlanPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
+        }
+        .onChange(of: showSwarmPanel) { _, isOpen in
+            guard isOpen else { return }
+            showPlanPanel = false; showDebugPanel = false; showCodeReviewPanel = false
+        }
+        .onChange(of: showCodeReviewPanel) { _, isOpen in
+            guard isOpen else { return }
+            showPlanPanel = false; showDebugPanel = false; showSwarmPanel = false
+        }
         .onChange(of: gitPanelStore.isOpen) { wasOpen, isOpen in
             guard autoResizeSidePanels else { return }
             let panelWidth = CGFloat(gitPanelWidth) + 12 // panel + handle + spacing

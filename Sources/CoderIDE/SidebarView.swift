@@ -81,20 +81,20 @@ struct SidebarView: View {
             }
     }
 
-    private var groupedThreadsByFolder: [(folder: String?, threads: [Conversation])] {
-        guard let context = currentContext else { return [(nil, visibleThreads)] }
+    private func groupedThreadsByFolder(from threads: [Conversation]) -> [(folder: String?, threads: [Conversation])] {
+        guard let context = currentContext else { return [(nil, threads)] }
         var map: [String?: [Conversation]] = [:]
-        for conv in visibleThreads {
+        for conv in threads {
             let key = context.folderPaths.contains(conv.contextFolderPath ?? "") ? conv.contextFolderPath : nil
             map[key, default: []].append(conv)
         }
         let orderedFolders = context.folderPaths.map(Optional.some)
         var result: [(String?, [Conversation])] = orderedFolders.compactMap { folder in
             guard let threads = map[folder], !threads.isEmpty else { return nil }
-            return (folder, threads.sorted { $0.createdAt > $1.createdAt })
+            return (folder, threads)
         }
         if let generic = map[nil], !generic.isEmpty {
-            result.append((nil, generic.sorted { $0.createdAt > $1.createdAt }))
+            result.append((nil, generic))
         }
         return result
     }
@@ -336,7 +336,8 @@ struct SidebarView: View {
     }
 
     private var threadsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let threads = visibleThreads
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Threads")
                     .font(.system(size: 13, weight: .semibold))
@@ -368,10 +369,10 @@ struct SidebarView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                if !visibleThreads.isEmpty {
+                if !threads.isEmpty {
                     Menu {
                         Button {
-                            for conv in visibleThreads {
+                            for conv in threads {
                                 chatStore.setArchived(conversationId: conv.id, archived: true)
                             }
                         } label: {
@@ -403,7 +404,7 @@ struct SidebarView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            if visibleThreads.isEmpty {
+            if threads.isEmpty {
                 SidebarEmptyState(
                     title: "No threads",
                     subtitle: currentContext == nil ? "Open a global thread or select a context." : "Create a thread for this context.",
@@ -413,7 +414,7 @@ struct SidebarView: View {
                 }
             } else {
                 if let context = currentContext, context.kind == .workspace {
-                    ForEach(groupedThreadsByFolder, id: \.folder) { group in
+                    ForEach(groupedThreadsByFolder(from: threads), id: \.folder) { group in
                         Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.tertiary)
@@ -424,28 +425,30 @@ struct SidebarView: View {
                         }
                     }
                 } else {
-                    ForEach(visibleThreads) { conv in
+                    ForEach(threads) { conv in
                         threadRow(conv)
                     }
                 }
 
                 let query = sidebarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-                let hits = chatStore.searchThreads(query: query, includeArchived: true, limit: 12)
-                if !query.isEmpty, !hits.isEmpty {
-                    Button {
-                        askAIAboutThreadSearch(query: query, hits: hits)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "sparkles")
-                            Text("Ask AI about \(hits.count) threads found")
-                                .lineLimit(1)
-                            Spacer()
+                if !query.isEmpty {
+                    let hits = chatStore.searchThreads(query: query, includeArchived: true, limit: 12)
+                    if !hits.isEmpty {
+                        Button {
+                            askAIAboutThreadSearch(query: query, hits: hits)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "sparkles")
+                                Text("Ask AI about \(hits.count) threads found")
+                                    .lineLimit(1)
+                                Spacer()
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
                         }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 6)
                 }
             }
         }
@@ -553,23 +556,17 @@ struct SidebarView: View {
                 Label("Delete thread", systemImage: "trash")
             }
         }
-        .onTapGesture {
-            selectedConversationId = conv.id
-            if let contextId = conv.contextId {
-                projectContextStore.activeContextId = contextId
-                syncActiveWorkspaceIfNeeded(contextId: contextId)
-                if conv.messages.contains(where: { $0.role == .user }) {
-                    projectContextStore.setLastActiveConversation(contextId: contextId, folderPath: conv.contextFolderPath, conversationId: conv.id)
-                }
-            }
-        }
+        .simultaneousGesture(TapGesture().onEnded {
+            selectThread(conv)
+        })
     }
 
     private func matchesQuery(_ conv: Conversation, query: String) -> Bool {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return true }
-        if conv.title.lowercased().contains(q) { return true }
-        return conv.messages.contains(where: { $0.content.lowercased().contains(q) })
+        // Only match on title for the sidebar filter; full-text search across messages
+        // is handled by chatStore.searchThreads() which is shown separately below the list.
+        return conv.title.lowercased().contains(q)
     }
 
     private func askAIAboutThreadSearch(query: String, hits: [ThreadSearchHit]) {
@@ -590,13 +587,18 @@ struct SidebarView: View {
 
     private func deleteAllVisibleThreads() {
         let toDelete = visibleThreads
-        let wasSelectingOne = toDelete.contains { $0.id == selectedConversationId }
+        let deletedIds = Set(toDelete.map(\.id))
+        let wasSelectingOne = deletedIds.contains(selectedConversationId ?? UUID())
         for conv in toDelete {
             cleanupCheckpointSnapshots(for: conv)
             chatStore.deleteConversation(id: conv.id)
         }
         if wasSelectingOne {
-            selectedConversationId = chatStore.conversations.first?.id
+            // Pick the best remaining thread in the same context, not just any thread.
+            let contextId = currentContext?.id
+            selectedConversationId = chatStore.conversations.first(where: {
+                !$0.isArchived && $0.contextId == contextId && !deletedIds.contains($0.id)
+            })?.id ?? chatStore.conversations.first(where: { !deletedIds.contains($0.id) })?.id
         }
     }
 
@@ -679,46 +681,44 @@ struct SidebarView: View {
     }
 
     private func folderContents(context: ProjectContext, root: String, atPath: String, depth: Int) -> some View {
-        let items = filteredDirectoryItems(context: context, root: root, directoryPath: atPath)
-        return AnyView(
-            ForEach(items, id: \.self) { item in
-                let fullPath = (atPath as NSString).appendingPathComponent(item)
-                let isDirectory = isDirectoryPath(fullPath)
-                let key = "\(root)::\(fullPath)"
-                let expanded = expandedFolders.contains(key)
-                let selected = openFilesStore.openFilePath == fullPath
+        let items = depth > 12 ? [] : filteredDirectoryItems(context: context, root: root, directoryPath: atPath)
+        return ForEach(items, id: \.self) { item in
+            let fullPath = (atPath as NSString).appendingPathComponent(item)
+            let isDirectory = isDirectoryPath(fullPath)
+            let key = "\(root)::\(fullPath)"
+            let expanded = expandedFolders.contains(key)
+            let selected = openFilesStore.openFilePath == fullPath
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Button {
-                        if isDirectory {
-                            toggleFolder(key)
-                        } else {
-                            projectContextStore.setActiveRoot(contextId: context.id, rootPath: root)
-                            openFilesStore.openFile(fullPath)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Spacer().frame(width: CGFloat(depth) * 10)
-                            Image(systemName: iconName(for: item, isDirectory: isDirectory, expanded: expanded))
-                                .font(.system(size: 10))
-                                .foregroundStyle(isDirectory ? .secondary : .tertiary)
-                            Text(item)
-                                .font(.system(size: 11, weight: selected ? .semibold : .regular))
-                                .foregroundStyle(selected ? Color.accentColor : .primary)
-                                .lineLimit(1)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Button {
+                    if isDirectory {
+                        toggleFolder(key)
+                    } else {
+                        projectContextStore.setActiveRoot(contextId: context.id, rootPath: root)
+                        openFilesStore.openFile(fullPath)
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer().frame(width: CGFloat(depth) * 10)
+                        Image(systemName: iconName(for: item, isDirectory: isDirectory, expanded: expanded))
+                            .font(.system(size: 10))
+                            .foregroundStyle(isDirectory ? .secondary : .tertiary)
+                        Text(item)
+                            .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                            .foregroundStyle(selected ? Color.accentColor : .primary)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
 
-                    if isDirectory, expanded {
-                        folderContents(context: context, root: root, atPath: fullPath, depth: depth + 1)
-                    }
+                if isDirectory, expanded {
+                    AnyView(folderContents(context: context, root: root, atPath: fullPath, depth: depth + 1))
                 }
             }
-        )
+        }
     }
 
     private var taskCloudSection: some View {
@@ -771,11 +771,15 @@ struct SidebarView: View {
         }
     }
 
-    private func relativeDate(_ date: Date) -> String {
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
         f.locale = Locale(identifier: "en_US")
         f.unitsStyle = .short
-        return f.localizedString(for: date, relativeTo: Date())
+        return f
+    }()
+
+    private func relativeDate(_ date: Date) -> String {
+        Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     private func attachConversation(to contextId: UUID) {
@@ -796,11 +800,9 @@ struct SidebarView: View {
 
     private func syncActiveWorkspaceIfNeeded(contextId: UUID?) {
         guard let contextId else { return }
-        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
-            workspaceStore.activeWorkspaceId = contextId
-        } else {
-            workspaceStore.activeWorkspaceId = nil
-        }
+        let newId: UUID? = workspaceStore.workspaces.contains(where: { $0.id == contextId }) ? contextId : nil
+        guard workspaceStore.activeWorkspaceId != newId else { return }
+        workspaceStore.activeWorkspaceId = newId
         workspaceStore.save()
     }
 
@@ -808,6 +810,17 @@ struct SidebarView: View {
         guard let convId = selectedConversationId else { return }
         chatStore.setContext(conversationId: convId, contextId: nil)
         projectContextStore.activeContextId = nil
+    }
+
+    private func selectThread(_ conv: Conversation) {
+        selectedConversationId = conv.id
+        if let contextId = conv.contextId {
+            projectContextStore.activeContextId = contextId
+            syncActiveWorkspaceIfNeeded(contextId: contextId)
+            if conv.messages.contains(where: { $0.role == .user }) {
+                projectContextStore.setLastActiveConversation(contextId: contextId, folderPath: conv.contextFolderPath, conversationId: conv.id)
+            }
+        }
     }
 
     private func createThread(contextId: UUID?) {
@@ -846,11 +859,16 @@ struct SidebarView: View {
         projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
     }
 
+    private static let defaultExcludedDirs: Set<String> = [
+        ".git", ".build", ".cache", ".swiftpm", "node_modules", "DerivedData",
+        ".DS_Store", "__pycache__", ".tox", ".eggs", "Pods"
+    ]
+
     private func filteredDirectoryItems(context: ProjectContext, root: String, directoryPath: String) -> [String] {
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: directoryPath) else { return [] }
-        let defaultExcluded = Set([".git", ".build", ".cache", ".swiftpm", "node_modules", "DerivedData"])
         return items
-            .filter { !defaultExcluded.contains($0) }
+            .filter { !$0.hasPrefix(".") || $0 == ".env" }
+            .filter { !Self.defaultExcludedDirs.contains($0) }
             .filter { item in
                 let fullPath = (directoryPath as NSString).appendingPathComponent(item)
                 let relPath = fullPath.replacingOccurrences(of: root + "/", with: "")

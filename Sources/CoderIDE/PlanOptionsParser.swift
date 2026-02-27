@@ -249,7 +249,9 @@ private static let optionHeaderPattern =
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             } else if let lastOption = currentOptions.last {
                 let merged = "\(lastOption.text) \(trimmed)".trimmingCharacters(in: .whitespacesAndNewlines)
-                currentOptions[currentOptions.count - 1] = PlanClarificationOption(id: lastOption.id, text: merged)
+                currentOptions[currentOptions.count - 1] = PlanClarificationOption(
+                    id: lastOption.id, text: merged, isRecommended: lastOption.isRecommended
+                )
             }
         }
 
@@ -566,7 +568,7 @@ private static let optionHeaderPattern =
 
         func shouldDiscard(_ title: String) -> Bool {
             let normalized = title
-                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Self.foldingLocale)
                 .lowercased()
             if normalized.isEmpty { return true }
             if normalized.range(of: #"^(?:pros?|cons?)\b"#, options: .regularExpression) != nil
@@ -783,10 +785,12 @@ private static let optionHeaderPattern =
             guard normalized.hasPrefix("#") else { return false }
             let title = normalized
                 .drop(while: { $0 == "#" || $0 == " " || $0 == "\t" })
-            // Note: "approach" removed — it's valuable technical plan content
+            // Note: "approach" removed — it's valuable technical plan content.
+            // Use word-boundary checks for "option" to avoid stripping headers
+            // like "## Optional configuration" or "## Optimization strategy".
             return title.hasPrefix("questions")
                 || title.hasPrefix("clarification")
-                || title.hasPrefix("option")
+                || title.hasPrefix("option ") || title == "options" || title.hasPrefix("options ")
                 || title.hasPrefix("todo")
                 || title.hasPrefix("to-do")
         }
@@ -839,16 +843,16 @@ private static let optionHeaderPattern =
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Combine cause sections (if any) with the filtered body content.
-        // Cause sections provide structured technical content; the filtered body may add
-        // remaining context not captured by the cause header matching.
+        // Use the filtered body when available; it already retains all
+        // non-skippable sections (including cause/technical headers).
+        // Only fall back to causeSections when the filtered body is empty,
+        // which means all content lived under skippable headers and only
+        // the cause extractor could rescue it.
         let combined: String
-        if !causeSections.isEmpty && !cleaned.isEmpty {
-            combined = "\(causeSections)\n\n\(cleaned)"
+        if !cleaned.isEmpty {
+            combined = cleaned
         } else if !causeSections.isEmpty {
             combined = causeSections
-        } else if !cleaned.isEmpty {
-            combined = cleaned
         } else {
             // Fallback: keep original text but remove mermaid fences to avoid duplication.
             let withoutMermaid = trimmed.replacingOccurrences(
