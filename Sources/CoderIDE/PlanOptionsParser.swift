@@ -489,9 +489,40 @@ enum PlanOptionsParser {
         option.id == 1 && option.title == "Full plan"
     }
 
+    private static func normalizeTodoText(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(of: "`", with: "")
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func fallbackTodoFromPlanText(_ optionText: String) -> String? {
+        let lines = optionText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard let firstLine = lines.first(where: { !isFenceDelimiter($0) }) else {
+            return nil
+        }
+        let normalized = normalizeTodoText(firstLine)
+        guard !normalized.isEmpty else { return nil }
+        let words = normalized
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        guard words.count >= 2 else { return nil }
+        let truncated = normalized.count > 260
+            ? String(normalized.prefix(260)) + "…"
+            : normalized
+        return truncated
+    }
+
     static func hasRequiredTodoHeader(_ optionText: String) -> Bool {
         let todoHeaderPattern = #"(?im)\#(taskHeaderPatternForSignals)"#
-        return optionText.range(of: todoHeaderPattern, options: .regularExpression) != nil
+        if optionText.range(of: todoHeaderPattern, options: .regularExpression) != nil {
+            return true
+        }
+        return !extractTodosFromOptionText(optionText).isEmpty
     }
 
     static func isTodoCompliantOption(_ option: PlanOption) -> Bool {
@@ -612,6 +643,12 @@ enum PlanOptionsParser {
             for item in bestBlock {
                 appendTodo(item)
             }
+        }
+        if !todos.isEmpty {
+            return todos
+        }
+        if let fallback = fallbackTodoFromPlanText(optionText) {
+            appendTodo(fallback)
         }
 
         return todos
