@@ -122,6 +122,68 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.0, "ok")
         XCTAssertEqual(result.1, .completed)
     }
+
+    func testRunDelegatedSwarmMarksInterruptedOnUserCancellationEvent() async throws {
+        let swarmProvider = MockStreamingProvider(events: [
+            .started,
+            .error("Request stopped by user"),
+            .completed
+        ])
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var onErrorMessages: [String] = []
+        let state = await coordinator.runDelegatedSwarm(
+            task: "Analyze this request",
+            swarmProvider: swarmProvider,
+            context: ctx,
+            imageURLs: nil,
+            agentFollowUpProvider: nil,
+            originalPrompt: "Test cancellation in delegated flow",
+            onSwarmText: { _ in },
+            onRaw: { _, _, _ in },
+            onFollowUpText: { _ in },
+            onError: { message in
+                onErrorMessages.append(message)
+            }
+        )
+
+        XCTAssertEqual(state, .interrupted)
+        XCTAssertEqual(coordinator.state, .interrupted)
+        XCTAssertEqual(onErrorMessages.count, 1)
+        XCTAssertTrue(onErrorMessages[0].contains("Request stopped by user"))
+    }
+
+    func testRunDelegatedSwarmKeepsCompletedForNonCancellationErrorEvent() async throws {
+        let swarmProvider = MockStreamingProvider(events: [
+            .started,
+            .error("Transient provider failure"),
+            .completed
+        ])
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var onErrorMessages: [String] = []
+        let state = await coordinator.runDelegatedSwarm(
+            task: "Analyze this request",
+            swarmProvider: swarmProvider,
+            context: ctx,
+            imageURLs: nil,
+            agentFollowUpProvider: nil,
+            originalPrompt: "Test failure in delegated flow",
+            onSwarmText: { _ in },
+            onRaw: { _, _, _ in },
+            onFollowUpText: { _ in },
+            onError: { message in
+                onErrorMessages.append(message)
+            }
+        )
+
+        XCTAssertEqual(state, .completed)
+        XCTAssertEqual(coordinator.state, .completed)
+        XCTAssertEqual(onErrorMessages.count, 1)
+        XCTAssertTrue(onErrorMessages[0].contains("Transient provider failure"))
+    }
 }
 
 private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {

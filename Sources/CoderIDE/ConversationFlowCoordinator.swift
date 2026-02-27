@@ -101,6 +101,37 @@ final class ConversationFlowCoordinator: ObservableObject {
         }
     }
 
+    private func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if Task.isCancelled { return true }
+
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
+            return true
+        }
+
+        let message = String(describing: error).lowercased()
+        return message.contains("cancellation")
+            || message.contains("canceled")
+            || message.contains("cancelled")
+            || message.contains("interrupted")
+            || message.contains("interruption")
+    }
+
+    private func isCancellationErrorMessage(_ message: String) -> Bool {
+        let normalized = message
+            .lowercased()
+            .folding(options: [.diacriticInsensitive], locale: .current)
+
+        return normalized.contains("cancel")
+            || normalized.contains("interrot")
+            || normalized.contains("aborted")
+            || normalized.contains("stop")
+            || normalized.contains("interruption")
+            || normalized.contains("interrupted")
+            || normalized.contains("user") && normalized.contains("cancel")
+    }
+
     func runStream(
         provider: any LLMProvider,
         prompt: String,
@@ -258,6 +289,8 @@ final class ConversationFlowCoordinator: ObservableObject {
     ) async -> State {
         await setState(.delegatedSwarm)
         do {
+            var wasCancelled = false
+
             var swarmFull = ""
             let swarmStream = try await swarmProvider.send(prompt: task, context: context, imageURLs: imageURLs)
             let swarmIteratorHolder = IteratorHolder(swarmStream)
@@ -269,7 +302,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 : StreamTimeoutPolicy.firstEventTimeoutSecDefault
             var swarmNoEventRetries = 0
             var swarmStallRetries = 0
-            while true {
+            swarmLoop: while true {
                 let timeout = swarmReceivedAny ? StreamTimeoutPolicy.inactivityTimeoutSec : swarmFirstEventTimeout
                 let maybeEvent: StreamEvent?
                 do {
@@ -329,6 +362,10 @@ final class ConversationFlowCoordinator: ObservableObject {
                     await MainActor.run {
                         onError(snapshot)
                     }
+                    if isCancellationErrorMessage(e) {
+                        wasCancelled = true
+                        break swarmLoop
+                    }
                 case .raw(let t, let p):
                     await MainActor.run {
                         onRaw(t, p, swarmProvider.id)
@@ -337,6 +374,11 @@ final class ConversationFlowCoordinator: ObservableObject {
                     break
                 }
                 await Task.yield()
+            }
+
+            if wasCancelled {
+                await setState(.interrupted)
+                return .interrupted
             }
 
             guard let agentProvider = agentFollowUpProvider else {
@@ -367,7 +409,7 @@ final class ConversationFlowCoordinator: ObservableObject {
                 : StreamTimeoutPolicy.firstEventTimeoutSecDefault
             var followNoEventRetries = 0
             var followStallRetries = 0
-            while true {
+            followUpLoop: while true {
                 let timeout = followReceivedAny ? StreamTimeoutPolicy.inactivityTimeoutSec : followFirstEventTimeout
                 let maybeEvent: StreamEvent?
                 do {
@@ -427,6 +469,10 @@ final class ConversationFlowCoordinator: ObservableObject {
                     await MainActor.run {
                         onError(snapshot)
                     }
+                    if isCancellationErrorMessage(e) {
+                        wasCancelled = true
+                        break followUpLoop
+                    }
                 case .raw(let t, let p):
                     await MainActor.run {
                         onRaw(t, p, agentProvider.id)
@@ -436,13 +482,19 @@ final class ConversationFlowCoordinator: ObservableObject {
                 }
                 await Task.yield()
             }
+
+            if wasCancelled {
+                await setState(.interrupted)
+                return .interrupted
+            }
+
             await setState(.completed)
             return .completed
         } catch {
             await MainActor.run {
                 onError("[Error swarm/follow-up: \(error.localizedDescription)]")
             }
-            if error is CancellationError {
+            if isCancellationError(error) {
                 await setState(.interrupted)
                 return .interrupted
             }
