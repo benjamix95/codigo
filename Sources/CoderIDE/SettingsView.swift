@@ -81,7 +81,7 @@ struct SettingsView: View {
     @AppStorage("codex_developer_instructions") private var codexDeveloperInstructions = ""
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
-    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search"
+    @AppStorage("claude_allowed_tools") private var claudeAllowedTools = "Read,Edit,Bash,Write,Search,Task"
     @AppStorage("gemini_cli_path") private var geminiCliPath = ""
     @AppStorage("gemini_model_override") private var geminiModelOverride = ""
     @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
@@ -92,7 +92,7 @@ struct SettingsView: View {
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
-    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
+    @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "explorer,coder,debugger,reviewer,testWriter"
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
@@ -485,7 +485,7 @@ struct SettingsView: View {
 
                     Divider()
                     fieldLabel("Allowed tools")
-                    let allTools = ["Read", "Edit", "Bash", "Write", "Search", "Glob", "Grep", "TodoRead", "TodoWrite"]
+                    let allTools = ["Read", "Edit", "Bash", "Write", "Search", "Task", "Glob", "Grep", "TodoRead", "TodoWrite"]
                     let selectedTools = parseClaudeAllowedTools()
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 6) {
                         ForEach(allTools, id: \.self) { tool in

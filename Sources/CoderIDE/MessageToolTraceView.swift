@@ -30,6 +30,7 @@ struct MessageToolTraceView: View {
         let genericDisplayEvents: [ToolTraceEvent]
         let totalDurationMs: Int
         let errorCount: Int
+        let collapsedSummary: String
 
         init(events: [ToolTraceEvent], isExpanded: Bool, runningCompactLimit: Int, collapser: ([ToolTraceEvent]) -> [ToolTraceEvent]) {
             let filtered = events
@@ -59,6 +60,77 @@ struct MessageToolTraceView: View {
             }
             totalDurationMs = ordered.compactMap { Int($0.payload["duration_ms"] ?? "") }.reduce(0, +)
             errorCount = ordered.filter { Self.isErrorEvent($0) }.count
+            collapsedSummary = Self.computeCollapsedSummary(orderedEvents: ordered)
+        }
+
+        private static func computeCollapsedSummary(orderedEvents: [ToolTraceEvent]) -> String {
+            var filePaths = Set<String>()
+            var readCount = 0
+            var searchCount = 0
+            var commandCount = 0
+            var editCount = 0
+            var mcpCount = 0
+            var skillNames = Set<String>()
+
+            for event in orderedEvents {
+                if let path = event.payload["path"], !path.isEmpty { filePaths.insert(path) }
+                if let file = event.payload["file"], !file.isEmpty { filePaths.insert(file) }
+                let type = event.type.lowercased()
+                if type == "read_batch_completed" || (event.payload["source"] ?? "") == "synthetic_command_read" { readCount += 1 }
+                if type.contains("search") || type.contains("grep") || type == "instant_grep" { searchCount += 1 }
+                if type == "bash" || type == "command_execution" { commandCount += 1 }
+                if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
+                if ToolTraceVisibility.isMCPEvent(event: event) { mcpCount += 1 }
+                if event.type == "skill_invocation" || event.payload["tool"] == "skill",
+                   let skill = event.payload["skill"], !skill.isEmpty { skillNames.insert(skill) }
+                for raw in skillPathCandidates(for: event) {
+                    if let name = extractSkillName(from: raw) { skillNames.insert(name) }
+                }
+            }
+
+            let fileCount = filePaths.count
+            func pluralized(_ noun: String, count: Int, plural: String? = nil) -> String {
+                count == 1 ? noun : (plural ?? "\(noun)s")
+            }
+            var parts: [String] = []
+            if editCount > 0 { parts.append("\(editCount) \(pluralized("edit", count: editCount))") }
+            if readCount > 0 || fileCount > 0 {
+                parts.append("\(max(fileCount, readCount)) \(pluralized("file", count: max(fileCount, readCount))) read")
+            }
+            if searchCount > 0 { parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))") }
+            if commandCount > 0 { parts.append("\(commandCount) \(pluralized("command", count: commandCount))") }
+            if mcpCount > 0 { parts.append("MCP \(mcpCount) \(pluralized("call", count: mcpCount))") }
+            if !skillNames.isEmpty {
+                let skills = skillNames.sorted()
+                parts.append(skills.count <= 2 ? "Skills: \(skills.joined(separator: ", "))" : "Skills: \(skills.prefix(2).joined(separator: ", ")) +\(skills.count - 2)")
+            }
+            if !parts.isEmpty { return parts.prefix(3).joined(separator: " \u{00B7} ") }
+            return "\(orderedEvents.count) \(pluralized("operation", count: orderedEvents.count))"
+        }
+
+        private static func skillPathCandidates(for event: ToolTraceEvent) -> [String] {
+            var candidates: [String] = []
+            if let skill = event.payload["skill"], !skill.isEmpty {
+                candidates.append(".codex/skills/\(skill)/SKILL.md")
+            }
+            if let path = event.payload["path"] { candidates.append(path) }
+            if let file = event.payload["file"] { candidates.append(file) }
+            if let files = event.payload["files"] { candidates.append(contentsOf: files.components(separatedBy: ",")) }
+            if let command = event.payload["command"] { candidates.append(command) }
+            return candidates
+        }
+
+        private static func extractSkillName(from raw: String) -> String? {
+            let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let markers = ["/skills/", ".codex/skills/", ".agents/skills/"]
+            guard markers.contains(where: { text.contains($0) }), text.lowercased().contains("skill.md") else { return nil }
+            let normalized = text.replacingOccurrences(of: "\\", with: "/")
+            let parts = normalized.split(separator: "/").map(String.init)
+            guard let skillsIndex = parts.firstIndex(of: "skills"), skillsIndex + 1 < parts.count else { return nil }
+            let candidate = parts[skillsIndex + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty else { return nil }
+            return candidate
         }
 
         private static func isErrorEvent(_ event: ToolTraceEvent) -> Bool {
@@ -231,7 +303,7 @@ struct MessageToolTraceView: View {
             return "\(count) \(pluralized("operation", count: count)) running..."
         }
         if !derived.orderedEvents.isEmpty {
-            return collapsedSummaryText(derived: derived)
+            return derived.collapsedSummary
         }
         return "Tool operations"
     }
@@ -964,142 +1036,6 @@ struct MessageToolTraceView: View {
         let end = text.index(text.startIndex, offsetBy: limit)
         return String(text[..<end])
             + "\n\n... diff truncated (\(text.count - limit) characters hidden)"
-    }
-
-    private func collapsedSummaryText(derived: DerivedState) -> String {
-        let orderedEvents = derived.orderedEvents
-        let fileCount = inferredFileCount(from: orderedEvents)
-        let readCount = inferredReadCount(from: orderedEvents)
-        let searchCount = inferredSearchCount(from: orderedEvents)
-        let commandCount = inferredCommandCount(from: orderedEvents)
-        let editCount = inferredEditCount(from: orderedEvents)
-        let mcpSummary = inferredMCPSummary(from: orderedEvents)
-        let skillSummary = inferredSkillsSummary(from: orderedEvents)
-
-        var parts: [String] = []
-        if editCount > 0 {
-            parts.append("\(editCount) \(pluralized("edit", count: editCount))")
-        }
-        if readCount > 0 || fileCount > 0 {
-            let count = max(fileCount, readCount)
-            parts.append("\(count) \(pluralized("file", count: count)) read")
-        }
-        if searchCount > 0 {
-            parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))")
-        }
-        if commandCount > 0 {
-            parts.append("\(commandCount) \(pluralized("command", count: commandCount))")
-        }
-        if let mcpSummary {
-            parts.append(mcpSummary)
-        }
-        if let skillSummary {
-            parts.append(skillSummary)
-        }
-        if !parts.isEmpty {
-            return parts.prefix(3).joined(separator: " \u{00B7} ")
-        }
-        return "\(orderedEvents.count) \(pluralized("operation", count: orderedEvents.count))"
-    }
-
-    private func inferredFileCount(from orderedEvents: [ToolTraceEvent]) -> Int {
-        var paths = Set<String>()
-        for event in orderedEvents {
-            if let path = event.payload["path"], !path.isEmpty {
-                paths.insert(path)
-            }
-            if let file = event.payload["file"], !file.isEmpty {
-                paths.insert(file)
-            }
-        }
-        return paths.count
-    }
-
-    private func inferredReadCount(from orderedEvents: [ToolTraceEvent]) -> Int {
-        orderedEvents.filter { event in
-            let type = event.type.lowercased()
-            if type == "read_batch_completed" { return true }
-            return (event.payload["source"] ?? "") == "synthetic_command_read"
-        }.count
-    }
-
-    private func inferredSearchCount(from orderedEvents: [ToolTraceEvent]) -> Int {
-        orderedEvents.filter { event in
-            let type = event.type.lowercased()
-            return type.contains("search") || type.contains("grep") || type == "instant_grep"
-        }.count
-    }
-
-    private func inferredCommandCount(from orderedEvents: [ToolTraceEvent]) -> Int {
-        orderedEvents.filter { event in
-            let type = event.type.lowercased()
-            return type == "bash" || type == "command_execution"
-        }.count
-    }
-
-    private func inferredEditCount(from orderedEvents: [ToolTraceEvent]) -> Int {
-        orderedEvents.filter { ToolTraceFileChangeMapper.isFileChangeEvent($0) }.count
-    }
-
-    private func inferredMCPSummary(from orderedEvents: [ToolTraceEvent]) -> String? {
-        let mcpEvents = orderedEvents.filter { ToolTraceVisibility.isMCPEvent(event: $0) }
-        guard !mcpEvents.isEmpty else { return nil }
-        return "MCP \(mcpEvents.count) \(pluralized("call", count: mcpEvents.count))"
-    }
-
-    private func inferredSkillsSummary(from orderedEvents: [ToolTraceEvent]) -> String? {
-        let skills = inferredSkillNames(from: orderedEvents)
-        guard !skills.isEmpty else { return nil }
-        if skills.count <= 2 {
-            return "Skills: \(skills.joined(separator: ", "))"
-        }
-        return "Skills: \(skills.prefix(2).joined(separator: ", ")) +\(skills.count - 2)"
-    }
-
-    private func inferredSkillNames(from orderedEvents: [ToolTraceEvent]) -> [String] {
-        var names = Set<String>()
-        for event in orderedEvents {
-            if event.type == "skill_invocation" || event.payload["tool"] == "skill",
-               let skill = event.payload["skill"], !skill.isEmpty {
-                names.insert(skill)
-            }
-            for candidate in skillPathCandidates(for: event) {
-                guard let name = extractSkillName(from: candidate) else { continue }
-                names.insert(name)
-            }
-        }
-        return names.sorted()
-    }
-
-    private func skillPathCandidates(for event: ToolTraceEvent) -> [String] {
-        var candidates: [String] = []
-        if let skill = event.payload["skill"], !skill.isEmpty {
-            candidates.append(".codex/skills/\(skill)/SKILL.md")
-        }
-        if let path = event.payload["path"] { candidates.append(path) }
-        if let file = event.payload["file"] { candidates.append(file) }
-        if let files = event.payload["files"] { candidates.append(contentsOf: files.components(separatedBy: ",")) }
-        if let command = event.payload["command"] { candidates.append(command) }
-        return candidates
-    }
-
-    private func extractSkillName(from raw: String) -> String? {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-
-        let markers = ["/skills/", ".codex/skills/", ".agents/skills/"]
-        guard markers.contains(where: { text.contains($0) }), text.lowercased().contains("skill.md") else {
-            return nil
-        }
-
-        let normalized = text.replacingOccurrences(of: "\\", with: "/")
-        let parts = normalized.split(separator: "/").map(String.init)
-        guard let skillsIndex = parts.firstIndex(of: "skills"), skillsIndex + 1 < parts.count else {
-            return nil
-        }
-        let candidate = parts[skillsIndex + 1].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !candidate.isEmpty else { return nil }
-        return candidate
     }
 
     private func pluralized(_ noun: String, count: Int, plural: String? = nil) -> String {

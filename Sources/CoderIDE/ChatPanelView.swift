@@ -632,7 +632,7 @@ struct ChatPanelView: View {
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_provider_auto_migrated_v1") private var swarmProviderAutoMigrated = false
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
-        "planner,coder,debugger,reviewer,testWriter"
+        "explorer,coder,debugger,reviewer,testWriter"
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
@@ -969,7 +969,7 @@ struct ChatPanelView: View {
 
                 if coderMode == .agent
                     && (!swarmProgressStore.steps.isEmpty
-                        || !TaskActivityStore.laneStates(from: taskActivityStore.activities).isEmpty)
+                        || !taskActivityStore.swarmCards.isEmpty)
                 {
                     SwarmProgressView(
                         store: swarmProgressStore,

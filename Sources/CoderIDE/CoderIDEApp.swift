@@ -39,14 +39,14 @@ struct CodigoApp: App {
     @AppStorage("claude_path") private var claudePath = ""
     @AppStorage("claude_model") private var claudeModel = "claude-sonnet-4-6"
     @AppStorage("claude_allowed_tools") private var claudeAllowedTools =
-        "Read,Edit,Bash,Write,Search"
+        "Read,Edit,Bash,Write,Search,Task"
     @AppStorage("unified_tool_runtime_enabled") private var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled") private var agentsHardBlockEnabled = true
     @AppStorage("mcp_edit_enforcement_enabled") private var mcpEditEnforcementEnabled = true
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
-        "planner,coder,debugger,reviewer,testWriter"
+        "explorer,coder,debugger,reviewer,testWriter"
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false

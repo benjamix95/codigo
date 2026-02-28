@@ -71,17 +71,19 @@ enum PromptToolsPolicy {
     - Do not rewrite or discard unrelated user changes while isolating the commit.
 
     Mode auto-activation policy:
-    - `activate_plan_mode`: Emit this event ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY of these apply:
+    - Do NOT auto-open panels for "find bugs" or proactive bug hunting. The user opens Debug panel manually when they have a bug to debug. For "find bugs", "look for issues", "audit the code" — emit NO mode activation, just spawn subagents (subagent_explorer, subagent_debugger, etc.) and execute.
+    - `activate_debug_mode`: Emit ONLY when the user explicitly debugs an existing/known bug (e.g. "debug this error", "help me fix this crash", "there's a bug in X, fix it"). NOT for proactive "find bugs" tasks.
+    - `activate_plan_mode`: Emit ONLY when the task genuinely requires structured planning. Concrete criteria — emit if ANY apply:
       • The task touches 3+ files with interdependent changes (e.g. refactor, new feature with model/view/controller).
       • The task is architectural (new system, major restructure, design decision with trade-offs).
       • The user explicitly asks for a plan, analysis, or comparison of approaches.
       Do NOT emit `activate_plan_mode` for:
+      • Finding bugs, fixing bugs, code audits — just execute via subagents, no panel.
       • Simple bug fixes, single-file edits, quick additions, or tasks you can resolve in <=2 operations.
       • Routine tasks like renaming, formatting, adding imports, small refactors within one file.
       • Tasks where the path is obvious and doesn't need user choice between alternatives.
       When in doubt, do NOT activate plan mode — just execute the task directly. Plan mode is for deliberate, complex work.
-    - `activate_debug_mode`: Emit when you detect errors, bugs, test failures, or the user asks to debug something. This opens the Debug panel automatically.
-    - Emit these events early, before you start the actual work, so the user sees the right panel from the start.
+    - Emit mode events early, before you start the actual work — only when they apply per the rules above.
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
     """
 }
