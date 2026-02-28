@@ -3,8 +3,7 @@ import SwiftUI
 
 // MARK: - Mode Controls Bar View
 /// Bottom controls bar: provider picker, model pickers, reasoning picker, access level menu,
-/// panel toggle buttons (Plan, Debug), and icon-only toggle buttons for Code Review & Swarm
-/// at the far right.
+/// and icon-only buttons for Code Review & Swarm at the far right.
 
 struct ModeControlsBarView: View {
     // MARK: - Provider Registry
@@ -55,7 +54,6 @@ struct ModeControlsBarView: View {
     @Binding var debugToggleEnabled: Bool
     @Binding var swarmToggleEnabled: Bool
     @Binding var codeReviewToggleEnabled: Bool
-    let highlightPlanButton: Bool
 
     // MARK: - Collapse Tiers
 
@@ -79,7 +77,6 @@ struct ModeControlsBarView: View {
     @ViewBuilder
     private func controlsHStack(tier: ControlsTier) -> some View {
         let pid = providerRegistry.selectedProviderId ?? ""
-        let isAgent = coderMode == .agent || coderMode == .debug
         HStack(spacing: 6) {
             // Provider picker: full=icon+name, medium=icon-only, compact/minimal=hidden
             if tier == .full {
@@ -105,39 +102,17 @@ struct ModeControlsBarView: View {
                 }
             }
 
-            // Panel toggles: full=icon+text, medium/compact/minimal=icon-only (always visible)
-            if isAgent && hasRealProvider(pid) {
-                if tier == .full {
-                    planButton
-                    debugButton
-                } else {
-                    planButtonIconOnly
-                    debugButtonIconOnly
-                }
-            } else if !hasRealProvider(pid) {
-                if [.agent, .debug, .plan].contains(coderMode) {
-                    if tier == .full {
-                        planButton
-                        debugButton
-                    } else {
-                        planButtonIconOnly
-                        debugButtonIconOnly
-                    }
-                } else if coderMode == .ide && tier == .full {
-                    delegateAdAgentButton
-                }
+            if coderMode == .ide && tier == .full {
+                delegateAdAgentButton
             }
 
             Spacer(minLength: 0)
 
+            planIconButton
+            debugIconButton
             codeReviewIconButton
             swarmIconButton
         }
-    }
-
-    private func hasRealProvider(_ pid: String) -> Bool {
-        ["codex-cli", "gemini-cli", "claude-cli", "openrouter-api",
-         "openai-api", "anthropic-api", "google-api", "minimax-api", "grok-api"].contains(pid)
     }
 
     private func hasAccessLevel(_ pid: String) -> Bool {
@@ -587,6 +562,58 @@ struct ModeControlsBarView: View {
 
     // MARK: - Code Review Icon Button (icon-only, far right)
 
+    private var planIconButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                planToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "list.bullet.rectangle")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    planToggleEnabled
+                        ? DesignSystem.Colors.planColor : .secondary
+                )
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            planToggleEnabled
+                                ? DesignSystem.Colors.planColor.opacity(0.14)
+                                : Color.clear
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Plan panel")
+    }
+
+    private var debugIconButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                debugToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "ladybug.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    debugToggleEnabled
+                        ? DesignSystem.Colors.debugColor : .secondary
+                )
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            debugToggleEnabled
+                                ? DesignSystem.Colors.debugColor.opacity(0.14)
+                                : Color.clear
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Debug panel")
+    }
+
     private var codeReviewIconButton: some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -639,124 +666,6 @@ struct ModeControlsBarView: View {
         }
         .buttonStyle(.plain)
         .help("Toggle Swarm panel")
-    }
-
-    // MARK: - Debug Button
-
-    private var debugButton: some View {
-        let isActive = debugToggleEnabled
-        let color = DesignSystem.Colors.debugColor
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                debugToggleEnabled.toggle()
-            }
-        } label: {
-            ViewThatFits(in: .horizontal) {
-                // Full: icon + text
-                HStack(spacing: 3) {
-                    Image(systemName: "ladybug.fill").font(.caption2)
-                    Text("Debug").font(.caption).fixedSize()
-                }
-                .foregroundStyle(isActive ? color : .secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isActive ? color.opacity(0.14) : Color.clear)
-                )
-                // Compact: icon only
-                Image(systemName: "ladybug.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isActive ? color : .secondary)
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(isActive ? color.opacity(0.14) : Color.clear)
-                    )
-            }
-        }
-        .buttonStyle(.plain)
-        .help("Toggle Debug mode (Cmd+Shift+D)")
-    }
-
-    private var debugButtonIconOnly: some View {
-        let isActive = debugToggleEnabled
-        let color = DesignSystem.Colors.debugColor
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                debugToggleEnabled.toggle()
-            }
-        } label: {
-            Image(systemName: "ladybug.fill")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isActive ? color : .secondary)
-                .frame(width: 26, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isActive ? color.opacity(0.14) : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .help("Toggle Debug mode (Cmd+Shift+D)")
-    }
-
-    // MARK: - Plan Button
-
-    private var planButton: some View {
-        let isActive = planToggleEnabled || highlightPlanButton
-        let color = DesignSystem.Colors.planColor
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                planToggleEnabled.toggle()
-            }
-        } label: {
-            ViewThatFits(in: .horizontal) {
-                // Full: icon + text
-                HStack(spacing: 3) {
-                    Image(systemName: "list.bullet.rectangle").font(.caption2)
-                    Text("Plan").font(.caption).fixedSize()
-                }
-                .foregroundStyle(isActive ? color : .secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isActive ? color.opacity(0.14) : Color.clear)
-                )
-                // Compact: icon only
-                Image(systemName: "list.bullet.rectangle")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isActive ? color : .secondary)
-                    .frame(width: 26, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(isActive ? color.opacity(0.14) : Color.clear)
-                    )
-            }
-        }
-        .buttonStyle(.plain)
-        .help("Enable/disable inline Plan")
-    }
-
-    private var planButtonIconOnly: some View {
-        let isActive = planToggleEnabled || highlightPlanButton
-        let color = DesignSystem.Colors.planColor
-        return Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                planToggleEnabled.toggle()
-            }
-        } label: {
-            Image(systemName: "list.bullet.rectangle")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(isActive ? color : .secondary)
-                .frame(width: 26, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(isActive ? color.opacity(0.14) : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .help("Enable/disable inline Plan")
     }
 
     // MARK: - Delegate to Agent Button

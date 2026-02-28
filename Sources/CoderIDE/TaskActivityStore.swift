@@ -474,9 +474,10 @@ final class TaskActivityStore: ObservableObject {
         swarmEventsFallbackCount = 0
     }
 
-    /// Clears only swarm-related data (cards, dedup keys, counters).
-    /// Used when switching conversations so the swarm panel doesn't
-    /// show activities from a different thread.
+    /// Resets swarm card state and rebuilds from existing activities.
+    /// Used when switching conversations to refresh the swarm panel.
+    /// Preserves the underlying activities so cards remain visible
+    /// after task completion.
     func clearSwarmCards() {
         if swarmEventsReceivedCount > 0 {
             swarmLogger.debug("Swarm stats: received=\(self.swarmEventsReceivedCount) assigned=\(self.swarmEventsAssignedCount) fallback=\(self.swarmEventsFallbackCount) cards=\(self.swarmCards.count)")
@@ -486,8 +487,9 @@ final class TaskActivityStore: ObservableObject {
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
-        // Remove swarm-tagged activities to prevent stale card rebuilds
-        activities.removeAll { SwarmMetadata.swarmId(from: $0.payload) != nil }
+        // Rebuild cards from remaining activities so subagent cards
+        // stay visible after the task completes.
+        rebuildSwarmCards()
     }
 
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {

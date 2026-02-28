@@ -185,3 +185,76 @@ struct SubagentChatCardView: View {
         }
     }
 }
+
+/// Static card for persisted subagent snapshots (shown in chat history after task completes).
+struct SubagentSnapshotCardView: View {
+    let snapshot: SubagentCardSnapshot
+
+    private var statusColor: Color {
+        switch snapshot.status {
+        case .running: return DesignSystem.Colors.swarmColor
+        case .completed: return DesignSystem.Colors.success
+        case .failed: return DesignSystem.Colors.error
+        case .idle: return .secondary
+        }
+    }
+
+    private var statusLabel: String {
+        switch snapshot.status {
+        case .running: return "Running"
+        case .completed: return "Completed"
+        case .failed: return "Failed"
+        case .idle: return "Idle"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 7, height: 7)
+
+                Text(snapshot.swarmId)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+
+                Text(statusLabel)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(statusColor.opacity(0.12), in: Capsule())
+
+                if snapshot.errorCount > 0 {
+                    Label("\(snapshot.errorCount)", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.error)
+                }
+
+                Spacer()
+            }
+
+            Text(snapshot.title)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let summary = snapshot.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(statusColor.opacity(0.25), lineWidth: 0.8)
+        )
+    }
+}

@@ -255,6 +255,7 @@ public actor UnifiedToolRuntime {
         "edit", "write", "str_replace", "create_file", "delete_file",
         "parallel_apply", "regex_replace", "rename_symbol",
         "find_and_replace_all", "undo_edit", "write_json",
+        "debug_mark", "debug_clean",
     ]
 
     public func execute(_ call: ToolCall, context: ToolExecutionContext) async -> [StreamEvent] {
@@ -1642,6 +1643,14 @@ public actor UnifiedToolRuntime {
 
     private func parseDebugDataArg(_ raw: String?) -> [String: String] {
         guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [:] }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{"),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            var out: [String: String] = [:]
+            for (key, value) in json { out[key] = "\(value)" }
+            return out
+        }
         var out: [String: String] = [:]
         for pair in raw.split(separator: ",") {
             let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
@@ -2791,6 +2800,9 @@ public actor UnifiedToolRuntime {
             var lines = content.components(separatedBy: "\n")
 
             let insertIdx = min(lineNum, lines.count)
+            let adjacentContent = insertIdx > 0 && insertIdx <= lines.count
+                ? lines[insertIdx - 1].trimmingCharacters(in: .whitespacesAndNewlines)
+                : nil
             let markerLine = code.isEmpty
                 ? "// \u{1F41B} DEBUG: \(comment)"
                 : code + " // \u{1F41B} DEBUG: \(comment)"
@@ -2806,7 +2818,7 @@ public actor UnifiedToolRuntime {
                 category: "debug"
             )
 
-            return ToolResult(ok: true, payload: [
+            var payload: [String: String] = [
                 "title": "debug_mark",
                 "detail": "Debug marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
                 "output": "Inserted: \(markerLine)",
@@ -2814,7 +2826,11 @@ public actor UnifiedToolRuntime {
                 "path": path,
                 "line": "\(lineNum)",
                 "comment": comment
-            ], durationMs: ms)
+            ]
+            if let adjacentContent {
+                payload["original_content"] = adjacentContent
+            }
+            return ToolResult(ok: true, payload: payload, durationMs: ms)
         } catch {
             return ToolResult(ok: false, payload: [
                 "title": "debug_mark",
@@ -2860,17 +2876,28 @@ public actor UnifiedToolRuntime {
         }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
-        let detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files"
+        let detail: String
+        let isSuccess: Bool
+        if !errors.isEmpty {
+            detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files; errors: \(errors.prefix(3).joined(separator: "; "))"
+            isSuccess = false
+        } else if cleanedCount == 0 && filesToClean.isEmpty {
+            detail = "No debug markers found to clean"
+            isSuccess = true
+        } else {
+            detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files"
+            isSuccess = true
+        }
 
         await debugLogServer.log(severity: "info", source: "debug_clean", message: detail, category: "debug")
 
-        return ToolResult(ok: errors.isEmpty, payload: [
+        return ToolResult(ok: isSuccess, payload: [
             "title": "debug_clean",
-            "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.prefix(3).joined(separator: "; "))",
+            "detail": detail,
             "output": detail,
             "cleaned_markers": "\(cleanedCount)",
             "cleaned_files": "\(filesToClean.count)",
-            "status": errors.isEmpty ? "completed" : "failed"
+            "status": isSuccess ? "completed" : "failed"
         ], durationMs: ms)
     }
 
@@ -3326,12 +3353,13 @@ public actor UnifiedToolRuntime {
         }
 
         // 6. Quick lint check (errors only, fast)
+        let lintStartDate = Date()
         let lintCall = ToolCall(
             id: UUID().uuidString, name: "read_lints",
             args: ["severity": "error", "limit": "10"],
             sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
         )
-        let lintResult = await executeReadLints(call: lintCall, context: context, startDate: startDate)
+        let lintResult = await executeReadLints(call: lintCall, context: context, startDate: lintStartDate)
         if lintResult.ok {
             let errorCount = lintResult.payload["error_count"] ?? "0"
             let warningCount = lintResult.payload["warning_count"] ?? "0"

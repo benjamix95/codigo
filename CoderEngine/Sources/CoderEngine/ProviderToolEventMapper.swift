@@ -567,7 +567,10 @@ enum ProviderToolEventMapper {
     }
 
     private static func isAgentTool(_ tool: String) -> Bool {
-        ["task", "sub_agent", "subagent", "agent", "run_agent"].contains(tool)
+        if ["task", "sub_agent", "subagent", "agent", "run_agent"].contains(tool) {
+            return true
+        }
+        return tool.hasPrefix("subagent_")
     }
 
     private static func mapCommand(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

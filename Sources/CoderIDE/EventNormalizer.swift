@@ -35,6 +35,7 @@ struct DebugMarkToolPayload {
     let filePath: String
     let lineNumber: Int
     let comment: String
+    let originalContent: String?
 }
 
 struct DebugCleanToolPayload {
@@ -119,9 +120,10 @@ enum EventNormalizer {
         switch type {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit",
-             "str_replace", "regex_replace", "write", "create_file", "delete_file",
-             "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
-             "multi_edit", "multiedit":
+             "str_replace", "regex_replace", "write", "write_file", "create_file", "delete_file",
+             "parallel_apply", "apply_patch", "rename_symbol", "find_and_replace_all", "undo_edit",
+             "multi_edit", "multiedit",
+             "notebook_edit", "notebook_write":
             kind = .fileUpdate
         case "turn_started", "turn_completed": kind = .generic
         case "instant_grep", "search",
@@ -945,6 +947,7 @@ enum EventNormalizer {
     }
 
     private static func parseDebugMarkPayload(payload: [String: String]) -> DebugMarkToolPayload? {
+        let originalContent = payload["original_content"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let markerInfo = payload["marker_info"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !markerInfo.isEmpty {
             let parts = markerInfo.split(separator: "|", maxSplits: 2).map(String.init)
@@ -952,7 +955,8 @@ enum EventNormalizer {
                 return DebugMarkToolPayload(
                     filePath: parts[0],
                     lineNumber: lineNumber,
-                    comment: parts.count > 2 ? parts[2] : "debug marker"
+                    comment: parts.count > 2 ? parts[2] : "debug marker",
+                    originalContent: originalContent
                 )
             }
         }
@@ -961,7 +965,7 @@ enum EventNormalizer {
         let line = Int(payload["line"] ?? "")
         guard !filePath.isEmpty, let line else { return nil }
         let comment = payload["comment"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "debug marker"
-        return DebugMarkToolPayload(filePath: filePath, lineNumber: line, comment: comment)
+        return DebugMarkToolPayload(filePath: filePath, lineNumber: line, comment: comment, originalContent: originalContent)
     }
 
     private static func parseDebugCleanPayload(payload: [String: String]) -> DebugCleanToolPayload? {
@@ -1007,6 +1011,16 @@ enum EventNormalizer {
 
     private static func parseDebugData(_ raw: String?) -> [String: String] {
         guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [:] }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("{"),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            var out: [String: String] = [:]
+            for (key, value) in json {
+                out[key] = "\(value)"
+            }
+            return out
+        }
         let pairs = raw.split(separator: ",")
         var out: [String: String] = [:]
         for pair in pairs {

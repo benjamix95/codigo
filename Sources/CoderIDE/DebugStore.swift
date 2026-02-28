@@ -487,9 +487,18 @@ final class DebugStore: ObservableObject {
         addLog(severity: .info, source: "debug_session", message: "New reproduce run started: \(currentRunId ?? "?")", category: "system")
     }
 
+    static let maxFixLoopIterations = 5
+
     /// Loop back from verify to instrument (verify failed → more instrumentation needed)
     func loopBackToInstrument(reason: String) {
         fixLoopIteration += 1
+        if fixLoopIteration > Self.maxFixLoopIterations {
+            phase = .verifying
+            addLog(severity: .error, source: "debug_session",
+                   message: "Fix loop limit reached (\(Self.maxFixLoopIterations) iterations). Manual intervention required.",
+                   detail: reason, category: "system")
+            return
+        }
         phase = .instrumenting
         addLog(severity: .warning, source: "debug_session", message: "Verify failed (iteration \(fixLoopIteration)): \(reason). Looping back to instrument.", category: "system")
     }
@@ -504,6 +513,12 @@ final class DebugStore: ObservableObject {
 
     func resetSession() {
         phase = .idle
+        logs.removeAll()
+        hypotheses.removeAll()
+        breakpoints.removeAll()
+        runtimeLogs.removeAll()
+        instrumentationPoints.removeAll()
+        debugMarkers.removeAll()
         streamingContent = ""
         errorSummary = ""
         clarificationQuestions = ""

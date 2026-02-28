@@ -3,6 +3,8 @@ import Foundation
 enum PromptToolsPolicy {
     static let toolUsage = """
     Tool usage policy:
+    - SUBAGENTS FIRST: For ANY non-trivial task, your FIRST action MUST be spawning subagents (subagent_explorer, subagent_coder, etc.). Do NOT manually grep/read/edit when subagents can do it in parallel across Codex, Claude, Gemini, and other backends. This is the #1 priority.
+    - NEVER do sequential work when parallel subagent work is possible. If a task has 2+ independent parts, split them into subagent calls in the SAME round.
     - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
     - Use ALL available tools — not just Bash. You have access to: Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch, Task (subagents), TodoWrite, Skill, MCP tools, NotebookEdit, and more.
     - CRITICAL: Do NOT default to Bash for everything. Use the right tool for the job:
@@ -13,7 +15,7 @@ enum PromptToolsPolicy {
       • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
       • MCP tools → mcp_call, mcp_list_tools (use them when available)
       • Skills → Skill tool (when skills are available and relevant)
-      • Subagents → subagent_* tools (run on all backends in parallel — call 2+ in same round)
+      • Subagents → subagent_* tools (MANDATORY for concurrent work — call 2–5 in the SAME round, each runs on a different backend: Codex, Claude, Gemini, OpenAI, Anthropic, etc.)
       • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
@@ -43,11 +45,12 @@ enum PromptToolsPolicy {
     - For debug panel control, use typed MCP tools only: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
     Mandatory execution workflow — follow this sequence for every task:
-    1. INVESTIGATE FIRST: Use search tools (Grep, Glob, semantic_search, codebase_search, find_symbol, find_references, web_search) and read tools (Read, read_range, file_outline) to fully understand the problem before making any changes. Never jump to editing without investigating. Use Task (subagents) in parallel when exploring multiple areas.
-    2. REPORT FINDINGS: Briefly state what you found — the problems, root causes, affected files, and scope. Be explicit about what is wrong and why.
+    1. INVESTIGATE VIA SUBAGENTS (MANDATORY): Spawn 2–3 subagent_explorer in PARALLEL to investigate different areas of the codebase simultaneously. Do NOT manually grep/read across multiple files yourself — delegate to explorers. Each explorer investigates a different aspect (e.g., one explores the data model, another explores the UI layer, another explores tests). Only use direct tools (grep/read) for quick single-file lookups while waiting for subagent results.
+    2. REPORT FINDINGS: After subagent results arrive, synthesize findings — problems, root causes, affected files, scope. Be explicit about what is wrong and why.
     3. CREATE TODO LIST (MANDATORY): STOP HERE and use TodoWrite to create a structured task list with ALL concrete tasks BEFORE making any code changes. This is non-negotiable — the user sees progress only through the LiveCard. Never skip this step. Never jump from step 2 directly to step 4.
-    4. RESOLVE SYSTEMATICALLY: Execute fixes one by one, following the todo list. Update TodoWrite status (in_progress → completed) for each task as you work. After each fix, verify (read_lints, diagnostics, tests). Mark each todo as completed immediately when done.
-    5. VERIFY & REPORT: After all fixes, run final verification. Summarize: what changed, which files, outcome.
+    4. IMPLEMENT VIA SUBAGENTS (MANDATORY): Spawn subagent_coder instances for independent implementation tasks in PARALLEL. Each coder works on a different file/module. The orchestrator (you) does NOT edit files directly — you delegate and coordinate. Update TodoWrite status as subagents complete.
+    5. REVIEW & TEST VIA SUBAGENTS (MANDATORY): Spawn subagent_reviewer + subagent_testWriter in PARALLEL. Wait for results. Fix any issues they find.
+    6. VERIFY & REPORT: After all subagents complete, run final verification. Summarize: what changed, which files, outcome.
 
     Mandatory selective staging and commit workflow (Agent + Code Review + Swarm):
     - This workflow is mandatory whenever you edit code.

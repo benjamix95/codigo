@@ -18,10 +18,10 @@ enum ToolTraceVisibility {
         "policy_ack",
         "todo_write",
         "todo_read",
+        "agent",
     ])
 
     private static let operationalTypes: Set<String> = [
-        "agent",
         "bash",
         "command_execution",
         "debug_context",

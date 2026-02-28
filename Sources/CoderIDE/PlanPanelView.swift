@@ -109,15 +109,20 @@ struct PlanPanelView: View {
     @State private var cachedSnapshot: PlanRenderSnapshot?
     @State private var lastSnapshotKey: String = ""
     /// Keeps top controls out of the macOS titlebar non-interactive zone.
-    private let topInteractiveInset: CGFloat = 22
+        private let topInteractiveInset: CGFloat = 22
 
-    private let planColor = DesignSystem.Colors.planColor
+        private let planColor = DesignSystem.Colors.planColor
 
-    private struct PlanRenderSnapshot {
-        let planContent: String
-        let planBodyContent: String
-        let mermaidBlocks: [String]
-        let canonicalTodos: [TodoItem]
+        private struct PlanRenderSnapshot {
+            let planContent: String
+            let planBodyContent: String
+            let mermaidBlock: String?
+            let mermaidBlocks: [String]
+            let canonicalTodos: [TodoItem]
+        }
+
+    private var planTraceActivities: [TaskActivity] {
+        taskActivityStore.planRelevantRecentActivities(limit: 120)
     }
 
     var body: some View {
@@ -177,10 +182,10 @@ struct PlanPanelView: View {
                     }
 
                     if shouldShowPlanDetailsSection {
-                        // 5) Mermaid (if present)
-                        if let firstMermaid = snapshot.mermaidBlocks.first {
+                        // 5) Mermaid diagrams (all blocks)
+                        ForEach(Array(snapshot.mermaidBlocks.enumerated()), id: \.offset) { _, block in
                             MermaidDiagramView(
-                                mermaidCode: firstMermaid,
+                                mermaidCode: block,
                                 accentColor: planColor
                             )
                         }
@@ -190,7 +195,7 @@ struct PlanPanelView: View {
                     }
 
                     // 7) Live activity (compact)
-                    if !taskActivityStore.activities.isEmpty {
+                    if !planTraceActivities.isEmpty {
                         traceSection
                     }
 
@@ -489,6 +494,8 @@ struct PlanPanelView: View {
         switch planFlowPhase {
         case .readyToBuild, .building:
             return true
+        case .idle, .proposalReady:
+            return !canonicalPlanTodos.isEmpty
         default:
             return false
         }
@@ -754,6 +761,7 @@ struct PlanPanelView: View {
         return PlanRenderSnapshot(
             planContent: c,
             planBodyContent: planBody,
+            mermaidBlock: mermaidBlocks.first,
             mermaidBlocks: mermaidBlocks,
             canonicalTodos: canonicalPlanTodos
         )
@@ -1163,7 +1171,7 @@ struct PlanPanelView: View {
 
     private var traceSection: some View {
         CompactActivityTraceView(
-            activities: taskActivityStore.activities,
+            activities: planTraceActivities,
             accentColor: planColor,
             title: "Activity"
         )

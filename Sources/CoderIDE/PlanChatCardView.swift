@@ -16,7 +16,8 @@ struct PlanChatCardView: View {
     }
 
     private var truncatedMarkdown: String {
-        nonEmptyLines.prefix(12).joined(separator: "\n")
+        let raw = nonEmptyLines.prefix(12).joined(separator: "\n")
+        return MermaidExtractor.stripMermaidBlocks(from: raw)
     }
 
     private var isTruncated: Bool {

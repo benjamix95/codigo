@@ -333,12 +333,14 @@ public actor DebugLogServer {
 
     // MARK: - Persistence
 
+    private static let maxFileSize: UInt64 = 5 * 1024 * 1024 // 5 MB
+    private var appendsSinceLastSizeCheck: Int = 0
+
     private func append(_ entry: LogEntry) {
         entries.append(entry)
         if entries.count > maxEntries {
             entries.removeFirst(entries.count - maxEntries)
         }
-        // Append to file (non-blocking)
         if let data = try? JSONEncoder().encode(entry),
            let line = String(data: data, encoding: .utf8) {
             if let handle = try? FileHandle(forWritingTo: logFileURL) {
@@ -349,6 +351,18 @@ public actor DebugLogServer {
                 try? (line + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
             }
         }
+        appendsSinceLastSizeCheck += 1
+        if appendsSinceLastSizeCheck >= 200 {
+            appendsSinceLastSizeCheck = 0
+            rotateFileIfNeeded()
+        }
+    }
+
+    private func rotateFileIfNeeded() {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: logFileURL.path),
+              let fileSize = attrs[.size] as? UInt64,
+              fileSize > Self.maxFileSize else { return }
+        persistToDisk()
     }
 
     private func persistToDisk() {
@@ -369,9 +383,12 @@ public actor DebugLogServer {
                   let entry = try? decoder.decode(LogEntry.self, from: data) else { continue }
             entries.append(entry)
         }
-        // Trim to max
-        if entries.count > maxEntries {
+        let trimmed = entries.count > maxEntries
+        if trimmed {
             entries.removeFirst(entries.count - maxEntries)
+        }
+        if trimmed {
+            persistToDisk()
         }
     }
 }

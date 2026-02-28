@@ -466,6 +466,32 @@ enum ToolSchemaCatalog {
             required: []
         ),
         ToolSchemaEntry(
+            name: "debug_set_phase",
+            description: "Set the current debug flow phase in the IDE panel",
+            properties: [
+                "phase": ["type": "string", "description": "describing|reproducing|fixing|instrumenting|verifying|resolved"],
+                "detail": ["type": "string", "description": "Optional detail about the phase transition"]
+            ],
+            required: ["phase"]
+        ),
+        ToolSchemaEntry(
+            name: "debug_request_user",
+            description: "Request user input or bug reproduction during debug",
+            properties: [
+                "kind": ["type": "string", "description": "question|reproduce"],
+                "prompt": ["type": "string", "description": "The question or reproduction instructions for the user"]
+            ],
+            required: ["kind", "prompt"]
+        ),
+        ToolSchemaEntry(
+            name: "debug_resolve",
+            description: "Resolve the debug session with a final summary",
+            properties: [
+                "summary": ["type": "string", "description": "Summary of the root cause, fix applied, and verification outcome"]
+            ],
+            required: ["summary"]
+        ),
+        ToolSchemaEntry(
             name: "skill",
             description: "Invoke a local skill (SKILL.md) from ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Use when task matches a skill (doc, imagegen, transcribe, playwright, cloudflare-deploy, gh-fix-ci). Prefer skills over manual workflows.",
             properties: [

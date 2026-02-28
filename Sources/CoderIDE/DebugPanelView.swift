@@ -88,9 +88,21 @@ struct DebugPanelView: View {
                         case .markers:
                             markersContent
                         }
+
+                        Color.clear.frame(height: 1).id("debug-scroll-anchor")
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                }
+                .onChange(of: debugStore.logs.count) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("debug-scroll-anchor", anchor: .bottom)
+                    }
+                }
+                .onChange(of: debugStore.runtimeLogs.count) {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("debug-scroll-anchor", anchor: .bottom)
+                    }
                 }
             }
 
@@ -100,8 +112,8 @@ struct DebugPanelView: View {
                 streamingSection
             }
 
-            // Clarification questions + input (shown during describe phase)
-            if !debugStore.clarificationQuestions.isEmpty && debugStore.phase == .describing {
+            // Clarification questions + input (shown in any active phase)
+            if !debugStore.clarificationQuestions.isEmpty && debugStore.phase != .idle && debugStore.phase != .resolved {
                 Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
                 questionSection
             }
@@ -339,12 +351,12 @@ struct DebugPanelView: View {
     private var phaseDetailLabel: String {
         switch debugStore.phase {
         case .idle:          return ""
-        case .describing:    return "Descrizione del problema e raccolta contesto."
-        case .reproducing:   return "Riproduci il bug o chiedi riproduzione utente."
-        case .fixing:        return "Fix in corso con ipotesi mirate."
-        case .instrumenting: return "Strumentazione attiva per osservare il comportamento."
-        case .verifying:     return "Verifica finale e cleanup debug."
-        case .resolved:      return "Debug risolto."
+        case .describing:    return "Describing the problem and gathering context."
+        case .reproducing:   return "Reproducing the bug or requesting user reproduction."
+        case .fixing:        return "Applying targeted fix hypotheses."
+        case .instrumenting: return "Active instrumentation to observe behavior."
+        case .verifying:     return "Final verification and debug cleanup."
+        case .resolved:      return "Debug resolved."
         }
     }
 
@@ -1033,6 +1045,8 @@ struct DebugPanelView: View {
                 severityChip(.error)
                 severityChip(.warning)
                 severityChip(.info)
+                severityChip(.verbose)
+                severityChip(.trace)
             }
 
             Spacer()

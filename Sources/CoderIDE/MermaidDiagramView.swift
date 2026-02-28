@@ -12,6 +12,20 @@ enum MermaidExtractor {
     private static let stripRegex: NSRegularExpression? =
         try? NSRegularExpression(pattern: "```mermaid\\s*\\n[\\s\\S]*?```", options: .caseInsensitive)
 
+    static func extractFirstMermaidBlock(from markdown: String) -> String? {
+        guard let regex = extractRegex else { return nil }
+        let nsString = markdown as NSString
+        let match = regex.firstMatch(
+            in: markdown,
+            range: NSRange(location: 0, length: nsString.length)
+        )
+        guard let blockMatch = match, blockMatch.numberOfRanges >= 2 else { return nil }
+        let block = nsString.substring(with: blockMatch.range(at: 1))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !block.isEmpty else { return nil }
+        return block
+    }
+
     static func extractMermaidBlocks(from markdown: String) -> [String] {
         guard let regex = extractRegex else { return [] }
         let nsString = markdown as NSString

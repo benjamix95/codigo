@@ -8,11 +8,12 @@ struct PlanSummaryCardView: View {
     let onExpandPlan: () -> Void
 
     private var summaryPreview: String {
-        summaryMarkdown
+        let raw = summaryMarkdown
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .prefix(14)
             .joined(separator: "\n")
+        return MermaidExtractor.stripMermaidBlocks(from: raw)
     }
 
     var body: some View {

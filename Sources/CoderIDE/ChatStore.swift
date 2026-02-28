@@ -8,6 +8,26 @@ struct PlanAttachment: Codable, Equatable {
     var snapshotTitle: String
 }
 
+/// Lightweight, codable snapshot of a subagent card persisted inside a ChatMessage.
+struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
+    var id: String { swarmId }
+    let swarmId: String
+    let status: SwarmCardStatus
+    let title: String
+    let detail: String
+    let summary: String?
+    let errorCount: Int
+
+    init(from card: SwarmLiveCardState) {
+        self.swarmId = card.swarmId
+        self.status = card.status == .running ? .failed : card.status
+        self.title = card.currentStepTitle
+        self.detail = card.currentDetail
+        self.summary = card.summary
+        self.errorCount = card.errorCount
+    }
+}
+
 enum ChatAttachmentKind: String, Codable {
     case image
     case document
@@ -51,6 +71,7 @@ struct ChatMessage: Identifiable, Codable {
     var attachments: [ChatAttachment]?
     var planAttachment: PlanAttachment?
     var reasoningText: String?
+    var subagentCards: [SubagentCardSnapshot]?
 
     enum Role: String, Codable {
         case user
@@ -89,7 +110,7 @@ struct ChatMessage: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, role, content, isStreaming, imagePaths, attachments, planAttachment, reasoningText
+        case id, role, content, isStreaming, imagePaths, attachments, planAttachment, reasoningText, subagentCards
     }
 
     init(from decoder: Decoder) throws {
@@ -116,6 +137,7 @@ struct ChatMessage: Identifiable, Codable {
         }
         planAttachment = try? c.decode(PlanAttachment.self, forKey: .planAttachment)
         reasoningText = try? c.decode(String.self, forKey: .reasoningText)
+        subagentCards = try? c.decode([SubagentCardSnapshot].self, forKey: .subagentCards)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -131,6 +153,7 @@ struct ChatMessage: Identifiable, Codable {
             .map(\.localPath)
         try c.encodeIfPresent(legacyImagePaths, forKey: .imagePaths)
         try c.encodeIfPresent(reasoningText, forKey: .reasoningText)
+        try c.encodeIfPresent(subagentCards, forKey: .subagentCards)
     }
 }
 
@@ -396,15 +419,21 @@ final class ChatStore: ObservableObject {
             })
         }
 
+        let conversationIds = Set(conversations.map(\.id))
+        let prune: ([UUID: PlanBoard]) -> [UUID: PlanBoard] = { boards in
+            boards.filter { conversationIds.contains($0.key) }
+        }
+
         if data.count < Self.asyncLoadThreshold {
-            if let boards = decode() { planBoards = boards }
+            if let boards = decode() { planBoards = prune(boards) }
             return
         }
 
         Task.detached(priority: .userInitiated) {
             guard let boards = decode() else { return }
             await MainActor.run {
-                self.planBoards.merge(boards) { existing, _ in existing }
+                let pruned = prune(boards)
+                self.planBoards.merge(pruned) { existing, _ in existing }
             }
         }
     }
@@ -802,6 +831,14 @@ final class ChatStore: ObservableObject {
         // Mutate in-place to avoid creating intermediate array copies on every streaming token.
         conversations[idx].messages[lastIdx].content = resolvedContent
         if persistImmediately { saveConversations() }
+    }
+
+    func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conversationId: UUID?) {
+        guard !cards.isEmpty else { return }
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        conversations[idx].messages[lastIdx].subagentCards = cards
+        saveConversations()
     }
 
     func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
@@ -1235,24 +1272,38 @@ final class ChatStore: ObservableObject {
             .filter(\.isPlanCanonical)
             .sorted(by: { $0.createdAt < $1.createdAt })
 
-        let steps = PlanBoard.buildSteps(
-            fromTodoTitles: canonicalTodos.map(\.title),
-            statusForIndex: { index in
-                guard canonicalTodos.indices.contains(index) else { return .pending }
-                switch canonicalTodos[index].status {
-                case .pending:
-                    return .pending
-                case .inProgress:
-                    return .running
-                case .done:
-                    return .done
-                case .blocked:
-                    return .failed
-                }
-            }
-        )
+        // Don't replace steps with a placeholder when todos are empty —
+        // this preserves existing step data during transient clear operations.
+        guard !canonicalTodos.isEmpty else { return }
 
-        board.steps = steps
+        // Merge into existing steps: update status for matched titles,
+        // preserve existing step IDs and metadata (targetFile, description).
+        var updatedSteps = board.steps
+        for todo in canonicalTodos {
+            let todoStatus: PlanStepStatus = {
+                switch todo.status {
+                case .pending: return .pending
+                case .inProgress: return .running
+                case .done: return .done
+                case .blocked: return .failed
+                }
+            }()
+            if let idx = updatedSteps.firstIndex(where: {
+                $0.title.caseInsensitiveCompare(todo.title) == .orderedSame
+            }) {
+                updatedSteps[idx].status = todoStatus
+            } else {
+                updatedSteps.append(PlanStep(
+                    id: String(updatedSteps.count + 1),
+                    title: todo.title,
+                    description: todo.title,
+                    targetFile: nil,
+                    status: todoStatus
+                ))
+            }
+        }
+
+        board.steps = updatedSteps
         board.updatedAt = .now
         planBoards[conversationId] = board
         savePlanBoards()

@@ -184,11 +184,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     // after the current stream round ends.
                                     if name.hasPrefix("subagent_") {
                                         pendingSubagentCalls.append((marker: marker, name: name))
-                                        // Emit a pending event so the UI knows a subagent is queued
+                                        let toolCallId = marker.payload["id"] ?? UUID().uuidString
                                         continuation.yield(.raw(type: "agent", payload: [
                                             "title": SubagentRole.fromToolName(name)?.displayName ?? name,
                                             "detail": "queued",
-                                            "swarm_id": "\(name)-pending",
+                                            "swarm_id": "queued-\(toolCallId)",
+                                            "tool_call_id": toolCallId,
                                             "status": "queued"
                                         ]))
                                     } else {
@@ -485,7 +486,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     }
 
     private func markerDedupeKey(_ marker: CoderIDEMarker) -> String {
-        if marker.kind != "tool_call", let id = marker.payload["id"], !id.isEmpty {
+        if marker.kind == "tool_call", let id = marker.payload["id"], !id.isEmpty {
             return "\(marker.kind)|id=\(id)"
         }
         let stablePayload = marker.payload
@@ -1208,23 +1209,38 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **show_task_panel** — Show the task panel. No required args.
         - **show_swarm_panel** — Open/focus swarm panel. Args: `swarm_id` (optional).
 
-        ### Subagent Tools (delegate specialized work to parallel subagents)
-        - **subagent_explorer** — Spawn a read-only exploration subagent. It can search, read, and analyze code but CANNOT edit files. Use when you need to investigate a different part of the codebase while continuing your main work. You can call MULTIPLE explorers in the same round — they execute in parallel. Args: `task` (description of what to explore).
-        - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Use for independent coding tasks in different modules. Args: `task`.
-        - **subagent_reviewer** — Spawn a code review subagent. It reviews code quality, bugs, style. Args: `task`.
-        - **subagent_debugger** — Spawn a debugger subagent. It investigates and fixes bugs. Args: `task`.
+        ### Subagent Tools — MANDATORY PARALLEL EXECUTION (you MUST use these)
+        - **subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
+        - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
+        - **subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.
+        - **subagent_debugger** — Spawn a debugger subagent. Investigates and fixes bugs. Args: `task`.
         - **subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
         - **subagent_docWriter** — Spawn a documentation subagent. Args: `task`.
         - **subagent_securityAuditor** — Spawn a security audit subagent. Args: `task`.
 
-        **Subagent guidelines:**
-        - Subagents run on DIFFERENT backends (Codex, Claude, Gemini, OpenAI, Anthropic, Google, OpenRouter, MiniMax, Grok, etc.) in parallel — USE THEM. Call 2–5 subagents in the SAME round to maximize throughput and diverse perspectives.
-        - Use subagents for investigation, review, testing, docs, security checks — not just for simple tasks you can do directly.
-        - Explorer subagents are lightweight (read-only) — use them freely for parallel codebase exploration.
-        - Multiple subagent calls in the same round execute in PARALLEL automatically on different backends.
-        - Each subagent runs to completion and returns its results to you in the next round.
-        - Never call subagents after you've already completed the work — call them DURING your work.
-        - IMPORTANT: After subagent results return, immediately update todos via todo_write. Mark the corresponding todo as "done" if the subagent succeeded, or "blocked" if it failed. Then continue with remaining work and provide a final summary only at the end.
+        ⚠️ MANDATORY PARALLEL EXECUTION POLICY — NON-NEGOTIABLE ⚠️
+        - You are the ORCHESTRATOR. You COORDINATE and DELEGATE — you do NOT do implementation work yourself.
+        - Subagents run on DIFFERENT backends (Codex, Claude, Gemini, OpenAI, Anthropic, Google, OpenRouter, MiniMax, Grok) in PARALLEL. Each call in the same round goes to a different backend automatically.
+        - You MUST call 2–5 subagents in the SAME round for ANY task with multiple independent parts.
+        - You MUST spawn subagents in your FIRST tool round. Do NOT waste rounds doing manual grep/read/edit.
+        - Explorer subagents are lightweight (read-only) — spawn them freely and in bulk (2–3 per round).
+        - For implementation: spawn multiple subagent_coder instances, each assigned to a different file or module.
+        - AFTER implementation: you MUST spawn subagent_reviewer + subagent_testWriter in parallel. This is mandatory.
+        - NEVER do work sequentially that can be parallelized across subagents.
+        - After subagent results return, immediately update todos via todo_write.
+
+        CORRECT pattern (3 rounds, maximum parallelism):
+          Round 1: subagent_explorer("investigate data model") + subagent_explorer("investigate UI layer") + subagent_explorer("investigate tests")
+          Round 2: TodoWrite → subagent_coder("implement model changes") + subagent_coder("implement UI changes")
+          Round 3: subagent_reviewer("review all changes") + subagent_testWriter("write tests for changes")
+
+        WRONG pattern (sequential, no parallelism):
+          Round 1: grep for files...
+          Round 2: read file A...
+          Round 3: read file B...
+          Round 4: edit file A...
+          Round 5: edit file B...
+          This is FORBIDDEN. Use subagents instead.
         """
     }
 
@@ -1412,10 +1428,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 executionScope: .swarm
             )
 
+            let subagentPolicy: ToolRuntimePolicy = role.canEditFiles ? policy : ToolRuntimePolicy(
+                sandboxMode: "workspace-read",
+                askForApproval: policy.askForApproval,
+                timeoutMs: policy.timeoutMs,
+                maxToolCallsPerRound: policy.maxToolCallsPerRound,
+                maxRepeatedSameToolPerRound: policy.maxRepeatedSameToolPerRound,
+                maxBashOutputBytes: policy.maxBashOutputBytes,
+                maxReadBytesPerFile: policy.maxReadBytesPerFile,
+                allowDangerousShellPatterns: false,
+                enableMCP: policy.enableMCP,
+                enforceMCPEditOnly: policy.enforceMCPEditOnly,
+                mcpPerCallTimeoutMs: policy.mcpPerCallTimeoutMs,
+                mcpSessionIdleTTLSeconds: policy.mcpSessionIdleTTLSeconds
+            )
             let subagentProvider = ToolEnabledLLMProvider(
                 base: subagentBase,
                 runtime: subagentRuntime,
-                policy: policy,
+                policy: subagentPolicy,
                 executionScope: .swarm,
                 maxToolRounds: role.maxToolRounds,
                 subagentProviderFactory: nil  // no nested subagents
@@ -1466,7 +1496,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 "title": "\(role.displayName) completed",
                 "detail": "\(role.displayName) subagent completed in \(durationMs)ms",
                 "output": output,
-                "status": "success",
+                "status": "completed",
                 "subagent_id": subagentId,
                 "role": role.rawValue,
                 "duration_ms": "\(durationMs)"

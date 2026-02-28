@@ -29,6 +29,9 @@ enum SwarmLiveReducer {
         guard let owner = ownerSwarmId(for: activity, includeOrchestratorFallback: true) else {
             return
         }
+        // Skip transient "queued" placeholders — they use temporary IDs
+        // that won't match the real subagent started/completed events.
+        if owner.hasPrefix("queued-") { return }
 
         var card = cards[owner] ?? SwarmLiveCardState(swarmId: owner)
         let dedupeKey = dedupeKey(for: activity, owner: owner)
@@ -53,6 +56,8 @@ enum SwarmLiveReducer {
         if !isDuplicate {
             if activity.isRunning {
                 card.activeOpsCount += 1
+            } else if card.activeOpsCount > 0 {
+                card.activeOpsCount -= 1
             }
             if isErrorEvent(activity) {
                 card.errorCount += 1
@@ -212,7 +217,7 @@ enum SwarmLiveReducer {
     }
 
     private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {
-        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 10)
+        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 100)
         let status = (activity.payload["status"] ?? "").lowercased()
         let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
         return [

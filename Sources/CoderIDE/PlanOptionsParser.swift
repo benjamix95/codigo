@@ -466,7 +466,7 @@ private static let optionHeaderPattern =
             return true
         }
         let numberedLinePattern = #"(?im)^\s*(?:\d+|[A-Za-z])[.)]\s+"#
-        let checklistPattern = #"(?im)^\s*[-*•]\s*\[[ xX ]?\]?"#
+        let checklistPattern = #"(?im)^\s*[-*•]\s*\[[ xX ]?\]"#
         var inFence = false
         let lines = text.components(separatedBy: .newlines)
         let filteredLines = lines.filter { line in
@@ -606,8 +606,11 @@ private static let optionHeaderPattern =
         }
 
         // 1) Dedicated task section ("## Todo", "Tasks", "Next steps", ...)
+        var inFence = false
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isFenceDelimiter(trimmed) { inFence.toggle(); continue }
+            if inFence { continue }
             if trimmed.range(of: taskHeaderPattern, options: .regularExpression) != nil {
                 inTaskSection = true
                 continue
@@ -623,8 +626,11 @@ private static let optionHeaderPattern =
         if !todos.isEmpty { return todos }
 
         // 2) Explicit checklist anywhere in the option body.
+        inFence = false
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isFenceDelimiter(trimmed) { inFence.toggle(); continue }
+            if inFence { continue }
             if let checklist = parseTaskLine(trimmed, allowPlainBullets: false) {
                 appendTodo(checklist)
             }
@@ -632,10 +638,13 @@ private static let optionHeaderPattern =
         if !todos.isEmpty { return todos }
 
         // 3) Fallback: pick the largest contiguous numbered/bulleted steps block.
+        inFence = false
         var bestBlock: [String] = []
         var currentBlock: [String] = []
         for line in lines + [""] {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isFenceDelimiter(trimmed) { inFence.toggle(); continue }
+            if inFence { continue }
             if let parsed = parseTaskLine(trimmed, allowPlainBullets: true) {
                 currentBlock.append(parsed)
             } else {
@@ -671,8 +680,15 @@ private static let optionHeaderPattern =
         // Drop the title line itself to avoid it appearing in both title and body.
         var bodyLines = lines
         bodyLines.remove(at: titleIndex)
-        let body = bodyLines.prefix(20).joined(separator: "\n")
+        let rawBody = bodyLines.prefix(20).joined(separator: "\n")
+        let body = MermaidExtractor.stripMermaidBlocks(from: rawBody)
         return (title.isEmpty ? "Plan" : title, body)
+    }
+
+    static func extractFirstMermaidBlockForDisplay(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return MermaidExtractor.extractFirstMermaidBlock(from: text)
     }
 
     static func extractMermaidBlocksForDisplay(_ text: String) -> [String] {

@@ -514,25 +514,16 @@ final class TodoStore: ObservableObject {
     }
 
     func clear() {
-        let canonicals = todos.filter(\.isPlanCanonical)
         todos.removeAll()
         saveTodos()
-        for todo in canonicals {
-            onCanonicalTodoStatusChange?(todo.title, .pending)
-        }
     }
 
     func clearAgentTodos(includePlanCanonical: Bool = false) {
-        var removedCanonicals: [TodoItem] = []
         if includePlanCanonical {
-            removedCanonicals = todos.filter { $0.source == .agent && $0.isPlanCanonical }
             todos.removeAll { $0.source == .agent }
         } else {
             todos.removeAll { $0.source == .agent && !$0.isPlanCanonical }
         }
         saveTodos()
-        for todo in removedCanonicals {
-            onCanonicalTodoStatusChange?(todo.title, .pending)
-        }
     }
 }
