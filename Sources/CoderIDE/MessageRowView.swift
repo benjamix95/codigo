@@ -306,21 +306,20 @@ struct MessageRow: View {
     }
 
     private var streamingBar: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(modeColor)
-                .frame(width: 5, height: 5)
-            Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
+        let status = streamingStatusText.isEmpty ? "Thinking" : streamingStatusText
+        return HStack(spacing: 6) {
+            Text(status)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .textShimmer(active: true)
             if let detail = streamingDetailText, !detail.isEmpty {
                 Text("·")
-                    .foregroundStyle(.quaternary)
+                    .foregroundStyle(.secondary)
                 Text(detail)
                     .font(.system(size: 10))
-                    .foregroundStyle(.quaternary)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .textShimmer(active: true)
             }
             Spacer()
         }
@@ -507,7 +506,7 @@ struct ThinkingBlockView: View {
     private var thinkingTextColor: Color { .primary.opacity(0.38) }
     private var headerTextColor: Color { .primary.opacity(0.32) }
 
-    private var isShowingContent: Bool { isLiveStreaming || isExpanded }
+    private var isShowingContent: Bool { isExpanded }
 
     private var previewLine: String {
         let first = text.components(separatedBy: .newlines)
@@ -518,7 +517,6 @@ struct ThinkingBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                guard !isLiveStreaming else { return }
                 withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
             } label: {
                 HStack(spacing: 5) {

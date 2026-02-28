@@ -17,6 +17,10 @@ public struct ClaudeStatus: Sendable {
 
 /// Rileva installazione e stato login di Claude Code CLI
 public enum ClaudeDetector {
+    private static let cacheLock = NSLock()
+    private static var cliAvailableCache: [String: (result: Bool, date: Date)] = [:]
+    private static let cacheTTL: TimeInterval = 60
+
     private static var claudeHome: String {
         ProcessInfo.processInfo.environment["CLAUDE_HOME"] ?? "\(NSHomeDirectory())/.claude"
     }
@@ -68,8 +72,17 @@ public enum ClaudeDetector {
         return false
     }
 
-    /// Esegue `claude --version` e ritorna true se il CLI è funzionante
+    /// Esegue `claude --version` e ritorna true se il CLI è funzionante.
+    /// Usa cache (60s) per evitare blocchi ripetuti del main thread.
     public static func checkCLIAvailable(claudePath: String) -> Bool {
+        cacheLock.lock()
+        if let cached = cliAvailableCache[claudePath], Date().timeIntervalSince(cached.date) < cacheTTL {
+            let result = cached.result
+            cacheLock.unlock()
+            return result
+        }
+        cacheLock.unlock()
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claudePath)
         process.arguments = ["--version"]
@@ -79,8 +92,15 @@ public enum ClaudeDetector {
         do {
             try process.run()
             process.waitUntilExit()
-            return process.terminationStatus == 0
+            let result = process.terminationStatus == 0
+            cacheLock.lock()
+            cliAvailableCache[claudePath] = (result, Date())
+            cacheLock.unlock()
+            return result
         } catch {
+            cacheLock.lock()
+            cliAvailableCache[claudePath] = (false, Date())
+            cacheLock.unlock()
             return false
         }
     }

@@ -222,7 +222,13 @@ final class TaskActivityStore: ObservableObject {
         }
 
         // When the last tool call completed, the model is deciding what to do next.
+        // Show "Planning next move" only briefly — after a few seconds, switch to "Thinking"
+        // so the status doesn't appear stuck while the model generates text or the next tool.
         if !last.isRunning {
+            let elapsed = Date().timeIntervalSince(last.timestamp)
+            if elapsed > 3 {
+                return "Thinking"
+            }
             return "Planning next move"
         }
 

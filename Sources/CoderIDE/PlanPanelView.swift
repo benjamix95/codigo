@@ -105,6 +105,8 @@ struct PlanPanelView: View {
     @State private var historySelectionVersion = 0
     /// Override provider for plan execution (nil = use conversation/global default)
     @State private var planProviderId: String?
+    /// Cached auth per provider — populated async to avoid blocking main thread on isAuthenticated().
+    @State private var providerAuthCache: [String: Bool] = [:]
     /// Reference-type cache to avoid mutating @State during body evaluation.
     private final class SnapshotCache {
         var key: String = ""
@@ -237,7 +239,10 @@ struct PlanPanelView: View {
             walkthroughExpanded = false
             planProviderId = nil
             didAutoSelectSingleOption = false
+            refreshProviderAuthCache()
         }
+        .onChange(of: providerRegistry.selectedProviderId) { _, _ in refreshProviderAuthCache() }
+        .onChange(of: planProviderId) { _, _ in refreshProviderAuthCache() }
         .onChange(of: conversationId) { _, _ in
             // New conversation => plan panel should immediately reflect the new context.
             planText = ""
@@ -335,12 +340,13 @@ struct PlanPanelView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(Array(allowedProviders.enumerated()), id: \.element.id) { _, provider in
+                    let isAuth = providerAuthCache[provider.id] == true
                     Button {
                         planProviderId = provider.id
                     } label: {
                         HStack {
                             Text(provider.displayName)
-                            if !provider.isAuthenticated() {
+                            if !isAuth {
                                 Text("Not Auth")
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(.secondary)
@@ -358,7 +364,7 @@ struct PlanPanelView: View {
                         }
                     }
                     .disabled(
-                        !provider.isAuthenticated()
+                        !isAuth
                             || !ProviderSupport.isPlanBuildExecutionCapableProvider(
                                 id: provider.id,
                                 registry: providerRegistry
@@ -397,19 +403,19 @@ struct PlanPanelView: View {
         if let override = planProviderId,
            isPlanExecutionProviderIdAllowed(override),
            ProviderSupport.isPlanBuildExecutionCapableProvider(id: override, registry: providerRegistry),
-           providerRegistry.provider(for: override)?.isAuthenticated() == true {
+           providerAuthCache[override] == true {
             return override
         }
         if let selected = providerRegistry.selectedProviderId,
            isPlanExecutionProviderIdAllowed(selected),
            ProviderSupport.isPlanBuildExecutionCapableProvider(id: selected, registry: providerRegistry),
-           providerRegistry.provider(for: selected)?.isAuthenticated() == true {
+           providerAuthCache[selected] == true {
             return selected
         }
         if let firstAuthenticated = providerRegistry.providers.first(where: {
             isPlanExecutionProviderIdAllowed($0.id)
                 && ProviderSupport.isPlanBuildExecutionCapableProvider(id: $0.id, registry: providerRegistry)
-                && $0.isAuthenticated()
+                && providerAuthCache[$0.id] == true
         }) {
             return firstAuthenticated.id
         }
@@ -426,13 +432,28 @@ struct PlanPanelView: View {
 
     private var isActiveProviderExecutionCapable: Bool {
         guard isPlanExecutionProviderIdAllowed(activeProviderId) else { return false }
-        guard providerRegistry.provider(for: activeProviderId)?.isAuthenticated() == true else {
-            return false
-        }
+        guard providerAuthCache[activeProviderId] == true else { return false }
         return ProviderSupport.isPlanBuildExecutionCapableProvider(
             id: activeProviderId,
             registry: providerRegistry
         )
+    }
+
+    private func refreshProviderAuthCache() {
+        let ids = providerRegistry.providers
+            .filter { isPlanExecutionProviderIdAllowed($0.id) }
+            .map(\.id)
+        guard !ids.isEmpty else { return }
+        Task.detached(priority: .userInitiated) {
+            var cache: [String: Bool] = [:]
+            for id in ids {
+                if let p = await MainActor.run(body: { providerRegistry.provider(for: id) }) {
+                    cache[id] = p.isAuthenticated()
+                }
+            }
+            let result = cache
+            await MainActor.run { providerAuthCache = result }
+        }
     }
 
     @ViewBuilder

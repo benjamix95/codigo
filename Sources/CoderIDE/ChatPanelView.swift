@@ -1674,12 +1674,16 @@ struct ChatPanelView: View {
             planFlowPhase = .idle
             return
         }
-        // If a plan build is actively running for this conversation, restore .building
+        // If a plan build is actively running for this conversation, restore .building.
         // Don't clear plan context — the background task still needs it.
-        if activeBuildPlanConversationId == conversationId
-            || chatStore.isTaskActive(for: conversationId) {
+        if activeBuildPlanConversationId == conversationId {
             planFlowPhase = .building
             planningState = .idle
+            return
+        }
+        // If a non-build task is active (e.g., plan generation phases 1–3),
+        // preserve the current planFlowPhase — the running task manages it.
+        if chatStore.isTaskActive(for: conversationId) {
             return
         }
         // No active flow — safe to reset per-flow context
@@ -5400,6 +5404,31 @@ struct ChatPanelView: View {
                         conversationId: targetConversationId,
                         shouldRunPlanInline: shouldRunPlanInline
                     )
+                    // Safety net: if the flow returned without advancing to a terminal
+                    // state (e.g., early return from a conversation-ID guard), reset the
+                    // phase so the user isn't permanently stuck.
+                    // Exception: .questioning + .awaitingClarification is a legitimate
+                    // pause — the user needs to answer before the flow continues.
+                    await MainActor.run {
+                        let isPausedForClarification: Bool = {
+                            if case .awaitingClarification = planningState { return true }
+                            return false
+                        }()
+                        switch planFlowPhase {
+                        case .analyzing, .generating:
+                            NSLog("[PlanFlow] Safety reset: planFlowPhase was still %@ after runMultiTurnPlanFlow returned", String(describing: planFlowPhase))
+                            planFlowPhase = .idle
+                            planningState = .idle
+                            clearPlanStreamingState()
+                        case .questioning where !isPausedForClarification:
+                            NSLog("[PlanFlow] Safety reset: planFlowPhase was .questioning without awaitingClarification")
+                            planFlowPhase = .idle
+                            planningState = .idle
+                            clearPlanStreamingState()
+                        default:
+                            break
+                        }
+                    }
                 } else {
                     // Standard single-stream flow (non-plan modes + plan build)
                     let streamResult = try await flowCoordinator.runStream(
@@ -5456,9 +5485,16 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }
                 }
-                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state
+                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state.
+                // Also reset if conversation changed but phase is stuck in a progress state.
                 await MainActor.run {
-                    if targetConversationId == self.conversationId {
+                    let isStuckInProgress: Bool = {
+                        switch planFlowPhase {
+                        case .analyzing, .questioning, .generating: return true
+                        default: return false
+                        }
+                    }()
+                    if targetConversationId == self.conversationId || isStuckInProgress {
                         planFlowPhase = .idle
                         planningState = .idle
                         clearPlanStreamingState()
@@ -5488,7 +5524,16 @@ struct ChatPanelView: View {
             clearPlanStreamingState()
             return true
         }
-        guard shouldStartPhase1 else { return }
+        guard shouldStartPhase1 else {
+            // Conversation changed before Phase 1 could start — reset stuck phase.
+            await MainActor.run {
+                if planFlowPhase == .analyzing {
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
+            }
+            return
+        }
 
         let analysisPrompt = buildPhase1AnalysisPrompt(userRequest: planUserRequest)
         let analysisResult = try await flowCoordinator.runStream(
@@ -5581,7 +5626,16 @@ struct ChatPanelView: View {
             )
             return true
         }
-        guard shouldStartPhase2 else { return }
+        guard shouldStartPhase2 else {
+            // Conversation changed before Phase 2 — reset stuck phase.
+            await MainActor.run {
+                if planFlowPhase == .questioning || planFlowPhase == .analyzing {
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
+            }
+            return
+        }
 
         let questionPrompt = buildPhase2QuestionPrompt(
             userRequest: planUserRequest,
@@ -5688,7 +5742,16 @@ struct ChatPanelView: View {
             )
             return true
         }
-        guard shouldStartPhase3 else { return }
+        guard shouldStartPhase3 else {
+            // Conversation changed before Phase 3 — reset stuck phase.
+            await MainActor.run {
+                if planFlowPhase == .generating || planFlowPhase == .analyzing {
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
+            }
+            return
+        }
 
         let generationPrompt = buildPhase3GenerationPrompt(
             userRequest: planUserRequest,
@@ -5819,7 +5882,14 @@ struct ChatPanelView: View {
             }
 
             await MainActor.run {
-                guard self.conversationId == conversationId else { return }
+                guard self.conversationId == conversationId else {
+                    // Conversation changed — clean up stuck generating phase.
+                    if planFlowPhase == .generating {
+                        planFlowPhase = .idle
+                        planningState = .idle
+                    }
+                    return
+                }
                 planFlowPhase = .proposalReady
                 planningState = .awaitingChoice(planContent: full, options: compliantOptions)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
@@ -5836,10 +5906,12 @@ struct ChatPanelView: View {
                 persistImmediately: true
             )
             await MainActor.run {
-                guard self.conversationId == conversationId else { return }
-                clearPlanStreamingState()
-                planFlowPhase = .idle
-                planningState = .idle
+                // Always reset on failure, even if conversation changed.
+                if self.conversationId == conversationId || planFlowPhase == .generating {
+                    clearPlanStreamingState()
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
             }
         }
     }
@@ -5930,9 +6002,16 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }
                 }
-                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state
+                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state.
+                // Also reset if conversation changed but phase is stuck in a progress state.
                 await MainActor.run {
-                    if targetConversationId == self.conversationId {
+                    let isStuckInProgress: Bool = {
+                        switch planFlowPhase {
+                        case .analyzing, .questioning, .generating: return true
+                        default: return false
+                        }
+                    }()
+                    if targetConversationId == self.conversationId || isStuckInProgress {
                         planFlowPhase = .idle
                         planningState = .idle
                         clearPlanStreamingState()
@@ -5967,7 +6046,16 @@ struct ChatPanelView: View {
             )
             return true
         }
-        guard shouldStartReanalysis else { return }
+        guard shouldStartReanalysis else {
+            // Conversation changed before post-clarification reanalysis — reset stuck phase.
+            await MainActor.run {
+                if planFlowPhase == .analyzing {
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
+            }
+            return
+        }
 
         let reAnalysisPrompt = buildPostClarificationAnalysisPrompt(
             userRequest: planUserRequest,
@@ -6051,7 +6139,16 @@ struct ChatPanelView: View {
             clearPlanStreamingState()
             return true
         }
-        guard shouldProceedPhase3 else { return }
+        guard shouldProceedPhase3 else {
+            // Conversation changed before Phase 3 — reset stuck phase.
+            await MainActor.run {
+                if planFlowPhase == .analyzing || planFlowPhase == .questioning {
+                    planFlowPhase = .idle
+                    planningState = .idle
+                }
+            }
+            return
+        }
 
         try await runPlanFlowPhase3(
             provider: provider,
