@@ -35,14 +35,11 @@ enum PromptToolsPolicy {
     - For multi-step tasks, plan your approach first, then execute systematically.
     - Prefer structured tools (read_range, list_dir, git_diff, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search) over raw bash when available.
     - If "Detected local skills" or AGENTS.md/SKILL.md are in the context, USE the `skill` tool when the task matches. Example: doc for DOCX, imagegen for images, transcribe for audio. Do NOT skip — invoke the skill.
-    - MCP flow is mandatory when MCP tools are available and external/domain actions are involved:
-      1) call `mcp_list_servers` first to verify availability,
-      2) call `mcp_list_tools` for relevant servers,
-      3) call `mcp_describe_tool` before first use of an unfamiliar tool,
-      4) execute with `mcp_call`.
-    - When you use MCP, state explicitly which MCP servers and MCP tools you used.
+    - MCP tools from connected servers are registered as native function tools — call them directly by name, no discovery needed.
+    - Use `mcp_call` only for tools that aren't registered natively. Use `mcp_list_tools` only if you need to discover additional tools at runtime.
+    - If a native MCP tool call fails, try `mcp_reconnect` for the server, then retry.
     - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
-    - For debug panel control, use typed MCP tools only: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
+    - For debug panel control, use typed tools: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
     Mandatory execution workflow — follow this sequence for every task:
     1. INVESTIGATE VIA SUBAGENTS (MANDATORY): Spawn 2–3 subagent_explorer in PARALLEL to investigate different areas of the codebase simultaneously. Do NOT manually grep/read across multiple files yourself — delegate to explorers. Each explorer investigates a different aspect (e.g., one explores the data model, another explores the UI layer, another explores tests). Only use direct tools (grep/read) for quick single-file lookups while waiting for subagent results.

@@ -13,11 +13,10 @@ struct MessageToolTraceView: View {
     @State private var loadingPreviewIds: Set<UUID> = []
     @State private var isCompactDiffExpanded = false
     @State private var isCompactDiffLoading = false
+    @State private var isHoveringHeader = false
 
-    private let runningCompactLimit = 6
+    private let runningCompactLimit = 8
 
-    /// Precomputed derived state from `events` + `isExpanded`.
-    /// Avoids recomputing orderedEvents 5-10x per render cycle.
     private struct DerivedState {
         let orderedEvents: [ToolTraceEvent]
         let hasRunningEvent: Bool
@@ -28,6 +27,8 @@ struct MessageToolTraceView: View {
         let fileAddedTotal: Int
         let fileRemovedTotal: Int
         let genericDisplayEvents: [ToolTraceEvent]
+        let totalDurationMs: Int
+        let errorCount: Int
 
         init(events: [ToolTraceEvent], isExpanded: Bool, runningCompactLimit: Int, collapser: ([ToolTraceEvent]) -> [ToolTraceEvent]) {
             let filtered = events
@@ -44,7 +45,6 @@ struct MessageToolTraceView: View {
             if isExpanded {
                 displayEvents = ordered
             } else {
-                // Always show last N events in compact mode (running or completed)
                 displayEvents = Array(ordered.suffix(runningCompactLimit))
             }
             hiddenEventsCount = max(0, ordered.count - displayEvents.count)
@@ -56,10 +56,18 @@ struct MessageToolTraceView: View {
             } else {
                 genericDisplayEvents = displayEvents
             }
+            totalDurationMs = ordered.compactMap { Int($0.payload["duration_ms"] ?? "") }.reduce(0, +)
+            errorCount = ordered.filter { Self.isErrorEvent($0) }.count
+        }
+
+        private static func isErrorEvent(_ event: ToolTraceEvent) -> Bool {
+            let type = event.type.lowercased()
+            return type.contains("error") || type.contains("failed") || type == "tool_timeout"
+                || type == "permission_denied"
+                || (event.payload["status"] ?? "").lowercased() == "failed"
         }
     }
 
-    /// Cached derived state – recomputed only when events count or isExpanded changes.
     @State private var cachedDerived: DerivedState?
     @State private var lastDerivedEventCount: Int = -1
     @State private var lastDerivedIsExpanded: Bool = false
@@ -92,38 +100,27 @@ struct MessageToolTraceView: View {
 
     var body: some View {
         let derived = currentDerived()
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 0) {
             headerView(derived: derived)
-                .padding(.bottom, derived.shouldShowRows ? 2 : 4)
 
             if derived.shouldShowRows {
-                if isExpanded, !derived.fileChanges.isEmpty {
-                    fileChangesSectionView(derived: derived)
-                        .padding(.leading, 22)
-                        .padding(.trailing, 4)
-                        .padding(.bottom, 4)
-                }
+                VStack(alignment: .leading, spacing: 0) {
+                    if derived.hiddenEventsCount > 0 && !isExpanded {
+                        hiddenEventsButton(count: derived.hiddenEventsCount)
+                    }
 
-                ForEach(Array(derived.genericDisplayEvents.enumerated()), id: \.element.id) { index, event in
-                    traceRow(event, displayIndex: index + 1, compactMode: !isExpanded)
-                }
+                    ForEach(Array(derived.genericDisplayEvents.enumerated()), id: \.element.id) { index, event in
+                        traceRow(event, displayIndex: index + 1 + derived.hiddenEventsCount, compactMode: !isExpanded, derived: derived)
+                    }
 
-                if derived.hiddenEventsCount > 0 && !isExpanded {
-                    Text("+\(derived.hiddenEventsCount) previous operations")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .padding(.leading, 30)
-                        .padding(.top, 2)
+                    if isExpanded, !derived.fileChanges.isEmpty {
+                        fileChangesSectionView(derived: derived)
+                            .padding(.top, 4)
+                    }
                 }
-            } else if !derived.orderedEvents.isEmpty {
-                Text(collapsedSummaryText(derived: derived))
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .lineLimit(1)
-                    .padding(.leading, 22)
+                .padding(.leading, 20)
             }
         }
-        .padding(.horizontal, 2)
         .padding(.vertical, 2)
         .frame(maxWidth: 760, alignment: .leading)
         .onAppear {
@@ -145,6 +142,8 @@ struct MessageToolTraceView: View {
         }
     }
 
+    // MARK: - Header
+
     private func headerView(derived: DerivedState) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.15)) {
@@ -156,279 +155,159 @@ struct MessageToolTraceView: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "list.bullet.rectangle")
-                    .font(.system(size: 10, weight: .semibold))
+            HStack(spacing: 6) {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text("Tool operations")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                Text("\(derived.orderedEvents.count)")
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .frame(width: 12)
+
                 if derived.hasRunningEvent {
-                    Text("running")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                } else if !derived.orderedEvents.isEmpty {
-                    Text("completed")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    ProgressView()
+                        .controlSize(.mini)
+                        .scaleEffect(0.7)
+                        .frame(width: 12, height: 12)
+                } else if derived.errorCount > 0 {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignSystem.Colors.warning)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignSystem.Colors.success.opacity(0.7))
                 }
+
+                Text(headerTitle(derived: derived))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
                 Spacer(minLength: 0)
-                if derived.hasRunningEvent && derived.hiddenEventsCount > 0 && !isExpanded {
-                    Text("last \(derived.displayEvents.count)")
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+
+                if derived.fileAddedTotal > 0 || derived.fileRemovedTotal > 0 {
+                    HStack(spacing: 3) {
+                        Text("+\(derived.fileAddedTotal)")
+                            .foregroundStyle(DesignSystem.Colors.success)
+                        Text("-\(derived.fileRemovedTotal)")
+                            .foregroundStyle(DesignSystem.Colors.error)
+                    }
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                 }
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+
+                if derived.totalDurationMs > 0 && !derived.hasRunningEvent {
+                    Text(formatDuration(derived.totalDurationMs))
+                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHoveringHeader = $0 }
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(isHoveringHeader ? DesignSystem.Colors.backgroundSecondary.opacity(0.5) : Color.clear)
+        )
+    }
+
+    private func headerTitle(derived: DerivedState) -> String {
+        let count = derived.orderedEvents.count
+        if derived.hasRunningEvent {
+            return "\(count) \(pluralized("operation", count: count)) running..."
+        }
+        if !derived.orderedEvents.isEmpty {
+            return collapsedSummaryText(derived: derived)
+        }
+        return "Tool operations"
+    }
+
+    // MARK: - Hidden Events
+
+    private func hiddenEventsButton(count: Int) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) {
+                isExpanded = true
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "ellipsis")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                Text("\(count) more \(pluralized("operation", count: count))")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
-            .contentShape(Rectangle())
+            .padding(.vertical, 3)
+            .padding(.horizontal, 6)
         }
         .buttonStyle(.plain)
     }
 
-    private func fileChangesSectionView(derived: DerivedState) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.badge.gearshape")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text("Files changed \(derived.fileChanges.count)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                Text("+\(derived.fileAddedTotal)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.success)
-                Text("-\(derived.fileRemovedTotal)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.error)
-                Spacer(minLength: 0)
-            }
-            .padding(.bottom, 2)
-
-            if let compactDiff = compactDiffPreview(fileChanges: derived.fileChanges) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.12)) {
-                            isCompactDiffExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "text.alignleft")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(DesignSystem.Colors.textTertiary)
-                            Text("Compact diff")
-                                .font(.system(size: 10.5, weight: .semibold))
-                                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            Text("+\(derived.fileAddedTotal)")
-                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(DesignSystem.Colors.success)
-                            Text("-\(derived.fileRemovedTotal)")
-                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(DesignSystem.Colors.error)
-                            Spacer(minLength: 0)
-                            Image(systemName: isCompactDiffExpanded ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-
-                    if isCompactDiffExpanded {
-                        diffField(label: "Diff", value: compactDiff)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
-                )
-            } else if !derived.fileChanges.isEmpty {
-                HStack(spacing: 8) {
-                    if isCompactDiffLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: "text.alignleft")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    }
-                    Button {
-                        loadCompactDiffPreviewIfNeeded()
-                    } label: {
-                        Text(isCompactDiffLoading ? "Building compact diff..." : "Build compact diff")
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isCompactDiffLoading)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
-                )
-            }
-
-            ForEach(derived.fileChanges) { change in
-                fileChangeRow(change)
-            }
-        }
-    }
+    // MARK: - Trace Row
 
     @ViewBuilder
-    private func fileChangeRow(_ change: ToolTraceFileChange) -> some View {
-        let isExpandedRow = expandedFileIds.contains(change.id)
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .center, spacing: 8) {
-                Button {
-                    openFileForChange(change)
-                } label: {
-                    Text("\(change.kind.displayTitle) \(change.basename)")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.plain)
-
-                if change.diffSource.isDerived {
-                    Text("derived")
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
-                        )
-                }
-
-                Spacer(minLength: 0)
-
-                Text("+\(max(0, change.added))")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.success)
-                Text("-\(max(0, change.removed))")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.error)
-
-                Button {
-                    toggleExpandedFile(change)
-                } label: {
-                    Image(systemName: isExpandedRow ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            if let path = change.path, !path.isEmpty {
-                Text(path)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .lineLimit(1)
-            }
-
-            if isExpandedRow {
-                if loadingPreviewIds.contains(change.id) {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Loading preview...")
-                            .font(.system(size: 10))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    }
-                    .padding(.vertical, 2)
-                } else if let preview = filePreviewByEventId[change.id] {
-                    if case .diff = preview {
-                        diffField(label: preview.label, value: preview.text)
-                    } else {
-                        detailField(label: preview.label, value: preview.text)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.35))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.divider.opacity(0.2), lineWidth: 0.5)
-        )
-    }
-
-    @ViewBuilder
-    private func traceRow(_ event: ToolTraceEvent, displayIndex: Int, compactMode: Bool) -> some View {
+    private func traceRow(_ event: ToolTraceEvent, displayIndex: Int, compactMode: Bool, derived: DerivedState) -> some View {
         let isRowExpanded = isExpanded && expandedIds.contains(event.id)
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top, spacing: 8) {
-                Text("\(displayIndex).")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .frame(width: 22, alignment: .leading)
+        let isError = Self.isErrorType(event)
+        let durationMs = Int(event.payload["duration_ms"] ?? "") ?? 0
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(event.title)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(isRowExpanded ? 3 : 1)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 6) {
+                toolIcon(for: event)
+                    .frame(width: 14, alignment: .center)
+
+                toolTitle(for: event)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isError ? DesignSystem.Colors.error : .primary)
+                    .lineLimit(1)
+                    .textShimmer(active: event.isRunning)
+
+                if let detail = compactDetail(for: event), !compactMode || detail.count < 60 {
+                    Text(detail)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(1)
                         .textShimmer(active: event.isRunning)
-                    if !compactMode, let detail = compactDetail(for: event) {
-                        Text(detail)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .lineLimit(isRowExpanded ? 4 : 1)
-                            .textShimmer(active: event.isRunning)
-                    }
                 }
 
                 Spacer(minLength: 0)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     if let counters = editLineCounters(for: event) {
                         Text("+\(counters.added)")
-                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .foregroundStyle(DesignSystem.Colors.success)
                         Text("-\(counters.removed)")
-                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .foregroundStyle(DesignSystem.Colors.error)
                     }
+
                     if event.isRunning {
-                        Text("RUN")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.6)
+                            .frame(width: 12, height: 12)
+                    } else if durationMs > 0 {
+                        Text(formatDuration(durationMs))
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.textQuaternary)
                     }
+
                     if !compactMode {
                         Image(systemName: isRowExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 7, weight: .bold))
                             .foregroundStyle(DesignSystem.Colors.textQuaternary)
                     }
                 }
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
             .contentShape(Rectangle())
             .onTapGesture {
-                guard !compactMode else { return }
+                guard !compactMode else {
+                    withAnimation(.easeOut(duration: 0.15)) { isExpanded = true }
+                    return
+                }
                 withAnimation(.easeInOut(duration: 0.12)) {
                     if isRowExpanded {
                         expandedIds.remove(event.id)
@@ -437,55 +316,338 @@ struct MessageToolTraceView: View {
                     }
                 }
             }
-            .padding(.vertical, compactMode ? 4 : 6)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(DesignSystem.Colors.divider.opacity(0.25))
-                    .frame(height: 0.5)
-            }
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(isError ? DesignSystem.Colors.error.opacity(0.06) : Color.clear)
+            )
 
             if isRowExpanded {
                 expandedDetails(for: event)
-                    .padding(.leading, 30)
-                    .padding(.bottom, 6)
+                    .padding(.leading, 20)
+                    .padding(.trailing, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.3))
+                    )
+            }
+        }
+    }
+
+    // MARK: - Tool Icon
+
+    @ViewBuilder
+    private func toolIcon(for event: ToolTraceEvent) -> some View {
+        let type = event.type.lowercased()
+        let tool = (event.payload["tool"] ?? event.payload["name"] ?? "").lowercased()
+
+        if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed" || tool == "read" || tool == "read_range" {
+            Image(systemName: "doc.text")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.info)
+        } else if type.contains("grep") || type.contains("search") || type == "instant_grep" || tool == "grep" || tool == "codebase_search" || tool == "find_files" {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.ideColor)
+        } else if type == "semantic_search" || tool == "semantic_search" {
+            Image(systemName: "brain")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.ideColor)
+        } else if type == "edit" || type == "file_change" || tool == "str_replace" || tool == "write" || tool == "edit" || tool == "create_file" || tool == "regex_replace" || tool == "parallel_apply" {
+            Image(systemName: "pencil")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.success)
+        } else if type == "bash" || type == "command_execution" || tool == "bash" {
+            Image(systemName: "terminal")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.warning)
+        } else if type.contains("web_search") || tool == "web_search" {
+            Image(systemName: "globe")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.info)
+        } else if type.contains("web_fetch") || tool == "web_fetch" {
+            Image(systemName: "arrow.down.doc")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.info)
+        } else if type == "mcp_tool_call" || tool.hasPrefix("mcp") {
+            Image(systemName: "square.grid.3x3")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.mcpColor)
+        } else if type == "skill_invocation" || tool == "skill" {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.reviewColor)
+        } else if type.contains("error") || type == "tool_timeout" || type == "permission_denied" || type == "tool_validation_error" {
+            Image(systemName: "xmark.circle")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.error)
+        } else if type.contains("glob") || tool == "glob" || tool == "list_dir" {
+            Image(systemName: "folder")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+        } else if type == "read_lints" || tool == "diagnostics" {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.warning)
+        } else if type.contains("debug") {
+            Image(systemName: "ladybug")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.debugColor)
+        } else if tool == "git_diff" {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+        } else {
+            Image(systemName: "gearshape")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+        }
+    }
+
+    // MARK: - Tool Title
+
+    @ViewBuilder
+    private func toolTitle(for event: ToolTraceEvent) -> some View {
+        let path = event.payload["path"] ?? event.payload["file"] ?? ""
+        let basename = path.isEmpty ? "" : (path as NSString).lastPathComponent
+
+        if !basename.isEmpty && ToolTraceFileChangeMapper.isFileChangeEvent(event) {
+            Button {
+                if let resolved = FileChangePreviewResolver.resolveOpenPath(
+                    for: ToolTraceFileChangeMapper.from(event: event)!,
+                    workspaceHints: workspaceHints
+                ) {
+                    onOpenFile(resolved)
+                }
+            } label: {
+                Text(event.title)
+                    .underline(pattern: .solid, color: .clear)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text(event.title)
+        }
+    }
+
+    // MARK: - File Changes Section
+
+    private func fileChangesSectionView(derived: DerivedState) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text("\(derived.fileChanges.count) \(pluralized("file", count: derived.fileChanges.count)) changed")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text("+\(derived.fileAddedTotal)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("-\(derived.fileRemovedTotal)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.error)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+
+            ForEach(derived.fileChanges) { change in
+                fileChangeRow(change)
+            }
+
+            if let compactDiff = compactDiffPreview(fileChanges: derived.fileChanges) {
+                compactDiffSection(diff: compactDiff, derived: derived)
+            } else if !derived.fileChanges.isEmpty && compactDiffPreview(fileChanges: derived.fileChanges) == nil {
+                buildDiffButton()
             }
         }
     }
 
     @ViewBuilder
-    private func expandedDetails(for event: ToolTraceEvent) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            detailField(label: "Type", value: event.type)
-            detailField(label: "Kind", value: event.rawKind)
-            if let groupId = event.groupId, !groupId.isEmpty {
-                detailField(label: "Group", value: groupId)
+    private func fileChangeRow(_ change: ToolTraceFileChange) -> some View {
+        let isExpandedRow = expandedFileIds.contains(change.id)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 6) {
+                Image(systemName: change.kind == .created ? "plus.circle" : change.kind == .deleted ? "minus.circle" : "pencil.circle")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(change.kind == .created ? DesignSystem.Colors.success : change.kind == .deleted ? DesignSystem.Colors.error : DesignSystem.Colors.info)
+
+                Button {
+                    openFileForChange(change)
+                } label: {
+                    Text(change.basename)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+
+                if let path = change.path, !path.isEmpty {
+                    Text(shortenedPath(path))
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Text("+\(max(0, change.added))")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.success)
+                Text("-\(max(0, change.removed))")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.error)
+
+                Button {
+                    toggleExpandedFile(change)
+                } label: {
+                    Image(systemName: isExpandedRow ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                }
+                .buttonStyle(.plain)
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+
+            if isExpandedRow {
+                if loadingPreviewIds.contains(change.id) {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini)
+                        Text("Loading diff...")
+                            .font(.system(size: 10))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                } else if let preview = filePreviewByEventId[change.id] {
+                    if case .diff = preview {
+                        diffBlock(preview.text)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    } else {
+                        codeBlock(label: preview.label, value: preview.text)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    }
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.25))
+        )
+    }
+
+    @ViewBuilder
+    private func compactDiffSection(diff: String, derived: DerivedState) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isCompactDiffExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "text.alignleft")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    Text("Unified diff")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    Spacer(minLength: 0)
+                    Image(systemName: isCompactDiffExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.textQuaternary)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isCompactDiffExpanded {
+                diffBlock(diff)
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, 4)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.25))
+        )
+    }
+
+    @ViewBuilder
+    private func buildDiffButton() -> some View {
+        if !isCompactDiffLoading {
+            Button {
+                loadCompactDiffPreviewIfNeeded()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "text.alignleft")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    Text("Build unified diff")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 6)
+            }
+            .buttonStyle(.plain)
+        } else {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Building diff...")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+        }
+    }
+
+    // MARK: - Expanded Details
+
+    @ViewBuilder
+    private func expandedDetails(for event: ToolTraceEvent) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             if let command = event.payload["command"], !command.isEmpty {
-                detailField(label: "Command", value: command)
+                codeBlock(label: "Command", value: command)
             }
             if let query = event.payload["query"], !query.isEmpty {
-                detailField(label: "Query", value: query)
+                detailPill(label: "Query", value: query)
             }
             if let path = event.payload["path"] ?? event.payload["file"], !path.isEmpty {
-                detailField(label: "Path", value: path)
-            }
-            if let lineSummary = editLineSummary(for: event) {
-                detailField(label: "Lines", value: lineSummary)
+                HStack(spacing: 4) {
+                    Text("Path")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    Button {
+                        onOpenFile(path)
+                    } label: {
+                        Text(path)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.info)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             if let tool = event.payload["tool"], !tool.isEmpty {
-                detailField(label: "Tool", value: tool)
+                detailPill(label: "Tool", value: tool)
             }
             if let server = event.payload["mcp_server"] ?? event.payload["server_id"], !server.isEmpty {
-                detailField(label: "MCP server", value: server)
+                detailPill(label: "MCP Server", value: server)
             }
             if let mcpTool = event.payload["mcp_tool"], !mcpTool.isEmpty {
-                detailField(label: "MCP tool", value: mcpTool)
+                detailPill(label: "MCP Tool", value: mcpTool)
             }
             if let latency = event.payload["mcp_latency_ms"], !latency.isEmpty {
-                detailField(label: "MCP latency", value: "\(latency) ms")
+                detailPill(label: "Latency", value: "\(latency)ms")
             }
             if let output = event.payload["output"], !output.isEmpty {
-                detailField(label: "Output", value: output)
+                codeBlock(label: "Output", value: String(output.prefix(4000)))
             }
             if let diffPreview = nonEmpty(
                 event.payload["diffPreview"]
@@ -494,24 +656,33 @@ struct MessageToolTraceView: View {
                     ?? event.payload["unified_diff"]
                     ?? event.payload["changes_preview"]
             ) {
-                diffField(label: "Diff preview", value: diffPreview)
+                diffBlock(diffPreview)
             }
-            if let status = event.payload["status"], !status.isEmpty {
-                detailField(label: "Status", value: status)
-            }
-            if let priority = event.payload["priority"], !priority.isEmpty {
-                detailField(label: "Priority", value: priority)
+            if let status = event.payload["status"], !status.isEmpty, status.lowercased() != "completed" {
+                detailPill(label: "Status", value: status)
             }
             if let notes = event.payload["notes"], !notes.isEmpty {
-                detailField(label: "Notes", value: notes)
-            }
-            if let files = event.payload["files"], !files.isEmpty {
-                detailField(label: "Files", value: files)
+                detailPill(label: "Notes", value: notes)
             }
         }
     }
 
-    private func detailField(label: String, value: String) -> some View {
+    // MARK: - UI Components
+
+    private func detailPill(label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+            Text(value)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .textSelection(.enabled)
+                .lineLimit(3)
+        }
+    }
+
+    private func codeBlock(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.system(size: 9.5, weight: .semibold))
@@ -525,33 +696,29 @@ struct MessageToolTraceView: View {
                 .padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.55))
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
                 )
         }
     }
 
     @ViewBuilder
-    private func diffField(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.textTertiary)
-            Text(buildDiffAttributed(value))
-                .font(.system(size: 10, design: .monospaced))
-                .textSelection(.enabled)
-                .lineLimit(nil)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.55))
-                )
-        }
+    private func diffBlock(_ diff: String) -> some View {
+        Text(buildDiffAttributed(diff))
+            .font(.system(size: 10, design: .monospaced))
+            .textSelection(.enabled)
+            .lineLimit(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
+            )
     }
 
-    /// Builds a single colored `AttributedString` for the entire diff, avoiding N separate `Text` views.
+    // MARK: - Diff Rendering
+
     private func buildDiffAttributed(_ diff: String) -> AttributedString {
         let maxLines = 250
         let lines = diff.split(separator: "\n", omittingEmptySubsequences: false)
@@ -575,7 +742,7 @@ struct MessageToolTraceView: View {
             return NSColor(DesignSystem.Colors.textTertiary)
         }
         if line.hasPrefix("@@") {
-            return NSColor(DesignSystem.Colors.textTertiary)
+            return NSColor(DesignSystem.Colors.info.opacity(0.7))
         }
         if line.hasPrefix("+") {
             return NSColor(DesignSystem.Colors.success)
@@ -584,6 +751,35 @@ struct MessageToolTraceView: View {
             return NSColor(DesignSystem.Colors.error)
         }
         return NSColor(DesignSystem.Colors.textSecondary)
+    }
+
+    // MARK: - Helpers
+
+    private func formatDuration(_ ms: Int) -> String {
+        if ms < 1000 {
+            return "\(ms)ms"
+        }
+        let seconds = Double(ms) / 1000.0
+        if seconds < 60 {
+            return String(format: "%.1fs", seconds)
+        }
+        let minutes = Int(seconds) / 60
+        let remainingSeconds = Int(seconds) % 60
+        return "\(minutes)m \(remainingSeconds)s"
+    }
+
+    private func shortenedPath(_ path: String) -> String {
+        let components = path.split(separator: "/").map(String.init)
+        if components.count <= 2 { return path }
+        let last2 = components.suffix(2).joined(separator: "/")
+        return ".../" + last2
+    }
+
+    private static func isErrorType(_ event: ToolTraceEvent) -> Bool {
+        let type = event.type.lowercased()
+        return type.contains("error") || type.contains("failed") || type == "tool_timeout"
+            || type == "permission_denied"
+            || (event.payload["status"] ?? "").lowercased() == "failed"
     }
 
     private func compactDetail(for event: ToolTraceEvent) -> String? {
@@ -617,7 +813,7 @@ struct MessageToolTraceView: View {
         for candidate in candidates {
             let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !text.isEmpty, text != event.title {
-                return String(text.prefix(180))
+                return String(text.prefix(120))
             }
         }
         return nil
@@ -765,33 +961,19 @@ struct MessageToolTraceView: View {
         let mcpSummary = inferredMCPSummary(from: orderedEvents)
         let skillSummary = inferredSkillsSummary(from: orderedEvents)
 
-        if (readCount > 0 || fileCount > 0) && searchCount > 0 {
-            let exploredCount = max(fileCount, readCount)
-            var base = "Explored \(exploredCount) \(pluralized("file", count: exploredCount)), \(searchCount) \(pluralized("search", count: searchCount))"
-            if let mcpSummary {
-                base += " • \(mcpSummary)"
-            }
-            if let skillSummary {
-                base += " • \(skillSummary)"
-            }
-            return base
-        }
-
         var parts: [String] = []
-        if readCount > 0 {
-            parts.append("\(readCount) \(pluralized("read", count: readCount))")
+        if editCount > 0 {
+            parts.append("\(editCount) \(pluralized("edit", count: editCount))")
         }
-        if fileCount > 0 {
-            parts.append("\(fileCount) \(pluralized("file", count: fileCount)) explored")
+        if readCount > 0 || fileCount > 0 {
+            let count = max(fileCount, readCount)
+            parts.append("\(count) \(pluralized("file", count: count)) read")
         }
         if searchCount > 0 {
-            parts.append("\(searchCount) \(pluralized("search", count: searchCount))")
+            parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))")
         }
         if commandCount > 0 {
             parts.append("\(commandCount) \(pluralized("command", count: commandCount))")
-        }
-        if editCount > 0 {
-            parts.append("\(editCount) \(pluralized("edit", count: editCount))")
         }
         if let mcpSummary {
             parts.append(mcpSummary)
@@ -800,7 +982,7 @@ struct MessageToolTraceView: View {
             parts.append(skillSummary)
         }
         if !parts.isEmpty {
-            return parts.prefix(3).joined(separator: ", ")
+            return parts.prefix(3).joined(separator: " \u{00B7} ")
         }
         return "\(orderedEvents.count) \(pluralized("operation", count: orderedEvents.count))"
     }
@@ -814,15 +996,6 @@ struct MessageToolTraceView: View {
             if let file = event.payload["file"], !file.isEmpty {
                 paths.insert(file)
             }
-            if let files = event.payload["files"], !files.isEmpty {
-                let items = files
-                    .split(separator: ",")
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                for item in items {
-                    paths.insert(item)
-                }
-            }
         }
         return paths.count
     }
@@ -830,12 +1003,8 @@ struct MessageToolTraceView: View {
     private func inferredReadCount(from orderedEvents: [ToolTraceEvent]) -> Int {
         orderedEvents.filter { event in
             let type = event.type.lowercased()
-            if type == "read_batch_started" || type == "read_batch_completed" {
-                return true
-            }
-            if type == "semantic_search" {
-                return true
-            }
+            if type == "read_batch_started" || type == "read_batch_completed" { return true }
+            if type == "semantic_search" { return true }
             return (event.payload["source"] ?? "") == "synthetic_command_read"
         }.count
     }
@@ -843,8 +1012,7 @@ struct MessageToolTraceView: View {
     private func inferredSearchCount(from orderedEvents: [ToolTraceEvent]) -> Int {
         orderedEvents.filter { event in
             let type = event.type.lowercased()
-            return type.contains("search") || type.contains("grep")
-                || type == "instant_grep"
+            return type.contains("search") || type.contains("grep") || type == "instant_grep"
         }.count
     }
 
@@ -862,49 +1030,7 @@ struct MessageToolTraceView: View {
     private func inferredMCPSummary(from orderedEvents: [ToolTraceEvent]) -> String? {
         let mcpEvents = orderedEvents.filter { ToolTraceVisibility.isMCPEvent(event: $0) }
         guard !mcpEvents.isEmpty else { return nil }
-
-        var discoveredServers = Set<String>()
-        var calledTools = Set<String>()
-
-        for event in mcpEvents {
-            let payload = event.payload
-            let tool = (payload["tool"] ?? payload["name"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedTool = tool.lowercased()
-            let mcpTool = (payload["mcp_tool"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let server = (payload["mcp_server"] ?? payload["server_id"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            if normalizedTool == "mcp_list_servers" {
-                discoveredServers.formUnion(extractMCPServers(from: payload["output"] ?? ""))
-            }
-            if normalizedTool == "mcp_list_tools" {
-                calledTools.formUnion(extractMCPTools(from: payload["output"] ?? ""))
-            }
-
-            if !mcpTool.isEmpty {
-                calledTools.insert(mcpTool)
-            } else if !tool.isEmpty, normalizedTool != "mcp_list_servers", normalizedTool != "mcp_list_tools",
-                      normalizedTool != "mcp_describe_tool", normalizedTool != "mcp_health", normalizedTool != "mcp_reconnect" {
-                calledTools.insert(tool)
-            }
-            if !server.isEmpty {
-                discoveredServers.insert(server)
-            }
-        }
-
-        var parts: [String] = []
-        if !discoveredServers.isEmpty {
-            parts.append("MCP \(discoveredServers.count) \(pluralized("server", count: discoveredServers.count))")
-        }
-        if !calledTools.isEmpty {
-            parts.append("MCP \(calledTools.count) \(pluralized("tool", count: calledTools.count))")
-        }
-        if parts.isEmpty {
-            return "MCP activity"
-        }
-        return parts.joined(separator: ", ")
+        return "MCP \(mcpEvents.count) \(pluralized("call", count: mcpEvents.count))"
     }
 
     private func inferredSkillsSummary(from orderedEvents: [ToolTraceEvent]) -> String? {
@@ -962,47 +1088,8 @@ struct MessageToolTraceView: View {
         return candidate
     }
 
-    private func extractMCPServers(from output: String) -> Set<String> {
-        let lines = output
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var servers = Set<String>()
-        for line in lines {
-            if let firstToken = line.split(separator: " ").first {
-                let token = String(firstToken).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !token.isEmpty {
-                    servers.insert(token)
-                }
-            }
-        }
-        return servers
-    }
-
-    private func extractMCPTools(from output: String) -> Set<String> {
-        let lines = output
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        var tools = Set<String>()
-        for line in lines {
-            let lhs = line.split(separator: ":").first.map(String.init) ?? line
-            if let slash = lhs.firstIndex(of: "/") {
-                let tool = lhs[lhs.index(after: slash)...].trimmingCharacters(in: .whitespacesAndNewlines)
-                if !tool.isEmpty {
-                    tools.insert(tool)
-                }
-            } else if !lhs.isEmpty {
-                tools.insert(lhs)
-            }
-        }
-        return tools
-    }
-
-    private func pluralized(_ noun: String, count: Int) -> String {
-        count == 1 ? noun : "\(noun)s"
+    private func pluralized(_ noun: String, count: Int, plural: String? = nil) -> String {
+        count == 1 ? noun : (plural ?? "\(noun)s")
     }
 
     private func collapseSupersededToolStates(_ input: [ToolTraceEvent]) -> [ToolTraceEvent] {
@@ -1096,7 +1183,6 @@ struct MessageToolTraceView: View {
         }
     }
 
-    /// Lightweight helper for out-of-body contexts (e.g. onChange, tasks).
     private func computeOrderedEvents() -> [ToolTraceEvent] {
         let filtered = events
             .filter { ToolTraceVisibility.shouldDisplay(event: $0) }
@@ -1120,7 +1206,6 @@ struct MessageToolTraceView: View {
         }
         guard !ordered.isEmpty else { return }
         guard !didAutoCompactAfterCompletion else { return }
-        // On completion: collapse expanded details but keep compact view showing last N events
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
             expandedIds.removeAll()

@@ -7,8 +7,134 @@ struct ToolSchemaEntry: Sendable {
     let required: [String]
 }
 
+/// Stores native MCP tool definitions alongside the routing table.
+/// Thread-safe via NSLock for concurrent access from providers + runtime.
+final class MCPNativeToolRegistry: @unchecked Sendable {
+    static let shared = MCPNativeToolRegistry()
+
+    private let lock = NSLock()
+    private var _entries: [ToolSchemaEntry] = []
+    private var _routing: [String: (serverId: String, toolName: String)] = [:]
+    private var _rawSchemas: [String: [String: Any]] = [:]
+
+    var entries: [ToolSchemaEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _entries
+    }
+
+    var routing: [String: (serverId: String, toolName: String)] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _routing
+    }
+
+    /// Full JSON Schema dict for a native MCP tool, used in OpenAI/Anthropic function params.
+    func rawSchema(for functionName: String) -> [String: Any]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _rawSchemas[functionName]
+    }
+
+    func hasTools() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !_entries.isEmpty
+    }
+
+    /// Register MCP tools as native function tools.
+    /// Creates normalized function names and routing entries.
+    func register(tools: [MCPToolDescriptor]) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        _entries.removeAll()
+        _routing.removeAll()
+        _rawSchemas.removeAll()
+
+        var nameCount: [String: Int] = [:]
+        for tool in tools {
+            nameCount[tool.name, default: 0] += 1
+        }
+
+        for tool in tools {
+            let needsPrefix = nameCount[tool.name, default: 0] > 1
+            let functionName = Self.normalizeFunctionName(
+                serverName: tool.serverName,
+                toolName: tool.name,
+                needsPrefix: needsPrefix
+            )
+
+            let simplifiedProps = Self.extractSimplifiedProperties(from: tool)
+
+            _entries.append(ToolSchemaEntry(
+                name: functionName,
+                description: "[\(tool.serverName)] \(tool.description)",
+                properties: simplifiedProps.properties,
+                required: simplifiedProps.required
+            ))
+
+            _routing[functionName] = (serverId: tool.serverId, toolName: tool.name)
+
+            if let schemaDict = tool.inputSchemaDict {
+                _rawSchemas[functionName] = schemaDict
+            }
+        }
+    }
+
+    /// Normalize server/tool names into a valid OpenAI function name.
+    /// Format: `toolname` if unique, `servername_toolname` if ambiguous.
+    /// Must match `^[a-zA-Z0-9_-]{1,64}$`.
+    private static func normalizeFunctionName(serverName: String, toolName: String, needsPrefix: Bool) -> String {
+        let normalizedServer = serverName
+            .replacingOccurrences(of: "[^a-zA-Z0-9_-]", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_-"))
+        let normalizedTool = toolName
+            .replacingOccurrences(of: "[^a-zA-Z0-9_-]", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_-"))
+
+        let raw = needsPrefix ? "\(normalizedServer)_\(normalizedTool)" : normalizedTool
+        let clamped = String(raw.prefix(64))
+        return clamped.isEmpty ? "mcp_tool" : clamped
+    }
+
+    /// Extract simplified properties from an MCP tool descriptor.
+    /// Flattens complex JSON Schema into [String: [String: String]] for ToolSchemaEntry.
+    private static func extractSimplifiedProperties(from tool: MCPToolDescriptor) -> (properties: [String: [String: String]], required: [String]) {
+        guard let schema = tool.inputSchemaDict,
+              let props = schema["properties"] as? [String: Any] else {
+            return (properties: [:], required: [])
+        }
+
+        var simplified: [String: [String: String]] = [:]
+        for (key, value) in props {
+            if let propDict = value as? [String: Any] {
+                var entry: [String: String] = [:]
+                if let type = propDict["type"] as? String {
+                    entry["type"] = type
+                } else {
+                    entry["type"] = "string"
+                }
+                if let desc = propDict["description"] as? String {
+                    entry["description"] = desc
+                }
+                if let enumValues = propDict["enum"] as? [String] {
+                    entry["enum"] = enumValues.joined(separator: ", ")
+                }
+                simplified[key] = entry
+            } else {
+                simplified[key] = ["type": "string"]
+            }
+        }
+
+        let required = (schema["required"] as? [String]) ?? []
+        return (properties: simplified, required: required)
+    }
+}
+
 enum ToolSchemaCatalog {
-    static let entries: [ToolSchemaEntry] = [
+    /// Core built-in tool entries (static).
+    static let coreEntries: [ToolSchemaEntry] = [
         ToolSchemaEntry(
             name: "read",
             description: "Read file content from the workspace",
@@ -503,59 +629,51 @@ enum ToolSchemaCatalog {
             required: []
         ),
         ToolSchemaEntry(
-            name: "mcp",
-            description: "Invoke MCP tool",
-            properties: [
-                "tool": ["type": "string", "description": "MCP tool name"],
-                "args": ["type": "string", "description": "JSON string arguments"]
-            ],
-            required: ["tool"]
-        ),
-        ToolSchemaEntry(
             name: "mcp_call",
-            description: "Invoke MCP tool",
+            description: "Call an MCP tool on a connected MCP server. Pass arguments as top-level key-value pairs alongside 'tool' and 'server'. Only use this for tools NOT registered as native functions. For complex values (arrays, objects), pass them as JSON strings.",
             properties: [
-                "tool": ["type": "string", "description": "MCP tool name"],
-                "args": ["type": "string", "description": "JSON string arguments"]
+                "server": ["type": "string", "description": "MCP server identifier (from mcp_list_servers). Required when tool name is ambiguous across servers."],
+                "tool": ["type": "string", "description": "MCP tool name. Can use 'server/tool' format to specify both."],
+                "args": ["type": "string", "description": "JSON object of tool arguments. Prefer passing args as top-level keys instead."]
             ],
             required: ["tool"]
         ),
         ToolSchemaEntry(
             name: "mcp_list_servers",
-            description: "List configured MCP servers",
+            description: "List all configured and connected MCP servers with their IDs and names.",
             properties: [:],
             required: []
         ),
         ToolSchemaEntry(
             name: "mcp_list_tools",
-            description: "List MCP tools",
+            description: "List all available tools from MCP servers. Returns tool names, descriptions, and which server they belong to.",
             properties: [
-                "server": ["type": "string", "description": "Optional server identifier"]
+                "server": ["type": "string", "description": "Filter by server identifier. If omitted, lists tools from all servers."]
             ],
             required: []
         ),
         ToolSchemaEntry(
             name: "mcp_describe_tool",
-            description: "Describe MCP tool schema",
+            description: "Get the full JSON Schema for an MCP tool, including all parameters, types, and descriptions.",
             properties: [
-                "server": ["type": "string", "description": "Optional server identifier"],
-                "tool": ["type": "string", "description": "Tool name"]
+                "server": ["type": "string", "description": "Server identifier to scope the search."],
+                "tool": ["type": "string", "description": "Tool name to describe."]
             ],
             required: ["tool"]
         ),
         ToolSchemaEntry(
             name: "mcp_health",
-            description: "Check MCP server health",
+            description: "Check health status of MCP servers. Returns 'ok' or error details for each server.",
             properties: [
-                "server": ["type": "string", "description": "Optional server identifier"]
+                "server": ["type": "string", "description": "Check specific server. If omitted, checks all servers."]
             ],
             required: []
         ),
         ToolSchemaEntry(
             name: "mcp_reconnect",
-            description: "Reconnect MCP server",
+            description: "Force reconnect to an MCP server. Use when a server connection is broken or stale.",
             properties: [
-                "server": ["type": "string", "description": "Server identifier"]
+                "server": ["type": "string", "description": "Server identifier to reconnect."]
             ],
             required: ["server"]
         ),
@@ -578,34 +696,68 @@ enum ToolSchemaCatalog {
         )
     ]
 
+    /// All tool entries: core built-in tools + registered native MCP tools.
+    static var entries: [ToolSchemaEntry] {
+        coreEntries + MCPNativeToolRegistry.shared.entries
+    }
+
     static var openAIFunctionTools: [[String: Any]] {
-        entries.map { entry in
-            [
-                "type": "function",
-                "function": [
-                    "name": entry.name,
-                    "description": entry.description,
-                    "parameters": [
-                        "type": "object",
-                        "properties": entry.properties,
-                        "required": entry.required
-                    ]
+        let core = coreEntries.map { formatOpenAI($0) }
+        let mcpNative = MCPNativeToolRegistry.shared.entries.map { entry -> [String: Any] in
+            if let rawSchema = MCPNativeToolRegistry.shared.rawSchema(for: entry.name) {
+                return [
+                    "type": "function",
+                    "function": [
+                        "name": entry.name,
+                        "description": entry.description,
+                        "parameters": rawSchema
+                    ] as [String: Any]
                 ]
-            ]
+            }
+            return formatOpenAI(entry)
         }
+        return core + mcpNative
     }
 
     static var anthropicTools: [[String: Any]] {
-        entries.map { entry in
-            [
+        let core = coreEntries.map { formatAnthropic($0) }
+        let mcpNative = MCPNativeToolRegistry.shared.entries.map { entry -> [String: Any] in
+            if let rawSchema = MCPNativeToolRegistry.shared.rawSchema(for: entry.name) {
+                return [
+                    "name": entry.name,
+                    "description": entry.description,
+                    "input_schema": rawSchema
+                ] as [String: Any]
+            }
+            return formatAnthropic(entry)
+        }
+        return core + mcpNative
+    }
+
+    private static func formatOpenAI(_ entry: ToolSchemaEntry) -> [String: Any] {
+        [
+            "type": "function",
+            "function": [
                 "name": entry.name,
                 "description": entry.description,
-                "input_schema": [
+                "parameters": [
                     "type": "object",
                     "properties": entry.properties,
                     "required": entry.required
                 ]
+            ] as [String: Any]
+        ]
+    }
+
+    private static func formatAnthropic(_ entry: ToolSchemaEntry) -> [String: Any] {
+        [
+            "name": entry.name,
+            "description": entry.description,
+            "input_schema": [
+                "type": "object",
+                "properties": entry.properties,
+                "required": entry.required
             ]
-        }
+        ]
     }
 }

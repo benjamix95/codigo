@@ -5,8 +5,27 @@ import os
 public struct MCPToolDescriptor: Sendable {
     public let name: String
     public let description: String
+    /// Proper JSON Schema string (serialized from MCP inputSchema).
     public let schema: String
     public let serverId: String
+    public let serverName: String
+
+    /// Parse the JSON schema string into a dictionary for OpenAI function tool registration.
+    public var inputSchemaDict: [String: Any]? {
+        guard let data = schema.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return dict
+    }
+
+    public var schemaProperties: [String: Any] {
+        (inputSchemaDict?["properties"] as? [String: Any]) ?? [:]
+    }
+
+    public var schemaRequired: [String] {
+        (inputSchemaDict?["required"] as? [String]) ?? []
+    }
 }
 
 public struct MCPServerSession {
@@ -17,6 +36,7 @@ public struct MCPServerSession {
     public let process: Process
     public var lastUsedAt: Date
     public var cachedTools: [MCPToolDescriptor]
+    public var cachedToolsTimestamp: Date?
 }
 
 public enum MCPErrorCategory: String, Sendable {
@@ -50,9 +70,28 @@ public actor MCPSessionManager {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
     private var sessions: [String: MCPServerSession] = [:]
     private let retryPolicy: MCPRetryPolicy
+    /// TTL for cached tool lists before re-fetching (seconds).
+    private let toolCacheTTL: TimeInterval = 300
 
     public init(retryPolicy: MCPRetryPolicy = .default) {
         self.retryPolicy = retryPolicy
+    }
+
+    /// Eagerly discover all tools from all configured MCP servers.
+    /// Returns the full list of tool descriptors across all servers.
+    public func discoverAllTools(idleTTLSeconds: Int = 300) async -> [MCPToolDescriptor] {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        var all: [MCPToolDescriptor] = []
+        for cfg in servers {
+            do {
+                let serverTools = try await tools(for: cfg)
+                all.append(contentsOf: serverTools)
+            } catch {
+                Self.logger.warning("Failed to discover tools for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return all
     }
 
     public func listTools(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws
@@ -133,7 +172,7 @@ public actor MCPSessionManager {
             }
             target = cfg
         } else {
-            // Auto routing per nome tool
+            // Auto-route by tool name across all servers
             var matches: [MCPConfigLoader.DetectedServer] = []
             for cfg in servers {
                 let tools = try await tools(for: cfg)
@@ -147,7 +186,7 @@ public actor MCPSessionManager {
             if matches.count > 1 {
                 let names = matches.map(\.name).joined(separator: ", ")
                 throw ToolRuntimeError.validation(
-                    "Tool MCP ambiguo '\(toolName)'. Specifica serverId tra: \(names)")
+                    "Ambiguous MCP tool '\(toolName)' found on multiple servers. Specify serverId, one of: \(names)")
             }
             target = matches[0]
         }
@@ -171,7 +210,7 @@ public actor MCPSessionManager {
                         throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
                     }
                     guard let first = try await group.next() else {
-                        throw ToolRuntimeError.transport("MCP call interrotta")
+                        throw ToolRuntimeError.transport("MCP call interrupted")
                     }
                     group.cancelAll()
                     return first
@@ -193,7 +232,7 @@ public actor MCPSessionManager {
             }
         }
         guard let result = finalResult else {
-            throw ToolRuntimeError.transport("MCP call interrotta")
+            throw ToolRuntimeError.transport("MCP call interrupted — no result received")
         }
         let text = flattenContent(result.content)
         return (
@@ -238,7 +277,7 @@ public actor MCPSessionManager {
                     command: $0.command,
                     args: $0.args,
                     env: $0.env,
-                    source: "Manuale"
+                    source: "Manual"
                 )
             }
         detected.append(contentsOf: manual)
@@ -277,7 +316,8 @@ public actor MCPSessionManager {
             transport: transport,
             process: process,
             lastUsedAt: Date(),
-            cachedTools: []
+            cachedTools: [],
+            cachedToolsTimestamp: nil
         )
         sessions[cfg.id] = built
         return built
@@ -286,9 +326,11 @@ public actor MCPSessionManager {
     private func tools(for cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPToolDescriptor] {
         var s = try await session(for: cfg)
         if !s.cachedTools.isEmpty {
-            s.lastUsedAt = Date()
-            sessions[cfg.id] = s
-            return s.cachedTools
+            if let ts = s.cachedToolsTimestamp, Date().timeIntervalSince(ts) < toolCacheTTL {
+                s.lastUsedAt = Date()
+                sessions[cfg.id] = s
+                return s.cachedTools
+            }
         }
         let tools: [Tool]
         do {
@@ -305,18 +347,46 @@ public actor MCPSessionManager {
                 throw normalizeMCPError(error, category: category, toolName: "list_tools", timeoutMs: 30_000)
             }
         }
-        let descriptors = tools.map {
-            MCPToolDescriptor(
-                name: $0.name,
-                description: $0.description ?? "",
-                schema: String(describing: $0.inputSchema),
-                serverId: cfg.id
+        let descriptors = tools.map { tool in
+            let schemaJSON: String
+            let dict = valueToJSONObject(tool.inputSchema)
+            if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]),
+               let str = String(data: data, encoding: .utf8) {
+                schemaJSON = str
+            } else {
+                schemaJSON = "{\"type\":\"object\",\"properties\":{}}"
+            }
+            return MCPToolDescriptor(
+                name: tool.name,
+                description: tool.description ?? "",
+                schema: schemaJSON,
+                serverId: cfg.id,
+                serverName: cfg.name
             )
         }
         s.cachedTools = descriptors
+        s.cachedToolsTimestamp = Date()
         s.lastUsedAt = Date()
         sessions[cfg.id] = s
         return descriptors
+    }
+
+    /// Convert MCP Value to a JSON-compatible Swift object.
+    private func valueToJSONObject(_ value: Value) -> Any {
+        switch value {
+        case .string(let s): return s
+        case .int(let i): return i
+        case .double(let d): return d
+        case .bool(let b): return b
+        case .null: return NSNull()
+        case .array(let arr): return arr.map { valueToJSONObject($0) }
+        case .object(let dict):
+            return dict.reduce(into: [String: Any]()) { result, kv in
+                result[kv.key] = valueToJSONObject(kv.value)
+            }
+        case .data(_, let data): return data.base64EncodedString()
+        @unknown default: return String(describing: value)
+        }
     }
 
     private func flattenContent(_ content: [Tool.Content]) -> String {
@@ -362,7 +432,7 @@ public actor MCPSessionManager {
         case let i as Int:
             return .int(i)
         case let n as NSNumber:
-            // NSNumber può essere bool/int/double
+            // NSNumber can be bool/int/double — check type ID first
             if CFGetTypeID(n) == CFBooleanGetTypeID() {
                 return .bool(n.boolValue)
             }

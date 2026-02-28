@@ -794,7 +794,7 @@ private static let optionHeaderPattern =
                 || title.hasPrefix("option ") || title == "options" || title.hasPrefix("options ")
                 || title.hasPrefix("todo")
                 || title.hasPrefix("to-do")
-                || title.hasPrefix("task") || title == "tasks"
+                || title == "task" || title == "tasks" || title.hasPrefix("tasks ")
                 || title.hasPrefix("checklist")
                 || title.hasPrefix("implementation step")
                 || title.hasPrefix("execution step")
@@ -803,19 +803,21 @@ private static let optionHeaderPattern =
                 || title.hasPrefix("work plan")
         }
 
+        var skippingMermaid = false
         for line in lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
             if trimmedLine.hasPrefix("```") {
                 if !inFence && trimmedLine.lowercased().hasPrefix("```mermaid") {
                     inFence = true
-                    skippingSection = true
+                    skippingMermaid = true
                     continue
                 }
                 inFence.toggle()
+                if skippingMermaid && !inFence {
+                    skippingMermaid = false
+                    continue
+                }
                 if skippingSection {
-                    if !inFence {
-                        skippingSection = false
-                    }
                     continue
                 }
                 output.append(line)
@@ -823,7 +825,7 @@ private static let optionHeaderPattern =
             }
 
             if inFence {
-                if !skippingSection {
+                if !skippingSection && !skippingMermaid {
                     output.append(line)
                 }
                 continue

@@ -146,7 +146,7 @@ public actor UnifiedToolRuntime {
 
     private let executionController: ExecutionController?
     private let executionScope: ExecutionScope
-    private let mcpSessions: MCPSessionManager
+    public let mcpSessions: MCPSessionManager
 
     /// Codebase index tools (created lazily when needed)
     private var indexTools: CodebaseIndexTools?
@@ -439,25 +439,40 @@ public actor UnifiedToolRuntime {
             case "mcp_reconnect":
                 return await executeMCPReconnect(call: call, context: context, startDate: startDate)
             default:
-                if context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call) {
-                    return await executeMCPDirectToolFallback(
-                        toolName: normalizedName,
-                        call: call,
-                        context: context,
-                        startDate: startDate
-                    )
+                if context.policy.enableMCP {
+                    if let route = MCPNativeToolRegistry.shared.routing[normalizedName] {
+                        return await executeNativeMCPTool(
+                            functionName: normalizedName,
+                            route: route,
+                            call: call,
+                            context: context,
+                            startDate: startDate
+                        )
+                    }
+                    if canFallbackToMCP(toolName: normalizedName, call: call) {
+                        return await executeMCPDirectToolFallback(
+                            toolName: normalizedName,
+                            call: call,
+                            context: context,
+                            startDate: startDate
+                        )
+                    }
                 }
                 throw ToolRuntimeError.validation("Unsupported tool: \(normalizedName)")
             }
         } catch let err as ToolRuntimeError {
-            let mcpPayload = (context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call))
-                ? ["is_mcp": "true"]
-                : [:]
+            let isMCP = context.policy.enableMCP && (
+                MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
+                canFallbackToMCP(toolName: normalizedName, call: call)
+            )
+            let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: mcpPayload)
         } catch {
-            let mcpPayload = (context.policy.enableMCP && canFallbackToMCP(toolName: normalizedName, call: call))
-                ? ["is_mcp": "true"]
-                : [:]
+            let isMCP = context.policy.enableMCP && (
+                MCPNativeToolRegistry.shared.routing[normalizedName] != nil ||
+                canFallbackToMCP(toolName: normalizedName, call: call)
+            )
+            let mcpPayload = isMCP ? ["is_mcp": "true"] : [String: String]()
             return failure(error.localizedDescription, errorCode: "unknown", startDate: startDate, payload: mcpPayload)
         }
     }
@@ -784,6 +799,70 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    /// Execute a natively-registered MCP tool. The LLM calls it by function name;
+    /// we route to the correct server and original tool name via the registry.
+    private func executeNativeMCPTool(
+        functionName: String,
+        route: (serverId: String, toolName: String),
+        call: ToolCall,
+        context: ToolExecutionContext,
+        startDate: Date
+    ) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure(
+                "MCP disabled by policy",
+                errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode,
+                startDate: startDate,
+                payload: ["is_mcp": "true"]
+            )
+        }
+
+        var args = call.args
+        let metadataKeys: Set<String> = ["id", "name", "tool", "tool_name", "function", "function_name", "is_partial", "type", "status", "title", "detail", "output"]
+        for key in metadataKeys { args.removeValue(forKey: key) }
+
+        do {
+            let result = try await mcpSessions.callTool(
+                serverId: route.serverId,
+                toolName: route.toolName,
+                arguments: args,
+                timeoutMs: context.policy.mcpPerCallTimeoutMs,
+                idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+            )
+
+            var payload: [String: String] = [
+                "title": "\(result.serverName)/\(route.toolName)",
+                "tool": functionName,
+                "mcp_server": result.serverName,
+                "server_id": result.serverId,
+                "mcp_tool": route.toolName,
+                "output": truncate(result.content, maxBytes: context.policy.maxBashOutputBytes),
+                "mcp_latency_ms": "\(max(1, Int(Date().timeIntervalSince(startDate) * 1000)))",
+                "is_mcp": "true"
+            ]
+            if result.isError {
+                payload["detail"] = "MCP server responded with isError=true"
+            }
+            return ToolResult(
+                ok: !result.isError,
+                payload: payload,
+                durationMs: max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+            )
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: [
+                "mcp_tool": route.toolName,
+                "server_id": route.serverId,
+                "is_mcp": "true"
+            ])
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: [
+                "mcp_tool": route.toolName,
+                "server_id": route.serverId,
+                "is_mcp": "true"
+            ])
+        }
+    }
+
     private func executeMCPDirectToolFallback(
         toolName: String,
         call: ToolCall,
@@ -889,14 +968,28 @@ public actor UnifiedToolRuntime {
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )
-        let sorted = entries
+        let excludedSet = Set(context.workspaceContext.excludedPaths)
+        let filtered = entries.filter { entry in
+            let name = entry.lastPathComponent
+            if excludedSet.contains(name) { return false }
+            if excludedSet.contains(entry.path) { return false }
+            for ws in context.workspaceContext.workspacePaths {
+                let rel = entry.path.replacingOccurrences(of: ws.path + "/", with: "")
+                if excludedSet.contains(rel) { return false }
+            }
+            return true
+        }
+        let sorted = filtered
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             .prefix(maxEntries)
-            .map { $0.lastPathComponent }
+            .map { entry -> String in
+                let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                return isDir ? "\(entry.lastPathComponent)/" : entry.lastPathComponent
+            }
         return success([
             "title": "List dir \(path)",
             "path": path,
-            "detail": "\(sorted.count) elementi",
+            "detail": "\(sorted.count) entries",
             "output": sorted.joined(separator: "\n")
         ], startDate: startDate)
     }
@@ -1207,16 +1300,59 @@ public actor UnifiedToolRuntime {
 
     private func executeWorkspaceStats(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let scope = (call.args["path"] ?? ".").trimmingCharacters(in: .whitespacesAndNewlines)
-        let cmd = "printf \"files: \"; find '\(shellEscaped(scope))' -type f | wc -l; printf \"dirs: \"; find '\(shellEscaped(scope))' -type d | wc -l; printf \"bytes: \"; du -sk '\(shellEscaped(scope))' | awk '{print $1*1024}'"
-        return await runBash(
-            command: cmd,
-            cwd: context.workspaceContext.workspacePath,
-            startDate: startDate,
-            title: "Workspace stats",
-            timeoutMs: context.policy.timeoutMs,
-            maxOutputBytes: context.policy.maxBashOutputBytes,
-            policy: context.policy
-        )
+        let resolvedPath: String
+        do {
+            resolvedPath = try resolveRequiredPath(scope, context: context)
+        } catch {
+            return failure("Invalid path: \(scope)", errorCode: "validation", startDate: startDate)
+        }
+        let statsURL = URL(fileURLWithPath: resolvedPath)
+        let excludedSet = Set(context.workspaceContext.excludedPaths)
+
+        let stats = await Task.detached(priority: .utility) {
+            var fileCount = 0
+            var dirCount = 0
+            var totalBytes: Int64 = 0
+            let fm = FileManager.default
+
+            if let enumerator = fm.enumerator(
+                at: statsURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                while let itemURL = enumerator.nextObject() as? URL {
+                    let name = itemURL.lastPathComponent
+                    if excludedSet.contains(name) {
+                        enumerator.skipDescendants()
+                        continue
+                    }
+                    guard let values = try? itemURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey]) else { continue }
+                    if values.isDirectory == true {
+                        dirCount += 1
+                    } else {
+                        fileCount += 1
+                        totalBytes += Int64(values.fileSize ?? 0)
+                    }
+                }
+            }
+            return (fileCount, dirCount, totalBytes)
+        }.value
+
+        let sizeStr: String
+        if stats.2 > 1_048_576 {
+            sizeStr = String(format: "%.1f MB", Double(stats.2) / 1_048_576.0)
+        } else if stats.2 > 1024 {
+            sizeStr = String(format: "%.1f KB", Double(stats.2) / 1024.0)
+        } else {
+            sizeStr = "\(stats.2) bytes"
+        }
+
+        return success([
+            "title": "Workspace stats",
+            "path": resolvedPath,
+            "detail": "\(stats.0) files, \(stats.1) dirs, \(sizeStr)",
+            "output": "files: \(stats.0)\ndirs: \(stats.1)\nsize: \(sizeStr)\nbytes: \(stats.2)"
+        ], startDate: startDate)
     }
 
     private func executeDependencyAudit(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
@@ -1470,31 +1606,66 @@ public actor UnifiedToolRuntime {
     }
 
     private func resolveRequiredPath(_ rawPath: String?, context: ToolExecutionContext) throws -> String {
-        guard let path = resolvePath(rawPath, workspace: context.workspaceContext.workspacePath.path, sandboxMode: context.policy.sandboxMode) else {
+        let allPaths = context.workspaceContext.workspacePaths.map(\.path)
+        let preferredRoot = context.workspaceContext.activeRootPath
+        guard let path = resolvePath(rawPath, workspacePaths: allPaths, preferredRoot: preferredRoot, sandboxMode: context.policy.sandboxMode) else {
             throw ToolRuntimeError.sandboxViolation("Path is not allowed by sandbox policy")
         }
         return path
     }
 
-    private func resolvePath(_ rawPath: String?, workspace: String, sandboxMode: String) -> String? {
+    private func resolvePath(_ rawPath: String?, workspacePaths: [String], preferredRoot: String?, sandboxMode: String) -> String? {
         let raw = (rawPath ?? ".").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return nil }
-        let workspaceURL = URL(fileURLWithPath: workspace).standardizedFileURL
-        let resolvedURL: URL
-        if (raw as NSString).isAbsolutePath {
-            resolvedURL = URL(fileURLWithPath: raw).standardizedFileURL
-        } else {
-            resolvedURL = workspaceURL.appendingPathComponent(raw).standardizedFileURL
+
+        let isAbsolute = (raw as NSString).isAbsolutePath
+
+        if isAbsolute {
+            let resolvedURL = URL(fileURLWithPath: raw).standardizedFileURL
+            if sandboxMode == "danger-full-access" {
+                return resolvedURL.path
+            }
+            for ws in workspacePaths {
+                let wsURL = URL(fileURLWithPath: ws).standardizedFileURL
+                let wsPath = wsURL.path.hasSuffix("/") ? wsURL.path : wsURL.path + "/"
+                if resolvedURL.path == wsURL.path || resolvedURL.path.hasPrefix(wsPath) {
+                    return resolvedURL.path
+                }
+            }
+            return nil
         }
 
-        if sandboxMode != "danger-full-access" {
-            let workspacePath = workspaceURL.path.hasSuffix("/") ? workspaceURL.path : workspaceURL.path + "/"
-            let resolvedPath = resolvedURL.path
-            if resolvedPath != workspaceURL.path && !resolvedPath.hasPrefix(workspacePath) {
-                return nil
+        let roots: [String]
+        if let preferred = preferredRoot, workspacePaths.contains(preferred) {
+            roots = [preferred] + workspacePaths.filter { $0 != preferred }
+        } else {
+            roots = workspacePaths
+        }
+
+        for ws in roots {
+            let wsURL = URL(fileURLWithPath: ws).standardizedFileURL
+            let resolvedURL = wsURL.appendingPathComponent(raw).standardizedFileURL
+            if FileManager.default.fileExists(atPath: resolvedURL.path) {
+                if sandboxMode == "danger-full-access" {
+                    return resolvedURL.path
+                }
+                let wsPath = wsURL.path.hasSuffix("/") ? wsURL.path : wsURL.path + "/"
+                if resolvedURL.path == wsURL.path || resolvedURL.path.hasPrefix(wsPath) {
+                    return resolvedURL.path
+                }
             }
         }
-        return resolvedURL.path
+
+        let primaryURL = URL(fileURLWithPath: roots[0]).standardizedFileURL
+        let resolvedURL = primaryURL.appendingPathComponent(raw).standardizedFileURL
+        if sandboxMode == "danger-full-access" {
+            return resolvedURL.path
+        }
+        let primaryPath = primaryURL.path.hasSuffix("/") ? primaryURL.path : primaryURL.path + "/"
+        if resolvedURL.path == primaryURL.path || resolvedURL.path.hasPrefix(primaryPath) {
+            return resolvedURL.path
+        }
+        return nil
     }
 
     private func validateShell(command: String, policy: ToolRuntimePolicy) throws {

@@ -918,18 +918,15 @@ struct ChatPanelView: View {
         conversationId: UUID?
     ) -> Bool {
         guard message.role == .assistant else { return false }
-        if shouldRoutePlanStream(to: conversationId) { return true }
-        let hasMermaidBlock = message.content.range(
-            of: #"(?im)^\s*```mermaid\b"#,
-            options: .regularExpression
-        ) != nil
-        if hasActivePlanContext(for: conversationId), hasMermaidBlock {
-            return true
+        guard hasActivePlanContext(for: conversationId) else { return false }
+        guard looksLikePlanPayload(message.content) else {
+            let hasMermaidBlock = message.content.range(
+                of: #"(?im)^\s*```mermaid\b"#,
+                options: .regularExpression
+            ) != nil
+            return hasMermaidBlock
         }
-        if hasActivePlanContext(for: conversationId), looksLikePlanPayload(message.content) {
-            return true
-        }
-        return false
+        return true
     }
 
     private func chatDisplayMessage(
@@ -1652,8 +1649,11 @@ struct ChatPanelView: View {
 
     private func restorePlanStateIfNeeded(for conversationId: UUID?) {
         clearPlanStreamingState()
-        planClarificationCycles = 0
-        planShouldRunInline = false
+        let hasActiveTask = conversationId.map { activeBuildPlanConversationId == $0 || chatStore.isTaskActive(for: $0) } ?? false
+        if !hasActiveTask {
+            planClarificationCycles = 0
+            planShouldRunInline = false
+        }
         guard let conversationId else {
             planAnalysisContext = ""
             planUserRequest = ""
@@ -3607,8 +3607,6 @@ struct ChatPanelView: View {
                 preserveHistorySelection: false,
                 source: .automaticFlow
             )
-        } else {
-            planPanelPresentationSource = .automaticFlow
         }
     }
 
@@ -4064,12 +4062,11 @@ struct ChatPanelView: View {
         // since planToggleEnabled is disabled below.
         if mode != .plan {
             switch planFlowPhase {
-            case .questioning, .generating, .building:
-                // Preserve — these are actively in-flight and recoverable.
+            case .analyzing, .questioning, .generating, .building:
                 break
             case .idle:
                 break
-            case .analyzing, .proposalReady, .readyToBuild:
+            case .proposalReady, .readyToBuild:
                 planFlowPhase = .idle
                 planningState = .idle
                 clearPlanStreamingState()
@@ -4892,6 +4889,8 @@ struct ChatPanelView: View {
                 await MainActor.run {
                     if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
                         planFlowPhase = .readyToBuild
+                    } else if planFlowPhase == .building {
+                        planFlowPhase = .idle
                     }
                 }
             } catch {
@@ -4903,6 +4902,8 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: agentConvId) { $0.interrupt() }
                         if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
                             planFlowPhase = .readyToBuild
+                        } else if planFlowPhase == .building {
+                            planFlowPhase = .idle
                         }
                     }
                 } else {
@@ -4913,6 +4914,8 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: agentConvId) { $0.fail() }
                         if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
                             planFlowPhase = .readyToBuild
+                        } else if planFlowPhase == .building {
+                            planFlowPhase = .idle
                         }
                     }
                 }
@@ -5432,11 +5435,13 @@ struct ChatPanelView: View {
         // ========================
         // PHASE 1: Codebase Analysis
         // ========================
-        await MainActor.run {
-            guard self.conversationId == conversationId else { return }
+        let shouldStartPhase1 = await MainActor.run { () -> Bool in
+            guard self.conversationId == conversationId else { return false }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
+            return true
         }
+        guard shouldStartPhase1 else { return }
 
         let analysisPrompt = buildPhase1AnalysisPrompt(userRequest: planUserRequest)
         let analysisResult = try await flowCoordinator.runStream(
@@ -5465,6 +5470,7 @@ struct ChatPanelView: View {
         )
 
         await MainActor.run {
+            guard self.conversationId == conversationId else { return }
             planAnalysisContext = analysisText
             updatePlanStreamingContent(analysisText, conversationId: conversationId)
             chatStore.updateLastAssistantMessage(
@@ -5507,8 +5513,8 @@ struct ChatPanelView: View {
         // ========================
         // PHASE 2: Clarification Questions
         // ========================
-        await MainActor.run {
-            guard self.conversationId == conversationId else { return }
+        let shouldStartPhase2 = await MainActor.run { () -> Bool in
+            guard self.conversationId == conversationId else { return false }
             clearPlanStreamingState()
             planFlowPhase = .questioning
             let questionAssistantMessageId = UUID()
@@ -5526,7 +5532,9 @@ struct ChatPanelView: View {
                 assistantMessageId: questionAssistantMessageId,
                 providerId: provider.id
             )
+            return true
         }
+        guard shouldStartPhase2 else { return }
 
         let questionPrompt = buildPhase2QuestionPrompt(
             userRequest: planUserRequest,
@@ -5613,10 +5621,9 @@ struct ChatPanelView: View {
         // ========================
         // PHASE 3: Plan Generation
         // ========================
-        await MainActor.run { planFlowPhase = .generating }
-
-        // Create new assistant message for Phase 3 streaming
-        await MainActor.run {
+        let shouldStartPhase3 = await MainActor.run { () -> Bool in
+            guard self.conversationId == conversationId else { return false }
+            planFlowPhase = .generating
             let generationAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: generationAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -5632,7 +5639,9 @@ struct ChatPanelView: View {
                 in: conversationId,
                 persistImmediately: true
             )
+            return true
         }
+        guard shouldStartPhase3 else { return }
 
         let generationPrompt = buildPhase3GenerationPrompt(
             userRequest: planUserRequest,
@@ -5763,6 +5772,7 @@ struct ChatPanelView: View {
             }
 
             await MainActor.run {
+                guard self.conversationId == conversationId else { return }
                 planFlowPhase = .proposalReady
                 planningState = .awaitingChoice(planContent: full, options: compliantOptions)
                 if shouldAutoOpenPlanPanel(trigger: .awaitingChoice), !showPlanPanel {
@@ -5773,13 +5783,13 @@ struct ChatPanelView: View {
                 }
             }
         } else {
-            // Invalid format: no executable options with mandatory `## Todo`.
             chatStore.updateLastAssistantMessage(
                 content: "Plan generation failed. Please try again.",
                 in: conversationId,
                 persistImmediately: true
             )
             await MainActor.run {
+                guard self.conversationId == conversationId else { return }
                 clearPlanStreamingState()
                 planFlowPhase = .idle
                 planningState = .idle
@@ -5894,15 +5904,10 @@ struct ChatPanelView: View {
         conversationId: UUID,
         shouldRunPlanInline: Bool
     ) async throws {
-        // Re-analysis phase: LLM analyzes based on the user's answers
-        await MainActor.run {
-            guard self.conversationId == conversationId else { return }
+        let shouldStartReanalysis = await MainActor.run { () -> Bool in
+            guard self.conversationId == conversationId else { return false }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
-        }
-
-        // Create new assistant message for re-analysis streaming
-        await MainActor.run {
             let reanalysisAssistantMessageId = UUID()
             chatStore.addMessage(
                 ChatMessage(id: reanalysisAssistantMessageId, role: .assistant, content: "", isStreaming: true),
@@ -5913,7 +5918,9 @@ struct ChatPanelView: View {
                 assistantMessageId: reanalysisAssistantMessageId,
                 providerId: provider.id
             )
+            return true
         }
+        guard shouldStartReanalysis else { return }
 
         let reAnalysisPrompt = buildPostClarificationAnalysisPrompt(
             userRequest: planUserRequest,
@@ -5959,8 +5966,8 @@ struct ChatPanelView: View {
            classification.isConfident,
            case .awaitingClarification(let q) = classification.planningState
         {
-            // LLM needs more answers — pause again for user input
             await MainActor.run {
+                guard self.conversationId == conversationId else { return }
                 planClarificationCycles += 1
                 let followUp = "\n\n--- Follow-up analysis ---\n\(reAnalysisText)"
                 planAnalysisContext = String((planAnalysisContext + followUp).suffix(32_000))
@@ -5984,8 +5991,8 @@ struct ChatPanelView: View {
             return
         }
 
-        // No more questions — update analysis context and proceed to Phase 3
-        await MainActor.run {
+        let shouldProceedPhase3 = await MainActor.run { () -> Bool in
+            guard self.conversationId == conversationId else { return false }
             let postClarification = "\n\n--- Post-clarification analysis ---\n\(reAnalysisText)"
             planAnalysisContext = String((planAnalysisContext + postClarification).suffix(32_000))
             chatStore.updateLastAssistantMessage(
@@ -5995,7 +6002,9 @@ struct ChatPanelView: View {
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
             clearPlanStreamingState()
+            return true
         }
+        guard shouldProceedPhase3 else { return }
 
         try await runPlanFlowPhase3(
             provider: provider,

@@ -376,10 +376,12 @@ final class TaskActivityStore: ObservableObject {
             addActivity(activity)
             return
         }
+        var didMerge = false
         if let idx = activities.lastIndex(where: { $0.groupId == groupId && $0.type == activity.type }) {
             let existing = activities[idx]
             if shouldMerge(existing: existing, incoming: activity) {
                 activities[idx] = activity
+                didMerge = true
             } else {
                 activities.append(activity)
             }
@@ -387,8 +389,16 @@ final class TaskActivityStore: ObservableObject {
             activities.append(activity)
         }
         pruneCompletedTerminalActivities()
+        if activities.count > activitiesHardCap {
+            let excess = activities.count - activitiesHardCap
+            activities.removeFirst(excess)
+        }
         recalcActiveOperations()
-        ingestSwarmCard(activity: activity)
+        if didMerge {
+            rebuildSwarmCards()
+        } else {
+            ingestSwarmCard(activity: activity)
+        }
     }
 
     private func pruneCompletedTerminalActivities() {

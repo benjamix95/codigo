@@ -21,28 +21,45 @@ isProject: false
 
 ```mermaid
 flowchart TB
-    subgraph UI [UI Layer]
-        ChatPanel[ChatPanelView]
-        GitPanel[GitPanelView nuovo]
-        RewindButton[Pulsante Rewind sui messaggi]
+    subgraph UI ["🖥 UI Layer — SwiftUI"]
+        direction LR
+        ChatPanel["ChatPanelView<br/>───<br/>• sendMessage()<br/>• interruptTask()<br/>• rewindToCheckpoint()"]
+        GitPanel["GitPanelView<br/>───<br/>• Stage / Unstage<br/>• Commit / Push<br/>• Branch switch"]
+        RewindBtn["⏪ Rewind Button<br/>───<br/>Hover su ogni<br/>messaggio user"]
     end
-    
-    subgraph Services [CoderEngine Services]
-        GitService[GitService]
-        CheckpointService[CheckpointService]
+
+    subgraph Engine ["⚙ CoderEngine — Services"]
+        direction LR
+        CheckpointSvc["CheckpointService<br/>───<br/>• create(convId, msgIdx)<br/>• restore(checkpoint)<br/>• list / delete"]
+        GitSvc["GitService<br/>───<br/>• status / diff<br/>• stage / commit<br/>• branch / checkout<br/>• init / remoteSync"]
     end
-    
-    subgraph Storage [Storage]
-        GitRepo[Repo Git]
-        CoderideCheckpoints[~/.coderide/checkpoints]
+
+    subgraph Strategy ["📋 Strategy Layer"]
+        direction LR
+        GitStrategy["Git-Based<br/>───<br/>Branch: coderide-checkpoints/&lt;convId&gt;<br/>Commit: coderide:pre:N<br/>Restore: reset --hard"]
+        SnapshotStrategy["Snapshot-Based<br/>───<br/>Dir: ~/.coderide/checkpoints/&lt;convId&gt;/&lt;N&gt;/<br/>Copy: filtered workspace files<br/>Restore: overwrite"]
     end
-    
-    ChatPanel -->|"pre-send: crea checkpoint"| CheckpointService
-    ChatPanel -->|"rewind: restore"| CheckpointService
-    GitPanel --> GitService
-    CheckpointService -->|"se Git repo"| GitService
-    CheckpointService -->|"se no Git"| CoderideCheckpoints
-    GitService --> GitRepo
+
+    subgraph Storage ["💾 Persistent Storage"]
+        direction LR
+        GitRepo[("Git Repository<br/>.git/")]
+        SnapshotDir[("Snapshot Directory<br/>~/.coderide/checkpoints/")]
+        Manifest["manifest.json<br/>───<br/>Checkpoint metadata"]
+    end
+
+    ChatPanel -- "pre-send" --> CheckpointSvc
+    RewindBtn -- "restore" --> CheckpointSvc
+    GitPanel --> GitSvc
+    ChatPanel -. "status badge" .-> GitSvc
+
+    CheckpointSvc -- "isGitRepo? ✓" --> GitStrategy
+    CheckpointSvc -- "isGitRepo? ✗" --> SnapshotStrategy
+
+    GitStrategy --> GitSvc
+    GitSvc --> GitRepo
+
+    SnapshotStrategy --> SnapshotDir
+    SnapshotStrategy --> Manifest
 ```
 
 

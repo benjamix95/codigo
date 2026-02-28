@@ -105,9 +105,12 @@ struct PlanPanelView: View {
     @State private var historySelectionVersion = 0
     /// Override provider for plan execution (nil = use conversation/global default)
     @State private var planProviderId: String?
-    /// Cached render snapshot — rebuilt only when displayPlanContent or todos change.
-    @State private var cachedSnapshot: PlanRenderSnapshot?
-    @State private var lastSnapshotKey: String = ""
+    /// Reference-type cache to avoid mutating @State during body evaluation.
+    private final class SnapshotCache {
+        var key: String = ""
+        var snapshot: PlanRenderSnapshot?
+    }
+    @State private var snapshotCache = SnapshotCache()
     /// Keeps top controls out of the macOS titlebar non-interactive zone.
         private let topInteractiveInset: CGFloat = 22
 
@@ -746,12 +749,12 @@ struct PlanPanelView: View {
         let content = displayPlanContent
         let todosHash = canonicalPlanTodos.map { "\($0.id)-\($0.status.rawValue)" }.joined()
         let key = "\(content.count)-\(content.prefix(200))-\(content.suffix(200))|\(todosHash)"
-        if key == lastSnapshotKey, let cached = cachedSnapshot {
+        if key == snapshotCache.key, let cached = snapshotCache.snapshot {
             return cached
         }
         let snapshot = makeRenderSnapshot(content: content)
-        lastSnapshotKey = key
-        cachedSnapshot = snapshot
+        snapshotCache.key = key
+        snapshotCache.snapshot = snapshot
         return snapshot
     }
 

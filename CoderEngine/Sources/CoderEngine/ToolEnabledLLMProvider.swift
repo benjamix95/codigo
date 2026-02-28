@@ -59,6 +59,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return try await base.send(prompt: prompt, context: context, imageURLs: imageURLs)
         }
 
+        // Eagerly discover and register MCP tools as native function tools on first request.
+        if policy.enableMCP && !MCPNativeToolRegistry.shared.hasTools() {
+            let discovered = await runtime.mcpSessions.discoverAllTools(
+                idleTTLSeconds: policy.mcpSessionIdleTTLSeconds
+            )
+            if !discovered.isEmpty {
+                MCPNativeToolRegistry.shared.register(tools: discovered)
+            }
+        }
+
         let initialPrompt = """
         \(SystemPrompts.taskCompletionStrict)
 
@@ -472,10 +482,19 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         for (k, v) in dict {
             if let s = v as? String {
                 out[k] = s
-            } else if v is Bool {
-                out[k] = (v as! Bool) ? "true" : "false"
+            } else if v is NSNull {
+                out[k] = "null"
+            } else if let b = v as? Bool {
+                out[k] = b ? "true" : "false"
             } else if let n = v as? NSNumber {
                 out[k] = n.stringValue
+            } else if JSONSerialization.isValidJSONObject(v) {
+                if let jsonData = try? JSONSerialization.data(withJSONObject: v, options: [.sortedKeys]),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    out[k] = jsonStr
+                } else {
+                    out[k] = String(describing: v)
+                }
             } else {
                 out[k] = String(describing: v)
             }
@@ -1022,6 +1041,46 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return true
     }
 
+    /// Generates the system prompt section listing all natively-registered MCP tools, grouped by server.
+    private var mcpNativeToolsPromptSection: String {
+        let registry = MCPNativeToolRegistry.shared
+        let entries = registry.entries
+        guard !entries.isEmpty else {
+            return "No MCP tools currently available. Use `mcp_list_servers` and `mcp_list_tools` to discover tools at runtime."
+        }
+
+        let routing = registry.routing
+        var serverTools: [String: [(functionName: String, entry: ToolSchemaEntry)]] = [:]
+        for entry in entries {
+            let serverName: String
+            if let route = routing[entry.name] {
+                serverName = route.serverId
+            } else {
+                serverName = "unknown"
+            }
+            serverTools[serverName, default: []].append((functionName: entry.name, entry: entry))
+        }
+
+        var lines: [String] = []
+        lines.append("**Available MCP tools** (call directly by function name):")
+        for (server, tools) in serverTools.sorted(by: { $0.key < $1.key }) {
+            lines.append("")
+            let displayServer = server.components(separatedBy: "|").last ?? server
+            lines.append("Server: **\(displayServer)**")
+            for tool in tools {
+                let params = tool.entry.required.isEmpty
+                    ? ""
+                    : " Args: \(tool.entry.required.map { "`\($0)`" }.joined(separator: ", "))."
+                let desc = tool.entry.description
+                    .replacingOccurrences(of: "[\(displayServer)] ", with: "")
+                    .replacingOccurrences(of: "[\(server)] ", with: "")
+                lines.append("- **\(tool.functionName)** — \(desc)\(params)")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     private var toolProtocolPrompt: String {
         """
         # Tool Protocol
@@ -1049,9 +1108,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
         11. If AGENTS.md / SKILL.md / repository runbooks or **Detected local skills** are present, USE the `skill` tool when the task matches. Skills (doc, imagegen, transcribe, playwright, etc.) provide optimized workflows — invoke them instead of reinventing.
         12. If the context contains a mandatory policy acknowledgment, use the `policy_ack` tool with the hash before any operational tool action.
-        13. MCP availability verification is mandatory before MCP usage: `mcp_list_servers` first, then `mcp_list_tools`, then `mcp_describe_tool` (for unfamiliar tools), then `mcp_call`.
+        13. MCP tools from connected servers are registered as native function tools — call them directly by name. Use `mcp_call` only for tools not registered natively. Use `mcp_list_tools` if you need to discover additional tools at runtime.
         14. Use `web_search` and `web_fetch` when you need current information, documentation, API references, or anything beyond your training data.
-        15. When done, provide a clear summary: what changed, which files, outcome, and explicitly list MCP servers/tools used.
+        15. When done, provide a clear summary: what changed, which files, outcome.
         16. Do NOT stop until the task is fully resolved or you've clearly stated a blocker with next steps.
 
         ## Available Tools
@@ -1113,12 +1172,23 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **skill** — Invoke a local skill from ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Use when the task matches a skill's description (doc, imagegen, transcribe, playwright, cloudflare-deploy, gh-fix-ci, etc.). Args: `skill` or `name` (skill name), `task` or `args` (what to do). ALWAYS prefer skills over manual workflows when a skill exists for the task.
 
         ### MCP (Model Context Protocol)
-        - **mcp_call** — Call an MCP tool. Args: `server`, `tool`, plus tool-specific args.
-        - **mcp_list_tools** — List available MCP tools. Args: `server` (optional).
-        - **mcp_describe_tool** — Get MCP tool schema. Args: `server`, `tool`.
-        - **mcp_list_servers** — List connected MCP servers.
-        - **mcp_health** — Check MCP server health.
-        - **mcp_reconnect** — Reconnect to an MCP server. Args: `server`.
+        MCP tools from connected servers are registered as **native function tools** — call them directly by name without any discovery steps.
+
+        \(mcpNativeToolsPromptSection)
+
+        **Fallback/admin tools** (only use when native tools are insufficient):
+        - **mcp_call** — Call an MCP tool by name. Pass tool arguments as top-level key-value pairs alongside `tool` and `server`. Args: `server` (server ID), `tool` (tool name), plus the tool's own arguments as top-level keys.
+        - **mcp_list_tools** — List available MCP tools. Args: `server` (optional, filter by server).
+        - **mcp_describe_tool** — Get the full JSON Schema for an MCP tool. Args: `tool`, `server` (optional).
+        - **mcp_list_servers** — List all connected MCP servers.
+        - **mcp_health** — Check MCP server connection health.
+        - **mcp_reconnect** — Force reconnect to a server. Args: `server`.
+
+        **MCP best practices:**
+        - Call native MCP tools directly — no discovery needed, schemas are already registered.
+        - Only use `mcp_call` for tools that aren't registered natively (rare).
+        - If a native MCP tool call fails with "not found", the server may have restarted — use `mcp_reconnect` then retry.
+        - MCP tools can be called in parallel with other tools when they are read-only.
 
         ### Web Tools
         - **web_search** — Search the web for current information. Returns a JSON array of results, each with `title`, `snippet`, and `url`. Use when you need up-to-date information, current documentation, recent API changes, external references, or anything beyond your training data. Args: `query` (search terms), `explanation` (optional context for the search).
@@ -1240,7 +1310,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
           Round 4: edit file A...
           Round 5: edit file B...
           This is FORBIDDEN. Use subagents instead.
-        """ : "You are a focused subagent. Use the tools directly to complete your task. Do NOT attempt to spawn subagents.")
+        """ : "Subagent delegation is not available in this configuration. Use tools directly to complete your task.")
         """
     }
 
