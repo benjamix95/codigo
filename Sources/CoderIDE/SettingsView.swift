@@ -92,9 +92,6 @@ struct SettingsView: View {
     @AppStorage("plan_mode_backend") private var planModeBackend = "codex"
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
-    @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
-    @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
-    @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles = "planner,coder,debugger,reviewer,testWriter"
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
@@ -108,8 +105,6 @@ struct SettingsView: View {
 
     // MARK: - Behavior
     @AppStorage("global_yolo") private var globalYolo = false
-    @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
-    @AppStorage("swarm_fallback_auto_evaluate") private var swarmFallbackAutoEvaluate = true
     @AppStorage("terminal_auto_follow_output") private var terminalAutoFollowOutput = true
     @AppStorage("summarize_threshold") private var summarizeThreshold = 0.8
     @AppStorage("summarize_keep_last") private var summarizeKeepLast = 6
@@ -762,15 +757,6 @@ struct SettingsView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Auto-delegate to Agent Swarm", isOn: $agentAutoDelegateSwarm)
-                    hintBox("Allows the single agent to automatically delegate complex tasks to the multi-agent swarm.")
-                    Toggle("Swarm fallback auto-evaluate", isOn: $swarmFallbackAutoEvaluate)
-                    hintBox("When the LLM does not emit a swarm marker, automatically evaluate the response with the delegation policy and delegate if complex enough.")
-                }
-            }
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
                     Toggle("Auto-follow terminal output", isOn: $terminalAutoFollowOutput)
                     hintBox("Automatically follows terminal output while commands are running.")
                 }
@@ -1395,9 +1381,6 @@ struct SettingsView: View {
             codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator, swarmWorkerBackend: swarmWorkerBackend,
-            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
-            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
-            swarmMaxReviewLoops: swarmMaxReviewLoops,
             swarmEnabledRoles: swarmEnabledRoles,
             globalYolo: globalYolo,
             codeReviewPartitions: codeReviewPartitions,

@@ -10,7 +10,9 @@ public enum CodexSandboxMode: String, CaseIterable, Sendable {
 /// Markers the model can emit to activate the Task Activity Panel
 public enum CoderIDEMarkers {
     public static let showTaskPanel = "[CODERIDE:show_task_panel]"
+    @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")
     public static let invokeSwarmPrefix = "[CODERIDE:invoke_swarm:"
+    @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")
     public static let invokeSwarmSuffix = "]"
     public static let todoWritePrefix = "[CODERIDE:todo_write|"
     public static let todoRead = "[CODERIDE:todo_read]"
@@ -880,10 +882,6 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
 
         case "show_task_panel":
             return [("coderide_show_task_panel", [:])]
-
-        case "invoke_swarm":
-            if let t = firstString(in: arguments, keys: ["task"]) { return [("coderide_invoke_swarm", ["task": t])] }
-            return []
 
         case "show_swarm_panel":
             if let swarmId = firstString(in: arguments, keys: ["swarm_id"]) {

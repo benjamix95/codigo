@@ -86,6 +86,7 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
 
         store.appendOrMergeBatchEvent(started)
         store.appendOrMergeBatchEvent(completed)
+        store.flushPending()
 
         let card = store.swarmCardStates().first(where: { $0.swarmId == "coder" })
         XCTAssertNotNil(card)

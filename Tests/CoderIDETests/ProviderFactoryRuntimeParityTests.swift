@@ -123,38 +123,6 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
         XCTAssertFalse(provider is ToolEnabledLLMProvider)
     }
 
-    func testSwarmProviderPassesRuntimeParityToOrchestratorAndWorker() async throws {
-        let config = makeConfig()
-        let index = CodebaseIndex()
-        let workspacePaths = makeWorkspacePaths()
-
-        guard let swarm = ProviderFactory.swarmProvider(
-            config: config,
-            executionController: nil,
-            agentProviderId: nil,
-            codebaseIndex: index,
-            workspacePaths: workspacePaths
-        ) else {
-            return XCTFail("Expected swarm provider")
-        }
-
-        let snapshot = await swarm.debugSwarmSnapshot()
-        XCTAssertEqual(snapshot.orchestratorProviderId, "openai-api")
-        XCTAssertEqual(snapshot.workerProviderId, "anthropic-api")
-
-        let expectedWorkspacePaths = workspacePaths.map(\.path)
-        guard let orchestratorRuntime = snapshot.orchestratorRuntime else {
-            return XCTFail("Expected orchestrator runtime snapshot")
-        }
-        guard let workerRuntime = snapshot.workerRuntime else {
-            return XCTFail("Expected worker runtime snapshot")
-        }
-        XCTAssertTrue(orchestratorRuntime.hasCodebaseIndex)
-        XCTAssertTrue(workerRuntime.hasCodebaseIndex)
-        XCTAssertEqual(orchestratorRuntime.workspacePaths, expectedWorkspacePaths)
-        XCTAssertEqual(workerRuntime.workspacePaths, expectedWorkspacePaths)
-    }
-
     private func makeWorkspacePaths() -> [URL] {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
             "provider-runtime-parity-\(UUID().uuidString)"
@@ -189,9 +157,6 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             planModeBackend: "openai-api",
             swarmOrchestrator: "openai-api",
             swarmWorkerBackend: "anthropic-api",
-            swarmAutoPostCodePipeline: false,
-            swarmMaxPostCodeRetries: 1,
-            swarmMaxReviewLoops: 1,
             swarmEnabledRoles: "",
             globalYolo: false,
             codeReviewPartitions: 2,

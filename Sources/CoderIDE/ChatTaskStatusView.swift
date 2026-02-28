@@ -48,7 +48,7 @@ struct TaskControlBar: View {
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.primary)
 
-                if let lastActivity = TaskActivityStore.lastConcreteVisibleActivity(
+                if let lastActivity = TaskActivityStore.lastConcreteNonSwarmActivity(
                     in: taskActivityStore.activities
                 ) {
                     Text("•")
@@ -171,7 +171,6 @@ struct TaskControlBar: View {
 
     private var executionScope: ExecutionScope {
         switch coderMode {
-        case .agentSwarm: return .swarm
         case .codeReviewMultiSwarm: return .review
         case .plan: return .plan
         default: return .agent
@@ -244,11 +243,7 @@ struct TaskActivityPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if coderMode == .agentSwarm {
-                swarmActivityContent
-            } else {
-                standardActivityContent
-            }
+            standardActivityContent
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
@@ -286,6 +281,7 @@ struct TaskActivityPanel: View {
     private var standardActivityContent: some View {
         let concreteActivities = taskActivityStore.activities.filter {
             TaskActivityStore.isConcreteVisibleEvent($0)
+            && !SwarmMetadata.isSwarmEvent($0.payload)
         }
         if chatStore.isTaskActive(for: conversationId) {
             liveModeBanner
@@ -321,6 +317,7 @@ struct TaskActivityPanel: View {
         // Web Search
         let webActivities = taskActivityStore.activities.filter {
             $0.type.hasPrefix("web_search")
+            && !SwarmMetadata.isSwarmEvent($0.payload)
         }
         if !webActivities.isEmpty {
             WebSearchLiveView(activities: taskActivityStore.activities)
@@ -328,9 +325,10 @@ struct TaskActivityPanel: View {
 
         // Terminals (expandable)
         let terminalActivities = taskActivityStore.activities.filter {
-            $0.type == "command_execution" || $0.type == "bash"
+            ($0.type == "command_execution" || $0.type == "bash"
                 || ($0.type == "mcp_tool_call"
-                    && ($0.payload["tool"] == "bash" || $0.payload["command"] != nil))
+                    && ($0.payload["tool"] == "bash" || $0.payload["command"] != nil)))
+            && !SwarmMetadata.isSwarmEvent($0.payload)
         }
         if !terminalActivities.isEmpty {
             expandableSection(
@@ -468,7 +466,6 @@ struct TaskActivityPanel: View {
             switch coderMode {
             case .plan: return "Plan"
             case .codeReviewMultiSwarm: return "Review"
-            case .agentSwarm: return "Swarm"
             case .debug: return "Debug"
             default: return "Agent"
             }
@@ -495,8 +492,6 @@ struct TaskActivityPanel: View {
                     return "Code Review: Phase 2 (applying fixes)"
                 }
                 return "Code Review: Phase 1 (multi-swarm analysis)"
-            case .agentSwarm:
-                return "Swarm: orchestrating agents"
             case .debug:
                 return "Debug: investigating and verifying"
             default:

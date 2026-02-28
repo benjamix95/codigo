@@ -26,33 +26,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         )
 
         XCTAssertEqual(snapshots, ["Ciao", "Ciao mondo"])
-        XCTAssertEqual(result.fullText, "Ciao mondo")
-        XCTAssertNil(result.pendingSwarmTask)
-        XCTAssertEqual(coordinator.state, .completed)
-    }
-
-    func testRunStreamExtractsPendingSwarmTaskFromRawEvent() async throws {
-        let provider = MockStreamingProvider(events: [
-            .started,
-            .raw(type: "coderide_invoke_swarm", payload: ["task": "Analyze streaming bug"]),
-            .textDelta("Received"),
-            .completed,
-        ])
-        let coordinator = ConversationFlowCoordinator()
-        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
-
-        let result = try await coordinator.runStream(
-            provider: provider,
-            prompt: "test",
-            context: ctx,
-            attachments: nil,
-            onText: { _ in },
-            onRaw: { _, _, _ in },
-            onError: { _ in }
-        )
-
-        XCTAssertEqual(result.fullText, "Received")
-        XCTAssertEqual(result.pendingSwarmTask, "Analyze streaming bug")
+        XCTAssertEqual(result, "Ciao mondo")
         XCTAssertEqual(coordinator.state, .completed)
     }
 
@@ -85,7 +59,7 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(rawCount, 250)
         XCTAssertEqual(snapshots.last, "Final output")
-        XCTAssertEqual(result.fullText, "Final output")
+        XCTAssertEqual(result, "Final output")
         XCTAssertEqual(coordinator.state, .completed)
     }
 
@@ -116,73 +90,11 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
                 }
             )
             let state = await MainActor.run { coordinator.state }
-            return (streamResult.fullText, state)
+            return (streamResult, state)
         }.value
 
         XCTAssertEqual(result.0, "ok")
         XCTAssertEqual(result.1, .completed)
-    }
-
-    func testRunDelegatedSwarmMarksInterruptedOnUserCancellationEvent() async throws {
-        let swarmProvider = MockStreamingProvider(events: [
-            .started,
-            .error("Request stopped by user"),
-            .completed
-        ])
-        let coordinator = ConversationFlowCoordinator()
-        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
-
-        var onErrorMessages: [String] = []
-        let state = await coordinator.runDelegatedSwarm(
-            task: "Analyze this request",
-            swarmProvider: swarmProvider,
-            context: ctx,
-            imageURLs: nil,
-            agentFollowUpProvider: nil,
-            originalPrompt: "Test cancellation in delegated flow",
-            onSwarmText: { _ in },
-            onRaw: { _, _, _ in },
-            onFollowUpText: { _ in },
-            onError: { message in
-                onErrorMessages.append(message)
-            }
-        )
-
-        XCTAssertEqual(state, .interrupted)
-        XCTAssertEqual(coordinator.state, .interrupted)
-        XCTAssertEqual(onErrorMessages.count, 1)
-        XCTAssertTrue(onErrorMessages[0].contains("Request stopped by user"))
-    }
-
-    func testRunDelegatedSwarmKeepsCompletedForNonCancellationErrorEvent() async throws {
-        let swarmProvider = MockStreamingProvider(events: [
-            .started,
-            .error("Transient provider failure"),
-            .completed
-        ])
-        let coordinator = ConversationFlowCoordinator()
-        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
-
-        var onErrorMessages: [String] = []
-        let state = await coordinator.runDelegatedSwarm(
-            task: "Analyze this request",
-            swarmProvider: swarmProvider,
-            context: ctx,
-            imageURLs: nil,
-            agentFollowUpProvider: nil,
-            originalPrompt: "Test failure in delegated flow",
-            onSwarmText: { _ in },
-            onRaw: { _, _, _ in },
-            onFollowUpText: { _ in },
-            onError: { message in
-                onErrorMessages.append(message)
-            }
-        )
-
-        XCTAssertEqual(state, .completed)
-        XCTAssertEqual(coordinator.state, .completed)
-        XCTAssertEqual(onErrorMessages.count, 1)
-        XCTAssertTrue(onErrorMessages[0].contains("Transient provider failure"))
     }
 }
 

@@ -586,16 +586,6 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
             [
                 "type": "item.completed",
                 "item": [
-                    "id": "mcp-ide-swarm",
-                    "type": "mcp_tool_call",
-                    "tool": "functions.mcp_call",
-                    "mcp_tool": "coderide_invoke_swarm",
-                    "arguments": #"{\"task\":\"Review codebase for regression\"}"#,
-                ],
-            ],
-            [
-                "type": "item.completed",
-                "item": [
                     "id": "mcp-ide-panel",
                     "type": "mcp_tool_call",
                     "tool": "functions.mcp_call",
@@ -620,10 +610,9 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         }
 
         let rawTypes = rawEvents.map { $0.0 }
-        XCTAssertEqual(rawTypes.filter { $0 == "mcp_tool_call" }.count, 5)
+        XCTAssertEqual(rawTypes.filter { $0 == "mcp_tool_call" }.count, 4)
         XCTAssertEqual(rawTypes.filter { $0 == "plan_step_update" }.count, 1)
         XCTAssertTrue(rawTypes.contains("activate_plan_mode"))
-        XCTAssertTrue(rawTypes.contains("coderide_invoke_swarm"))
         XCTAssertTrue(rawTypes.contains("coderide_show_task_panel"))
         XCTAssertTrue(rawTypes.contains("coderide_show_swarm_panel"))
 
@@ -634,10 +623,6 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(
             rawEvents.first(where: { $0.0 == "activate_plan_mode" })?.1["reason"],
             "complex multi-step change"
-        )
-        XCTAssertEqual(
-            rawEvents.first(where: { $0.0 == "coderide_invoke_swarm" })?.1["task"],
-            "Review codebase for regression"
         )
         XCTAssertEqual(
             rawEvents.first(where: { $0.0 == "coderide_show_swarm_panel" })?.1["swarm_id"],

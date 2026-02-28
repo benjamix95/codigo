@@ -45,9 +45,6 @@ struct CodigoApp: App {
     @AppStorage("mcp_edit_enforcement_enabled") private var mcpEditEnforcementEnabled = true
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
-    @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
-    @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
-    @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
         "planner,coder,debugger,reviewer,testWriter"
     @AppStorage("global_yolo") private var globalYolo = false
@@ -279,9 +276,6 @@ struct CodigoApp: App {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
-            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
-            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
-            swarmMaxReviewLoops: swarmMaxReviewLoops,
             swarmEnabledRoles: swarmEnabledRoles,
             globalYolo: globalYolo,
             codeReviewPartitions: codeReviewPartitions,

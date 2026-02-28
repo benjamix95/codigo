@@ -27,9 +27,6 @@ struct ProviderFactoryConfig {
 
     var swarmOrchestrator: String
     var swarmWorkerBackend: String
-    var swarmAutoPostCodePipeline: Bool
-    var swarmMaxPostCodeRetries: Int
-    var swarmMaxReviewLoops: Int
     var swarmEnabledRoles: String
 
     var globalYolo: Bool
@@ -264,54 +261,6 @@ enum ProviderFactory {
         return normalized
     }
 
-    private static func orchestratorBackend(for backendId: String) -> OrchestratorBackend {
-        switch normalizedBackendId(backendId) {
-        case "codex", "codex-cli":
-            return .codex
-        case "claude", "claude-cli":
-            return .claude
-        case "gemini", "gemini-cli":
-            return .gemini
-        case "anthropic-api":
-            return .anthropicAPI
-        case "google-api":
-            return .googleAPI
-        case "openrouter-api", "openrouter":
-            return .openrouterAPI
-        case "minimax-api":
-            return .minimaxAPI
-        case "grok-api":
-            return .grokAPI
-        default:
-            return .openai
-        }
-    }
-
-    private static func workerBackend(for backendId: String) -> WorkerBackend {
-        switch normalizedBackendId(backendId) {
-        case "codex", "codex-cli":
-            return .codex
-        case "claude", "claude-cli":
-            return .claude
-        case "gemini", "gemini-cli":
-            return .gemini
-        case "openai", "openai-api":
-            return .openaiAPI
-        case "anthropic-api":
-            return .anthropicAPI
-        case "google-api":
-            return .googleAPI
-        case "openrouter-api", "openrouter":
-            return .openrouterAPI
-        case "minimax-api":
-            return .minimaxAPI
-        case "grok-api":
-            return .grokAPI
-        default:
-            return .codex
-        }
-    }
-
     /// Resolve any backend identifier to a concrete LLMProvider.
     static func resolveSwarmBackendProvider(
         backendId: String,
@@ -366,62 +315,6 @@ enum ProviderFactory {
         default:
             return nil
         }
-    }
-
-    static func swarmProvider(
-        config: ProviderFactoryConfig,
-        executionController: ExecutionController?,
-        agentProviderId: String?,
-        codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
-    ) -> SwarmRuntimeProvider? {
-        let resolvedOrchestratorId = resolveSwarmBackendId(
-            configuredBackendId: config.swarmOrchestrator,
-            agentProviderId: agentProviderId
-        )
-        let resolvedWorkerId = resolveSwarmBackendId(
-            configuredBackendId: config.swarmWorkerBackend,
-            agentProviderId: agentProviderId
-        )
-        let orchBackend = orchestratorBackend(for: resolvedOrchestratorId)
-        let workerBackend = workerBackend(for: resolvedWorkerId)
-
-        guard
-            let orchProvider = resolveSwarmBackendProvider(
-                backendId: resolvedOrchestratorId,
-                config: config,
-                executionController: executionController,
-                codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
-            )
-        else { return nil }
-
-        guard
-            let workerProvider = resolveSwarmBackendProvider(
-                backendId: resolvedWorkerId,
-                config: config,
-                executionController: executionController,
-                codebaseIndex: codebaseIndex,
-                workspacePaths: workspacePaths
-            )
-        else { return nil }
-
-        let enabledRoles = parseRoles(config.swarmEnabledRoles)
-
-        let swarmConfig = SwarmConfig(
-            orchestratorBackend: orchBackend,
-            workerBackend: workerBackend,
-            enabledRoles: enabledRoles.isEmpty ? nil : enabledRoles,
-            autoPostCodePipeline: config.swarmAutoPostCodePipeline,
-            maxPostCodeRetries: config.swarmMaxPostCodeRetries,
-            maxReviewLoops: config.swarmMaxReviewLoops
-        )
-        return SwarmRuntimeProvider(
-            config: swarmConfig,
-            orchestratorProvider: orchProvider,
-            workerProvider: workerProvider,
-            executionController: executionController
-        )
     }
 
     private static func codeReviewExecutionProvider(

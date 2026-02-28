@@ -82,6 +82,7 @@ final class DebugFlowToolE2ETests: XCTestCase {
         XCTAssertFalse(debugStore.awaitingDebugClean)
         XCTAssertEqual(debugStore.resolutionSummary, "Fixed parser nil crash")
 
+        taskStore.flushPending()
         let visibleTypes = Set(taskStore.concreteRecentActivities(limit: 50).map(\.type))
         XCTAssertTrue(visibleTypes.contains("debug_hypothesize"))
         XCTAssertTrue(visibleTypes.contains("debug_mark"))

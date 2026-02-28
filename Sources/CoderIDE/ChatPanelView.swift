@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 enum CoderMode: String, CaseIterable {
     case agent = "Agent"
-    case agentSwarm = "Agent Swarm"
     case codeReviewMultiSwarm = "Code Review"
     case debug = "Debug"
     case plan = "Plan"
@@ -64,7 +63,7 @@ func rolloverAutoTodoOutcome(
         return .failed
     case .interrupted:
         return .aborted
-    case .streaming, .delegatedSwarm, .followUp:
+    case .streaming:
         // A new turn started before the previous one reached completion.
         return .aborted
     case .idle, .completed:
@@ -334,7 +333,7 @@ func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
 
 func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     switch mode {
-    case .agent, .debug, .plan, .codeReviewMultiSwarm, .agentSwarm:
+    case .agent, .debug, .plan, .codeReviewMultiSwarm:
         return true
     case .ide, .mcpServer:
         return false
@@ -628,13 +627,8 @@ struct ChatPanelView: View {
     @AppStorage("swarm_orchestrator") private var swarmOrchestrator = "auto"
     @AppStorage("swarm_worker_backend") private var swarmWorkerBackend = "auto"
     @AppStorage("swarm_provider_auto_migrated_v1") private var swarmProviderAutoMigrated = false
-    @AppStorage("swarm_auto_post_code_pipeline") private var swarmAutoPostCodePipeline = true
-    @AppStorage("swarm_max_post_code_retries") private var swarmMaxPostCodeRetries = 10
-    @AppStorage("swarm_max_review_loops") private var swarmMaxReviewLoops = 2
     @AppStorage("swarm_enabled_roles") private var swarmEnabledRoles =
         "planner,coder,debugger,reviewer,testWriter"
-    @AppStorage("agent_auto_delegate_swarm") private var agentAutoDelegateSwarm = true
-    @AppStorage("swarm_fallback_auto_evaluate") private var swarmFallbackAutoEvaluate = true
     @AppStorage("global_yolo") private var globalYolo = false
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
@@ -860,7 +854,7 @@ struct ChatPanelView: View {
                     .allowsHitTesting(false)
                 chatHeader
 
-                if coderMode == .agentSwarm
+                if coderMode == .agent
                     && (!swarmProgressStore.steps.isEmpty
                         || !TaskActivityStore.laneStates(from: taskActivityStore.activities).isEmpty)
                 {
@@ -1045,12 +1039,6 @@ struct ChatPanelView: View {
     private func applyRuntimeLifecycleModifiers<Content: View>(to content: Content) -> some View {
         let lifecycleTracked = content
             .onChange(of: showSwarmPanel) { wasOpen, isShowing in
-                if isShowing && coderMode == .agent {
-                    selectMode(.agentSwarm)
-                }
-                if !isShowing && coderMode == .agentSwarm {
-                    selectMode(.agent)
-                }
                 if isShowing && !wasOpen {
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(swarmPanelWidthStorage))
                 } else if !isShowing && wasOpen {
@@ -1155,10 +1143,7 @@ struct ChatPanelView: View {
             }
 
         let swarmTracked = lifecycleTracked
-            .onChange(of: swarmOrchestrator) { _, _ in syncSwarmProvider() }
             .onChange(of: swarmWorkerBackend) { _, _ in syncSwarmProvider() }
-            .onChange(of: swarmAutoPostCodePipeline) { _, _ in syncSwarmProvider() }
-            .onChange(of: swarmMaxPostCodeRetries) { _, _ in syncSwarmProvider() }
             .onChange(of: claudeAllowedTools) { _, _ in
                 syncClaudeProvider()
             }
@@ -1785,7 +1770,7 @@ struct ChatPanelView: View {
     }
 
     private func modeTabButton(_ title: String, icon: String, mode: CoderMode, color: Color) -> some View {
-        let isSelected = coderMode == mode || (mode == .agent && (coderMode == .agentSwarm || coderMode == .codeReviewMultiSwarm))
+        let isSelected = coderMode == mode || (mode == .agent && coderMode == .codeReviewMultiSwarm)
         return Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
                 selectMode(mode)
@@ -2161,6 +2146,24 @@ struct ChatPanelView: View {
                                 )
                                 .padding(.horizontal, 2)
                             }
+                            // Subagent cards inline (only on latest assistant message)
+                            if message.id == latestAssistantMessageId {
+                                let subagentCards = taskActivityStore.swarmCardStates()
+                                if !subagentCards.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(subagentCards) { card in
+                                            SubagentChatCardView(
+                                                card: card,
+                                                onOpenInPanel: {
+                                                    selectedSwarmId = card.swarmId
+                                                    showSwarmPanel = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                    .padding(.horizontal, 2)
+                                }
+                            }
                             let traceEvents = toolTraceStore.events(
                                 conversationId: conv.id,
                                 assistantMessageId: message.id
@@ -2443,7 +2446,6 @@ struct ChatPanelView: View {
 
     private func executionScopeForCurrentMode() -> ExecutionScope {
         switch coderMode {
-        case .agentSwarm: return .swarm
         case .codeReviewMultiSwarm: return .review
         case .plan: return .plan
         default: return .agent
@@ -3625,7 +3627,6 @@ struct ChatPanelView: View {
     private var inputHint: String {
         switch coderMode {
         case .agent: return "Agent can modify files and run commands"
-        case .agentSwarm: return "Swarm of specialized agents"
         case .codeReviewMultiSwarm:
             return
                 "Using Code Review Multi-Swarm: the request will be split into partitions."
@@ -3761,17 +3762,6 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
-        case .agentSwarm:
-            if let preferred = currentConv?.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
         case .codeReviewMultiSwarm:
             if let preferred = currentConv?.preferredProviderId,
                ProviderSupport.isAgentCompatibleProvider(id: preferred),
@@ -3841,7 +3831,6 @@ struct ChatPanelView: View {
     private func modeColor(for m: CoderMode) -> Color {
         switch m {
         case .agent: return DesignSystem.Colors.agentColor
-        case .agentSwarm: return DesignSystem.Colors.swarmColor
         case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
         case .debug: return DesignSystem.Colors.debugColor
         case .plan: return DesignSystem.Colors.planColor
@@ -3852,7 +3841,6 @@ struct ChatPanelView: View {
     private func modeIcon(for m: CoderMode) -> String {
         switch m {
         case .agent: return "brain"
-        case .agentSwarm: return "ant.fill"
         case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
         case .debug: return "ladybug.fill"
         case .plan: return "list.bullet.rectangle"
@@ -3863,7 +3851,6 @@ struct ChatPanelView: View {
     private func modeGradient(for m: CoderMode) -> LinearGradient {
         switch m {
         case .agent: return DesignSystem.Colors.agentGradient
-        case .agentSwarm: return DesignSystem.Colors.swarmGradient
         case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewGradient
         case .debug: return DesignSystem.Colors.debugGradient
         case .plan: return DesignSystem.Colors.planGradient
@@ -4115,7 +4102,7 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = "codex-cli"
             }
-        case .agentSwarm, .codeReviewMultiSwarm, .plan:
+        case .codeReviewMultiSwarm, .plan:
             if let preferred = conv.preferredProviderId,
                ProviderSupport.isAgentCompatibleProvider(id: preferred),
                providerRegistry.provider(for: preferred) != nil {
@@ -4205,9 +4192,6 @@ struct ChatPanelView: View {
             planModeBackend: planModeBackend,
             swarmOrchestrator: swarmOrchestrator,
             swarmWorkerBackend: swarmWorkerBackend,
-            swarmAutoPostCodePipeline: swarmAutoPostCodePipeline,
-            swarmMaxPostCodeRetries: swarmMaxPostCodeRetries,
-            swarmMaxReviewLoops: swarmMaxReviewLoops,
             swarmEnabledRoles: swarmEnabledRoles,
             globalYolo: globalYolo,
             codeReviewPartitions: codeReviewPartitions,
@@ -5013,7 +4997,7 @@ struct ChatPanelView: View {
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id
         )
-        if coderMode == .agentSwarm { swarmProgressStore.clear() }
+        if coderMode == .agent { swarmProgressStore.clear() }
 
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
         attachedComposerAttachments = []
@@ -5071,10 +5055,10 @@ struct ChatPanelView: View {
                         hideContentDuringPlanDiscovery: false
                     )
 
-                    // 6. Handle stream completion (plan options, swarm delegation)
+                    // 6. Handle stream completion (plan options)
                     await handleStreamResult(
                         conversationId: targetConversationId,
-                        finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
+                        fullText: finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
                         ctx: ctx, attachmentsToSend: attachmentsToSend, prompt: prompt
                     )
                 }
@@ -5138,7 +5122,7 @@ struct ChatPanelView: View {
         )
 
         await MainActor.run {
-            let analysisText = analysisResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let analysisText = analysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
             planAnalysisContext = analysisText
             planStreamingContent = analysisText
             chatStore.updateLastAssistantMessage(
@@ -5178,7 +5162,7 @@ struct ChatPanelView: View {
 
         let questionPrompt = buildPhase2QuestionPrompt(
             userRequest: planUserRequest,
-            analysisContext: analysisResult.fullText
+            analysisContext: analysisResult
         )
         let questionResult = try await flowCoordinator.runStream(
             provider: provider,
@@ -5199,7 +5183,7 @@ struct ChatPanelView: View {
             onSignal: nil
         )
 
-        let questionText = questionResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let questionText = questionResult.trimmingCharacters(in: .whitespacesAndNewlines)
         let questionDecision = decidePlanQuestionPhaseOutput(
             questionText,
             coderMode: coderMode,
@@ -5318,7 +5302,7 @@ struct ChatPanelView: View {
             return compliant.count == options.count
         }
 
-        var full = generationResult.fullText
+        var full = generationResult
         var options = parsePlanOptions(full)
 
         // Hard enforcement: every option must contain an explicit `## Todo` section.
@@ -5363,7 +5347,7 @@ struct ChatPanelView: View {
                 onSignal: nil
             )
 
-            full = repairedResult.fullText
+            full = repairedResult
             options = parsePlanOptions(full)
         }
 
@@ -5586,7 +5570,7 @@ struct ChatPanelView: View {
             onSignal: nil
         )
 
-        let reAnalysisText = reAnalysisResult.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reAnalysisText = reAnalysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Check if the LLM produced more questions or is ready for plan generation
         let classification = PlanOutputClassifier.classify(
@@ -5643,20 +5627,18 @@ struct ChatPanelView: View {
     }
 
     private func continueIfPrematureStub(
-        initial: (fullText: String, pendingSwarmTask: String?),
+        initial: String,
         provider: any LLMProvider,
         originalPrompt: String,
         context: WorkspaceContext,
         conversationId: UUID,
         hideContentDuringPlanDiscovery: Bool = false
-    ) async throws -> (fullText: String, pendingSwarmTask: String?) {
-        var combinedText = initial.fullText
-        var combinedSwarmTask = initial.pendingSwarmTask
+    ) async throws -> String {
+        var combinedText = initial
         let maxAutoContinuationRounds = 3
         var round = 0
 
-        while combinedSwarmTask == nil,
-              shouldAutoContinueStub(combinedText),
+        while shouldAutoContinueStub(combinedText),
               round < maxAutoContinuationRounds {
             round += 1
             let continuationPrompt = """
@@ -5698,11 +5680,10 @@ struct ChatPanelView: View {
                 onSignal: nil
             )
 
-            combinedText = prior + "\n" + followUp.fullText
-            combinedSwarmTask = combinedSwarmTask ?? followUp.pendingSwarmTask
+            combinedText = prior + "\n" + followUp
         }
 
-        return (fullText: combinedText, pendingSwarmTask: combinedSwarmTask)
+        return combinedText
     }
 
     private func shouldAutoContinueStub(_ text: String) -> Bool {
@@ -5744,7 +5725,7 @@ struct ChatPanelView: View {
         forcePlanInline: Bool
     ) -> (any LLMProvider)? {
         // Plan/Swarm use real selected providers, without virtual providers.
-        if forcePlanInline || shouldRunPlanInline || coderMode == .plan || coderMode == .agentSwarm {
+        if forcePlanInline || shouldRunPlanInline || coderMode == .plan {
             return selectedProvider
         }
         // Code Review Multi-Swarm: build dedicated multi-swarm provider
@@ -5938,23 +5919,7 @@ struct ChatPanelView: View {
                     For concurrent web searches (max 4 queries in parallel), emit status markers:
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
-                if (agentAutoDelegateSwarm || coderMode == .agentSwarm) && planFlowPhase != .building {
-                    let swarmInstructions =
-                        """
-                        Swarm delegation policy:
-                        - Delegate when there are independent workstreams that benefit from parallel execution.
-                        - ALWAYS delegate for broad codebase exploration: if you need to understand 3+ areas of the codebase simultaneously (e.g. architecture analysis, large refactor scoping, cross-cutting concern discovery), launch parallel exploration agents.
-                        - Delegate when the task has clearly separable specialist roles (e.g. coder + test writer, security audit + implementation).
-                        - Do NOT delegate for simple linear tasks you can complete yourself in <=2 operations (single edit, one search+edit, etc.).
-                        - Do NOT delegate for trivial sequential work (read one file → edit it → done).
-                        - When delegating, call the MCP IDE-state tool `invoke_swarm` with a precise `task`.
-                        - Use optional `show_swarm_panel` when you need immediate UI focus on the swarm board.
-
-                        """
-                    prompt = baseInstructions + swarmInstructions + prompt
-                } else {
-                    prompt = baseInstructions + "\n" + prompt
-                }
+                prompt = baseInstructions + "\n" + prompt
                 if !todoStore.todos.isEmpty {
                     let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
                         .map { t -> String in
@@ -6230,12 +6195,6 @@ struct ChatPanelView: View {
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "coderide_show_swarm_panel", planFlowPhase != .building {
-            showSwarmPanel = true
-            if let swarmId = SwarmMetadata.swarmId(from: p) {
-                selectedSwarmId = swarmId
-            }
-        }
-        if t == "coderide_invoke_swarm", !showSwarmPanel, planFlowPhase != .building {
             showSwarmPanel = true
             if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
@@ -6618,16 +6577,15 @@ struct ChatPanelView: View {
 
     private func handleStreamResult(
         conversationId streamConversationId: UUID,
-        _ streamResult: (fullText: String, pendingSwarmTask: String?),
+        fullText: String,
         shouldRunPlanInline: Bool,
         ctx: WorkspaceContext,
         attachmentsToSend: [LLMAttachment]?,
         prompt: String
     ) async {
         let full = (planFlowPhase == .building)
-            ? normalizeBuildFinalResponse(streamResult.fullText)
-            : streamResult.fullText
-        let pendingSwarmTask = streamResult.pendingSwarmTask
+            ? normalizeBuildFinalResponse(fullText)
+            : fullText
         chatStore.updateLastAssistantMessage(content: full, in: streamConversationId, persistImmediately: true)
         chatStore.setLastAssistantStreaming(false, in: streamConversationId)
         clearStreamingReasoning(for: streamConversationId)
@@ -6717,82 +6675,8 @@ struct ChatPanelView: View {
             }
         }
 
-        // Handle delegated swarm if pending
-        // Skip swarm delegation during plan builds — plan execution is strictly sequential.
-        let isPlanBuildContext = (planFlowPhase == .building || planFlowPhase == .readyToBuild)
-        if isPlanBuildContext {
-            if let task = pendingSwarmTask {
-                NSLog("[SwarmDelegation] Suppressed during plan build — task: %@", task)
-            }
-        } else if let task = pendingSwarmTask {
-            NSLog("[SwarmDelegation] invoke_swarm received — task: %@", task)
-            let evaluation = SwarmDelegationPolicyEvaluator().evaluate(
-                userPrompt: prompt,
-                suggestedTask: task,
-                isAutoDelegateEnabled: agentAutoDelegateSwarm,
-                mode: coderMode
-            )
-            NSLog("[SwarmDelegation] Policy decision: %@ — reason: %@",
-                  evaluation.decision == .autoDelegate ? "autoDelegate" : "noDelegate",
-                  evaluation.reason)
-            switch evaluation.decision {
-            case .autoDelegate:
-                let imageURLsToSend = attachmentsToSend?
-                    .filter { $0.kind == .image }
-                    .map(\.url)
-                await handleDelegatedSwarm(
-                    task: task, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
-                )
-            case .noDelegate:
-                handleRawStreamEvent(
-                    type: "swarm_delegation_skipped",
-                    payload: [
-                        "title": "Swarm delegation skipped",
-                        "detail": evaluation.reason,
-                        "task": task
-                    ],
-                    providerId: providerRegistry.selectedProviderId ?? "agent-policy",
-                    conversationId: streamConversationId
-                )
-            }
-        } else if (coderMode == .agent || coderMode == .agentSwarm) && swarmFallbackAutoEvaluate && agentAutoDelegateSwarm {
-            // Fallback: LLM did not emit invoke_swarm event.
-            // Evaluate the full response text with the policy to decide if
-            // swarm delegation should still happen.
-            NSLog("[SwarmFallback] No invoke_swarm event detected — evaluating response with policy")
-            let fallbackEvaluation = SwarmDelegationPolicyEvaluator().evaluate(
-                userPrompt: prompt,
-                suggestedTask: full,
-                isAutoDelegateEnabled: agentAutoDelegateSwarm,
-                mode: coderMode
-            )
-            NSLog("[SwarmFallback] Policy decision: %@ — reason: %@",
-                  fallbackEvaluation.decision == .autoDelegate ? "autoDelegate" : "noDelegate",
-                  fallbackEvaluation.reason)
-            if fallbackEvaluation.decision == .autoDelegate {
-                // Synthesize a pendingSwarmTask from the response text.
-                let synthesized = synthesizeSwarmTask(from: full, prompt: prompt)
-                NSLog("[SwarmFallback] Synthesized swarm task: %@", synthesized)
-                let imageURLsToSend = attachmentsToSend?
-                    .filter { $0.kind == .image }
-                    .map(\.url)
-                handleRawStreamEvent(
-                    type: "swarm_fallback_activated",
-                    payload: [
-                        "title": "Swarm fallback delegation",
-                        "detail": "No marker emitted — policy auto-delegated based on response complexity",
-                        "task": synthesized
-                    ],
-                    providerId: providerRegistry.selectedProviderId ?? "agent-policy",
-                    conversationId: streamConversationId
-                )
-                await handleDelegatedSwarm(
-                    task: synthesized, ctx: ctx, imageURLsToSend: imageURLsToSend, prompt: prompt
-                )
-            }
-        }
-
         // After any agent turn with file edits (non-plan), add a Code Review todo
+        let isPlanBuildContext = (planFlowPhase == .building || planFlowPhase == .readyToBuild)
         if !isPlanBuildContext,
            taskActivityStore.activities.contains(where: { $0.phase == .editing })
         {
@@ -6813,143 +6697,6 @@ struct ChatPanelView: View {
                 }
             }
         }
-    }
-
-    /// Synthesize a swarm task description from the LLM response text.
-    /// Uses the first meaningful paragraph or falls back to a truncated summary.
-    private func synthesizeSwarmTask(from responseText: String, prompt: String) -> String {
-        let lines = responseText.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        // Try to find the first substantive paragraph (>30 chars, not a marker/heading).
-        for line in lines {
-            if line.hasPrefix("[CODERIDE") || line.hasPrefix("#") || line.hasPrefix("```") {
-                continue
-            }
-            if line.count >= 30 {
-                let truncated = line.count > 300 ? String(line.prefix(300)) + "…" : line
-                return truncated
-            }
-        }
-
-        // Fallback: use the user prompt itself as the task description.
-        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedPrompt.isEmpty {
-            let truncated = trimmedPrompt.count > 300
-                ? String(trimmedPrompt.prefix(300)) + "…"
-                : trimmedPrompt
-            return truncated
-        }
-
-        return "Execute the pending task from the agent response"
-    }
-
-    // MARK: - Delegated Swarm Handling
-
-    private func handleDelegatedSwarm(
-        task: String,
-        ctx: WorkspaceContext,
-        imageURLsToSend: [URL]?,
-        prompt: String
-    ) async {
-        // Capture conversationId at swarm start to avoid stale references
-        // if the user switches conversations while the swarm is running.
-        let swarmConversationId = conversationId
-        let agentProviderIdBeforeSwarm = providerRegistry.selectedProviderId
-        guard let swarm = ProviderFactory.swarmProvider(
-            config: providerFactoryConfig(),
-            executionController: executionController,
-            agentProviderId: agentProviderIdBeforeSwarm,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        ), swarm.isAuthenticated() else { return }
-
-        chatStore.addMessage(
-            ChatMessage(
-                role: .user, content: "[Delegated to swarm] \(task)",
-                isStreaming: false), to: swarmConversationId)
-        let swarmAssistantMessageId = UUID()
-        chatStore.addMessage(
-            ChatMessage(id: swarmAssistantMessageId, role: .assistant, content: "", isStreaming: true),
-            to: swarmConversationId)
-        if let swarmConversationId {
-            startToolTraceTurn(
-                conversationId: swarmConversationId,
-                assistantMessageId: swarmAssistantMessageId,
-                providerId: swarm.id
-            )
-        }
-        chatStore.beginTask(conversationId: swarmConversationId)
-        taskActivityStore.clearSwarmCards()
-        if let swarmConversationId {
-            scheduleFallbackTurnStartEvent(
-                conversationId: swarmConversationId,
-                providerId: swarm.id
-            )
-        }
-        swarmProgressStore.clear()
-
-        let followUpProvider: (any LLMProvider)? = {
-            guard let swarmConversationId,
-                let agentId = agentProviderIdBeforeSwarm,
-                ProviderSupport.isAgentCompatibleProvider(id: agentId),
-                let agentProvider = providerRegistry.provider(for: agentId),
-                agentProvider.isAuthenticated()
-            else { return nil }
-            chatStore.setLastAssistantStreaming(false, in: swarmConversationId)
-            clearStreamingReasoning(for: swarmConversationId)
-            chatStore.addMessage(
-                ChatMessage(
-                    role: .user, content: "[Agent follow-up after swarm]",
-                    isStreaming: false), to: swarmConversationId)
-            let followUpAssistantMessageId = UUID()
-            chatStore.addMessage(
-                ChatMessage(id: followUpAssistantMessageId, role: .assistant, content: "", isStreaming: true),
-                to: swarmConversationId)
-            startToolTraceTurn(
-                conversationId: swarmConversationId,
-                assistantMessageId: followUpAssistantMessageId,
-                providerId: agentProvider.id
-            )
-            return agentProvider
-        }()
-
-        let delegatedSwarmState = await flowCoordinator.runDelegatedSwarm(
-            task: task,
-            swarmProvider: swarm,
-            context: ctx,
-            imageURLs: imageURLsToSend,
-            agentFollowUpProvider: followUpProvider,
-            originalPrompt: prompt,
-            onSwarmText: { content in
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: swarmConversationId
-                )
-            },
-            onRaw: { t, p, pid in
-                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: swarmConversationId)
-            },
-            onFollowUpText: { content in
-                applyStreamingUpdate(
-                    content: content,
-                    conversationId: swarmConversationId
-                )
-            },
-            onError: { content in
-                DispatchQueue.main.async {
-                    chatStore.updateLastAssistantMessage(
-                        content: content, in: swarmConversationId)
-                }
-            }
-        )
-        chatStore.setLastAssistantStreaming(false, in: swarmConversationId)
-        clearStreamingReasoning(for: swarmConversationId)
-        let traceOutcome = toolTraceTurnOutcome(for: delegatedSwarmState)
-        finalizeToolTraceTurn(conversationId: swarmConversationId, outcome: traceOutcome)
-        chatStore.endTask(conversationId: swarmConversationId)
-        await trySummarizeIfNeeded(ctx: ctx)
     }
 
     private func createCheckpointBeforeTurn(
@@ -7053,8 +6800,6 @@ struct ChatPanelView: View {
             await MainActor.run {
                 if isLoadingForCurrentConversation {
                     switch coderMode {
-                    case .agentSwarm:
-                        executionController.terminate(scope: .swarm)
                     case .codeReviewMultiSwarm:
                         executionController.terminate(scope: .review)
                     case .plan:
@@ -7169,8 +6914,6 @@ struct ChatPanelView: View {
             await MainActor.run {
                 if isLoadingForCurrentConversation {
                     switch coderMode {
-                    case .agentSwarm:
-                        executionController.terminate(scope: .swarm)
                     case .codeReviewMultiSwarm:
                         executionController.terminate(scope: .review)
                     case .plan:

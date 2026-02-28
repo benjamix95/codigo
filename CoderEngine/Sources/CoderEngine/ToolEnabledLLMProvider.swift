@@ -21,13 +21,18 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     private let maxToolRounds: Int
     private let maxAutonomousContinuationRounds = 4
 
+    /// Optional factory for creating base LLM providers for subagent execution.
+    /// If nil, subagents reuse the same base provider as the parent agent.
+    private let subagentProviderFactory: (@Sendable () -> any LLMProvider)?
+
     public init(
         base: any LLMProvider,
         runtime: UnifiedToolRuntime? = nil,
         policy: ToolRuntimePolicy = ToolRuntimePolicy(),
         executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
-        maxToolRounds: Int = 160
+        maxToolRounds: Int = 160,
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) {
         self.base = base
         self.id = base.id
@@ -36,6 +41,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         self.policy = policy
         self.executionScope = executionScope
         self.maxToolRounds = max(1, maxToolRounds)
+        self.subagentProviderFactory = subagentProviderFactory
     }
 
     public func isAuthenticated() -> Bool {
@@ -78,6 +84,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         var toolCallCountByKey: [String: Int] = [:]
                         var toolCallsThisRound = 0
                         var sawExecutableSuggestion = false
+                        // Subagent calls are deferred and executed in parallel after the stream ends.
+                        var pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)] = []
 
                         for try await event in stream {
                             switch event {
@@ -163,30 +171,43 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
                                         didEmitPolicyAck = true
                                     }
-                                    // Emit a real-time "started" event BEFORE tool execution
-                                    // so the tool trace shows live progress (like Codex CLI).
-                                    // Todo updates are lightweight state events and should not
-                                    // be represented as generic running tool operations.
-                                    if name != "todo_write", name != "todo_read" {
-                                        let startType = Self.toolStartEventType(for: name)
-                                        let startPayload = Self.toolStartPayload(for: name, args: args)
-                                        continuation.yield(.raw(type: startType, payload: startPayload))
-                                    }
-
-                                    let produced = await events(for: marker, context: context)
-                                    for e in produced {
-                                        if case .raw(let innerType, let innerPayload) = e,
-                                           innerType == "policy_ack",
-                                           Self.matchesRequiredPolicyHash(
-                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                            requiredHash: requiredPolicyHash
-                                           ) {
-                                            didEmitPolicyAck = true
+                                    // Subagent tools are deferred for parallel execution
+                                    // after the current stream round ends.
+                                    if name.hasPrefix("subagent_") {
+                                        pendingSubagentCalls.append((marker: marker, name: name))
+                                        // Emit a pending event so the UI knows a subagent is queued
+                                        continuation.yield(.raw(type: "agent", payload: [
+                                            "title": SubagentRole.fromToolName(name)?.displayName ?? name,
+                                            "detail": "queued",
+                                            "swarm_id": "\(name)-pending",
+                                            "status": "queued"
+                                        ]))
+                                    } else {
+                                        // Emit a real-time "started" event BEFORE tool execution
+                                        // so the tool trace shows live progress (like Codex CLI).
+                                        // Todo updates are lightweight state events and should not
+                                        // be represented as generic running tool operations.
+                                        if name != "todo_write", name != "todo_read" {
+                                            let startType = Self.toolStartEventType(for: name)
+                                            let startPayload = Self.toolStartPayload(for: name, args: args)
+                                            continuation.yield(.raw(type: startType, payload: startPayload))
                                         }
-                                        continuation.yield(e)
-                                    }
-                                    if let summary = summarizeToolResultEvents(produced, marker: marker) {
-                                        roundToolResults.append(summary)
+
+                                        let produced = await events(for: marker, context: context)
+                                        for e in produced {
+                                            if case .raw(let innerType, let innerPayload) = e,
+                                               innerType == "policy_ack",
+                                               Self.matchesRequiredPolicyHash(
+                                                innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                                requiredHash: requiredPolicyHash
+                                               ) {
+                                                didEmitPolicyAck = true
+                                            }
+                                            continuation.yield(e)
+                                        }
+                                        if let summary = summarizeToolResultEvents(produced, marker: marker) {
+                                            roundToolResults.append(summary)
+                                        }
                                     }
                                 } else {
                                     continuation.yield(event)
@@ -194,6 +215,46 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             default:
                                 continuation.yield(event)
                             }
+                        }
+
+                        // Execute deferred subagent calls in parallel via withTaskGroup.
+                        if !pendingSubagentCalls.isEmpty {
+                            let calls = pendingSubagentCalls
+                            let capturedContext = context
+                            let results: [(events: [StreamEvent], marker: CoderIDEMarker)] = await withTaskGroup(
+                                of: (events: [StreamEvent], marker: CoderIDEMarker).self
+                            ) { group in
+                                for call in calls {
+                                    let m = call.marker
+                                    group.addTask {
+                                        let produced = await self.events(for: m, context: capturedContext)
+                                        return (events: produced, marker: m)
+                                    }
+                                }
+                                var collected: [(events: [StreamEvent], marker: CoderIDEMarker)] = []
+                                for await result in group {
+                                    collected.append(result)
+                                }
+                                return collected
+                            }
+                            // Emit results sequentially after parallel execution
+                            for result in results {
+                                for e in result.events {
+                                    if case .raw(let innerType, let innerPayload) = e,
+                                       innerType == "policy_ack",
+                                       Self.matchesRequiredPolicyHash(
+                                        innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                        requiredHash: requiredPolicyHash
+                                       ) {
+                                        didEmitPolicyAck = true
+                                    }
+                                    continuation.yield(e)
+                                }
+                                if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
+                                    roundToolResults.append(summary)
+                                }
+                            }
+                            pendingSubagentCalls.removeAll()
                         }
 
                         conversationTranscript += "\n[assistant]\n\(roundText)\n"
@@ -529,12 +590,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return [.raw(type: "activate_debug_mode", payload: marker.payload)]
         case "show_task_panel":
             return [.raw(type: "coderide_show_task_panel", payload: [:])]
-        case "invoke_swarm":
-            return [.raw(type: "coderide_invoke_swarm", payload: marker.payload)]
         case "show_swarm_panel":
             return [.raw(type: "coderide_show_swarm_panel", payload: marker.payload)]
         default:
             break
+        }
+
+        // Subagent tools — execute inline during the agent's streaming loop.
+        // Each subagent_* tool spawns a new ToolEnabledLLMProvider and runs to completion.
+        if toolName.hasPrefix("subagent_") {
+            return await executeSubagentTool(toolName: toolName, marker: marker, context: context)
         }
 
         // All other tools — execute through UnifiedToolRuntime
@@ -1103,8 +1168,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **activate_plan_mode** — Activate the plan panel. Args: `reason` (optional).
         - **activate_debug_mode** — Activate the debug panel. Args: `reason` (optional).
         - **show_task_panel** — Show the task panel. No required args.
-        - **invoke_swarm** — Invoke a swarm agent for parallel work. Args: `task`.
         - **show_swarm_panel** — Open/focus swarm panel. Args: `swarm_id` (optional).
+
+        ### Subagent Tools (delegate specialized work to parallel subagents)
+        - **subagent_explorer** — Spawn a read-only exploration subagent. It can search, read, and analyze code but CANNOT edit files. Use when you need to investigate a different part of the codebase while continuing your main work. You can call MULTIPLE explorers in the same round — they execute in parallel. Args: `task` (description of what to explore).
+        - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Use for independent coding tasks in different modules. Args: `task`.
+        - **subagent_reviewer** — Spawn a code review subagent. It reviews code quality, bugs, style. Args: `task`.
+        - **subagent_debugger** — Spawn a debugger subagent. It investigates and fixes bugs. Args: `task`.
+        - **subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
+        - **subagent_docWriter** — Spawn a documentation subagent. Args: `task`.
+        - **subagent_securityAuditor** — Spawn a security audit subagent. Args: `task`.
+
+        **Subagent guidelines:**
+        - Use subagents ONLY when the task truly benefits from parallel or specialist work.
+        - Do NOT use subagents for simple, linear operations you can do directly.
+        - Explorer subagents are lightweight (read-only) — use them freely for investigation.
+        - Multiple subagent calls in the same round execute in PARALLEL automatically.
+        - Each subagent runs to completion and returns its results to you in the next round.
+        - Never call subagents after you've already completed the work — call them DURING your work.
         """
     }
 
@@ -1120,6 +1201,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "mcp_list_tools", "mcp_describe_tool", "mcp_list_servers", "mcp_health",
         "debug_query", "semantic_search", "read_lints", "debug_context",
         "web_search", "web_fetch",
+        "subagent_explorer",  // Explorer is read-only and safe to run in parallel
     ]
 
     // MARK: - Real-time tool start events
@@ -1138,6 +1220,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return "web_search_started"
         case "web_fetch":
             return "web_fetch_started"
+        case _ where toolName.hasPrefix("subagent_"):
+            return "agent"
         default:
             return "read_batch_started"
         }
@@ -1214,7 +1298,156 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         case "run_tests", "run_single_test":
             return "Running tests"
         default:
+            if toolName.hasPrefix("subagent_") {
+                let role = SubagentRole.fromToolName(toolName)
+                return role.map { "\($0.displayName) subagent" } ?? toolName
+            }
             return toolName.replacingOccurrences(of: "_", with: " ").capitalized
         }
+    }
+
+    // MARK: - Inline Subagent Execution
+
+    /// Execute a subagent tool inline during the agent's streaming loop.
+    /// The subagent runs to completion using its own ToolEnabledLLMProvider instance,
+    /// then returns the result as tool output events.
+    private func executeSubagentTool(
+        toolName: String,
+        marker: CoderIDEMarker,
+        context: WorkspaceContext
+    ) async -> [StreamEvent] {
+        guard let role = SubagentRole.fromToolName(toolName) else {
+            return [.raw(type: "tool_validation_error", payload: [
+                "id": marker.payload["id"] ?? UUID().uuidString,
+                "name": toolName,
+                "title": "Unknown subagent",
+                "detail": "No subagent role for '\(toolName)'",
+                "status": "failed",
+                "error_code": "unknown_subagent"
+            ])]
+        }
+
+        let task = marker.payload["task"] ?? marker.payload["prompt"] ?? ""
+        guard !task.isEmpty else {
+            return [.raw(type: "tool_validation_error", payload: [
+                "id": marker.payload["id"] ?? UUID().uuidString,
+                "name": toolName,
+                "title": "Missing task",
+                "detail": "subagent_* tools require a 'task' argument describing what the subagent should do.",
+                "status": "failed",
+                "error_code": "missing_argument"
+            ])]
+        }
+
+        let subagentId = "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
+        let toolCallId = marker.payload["id"] ?? UUID().uuidString
+        var events: [StreamEvent] = []
+
+        // Emit started event for SwarmLiveReducer UI
+        events.append(.raw(type: "agent", payload: [
+            "title": role.displayName,
+            "detail": "started",
+            "swarm_id": subagentId,
+            "group_id": "swarm-\(subagentId)",
+            "tool_call_id": toolCallId,
+            "status": "started"
+        ]))
+
+        let startDate = Date()
+
+        do {
+            // Create the subagent's LLM provider
+            let subagentBase = subagentProviderFactory?() ?? base
+
+            // Build runtime: for explorer, restrict to read-only policy
+            let subagentRuntime = UnifiedToolRuntime(
+                executionController: nil,
+                executionScope: .swarm
+            )
+
+            let subagentProvider = ToolEnabledLLMProvider(
+                base: subagentBase,
+                runtime: subagentRuntime,
+                policy: policy,
+                executionScope: .swarm,
+                maxToolRounds: role.maxToolRounds,
+                subagentProviderFactory: nil  // no nested subagents
+            )
+
+            // Build the subagent prompt
+            let prompt = SubagentPromptBuilder.build(role: role, task: task)
+
+            // Run the subagent to completion
+            var fullText = ""
+            let stream = try await subagentProvider.send(
+                prompt: prompt, context: context, imageURLs: nil
+            )
+            for try await event in stream {
+                switch event {
+                case .textDelta(let delta):
+                    fullText += delta
+                case .raw(let type, var payload):
+                    // Enrich all raw events with subagent routing info
+                    payload["swarm_id"] = subagentId
+                    payload["group_id"] = "swarm-\(subagentId)"
+                    events.append(.raw(type: type, payload: payload))
+                default:
+                    break
+                }
+            }
+
+            let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
+            // Truncate output for context window management
+            let output = String(fullText.prefix(12000))
+
+            // Emit completed event
+            events.append(.raw(type: "agent", payload: [
+                "title": role.displayName,
+                "detail": "completed",
+                "swarm_id": subagentId,
+                "group_id": "swarm-\(subagentId)",
+                "tool_call_id": toolCallId,
+                "status": "completed",
+                "duration_ms": "\(durationMs)"
+            ]))
+
+            // Return result as a tool result event so the main agent gets the output
+            events.append(.raw(type: "tool_result", payload: [
+                "id": toolCallId,
+                "name": toolName,
+                "title": "\(role.displayName) completed",
+                "detail": "\(role.displayName) subagent completed in \(durationMs)ms",
+                "output": output,
+                "status": "success",
+                "subagent_id": subagentId,
+                "role": role.rawValue,
+                "duration_ms": "\(durationMs)"
+            ]))
+
+        } catch {
+            let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
+
+            events.append(.raw(type: "agent", payload: [
+                "title": role.displayName,
+                "detail": "failed",
+                "swarm_id": subagentId,
+                "group_id": "swarm-\(subagentId)",
+                "tool_call_id": toolCallId,
+                "status": "failed"
+            ]))
+
+            events.append(.raw(type: "tool_result", payload: [
+                "id": toolCallId,
+                "name": toolName,
+                "title": "\(role.displayName) failed",
+                "detail": error.localizedDescription,
+                "output": "Subagent \(role.displayName) failed: \(error.localizedDescription)",
+                "status": "failed",
+                "subagent_id": subagentId,
+                "duration_ms": "\(durationMs)"
+            ]))
+        }
+
+        return events
     }
 }

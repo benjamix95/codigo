@@ -198,6 +198,11 @@ final class TaskActivityStore: ObservableObject {
         activities.last(where: isConcreteVisibleEvent(_:))
     }
 
+    /// Last visible activity from the **main agent** only (excludes subagent events).
+    nonisolated static func lastConcreteNonSwarmActivity(in activities: [TaskActivity]) -> TaskActivity? {
+        activities.last { isConcreteVisibleEvent($0) && !SwarmMetadata.isSwarmEvent($0.payload) }
+    }
+
     func concreteRecentActivities(limit: Int) -> [TaskActivity] {
         guard limit > 0 else { return [] }
         return activities.filter { Self.isConcreteVisibleEvent($0) }.suffix(limit).map { $0 }
@@ -205,7 +210,8 @@ final class TaskActivityStore: ObservableObject {
 
     nonisolated static func streamingStatusText(isPaused: Bool, activities: [TaskActivity]) -> String {
         if isPaused { return "Paused" }
-        guard let last = lastConcreteVisibleActivity(in: activities) else {
+        guard let last = lastConcreteNonSwarmActivity(in: activities)
+                ?? lastConcreteVisibleActivity(in: activities) else {
             return "Thinking"
         }
         // Dynamic label based on actual activity type and phase
@@ -276,6 +282,9 @@ final class TaskActivityStore: ObservableObject {
             }
         }
     }
+
+    /// Flush any buffered activities synchronously. Useful in tests.
+    func flushPending() { flushPendingActivities() }
 
     private func flushPendingActivities() {
         guard !pendingActivities.isEmpty else { return }

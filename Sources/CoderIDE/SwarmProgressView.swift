@@ -12,7 +12,7 @@ struct SwarmProgressView: View {
                 Image(systemName: "checklist")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.swarmColor)
-                Text("SWARM · \(store.steps.count) steps")
+                Text("SUBAGENT · \(store.steps.count) steps")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .tracking(0.5)

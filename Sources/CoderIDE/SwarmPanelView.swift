@@ -1,8 +1,8 @@
 import SwiftUI
 import CoderEngine
 
-/// Cursor-style sidebar panel for Swarm monitoring.
-/// Shows overview of all swarms or detail for a specific swarm.
+/// Cursor-style sidebar panel for Subagent monitoring.
+/// Shows overview of all subagents or detail for a specific subagent.
 struct SwarmPanelView: View {
     @ObservedObject var taskActivityStore: TaskActivityStore
     @ObservedObject var swarmProgressStore: SwarmProgressStore
@@ -27,19 +27,17 @@ struct SwarmPanelView: View {
 
     // MARK: - Data
 
-    private var sortedCards: [SwarmLiveCardState] {
-        SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
-    }
+    /// Cached sorted cards — invalidated via swarmEventsReceivedCount.
+    @State private var cachedCards: [SwarmLiveCardState] = []
 
-    private var runningCount: Int { sortedCards.filter { $0.status == .running }.count }
-    private var failedCount: Int { sortedCards.filter { $0.status == .failed }.count }
-    private var completedCount: Int { sortedCards.filter { $0.status == .completed }.count }
+    private var sortedCards: [SwarmLiveCardState] { cachedCards }
 
-    private var liveSignature: String {
-        sortedCards.map {
-            "\($0.swarmId)|\($0.status.rawValue)|\($0.lastEventAt?.timeIntervalSince1970 ?? 0)|\($0.activeOpsCount)|\($0.recentEvents.count)|\($0.errorCount)"
-        }.joined(separator: ";")
-    }
+    private var runningCount: Int { cachedCards.filter { $0.status == .running }.count }
+    private var failedCount: Int { cachedCards.filter { $0.status == .failed }.count }
+    private var completedCount: Int { cachedCards.filter { $0.status == .completed }.count }
+
+    /// Lightweight change counter — O(1) comparison instead of string diff.
+    private var liveChangeCount: Int { taskActivityStore.swarmEventsReceivedCount }
 
     private var recentOverviewActivities: [TaskActivity] {
         Array(taskActivityStore.concreteRecentActivities(limit: 12).reversed())
@@ -73,21 +71,26 @@ struct SwarmPanelView: View {
         )
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
         .onAppear {
+            refreshCachedCards()
             if selectedSwarmId == nil {
-                selectedSwarmId = sortedCards.first(where: { $0.status == .running })?.swarmId
+                selectedSwarmId = cachedCards.first(where: { $0.status == .running })?.swarmId
             }
         }
-        .onChange(of: liveSignature) { _, _ in
+        .onChange(of: liveChangeCount) { _, _ in
+            refreshCachedCards()
             if let selectedSwarmId,
-               !sortedCards.contains(where: { $0.swarmId == selectedSwarmId }) {
+               !cachedCards.contains(where: { $0.swarmId == selectedSwarmId }) {
                 self.selectedSwarmId = nil
             }
-            // Auto-select a newly arrived running card if nothing is selected
             if selectedSwarmId == nil,
-               let firstRunning = sortedCards.first(where: { $0.status == .running }) {
+               let firstRunning = cachedCards.first(where: { $0.status == .running }) {
                 selectedSwarmId = firstRunning.swarmId
             }
         }
+    }
+
+    private func refreshCachedCards() {
+        cachedCards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
     }
 
     // MARK: - Top Bar
@@ -98,7 +101,7 @@ struct SwarmPanelView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(swarmColor)
 
-            Text("Swarm")
+            Text("Subagent")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.primary)
 
@@ -129,7 +132,7 @@ struct SwarmPanelView: View {
                     .background(Color.primary.opacity(0.06), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Close Swarm panel")
+            .help("Close Subagent panel")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -224,10 +227,10 @@ struct SwarmPanelView: View {
             Image(systemName: "ant.fill")
                 .font(.system(size: 28))
                 .foregroundStyle(.quaternary)
-            Text("No swarm activity")
+            Text("No subagent activity")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text("Swarm agents will appear here when running")
+            Text("Subagents will appear here when running")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -262,9 +265,9 @@ struct SwarmPanelView: View {
             .simultaneousGesture(DragGesture(minimumDistance: 2).onChanged { _ in
                 isFollowingLive = false
             })
-            .onChange(of: liveSignature) { _, _ in
+            .onChange(of: liveChangeCount) { _, _ in
                 guard isFollowingLive else { return }
-                if let firstRunning = sortedCards.first(where: { $0.status == .running }) {
+                if let firstRunning = cachedCards.first(where: { $0.status == .running }) {
                     withAnimation(.easeOut(duration: 0.2)) {
                         proxy.scrollTo("swarm-card-\(firstRunning.swarmId)", anchor: .top)
                     }
@@ -314,7 +317,7 @@ struct SwarmPanelView: View {
                 Image(systemName: "waveform.path.ecg")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(swarmColor)
-                Text("Swarm Activity")
+                Text("Subagent Activity")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -512,7 +515,7 @@ struct SwarmPanelView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 9, weight: .semibold))
-                            Text("All Swarms")
+                            Text("All Subagents")
                                 .font(.system(size: 11, weight: .medium))
                         }
                         .foregroundStyle(swarmColor)
@@ -549,9 +552,11 @@ struct SwarmPanelView: View {
                                     .background(Color.primary.opacity(0.06), in: Capsule())
                             }
 
-                            ForEach(events) { activity in
-                                detailEventRow(activity)
-                                    .id("detail-event-\(activity.id)")
+                            LazyVStack(alignment: .leading, spacing: 2) {
+                                ForEach(events) { activity in
+                                    detailEventRow(activity)
+                                        .id("detail-event-\(activity.id)")
+                                }
                             }
                         }
                     }
@@ -724,7 +729,7 @@ struct SwarmPanelView: View {
     private var bottomBar: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                Text("\(sortedCards.count) swarms")
+                Text("\(sortedCards.count) subagents")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
 

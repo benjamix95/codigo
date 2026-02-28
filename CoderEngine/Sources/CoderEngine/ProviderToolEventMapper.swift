@@ -89,7 +89,6 @@ enum ProviderToolEventMapper {
         "activate_plan_mode": .ideState,
         "activate_debug_mode": .ideState,
         "show_task_panel": .ideState,
-        "invoke_swarm": .ideState,
         "show_swarm_panel": .ideState,
     ]
 
@@ -299,7 +298,10 @@ enum ProviderToolEventMapper {
         "run_agent", "search", "search_symbols", "semantic_search", "skill", "str_replace", "sub_agent",
         "subagent", "todo_write", "todo_read", "undo_edit", "web_fetch", "web_search", "write", "write_file",
         // IDE state tools (mode activation, task panel, swarm)
-        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm", "show_swarm_panel",
+        "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel",
+        // Subagent tools
+        "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
+        "subagent_testWriter", "subagent_docWriter", "subagent_securityAuditor",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
@@ -553,7 +555,7 @@ enum ProviderToolEventMapper {
             "debug_set_phase", "debug_request_user", "debug_resolve",
             "policy_ack", "mermaid_render",
             "activate_plan_mode", "activate_debug_mode",
-            "show_task_panel", "invoke_swarm", "show_swarm_panel",
+            "show_task_panel", "show_swarm_panel",
         ].contains(tool)
     }
 
@@ -925,11 +927,6 @@ enum ProviderToolEventMapper {
 
         case "show_task_panel":
             return ("coderide_show_task_panel", [:])
-
-        case "invoke_swarm":
-            var mapped: [String: String] = [:]
-            if let task = firstString(in: payload, keys: ["task"]) { mapped["task"] = task }
-            return ("coderide_invoke_swarm", mapped)
 
         case "show_swarm_panel":
             var mapped: [String: String] = [:]

@@ -79,7 +79,7 @@ struct ModeControlsBarView: View {
     @ViewBuilder
     private func controlsHStack(tier: ControlsTier) -> some View {
         let pid = providerRegistry.selectedProviderId ?? ""
-        let isAgent = coderMode == .agent || coderMode == .agentSwarm || coderMode == .debug
+        let isAgent = coderMode == .agent || coderMode == .debug
         HStack(spacing: 6) {
             // Provider picker: full=icon+name, medium=icon-only, compact/minimal=hidden
             if tier == .full {
@@ -115,7 +115,7 @@ struct ModeControlsBarView: View {
                     debugButtonIconOnly
                 }
             } else if !hasRealProvider(pid) {
-                if [.agent, .agentSwarm, .debug, .plan].contains(coderMode) {
+                if [.agent, .debug, .plan].contains(coderMode) {
                     if tier == .full {
                         planButton
                         debugButton

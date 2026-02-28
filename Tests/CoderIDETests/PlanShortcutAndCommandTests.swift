@@ -243,7 +243,6 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(shouldEnableTaskPanelForMode(.debug))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.plan))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.codeReviewMultiSwarm))
-        XCTAssertTrue(shouldEnableTaskPanelForMode(.agentSwarm))
         XCTAssertFalse(shouldEnableTaskPanelForMode(.ide))
         XCTAssertFalse(shouldEnableTaskPanelForMode(.mcpServer))
     }
@@ -299,14 +298,6 @@ final class PlanShortcutAndCommandTests: XCTestCase {
                 planToggleEnabled: true
             )
         )
-    }
-
-    func testSwarmModeIsViewOnlyForComposerAndUsageFooterStillVisible() {
-        // Swarm mode now uses a sidebar panel instead of replacing the main view,
-        // so the composer and footer are always visible.
-        XCTAssertFalse(shouldShowSwarmViewOnly(for: .agentSwarm))
-        XCTAssertTrue(shouldShowComposer(for: .agentSwarm))
-        XCTAssertTrue(shouldShowUsageFooter(for: .agentSwarm))
     }
 
     func testNonSwarmModesShowComposerAndFooter() {

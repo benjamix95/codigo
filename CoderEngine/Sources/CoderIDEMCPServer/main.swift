@@ -432,18 +432,6 @@ struct CoderIDETools {
             annotations: .init(title: "Show Task Panel", readOnlyHint: false)
         ),
         Tool(
-            name: "coderide_invoke_swarm",
-            description: "Invoke a swarm of parallel agents to work on a complex task collaboratively.",
-            inputSchema: .object([
-                "type": "object",
-                "properties": .object([
-                    "task": .object(["type": "string", "description": "The task description for the swarm to work on"]),
-                ]),
-                "required": .array([.string("task")]),
-            ]),
-            annotations: .init(title: "Invoke Swarm", readOnlyHint: false)
-        ),
-        Tool(
             name: "coderide_show_swarm_panel",
             description: "Request the IDE to open/focus the swarm panel.",
             inputSchema: .object([
@@ -649,7 +637,7 @@ struct CoderIDEMCPServerApp {
                 "todo_write", "todo_read", "plan_step_update", "mermaid_render",
                 "debug_set_phase", "debug_request_user", "debug_resolve",
                 "policy_ack", "activate_plan_mode", "activate_debug_mode",
-                "show_task_panel", "invoke_swarm", "show_swarm_panel",
+                "show_task_panel", "show_swarm_panel",
             ]
             if toolName == "debug_panel" {
                 return CallTool.Result(
@@ -928,16 +916,6 @@ struct CoderIDEMCPServerApp {
 
         case "show_task_panel":
             return CallTool.Result(content: [.text("OK — task panel shown")], isError: nil)
-
-        case "invoke_swarm":
-            let task = (args["task"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if task.isEmpty {
-                return CallTool.Result(
-                    content: [.text("Error: 'task' parameter is required")],
-                    isError: true
-                )
-            }
-            return CallTool.Result(content: [.text("OK — swarm invoked for task")], isError: nil)
 
         case "show_swarm_panel":
             return CallTool.Result(content: [.text("OK — swarm panel opened")], isError: nil)
