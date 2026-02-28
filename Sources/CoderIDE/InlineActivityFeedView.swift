@@ -418,7 +418,7 @@ struct TextShimmerEffect: ViewModifier {
                 .onAppear {
                     phase = 0
                     withAnimation(
-                        .linear(duration: 1.8)
+                        .linear(duration: 1.0)
                         .repeatForever(autoreverses: false)
                     ) { phase = 1 }
                 }

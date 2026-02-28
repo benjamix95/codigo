@@ -554,7 +554,6 @@ struct ThinkingBlockView: View {
                         .foregroundStyle(thinkingTextColor)
                         .lineSpacing(5)
                         .textSelection(.enabled)
-                        .textShimmer(active: isLiveStreaming)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 10)
                 }
