@@ -619,6 +619,7 @@ struct ChatPanelView: View {
     @State private var coderMode: CoderMode = .agent
     @State private var inputText = ""
     @State private var isInputFocused: Bool = false
+    @State private var draftSaveTask: Task<Void, Never>?
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
@@ -1059,6 +1060,8 @@ struct ChatPanelView: View {
             checkProviderAuth()
         }
         .onChange(of: selectedConversationId) { oldId, newId in
+            draftSaveTask?.cancel()
+            draftSaveTask = nil
             // Save draft text for the previous conversation.
             if let oldId {
                 let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1220,11 +1223,17 @@ struct ChatPanelView: View {
             }
             .onChange(of: inputText) { _, newValue in
                 guard let cid = conversationId else { return }
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    chatStore.draftTexts.removeValue(forKey: cid)
-                } else {
-                    chatStore.draftTexts[cid] = newValue
+                draftSaveTask?.cancel()
+                draftSaveTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 350_000_000) // 350ms debounce
+                    guard !Task.isCancelled else { return }
+                    draftSaveTask = nil
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        chatStore.draftTexts.removeValue(forKey: cid)
+                    } else {
+                        chatStore.draftTexts[cid] = newValue
+                    }
                 }
             }
             .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
