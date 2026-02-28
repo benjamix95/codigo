@@ -67,16 +67,9 @@ struct SubagentChatCardView: View {
 
     private var headerRow: some View {
         HStack(spacing: 6) {
-            if card.status == .running {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 7, height: 7)
-                    .modifier(PulseModifier())
-            } else {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 7, height: 7)
-            }
+            Circle()
+                .fill(statusColor)
+                .frame(width: 7, height: 7)
 
             Text(card.swarmId)
                 .font(.system(size: 11, weight: .semibold))

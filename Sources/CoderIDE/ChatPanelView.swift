@@ -815,13 +815,11 @@ struct ChatPanelView: View {
         coderMode == .plan || (coderMode == .agent && planToggleEnabled)
     }
     private var shouldShowPlanTodosInChat: Bool {
+        if coderMode == .plan { return false }
         if hasInlinePlanSession && isPlanPreChoiceState {
             return false
         }
-        if coderMode != .plan {
-            return true
-        }
-        return planFlowPhase == .readyToBuild || planFlowPhase == .building
+        return true
     }
     private var shouldShowPlanBoardInChat: Bool {
         guard coderMode == .plan else { return false }
@@ -2146,8 +2144,11 @@ struct ChatPanelView: View {
                                 )
                                 .padding(.horizontal, 2)
                             }
-                            // Subagent cards inline (only on latest assistant message)
-                            if message.id == latestAssistantMessageId {
+                            // Subagent cards inline (only on latest assistant message, while task running in agent mode)
+                            if message.id == latestAssistantMessageId,
+                               coderMode == .agent,
+                               isLoadingForCurrentConversation
+                            {
                                 let subagentCards = taskActivityStore.swarmCardStates()
                                 if !subagentCards.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {

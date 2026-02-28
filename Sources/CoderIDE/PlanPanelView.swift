@@ -105,6 +105,9 @@ struct PlanPanelView: View {
     @State private var historySelectionVersion = 0
     /// Override provider for plan execution (nil = use conversation/global default)
     @State private var planProviderId: String?
+    /// Cached render snapshot — rebuilt only when displayPlanContent or todos change.
+    @State private var cachedSnapshot: PlanRenderSnapshot?
+    @State private var lastSnapshotKey: String = ""
     /// Keeps top controls out of the macOS titlebar non-interactive zone.
     private let topInteractiveInset: CGFloat = 22
 
@@ -118,7 +121,7 @@ struct PlanPanelView: View {
     }
 
     var body: some View {
-        let snapshot = makeRenderSnapshot()
+        let snapshot = resolveSnapshot()
         VStack(spacing: 0) {
             Color.clear
                 .frame(height: topInteractiveInset)
@@ -728,12 +731,28 @@ struct PlanPanelView: View {
         return planText
     }
 
-    private func makeRenderSnapshot() -> PlanRenderSnapshot {
+    /// Returns a cached snapshot, rebuilding only when plan content or todos actually change.
+    private func resolveSnapshot() -> PlanRenderSnapshot {
         let content = displayPlanContent
-        let planBody = PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(content)
-        let mermaidBlocks = content.isEmpty ? [] : PlanOptionsParser.extractMermaidBlocksForDisplay(content)
+        let todosHash = canonicalPlanTodos.map(\.id.uuidString).joined()
+        let key = "\(content.hashValue)|\(todosHash)"
+        if key == lastSnapshotKey, let cached = cachedSnapshot {
+            return cached
+        }
+        let snapshot = makeRenderSnapshot(content: content)
+        DispatchQueue.main.async {
+            lastSnapshotKey = key
+            cachedSnapshot = snapshot
+        }
+        return snapshot
+    }
+
+    private func makeRenderSnapshot(content: String? = nil) -> PlanRenderSnapshot {
+        let c = content ?? displayPlanContent
+        let planBody = PlanOptionsParser.extractFinalPlanBodyExcludingQuestionsOptionsTodos(c)
+        let mermaidBlocks = c.isEmpty ? [] : PlanOptionsParser.extractMermaidBlocksForDisplay(c)
         return PlanRenderSnapshot(
-            planContent: content,
+            planContent: c,
             planBodyContent: planBody,
             mermaidBlocks: mermaidBlocks,
             canonicalTodos: canonicalPlanTodos
