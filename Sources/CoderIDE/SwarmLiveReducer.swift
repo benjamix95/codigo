@@ -88,7 +88,6 @@ enum SwarmLiveReducer {
                 card.hasUnreadSinceCollapse = true
             }
         case .none:
-            break
             if card.isCollapsed && !isDuplicate {
                 card.hasUnreadSinceCollapse = true
             }
