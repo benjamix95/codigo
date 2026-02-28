@@ -312,7 +312,7 @@ struct MessageRow: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .textShimmer(active: true)
-            if let detail = streamingDetailText, !detail.isEmpty {
+            if status != "Planning next move", let detail = streamingDetailText, !detail.isEmpty {
                 Text("·")
                     .foregroundStyle(.secondary)
                 Text(detail)

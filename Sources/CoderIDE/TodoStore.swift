@@ -211,9 +211,8 @@ final class TodoStore: ObservableObject {
 
     private func sortCanonicalFirst(_ lhs: TodoItem, _ rhs: TodoItem) -> Bool {
         if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
-        if lhs.status.rank != rhs.status.rank { return lhs.status.rank < rhs.status.rank }
         if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
-        return lhs.updatedAt > rhs.updatedAt
+        return lhs.createdAt < rhs.createdAt
     }
 
     func sortedCanonicalFirstTodos(_ items: [TodoItem]? = nil) -> [TodoItem] {
