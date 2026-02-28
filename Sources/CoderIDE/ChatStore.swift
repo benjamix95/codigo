@@ -815,7 +815,16 @@ final class ChatStore: ObservableObject {
         guard message.role == .assistant else { return }
         let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty else { return }
+        removeMessage(messageId: messageId, in: conversationId)
+    }
+
+    func removeMessage(messageId: UUID, in conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let midx = conversations[idx].messages.firstIndex(where: { $0.id == messageId }) else {
+            return
+        }
         conversations[idx].messages.remove(at: midx)
+        conversations[idx].checkpoints.removeAll { $0.messageCount > conversations[idx].messages.count }
         saveConversations()
     }
 

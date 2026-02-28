@@ -79,8 +79,8 @@ enum SwarmLiveReducer {
         case .failed:
             card.status = .failed
             card.activeOpsCount = 0
-            if !card.isCollapsed {
-                card.hasUnreadSinceCollapse = false
+            if card.isCollapsed {
+                card.hasUnreadSinceCollapse = true
             }
         case .none:
             if card.status == .idle || card.status == .completed {
@@ -95,6 +95,7 @@ enum SwarmLiveReducer {
                     card.status = .completed
                     card.completedAt = activity.timestamp
                     card.summary = summary(for: card.recentEvents)
+                    card.errorCount = 0
                 }
             }
             if card.isCollapsed && !isDuplicate {

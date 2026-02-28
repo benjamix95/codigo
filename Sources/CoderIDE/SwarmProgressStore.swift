@@ -23,7 +23,13 @@ final class SwarmProgressStore: ObservableObject {
     @Published var steps: [SwarmStep] = []
 
     func setSteps(_ names: [String]) {
-        steps = names.map { SwarmStep(name: $0, status: .pending) }
+        // Merge: preserve completed/inProgress status for existing steps.
+        let existingByName = Dictionary(uniqueKeysWithValues: steps.map { ($0.name, $0.status) })
+        steps = names.map { name in
+            let preserved = existingByName[name]
+            let status: SwarmStepStatus = (preserved == .completed || preserved == .inProgress) ? preserved! : .pending
+            return SwarmStep(name: name, status: status)
+        }
     }
 
     func markStarted(name: String) {

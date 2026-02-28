@@ -1470,8 +1470,18 @@ struct SettingsView: View {
         if !codexSandbox.isEmpty { cfg.sandboxMode = codexSandbox }
         if !codexModelOverride.isEmpty { cfg.model = codexModelOverride }
         if !codexModelProvider.isEmpty { cfg.modelProvider = codexModelProvider }
-        if !codexReasoningEffort.isEmpty { cfg.modelReasoningEffort = codexReasoningEffort }
-        cfg.modelReasoningSummary = codexReasoningSummary == "auto" ? nil : codexReasoningSummary
+
+        // Only write reasoning params for models that support them (o-series).
+        // Non-reasoning models (gpt-*, codex-spark, etc.) reject these parameters.
+        let model = codexModelOverride.lowercased()
+        let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
+        if isReasoningModel {
+            if !codexReasoningEffort.isEmpty { cfg.modelReasoningEffort = codexReasoningEffort }
+            cfg.modelReasoningSummary = codexReasoningSummary == "auto" ? nil : codexReasoningSummary
+        } else {
+            cfg.modelReasoningEffort = nil
+            cfg.modelReasoningSummary = nil
+        }
         cfg.modelVerbosity = codexVerbosity == "medium" ? nil : codexVerbosity
         cfg.personality = codexPersonality == "none" ? nil : codexPersonality
         cfg.networkAccess = codexNetworkAccess ? true : nil

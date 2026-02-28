@@ -15,11 +15,14 @@ struct MessageRow: View {
     var showStreamingBar: Bool = true
     let onFileClicked: (String) -> Void
     var onRestoreCheckpoint: (() -> Void)? = nil
+    var onReply: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
     var canRewind: Bool = false
     var hasCheckpointForRestore: Bool = false
     var showTopDivider: Bool = false
     @State private var isHovered = false
     @State private var didCopyMessage = false
+    @State private var hoverTask: Task<Void, Never>?
     private let userRowMaxWidth: CGFloat = 620
     private let assistantRowMaxWidth: CGFloat = 920
     private let userImageThumbWidth: CGFloat = 52
@@ -58,7 +61,20 @@ struct MessageRow: View {
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            if hovering {
+                hoverTask?.cancel()
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 40_000_000) // 40ms debounce
+                    guard !Task.isCancelled else { return }
+                    isHovered = true
+                }
+            } else {
+                hoverTask?.cancel()
+                hoverTask = nil
+                isHovered = false
+            }
+        }
     }
 
     // MARK: - Message Divider
@@ -153,6 +169,7 @@ struct MessageRow: View {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
                 )
+                .fixedSize(horizontal: true, vertical: false)
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
                 if shouldShowCopyAction {
                     messageActionsRow
@@ -234,19 +251,55 @@ struct MessageRow: View {
             } label: {
                 Image(systemName: didCopyMessage ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : .secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    Capsule()
-                        .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-                )
+                    .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : .secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                    )
             }
             .buttonStyle(.plain)
             .help(didCopyMessage ? "Copied" : "Copy message")
             .accessibilityLabel(didCopyMessage ? "Copied" : "Copy message")
             .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
             .animation(.easeOut(duration: 0.15), value: didCopyMessage)
+
+            if let onReply {
+                Button(action: onReply) {
+                    Image(systemName: "arrowshape.turn.up.left")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Reply")
+                .accessibilityLabel("Reply")
+                .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
+            }
+
+            if let onDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.red.opacity(0.88))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color.red.opacity(0.12))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Delete message")
+                .accessibilityLabel("Delete message")
+                .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
+            }
         }
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.trailing, isUser ? 6 : 0)

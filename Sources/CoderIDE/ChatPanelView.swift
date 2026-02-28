@@ -715,6 +715,7 @@ struct ChatPanelView: View {
     @State private var didCopyAllChat = false
     @State private var isFollowingLive = true
     @State private var newEventsWhileDetached = 0
+    @State private var chatHeaderWidth: CGFloat = 800
     @StateObject private var voiceInputController = VoiceInputController()
     @State private var composerFrozenTimerState: ComposerFrozenTimerState?
     @State private var composerTimerAutoHideTask: Task<Void, Never>?
@@ -1692,26 +1693,31 @@ struct ChatPanelView: View {
 
 
     private var chatHeader: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Center: Mode tabs — Agent / IDE
-                modeTabBar
+        ZStack {
+            // Center: Mode tabs — Agent / IDE
+            modeTabBar
 
-                // Leading: project + (optional) title, Trailing: rewind button
-                HStack(spacing: 8) {
-                    projectButton
-                    if shouldShowConversationTitle(headerWidth: geo.size.width) {
-                        conversationTitleLabel
-                    }
-                    Spacer(minLength: 0)
-                    rewindButton
+            // Leading: project + (optional) title, Trailing: rewind button
+            HStack(spacing: 8) {
+                projectButton
+                if shouldShowConversationTitle(headerWidth: chatHeaderWidth) {
+                    conversationTitleLabel
                 }
+                Spacer(minLength: 0)
+                rewindButton
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(height: 32)
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.width) { _, w in chatHeaderWidth = w }
+                    .onAppear { chatHeaderWidth = geo.size.width }
+            }
+        }
     }
 
     @ViewBuilder
@@ -1805,293 +1811,373 @@ struct ChatPanelView: View {
     // MARK: - Messages Area
     private var messagesArea: some View {
         ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 22) {
-                    if let conv = chatStore.conversation(for: conversationId) {
-                        let messages = conv.messages
-                        let lastMsg = messages.last
-
-                        ForEach(Array(messages.enumerated()), id: \.element.id) { item in
-                            let index = item.offset
-                            let message = item.element
-                            let isLast = message.id == lastMsg?.id
-                            let isLastAssistant = lastMsg?.role == .assistant && isLast
-                            let userMessageCheckpoint = message.role == .user
-                                ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
-                                : nil
-                            let hasCheckpointForMessage = userMessageCheckpoint != nil
-                            let canRewindFromMessage = message.role == .user && !isRewinding
-                            let needsDivider = message.role == .user && index > 0
-
-                            if shouldHideBuildKickoffMessage(message) {
-                                EmptyView()
-                                    .id(message.id)
-                            } else {
-                                HStack(alignment: .top, spacing: 0) {
-                                    if message.role == .user { Spacer(minLength: 0) }
-                                    if message.role == .assistant,
-                                        let attachment = message.planAttachment,
-                                        let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
-                                    {
-                                        PlanChatCardView(
-                                            entry: entry,
-                                            onDownload: { downloadPlanEntry(entry) },
-                                            onDuplicate: { _ = planHistoryStore.duplicateEntry(id: entry.id) },
-                                            onRebuild: {
-                                                let choice = (entry.chosenPath?.isEmpty == false)
-                                                    ? (entry.chosenPath ?? entry.markdown)
-                                                    : entry.markdown
-                                                executeWithPlanChoice(
-                                                    choice,
-                                                    fromPlanConversationId: entry.conversationId
-                                                )
-                                                planHistoryStore.markRebuilt(id: entry.id)
-                                            },
-                                            onOpenInPanel: {
-                                                planHistoryStore.setSelectedEntry(id: entry.id)
-                                                openPlanPanelForCurrentContext(
-                                                    preserveHistorySelection: true,
-                                                    source: .manualDeepLink
-                                                )
-                                            },
-                                            onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
-                                            onExpandPlan: {
-                                                planHistoryStore.setSelectedEntry(id: entry.id)
-                                                openPlanPanelForCurrentContext(
-                                                    preserveHistorySelection: true,
-                                                    source: .manualDeepLink
-                                                )
-                                            }
-                                        )
-                                    } else {
-                                        let effectiveReasoning = (conv.id == streamingReasoningConversationId
-                                            && isLastAssistant
-                                            && message.isStreaming)
-                                            ? streamingReasoningText
-                                            : nil
-                                        let shouldHideStreamingBarOnPreviousAssistant =
-                                            message.role == .assistant
-                                            && !isLastAssistant
-                                            && lastMsg?.role == .assistant
-                                            && (lastMsg?.isStreaming ?? false)
-                                            && isLoadingForCurrentConversation
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            MessageRow(
-                                                message: message,
-                                                context: effectiveContext.context,
-                                                modeColor: activeModeColor,
-                                                isActuallyLoading: isLoadingForCurrentConversation,
-                                                streamingStatusText: streamingStatusText(for: message),
-                                                streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
-                                                streamingReasoningText: effectiveReasoning,
-                                                showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
-                                                onFileClicked: { openFilesStore.openFile($0) },
-                                                onRestoreCheckpoint: message.role == .user
-                                                    ? { rewindToMessage(at: index, conversationId: conv.id) }
-                                                    : nil,
-                                                canRewind: canRewindFromMessage,
-                                                hasCheckpointForRestore: hasCheckpointForMessage,
-                                                showTopDivider: needsDivider
-                                            )
-                                            if message.role == .assistant {
-                                                if shouldShowPlanTodosInChat,
-                                                   !todoStore.todos.isEmpty,
-                                                   message.id == messages.last(where: { $0.role == .assistant })?.id {
-                                                    TodoLiveInlineCard(
-                                                        store: todoStore,
-                                                        onOpenFile: { openFilesStore.openFile($0) }
-                                                    )
-                                                    .padding(.horizontal, 2)
-                                                }
-                                                let traceEvents = toolTraceStore.events(
-                                                    conversationId: conv.id,
-                                                    assistantMessageId: message.id
-                                                )
-                                                if !traceEvents.isEmpty {
-                                                    messageTraceView(
-                                                        traceEvents: traceEvents,
-                                                        effectiveContext: effectiveContext
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if message.role == .assistant { Spacer(minLength: 0) }
-                                }
-                                .id(message.id)
-                            }
-                        }
-                        let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
-                        if coderMode == .agent,
-                            !hasPersistentPlanCard,
-                            let cid = conversationId,
-                            let summary = inlinePlanSummaries[cid]
-                        {
-                            PlanSummaryCardView(
-                                title: summary.title,
-                                summaryMarkdown: summary.body,
-                                isCollapsed: isPlanSummaryCollapsed,
-                                onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
-                                        onExpandPlan: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                openPlanPanelForCurrentContext(source: .manualDeepLink)
-                                            }
-                                        }
-                                    )
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
-                            .id("plan-summary-card")
-                        }
-                        if shouldShowPlanBoardInChat, let board = chatStore.planBoard(for: conversationId) {
-                            PlanBoardView(
-                                board: board,
-                                onSelectOption: { selectPlanChoice($0.fullText) }
-                            )
-                            .padding(.horizontal, 16)
-                            .padding(.bottom, 8)
-                            .id("plan-board")
-                        }
-                    }
-                }
-            }
-                .padding(.top, 12).padding(.bottom, 16)
-                .frame(maxWidth: chatColumnMaxWidth)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 20)
-            .overlay {
-                let conv = chatStore.conversation(for: conversationId)
-                let isEmpty = conv == nil || conv!.messages.isEmpty
-                if isEmpty && !isLoadingForCurrentConversation {
-                    VStack(spacing: 20) {
-                        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
-                           let icon = NSImage(contentsOf: url) {
-                            Image(nsImage: icon)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 56, height: 56)
-                                .cornerRadius(13)
-                                .saturation(0)
-                                .opacity(0.3)
-                        }
-                        VStack(spacing: 6) {
-                            Text("codigo")
-                                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.secondary.opacity(0.45))
-                            Text("Ask anything, build anything")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .offset(y: -40)
-                    .allowsHitTesting(false)
-                }
-            }
-            .onChange(of: streamContentVersion) { _, _ in
-                if let last = chatStore.conversation(for: conversationId)?.messages.last,
-                    isFollowingLive
-                {
-                    scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
-                }
-            }
-            .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _, _ in
-                if let last = chatStore.conversation(for: conversationId)?.messages.last,
-                    isFollowingLive
-                {
-                    scheduleAutoScroll(proxy: proxy, target: last.id, animated: true, delay: 0.05)
-                }
-            }
-            .onChange(of: liveTraceEventCount) { _, _ in
-                guard isLoadingForCurrentConversation, isFollowingLive else { return }
-                if let target = liveScrollTarget() {
-                    scheduleAutoScroll(proxy: proxy, target: target, delay: 0.02)
-                }
-            }
-            .onChange(of: planningState) { _, new in
-                if case .awaitingChoice = new {
-                    if let target = latestMessageScrollTarget() {
-                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                    }
-                } else if case .awaitingClarification = new {
-                    if let target = latestMessageScrollTarget() {
-                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                    }
-                }
-            }
-            .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
-                guard let cid = conversationId else { return }
-                let isActive = newSet.contains(cid)
-                let wasActive = oldSet.contains(cid)
-                if !wasActive && isActive {
-                    isFollowingLive = true
-                    newEventsWhileDetached = 0
-                    if let target = liveScrollTarget() {
-                        scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
-                    }
-                } else if wasActive && !isActive {
-                    cancelFallbackTurnStartEvent()
-                    isFollowingLive = true
-                    newEventsWhileDetached = 0
-                    if let target = latestMessageScrollTarget() {
-                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)
-                    }
-                }
-            }
-            .onChange(of: taskActivityStore.activities.count) { _, _ in
-                if isLoadingForCurrentConversation {
-                    if isFollowingLive {
-                        if let target = liveScrollTarget() {
-                            scheduleAutoScroll(proxy: proxy, target: target)
-                        }
-                    } else {
-                        newEventsWhileDetached += 1
-                    }
-                }
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 30).onChanged { _ in
-                    if isLoadingForCurrentConversation {
-                        isFollowingLive = false
-                    }
-                },
-                including: isLoadingForCurrentConversation ? .gesture : .subviews
-            )
-            .overlay(alignment: .bottomTrailing) {
-                if !isFollowingLive && isLoadingForCurrentConversation {
-                    Button {
-                        isFollowingLive = true
-                        newEventsWhileDetached = 0
-                        if let target = liveScrollTarget() {
-                            scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                        }
-                        taskActivityStore.markLiveEventsSeen()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("Back to live")
-                                .font(.system(size: 11, weight: .semibold))
-                            if newEventsWhileDetached > 0 {
-                                Text("\(newEventsWhileDetached)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.white.opacity(0.22), in: Capsule())
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 10)
-                }
-            }
+            messagesAreaScrollView(using: proxy)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func messagesAreaScrollView(using proxy: ScrollViewProxy) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            chatMessagesAreaContent
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 16)
+        .frame(maxWidth: chatColumnMaxWidth)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 20)
+        .overlay(messagesAreaEmptyStateOverlay)
+        .onChange(of: streamContentVersion) { _, _ in
+            handleStreamContentVersionChange(proxy: proxy)
+        }
+        .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _, _ in
+            handleMessagesCountChange(proxy: proxy)
+        }
+        .onChange(of: liveTraceEventCount) { _, _ in
+            handleLiveTraceEventsChange(proxy: proxy)
+        }
+        .onChange(of: planningState) { _, new in
+            handlePlanningStateChange(new, proxy: proxy)
+        }
+        .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
+            handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
+        }
+        .onChange(of: taskActivityStore.activities.count) { _, _ in
+            handleTaskActivitiesChange(proxy: proxy)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30).onChanged { _ in
+                if isLoadingForCurrentConversation {
+                    isFollowingLive = false
+                }
+            },
+            including: isLoadingForCurrentConversation ? .gesture : .subviews
+        )
+        .overlay(alignment: .bottomTrailing) {
+            messagesAreaBackToLiveButton(using: proxy)
+        }
+    }
+
+    @ViewBuilder
+    private var messagesAreaEmptyStateOverlay: some View {
+        if messagesAreaIsEmpty && !isLoadingForCurrentConversation {
+            VStack(spacing: 20) {
+                if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+                   let icon = NSImage(contentsOf: url) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 56, height: 56)
+                        .cornerRadius(13)
+                        .saturation(0)
+                        .opacity(0.3)
+                }
+                VStack(spacing: 6) {
+                    Text("codigo")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary.opacity(0.45))
+                    Text("Ask anything, build anything")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .offset(y: -40)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private var messagesAreaIsEmpty: Bool {
+        guard let conv = chatStore.conversation(for: conversationId) else { return true }
+        return conv.messages.isEmpty
+    }
+
+    @ViewBuilder
+    private func messagesAreaBackToLiveButton(using proxy: ScrollViewProxy) -> some View {
+        if !isFollowingLive && isLoadingForCurrentConversation {
+            Button {
+                isFollowingLive = true
+                newEventsWhileDetached = 0
+                if let target = liveScrollTarget() {
+                    scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                }
+                taskActivityStore.markLiveEventsSeen()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text("Back to live")
+                        .font(.system(size: 11, weight: .semibold))
+                    if newEventsWhileDetached > 0 {
+                        Text("\(newEventsWhileDetached)")
+                            .font(.system(size: 10, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.white.opacity(0.22), in: Capsule())
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 14)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
+        if let last = chatStore.conversation(for: conversationId)?.messages.last,
+           isFollowingLive
+        {
+            scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
+        }
+    }
+
+    private func handleMessagesCountChange(proxy: ScrollViewProxy) {
+        if let last = chatStore.conversation(for: conversationId)?.messages.last,
+           isFollowingLive
+        {
+            scheduleAutoScroll(proxy: proxy, target: last.id, animated: true, delay: 0.05)
+        }
+    }
+
+    private func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
+        guard isLoadingForCurrentConversation, isFollowingLive else { return }
+        if let target = liveScrollTarget() {
+            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.02)
+        }
+    }
+
+    private func handlePlanningStateChange(_ newState: PlanningState, proxy: ScrollViewProxy) {
+        if case .awaitingChoice = newState {
+            if let target = latestMessageScrollTarget() {
+                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+            }
+        } else if case .awaitingClarification = newState {
+            if let target = latestMessageScrollTarget() {
+                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+            }
+        }
+    }
+
+    private func handleActiveTaskConversationChange(
+        oldSet: Set<UUID>,
+        newSet: Set<UUID>,
+        proxy: ScrollViewProxy
+    ) {
+        guard let cid = conversationId else { return }
+        let isActive = newSet.contains(cid)
+        let wasActive = oldSet.contains(cid)
+        if !wasActive && isActive {
+            isFollowingLive = true
+            newEventsWhileDetached = 0
+            if let target = liveScrollTarget() {
+                scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
+            }
+        } else if wasActive && !isActive {
+            cancelFallbackTurnStartEvent()
+            isFollowingLive = true
+            newEventsWhileDetached = 0
+            if let target = latestMessageScrollTarget() {
+                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)
+            }
+        }
+    }
+
+    private func handleTaskActivitiesChange(proxy: ScrollViewProxy) {
+        if isLoadingForCurrentConversation {
+            if isFollowingLive {
+                if let target = liveScrollTarget() {
+                    scheduleAutoScroll(proxy: proxy, target: target)
+                }
+            } else {
+                newEventsWhileDetached += 1
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chatMessagesAreaContent: some View {
+        if let conv = chatStore.conversation(for: conversationId) {
+            messagesStack(for: conv)
+        }
+    }
+
+    @ViewBuilder
+    private func messagesStack(for conv: Conversation) -> some View {
+        let messages = conv.messages
+        let lastMsg = messages.last
+        let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
+        let latestAssistantMessageId = messages.last(where: { $0.role == .assistant })?.id
+        LazyVStack(alignment: .leading, spacing: 22) {
+            ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                chatMessageCell(
+                    message: message,
+                    index: index,
+                    lastMsg: lastMsg,
+                    latestAssistantMessageId: latestAssistantMessageId,
+                    conv: conv
+                )
+            }
+            if coderMode == .agent,
+               !hasPersistentPlanCard,
+               let cid = conversationId,
+               let summary = inlinePlanSummaries[cid]
+            {
+                PlanSummaryCardView(
+                    title: summary.title,
+                    summaryMarkdown: summary.body,
+                    isCollapsed: isPlanSummaryCollapsed,
+                    onToggleCollapse: { isPlanSummaryCollapsed.toggle() },
+                    onExpandPlan: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            openPlanPanelForCurrentContext(source: .manualDeepLink)
+                        }
+                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .id("plan-summary-card")
+            }
+            if shouldShowPlanBoardInChat, let board = chatStore.planBoard(for: conversationId) {
+                PlanBoardView(
+                    board: board,
+                    onSelectOption: { selectPlanChoice($0.fullText) }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .id("plan-board")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chatMessageCell(
+        message: ChatMessage,
+        index: Int,
+        lastMsg: ChatMessage?,
+        latestAssistantMessageId: UUID?,
+        conv: Conversation
+    ) -> some View {
+        let isLast = message.id == lastMsg?.id
+        let isLastAssistant = lastMsg?.role == .assistant && isLast
+        let userMessageCheckpoint = message.role == .user
+            ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
+            : nil
+        let hasCheckpointForMessage = userMessageCheckpoint != nil
+        let canRewindFromMessage = message.role == .user && !isRewinding
+        let needsDivider = message.role == .user && index > 0
+        let restoreAction: (() -> Void)? = message.role == .user
+            ? { rewindToMessage(at: index, conversationId: conv.id) }
+            : nil
+        let replyAction: (() -> Void)? = message.role == .assistant
+            ? { beginReply(to: message) }
+            : nil
+        let deleteAction: (() -> Void)? = message.role == .assistant
+            ? { chatStore.removeMessage(messageId: message.id, in: conv.id) }
+            : nil
+
+        if shouldHideBuildKickoffMessage(message) {
+            EmptyView()
+                .id(message.id)
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                if message.role == .user { Spacer(minLength: 0) }
+                if message.role == .assistant,
+                   let attachment = message.planAttachment,
+                   let entry = planHistoryStore.findEntry(id: attachment.historyEntryId)
+                {
+                    PlanChatCardView(
+                        entry: entry,
+                        onDownload: { downloadPlanEntry(entry) },
+                        onDuplicate: { _ = planHistoryStore.duplicateEntry(id: entry.id) },
+                        onRebuild: {
+                            let choice = (entry.chosenPath?.isEmpty == false)
+                                ? (entry.chosenPath ?? entry.markdown)
+                                : entry.markdown
+                            executeWithPlanChoice(
+                                choice,
+                                fromPlanConversationId: entry.conversationId
+                            )
+                            planHistoryStore.markRebuilt(id: entry.id)
+                        },
+                        onOpenInPanel: {
+                            planHistoryStore.setSelectedEntry(id: entry.id)
+                            openPlanPanelForCurrentContext(
+                                preserveHistorySelection: true,
+                                source: .manualDeepLink
+                            )
+                        },
+                        onRemove: { planHistoryStore.deleteEntry(id: entry.id) },
+                        onExpandPlan: {
+                            planHistoryStore.setSelectedEntry(id: entry.id)
+                            openPlanPanelForCurrentContext(
+                                preserveHistorySelection: true,
+                                source: .manualDeepLink
+                            )
+                        }
+                    )
+                } else {
+                    let effectiveReasoning = (conv.id == streamingReasoningConversationId
+                        && isLastAssistant
+                        && message.isStreaming)
+                        ? streamingReasoningText
+                        : nil
+                    let shouldHideStreamingBarOnPreviousAssistant =
+                        message.role == .assistant
+                        && !isLastAssistant
+                        && lastMsg?.role == .assistant
+                        && (lastMsg?.isStreaming ?? false)
+                        && isLoadingForCurrentConversation
+                    VStack(alignment: .leading, spacing: 10) {
+                        MessageRow(
+                            message: message,
+                            context: effectiveContext.context,
+                            modeColor: activeModeColor,
+                            isActuallyLoading: isLoadingForCurrentConversation,
+                            streamingStatusText: streamingStatusText(for: message),
+                            streamingDetailText: streamingDetailText(for: message, conversationId: conv.id),
+                            streamingReasoningText: effectiveReasoning,
+                            showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
+                            onFileClicked: { openFilesStore.openFile($0) },
+                            onRestoreCheckpoint: restoreAction,
+                            onReply: replyAction,
+                            onDelete: deleteAction,
+                            canRewind: canRewindFromMessage,
+                            hasCheckpointForRestore: hasCheckpointForMessage,
+                            showTopDivider: needsDivider
+                        )
+                        if message.role == .assistant {
+                            if shouldShowPlanTodosInChat,
+                               !todoStore.todos.isEmpty,
+                               message.id == latestAssistantMessageId
+                            {
+                                TodoLiveInlineCard(
+                                    store: todoStore,
+                                    onOpenFile: { openFilesStore.openFile($0) }
+                                )
+                                .padding(.horizontal, 2)
+                            }
+                            let traceEvents = toolTraceStore.events(
+                                conversationId: conv.id,
+                                assistantMessageId: message.id
+                            )
+                            if !traceEvents.isEmpty {
+                                messageTraceView(
+                                    traceEvents: traceEvents,
+                                    effectiveContext: effectiveContext
+                                )
+                            }
+                        }
+                    }
+                }
+                if message.role == .assistant { Spacer(minLength: 0) }
+            }
+            .id(message.id)
+        }
     }
 
     @ViewBuilder
@@ -4587,6 +4673,24 @@ struct ChatPanelView: View {
     // MARK: - Send Message
     // MARK: - Send Message (orchestrator)
 
+    private func quotedReplyText(for message: ChatMessage) -> String {
+        let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return trimmed
+            .components(separatedBy: .newlines)
+            .map { line in
+                let normalized = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                return normalized.isEmpty ? ">" : "> \(normalized)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private func beginReply(to message: ChatMessage) {
+        let quoted = quotedReplyText(for: message)
+        inputText = quoted.isEmpty ? "" : "\(quoted)\n\n"
+        isInputFocused = true
+    }
+
     private func mapAttachmentKindToLLM(_ kind: ChatAttachmentKind) -> LLMAttachmentKind {
         switch kind {
         case .image: return .image
@@ -6647,7 +6751,7 @@ struct ChatPanelView: View {
                     conversationId: streamConversationId
                 )
             }
-        } else if swarmFallbackAutoEvaluate && agentAutoDelegateSwarm {
+        } else if (coderMode == .agent || coderMode == .agentSwarm) && swarmFallbackAutoEvaluate && agentAutoDelegateSwarm {
             // Fallback: LLM did not emit invoke_swarm event.
             // Evaluate the full response text with the policy to decide if
             // swarm delegation should still happen.
