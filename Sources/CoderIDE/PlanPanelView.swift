@@ -20,6 +20,13 @@ func isPlanBuildEnabled(
     }
 }
 
+func shouldAllowIdleRebuildFromMainBuildAction(
+    phase: PlanFlowPhase,
+    isPlanFullyBuilt: Bool
+) -> Bool {
+    phase == .idle && isPlanFullyBuilt
+}
+
 func planBuildDisabledReason(
     phase: PlanFlowPhase,
     hasBuildChoice: Bool,
@@ -67,6 +74,22 @@ func hasPlanContext(
 
 func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
     hasPlanContext
+}
+
+func isPlanHistoryEntryCompatibleWithCurrentContext(
+    entry: PlanHistoryEntry,
+    currentConversationId: UUID?,
+    currentContextId: UUID?,
+    currentContextFolderPath: String?
+) -> Bool {
+    guard let currentConversationId else { return false }
+    if currentContextId == nil && currentContextFolderPath == nil {
+        return entry.conversationId == currentConversationId
+    }
+    let matchesContext = currentContextId != nil && entry.contextId == currentContextId
+    let matchesFolder = currentContextFolderPath != nil
+        && entry.contextFolderPath == currentContextFolderPath
+    return matchesContext || matchesFolder
 }
 
 /// Cursor-style side panel for planning.
@@ -636,7 +659,11 @@ struct PlanPanelView: View {
             return
         }
         buildHint = "Build started..."
-        onBuild(choice, planProviderId, false)
+        let allowIdleRebuild = shouldAllowIdleRebuildFromMainBuildAction(
+            phase: planFlowPhase,
+            isPlanFullyBuilt: isPlanFullyBuilt
+        )
+        onBuild(choice, planProviderId, allowIdleRebuild)
     }
 
     // MARK: - Bottom Bar
@@ -1224,9 +1251,18 @@ struct PlanPanelView: View {
     }
 
     private func selectedHistoryEntryForConversation() -> PlanHistoryEntry? {
-        guard let conversationId else { return nil }
         guard let selected = planHistoryStore.findEntry(id: planHistoryStore.selectedEntryId) else { return nil }
-        return selected.conversationId == conversationId ? selected : nil
+        guard let conversationId,
+              let currentConversation = chatStore.conversation(for: conversationId) else {
+            return nil
+        }
+        let isCompatible = isPlanHistoryEntryCompatibleWithCurrentContext(
+            entry: selected,
+            currentConversationId: conversationId,
+            currentContextId: currentConversation.contextId,
+            currentContextFolderPath: currentConversation.contextFolderPath
+        )
+        return isCompatible ? selected : nil
     }
 
     private func latestPlanHistoryEntry() -> PlanHistoryEntry? {

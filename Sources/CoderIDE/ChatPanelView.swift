@@ -168,6 +168,69 @@ func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {
     !isLoading && phase != .building
 }
 
+func shouldResetPlanFlowAfterPreflightFailure(
+    isPlanModeRequested: Bool,
+    phase: PlanFlowPhase
+) -> Bool {
+    guard isPlanModeRequested else { return false }
+    switch phase {
+    case .analyzing, .questioning, .generating:
+        return true
+    case .idle, .proposalReady, .readyToBuild, .building:
+        return false
+    }
+}
+
+func shouldTreatConversationAsPlanContext(
+    coderMode: CoderMode,
+    hasInlinePlanSession: Bool,
+    hasActivePlanFlowPhase: Bool,
+    streamConversationId: UUID?,
+    currentConversationId: UUID?,
+    hasPlanBoardForStreamConversation: Bool,
+    hasPlanBoardForCurrentConversation: Bool,
+    showPlanPanel: Bool,
+    activeBuildPlanConversationId: UUID?
+) -> Bool {
+    if coderMode == .plan { return true }
+    if hasInlinePlanSession { return true }
+    if hasActivePlanFlowPhase { return true }
+
+    if let streamConversationId {
+        if hasPlanBoardForStreamConversation { return true }
+        if streamConversationId == activeBuildPlanConversationId { return true }
+        if showPlanPanel && streamConversationId == currentConversationId { return true }
+        return false
+    }
+
+    if currentConversationId != nil {
+        if hasPlanBoardForCurrentConversation { return true }
+        if currentConversationId == activeBuildPlanConversationId { return true }
+        if showPlanPanel { return true }
+    }
+
+    return false
+}
+
+func shouldRoutePlanStreamToPlanPanel(
+    shouldRoutePlanStreamingToPanel: Bool,
+    streamConversationId: UUID?,
+    hasActivePlanContext: Bool,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> Bool {
+    guard shouldRoutePlanStreamingToPanel, let streamConversationId else {
+        return false
+    }
+    if hasActivePlanContext { return true }
+    if phase == .building {
+        if streamConversationId == activeBuildPlanConversationId { return true }
+        if streamConversationId == activeBuildAgentConversationId { return true }
+    }
+    return false
+}
+
 enum PlanQuestionPhaseDecision: Equatable {
     case clarification(String)
     case proceedToGeneration
@@ -859,26 +922,25 @@ struct ChatPanelView: View {
     }
 
     private func hasActivePlanContext(for streamConversationId: UUID?) -> Bool {
-        if coderMode == .plan { return true }
-        if hasInlinePlanSession { return true }
-        if hasActivePlanFlowPhase { return true }
-
-        if let streamConversationId {
-            if chatStore.planBoard(for: streamConversationId) != nil { return true }
-            if streamConversationId == activeBuildPlanConversationId { return true }
-            if chatStore.activeTaskConversationIds.contains(streamConversationId) { return true }
-            if showPlanPanel && streamConversationId == conversationId { return true }
-            return false
-        }
-
-        if let currentConversationId = conversationId {
-            if chatStore.planBoard(for: currentConversationId) != nil { return true }
-            if currentConversationId == activeBuildPlanConversationId { return true }
-            if chatStore.activeTaskConversationIds.contains(currentConversationId) { return true }
-            if showPlanPanel { return true }
-        }
-
-        return false
+        let hasPlanBoardForStreamConversation: Bool = {
+            guard let streamConversationId else { return false }
+            return chatStore.planBoard(for: streamConversationId) != nil
+        }()
+        let hasPlanBoardForCurrentConversation: Bool = {
+            guard let currentConversationId = conversationId else { return false }
+            return chatStore.planBoard(for: currentConversationId) != nil
+        }()
+        return shouldTreatConversationAsPlanContext(
+            coderMode: coderMode,
+            hasInlinePlanSession: hasInlinePlanSession,
+            hasActivePlanFlowPhase: hasActivePlanFlowPhase,
+            streamConversationId: streamConversationId,
+            currentConversationId: conversationId,
+            hasPlanBoardForStreamConversation: hasPlanBoardForStreamConversation,
+            hasPlanBoardForCurrentConversation: hasPlanBoardForCurrentConversation,
+            showPlanPanel: showPlanPanel,
+            activeBuildPlanConversationId: activeBuildPlanConversationId
+        )
     }
 
     private func looksLikePlanPayload(_ rawText: String) -> Bool {
@@ -5241,7 +5303,19 @@ struct ChatPanelView: View {
             coderMode: coderMode,
             planToggleEnabled: planToggleEnabled
         )
-        if coderMode == .plan || shouldRunPlanInline {
+        let isPlanModeRequested = (coderMode == .plan || shouldRunPlanInline)
+        func resetPlanFlowAfterPreflightFailureIfNeeded() {
+            guard shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: isPlanModeRequested,
+                phase: planFlowPhase
+            ) else {
+                return
+            }
+            planFlowPhase = .idle
+            planningState = .idle
+            clearPlanStreamingState()
+        }
+        if isPlanModeRequested {
             // Guard against launching a new plan flow while one is already in progress
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building:
@@ -5281,6 +5355,7 @@ struct ChatPanelView: View {
                 forcePlanInline: forcePlanInline
             )
         else {
+            resetPlanFlowAfterPreflightFailureIfNeeded()
             appendTechnicalErrorMessage(
                 "[Error] Unable to resolve runtime provider for this mode.",
                 in: targetConversationId
@@ -5303,6 +5378,7 @@ struct ChatPanelView: View {
                 in: targetConversationId
             )
         } else if !selectedProviderAuthenticated {
+            resetPlanFlowAfterPreflightFailureIfNeeded()
             let providerName = runtimeProvider.displayName
             appendTechnicalErrorMessage(
                 "[Error] Provider \(providerName) not authenticated and no fallback available. Open Settings and authenticate an execution-capable provider.",
@@ -5321,6 +5397,7 @@ struct ChatPanelView: View {
         do {
             try createCheckpointBeforeTurn(conversationId: targetConversationId, workspaceContext: ctx)
         } catch {
+            resetPlanFlowAfterPreflightFailureIfNeeded()
             appendTechnicalErrorMessage(
                 "[Checkpoint error: \(error.localizedDescription)]", in: targetConversationId)
             return
@@ -7090,15 +7167,15 @@ struct ChatPanelView: View {
     }
 
     private func shouldRoutePlanStream(to conversationId: UUID?) -> Bool {
-        guard shouldRoutePlanStreamingToPanel, let streamConversationId = conversationId else {
-            return false
-        }
-        if hasActivePlanContext(for: streamConversationId) { return true }
-        if planFlowPhase == .building && chatStore.activeTaskConversationIds.contains(streamConversationId) {
-            return true
-        }
-        if streamConversationId == activeBuildPlanConversationId { return true }
-        return false
+        let hasContext = hasActivePlanContext(for: conversationId)
+        return shouldRoutePlanStreamToPlanPanel(
+            shouldRoutePlanStreamingToPanel: shouldRoutePlanStreamingToPanel,
+            streamConversationId: conversationId,
+            hasActivePlanContext: hasContext,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
     }
 
     private func updatePlanStreamingContent(_ content: String, conversationId: UUID?) {

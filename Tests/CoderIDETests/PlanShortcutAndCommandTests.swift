@@ -311,4 +311,93 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             XCTAssertTrue(shouldShowUsageFooter(for: mode), "Footer usage should be visible in \\(mode.rawValue)")
         }
     }
+
+    func testPlanContextDoesNotActivateFromGenericTaskState() {
+        let currentConversationId = UUID()
+        let streamConversationId = UUID()
+        let result = shouldTreatConversationAsPlanContext(
+            coderMode: .agent,
+            hasInlinePlanSession: false,
+            hasActivePlanFlowPhase: false,
+            streamConversationId: streamConversationId,
+            currentConversationId: currentConversationId,
+            hasPlanBoardForStreamConversation: false,
+            hasPlanBoardForCurrentConversation: false,
+            showPlanPanel: false,
+            activeBuildPlanConversationId: nil
+        )
+        XCTAssertFalse(result)
+    }
+
+    func testRoutePlanStreamOnlyForPlanContextOrActiveBuildConversations() {
+        let streamConversationId = UUID()
+        let activeBuildPlanConversationId = UUID()
+        let activeBuildAgentConversationId = UUID()
+
+        XCTAssertTrue(
+            shouldRoutePlanStreamToPlanPanel(
+                shouldRoutePlanStreamingToPanel: true,
+                streamConversationId: streamConversationId,
+                hasActivePlanContext: true,
+                phase: .idle,
+                activeBuildPlanConversationId: nil,
+                activeBuildAgentConversationId: nil
+            )
+        )
+
+        XCTAssertTrue(
+            shouldRoutePlanStreamToPlanPanel(
+                shouldRoutePlanStreamingToPanel: true,
+                streamConversationId: activeBuildAgentConversationId,
+                hasActivePlanContext: false,
+                phase: .building,
+                activeBuildPlanConversationId: activeBuildPlanConversationId,
+                activeBuildAgentConversationId: activeBuildAgentConversationId
+            )
+        )
+
+        XCTAssertFalse(
+            shouldRoutePlanStreamToPlanPanel(
+                shouldRoutePlanStreamingToPanel: true,
+                streamConversationId: streamConversationId,
+                hasActivePlanContext: false,
+                phase: .building,
+                activeBuildPlanConversationId: activeBuildPlanConversationId,
+                activeBuildAgentConversationId: activeBuildAgentConversationId
+            )
+        )
+    }
+
+    func testPreflightFailureResetPolicyAffectsOnlyInProgressPlanDiscoveryPhases() {
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: true,
+                phase: .analyzing
+            )
+        )
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: true,
+                phase: .questioning
+            )
+        )
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: true,
+                phase: .generating
+            )
+        )
+        XCTAssertFalse(
+            shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: true,
+                phase: .readyToBuild
+            )
+        )
+        XCTAssertFalse(
+            shouldResetPlanFlowAfterPreflightFailure(
+                isPlanModeRequested: false,
+                phase: .analyzing
+            )
+        )
+    }
 }
