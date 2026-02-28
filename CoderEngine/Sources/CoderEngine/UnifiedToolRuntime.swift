@@ -250,12 +250,21 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    private func runShellCommand(_ command: String, timeout: Int = 15_000) async -> String {
+        let (stdout, _, _) = await shellExec(
+            args: ["/bin/zsh", "-lc", command],
+            cwd: ".",
+            timeout: timeout
+        )
+        return stdout
+    }
+
     /// Tools that modify files and should trigger a codebase reindex.
     private static let fileChangingTools: Set<String> = [
         "edit", "write", "str_replace", "create_file", "delete_file",
         "parallel_apply", "regex_replace", "rename_symbol",
         "find_and_replace_all", "undo_edit", "write_json",
-        "debug_mark", "debug_clean",
+        "apply_diff", "debug_mark", "debug_clean",
     ]
 
     public func execute(_ call: ToolCall, context: ToolExecutionContext) async -> [StreamEvent] {
@@ -411,6 +420,20 @@ public actor UnifiedToolRuntime {
                 return await executeDebugMark(call: call, context: context, startDate: startDate)
             case "debug_clean":
                 return await executeDebugClean(call: call, context: context, startDate: startDate)
+
+            // Power tools
+            case "apply_diff":
+                return try executeApplyDiff(call: call, context: context, startDate: startDate)
+            case "batch_read":
+                return try executeBatchRead(call: call, context: context, startDate: startDate)
+            case "diff_files":
+                return await executeDiffFiles(call: call, context: context, startDate: startDate)
+            case "git_status":
+                return await executeGitStatus(call: call, context: context, startDate: startDate)
+            case "git_show":
+                return await executeGitShow(call: call, context: context, startDate: startDate)
+            case "code_context":
+                return await executeCodeContext(call: call, context: context, startDate: startDate)
 
             // Cursor-style semantic tools
             case "semantic_search":
@@ -1778,12 +1801,14 @@ public actor UnifiedToolRuntime {
              "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
              "diagnostics", "attempt_completion",
              "run_single_test",
-             "semantic_search", "read_lints", "debug_context":
+             "semantic_search", "read_lints", "debug_context",
+             "batch_read", "diff_files", "git_status", "git_show", "code_context",
+             "related_files", "git_log_search":
             return ok ? "read_batch_completed" : "tool_execution_error"
         case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
             return ok ? name : "tool_execution_error"
         case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
-             "rename_symbol", "find_and_replace_all", "undo_edit":
+             "rename_symbol", "find_and_replace_all", "undo_edit", "apply_diff":
             return ok ? "file_change" : "tool_execution_error"
         case "bash":
             return ok ? "command_execution" : "tool_execution_error"
@@ -3560,5 +3585,413 @@ public actor UnifiedToolRuntime {
             "output": truncate(fullContext, maxBytes: context.policy.maxBashOutputBytes),
             "sections": "\(sections.count)"
         ], durationMs: ms)
+    }
+
+    // MARK: - apply_diff
+
+    private func executeApplyDiff(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
+        let path = try resolveRequiredPath(call.args["path"], context: context)
+        let diff = (call.args["diff"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !diff.isEmpty else {
+            throw ToolRuntimeError.validation("diff is required — provide a unified diff string")
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw ToolRuntimeError.validation("File not found: \(path)")
+        }
+
+        let content = try String(contentsOfFile: path, encoding: .utf8)
+        var lines = content.components(separatedBy: "\n")
+        var applied = 0
+        var offset = 0
+
+        let diffLines = diff.components(separatedBy: "\n")
+        var i = 0
+        while i < diffLines.count {
+            let line = diffLines[i]
+            if line.hasPrefix("@@") {
+                let header = line
+                let regex = try? NSRegularExpression(pattern: #"@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@"#)
+                let match = regex?.firstMatch(in: header, range: NSRange(header.startIndex..., in: header))
+                guard let m = match,
+                      let startRange = Range(m.range(at: 1), in: header),
+                      let startLine = Int(header[startRange]) else {
+                    i += 1
+                    continue
+                }
+
+                var hunkRemovals: [Int] = []
+                var hunkAdditions: [String] = []
+                var pos = startLine - 1 + offset
+                i += 1
+
+                while i < diffLines.count && !diffLines[i].hasPrefix("@@") && !diffLines[i].hasPrefix("diff ") {
+                    let dl = diffLines[i]
+                    if dl.hasPrefix("-") {
+                        if pos < lines.count {
+                            hunkRemovals.append(pos)
+                        }
+                        pos += 1
+                    } else if dl.hasPrefix("+") {
+                        hunkAdditions.append(String(dl.dropFirst()))
+                    } else if dl.hasPrefix(" ") || dl.isEmpty {
+                        pos += 1
+                    }
+                    i += 1
+                }
+
+                let insertionBase = hunkRemovals.first ?? (startLine - 1 + offset)
+                for idx in hunkRemovals.sorted().reversed() where idx < lines.count {
+                    lines.remove(at: idx)
+                }
+                let insertAt = min(lines.count, insertionBase)
+                for (j, text) in hunkAdditions.enumerated() {
+                    lines.insert(text, at: min(lines.count, insertAt + j))
+                }
+
+                offset += hunkAdditions.count - hunkRemovals.count
+                applied += 1
+            } else {
+                i += 1
+            }
+        }
+
+        guard applied > 0 else {
+            throw ToolRuntimeError.validation("No valid diff hunks found. Use unified diff format with @@ headers.")
+        }
+
+        let newContent = lines.joined(separator: "\n")
+        try newContent.write(toFile: path, atomically: true, encoding: .utf8)
+
+        return success([
+            "title": "apply_diff \((path as NSString).lastPathComponent)",
+            "path": path,
+            "file": path,
+            "detail": "Applied \(applied) diff hunks",
+            "output": "Applied \(applied) hunks to \((path as NSString).lastPathComponent)"
+        ], startDate: startDate)
+    }
+
+    // MARK: - batch_read
+
+    private func executeBatchRead(call: ToolCall, context: ToolExecutionContext, startDate: Date) throws -> ToolResult {
+        let pathsRaw = (call.args["paths"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !pathsRaw.isEmpty else {
+            throw ToolRuntimeError.validation("paths is required — JSON array of file paths or comma-separated paths")
+        }
+
+        var paths: [String] = []
+        if pathsRaw.hasPrefix("["),
+           let data = pathsRaw.data(using: .utf8),
+           let arr = try? JSONSerialization.jsonObject(with: data) as? [String] {
+            paths = arr
+        } else {
+            paths = pathsRaw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        }
+
+        paths = paths.filter { !$0.isEmpty }
+        guard !paths.isEmpty else {
+            throw ToolRuntimeError.validation("No valid file paths provided")
+        }
+        guard paths.count <= 20 else {
+            throw ToolRuntimeError.validation("Too many files — max 20 per batch_read call")
+        }
+
+        let maxPerFile = context.policy.maxReadBytesPerFile
+        var output = ""
+        var readCount = 0
+
+        for rawPath in paths {
+            guard let resolvedPath = resolvePath(rawPath,
+                                                 workspacePaths: context.workspaceContext.workspacePaths.map(\.path),
+                                                 preferredRoot: context.workspaceContext.activeRootPath,
+                                                 sandboxMode: context.policy.sandboxMode) else {
+                output += "### \(rawPath)\n[error: path not allowed]\n\n"
+                continue
+            }
+
+            guard let handle = FileHandle(forReadingAtPath: resolvedPath) else {
+                output += "### \(rawPath)\n[error: file not found]\n\n"
+                continue
+            }
+            defer { try? handle.close() }
+
+            let data = (try? handle.read(upToCount: maxPerFile)) ?? Data()
+            let fileContent = String(data: data, encoding: .utf8) ?? "[binary file]"
+            let fileLines = fileContent.components(separatedBy: "\n")
+            let lineCount = fileLines.count
+
+            let digitWidth = max(1, String(lineCount).count)
+            let numbered = fileLines.enumerated().map { idx, line in
+                let num = String(idx + 1)
+                let pad = String(repeating: " ", count: max(0, digitWidth - num.count))
+                return "\(pad)\(num)|\(line)"
+            }.joined(separator: "\n")
+
+            output += "### \(rawPath) (\(lineCount) lines)\n\(numbered)\n\n"
+            readCount += 1
+        }
+
+        return success([
+            "title": "batch_read (\(readCount)/\(paths.count) files)",
+            "detail": "Read \(readCount) files",
+            "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes)
+        ], startDate: startDate)
+    }
+
+    // MARK: - diff_files
+
+    private func executeDiffFiles(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let file1 = (call.args["file1"] ?? call.args["path1"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let file2 = (call.args["file2"] ?? call.args["path2"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !file1.isEmpty && !file2.isEmpty else {
+            return failure("file1 and file2 are required", errorCode: "validation", startDate: startDate)
+        }
+
+        let workspace = context.workspaceContext.workspacePaths.first?.path ?? "."
+        let abs1 = (file1 as NSString).isAbsolutePath ? file1 : (workspace as NSString).appendingPathComponent(file1)
+        let abs2 = (file2 as NSString).isAbsolutePath ? file2 : (workspace as NSString).appendingPathComponent(file2)
+
+        let contextLines = min(Int(call.args["context"] ?? "3") ?? 3, 10)
+        let result = await runShellCommand(
+            "diff -u --label '\(shellEscaped((file1 as NSString).lastPathComponent))' --label '\(shellEscaped((file2 as NSString).lastPathComponent))' -U \(contextLines) '\(shellEscaped(abs1))' '\(shellEscaped(abs2))' 2>&1",
+            timeout: 10_000
+        )
+
+        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return success([
+                "title": "diff_files",
+                "detail": "Files are identical",
+                "output": "Files are identical: \(file1) and \(file2)"
+            ], startDate: startDate)
+        }
+
+        return success([
+            "title": "diff_files \((file1 as NSString).lastPathComponent) vs \((file2 as NSString).lastPathComponent)",
+            "detail": "Files differ",
+            "output": truncate(trimmed, maxBytes: context.policy.maxBashOutputBytes)
+        ], startDate: startDate)
+    }
+
+    // MARK: - git_status
+
+    private func executeGitStatus(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let workspace = context.workspaceContext.workspacePaths.first?.path ?? "."
+
+        let branchResult = await runShellCommand(
+            "cd '\(shellEscaped(workspace))' && git branch --show-current 2>/dev/null",
+            timeout: 5_000
+        )
+        let branch = branchResult.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let statusResult = await runShellCommand(
+            "cd '\(shellEscaped(workspace))' && git status --porcelain=v1 2>/dev/null",
+            timeout: 5_000
+        )
+
+        let aheadBehind = await runShellCommand(
+            "cd '\(shellEscaped(workspace))' && git rev-list --left-right --count HEAD...@{upstream} 2>/dev/null",
+            timeout: 5_000
+        )
+
+        let lastCommit = await runShellCommand(
+            "cd '\(shellEscaped(workspace))' && git log -1 --format='%h %s' 2>/dev/null",
+            timeout: 5_000
+        )
+
+        var staged: [String] = []
+        var unstaged: [String] = []
+        var untracked: [String] = []
+        var conflicts: [String] = []
+
+        for line in statusResult.components(separatedBy: "\n") where line.count >= 3 {
+            let x = line[line.startIndex]
+            let y = line[line.index(after: line.startIndex)]
+            let file = String(line.dropFirst(3))
+
+            if x == "U" || y == "U" || (x == "A" && y == "A") || (x == "D" && y == "D") {
+                conflicts.append("!! \(file)")
+            } else {
+                if x != " " && x != "?" {
+                    staged.append("\(x)  \(file)")
+                }
+                if y != " " && y != "?" {
+                    unstaged.append(" \(y) \(file)")
+                }
+                if x == "?" && y == "?" {
+                    untracked.append("?? \(file)")
+                }
+            }
+        }
+
+        var output = "## Branch: \(branch.isEmpty ? "(detached HEAD)" : branch)\n"
+
+        let abParts = aheadBehind.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\t")
+        if abParts.count == 2, let ahead = Int(abParts[0]), let behind = Int(abParts[1]) {
+            if ahead > 0 || behind > 0 {
+                var trackingInfo: [String] = []
+                if ahead > 0 { trackingInfo.append("\(ahead) ahead") }
+                if behind > 0 { trackingInfo.append("\(behind) behind") }
+                output += "Tracking: \(trackingInfo.joined(separator: ", "))\n"
+            }
+        }
+
+        let commit = lastCommit.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !commit.isEmpty {
+            output += "Last commit: \(commit)\n"
+        }
+
+        if !conflicts.isEmpty {
+            output += "\n## Conflicts (\(conflicts.count))\n\(conflicts.joined(separator: "\n"))\n"
+        }
+        if !staged.isEmpty {
+            output += "\n## Staged (\(staged.count))\n\(staged.joined(separator: "\n"))\n"
+        }
+        if !unstaged.isEmpty {
+            output += "\n## Unstaged (\(unstaged.count))\n\(unstaged.joined(separator: "\n"))\n"
+        }
+        if !untracked.isEmpty {
+            output += "\n## Untracked (\(untracked.count))\n\(untracked.prefix(30).joined(separator: "\n"))\n"
+            if untracked.count > 30 {
+                output += "...(\(untracked.count - 30) more)\n"
+            }
+        }
+
+        if staged.isEmpty && unstaged.isEmpty && untracked.isEmpty && conflicts.isEmpty {
+            output += "\nClean working tree.\n"
+        }
+
+        let totalChanges = staged.count + unstaged.count + untracked.count + conflicts.count
+        return success([
+            "title": "git_status [\(branch.isEmpty ? "HEAD" : branch)]",
+            "detail": "\(totalChanges) changes",
+            "output": output.trimmingCharacters(in: .whitespacesAndNewlines)
+        ], startDate: startDate)
+    }
+
+    // MARK: - git_show
+
+    private func executeGitShow(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let ref = (call.args["commit"] ?? call.args["ref"] ?? "HEAD").trimmingCharacters(in: .whitespacesAndNewlines)
+        let workspace = context.workspaceContext.workspacePaths.first?.path ?? "."
+        let statOnly = (call.args["stat_only"] ?? "").lowercased() == "true"
+
+        let format = statOnly ? "--stat" : "--stat -p"
+        let result = await runShellCommand(
+            "cd '\(shellEscaped(workspace))' && git show \(format) --format='commit %H%nAuthor: %an <%ae>%nDate: %ad%n%n%s%n%b' '\(shellEscaped(ref))' 2>&1",
+            timeout: 15_000
+        )
+
+        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed.contains("fatal:") {
+            return failure("Commit not found: \(ref)", errorCode: "validation", startDate: startDate)
+        }
+
+        return success([
+            "title": "git_show \(ref)",
+            "detail": statOnly ? "stats only" : "full diff",
+            "output": truncate(trimmed, maxBytes: context.policy.maxBashOutputBytes)
+        ], startDate: startDate)
+    }
+
+    // MARK: - code_context
+
+    private func executeCodeContext(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let symbol = (call.args["symbol"] ?? call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !symbol.isEmpty else {
+            return failure("symbol is required", errorCode: "validation", startDate: startDate)
+        }
+
+        let maxRefs = min(Int(call.args["max_refs"] ?? "15") ?? 15, 30)
+        var output = ""
+
+        if let index = codebaseIndex {
+            let definitions = await index.findSymbols(query: symbol, kind: nil, limit: 5)
+            if !definitions.isEmpty {
+                output += "## Definition\n"
+                for def in definitions.prefix(3) {
+                    output += "\(def.kind.rawValue) \(def.name)"
+                    if !def.signature.isEmpty { output += " — \(def.signature)" }
+                    output += "\n  \(def.filePath):\(def.line)\n"
+                    if let doc = def.documentation, !doc.isEmpty {
+                        output += "  Doc: \(doc.prefix(200))\n"
+                    }
+
+                    let absPath: String
+                    if (def.filePath as NSString).isAbsolutePath {
+                        absPath = def.filePath
+                    } else {
+                        let ws = context.workspaceContext.workspacePaths.first?.path ?? "."
+                        absPath = (ws as NSString).appendingPathComponent(def.filePath)
+                    }
+                    if let fh = FileHandle(forReadingAtPath: absPath) {
+                        defer { try? fh.close() }
+                        if let data = try? fh.read(upToCount: context.policy.maxReadBytesPerFile) {
+                            let fc = String(data: data, encoding: .utf8) ?? ""
+                            let allLines = fc.components(separatedBy: "\n")
+                            let si = max(0, def.line - 1)
+                            let ei = def.endLine > 0 ? min(allLines.count, def.endLine) : min(allLines.count, si + 20)
+                            if si < allLines.count {
+                                let codeSlice = allLines[si..<ei]
+                                output += "  ```\n"
+                                for (ci, cl) in codeSlice.enumerated() {
+                                    output += "  \(si + ci + 1)|\(cl)\n"
+                                }
+                                output += "  ```\n"
+                            }
+                        }
+                    }
+                    output += "\n"
+                }
+            }
+
+            let refs = await index.findReferences(symbolName: symbol, limit: maxRefs)
+            if !refs.isEmpty {
+                output += "## References (\(refs.count))\n"
+                for r in refs.prefix(maxRefs) {
+                    let ctx = r.contextLine.trimmingCharacters(in: .whitespaces)
+                    let trimCtx = ctx.count > 100 ? String(ctx.prefix(100)) + "..." : ctx
+                    output += "  \(r.filePath):\(r.line) — \(trimCtx)\n"
+                }
+                output += "\n"
+            }
+
+            if let firstDef = definitions.first {
+                let deps = await index.fileDependencies(firstDef.filePath)
+                if !deps.imports.isEmpty {
+                    output += "## File imports\n"
+                    for imp in deps.imports.prefix(10) {
+                        output += "  \(imp)\n"
+                    }
+                    output += "\n"
+                }
+            }
+        } else {
+            let workspace = context.workspaceContext.workspacePaths.first?.path ?? "."
+            let (grepOut, _, _) = await shellExec(
+                args: ["/bin/bash", "-c", "cd '\(shellEscaped(workspace))' && rg -n --no-heading -m 20 '\\b\(shellEscaped(symbol))\\b' --glob '!.build' --glob '!node_modules' --glob '!.git' 2>/dev/null | head -30"],
+                cwd: workspace,
+                timeout: 10_000
+            )
+            let trimmedGrep = grepOut.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedGrep.isEmpty {
+                output = "## References (grep fallback)\n\(trimmedGrep)\n"
+            }
+        }
+
+        if output.isEmpty {
+            return success([
+                "title": "code_context \(symbol)",
+                "detail": "No results",
+                "output": "Symbol not found: \(symbol)"
+            ], startDate: startDate)
+        }
+
+        return success([
+            "title": "code_context \(symbol)",
+            "detail": "Definition + references",
+            "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes)
+        ], startDate: startDate)
     }
 }

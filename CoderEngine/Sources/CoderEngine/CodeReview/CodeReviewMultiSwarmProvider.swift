@@ -399,13 +399,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                                 return
                             }
 
-                            if testPassed {
-                                continuation.yield(.textDelta("\n**Tests passed.** No further fix rounds needed.\n"))
-                                break reviewLoop
-                            }
-
                             continuation.yield(.textDelta(
-                                "\n**New issues found.** Proceeding to fix round \(reviewRound + 1) with \(currentTasks.count) worker(s)...\n"
+                                "\n**New issues found.** Proceeding to fix round \(reviewRound + 1) with \(currentTasks.count) worker(s)...\(testPassed ? " (tests pass but code issues remain)" : "")\n"
                             ))
                         }
                     }
@@ -674,9 +669,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 group.addTask {
                     if isCancelled() { return (task.id, []) }
 
-                    // Acquire file locks
+                    // Acquire file locks (with cancellation awareness)
                     await fileLockCoordinator.acquireLock(
-                        files: Set(task.files), swarmId: task.id
+                        files: Set(task.files), swarmId: task.id, isCancelled: isCancelled
                     )
 
                     var collected: [StreamEvent] = []
@@ -930,9 +925,12 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             }
     }
 
-    /// Check if findings text contains actionable issues
+    /// Check if findings text contains actionable issues.
+    /// Uses word-boundary matching to avoid substring false positives
+    /// (e.g. "dismissal" should not match "sql", "submission" should not match "permission").
     private static func findingsContainIssues(_ text: String) -> ReviewFindingsState {
         let lower = text.lowercased()
+
         let noIssuesIndicators = [
             "no issues found",
             "all clear",
@@ -962,41 +960,55 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let strictIssueIndicators = [
             "critical",
             "high severity",
-            "security",
+            "security vulnerability",
+            "security risk",
+            "security issue",
             "regression",
             "crash",
-            "exception",
             "null pointer",
             "race condition",
-            "memory",
-            "authorization",
-            "authentication",
+            "memory leak",
             "command injection",
-            "sql",
-            "leak",
+            "sql injection",
             "data loss",
             "deadlock",
             "infinite loop",
             "off-by-one",
             "null dereference",
-            "segmentation",
+            "segmentation fault",
             "thread-safety",
-            "permission"
+            "use-after-free"
         ]
         if strictIssueIndicators.contains(where: { lower.contains($0) }) {
             return .issues
         }
 
-        // Conservative default: do not infer clean if payload is short and lacks strong signals.
+        let wordBoundaryIndicators = [
+            "leak", "exception", "permission", "authorization", "authentication"
+        ]
+        if wordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
+            return .issues
+        }
+
         if lower.count < 150 {
             return .clean
         }
-        let weakIssueIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
-        if weakIssueIndicators.contains(where: { lower.contains($0) }) {
+
+        let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
+        if weakWordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
             return .issues
         }
 
         return .inconclusive(reason: "No robust issue indicators found in re-review output.")
+    }
+
+    /// Matches a word with word-boundary awareness to prevent substring false positives.
+    private static func containsWord(_ text: String, word: String) -> Bool {
+        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return text.contains(word)
+        }
+        return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
     /// Run test suite and optionally retry with debugger
@@ -1030,8 +1042,12 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                 let fullOutput = output.joined(separator: "\n")
                 let lower = fullOutput.lowercased()
-                let hasWarnings = lower.contains("warning:")
-                let passed = (status == 0) && !hasWarnings
+                let hasTestFailures = lower.contains("test failed")
+                    || lower.contains("tests failed")
+                    || lower.contains("failing")
+                    || lower.contains("assertion failed")
+                    || lower.contains("xctassert")
+                let passed = (status == 0) && !hasTestFailures
 
                 if passed {
                     continuation.yield(.textDelta("**Tests passed successfully.**\n"))

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Registry dei provider LLM disponibili
+/// Registry of available LLM providers
 public final class ProviderRegistry: ObservableObject {
     @Published public private(set) var providers: [LLMProvider] = []
     @Published public var selectedProviderId: String?

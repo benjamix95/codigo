@@ -11,13 +11,13 @@ public struct GeminiModel: Sendable {
     }
 }
 
-/// Lista statica dei modelli Gemini disponibili via Gemini CLI.
-/// Non esiste un comando `gemini models list`; la documentazione ufficiale indica
-/// Auto (Gemini 3), Auto (Gemini 2.5), oppure Manual con qualsiasi modello disponibile.
+/// Static list of Gemini models available via Gemini CLI.
+/// There is no `gemini models list` command; official documentation lists
+/// Auto (Gemini 3), Auto (Gemini 2.5), or Manual with any available model.
 /// This cache exposes the most common models for manual selection.
 public enum GeminiModelsCache {
-    /// Modelli statici basati sulla documentazione Gemini CLI (geminicli.com/docs/cli/model).
-    /// Per "Default (auto)" non passare --model: usare geminiModelOverride = "".
+    /// Static models based on Gemini CLI documentation (geminicli.com/docs/cli/model).
+    /// For "Default (auto)" don't pass --model: use geminiModelOverride = "".
     private static let knownModels: [GeminiModel] = [
         // Gemini 3 (preview)
         GeminiModel(slug: "gemini-3-pro-preview", displayName: "Gemini 3 Pro (preview)"),
@@ -31,7 +31,7 @@ public enum GeminiModelsCache {
         GeminiModel(slug: "gemini-2.0-flash-exp", displayName: "Gemini 2.0 Flash Exp"),
     ]
 
-    /// Restituisce la lista dei modelli disponibili. Lo slug vuoto rappresenta "Default (auto)".
+    /// Returns the list of available models. An empty slug represents "Default (auto)".
     public static func loadModels() -> [GeminiModel] {
         knownModels
     }

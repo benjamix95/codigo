@@ -31,9 +31,17 @@ enum PromptToolsPolicy {
     - Respect tool budget limits. If you hit the budget, summarize what you've done and what remains.
     - After file edits, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
     - Use `parallel_apply` for multi-file edits when changes are independent.
+    - Use `apply_diff` for complex multi-line edits where str_replace would be cumbersome — pass a unified diff with @@ hunk headers.
+    - Use `batch_read` to read multiple files in one call (up to 20 files) instead of sequential reads.
+    - Use `diff_files` to compare two files side-by-side in unified diff format.
+    - Use `git_status` for a structured view of the working tree (branch, staged, unstaged, untracked, ahead/behind).
+    - Use `git_show` to inspect a specific commit's changes (defaults to HEAD).
+    - Use `code_context` to get complete context around a symbol — definition code, all references, and file imports in one call.
+    - Use `list_dir` with `recursive: true` for tree views, `sizes: true` for file sizes, and `depth` to control depth.
+    - Use `grep` with `output_mode: "files_only"` to get just file paths, or `"count"` for match counts. Use `glob` filter for targeted file patterns.
     - Use `attempt_completion` to signal task completion with optional verification command.
     - For multi-step tasks, plan your approach first, then execute systematically.
-    - Prefer structured tools (read_range, list_dir, git_diff, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search) over raw bash when available.
+    - Prefer structured tools (read_range, list_dir, git_diff, git_status, git_show, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search, code_context, batch_read) over raw bash when available.
     - If "Detected local skills" or AGENTS.md/SKILL.md are in the context, USE the `skill` tool when the task matches. Example: doc for DOCX, imagegen for images, transcribe for audio. Do NOT skip — invoke the skill.
     - MCP tools from connected servers are registered as native function tools — call them directly by name, no discovery needed.
     - Use `mcp_call` only for tools that aren't registered natively. Use `mcp_list_tools` only if you need to discover additional tools at runtime.

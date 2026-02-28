@@ -8,11 +8,11 @@ import System
 @preconcurrency import SystemPackage
 #endif
 
-/// Crea un trasporto MCP connesso a un subprocess
+/// Creates an MCP transport connected to a subprocess
 public enum MCPTransportFactory {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPTransportFactory")
 
-    /// Avvia un server MCP come subprocess e restituisce un trasporto connesso
+    /// Starts an MCP server as a subprocess and returns a connected transport
     public static func connectToProcess(
         command: String,
         arguments: [String] = [],

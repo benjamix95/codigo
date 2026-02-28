@@ -224,13 +224,12 @@ struct PlanPanelView: View {
                 bottomBar(canonicalTodos: snapshot.canonicalTodos)
             }
         }
-        .background(DesignSystem.Colors.backgroundDeep)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(DesignSystem.Colors.chatPanelSolidBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
         .onAppear {
             planText = ""
             isEditing = false
@@ -266,43 +265,33 @@ struct PlanPanelView: View {
 
     private var fixedToolbar: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                // Breadcrumb
+            HStack(spacing: 6) {
                 breadcrumb
+
+                if let hint = phaseHint {
+                    Text(hint)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
 
                 Spacer(minLength: 4)
 
-                // Model/provider picker
                 providerPicker
-
-                // Build button
                 buildButton
 
-                // Close
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.tertiary)
-                        .frame(width: 20, height: 20)
-                        .background(
-                            Color(nsColor: .controlBackgroundColor).opacity(0.4),
-                            in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        )
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Close panel")
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-
-            if let hint = phaseHint {
-                Text(hint)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-            }
+            .padding(.vertical, 6)
         }
     }
 
@@ -310,21 +299,13 @@ struct PlanPanelView: View {
 
     private var breadcrumb: some View {
         HStack(spacing: 4) {
-            Text("Plans")
+            Image(systemName: "doc.text")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(planColor.opacity(0.7))
+            Text(planFileName)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 7, weight: .bold))
-                .foregroundStyle(.quaternary)
-            HStack(spacing: 3) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(planColor)
-                Text(planFileName)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
+                .foregroundStyle(.primary)
+                .lineLimit(1)
         }
     }
 
@@ -399,21 +380,14 @@ struct PlanPanelView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Text(activeProviderLabel)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                executionCapabilityBadge
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.quaternary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Color(nsColor: .controlBackgroundColor).opacity(0.4),
-                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-            )
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -463,15 +437,12 @@ struct PlanPanelView: View {
 
     @ViewBuilder
     private var executionCapabilityBadge: some View {
-        Text(isActiveProviderExecutionCapable ? "Execution-capable" : "Not executable")
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(isActiveProviderExecutionCapable ? .green : .orange)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill((isActiveProviderExecutionCapable ? Color.green : Color.orange).opacity(0.16))
-            )
+        if !isActiveProviderExecutionCapable {
+            Circle()
+                .fill(Color.orange)
+                .frame(width: 5, height: 5)
+                .help("Not executable")
+        }
     }
 
     // MARK: - Build Button
@@ -650,43 +621,38 @@ struct PlanPanelView: View {
     // MARK: - Bottom Bar
 
     private func bottomBar(canonicalTodos: [TodoItem]) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             let total = canonicalTodos.count
             let done = canonicalTodos.filter { $0.status == .done }.count
             if total > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "checklist")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(planColor.opacity(0.6))
-                    Text("\(done)/\(total)")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                }
+                Text("\(done)/\(total)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.secondary.opacity(0.15))
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(Color.primary.opacity(0.06))
+                        RoundedRectangle(cornerRadius: 1.5)
                             .fill(planColor.opacity(0.5))
-                            .frame(width: geo.size.width * CGFloat(done) / CGFloat(total))
+                            .frame(width: geo.size.width * CGFloat(done) / CGFloat(max(total, 1)))
                     }
                 }
-                .frame(maxWidth: 60, maxHeight: 3)
+                .frame(maxWidth: 50, maxHeight: 2)
             }
             Spacer()
             if planFlowPhase == .building, isCurrentConversationLoading {
                 HStack(spacing: 4) {
                     ProgressView()
                         .controlSize(.mini)
-                        .scaleEffect(0.6)
+                        .scaleEffect(0.55)
                     Text("Building")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.tertiary)
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
     }
 
     // MARK: - Plan Content
@@ -774,7 +740,7 @@ struct PlanPanelView: View {
     private func planContentSection(snapshot: PlanRenderSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Technical Plan")
+                Text("Plan")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -1022,13 +988,10 @@ struct PlanPanelView: View {
             }
         }
         .padding(12)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.2),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
         .alert("Delete all history?", isPresented: $showDeleteAllHistoryConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -1054,48 +1017,45 @@ struct PlanPanelView: View {
         let blocked = canonicalTodos.filter { $0.status == .blocked }.count
         let ratio = total > 0 ? Double(done) / Double(total) : 0.0
 
-        return VStack(alignment: .leading, spacing: 8) {
-            // Header
-            HStack {
-                Image(systemName: "checklist")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(planColor)
-                Text("Todo (Plan)")
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("Tasks")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 if blocked > 0 {
-                    Text("\(blocked) blocked")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.error)
+                    HStack(spacing: 3) {
+                        Circle().fill(DesignSystem.Colors.error).frame(width: 5, height: 5)
+                        Text("\(blocked)")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(DesignSystem.Colors.error)
+                    }
                 }
                 if inProgress > 0 {
-                    Text("\(inProgress) running")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(planColor)
+                    HStack(spacing: 3) {
+                        Circle().fill(planColor).frame(width: 5, height: 5)
+                        Text("\(inProgress)")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(planColor)
+                    }
                 }
                 Text("\(done)/\(total)")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(done > 0 ? DesignSystem.Colors.success : DesignSystem.Colors.textTertiary)
                     .contentTransition(.numericText())
-                Text("\(Int(ratio * 100))%")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(ratio >= 1.0 ? DesignSystem.Colors.success : .secondary)
-                    .contentTransition(.numericText())
             }
 
-            // Progress bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.12))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(ratio >= 1.0 ? DesignSystem.Colors.success : planColor)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Color.primary.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(ratio >= 1.0 ? DesignSystem.Colors.success : planColor.opacity(0.7))
                         .frame(width: geo.size.width * CGFloat(ratio))
                         .animation(.easeInOut(duration: 0.4), value: ratio)
                 }
             }
-            .frame(height: 4)
+            .frame(height: 3)
 
             // Todo items
             ForEach(canonicalTodos) { todo in
@@ -1160,14 +1120,12 @@ struct PlanPanelView: View {
             }
             .animation(.easeInOut(duration: 0.25), value: canonicalTodos.map { "\($0.id)-\($0.status.rawValue)" })
         }
-        .padding(12)
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.2),
-            in: RoundedRectangle(cornerRadius: 10)
-        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
     }
 
@@ -1190,38 +1148,27 @@ struct PlanPanelView: View {
                     walkthroughExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(planColor.opacity(0.15))
-                            .frame(width: 24, height: 24)
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(planColor)
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Walkthrough")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.primary)
-                        Text(walkthroughExpanded ? "Hide summary" : "Show summary")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
+                HStack(spacing: 6) {
+                    Image(systemName: "text.document")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Text("Summary")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Image(systemName: walkthroughExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.quaternary)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(planColor.opacity(0.04))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
             if walkthroughExpanded {
                 Rectangle()
-                    .fill(planColor.opacity(0.12))
+                    .fill(Color.primary.opacity(0.05))
                     .frame(height: 0.5)
 
                 MarkdownContentView(
@@ -1230,17 +1177,14 @@ struct PlanPanelView: View {
                     onFileClicked: { _ in },
                     textAlignment: .leading
                 )
-                .padding(14)
+                .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .background(
-            Color(nsColor: .controlBackgroundColor).opacity(0.15)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(planColor.opacity(0.15), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
     }
 

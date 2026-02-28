@@ -127,6 +127,8 @@ final class TaskActivityStore: ObservableObject {
         "process_resumed",
         "read_batch_started",
         "read_batch_completed",
+        "review-worker-plan",
+        "review-fix-round",
         "swarm_delegation_skipped",
         "tool_execution_error",
         "tool_timeout",
@@ -708,11 +710,8 @@ final class TaskActivityStore: ObservableObject {
         if ["web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error"].contains(activity.type) {
             return true
         }
-        let t = activity.title.lowercased()
-        let d = (activity.detail ?? "").lowercased()
         let status = (activity.payload["status"] ?? "").lowercased()
-        return t.contains("error") || t.contains("failed") || d.contains("error")
-            || d.contains("failed") || status == "failed"
+        return status == "failed" || status == "error"
     }
 
     private func ingestSwarmCard(activity: TaskActivity) {

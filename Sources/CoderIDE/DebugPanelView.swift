@@ -35,7 +35,7 @@ struct DebugPanelView: View {
                 .allowsHitTesting(false)
 
             topBar
-            Rectangle().fill(debugColor.opacity(0.3)).frame(height: 1)
+            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
 
             // Linear debug pipeline (Describe → Reproduce → Fix → Verify → Resolve)
             if debugStore.phase != .idle {
@@ -140,13 +140,12 @@ struct DebugPanelView: View {
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
             bottomBar
         }
-        .background(DesignSystem.Colors.backgroundDeep)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(DesignSystem.Colors.chatPanelSolidBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(debugColor.opacity(0.25), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
-        .shadow(color: debugColor.opacity(0.08), radius: 8, y: 2)
         .frame(minWidth: 320, idealWidth: 380, maxWidth: 440)
     }
 

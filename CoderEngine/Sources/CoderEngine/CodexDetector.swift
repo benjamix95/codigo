@@ -87,7 +87,7 @@ public enum CodexDetector {
         }
     }
 
-    /// Rileva stato completo di Codex
+    /// Detects complete Codex status
     public static func detect(customPath: String? = nil) -> CodexStatus {
         guard let path = findCodexPath(customPath: customPath) else {
             return CodexStatus(isInstalled: false, path: nil, isLoggedIn: false, authMethod: nil)

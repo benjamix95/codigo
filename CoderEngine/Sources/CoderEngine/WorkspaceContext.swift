@@ -134,10 +134,13 @@ public struct WorkspaceContext: Sendable {
             parts.append("\n**Partition scope:** \(included.count) files (\(included.prefix(5).joined(separator: ", "))\(included.count > 5 ? "..." : ""))")
         }
         
-        for path in workspacePaths.prefix(1) {
+        for path in workspacePaths {
             let rootFiles = WorkspaceScanner.listRootFiles(workspacePath: path, excludedPaths: excludedPaths)
             if !rootFiles.isEmpty {
-                parts.append("\n**Files in root:** \(rootFiles.joined(separator: ", "))")
+                let label = workspacePaths.count > 1
+                    ? "\n**Files in root (\(path.lastPathComponent)):**"
+                    : "\n**Files in root:**"
+                parts.append("\(label) \(rootFiles.joined(separator: ", "))")
             }
         }
         

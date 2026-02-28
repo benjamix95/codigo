@@ -1,6 +1,6 @@
 import Foundation
 
-/// Step di esecuzione ordinato per uno swarm
+/// Ordered execution step for a swarm
 public struct ExecutionStep: Sendable {
     public let swarmId: String
     public let files: Set<String>
@@ -15,13 +15,18 @@ public struct ExecutionStep: Sendable {
 public actor FileLockCoordinator {
     private var lockedFiles: [String: String] = [:]
 
-    /// Acquisisce lock sui file; blocca fino a disponibilità con timeout di sicurezza
-    public func acquireLock(files: Set<String>, swarmId: String) async {
+    /// Acquires lock on files; blocks until available with a safety timeout.
+    /// Accepts an optional cancellation check to exit the wait loop early.
+    public func acquireLock(
+        files: Set<String>,
+        swarmId: String,
+        isCancelled: (@Sendable () -> Bool)? = nil
+    ) async {
         guard !files.isEmpty else { return }
-        // Timeout: max 5 minuti (1500 iterations × 200ms) per evitare spin loop infiniti
-        let maxAttempts = 1500
+        let maxAttempts = 1500 // ~5 minutes (1500 × 200ms)
         var attempt = 0
         while attempt < maxAttempts {
+            if isCancelled?() == true { return }
             let intersection = files.filter { lockedFiles[$0] != nil && lockedFiles[$0] != swarmId }
             if intersection.isEmpty {
                 for f in files {
@@ -32,7 +37,6 @@ public actor FileLockCoordinator {
             attempt += 1
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
-        // Timeout reached — force-acquire to prevent permanent deadlock
         for f in files {
             lockedFiles[f] = swarmId
         }
@@ -45,7 +49,7 @@ public actor FileLockCoordinator {
         }
     }
 
-    /// Pianifica l'ordine di esecuzione risolvendo conflitti su file condivisi
+    /// Plans execution order by resolving conflicts on shared files
     public func planExecution(swarmFileClaims: [(swarmId: String, files: Set<String>)]) -> [ExecutionStep] {
         var steps: [ExecutionStep] = []
         var remaining = swarmFileClaims
@@ -67,8 +71,12 @@ public actor FileLockCoordinator {
                 continue
             }
 
+            // Collect steps before removal to preserve original order
+            let roundSteps = roundIndices.map { remaining[$0] }
             for index in roundIndices.reversed() {
-                let pick = remaining.remove(at: index)
+                remaining.remove(at: index)
+            }
+            for pick in roundSteps {
                 steps.append(ExecutionStep(swarmId: pick.swarmId, files: pick.files))
             }
         }

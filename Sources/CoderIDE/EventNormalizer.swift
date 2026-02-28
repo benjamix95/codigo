@@ -96,6 +96,7 @@ enum EventKind: String, Codable {
     case swarmProgress = "swarm_progress"
     case usageUpdate = "usage_update"
     case errorDiagnostic = "error_diagnostic"
+    case mermaidRender = "mermaid_render"
     case generic = "generic"
 }
 
@@ -131,7 +132,7 @@ enum EventNormalizer {
              "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
-        case "mermaid_render": kind = .generic
+        case "mermaid_render": kind = .mermaidRender
         case "debug_phase_update": kind = .debugPhaseUpdate
         case "debug_user_request": kind = .debugUserRequest
         case "debug_resolved": kind = .debugResolved
@@ -834,6 +835,9 @@ enum EventNormalizer {
         "undo_edit",
         "multi_edit",
         "multiedit",
+        "write_file",
+        "notebook_edit",
+        "notebook_write",
     ]
 
     private static func isTrustedMCPPayload(_ payload: [String: String]) -> Bool {

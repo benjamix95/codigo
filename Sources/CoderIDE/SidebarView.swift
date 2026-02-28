@@ -465,8 +465,15 @@ struct SidebarView: View {
     private func threadRow(_ conv: Conversation) -> some View {
         let selected = selectedConversationId == conv.id
         let hasDraft = !(chatStore.draftTexts[conv.id]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let isActive = chatStore.isTaskActive(for: conv.id)
+        let statusText = chatStore.taskStatusTexts[conv.id]
         return HStack(spacing: 8) {
-            if hasDraft {
+            if isActive {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+                    .opacity(0.9)
+            } else if hasDraft {
                 Image(systemName: "pencil.line")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.orange)
@@ -479,17 +486,29 @@ struct SidebarView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(selected ? Color.accentColor : .secondary)
             }
-            Text(conv.title)
-                .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                .lineLimit(1)
-            if chatStore.isTaskActive(for: conv.id) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(conv.title)
+                    .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                    .lineLimit(1)
+                if isActive, let status = statusText, !status.isEmpty {
+                    Text(status)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .textShimmer(active: true)
+                }
+            }
+            Spacer(minLength: 4)
+            if isActive {
                 ProgressView()
                     .controlSize(.mini)
             }
-            Spacer()
-            Text(relativeDate(conv.createdAt))
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+            if !isActive {
+                Text(relativeDate(conv.createdAt))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
             if let context = currentContext, context.kind == .workspace, !context.folderPaths.isEmpty {
                 Menu {
                     Button("General") {
@@ -535,9 +554,12 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(selected ? Color.white.opacity(0.08) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(selected ? Color.white.opacity(0.08) : (isActive ? Color.accentColor.opacity(0.04) : Color.clear))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contextMenu {
             Button {
                 conversationToRename = conv

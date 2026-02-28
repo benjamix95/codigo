@@ -54,7 +54,7 @@ public struct SwarmWorkerRunner: Sendable {
 
                     for (_, groupTasks) in orderGroups {
                         if checkCancelled?() == true {
-                            continuation.yield(.textDelta("\n\n[Swarm interrotto dall'utente.]\n"))
+                            continuation.yield(.textDelta("\n\n[Swarm interrupted by user.]\n"))
                             break
                         }
                         if groupTasks.count == 1 {
@@ -74,7 +74,7 @@ public struct SwarmWorkerRunner: Sendable {
                                 for (idx, task) in groupTasks.enumerated() {
                                     g.addTask {
                                         if checkCancelled?() == true {
-                                            return (task.role.rawValue, "\n### \(task.role.displayName)\n\n[Interrotto dall'utente]\n")
+                                            return (task.role.rawValue, "\n### \(task.role.displayName)\n\n[Interrupted by user]\n")
                                         }
                                         let header = "\n### \(task.role.displayName)\n\n"
                                         let prompt = self.buildPrompt(for: task, previousOutputs: accumulatedOutput)
@@ -105,7 +105,7 @@ public struct SwarmWorkerRunner: Sendable {
                             accumulatedOutput += merged + "\n"
                         }
                         if checkCancelled?() == true {
-                            continuation.yield(.textDelta("\n\n[Swarm interrotto durante esecuzione parallela.]\n"))
+                            continuation.yield(.textDelta("\n\n[Swarm interrupted during parallel execution.]\n"))
                             break
                         }
                         isFirstTask = false

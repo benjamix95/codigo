@@ -51,8 +51,8 @@ struct CodigoApp: App {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "auto"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "auto"
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
     @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize

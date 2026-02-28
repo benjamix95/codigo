@@ -72,7 +72,7 @@ public enum GeminiDetector {
         }
     }
 
-    /// Rileva stato completo di Gemini
+    /// Detects complete Gemini status
     public static func detect(customPath: String? = nil) -> GeminiStatus {
         guard let path = findGeminiPath(customPath: customPath) else {
             return GeminiStatus(isInstalled: false, path: nil, isLoggedIn: false, authMethod: nil)

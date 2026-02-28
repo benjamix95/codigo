@@ -25,8 +25,8 @@ struct MessageRow: View {
     @State private var hoverTask: Task<Void, Never>?
     private let userRowMaxWidth: CGFloat = 620
     private let assistantRowMaxWidth: CGFloat = 920
-    private let userImageThumbWidth: CGFloat = 52
-    private let userImageThumbHeight: CGFloat = 34
+    private let userImageThumbWidth: CGFloat = 80
+    private let userImageThumbHeight: CGFloat = 56
 
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
@@ -81,40 +81,26 @@ struct MessageRow: View {
 
     private var messageDivider: some View {
         Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        Color.primary.opacity(0.05),
-                        Color.primary.opacity(0.05),
-                        Color.clear,
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            .fill(Color.primary.opacity(0.04))
             .frame(height: 0.5)
             .frame(maxWidth: rowMaxWidth)
-            .padding(.bottom, 18)
+            .padding(.bottom, 16)
     }
 
     // MARK: - User Header
 
     private var userHeader: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Spacer(minLength: 0)
-            Text("You")
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(.tertiary)
             if canRewind {
                 Button {
                     onRestoreCheckpoint?()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.system(size: 9.5, weight: .semibold))
+                        .font(.system(size: 9, weight: .semibold))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.quaternary)
                 .help(
                     hasCheckpointForRestore
                         ? "Restore chat and files from this point"
@@ -122,25 +108,28 @@ struct MessageRow: View {
                 )
                 .accessibilityLabel("Restore checkpoint")
             }
+            Text("You")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.quaternary)
         }
-        .padding(.trailing, 14)
-        .padding(.bottom, 5)
+        .padding(.trailing, 10)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Assistant Header
 
     private var assistantHeader: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(modeColor.opacity(0.55))
+        HStack(spacing: 4) {
+            Circle()
+                .fill(modeColor.opacity(0.5))
+                .frame(width: 5, height: 5)
             Text("Codigo")
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.quaternary)
             Spacer(minLength: 0)
         }
         .padding(.leading, 2)
-        .padding(.bottom, 5)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Message Content
@@ -246,62 +235,49 @@ struct MessageRow: View {
     // MARK: - Streaming Bar
 
     private var messageActionsRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 2) {
             Button {
                 copyMessageToClipboard()
             } label: {
                 Image(systemName: didCopyMessage ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : .secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-                    )
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(didCopyMessage ? DesignSystem.Colors.success : DesignSystem.Colors.textTertiary)
+                    .frame(width: 24, height: 20)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(didCopyMessage ? "Copied" : "Copy message")
             .accessibilityLabel(didCopyMessage ? "Copied" : "Copy message")
-            .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
             .animation(.easeOut(duration: 0.15), value: didCopyMessage)
 
             if let onReply {
                 Button(action: onReply) {
                     Image(systemName: "arrowshape.turn.up.left")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-                        )
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 20)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Reply")
                 .accessibilityLabel("Reply")
-                .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
             }
 
             if let onDelete {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-                        )
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 20)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Delete message")
                 .accessibilityLabel("Delete message")
-                .opacity((isHovered || didCopyMessage) ? 1 : 0.72)
             }
         }
+        .opacity(isHovered ? 1 : 0)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.trailing, isUser ? 6 : 0)
         .padding(.leading, isUser ? 0 : 2)
@@ -330,21 +306,23 @@ struct MessageRow: View {
     }
 
     private var streamingBar: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 0) {
-                Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .textShimmer(active: true)
-                Spacer()
-            }
+        HStack(spacing: 6) {
+            Circle()
+                .fill(modeColor)
+                .frame(width: 5, height: 5)
+            Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .textShimmer(active: true)
             if let detail = streamingDetailText, !detail.isEmpty {
+                Text("·")
+                    .foregroundStyle(.quaternary)
                 Text(detail)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.quaternary)
                     .lineLimit(1)
-                    .textShimmer(active: true)
             }
+            Spacer()
         }
         .padding(.top, 2)
     }
@@ -370,6 +348,7 @@ struct MessageRow: View {
 }
 
 /// Loads an image thumbnail asynchronously and caches the result.
+/// Supports context menu for Quick Look, copy, and save.
 private struct CachedThumbnailView: View {
     let path: String
     let width: CGFloat
@@ -377,6 +356,8 @@ private struct CachedThumbnailView: View {
 
     @State private var loadedImage: NSImage?
     @State private var loadFailed = false
+    @State private var isShowingQuickLook = false
+    @State private var isHovered = false
 
     var body: some View {
         Group {
@@ -390,12 +371,49 @@ private struct CachedThumbnailView: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Color.clear // placeholder while loading
+                Color.clear
             }
         }
         .frame(width: width, height: height)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.black.opacity(isHovered ? 0.15 : 0))
+                .overlay(
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .opacity(isHovered ? 0.9 : 0)
+                )
+        )
+        .onHover { isHovered = $0 }
+        .onTapGesture {
+            openImageInPreview()
+        }
+        .contextMenu {
+            Button {
+                openImageInPreview()
+            } label: {
+                Label("Open", systemImage: "eye")
+            }
+            Button {
+                copyImageToClipboard()
+            } label: {
+                Label("Copy Image", systemImage: "doc.on.doc")
+            }
+            Button {
+                saveImageToDesktop()
+            } label: {
+                Label("Save to Desktop", systemImage: "square.and.arrow.down")
+            }
+            Divider()
+            Button {
+                revealInFinder()
+            } label: {
+                Label("Reveal in Finder", systemImage: "folder")
+            }
+        }
         .task(id: path) {
             if let cached = MessageImageCache.shared.image(for: path) {
                 loadedImage = cached
@@ -412,6 +430,38 @@ private struct CachedThumbnailView: View {
                 loadFailed = true
             }
         }
+    }
+
+    private func openImageInPreview() {
+        let url = URL(fileURLWithPath: path)
+        NSWorkspace.shared.open(url)
+    }
+
+    private func copyImageToClipboard() {
+        guard let img = loadedImage else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects([img])
+        let url = URL(fileURLWithPath: path) as NSURL
+        pb.writeObjects([url])
+    }
+
+    private func saveImageToDesktop() {
+        let panel = NSSavePanel()
+        let fileName = (path as NSString).lastPathComponent
+        panel.nameFieldStringValue = fileName
+        panel.canCreateDirectories = true
+        panel.begin { result in
+            guard result == .OK, let dest = panel.url else { return }
+            try? FileManager.default.copyItem(
+                at: URL(fileURLWithPath: path),
+                to: dest
+            )
+        }
+    }
+
+    private func revealInFinder() {
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
 }
 
@@ -439,79 +489,83 @@ private final class MessageImageCache: @unchecked Sendable {
     }
 }
 
-// MARK: - Thinking Block (LLM reasoning)
+// MARK: - Thinking Block (LLM reasoning — inline Cursor-style)
 
 struct ThinkingBlockView: View {
     let text: String
     var isLiveStreaming: Bool = false
     @State private var isExpanded = false
-    private let collapsedLineLimit = 5
-    private let contentMaxWidth: CGFloat = 720
+    private let contentMaxWidth: CGFloat = 860
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private var bgColor: Color {
+    private var accentBarColor: Color {
         colorScheme == .dark
-            ? Color(red: 0.10, green: 0.10, blue: 0.14)
-            : Color(red: 0.96, green: 0.96, blue: 0.97)
+            ? Color(red: 0.55, green: 0.63, blue: 0.95).opacity(0.30)
+            : Color(red: 0.30, green: 0.38, blue: 0.75).opacity(0.25)
     }
-    private var borderColor: Color {
-        colorScheme == .dark
-            ? Color.white.opacity(0.06)
-            : Color.black.opacity(0.05)
+    private var thinkingTextColor: Color { .primary.opacity(0.38) }
+    private var headerTextColor: Color { .primary.opacity(0.32) }
+
+    private var isShowingContent: Bool { isLiveStreaming || isExpanded }
+
+    private var previewLine: String {
+        let first = text.components(separatedBy: .newlines)
+            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
+        return first.count > 80 ? String(first.prefix(80)) + "…" : first
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header
-            HStack(spacing: 6) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.6))
-                Text("Thinking")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.7))
-                    .textShimmer(active: isLiveStreaming)
-                Spacer()
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 8.5, weight: .bold))
-                        .foregroundStyle(.quaternary)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                guard !isLiveStreaming else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 7.5, weight: .bold))
+                        .foregroundStyle(headerTextColor)
+                        .frame(width: 10)
+                    Text(isLiveStreaming ? "Thinking…" : "Thought process")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(headerTextColor)
+                        .textShimmer(active: isLiveStreaming)
+                    if !isShowingContent {
+                        Text(previewLine)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.quaternary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
             }
-            // Content
-            if isExpanded {
-                ScrollView {
+            .buttonStyle(.plain)
+            .padding(.bottom, isShowingContent ? 6 : 0)
+
+            if isShowingContent {
+                HStack(alignment: .top, spacing: 0) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(accentBarColor)
+                        .frame(width: 2)
                     Text(text)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary.opacity(0.75))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(thinkingTextColor)
+                        .lineSpacing(5)
                         .textSelection(.enabled)
+                        .textShimmer(active: isLiveStreaming)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 10)
                 }
-                .frame(maxHeight: 260)
-            } else {
-                Text(text)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary.opacity(0.75))
-                    .lineLimit(collapsedLineLimit)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
         .frame(maxWidth: contentMaxWidth, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(bgColor)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(borderColor, lineWidth: 0.5)
-        )
+        .onChange(of: isLiveStreaming) { _, streaming in
+            if streaming { isExpanded = true }
+        }
     }
 }
 

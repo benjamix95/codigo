@@ -577,15 +577,23 @@ struct UsageFooterView: View {
 
     private var contextSection: some View {
         let (tokens, size, pct) = contextEstimateSnapshot
+        let isHighUsage = pct >= 0.7
+        let isCritical = pct >= 0.9
         return HStack(spacing: 6) {
-            CircularProgressView(progress: pct, lineWidth: 1.5, size: 14)
+            CircularProgressView(progress: pct, lineWidth: 1.8, size: 15)
                 .animation(.easeOut(duration: 0.18), value: pct)
             Text(formatContextPercentLabel(pct))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(isCritical ? DesignSystem.Colors.error : (isHighUsage ? .orange : .secondary))
             Text("\(tokens.formatted()) / \((size / 1000).formatted())k")
                 .font(.system(size: 10))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isCritical ? DesignSystem.Colors.error.opacity(0.7) : .secondary)
+            if isCritical {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
+                    .help("Context window almost full — conversation will be summarized automatically")
+            }
         }
         .help(formatContextPercentHelpText(pct))
     }

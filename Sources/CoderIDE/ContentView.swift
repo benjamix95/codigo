@@ -201,21 +201,21 @@ struct ContentView: View {
             }
         }
         .alert(
-            "Aggiornamento disponibile",
+            "Update Available",
             isPresented: $showAppUpdateAlert,
             presenting: pendingAppUpdate
         ) { update in
             if let downloadURL = update.downloadURL, !downloadURL.isEmpty {
-                Button("Scarica ora") {
+                Button("Download Now") {
                     openExternalURL(downloadURL)
                 }
             }
             if let notesURL = update.releaseNotesURL, !notesURL.isEmpty {
-                Button("Vedi note tecniche") {
+                Button("View Release Notes") {
                     openExternalURL(notesURL)
                 }
             }
-            Button("Chiudi") { }
+            Button("Dismiss") { }
         } message: { update in
             Text(update.shortNotes)
         }

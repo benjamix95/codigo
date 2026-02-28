@@ -13,7 +13,7 @@ public struct CodexModel: Sendable {
     }
 }
 
-/// Legge i modelli disponibili da ~/.codex/models_cache.json (popolato dal Codex CLI)
+/// Reads available models from ~/.codex/models_cache.json (populated by Codex CLI)
 public enum CodexModelsCache {
     private static var codexHome: String {
         ProcessInfo.processInfo.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex"

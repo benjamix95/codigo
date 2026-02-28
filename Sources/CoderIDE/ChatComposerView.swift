@@ -197,8 +197,8 @@ struct ChatComposerView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.primary)
                 Text(codeReviewAutofixEnabled
-                    ? "Autofix (YOLO): analysis + automatic fix application"
-                    : "Discovery: analysis only, no automatic fix")
+                    ? "Autofix: analysis + parallel fix workers + test loop"
+                    : "Discovery: analysis only, no automatic fixes")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

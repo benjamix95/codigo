@@ -871,6 +871,9 @@ enum ProviderToolEventMapper {
             "detail": firstString(in: payload, keys: ["detail", "task", "description"]) ?? "",
             "tool": normalizeToolIdentifier(rawTool),
         ]
+        if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
+            mapped["status"] = status
+        }
         if let swarmId = firstString(in: payload, keys: ["swarm_id", "agent", "role"]), !swarmId.isEmpty {
             mapped["swarm_id"] = swarmId
             mapped["group_id"] = "swarm-\(swarmId)"

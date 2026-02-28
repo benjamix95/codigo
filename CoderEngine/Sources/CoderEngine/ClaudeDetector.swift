@@ -85,7 +85,7 @@ public enum ClaudeDetector {
         }
     }
 
-    /// Rileva stato completo di Claude Code CLI
+    /// Detects complete Claude Code CLI status
     public static func detect(customPath: String? = nil) -> ClaudeStatus {
         guard let path = findClaudePath(customPath: customPath) else {
             return ClaudeStatus(isInstalled: false, path: nil, isLoggedIn: false, authMethod: nil)

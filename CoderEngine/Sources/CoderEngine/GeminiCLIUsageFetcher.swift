@@ -57,7 +57,7 @@ public enum GeminiCLIUsageFetcher {
         // Gemini CLI does not expose usage/rate-limit info via CLI commands.
         // Return a placeholder so the UI knows the CLI is connected.
         return GeminiCLIUsage(
-            note: "Gemini CLI connesso — usage dettagliato non disponibile via CLI")
+            note: "Gemini CLI connected — detailed usage not available via CLI")
     }
 
     // MARK: - Version health-check

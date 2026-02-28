@@ -100,20 +100,19 @@ struct CodeReviewPanelView: View {
                 .frame(height: topInteractiveInset)
                 .allowsHitTesting(false)
             topBar(metrics: metrics)
-            Rectangle().fill(reviewColor.opacity(0.3)).frame(height: 1)
+            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
             tabSelector
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
             mainContent(metrics: metrics)
             Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
             bottomBar
         }
-        .background(DesignSystem.Colors.backgroundDeep)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(DesignSystem.Colors.chatPanelSolidBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
     }
 
     // MARK: - Top Bar
@@ -645,7 +644,7 @@ struct CodeReviewPanelView: View {
         // Prefix prompt with [AGAINST:ref] so the provider knows the commit scope
         let prompt = """
             [AGAINST:\(ref)] Run deep code review on changes from \(ref) to HEAD.
-            Scope: all modified/added/deleted files in that range.
+            Scope: all modified, added, and renamed files in that range.
             Required output:
             1) prioritized findings (P0-P3) with file:line references,
             2) regression risks,

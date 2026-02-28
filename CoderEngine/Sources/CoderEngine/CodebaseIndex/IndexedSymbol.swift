@@ -119,7 +119,7 @@ public struct IndexedSymbol: Sendable, Identifiable, Hashable {
     /// Livello di accesso
     public let accessLevel: AccessLevel
 
-    /// Nome completo con contesto (es. "MyClass.myMethod")
+    /// Fully qualified name with context (e.g. "MyClass.myMethod")
     public let qualifiedName: String
 
     /// Nome del tipo/scope genitore (es. "MyClass" per un metodo)
@@ -134,7 +134,7 @@ public struct IndexedSymbol: Sendable, Identifiable, Hashable {
     /// Protocolli conformati / classi ereditate (per tipi)
     public let inherits: [String]
 
-    /// Parametri generici
+    /// Generic parameters
     public let genericParameters: [String]
 
     /// true se è static/class

@@ -14,9 +14,9 @@ final class PromptOptimizerService {
 
         var errorDescription: String? {
             switch self {
-            case .emptyPrompt: return "Il prompt è vuoto."
+            case .emptyPrompt: return "The prompt is empty."
             case .noProvider: return "Nessun provider AI selezionato."
-            case .emptyResponse: return "Il provider ha restituito una risposta vuota."
+            case .emptyResponse: return "The provider returned an empty response."
             case .streamError(let msg): return msg
             }
         }
@@ -38,7 +38,7 @@ final class PromptOptimizerService {
     """
 
     /// Ottimizza il prompt usando il provider fornito.
-    /// Restituisce il testo ottimizzato.
+    /// Returns the optimized text.
     static func optimize(
         prompt: String,
         using provider: any LLMProvider,

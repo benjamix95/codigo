@@ -88,21 +88,7 @@ enum SwarmLiveReducer {
                 card.hasUnreadSinceCollapse = true
             }
         case .none:
-            if card.status == .idle || card.status == .completed {
-                // Allow transition back from completed/idle to running if a new
-                // running activity arrives (e.g. swarm resumed or restarted).
-                if activity.isRunning && card.status != .running {
-                    card.status = .running
-                    card.completedAt = nil
-                    card.summary = nil
-                    card.errorCount = 0
-                } else if card.status == .idle && !activity.isRunning {
-                    card.status = .completed
-                    card.completedAt = activity.timestamp
-                    card.summary = summary(for: card.recentEvents)
-                    card.errorCount = 0
-                }
-            }
+            break
             if card.isCollapsed && !isDuplicate {
                 card.hasUnreadSinceCollapse = true
             }
@@ -181,11 +167,8 @@ enum SwarmLiveReducer {
         ].contains(activity.type) {
             return true
         }
-        let t = activity.title.lowercased()
-        let d = (activity.detail ?? "").lowercased()
         let status = (activity.payload["status"] ?? "").lowercased()
-        return t.contains("error") || t.contains("failed") || d.contains("error")
-            || d.contains("failed") || status == "failed"
+        return status == "failed" || status == "error"
     }
 
     private static func summary(for events: [TaskActivity]) -> String {

@@ -318,6 +318,8 @@ final class ChatStore: ObservableObject {
     @Published private(set) var planBoards: [UUID: PlanBoard] = [:]
     /// In-memory draft text per conversation (not persisted).
     @Published var draftTexts: [UUID: String] = [:]
+    /// Live status text per conversation (shown in sidebar thread rows).
+    @Published var taskStatusTexts: [UUID: String] = [:]
     private let userDefaults: UserDefaults
 
     /// Debounce task for coalescing rapid `saveConversations()` calls.
@@ -437,20 +439,19 @@ final class ChatStore: ObservableObject {
             })
         }
 
-        let conversationIds = Set(conversations.map(\.id))
-        let prune: ([UUID: PlanBoard]) -> [UUID: PlanBoard] = { boards in
-            boards.filter { conversationIds.contains($0.key) }
-        }
-
         if data.count < Self.asyncLoadThreshold {
-            if let boards = decode() { planBoards = prune(boards) }
+            if let boards = decode() {
+                let conversationIds = Set(conversations.map(\.id))
+                planBoards = conversationIds.isEmpty ? boards : boards.filter { conversationIds.contains($0.key) }
+            }
             return
         }
 
         Task.detached(priority: .userInitiated) {
             guard let boards = decode() else { return }
             await MainActor.run {
-                let pruned = prune(boards)
+                let conversationIds = Set(self.conversations.map(\.id))
+                let pruned = conversationIds.isEmpty ? boards : boards.filter { conversationIds.contains($0.key) }
                 self.planBoards.merge(pruned) { existing, _ in existing }
             }
         }
@@ -838,17 +839,25 @@ final class ChatStore: ObservableObject {
         saveConversations()
     }
 
-    /// - Parameter persistImmediately: if false, skips saveConversations (use during streaming to avoid blocking the main thread with I/O).
+    /// Tracks the last time we persisted during a streaming session (to coalesce saves).
+    private var lastStreamingSaveAt: Date = .distantPast
+
+    /// - Parameter persistImmediately: if false, skips saveConversations but still
+    ///   triggers a safety save every ~3 seconds to prevent data loss during long streams.
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
         guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        // Store raw content; display-time stripping is handled by MarkdownContentView.
-        // Only strip low-level CODERIDE markers (non-aggressive) to keep messages clean
-        // without losing legitimate content.
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-        // Mutate in-place to avoid creating intermediate array copies on every streaming token.
         conversations[idx].messages[lastIdx].content = resolvedContent
-        if persistImmediately { saveConversations() }
+        if persistImmediately {
+            saveConversations()
+        } else {
+            let now = Date()
+            if now.timeIntervalSince(lastStreamingSaveAt) >= 3.0 {
+                lastStreamingSaveAt = now
+                saveConversations()
+            }
+        }
     }
 
     func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conversationId: UUID?) {
@@ -1122,13 +1131,18 @@ final class ChatStore: ObservableObject {
         var updated = conversations
         updated[idx] = conv
         conversations = updated
-        saveConversations()
+        if !streaming {
+            saveConversationsImmediately()
+        } else {
+            saveConversations()
+        }
     }
 
     func beginTask(conversationId: UUID?) {
         guard let id = conversationId else { return }
         activeTaskConversationIds.insert(id)
         taskStartDates[id] = Date()
+        taskStatusTexts[id] = "Thinking"
     }
 
     // Legacy call site compatibility.
@@ -1140,6 +1154,12 @@ final class ChatStore: ObservableObject {
         guard let id = conversationId else { return }
         activeTaskConversationIds.remove(id)
         taskStartDates.removeValue(forKey: id)
+        taskStatusTexts.removeValue(forKey: id)
+    }
+
+    func setTaskStatus(_ text: String, for conversationId: UUID?) {
+        guard let id = conversationId else { return }
+        taskStatusTexts[id] = text
     }
 
     // Compat legacy call sites.

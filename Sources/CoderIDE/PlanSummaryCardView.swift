@@ -49,20 +49,13 @@ struct PlanSummaryCardView: View {
                 HStack {
                     Spacer()
                     Button(action: onExpandPlan) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Text("Open full plan")
-                                .font(.system(size: 12, weight: .semibold))
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 11, weight: .medium))
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 9, weight: .semibold))
                         }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color(nsColor: .controlBackgroundColor), in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
-                        )
+                        .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
                     Spacer()
@@ -71,13 +64,10 @@ struct PlanSummaryCardView: View {
             }
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.25))
-        )
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
     }
 }

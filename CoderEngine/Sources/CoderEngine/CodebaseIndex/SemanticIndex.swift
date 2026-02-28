@@ -242,18 +242,25 @@ public actor SemanticIndex {
         }
 
         // Boost: add bonuses for query tokens in symbol names, scope, file path
+        let queryLower = query.lowercased()
+        let queryTokensLower = Set(queryTokens)
+        let queryWordsLower = query.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+
         for (chunkId, _) in scores {
             guard let chunk = chunks[chunkId] else { continue }
             var bonus = 0.0
 
-            let queryLower = query.lowercased()
-            let queryTokensLower = Set(queryTokens)
-
-            // Symbol name match bonus
+            // Symbol name exact/partial match bonus (strongest signal)
             for sym in chunk.symbolNames {
                 let symLower = sym.lowercased()
-                if symLower.contains(queryLower) { bonus += 5.0 }
-                for token in queryTokensLower where symLower.contains(token) {
+                if symLower == queryLower {
+                    bonus += 10.0
+                } else if symLower.contains(queryLower) {
+                    bonus += 5.0
+                }
+                for token in queryTokensLower where token.count >= 3 && symLower.contains(token) {
                     bonus += 1.5
                 }
             }
@@ -266,14 +273,35 @@ public actor SemanticIndex {
 
             // File path match bonus (file name semantics)
             let fileNameLower = (chunk.filePath as NSString).lastPathComponent.lowercased()
-            for token in queryTokensLower where token.count >= 3 && fileNameLower.contains(token) {
-                bonus += 2.0
+            let fileNameNoExt = (fileNameLower as NSString).deletingPathExtension
+            for word in queryWordsLower where word.count >= 3 {
+                if fileNameNoExt == word {
+                    bonus += 4.0
+                } else if fileNameNoExt.contains(word) {
+                    bonus += 2.0
+                }
             }
 
-            // Kind-specific bonus: prioritize definitions over data
-            if ["class", "struct", "protocol", "enum", "interface"].contains(chunk.kind) {
+            // Directory match bonus
+            let dirPath = (chunk.filePath as NSString).deletingLastPathComponent.lowercased()
+            for word in queryWordsLower where word.count >= 3 && dirPath.contains(word) {
+                bonus += 0.8
+            }
+
+            // Kind-specific bonus: prioritize definitions
+            switch chunk.kind {
+            case "class", "struct", "protocol", "enum", "interface":
+                bonus += 1.0
+            case "function", "method":
                 bonus += 0.5
-            } else if ["function", "method"].contains(chunk.kind) {
+            case "property", "constant":
+                bonus += 0.2
+            default: break
+            }
+
+            // Content quality bonus: prioritize chunks with documentation
+            let contentLower = chunk.content.lowercased()
+            if contentLower.contains("///") || contentLower.contains("/**") || contentLower.contains("# ") {
                 bonus += 0.3
             }
 

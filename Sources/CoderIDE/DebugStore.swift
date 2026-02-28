@@ -241,7 +241,6 @@ struct DebugBreakpoint: Identifiable, Codable {
 
 @MainActor
 final class DebugStore: ObservableObject {
-    @Published var isDebugModeEnabled = false
     @Published var phase: DebugFlowPhase = .idle
     @Published var logs: [DebugLogEntry] = []
     @Published var hypotheses: [DebugHypothesis] = []

@@ -20,7 +20,7 @@ struct TaskControlBar: View {
     var body: some View {
         VStack(spacing: 0) {
             Rectangle()
-                .fill(DesignSystem.Colors.border)
+                .fill(Color.primary.opacity(0.06))
                 .frame(height: 0.5)
 
             if chatStore.isTaskActive(for: conversationId),
@@ -76,8 +76,8 @@ struct TaskControlBar: View {
                 taskControlButtons
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(DesignSystem.Colors.backgroundSecondary.opacity(0.45))
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.02))
         }
     }
 
@@ -489,13 +489,21 @@ struct TaskActivityPanel: View {
                 }
                 return "Plan: analyzing options"
             case .codeReviewMultiSwarm:
+                let hasFixRound = taskActivityStore.activities.contains { $0.type == "review-fix-round" }
+                let hasWorkerPlan = taskActivityStore.activities.contains { $0.type == "review-worker-plan" }
                 let hasExecutionSignal = taskActivityStore.activities.contains {
                     $0.type == "command_execution" || $0.type == "file_change"
                 }
-                if hasExecutionSignal {
-                    return "Code Review: Phase 2 (applying fixes)"
+                if hasFixRound && hasExecutionSignal {
+                    let roundInfo = taskActivityStore.activities.reversed().first { $0.type == "review-fix-round" }
+                    let round = roundInfo?.payload["round"] ?? "?"
+                    let maxRounds = roundInfo?.payload["maxRounds"] ?? "?"
+                    return "Code Review: Fix Phase (Round \(round)/\(maxRounds))"
                 }
-                return "Code Review: Phase 1 (multi-swarm analysis)"
+                if hasWorkerPlan {
+                    return "Code Review: Workers planned, starting fixes"
+                }
+                return "Code Review: Analyzing codebase"
             case .debug:
                 if debugPhase.isActive {
                     return "Debug: \(debugPhase.label)"
@@ -508,11 +516,9 @@ struct TaskActivityPanel: View {
         let hint: String? = {
             guard !isPaused else { return "Press Resume to continue execution." }
             if coderMode == .codeReviewMultiSwarm {
-                let hasExecutionSignal = taskActivityStore.activities.contains {
-                    $0.type == "command_execution" || $0.type == "file_change"
-                }
-                if !hasExecutionSignal {
-                    return "To apply fixes: send \"proceed with corrections\" or enable yolo."
+                let hasWorkerPlan = taskActivityStore.activities.contains { $0.type == "review-worker-plan" }
+                if !hasWorkerPlan {
+                    return "Analyzing code for issues. Workers will be spawned automatically."
                 }
             }
             if coderMode == .plan {

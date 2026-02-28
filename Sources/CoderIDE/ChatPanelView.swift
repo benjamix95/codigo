@@ -636,8 +636,8 @@ struct ChatPanelView: View {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "auto"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "auto"
     @AppStorage("code_review_quick_commands_custom_json")
     private var codeReviewQuickCommandsCustomJSON = ""
     @AppStorage("openai_api_key") private var openaiApiKey = ""
@@ -693,6 +693,7 @@ struct ChatPanelView: View {
     @State private var planStreamingContent: String = ""
     @State private var planShouldRunInline: Bool = false
     @State private var activeBuildPlanConversationId: UUID?
+    @State private var activeBuildAgentConversationId: UUID?
     @State private var suppressedEmptyBuildAssistantMessageIds: Set<UUID> = []
     @State private var isProviderReady = false
     @State private var attachedComposerAttachments: [ComposerAttachment] = []
@@ -765,10 +766,11 @@ struct ChatPanelView: View {
     @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
     @State private var autoTodoCompletedOperationsByMessage: [UUID: Int] = [:]
     @State private var didReceiveExplicitTodoByMessage: Set<UUID> = []
-    /// Minimum interval between streaming content updates (≈30fps).
-    private let streamThrottleInterval: TimeInterval = 0.033
+    /// Minimum interval between streaming content updates.
+    /// Adaptive: starts at ~60fps (0.016s) for fast LLMs, scales to ~30fps if needed.
+    private let streamThrottleInterval: TimeInterval = 0.020
     /// Minimum interval for plan-streaming updates routed to the Plan Panel.
-    private let planStreamThrottleInterval: TimeInterval = 0.083
+    private let planStreamThrottleInterval: TimeInterval = 0.066
     /// Coalescing flush interval for task activity feed.
     private let taskActivityFlushInterval: TimeInterval = 0.1
     /// Backlog threshold used only for lightweight stream diagnostics.
@@ -828,7 +830,7 @@ struct ChatPanelView: View {
         hasActivePlanContext(for: conversationId)
     }
     private var planInPanelPlaceholder: String {
-        "Plan disponibile nel Plan Panel."
+        "Plan available in the Plan Panel."
     }
     private var shouldShowPlanTodosInChat: Bool {
         return hasActivePlanContext
@@ -1300,6 +1302,7 @@ struct ChatPanelView: View {
         return workspaceTracked
             .onChange(of: codeReviewPartitions) { _, _ in syncCodeReviewRuntimeConfig() }
             .onChange(of: codeReviewAnalysisOnly) { _, _ in syncCodeReviewRuntimeConfig() }
+            .onChange(of: codeReviewMaxRounds) { _, _ in syncCodeReviewRuntimeConfig() }
             .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
             .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
     }
@@ -2074,7 +2077,7 @@ struct ChatPanelView: View {
         if let last = chatStore.conversation(for: conversationId)?.messages.last,
            isFollowingLive
         {
-            scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.03)
+            scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.016)
         }
     }
 
@@ -2526,16 +2529,17 @@ struct ChatPanelView: View {
         delay: TimeInterval = 0.08
     ) {
         let now = Date()
-        if lastAutoScrollTarget == target,
-           now.timeIntervalSince(lastAutoScrollAt) < 0.03 {
+        let sinceLastScroll = now.timeIntervalSince(lastAutoScrollAt)
+        if lastAutoScrollTarget == target, sinceLastScroll < 0.04 {
             return
         }
         lastAutoScrollTarget = target
         lastAutoScrollAt = now
         autoScrollWorkItem?.cancel()
+        let effectiveDelay = sinceLastScroll < 0.1 ? min(delay, 0.03) : delay
         let work = DispatchWorkItem {
             if animated {
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(.easeOut(duration: 0.14)) {
                     proxy.scrollTo(target, anchor: .bottom)
                 }
             } else {
@@ -2543,7 +2547,7 @@ struct ChatPanelView: View {
             }
         }
         autoScrollWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + effectiveDelay, execute: work)
     }
 
     private func interruptTask() {
@@ -2609,7 +2613,12 @@ struct ChatPanelView: View {
     }
 
     private func interruptTask(for targetConversationId: UUID?) {
-        let didCancelTask = cancelRunTask(for: targetConversationId)
+        var didCancelTask = cancelRunTask(for: targetConversationId)
+        if !didCancelTask, let target = targetConversationId,
+           activeBuildPlanConversationId == target,
+           let agentId = activeBuildAgentConversationId {
+            didCancelTask = cancelRunTask(for: agentId)
+        }
         if !didCancelTask {
             let scope = executionScopeForCurrentMode()
             executionController.terminate(scope: scope)
@@ -3693,6 +3702,8 @@ struct ChatPanelView: View {
             taskActivityStore.addInstantGrep(grep)
         }
 
+        updateSidebarTaskStatus()
+
         let backlogAfter = pendingTaskActivities.count + pendingInstantGreps.count
         if backlogAfter > 0 {
             logTaskBacklogIfNeeded(context: "flush_reschedule")
@@ -3881,7 +3892,7 @@ struct ChatPanelView: View {
         case .agent: return "Agent can modify files and run commands"
         case .codeReviewMultiSwarm:
             return
-                "Using Code Review Multi-Swarm: the request will be split into partitions."
+                "Code Review: analysis → dynamic worker tasks → parallel fix → test → re-review loop"
         case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
         case .plan: return "Plan with options + custom response"
         case .ide: return "IDE mode: API chat + manual editing in the editor"
@@ -3907,8 +3918,8 @@ struct ChatPanelView: View {
                     """
             ),
             .init(
-                id: "review-staged-only",
-                slash: "/review-staged-only",
+                id: "review-staged",
+                slash: "/review-staged",
                 label: "Staged diff only",
                 prompt:
                     """
@@ -3938,9 +3949,9 @@ struct ChatPanelView: View {
                     """
             ),
             .init(
-                id: "review-ui-realtime",
-                slash: "/review-ui-realtime",
-                label: "Focus UI realtime",
+                id: "review-focus-ui",
+                slash: "/review-focus-ui",
+                label: "Focus UI flows",
                 prompt:
                     """
                     Focus on review realtime flows:
@@ -4520,25 +4531,50 @@ struct ChatPanelView: View {
     }
 
     private func trySummarizeIfNeeded(ctx: WorkspaceContext) async {
-        // With Codex CLI we prefer the native compact from the provider over the custom summary.
-        if summarizeProvider == "codex-cli" {
-            return
-        }
         guard let conv = chatStore.conversation(for: conversationId) else { return }
+        guard conv.messages.count >= (summarizeKeepLast + 4) else { return }
+
+        let activeModel = resolveActiveModelForContext()
+        let size = resolvedContextWindowSizeForSummarize(model: activeModel)
         let ctxPrompt = ctx.contextPrompt()
-        let size = ContextEstimator.contextSize(
-            for: providerRegistry.selectedProviderId, model: openaiModel)
         let (_, _, pct) = ContextEstimator.estimate(
-            messages: conv.messages, contextPrompt: ctxPrompt, modelContextSize: size)
+            messages: conv.messages, contextPrompt: ctxPrompt, modelContextSize: size,
+            lastInputTokens: conv.lastInputTokens)
         guard pct >= summarizeThreshold else { return }
-        guard let prov = providerRegistry.provider(for: summarizeProvider), prov.isAuthenticated()
-        else {
-            if let fallback = providerRegistry.selectedProvider, fallback.isAuthenticated() {
-                await runSummarize(provider: fallback, ctx: ctx)
+
+        if let prov = providerRegistry.provider(for: summarizeProvider), prov.isAuthenticated() {
+            await runSummarize(provider: prov, ctx: ctx)
+        } else if let fallback = providerRegistry.selectedProvider, fallback.isAuthenticated() {
+            await runSummarize(provider: fallback, ctx: ctx)
+        } else {
+            for pid in ["claude-cli", "codex-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api"] {
+                if let p = providerRegistry.provider(for: pid), p.isAuthenticated() {
+                    await runSummarize(provider: p, ctx: ctx)
+                    return
+                }
             }
-            return
         }
-        await runSummarize(provider: prov, ctx: ctx)
+    }
+
+    private func resolveActiveModelForContext() -> String {
+        let pid = providerRegistry.selectedProviderId ?? ""
+        switch pid {
+        case "codex-cli": return codexModelOverride.isEmpty ? "gpt-5-codex" : codexModelOverride
+        case "claude-cli": return claudeModel
+        case "gemini-cli": return geminiModelOverride.isEmpty ? googleModel : geminiModelOverride
+        case "openai-api": return openaiModel
+        case "anthropic-api": return anthropicModel
+        case "google-api": return googleModel
+        default: return openaiModel
+        }
+    }
+
+    private func resolvedContextWindowSizeForSummarize(model: String) -> Int {
+        let normalized = model.lowercased()
+        if normalized.contains("gemini") { return 1_048_576 }
+        if normalized.contains("gpt-5") || normalized.contains("codex") { return 200_000 }
+        if normalized.contains("claude") { return 200_000 }
+        return ContextEstimator.contextSize(for: providerRegistry.selectedProviderId, model: model)
     }
 
     private func runSummarize(provider: any LLMProvider, ctx: WorkspaceContext) async {
@@ -4809,6 +4845,7 @@ struct ChatPanelView: View {
         coderMode = .agent
         planFlowPhase = .building
         activeBuildPlanConversationId = planConversationId
+        activeBuildAgentConversationId = agentConvId
 
         let planBuildAssistantMessageId = UUID()
         chatStore.addMessage(
@@ -4964,6 +5001,7 @@ struct ChatPanelView: View {
                     )
                 }
                 activeBuildPlanConversationId = nil
+                activeBuildAgentConversationId = nil
             }
         }
     }
@@ -6861,8 +6899,10 @@ struct ChatPanelView: View {
             cancelFallbackTurnStartEvent()
         }
         snapshotSubagentCardsAndEndTask(conversationId: conversationId)
-        if conversationId == self.conversationId {
+        if conversationId == self.conversationId
+            || activeBuildAgentConversationId == conversationId {
             activeBuildPlanConversationId = nil
+            activeBuildAgentConversationId = nil
             resetPlanFlowAfterInterruption()
         }
     }
@@ -7466,6 +7506,7 @@ struct ChatPanelView: View {
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
+                activeBuildAgentConversationId = nil
                 isRewinding = false
             }
         }
@@ -7566,6 +7607,7 @@ struct ChatPanelView: View {
                 taskActivityStore.clear()
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
+                activeBuildAgentConversationId = nil
                 isRewinding = false
             }
         }
@@ -7607,6 +7649,16 @@ struct ChatPanelView: View {
             isPaused: executionController.runState == .paused,
             activities: taskActivityStore.activities
         )
+    }
+
+    private func updateSidebarTaskStatus() {
+        for convId in chatStore.activeTaskConversationIds {
+            let status = TaskActivityStore.streamingStatusText(
+                isPaused: executionController.runState == .paused,
+                activities: taskActivityStore.activities
+            )
+            chatStore.setTaskStatus(status, for: convId)
+        }
     }
 
     @MainActor

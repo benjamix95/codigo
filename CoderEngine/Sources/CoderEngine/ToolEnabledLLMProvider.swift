@@ -876,7 +876,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             "debug_log", "debug_query", "debug_session", "debug_hypothesize",
             "debug_mark", "debug_clean",
             // Cursor-style semantic tools
-            "semantic_search", "read_lints", "debug_context"
+            "semantic_search", "read_lints", "debug_context",
+            // Subagent and skill tools
+            "skill",
+            "subagent_explorer", "subagent_coder", "subagent_tester", "subagent_reviewer"
         ]
         let explicitCandidates = [
             payload["name"],
@@ -955,6 +958,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "Original user prompt:",
         "Partial transcript:",
         "Conversation transcript:",
+        "Transcript:",
         "Tool results just executed:",
         "Tool results from previous round:",
         "When finished: MANDATORY",
@@ -1148,11 +1152,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **reindex** — Force re-indexing the workspace.
 
         ### Advanced Editing
-        - **parallel_apply** — Multiple str_replace edits in one call. Args: `edits` (JSON array of objects, each with `path`, `old_string`, `new_string`).
+        - **multi_edit** — Apply multiple edits to a single file atomically. All edits are validated first; if any old_string is not found or not unique, no changes are made. Args: `path`, `edits` (JSON array: `[{"old_string": "...", "new_string": "..."}]`). Use this when making several related changes to the same file — faster and safer than multiple str_replace calls.
+        - **parallel_apply** — Multiple str_replace edits across DIFFERENT files in one call. Args: `edits` (JSON array of objects, each with `path`, `old_string`, `new_string`).
         - **regex_replace** — Regex-based find-and-replace. Args: `path`, `pattern` (regex), `replacement` (supports $1 capture groups), `flags` (optional: i=case-insensitive, m=multiline, s=dotall).
         - **rename_symbol** — Rename a symbol across the entire codebase. Uses the index to find all references, then replaces. Args: `old_name`, `new_name`, `kind` (optional: class/function/etc).
         - **find_and_replace_all** — Workspace-wide find-and-replace across all files. Args: `search` (string or regex), `replacement`, `filePattern` (optional glob like *.swift), `is_regex` (optional: true/false).
         - **undo_edit** — Revert a file to its last committed state (git checkout). Args: `path`.
+
+        ### Code Context
+        - **related_files** — Find files related to a given file: test files, import dependencies, dependents, similarly-named files, siblings. Essential before editing to understand context. Args: `path`.
+        - **git_log_search** — Search git history for commits that introduced or removed code patterns (git pickaxe). Also searches commit messages. Args: `query`, `path` (optional file/dir filter), `author` (optional), `since` (optional date), `limit` (default 20).
 
         ### Execution
         - **bash** — Run shell command. Args: `command`, `cwd`.
@@ -1324,9 +1333,11 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "index_status", "read_range", "list_dir", "git_diff", "read_json",
         "workspace_stats", "tail_log", "list_processes", "search_symbols",
         "mcp_list_tools", "mcp_describe_tool", "mcp_list_servers", "mcp_health",
-        "debug_query", "semantic_search", "read_lints", "debug_context",
+        "debug_query", "semantic_search", "related_files", "git_log_search",
+        "read_lints", "debug_context",
+        "batch_read", "diff_files", "git_status", "git_show", "code_context",
         "web_search", "web_fetch",
-        "subagent_explorer",  // Explorer is read-only and safe to run in parallel
+        "subagent_explorer",
     ]
 
     // MARK: - Real-time tool start events

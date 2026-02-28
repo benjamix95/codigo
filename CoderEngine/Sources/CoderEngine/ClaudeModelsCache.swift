@@ -1,6 +1,6 @@
 import Foundation
 
-/// Modello Claude disponibile via Claude Code CLI (`--model`)
+/// Claude model available via Claude Code CLI (`--model`)
 public struct ClaudeModel: Sendable {
     public let slug: String
     public let displayName: String
@@ -13,9 +13,9 @@ public struct ClaudeModel: Sendable {
     }
 }
 
-/// Lista statica dei modelli Claude disponibili via Claude Code CLI.
-/// Claude CLI non ha un comando `models list`; i modelli sono noti dalla documentazione.
-/// Lo slug viene passato direttamente al flag `--model`.
+/// Static list of Claude models available via Claude Code CLI.
+/// Claude CLI has no `models list` command; models are known from documentation.
+/// The slug is passed directly to the `--model` flag.
 public enum ClaudeModelsCache {
     private static let knownModels: [ClaudeModel] = [
         // Claude 4.6
@@ -29,7 +29,7 @@ public enum ClaudeModelsCache {
             slug: "claude-haiku-4-5-20251001", displayName: "Haiku 4.5", shortName: "haiku"),
     ]
 
-    /// Restituisce la lista dei modelli Claude disponibili.
+    /// Returns the list of available Claude models.
     public static func loadModels() -> [ClaudeModel] {
         knownModels
     }

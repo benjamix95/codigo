@@ -1,6 +1,6 @@
 import Foundation
 
-/// Tipo di progetto rilevato per esecuzione test
+/// Detected project type for test execution
 public enum ProjectType: String, Sendable {
     case swift
     case node
@@ -32,7 +32,7 @@ public enum TestProjectDetector: Sendable {
         return .unknown
     }
 
-    /// Restituisce il comando da eseguire per i test, o nil se tipo non riconosciuto
+    /// Returns the command to run for tests, or nil if project type is not recognized
     public static func testCommand(workspacePath: URL) -> (executable: String, arguments: [String])? {
         switch detect(workspacePath: workspacePath) {
         case .swift:

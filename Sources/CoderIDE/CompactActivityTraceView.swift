@@ -110,10 +110,10 @@ struct CompactActivityTraceView: View {
                 }
             }
         }
-        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.primary.opacity(0.015), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(accentColor.opacity(0.12), lineWidth: 0.5)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 0.5)
         )
     }
 

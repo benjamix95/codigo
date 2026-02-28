@@ -54,9 +54,9 @@ final class AppUpdateCenter: ObservableObject {
                 return changelog
             }
             if let changelogURL, !changelogURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Nota tecnica: \(URL(string: changelogURL)?.lastPathComponent ?? changelogURL)"
+                return "Release note: \(URL(string: changelogURL)?.lastPathComponent ?? changelogURL)"
             }
-            return "Nessuna nota disponibile"
+            return "No release notes available"
         }
 
         enum CodingKeys: String, CodingKey {
@@ -145,18 +145,18 @@ final class AppUpdateCenter: ObservableObject {
     var statusSummary: String {
         switch state {
         case .idle:
-            return "Aggiornamento non avviato"
+            return "Update not started"
         case .checking:
-            return "Controllo aggiornamenti in corso..."
+            return "Checking for updates..."
         case .disabled:
-            return "Controllo aggiornamenti disabilitato"
+            return "Update checks disabled"
         case .upToDate:
-            return "Aggiornamento non necessario"
+            return "Up to date"
         case .available(let manifest):
             let buildText = manifest.build.flatMap { " (\($0))" } ?? ""
-            return "Disponibile \(manifest.version)\(buildText)"
+            return "Available \(manifest.version)\(buildText)"
         case .failed(let errorMessage):
-            return "Errore controllo: \(errorMessage)"
+            return "Check failed: \(errorMessage)"
         }
     }
 
@@ -227,7 +227,7 @@ final class AppUpdateCenter: ObservableObject {
                 throw NSError(
                     domain: "AppUpdateCenter",
                     code: 1002,
-                    userInfo: [NSLocalizedDescriptionKey: "Aggiornamento non compatibile con questa versione macOS."]
+                    userInfo: [NSLocalizedDescriptionKey: "Update not compatible with this macOS version."]
                 )
             }
 
@@ -295,7 +295,7 @@ final class AppUpdateCenter: ObservableObject {
             throw NSError(
                 domain: "AppUpdateCenter",
                 code: 1003,
-                userInfo: [NSLocalizedDescriptionKey: "Risposta server non valida."]
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server response."]
             )
         }
         guard (200...299).contains(response.statusCode) else {

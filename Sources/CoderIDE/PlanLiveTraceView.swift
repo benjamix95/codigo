@@ -223,10 +223,10 @@ struct PlanLiveTraceView: View {
             }
         }
         .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 0.6)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.05), lineWidth: 0.5)
         )
     }
 

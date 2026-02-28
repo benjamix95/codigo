@@ -481,65 +481,6 @@ enum ProviderFactory {
         }
     }
 
-    private static func codeReviewExecutionProvider(
-        config: ProviderFactoryConfig, codex: CodexCLIProvider, claude: ClaudeCLIProvider?
-    ) -> (any LLMProvider)? {
-        switch config.codeReviewExecutionBackend {
-        case "codex", "codex-cli":
-            return CodexCLIProvider(
-                codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
-                sandboxMode: sandbox(from: config),
-                modelOverride: config.codexModelOverride.isEmpty ? nil : config.codexModelOverride,
-                modelReasoningEffort: config.codexReasoningEffort.isEmpty
-                    ? nil : config.codexReasoningEffort,
-                modelProviderOverride: config.codexModelProvider.isEmpty
-                    ? nil : config.codexModelProvider,
-                preferOpenAIResponsesWireAPI: config.codexPreferResponsesWireAPI,
-                yoloMode: config.globalYolo,
-                askForApproval: askForApproval(from: config),
-                executionController: nil,
-                executionScope: .review,
-                environmentOverride: codexEnvironmentOverride(nil)
-            )
-        case "claude", "claude-cli":
-            guard let c = claude, c.isAuthenticated() else { return nil }
-            return ClaudeCLIProvider(
-                claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
-                model: config.claudeModel,
-                allowedTools: config.claudeAllowedTools,
-                executionController: nil,
-                executionScope: .review
-            )
-        case "gemini", "gemini-cli":
-            return GeminiCLIProvider(
-                geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
-                modelOverride: config.geminiModelOverride.isEmpty ? nil : config.geminiModelOverride,
-                executionController: nil,
-                executionScope: .review
-            )
-        case "anthropic-api":
-            guard !config.anthropicApiKey.isEmpty else { return nil }
-            return anthropicAPIProvider(config: config, executionScope: .review)
-        case "openai-api":
-            guard !config.openaiApiKey.isEmpty else { return nil }
-            return openAIAPIProvider(config: config, executionScope: .review)
-        case "google-api":
-            guard !config.googleApiKey.isEmpty else { return nil }
-            return googleAPIProvider(config: config, executionScope: .review)
-        case "openrouter-api":
-            guard !config.openrouterApiKey.isEmpty else { return nil }
-            return openRouterAPIProvider(config: config, executionScope: .review)
-        case "minimax-api":
-            guard !config.minimaxApiKey.isEmpty else { return nil }
-            return miniMaxAPIProvider(config: config, executionScope: .review, executionController: nil)
-        case "grok-api":
-            guard !config.grokApiKey.isEmpty else { return nil }
-            return grokAPIProvider(config: config, executionScope: .review, executionController: nil)
-        default:
-            return codex
-        }
-    }
-
     /// Build a UnifiedToolRuntime with optional codebase index
     private static func buildRuntime(
         executionController: ExecutionController?,

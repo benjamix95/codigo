@@ -16,9 +16,11 @@ struct MarkdownContentView: View {
     }
 
     private var displayContent: String {
-        Self.normalizeAssistantDisplayLayout(
-            ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
-        )
+        let stripped = ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
+        if isStreaming {
+            return stripped.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        }
+        return Self.normalizeAssistantDisplayLayout(stripped)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
     }
 
@@ -845,12 +847,46 @@ struct MarkdownContentView: View {
         let parts = splitByCodeFence(trimmedInput)
         let normalized = parts.map { part -> String in
             guard !part.isCodeFence else { return part.text }
-            return normalizePlainMarkdownSegment(part.text)
+            var segment = normalizePlainMarkdownSegment(part.text)
+            segment = enforceConsistentSpacing(segment)
+            return segment
         }.joined()
 
         return normalized
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Enforce consistent spacing: blank line before headings, between paragraphs,
+    /// and after list blocks. This normalizes output from all LLMs to the same visual layout.
+    private static func enforceConsistentSpacing(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+        var result: [String] = []
+        for (i, line) in lines.enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            let prev = i > 0 ? lines[i - 1].trimmingCharacters(in: .whitespaces) : ""
+            if trimmed.hasPrefix("#") && !prev.isEmpty {
+                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                    result.append("")
+                }
+            }
+            let prevIsList = prev.hasPrefix("- ") || prev.hasPrefix("* ") || prev.hasPrefix("+ ")
+                || numberedLineRegex.firstMatch(in: prev, options: [], range: NSRange(location: 0, length: (prev as NSString).length)) != nil
+            let currentIsList = trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ")
+                || numberedLineRegex.firstMatch(in: trimmed, options: [], range: NSRange(location: 0, length: (trimmed as NSString).length)) != nil
+            if prevIsList && !currentIsList && !trimmed.isEmpty && !trimmed.hasPrefix("#") {
+                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                    result.append("")
+                }
+            }
+            if !prevIsList && currentIsList && !prev.isEmpty && !prev.hasPrefix("#") {
+                if result.last?.trimmingCharacters(in: .whitespaces).isEmpty != true {
+                    result.append("")
+                }
+            }
+            result.append(line)
+        }
+        return result.joined(separator: "\n")
     }
 
     private static func splitByCodeFence(_ input: String) -> [(text: String, isCodeFence: Bool)] {

@@ -8,6 +8,7 @@ struct MessageToolTraceView: View {
     @State private var expandedIds: Set<UUID> = []
     @State private var isExpanded = false
     @State private var didAutoCompactAfterCompletion = false
+    @State private var userDidManuallyExpand = false
     @State private var expandedFileIds: Set<UUID> = []
     @State private var filePreviewByEventId: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
@@ -68,22 +69,33 @@ struct MessageToolTraceView: View {
         }
     }
 
-    @State private var cachedDerived: DerivedState?
-    @State private var lastDerivedEventCount: Int = -1
-    @State private var lastDerivedIsExpanded: Bool = false
+    private final class DerivedCache {
+        var state: DerivedState?
+        var eventCount: Int = -1
+        var isExpanded: Bool = false
+        var runningHash: Int = -1
+    }
+    @State private var derivedCache = DerivedCache()
 
     private func currentDerived() -> DerivedState {
-        if let cached = cachedDerived,
-           events.count == lastDerivedEventCount,
-           isExpanded == lastDerivedIsExpanded {
+        let runningHash = events.reduce(0) { h, e in h ^ (e.isRunning ? e.id.hashValue : 0) }
+        if let cached = derivedCache.state,
+           events.count == derivedCache.eventCount,
+           isExpanded == derivedCache.isExpanded,
+           runningHash == derivedCache.runningHash {
             return cached
         }
-        return DerivedState(
+        let d = DerivedState(
             events: events,
             isExpanded: isExpanded,
             runningCompactLimit: runningCompactLimit,
             collapser: collapseSupersededToolStates
         )
+        derivedCache.state = d
+        derivedCache.eventCount = events.count
+        derivedCache.isExpanded = isExpanded
+        derivedCache.runningHash = runningHash
+        return d
     }
 
     private func refreshDerived() {
@@ -93,9 +105,10 @@ struct MessageToolTraceView: View {
             runningCompactLimit: runningCompactLimit,
             collapser: collapseSupersededToolStates
         )
-        cachedDerived = d
-        lastDerivedEventCount = events.count
-        lastDerivedIsExpanded = isExpanded
+        derivedCache.state = d
+        derivedCache.eventCount = events.count
+        derivedCache.isExpanded = isExpanded
+        derivedCache.runningHash = events.reduce(0) { h, e in h ^ (e.isRunning ? e.id.hashValue : 0) }
     }
 
     var body: some View {
@@ -134,7 +147,7 @@ struct MessageToolTraceView: View {
         .onChange(of: isExpanded) { _, expanded in
             refreshDerived()
             guard expanded else { return }
-            let changes = (cachedDerived ?? currentDerived()).fileChanges
+            let changes = currentDerived().fileChanges
             loadCompactDiffPreviewIfNeeded()
             for change in changes {
                 loadPreviewIfNeeded(for: change)
@@ -148,7 +161,9 @@ struct MessageToolTraceView: View {
         Button {
             withAnimation(.easeOut(duration: 0.15)) {
                 isExpanded.toggle()
+                if isExpanded { userDidManuallyExpand = true }
                 if !isExpanded {
+                    userDidManuallyExpand = false
                     expandedIds.removeAll()
                     expandedFileIds.removeAll()
                     isCompactDiffExpanded = false
@@ -1003,8 +1018,7 @@ struct MessageToolTraceView: View {
     private func inferredReadCount(from orderedEvents: [ToolTraceEvent]) -> Int {
         orderedEvents.filter { event in
             let type = event.type.lowercased()
-            if type == "read_batch_started" || type == "read_batch_completed" { return true }
-            if type == "semantic_search" { return true }
+            if type == "read_batch_completed" { return true }
             return (event.payload["source"] ?? "") == "synthetic_command_read"
         }.count
     }
@@ -1206,6 +1220,10 @@ struct MessageToolTraceView: View {
         }
         guard !ordered.isEmpty else { return }
         guard !didAutoCompactAfterCompletion else { return }
+        guard !userDidManuallyExpand else {
+            didAutoCompactAfterCompletion = true
+            return
+        }
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
             expandedIds.removeAll()

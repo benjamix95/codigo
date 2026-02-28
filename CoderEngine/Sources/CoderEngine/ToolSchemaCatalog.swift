@@ -154,16 +154,18 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "grep",
-            description: "Search text in files",
+            description: "Search text/regex in files using ripgrep. Supports output modes: 'content' (default, shows matching lines with context), 'files_only' (just file paths), 'count' (match counts per file). Supports glob filtering.",
             properties: [
-                "query": ["type": "string", "description": "Text or regex query"],
+                "query": ["type": "string", "description": "Text or regex pattern to search for"],
                 "pattern": ["type": "string", "description": "Alias for query"],
-                "pathScope": ["type": "string", "description": "Optional folder or file scope"],
+                "pathScope": ["type": "string", "description": "Directory or file path to scope the search (comma-separated for multiple)"],
                 "path": ["type": "string", "description": "Alias for pathScope"],
-                "fileType": ["type": "string", "description": "Optional file type filter"],
-                "context_lines": ["type": "string", "description": "Optional context lines"],
-                "case_sensitive": ["type": "string", "description": "true or false"],
-                "multiline": ["type": "string", "description": "true or false"]
+                "fileType": ["type": "string", "description": "File type filter (e.g. 'swift', 'ts', 'py')"],
+                "glob": ["type": "string", "description": "Glob pattern to filter files (e.g. '*.swift', '*.{ts,tsx}')"],
+                "output_mode": ["type": "string", "description": "'content' (default), 'files_only' (just paths), or 'count' (match counts)"],
+                "context_lines": ["type": "string", "description": "Context lines around matches (default: 2, max: 10). Only for 'content' mode"],
+                "case_sensitive": ["type": "string", "description": "'true' or 'false' (default: false)"],
+                "multiline": ["type": "string", "description": "'true' for multiline regex matching (default: false)"]
             ],
             required: []
         ),
@@ -227,10 +229,13 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "list_dir",
-            description: "List directory entries",
+            description: "List directory contents with optional tree view. Supports recursive listing with depth control and file sizes.",
             properties: [
                 "path": ["type": "string", "description": "Directory path"],
-                "maxEntries": ["type": "string", "description": "Optional max number of entries"]
+                "recursive": ["type": "string", "description": "Set to 'true' to list recursively as a tree (default: false)"],
+                "depth": ["type": "string", "description": "Max depth for recursive listing (default: 3, max: 5)"],
+                "sizes": ["type": "string", "description": "Set to 'true' to show file sizes (default: false)"],
+                "maxEntries": ["type": "string", "description": "Max entries to return (default: 200, max: 2000)"]
             ],
             required: ["path"]
         ),
@@ -265,10 +270,10 @@ enum ToolSchemaCatalog {
             name: "run_single_test",
             description: "Run a single test by name",
             properties: [
-                "test_name": ["type": "string", "description": "Test name"],
-                "file": ["type": "string", "description": "Optional file path"]
+                "test": ["type": "string", "description": "Test name or filter"],
+                "target": ["type": "string", "description": "Optional test target"]
             ],
-            required: ["test_name"]
+            required: ["test"]
         ),
         ToolSchemaEntry(
             name: "build_project",
@@ -376,7 +381,7 @@ enum ToolSchemaCatalog {
                 "name": ["type": "string", "description": "Alias for query"],
                 "kind": ["type": "string", "description": "Optional symbol kind"]
             ],
-            required: []
+            required: ["query"]
         ),
         ToolSchemaEntry(
             name: "list_symbols",
@@ -495,22 +500,22 @@ enum ToolSchemaCatalog {
             name: "rename_symbol",
             description: "Rename a symbol across the codebase",
             properties: [
-                "old_name": ["type": "string", "description": "Current symbol name"],
+                "query": ["type": "string", "description": "Current symbol name to rename"],
                 "new_name": ["type": "string", "description": "New symbol name"],
                 "kind": ["type": "string", "description": "Optional symbol kind"]
             ],
-            required: ["old_name", "new_name"]
+            required: ["query", "new_name"]
         ),
         ToolSchemaEntry(
             name: "find_and_replace_all",
             description: "Run workspace-wide find and replace",
             properties: [
-                "search": ["type": "string", "description": "Search text or regex"],
+                "pattern": ["type": "string", "description": "Search text or regex pattern"],
                 "replacement": ["type": "string", "description": "Replacement text"],
-                "filePattern": ["type": "string", "description": "Optional file glob"],
-                "is_regex": ["type": "string", "description": "true or false"]
+                "file_type": ["type": "string", "description": "Optional file type filter"],
+                "regex": ["type": "string", "description": "true if pattern is a regex, false otherwise"]
             ],
-            required: ["search", "replacement"]
+            required: ["pattern", "replacement"]
         ),
         ToolSchemaEntry(
             name: "undo_edit",
@@ -627,6 +632,89 @@ enum ToolSchemaCatalog {
                 "args": ["type": "string", "description": "Alias for task"]
             ],
             required: []
+        ),
+        ToolSchemaEntry(
+            name: "multi_edit",
+            description: "Apply multiple edits to a single file atomically. All edits are validated before any are applied. Each edit uses the same old_string/new_string matching as str_replace. If any edit fails validation (not found, not unique), no changes are made.",
+            properties: [
+                "path": ["type": "string", "description": "File path (absolute or workspace-relative)"],
+                "edits": ["type": "string", "description": "JSON array of edit objects: [{\"old_string\": \"...\", \"new_string\": \"...\"}]. Each old_string must be unique in the file."]
+            ],
+            required: ["path", "edits"]
+        ),
+        ToolSchemaEntry(
+            name: "related_files",
+            description: "Find files related to a given file: tests, imports, dependents, similarly-named files, and sibling files. Useful for understanding a file's context before editing.",
+            properties: [
+                "path": ["type": "string", "description": "File path to find related files for"]
+            ],
+            required: ["path"]
+        ),
+        ToolSchemaEntry(
+            name: "git_log_search",
+            description: "Search git history for commits that introduced or removed specific code patterns (git pickaxe -S). Also searches commit messages. Useful for finding when code was added/changed and by whom.",
+            properties: [
+                "query": ["type": "string", "description": "Code pattern or text to search for in git history"],
+                "path": ["type": "string", "description": "Optional: limit search to a specific file or directory"],
+                "author": ["type": "string", "description": "Optional: filter by commit author name"],
+                "since": ["type": "string", "description": "Optional: search commits after this date (e.g., '2024-01-01', '3 months ago')"],
+                "limit": ["type": "string", "description": "Maximum commits to return (default: 20, max: 50)"]
+            ],
+            required: ["query"]
+        ),
+
+        // ── Power tools ──────────────────────────────────────────────────────
+
+        ToolSchemaEntry(
+            name: "apply_diff",
+            description: "Apply a unified diff patch to a file. Accepts standard unified diff format with @@ hunk headers. Use this for complex multi-line changes where str_replace would be cumbersome.",
+            properties: [
+                "path": ["type": "string", "description": "File path to apply the diff to"],
+                "diff": ["type": "string", "description": "Unified diff string with @@ hunk headers. Lines starting with '-' are removed, '+' are added, ' ' (space) are context."]
+            ],
+            required: ["path", "diff"]
+        ),
+        ToolSchemaEntry(
+            name: "batch_read",
+            description: "Read multiple files in a single call to reduce round-trips. Returns numbered line content for each file. Max 20 files per call.",
+            properties: [
+                "paths": ["type": "string", "description": "JSON array of file paths, or comma-separated list of paths (e.g. [\"src/a.ts\", \"src/b.ts\"] or \"src/a.ts, src/b.ts\")"]
+            ],
+            required: ["paths"]
+        ),
+        ToolSchemaEntry(
+            name: "diff_files",
+            description: "Compare two files and show their differences in unified diff format. Useful for understanding what changed between two versions of a file.",
+            properties: [
+                "file1": ["type": "string", "description": "Path to the first file (base)"],
+                "file2": ["type": "string", "description": "Path to the second file (comparison)"],
+                "context": ["type": "string", "description": "Number of context lines around changes (default: 3, max: 10)"]
+            ],
+            required: ["file1", "file2"]
+        ),
+        ToolSchemaEntry(
+            name: "git_status",
+            description: "Show structured git status: current branch, tracking info (ahead/behind), staged changes, unstaged changes, untracked files, and merge conflicts. No arguments needed.",
+            properties: [:],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "git_show",
+            description: "Show details of a specific git commit: author, date, message, stats, and full diff. Defaults to HEAD if no commit is specified.",
+            properties: [
+                "commit": ["type": "string", "description": "Git commit ref — hash, branch, tag, HEAD~N, etc. (default: HEAD)"],
+                "stat_only": ["type": "string", "description": "Set to 'true' to show only file stats without full diff"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "code_context",
+            description: "Get full context around a symbol: definition source code, all references across the codebase, and file imports/dependencies. More comprehensive than grep for understanding code.",
+            properties: [
+                "symbol": ["type": "string", "description": "Symbol name to look up (function, class, struct, protocol, etc.)"],
+                "max_refs": ["type": "string", "description": "Maximum references to return (default: 15, max: 30)"]
+            ],
+            required: ["symbol"]
         ),
         ToolSchemaEntry(
             name: "mcp_call",

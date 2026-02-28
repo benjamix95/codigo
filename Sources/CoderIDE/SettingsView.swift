@@ -96,8 +96,8 @@ struct SettingsView: View {
     @AppStorage("code_review_partitions") private var codeReviewPartitions = 3
     @AppStorage("code_review_analysis_only") private var codeReviewAnalysisOnly = false
     @AppStorage("code_review_max_rounds") private var codeReviewMaxRounds = 3
-    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "codex-cli"
-    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "codex-cli"
+    @AppStorage("code_review_analysis_backend") private var codeReviewAnalysisBackend = "auto"
+    @AppStorage("code_review_execution_backend") private var codeReviewExecutionBackend = "auto"
     @AppStorage("code_review_quick_commands_custom_json") private var codeReviewQuickCommandsCustomJSON = ""
     @AppStorage("codex_reasoning_summary") private var codexReasoningSummary = "auto"
     @AppStorage("codex_verbosity") private var codexVerbosity = "medium"
@@ -810,7 +810,7 @@ struct SettingsView: View {
                     case .upToDate:
                         Text(appUpdateCenter.statusSummary)
                     case .available(let manifest):
-                        Text("Nuovo aggiornamento: \(manifest.version) (\(manifest.displayBuild))")
+                        Text("New update: \(manifest.version) (\(manifest.displayBuild))")
                     case .failed(let error):
                         Text(error).foregroundStyle(.red)
                     }
