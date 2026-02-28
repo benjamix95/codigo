@@ -893,7 +893,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         else {
             return (prompt, nil)
         }
-        let ref = String(prompt[refRange])
+        let ref = String(prompt[refRange]).trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanRange = Range(match.range, in: prompt)!
         let clean = String(prompt[cleanRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         return (clean.isEmpty ? "Review all changes" : clean, ref)
@@ -1012,6 +1012,16 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             "no significant issues",
             "no problems found",
             "no bugs found",
+            "no errors found",
+            "no errors detected",
+            "no errors",
+            "no warnings found",
+            "no warnings detected",
+            "no warnings",
+            "no fix needed",
+            "no fixes needed",
+            "no fix required",
+            "no fixes required",
             "code is clean",
             "code looks good",
             "looks good overall",
