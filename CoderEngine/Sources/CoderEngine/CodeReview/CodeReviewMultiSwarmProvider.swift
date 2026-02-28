@@ -35,6 +35,50 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private let executionController: ExecutionController?
     private let fileLockCoordinator = FileLockCoordinator()
 
+    private enum ReviewTaskExtractionResult: Sendable {
+        case tasks([ReviewTask])
+        case noFixes
+        case invalidJSON(reason: String)
+        case noPayload(reason: String)
+    }
+
+    private enum AnalysisPhaseResult: Sendable {
+        case success(text: String)
+        case noPayload(text: String, reason: String)
+    }
+
+    private enum ReviewFindingsState: Sendable {
+        case issues
+        case clean
+        case inconclusive(reason: String)
+    }
+
+    private enum TestExecutionResult: Sendable {
+        case passed
+        case failed
+        case inconclusive(reason: String)
+    }
+
+    private enum ReviewPipelineError: Error, LocalizedError {
+        case analysisTransportFailed(String)
+        case analysisReturnedNoData
+        case taskPayloadMissing
+        case taskPayloadInvalid(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .analysisTransportFailed(let reason):
+                "Analysis stream failed: \(reason)"
+            case .analysisReturnedNoData:
+                "Analysis completed without text output."
+            case .taskPayloadMissing:
+                "No structured task payload found in analysis output."
+            case .taskPayloadInvalid(let reason):
+                "Invalid task payload in analysis output: \(reason)"
+            }
+        }
+    }
+
     public init(
         config: MultiSwarmReviewConfig,
         analysisProvider: any LLMProvider,
@@ -131,18 +175,24 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         }
                     }
 
-                    // ── Phase 1: Streaming Analysis (identical to agent mode) ──
-                    let analysisText = await Self.runAnalysisPhase(
+                    // ── Phase 1: Streaming Analysis ─────────────────────────
+                    let analysisOutput = try await Self.runAnalysisPhase(
                         cleanPrompt: cleanPrompt,
                         againstRef: againstRef,
-                        filesToReview: filesToReview,
-                        maxWorkers: config.maxWorkers,
+                        filesToReview,
+                        config.maxWorkers,
                         context: context,
                         analysisProvider: analysisProvider,
                         continuation: continuation,
                         isCancelled: isCancelled,
                         waitWhilePaused: waitWhilePaused
                     )
+                    guard case .success(let analysisText) = analysisOutput else {
+                        if case .noPayload(_, let reason) = analysisOutput {
+                            throw ReviewPipelineError.taskPayloadInvalid(reason)
+                        }
+                        throw ReviewPipelineError.taskPayloadMissing
+                    }
 
                     if isCancelled() {
                         continuation.yield(.textDelta("\n**Review cancelled.**\n"))
@@ -152,11 +202,23 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     }
 
                     // ── Phase 2: Dynamic Task Creation ─────────────────────────
-                    let tasks = Self.parseReviewTasks(
+                    let taskExtraction = Self.parseReviewTasks(
                         from: analysisText,
                         filesToReview: filesToReview,
                         maxWorkers: config.maxWorkers
                     )
+
+                    let tasks: [ReviewTask]
+                    switch taskExtraction {
+                    case .noFixes:
+                        tasks = []
+                    case .tasks(let parsedTasks):
+                        tasks = parsedTasks
+                    case .noPayload:
+                        throw ReviewPipelineError.taskPayloadMissing
+                    case .invalidJSON(let reason):
+                        throw ReviewPipelineError.taskPayloadInvalid(reason)
+                    }
 
                     // Emit worker plan for UI
                     for task in tasks {
@@ -178,10 +240,10 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         return
                     }
 
-                    // ── No actionable tasks → run tests only ────────────────────
+                    // ── No actionable tasks -> run tests only ────────────────────
                     if tasks.isEmpty {
                         continuation.yield(.textDelta("\n**No actionable fix tasks.** Running tests...\n"))
-                        let testPassed = await Self.runTests(
+                        let testResult = await Self.runTests(
                             context: context,
                             executionProvider: executionProvider,
                             continuation: continuation,
@@ -189,7 +251,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             isCancelled: isCancelled,
                             waitWhilePaused: waitWhilePaused
                         )
-                        let verdict = testPassed ? "No issues found, tests pass." : "Tests have issues."
+                        let verdict = switch testResult {
+                        case .passed:
+                            "No issues found, tests pass."
+                        case .failed:
+                            "Tests have issues."
+                        case .inconclusive(let reason):
+                            "Tests status inconclusive: \(reason)"
+                        }
                         continuation.yield(.textDelta("\n---\n**Review complete.** \(verdict)\n"))
                         continuation.yield(.completed)
                         continuation.finish()
@@ -230,7 +299,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         // ── Phase 4: Test ──────────────────────────────────────
                         continuation.yield(.textDelta("\n### Test Phase\n\n"))
 
-                        let testPassed = await Self.runTests(
+                        let testResult = await Self.runTests(
                             context: context,
                             executionProvider: executionProvider,
                             continuation: continuation,
@@ -238,6 +307,20 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             isCancelled: isCancelled,
                             waitWhilePaused: waitWhilePaused
                         )
+
+                        let testPassed: Bool
+                        switch testResult {
+                        case .passed:
+                            testPassed = true
+                        case .inconclusive(let reason):
+                            continuation.yield(.textDelta("\n**Review validation incomplete:** \(reason)\n"))
+                            continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
+                            continuation.yield(.completed)
+                            continuation.finish()
+                            return
+                        case .failed:
+                            testPassed = false
+                        }
 
                         if isCancelled() { break }
 
@@ -255,7 +338,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                                 break
                             }
 
-                            let (reReviewText, hasNewIssues) = await Self.runReReviewPhase(
+                            let reReviewOutcome = await Self.runReReviewPhase(
                                 modifiedFiles: modifiedFiles,
                                 round: reviewRound,
                                 context: context,
@@ -266,31 +349,83 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                                 waitWhilePaused: waitWhilePaused
                             )
 
-                            if !hasNewIssues || (testPassed && !hasNewIssues) {
-                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                            if isCancelled() { break }
+
+                            guard case .issues = reReviewOutcome.findings else {
+                                switch reReviewOutcome.findings {
+                                case .clean:
+                                    if !reReviewOutcome.hasNewIssues {
+                                        continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                                        break
+                                    }
+                                case .inconclusive(let reason):
+                                    continuation.yield(.textDelta(
+                                        "\n**Re-review inconclusive:** \(reason). Review stopped to avoid unsafe fallback.\n"
+                                    ))
+                                default:
+                                    break
+                                }
                                 break
                             }
 
                             // Parse new dynamic tasks for next round
-                            currentTasks = Self.parseReviewTasks(
-                                from: reReviewText,
+                            let nextRoundTasks = Self.parseReviewTasks(
+                                from: reReviewOutcome.text,
                                 filesToReview: modifiedFiles,
                                 maxWorkers: config.maxWorkers
                             )
 
-                            // Emit updated worker plan
-                            for task in currentTasks {
-                                continuation.yield(.raw(type: "review-worker-plan", payload: [
-                                    "worker_id": task.id,
-                                    "description": task.description,
-                                    "severity": task.severity,
-                                    "fileCount": "\(task.files.count)",
-                                    "files": task.files.prefix(5).joined(separator: ", ")
-                                        + (task.files.count > 5 ? " (+\(task.files.count - 5) more)" : "")
-                                ]))
+                            switch nextRoundTasks {
+                            case .tasks(let tasks) where !tasks.isEmpty:
+                                currentTasks = tasks
+                            case .tasks:
+                                currentTasks = []
+                            case .noFixes:
+                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                                break
+                            case .noPayload:
+                                continuation.yield(.textDelta(
+                                    "\n**Re-review payload missing.** Unable to safely continue without validated tasks.\n"
+                                ))
+                                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
+                                continuation.yield(.completed)
+                                continuation.finish()
+                                return
+                            case .invalidJSON(let reason):
+                                continuation.yield(.textDelta(
+                                    "\n**Re-review payload invalid: \(reason)** Stopping for safety.\n"
+                                ))
+                                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
+                                continuation.yield(.completed)
+                                continuation.finish()
+                                return
                             }
 
-                            continuation.yield(.textDelta("\n**New issues found.** Proceeding to fix round \(reviewRound + 1) with \(currentTasks.count) worker(s)...\n"))
+                            if currentTasks.isEmpty && !reReviewOutcome.hasNewIssues {
+                                continuation.yield(.textDelta(
+                                    "\n**All clear.** No new issues found.\n"
+                                ))
+                                break
+                            }
+
+                            if currentTasks.isEmpty {
+                                continuation.yield(.textDelta(
+                                    "\n**Review stalled.** Re-review reports possible issues but no valid worker tasks were produced.\n"
+                                ))
+                                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
+                                continuation.yield(.completed)
+                                continuation.finish()
+                                return
+                            }
+
+                            if !reReviewOutcome.hasNewIssues || (testPassed && !reReviewOutcome.hasNewIssues) {
+                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                                break
+                            }
+
+                            continuation.yield(.textDelta(
+                                "\n**New issues found.** Proceeding to fix round \(reviewRound + 1) with \(currentTasks.count) worker(s)...\n"
+                            ))
                         }
                     }
 
@@ -317,14 +452,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private static func runAnalysisPhase(
         cleanPrompt: String,
         againstRef: String?,
-        filesToReview: [String],
-        maxWorkers: Int,
+        _ filesToReview: [String],
+        _ maxWorkers: Int,
         context: WorkspaceContext,
         analysisProvider: any LLMProvider,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
         isCancelled: @Sendable @escaping () -> Bool,
         waitWhilePaused: @Sendable @escaping () async -> Void
-    ) async -> String {
+    ) async throws -> AnalysisPhaseResult {
         let fileList = filesToReview.joined(separator: "\n")
         let scopeDesc = againstRef.map { "Changes against `\($0)`" } ?? "Uncommitted changes"
 
@@ -388,99 +523,134 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             }
         } catch {
             continuation.yield(.textDelta("\n**Analysis error:** \(error.localizedDescription)\n"))
+            throw ReviewPipelineError.analysisTransportFailed(error.localizedDescription)
         }
 
-        return fullText
+        let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw ReviewPipelineError.analysisReturnedNoData
+        }
+
+        let extraction = extractReviewTasksJSON(from: trimmed)
+        switch extraction {
+        case .jsonTasks:
+            return .success(text: trimmed)
+        case .invalidJSON(let reason):
+            return .noPayload(text: trimmed, reason: reason)
+        case .none:
+            return .noPayload(text: trimmed, reason: "No structured task JSON block found.")
+        }
     }
 
     // MARK: - Phase 2: Parse Review Tasks
 
-    /// Extracts structured tasks from analysis output. Falls back to balanced split.
-    static func parseReviewTasks(
+    /// Extracts structured tasks from analysis output.
+    private static func parseReviewTasks(
         from analysisText: String,
         filesToReview: [String],
         maxWorkers: Int
-    ) -> [ReviewTask] {
+    ) -> ReviewTaskExtractionResult {
         // Try to extract JSON tasks from the analysis
-        if let jsonTasks = extractReviewTasksJSON(from: analysisText) {
-            if jsonTasks.isEmpty {
-                return [] // LLM explicitly said no fixes needed
-            }
-            // Cap at maxWorkers
-            return Array(jsonTasks.prefix(maxWorkers))
+        guard let extraction = extractReviewTasksJSON(from: analysisText, allowedFiles: filesToReview) else {
+            return .noPayload(
+                reason: "No JSON review task block found in analysis output."
+            )
         }
 
-        // Fallback: balanced split if JSON parsing failed
-        return fallbackTasks(filesToReview: filesToReview, maxWorkers: maxWorkers)
+        switch extraction {
+        case .jsonTasks(let tasks) where tasks.isEmpty:
+            return .noFixes
+        case .jsonTasks(let tasks):
+            return .tasks(Array(tasks.prefix(maxWorkers)))
+        case .invalidJSON(let reason):
+            return .invalidJSON(reason: reason)
+        }
     }
 
     /// Try to extract JSON review tasks from analysis text
-    private static func extractReviewTasksJSON(from text: String) -> [ReviewTask]? {
+    private static func extractReviewTasksJSON(
+        from text: String,
+        allowedFiles: [String]? = nil
+    ) -> ExtractedReviewTasks? {
+        let allowedSet = allowedFiles.map(Set.init)
         // Try markdown code block first: ```json ... ```
         let codeBlockPattern = #"```json\s*\n(\[[\s\S]*?\])\s*\n```"#
         if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []),
            let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let jsonRange = Range(match.range(at: 1), in: text) {
             let jsonStr = String(text[jsonRange])
-            if let tasks = parseTasksJSON(jsonStr) {
-                return tasks
+            switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
+            case .tasks(let tasks):
+                return .jsonTasks(tasks)
+            case .invalidJSON(let reason):
+                return .invalidJSON(reason: reason)
             }
         }
 
-        // Try bare JSON array near the end of text
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let lastBracket = trimmed.lastIndex(of: "]"),
-           let firstBracket = trimmed[...lastBracket].lastIndex(of: "[") {
-            let distanceToEnd = trimmed.distance(from: lastBracket, to: trimmed.endIndex)
-            if distanceToEnd < 10 {
-                let jsonStr = String(trimmed[firstBracket...lastBracket])
-                if let tasks = parseTasksJSON(jsonStr) {
-                    return tasks
-                }
-            }
-        }
+        return .none
+    }
 
-        return nil
+    private enum ExtractedReviewTasks {
+        case jsonTasks([ReviewTask])
+        case invalidJSON(reason: String)
     }
 
     /// Parse JSON string into ReviewTask array
-    private static func parseTasksJSON(_ jsonStr: String) -> [ReviewTask]? {
+    private enum ParsedTasksResult {
+        case tasks([ReviewTask])
+        case invalidJSON(reason: String)
+    }
+
+    /// Parse JSON string into ReviewTask array
+    private static func parseTasksJSON(
+        _ jsonStr: String,
+        allowedFiles: Set<String>?
+    ) -> ParsedTasksResult {
         guard let data = jsonStr.data(using: .utf8),
               let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        else { return nil }
+        else {
+            return .invalidJSON(reason: "Unable to parse task JSON block as an array.")
+        }
 
         var tasks: [ReviewTask] = []
+        var invalidEntries = 0
         for (index, dict) in arr.enumerated() {
             let id = (dict["id"] as? String) ?? "review-\(index)"
             let description = (dict["description"] as? String) ?? "Fix issues in assigned files"
-            let files = (dict["files"] as? [String]) ?? []
-            let severity = (dict["severity"] as? String) ?? "warning"
-            guard !files.isEmpty else { continue }
-            tasks.append(ReviewTask(id: id, description: description, files: files, severity: severity))
+            let rawFiles = (dict["files"] as? [String]) ?? []
+            let filteredFiles = rawFiles.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !filteredFiles.isEmpty else { continue }
+            let scopedFiles: [String]
+            if let allowedFiles {
+                scopedFiles = filteredFiles.filter { allowedFiles.contains($0) }
+            } else {
+                scopedFiles = filteredFiles
+            }
+            guard !scopedFiles.isEmpty else {
+                invalidEntries += 1
+                continue
+            }
+            let normalizedDescription = description.isEmpty
+                ? "Fix issues in assigned files"
+                : description
+            let severityRaw = (dict["severity"] as? String)?.lowercased() ?? "warning"
+            let allowedSeverities: Set<String> = ["critical", "warning", "suggestion"]
+            let severity = allowedSeverities.contains(severityRaw) ? severityRaw : "warning"
+            tasks.append(
+                ReviewTask(
+                    id: id,
+                    description: normalizedDescription,
+                    files: scopedFiles,
+                    severity: severity
+                )
+            )
         }
-        // Return nil only if we had entries but all were empty-file tasks
-        return tasks.isEmpty && !arr.isEmpty ? nil : tasks
-    }
-
-    /// Fallback: create tasks from balanced file splitting
-    private static func fallbackTasks(filesToReview: [String], maxWorkers: Int) -> [ReviewTask] {
-        guard !filesToReview.isEmpty else { return [] }
-        let count = min(maxWorkers, filesToReview.count)
-        let chunkSize = (filesToReview.count + count - 1) / count
-        var tasks: [ReviewTask] = []
-        for i in 0..<count {
-            let start = i * chunkSize
-            let end = min(start + chunkSize, filesToReview.count)
-            guard start < end else { continue }
-            let files = Array(filesToReview[start..<end])
-            tasks.append(ReviewTask(
-                id: "review-\(i)",
-                description: "Fix issues in \(files.count) file(s)",
-                files: files,
-                severity: "warning"
-            ))
+        if tasks.isEmpty && !arr.isEmpty {
+            return .invalidJSON(
+                reason: invalidEntries > 0
+                    ? "All task entries were invalid or outside review scope." : "Unable to parse task array entries." )
         }
-        return tasks
+        return .tasks(tasks)
     }
 
     // MARK: - Phase 3: Parallel Fix
@@ -616,7 +786,13 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
     // MARK: - Phase 5: Re-Review
 
-    /// Streams re-review analysis and returns (fullText, hasNewIssues)
+    private struct ReReviewOutcome {
+        let text: String
+        let hasNewIssues: Bool
+        let findings: ReviewFindingsState
+    }
+
+    /// Streams re-review analysis and returns outcome details.
     private static func runReReviewPhase(
         modifiedFiles: [String],
         round: Int,
@@ -626,7 +802,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
         isCancelled: @Sendable @escaping () -> Bool,
         waitWhilePaused: @Sendable @escaping () async -> Void
-    ) async -> (String, Bool) {
+    ) async -> ReReviewOutcome {
         let reReviewContext = WorkspaceContext(
             workspacePaths: context.workspacePaths,
             isNamedWorkspace: context.isNamedWorkspace,
@@ -685,10 +861,28 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             }
         } catch {
             continuation.yield(.textDelta("\n**Re-review error:** \(error.localizedDescription)\n"))
+            return ReReviewOutcome(
+                text: fullText,
+                hasNewIssues: true,
+                findings: .inconclusive(
+                    reason: "Re-review stream failed: \(error.localizedDescription)"
+                )
+            )
         }
 
-        let hasNewIssues = findingsContainIssues(fullText)
-        return (fullText, hasNewIssues)
+        let findings = findingsContainIssues(fullText)
+        switch findings {
+        case .issues:
+            return ReReviewOutcome(text: fullText, hasNewIssues: true, findings: .issues)
+        case .clean:
+            return ReReviewOutcome(text: fullText, hasNewIssues: false, findings: .clean)
+        case .inconclusive(let reason):
+            return ReReviewOutcome(
+                text: fullText,
+                hasNewIssues: false,
+                findings: .inconclusive(reason: reason)
+            )
+        }
     }
 
     // MARK: - Helpers
@@ -749,14 +943,73 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     }
 
     /// Check if findings text contains actionable issues
-    static func findingsContainIssues(_ text: String) -> Bool {
+    private static func findingsContainIssues(_ text: String) -> ReviewFindingsState {
         let lower = text.lowercased()
-        let noIssuesIndicators = ["no issues found", "all clear", "looks good", "no problems"]
-        if noIssuesIndicators.contains(where: { lower.contains($0) }) && text.count < 200 {
-            return false
+        let noIssuesIndicators = [
+            "no issues found",
+            "all clear",
+            "looks good",
+            "no problems",
+            "nothing to fix",
+            "no changes required",
+            "nothing else to change"
+        ]
+        if noIssuesIndicators.contains(where: { lower.contains($0) }) && text.count < 2_000 {
+            return .clean
         }
-        let issueIndicators = ["critical", "warning", "bug", "fix", "issue", "error", "vulnerability", "severity"]
-        return issueIndicators.contains(where: { lower.contains($0) })
+
+        let inconclusiveIndicators = [
+            "unable to determine",
+            "cannot determine",
+            "insufficient context",
+            "inconclusive",
+            "i couldn't",
+            "i am unable",
+            "not enough information"
+        ]
+        if inconclusiveIndicators.contains(where: { lower.contains($0) }) {
+            return .inconclusive(reason: "Re-review output did not reach a confident conclusion.")
+        }
+
+        let strictIssueIndicators = [
+            "critical",
+            "high severity",
+            "security",
+            "regression",
+            "crash",
+            "exception",
+            "null pointer",
+            "race condition",
+            "memory",
+            "authorization",
+            "authentication",
+            "authorization",
+            "command injection",
+            "sql",
+            "leak",
+            "data loss",
+            "deadlock",
+            "infinite loop",
+            "off-by-one",
+            "null dereference",
+            "segmentation",
+            "thread-safety",
+            "permission"
+        ]
+        if strictIssueIndicators.contains(where: { lower.contains($0) }) {
+            return .issues
+        }
+
+        // Conservative default: do not infer clean if payload is short and lacks strong signals.
+        if lower.count < 150 {
+            return .clean
+        }
+        let weakIssueIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
+        if weakIssueIndicators.contains(where: { lower.contains($0) }) {
+            return .issues
+        }
+
+        return .inconclusive(reason: "No robust issue indicators found in re-review output.")
     }
 
     /// Run test suite and optionally retry with debugger
@@ -767,15 +1020,15 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         execController: ExecutionController?,
         isCancelled: @Sendable @escaping () -> Bool,
         waitWhilePaused: @Sendable @escaping () async -> Void
-    ) async -> Bool {
+    ) async -> TestExecutionResult {
         guard let cmd = TestProjectDetector.testCommand(workspacePath: context.workspacePath) else {
             continuation.yield(.textDelta("Project type not recognized for automatic test execution.\n"))
-            return true // assume ok if we can't test
+            return .inconclusive(reason: "Project test command could not be resolved.")
         }
 
         let maxAttempts = 2
         for attempt in 0..<maxAttempts {
-            if isCancelled() { return false }
+            if isCancelled() { return .failed }
             await waitWhilePaused()
 
             continuation.yield(.textDelta("Running tests\(attempt > 0 ? " (retry \(attempt + 1))" : "")...\n"))
@@ -795,7 +1048,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                 if passed {
                     continuation.yield(.textDelta("**Tests passed successfully.**\n"))
-                    return true
+                    return .passed
                 }
 
                 // Tests failed — show summary
@@ -832,9 +1085,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 }
             } catch {
                 continuation.yield(.textDelta("**Unable to run tests:** \(error.localizedDescription)\n"))
-                return false
+                return .failed
             }
         }
-        return false
+        return .failed
     }
 }

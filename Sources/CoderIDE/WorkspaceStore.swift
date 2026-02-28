@@ -22,6 +22,10 @@ final class WorkspaceStore: ObservableObject {
     /// File watcher for real-time index updates
     private var fileWatcher: FileWatcher?
 
+    /// Incremented every time workspace indexing is reinitialized.
+    /// Older async tasks capture this token and no-op if stale.
+    private var indexingEpoch: UUID = UUID()
+
     /// Progress polling task
     private var progressPollingTask: Task<Void, Never>?
 
@@ -85,18 +89,8 @@ final class WorkspaceStore: ObservableObject {
 
     /// Index the active workspace (called on workspace change)
     func indexActiveWorkspace() {
+        let activeToken = resetIndexingInfrastructure()
         let paths = activeWorkspacePaths
-
-        // Stop existing file watcher
-        if let watcher = fileWatcher {
-            Task { await watcher.stop() }
-            fileWatcher = nil
-        }
-
-        // Cancel previous polling
-        progressPollingTask?.cancel()
-        progressPollingTask = nil
-        indexProgress = nil
 
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
             let index = codebaseIndex
@@ -112,7 +106,7 @@ final class WorkspaceStore: ObservableObject {
         let index = codebaseIndex
 
         // Start progress polling
-        startProgressPolling()
+        startProgressPolling(activeToken: activeToken)
 
         Task.detached(priority: .utility) {
             let _ = await index.indexWorkspace(
@@ -122,10 +116,17 @@ final class WorkspaceStore: ObservableObject {
                 respectGitignore: gitignore
             )
 
+            let isCurrentEpoch = await MainActor.run { self.indexingEpoch == activeToken }
+            guard isCurrentEpoch else { return }
+
             // Start file watcher for real-time updates
             let watcher = FileWatcher(index: index, workspacePaths: paths)
             await watcher.start()
             await MainActor.run { [weak self] in
+                guard self?.indexingEpoch == activeToken else {
+                    Task { await watcher.stop() }
+                    return
+                }
                 self?.fileWatcher = watcher
                 self?.progressPollingTask?.cancel()
                 self?.progressPollingTask = nil
@@ -135,10 +136,11 @@ final class WorkspaceStore: ObservableObject {
     }
 
     /// Poll codebase index progress at 300ms intervals
-    private func startProgressPolling() {
+    private func startProgressPolling(activeToken: UUID) {
         let index = codebaseIndex
         progressPollingTask = Task { [weak self] in
             while !Task.isCancelled {
+                guard self?.indexingEpoch == activeToken else { break }
                 let info = await index.status()
                 guard !Task.isCancelled else { break }
                 self?.indexProgress = info.progress
@@ -146,6 +148,20 @@ final class WorkspaceStore: ObservableObject {
                 try? await Task.sleep(nanoseconds: 300_000_000) // 300ms
             }
         }
+    }
+
+    /// Fully reset indexer runtime state and return the active token for this generation.
+    /// This avoids stale async tasks from previous workspaces mutating new state.
+    private func resetIndexingInfrastructure() -> UUID {
+        indexingEpoch = UUID()
+        if let watcher = fileWatcher {
+            Task { await watcher.stop() }
+        }
+        fileWatcher = nil
+        progressPollingTask?.cancel()
+        progressPollingTask = nil
+        indexProgress = nil
+        return indexingEpoch
     }
 
     func load() {
@@ -207,7 +223,7 @@ final class WorkspaceStore: ObservableObject {
             if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
         }
     }
-    
+
     /// Rimuove cartella dal workspace
     func removeFolder(from workspaceId: UUID, path: String) {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
@@ -224,12 +240,38 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func delete(id: UUID) {
+        let requestedId = id
         workspaces.removeAll { $0.id == id }
-        if activeWorkspaceId == id {
+
+        let activeStillExists = activeWorkspaceId.flatMap { current in
+            workspaces.contains { $0.id == current }
+        } ?? false
+
+        if activeWorkspaceId == requestedId || !activeStillExists {
             activeWorkspaceId = workspaces.first?.id
         }
+
         save()
+        indexActiveWorkspace()
     }
+
+    #if DEBUG
+    struct DebugIndexingState: Equatable {
+        let activeWorkspaceId: UUID?
+        let hasWatcher: Bool
+        let hasProgressPollingTask: Bool
+        let indexingEpoch: UUID
+    }
+
+    func debugIndexingState() -> DebugIndexingState {
+        DebugIndexingState(
+            activeWorkspaceId: activeWorkspaceId,
+            hasWatcher: fileWatcher != nil,
+            hasProgressPollingTask: progressPollingTask != nil,
+            indexingEpoch: indexingEpoch
+        )
+    }
+    #endif
 
     func addExclusion(to workspaceId: UUID, path: String) {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
