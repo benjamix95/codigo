@@ -5147,6 +5147,10 @@ struct ChatPanelView: View {
                 persistImmediately: true
             )
             chatStore.setLastAssistantStreaming(false, in: conversationId)
+            chatStore.addMessage(
+                ChatMessage(id: UUID(), role: .assistant, content: "Analysis complete. Preparing clarification..."),
+                to: conversationId
+            )
         }
 
         // ========================
