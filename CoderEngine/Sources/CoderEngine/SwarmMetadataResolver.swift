@@ -26,7 +26,7 @@ enum SwarmMetadataResolver {
     static func applySwarmMetadata(
         to payload: inout [String: String],
         from item: [String: Any],
-        keys: [String] = ["swarm_id"],
+        keys: [String] = ["swarm_id", "agent", "role"],
         forceGroupID: Bool = false
     ) -> Bool {
         guard let swarmID = firstSwarmID(in: item, keys: keys) else { return false }

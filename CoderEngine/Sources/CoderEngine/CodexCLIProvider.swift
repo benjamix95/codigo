@@ -116,7 +116,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
+        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let fullPrompt = systemBlock + "\n\n" + prompt + context.contextPrompt()
         let path = codexPath
         let workspacePath = context.workspacePath
         
@@ -1069,7 +1070,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             }
         }
         if let groupId = firstString(in: item, keys: ["group_id", "id"]) { payload["group_id"] = groupId }
-        if let swarmId = firstString(in: item, keys: ["swarm_id"]) { payload["swarm_id"] = swarmId }
+        _ = SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item)
         if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]) { payload["tool_call_id"] = toolCallId }
         if let count = item["result_count"] as? Int { payload["resultCount"] = "\(count)" }
         if let duration = item["duration_ms"] as? Int { payload["duration_ms"] = "\(duration)" }

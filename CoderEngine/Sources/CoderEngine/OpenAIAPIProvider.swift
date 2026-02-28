@@ -250,6 +250,8 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         let baseURL = self.baseURL
         let extraHeaders = self.extraHeaders
         let reasoningEffort = self.reasoningEffort
+        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let useOptimizerMode = context.systemPromptOverride != nil
 
         return AsyncThrowingStream { continuation in
             Task {
@@ -312,7 +314,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
 
                         var responsePayload: [String: Any] = [
                             "model": model,
-                            "instructions": SystemPrompts.taskCompletionStrict,
+                            "instructions": systemPrompt,
                             "input": Self.responseInput(from: resolvedContent),
                             "stream": true,
                         ]
@@ -513,7 +515,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         var body: [String: Any] = [
                             "model": model,
                             "messages": [
-                                ["role": "system", "content": SystemPrompts.taskCompletionStrict],
+                                ["role": "system", "content": systemPrompt],
                                 ["role": "user", "content": resolvedContent]
                             ],
                             "stream": true,
@@ -729,12 +731,14 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                     // --- Main execution ---
                     // 1) Prefer OpenAI Responses WebSocket mode when available.
                     // 2) Fallback to standard SSE chat/completions stream.
+                    // In optimizer mode (systemPromptOverride), never use tools.
+                    let initialIncludeTools = !useOptimizerMode
                     if Self.shouldTryResponsesWebSocket(baseURL: baseURL, imageURLs: imageURLs) {
                         var webSocketStarted = false
                         do {
-                            let first = try await attemptResponsesWebSocket(includeTools: true)
+                            let first = try await attemptResponsesWebSocket(includeTools: initialIncludeTools)
                             webSocketStarted = first.didStart
-                            if first.retrySignal != nil {
+                            if first.retrySignal != nil, initialIncludeTools {
                                 let second = try await attemptResponsesWebSocket(includeTools: false)
                                 webSocketStarted = webSocketStarted || second.didStart
                             }
@@ -749,8 +753,8 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         }
                     }
 
-                    let retrySignal = try await attemptStream(includeTools: true)
-                    if retrySignal != nil {
+                    let retrySignal = try await attemptStream(includeTools: initialIncludeTools)
+                    if retrySignal != nil, initialIncludeTools {
                         let _ = try await attemptStream(includeTools: false)
                     }
                     // If an attempt returned nil, the stream was fully consumed and finished.

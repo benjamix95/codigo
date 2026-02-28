@@ -37,6 +37,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
         if !skills.isEmpty {
             lines.append("### Detected local skills")
+            lines.append("Invoke with the `skill` tool: skill=<name>, task=<what to do>. Example: skill=doc task=\"create user guide.docx\"")
             for skill in skills {
                 lines.append("- \(skill)")
             }
@@ -180,5 +181,38 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             return []
         }
         return files
+    }
+
+    /// Resolve skill name to full SKILL.md content (markdown body; frontmatter optional).
+    public static func skillContent(for name: String) -> String? {
+        let home = NSHomeDirectory()
+        let roots: [(label: String, path: String)] = [
+            ("codex", "\(home)/.codex/skills"),
+            ("agents", "\(home)/.agents/skills"),
+            ("claude", "\(home)/.claude/skills"),
+        ]
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+        guard !normalized.isEmpty else { return nil }
+        for root in roots {
+            let candidates = [
+                "\(root.path)/\(normalized)/SKILL.md",
+                "\(root.path)/.system/\(normalized)/SKILL.md",
+            ]
+            for candidate in candidates {
+                let url = URL(fileURLWithPath: candidate)
+                guard FileManager.default.fileExists(atPath: candidate),
+                      let raw = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                var content = raw
+                if raw.hasPrefix("---") {
+                    if let end = raw.range(of: "\n---", range: raw.index(raw.startIndex, offsetBy: 3)..<raw.endIndex) {
+                        content = String(raw[end.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+                return String(content.prefix(30_000))
+            }
+        }
+        return nil
     }
 }

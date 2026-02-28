@@ -14,6 +14,7 @@ enum PromptToolsPolicy {
       • MCP tools → mcp_call, mcp_list_tools (use them when available)
       • Skills → Skill tool (when skills are available and relevant)
       • Subagents → subagent_* tools (run on all backends in parallel — call 2+ in same round)
+      • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
@@ -31,7 +32,7 @@ enum PromptToolsPolicy {
     - Use `attempt_completion` to signal task completion with optional verification command.
     - For multi-step tasks, plan your approach first, then execute systematically.
     - Prefer structured tools (read_range, list_dir, git_diff, search_symbols, run_tests, build_project, diagnostics, read_lints, semantic_search) over raw bash when available.
-    - If repository/runtime instructions reference AGENTS.md, SKILL.md, runbooks, or local skills, treat them as mandatory operational constraints. Use the Skill tool to invoke skills when relevant.
+    - If "Detected local skills" or AGENTS.md/SKILL.md are in the context, USE the `skill` tool when the task matches. Example: doc for DOCX, imagegen for images, transcribe for audio. Do NOT skip — invoke the skill.
     - MCP flow is mandatory when MCP tools are available and external/domain actions are involved:
       1) call `mcp_list_servers` first to verify availability,
       2) call `mcp_list_tools` for relevant servers,

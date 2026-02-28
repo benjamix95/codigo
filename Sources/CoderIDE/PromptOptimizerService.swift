@@ -47,17 +47,16 @@ final class PromptOptimizerService {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OptimizeError.emptyPrompt }
 
-        let fullPrompt = """
-        \(systemInstruction)
-
+        let userPrompt = """
         --- USER PROMPT TO OPTIMIZE ---
         \(trimmed)
         --- END ---
         """
 
+        let ctx = WorkspaceContext.forPromptOptimizer(systemInstruction: systemInstruction)
         let stream = try await provider.send(
-            prompt: fullPrompt,
-            context: context,
+            prompt: userPrompt,
+            context: ctx,
             imageURLs: nil
         )
 

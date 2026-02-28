@@ -57,22 +57,28 @@ struct EffectiveContext {
     ) -> WorkspaceContext {
         let scopedPaths: [String]
 
-        switch scopeMode {
-        case .workspaceAll:
+        // Multi-folder workspace: always expose all folders so the LLM knows the full structure
+        // and tools (grep, codebase_search, semantic_search) can work across the entire workspace.
+        if folderPaths.count > 1 {
             scopedPaths = folderPaths
-        case .activeFolder:
-            if let activeRootPath, !activeRootPath.isEmpty {
-                scopedPaths = [activeRootPath]
-            } else {
+        } else {
+            switch scopeMode {
+            case .workspaceAll:
                 scopedPaths = folderPaths
-            }
-        case .auto:
-            if shouldUseWorkspaceWideScope(openFiles: openFiles, activeFilePath: activeFilePath) {
-                scopedPaths = folderPaths
-            } else if let activeRootPath, !activeRootPath.isEmpty {
-                scopedPaths = [activeRootPath]
-            } else {
-                scopedPaths = folderPaths
+            case .activeFolder:
+                if let activeRootPath, !activeRootPath.isEmpty {
+                    scopedPaths = [activeRootPath]
+                } else {
+                    scopedPaths = folderPaths
+                }
+            case .auto:
+                if shouldUseWorkspaceWideScope(openFiles: openFiles, activeFilePath: activeFilePath) {
+                    scopedPaths = folderPaths
+                } else if let activeRootPath, !activeRootPath.isEmpty {
+                    scopedPaths = [activeRootPath]
+                } else {
+                    scopedPaths = folderPaths
+                }
             }
         }
 

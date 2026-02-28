@@ -918,6 +918,10 @@ struct MessageToolTraceView: View {
     private func inferredSkillNames(from orderedEvents: [ToolTraceEvent]) -> [String] {
         var names = Set<String>()
         for event in orderedEvents {
+            if event.type == "skill_invocation" || event.payload["tool"] == "skill",
+               let skill = event.payload["skill"], !skill.isEmpty {
+                names.insert(skill)
+            }
             for candidate in skillPathCandidates(for: event) {
                 guard let name = extractSkillName(from: candidate) else { continue }
                 names.insert(name)
@@ -928,6 +932,9 @@ struct MessageToolTraceView: View {
 
     private func skillPathCandidates(for event: ToolTraceEvent) -> [String] {
         var candidates: [String] = []
+        if let skill = event.payload["skill"], !skill.isEmpty {
+            candidates.append(".codex/skills/\(skill)/SKILL.md")
+        }
         if let path = event.payload["path"] { candidates.append(path) }
         if let file = event.payload["file"] { candidates.append(file) }
         if let files = event.payload["files"] { candidates.append(contentsOf: files.components(separatedBy: ",")) }

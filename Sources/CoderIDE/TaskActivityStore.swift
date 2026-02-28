@@ -1,3 +1,4 @@
+import os
 import SwiftUI
 
 enum ActivityPhase: String, Codable {
@@ -77,6 +78,8 @@ final class TaskActivityStore: ObservableObject {
     private var swarmCardDedupKeys: [String: Set<String>] = [:]
     private let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
 
+    private let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
+
     nonisolated private static let hiddenGenericTypes: Set<String> = [
         "reasoning",
         "thinking",
@@ -141,6 +144,7 @@ final class TaskActivityStore: ObservableObject {
         "semantic_search",
         "read_lints",
         "debug_context",
+        "skill_invocation",
     ]
 
     nonisolated static func isConcreteVisibleEventType(_ type: String) -> Bool {
@@ -474,6 +478,9 @@ final class TaskActivityStore: ObservableObject {
     /// Used when switching conversations so the swarm panel doesn't
     /// show activities from a different thread.
     func clearSwarmCards() {
+        if swarmEventsReceivedCount > 0 {
+            swarmLogger.debug("Swarm stats: received=\(self.swarmEventsReceivedCount) assigned=\(self.swarmEventsAssignedCount) fallback=\(self.swarmEventsFallbackCount) cards=\(self.swarmCards.count)")
+        }
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
         swarmEventsReceivedCount = 0
@@ -690,8 +697,9 @@ final class TaskActivityStore: ObservableObject {
         let owner = SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: true)
         if owner == "orchestrator" {
             swarmEventsFallbackCount += 1
-        } else if owner != nil {
+        } else if let o = owner {
             swarmEventsAssignedCount += 1
+            swarmLogger.debug("Swarm event assigned to subagent '\(o)' type=\(activity.type) title=\(activity.title)")
         }
         SwarmLiveReducer.apply(
             activity: activity,

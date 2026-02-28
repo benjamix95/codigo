@@ -466,6 +466,17 @@ enum ToolSchemaCatalog {
             required: []
         ),
         ToolSchemaEntry(
+            name: "skill",
+            description: "Invoke a local skill (SKILL.md) from ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Use when task matches a skill (doc, imagegen, transcribe, playwright, cloudflare-deploy, gh-fix-ci). Prefer skills over manual workflows.",
+            properties: [
+                "skill": ["type": "string", "description": "Skill name (e.g. doc, imagegen, transcribe)"],
+                "name": ["type": "string", "description": "Alias for skill"],
+                "task": ["type": "string", "description": "What the skill should do"],
+                "args": ["type": "string", "description": "Alias for task"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
             name: "mcp",
             description: "Invoke MCP tool",
             properties: [

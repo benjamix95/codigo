@@ -46,7 +46,8 @@ public final class ClaudeCLIProvider: LLMProvider, @unchecked Sendable {
     }
     
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        var fullPrompt = SystemPrompts.taskCompletionStrict + "\n\n" + prompt + context.contextPrompt()
+        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        var fullPrompt = systemBlock + "\n\n" + prompt + context.contextPrompt()
         if let urls = imageURLs, !urls.isEmpty {
             let refs = urls.map { "[Image: \($0.path)]" }.joined(separator: "\n")
             fullPrompt = refs + "\n\n" + fullPrompt

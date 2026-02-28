@@ -42,6 +42,8 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
         let apiKey = self.apiKey
         let model = self.model
         let maxTokens = self.maxTokens
+        let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
+        let useOptimizerMode = context.systemPromptOverride != nil
 
         return AsyncThrowingStream { continuation in
             Task {
@@ -77,8 +79,7 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                         "model": model,
                         "max_tokens": maxTokens,
                         "stream": true,
-                        "system": SystemPrompts.taskCompletionStrict,
-                        "tools": Self.toolDefinitions,
+                        "system": systemPrompt,
                         "messages": [
                             [
                                 "role": "user",
@@ -86,6 +87,9 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                             ]
                         ]
                     ]
+                    if !useOptimizerMode {
+                        body["tools"] = Self.toolDefinitions
+                    }
                     if Self.supportsExtendedThinking(model) {
                         body["thinking"] = ["type": "enabled", "budget_tokens": 10_000]
                     }

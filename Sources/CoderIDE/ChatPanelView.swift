@@ -1082,6 +1082,11 @@ struct ChatPanelView: View {
             .onChange(of: effectiveContext.primaryPath) { _, newPath in
                 gitPanelStore.refresh(workingDirectory: newPath)
             }
+            .onChange(of: taskActivityStore.swarmEventsAssignedCount) { oldCount, newCount in
+                if oldCount == 0, newCount > 0, !showSwarmPanel, isLoadingForCurrentConversation {
+                    showSwarmPanel = true
+                }
+            }
             .onChange(of: selectedConversationId) { _, _ in
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 composerFrozenTimerState = nil
@@ -3362,8 +3367,14 @@ struct ChatPanelView: View {
         default:
             break
         }
+        selectMode(.plan)
         planToggleEnabled = true
-        if showPlanPanel {
+        if !showPlanPanel {
+            openPlanPanelForCurrentContext(
+                preserveHistorySelection: false,
+                source: .automaticFlow
+            )
+        } else {
             planPanelPresentationSource = .automaticFlow
         }
     }
@@ -4850,16 +4861,25 @@ struct ChatPanelView: View {
         guard !prompt.isEmpty else { return }
         guard let selectedProvider = providerRegistry.selectedProvider else { return }
 
-        // Resolve the actual runtime provider (handles multi-account, auth fallback)
-        let runtimeProvider: any LLMProvider
-        if let resolved = resolveRuntimeProvider(
+        // Use lightweight provider (no tools/policy) when available — much faster for prompt optimization.
+        // Fall back to full runtime provider if lightweight is not configured or not authenticated.
+        let providerToUse: any LLMProvider
+        if let providerId = providerRegistry.selectedProviderId,
+           let lightweight = ProviderFactory.lightweightProvider(
+               providerId: providerId,
+               config: providerFactoryConfig(),
+               executionController: executionController
+           ),
+           lightweight.isAuthenticated() {
+            providerToUse = lightweight
+        } else if let resolved = resolveRuntimeProvider(
             selectedProvider: selectedProvider,
             shouldRunPlanInline: false,
             forcePlanInline: false
         ) {
-            runtimeProvider = resolved
+            providerToUse = resolved
         } else {
-            runtimeProvider = selectedProvider
+            providerToUse = selectedProvider
         }
 
         isOptimizingPrompt = true
@@ -4867,15 +4887,10 @@ struct ChatPanelView: View {
         promptOptimizerTask = Task {
             defer { isOptimizingPrompt = false }
             do {
-                let ctx = effectiveContext.toWorkspaceContext(
-                    openFiles: [],
-                    activeSelection: nil,
-                    activeFilePath: nil,
-                    scopeMode: ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
-                )
+                let ctx = WorkspaceContext.minimal()
                 let optimized = try await PromptOptimizerService.optimize(
                     prompt: prompt,
-                    using: runtimeProvider,
+                    using: providerToUse,
                     context: ctx
                 )
                 guard !Task.isCancelled else { return }
@@ -5417,6 +5432,7 @@ struct ChatPanelView: View {
         await MainActor.run { planStreamingContent = full }
         chatStore.setLastAssistantStreaming(false, in: conversationId)
         clearStreamingReasoning(for: conversationId)
+        finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
 
         if !options.isEmpty, areAllOptionsTodoCompliant(options) {
             let compliantOptions = PlanOptionsParser.todoCompliantOptions(from: options)

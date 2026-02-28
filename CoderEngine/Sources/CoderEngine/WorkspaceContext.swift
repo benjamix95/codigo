@@ -33,6 +33,14 @@ public struct WorkspaceContext: Sendable {
 
     /// Active root for multi-folder workspaces (file resolution preference).
     public let activeRootPath: String?
+
+    /// When true, `contextPrompt()` returns "" — used for lightweight tasks (e.g. prompt optimization)
+    /// that don't need workspace context, rules, or policy.
+    public let skipContextEnrichment: Bool
+
+    /// When set, base providers use this as the ONLY system prompt (no taskCompletionStrict)
+    /// and disable tools. Used for prompt optimization so the model rewrites text instead of executing.
+    public let systemPromptOverride: String?
     
     public init(
         workspacePaths: [URL],
@@ -43,7 +51,9 @@ public struct WorkspaceContext: Sendable {
         openFiles: [OpenFile] = [],
         activeSelection: String? = nil,
         activeFilePath: String? = nil,
-        activeRootPath: String? = nil
+        activeRootPath: String? = nil,
+        skipContextEnrichment: Bool = false,
+        systemPromptOverride: String? = nil
     ) {
         self.workspacePaths = workspacePaths.isEmpty ? [URL(fileURLWithPath: "/tmp")] : workspacePaths
         self.isNamedWorkspace = isNamedWorkspace
@@ -54,6 +64,8 @@ public struct WorkspaceContext: Sendable {
         self.activeSelection = activeSelection
         self.activeFilePath = activeFilePath
         self.activeRootPath = activeRootPath
+        self.skipContextEnrichment = skipContextEnrichment
+        self.systemPromptOverride = systemPromptOverride
     }
     
     /// Legacy initializer (single path).
@@ -64,7 +76,9 @@ public struct WorkspaceContext: Sendable {
         openFiles: [OpenFile] = [],
         activeSelection: String? = nil,
         activeFilePath: String? = nil,
-        activeRootPath: String? = nil
+        activeRootPath: String? = nil,
+        skipContextEnrichment: Bool = false,
+        systemPromptOverride: String? = nil
     ) {
         self.workspacePaths = [workspacePath]
         self.isNamedWorkspace = false
@@ -75,11 +89,35 @@ public struct WorkspaceContext: Sendable {
         self.activeSelection = activeSelection
         self.activeFilePath = activeFilePath
         self.activeRootPath = activeRootPath
+        self.skipContextEnrichment = skipContextEnrichment
+        self.systemPromptOverride = systemPromptOverride
+    }
+
+    /// Context for prompt optimization: uses only the optimizer system instruction,
+    /// no taskCompletionStrict, no tools — so the model rewrites the prompt instead of executing it.
+    public static func forPromptOptimizer(systemInstruction: String) -> WorkspaceContext {
+        WorkspaceContext(
+            workspacePaths: [URL(fileURLWithPath: "/tmp")],
+            openFiles: [],
+            skipContextEnrichment: true,
+            systemPromptOverride: systemInstruction
+        )
+    }
+
+    /// Minimal context for lightweight tasks (prompt optimization, etc.).
+    /// `contextPrompt()` returns "" so no workspace metadata, rules, or policy are added.
+    public static func minimal() -> WorkspaceContext {
+        WorkspaceContext(
+            workspacePaths: [URL(fileURLWithPath: "/tmp")],
+            openFiles: [],
+            skipContextEnrichment: true
+        )
     }
 
     
     /// Builds the context prompt to send to the LLM.
     public func contextPrompt() -> String {
+        if skipContextEnrichment { return "" }
         var parts: [String] = []
         
         if isNamedWorkspace, let name = workspaceName {

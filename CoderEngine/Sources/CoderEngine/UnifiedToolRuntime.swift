@@ -1806,12 +1806,23 @@ public actor UnifiedToolRuntime {
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        let allWorkspacePaths = context.workspaceContext.workspacePaths.map(\.path)
+        let primaryWorkspace = context.workspaceContext.workspacePath.path
         let scopes: [String] = {
-            if scopeParts.isEmpty { return ["."] }
+            if scopeParts.isEmpty || (scopeParts.count == 1 && scopeParts[0] == ".") {
+                return allWorkspacePaths.isEmpty ? ["."] : allWorkspacePaths
+            }
             var out: [String] = []
             var seen = Set<String>()
             for item in scopeParts where seen.insert(item).inserted {
-                out.append(item)
+                let isAbsolute = (item as NSString).isAbsolutePath
+                if isAbsolute {
+                    out.append(item)
+                } else {
+                    for root in allWorkspacePaths {
+                        out.append((root as NSString).appendingPathComponent(item))
+                    }
+                }
             }
             return out
         }()
@@ -1839,7 +1850,7 @@ public actor UnifiedToolRuntime {
                     !output.contains("No symbols found") {
                     var payload = indexResult.payload
                     payload["title"] = "Grep \(query) (index + rg)"
-                    payload["pathScope"] = scopes.joined(separator: ",")
+                    payload["pathScope"] = (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope
                     return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
                 }
             } else {
@@ -1847,13 +1858,13 @@ public actor UnifiedToolRuntime {
             }
         }
 
-        let workspace = context.workspaceContext.workspacePath.path
         let maxContext = min(max(contextLines, 0), 10)
         var searchOutput = ""
         var searchError = ""
         var usedFallback = false
 
-        // Primary: ripgrep
+        // Primary: ripgrep — when multiple scopes (roots), search each; cwd uses first scope
+        let rgCwd = scopes.first ?? primaryWorkspace
         var rgArgs = ["/usr/bin/env", "rg", "-n", "--no-heading", "--max-count", "200"]
         if !caseSensitive { rgArgs.append("-i") }
         if multiline { rgArgs.append("-U") }
@@ -1865,7 +1876,7 @@ public actor UnifiedToolRuntime {
 
         let (rgOut, rgErr, rgExit) = await shellExec(
             args: rgArgs,
-            cwd: workspace,
+            cwd: rgCwd,
             timeout: context.policy.timeoutMs
         )
         searchOutput = rgOut
@@ -1885,7 +1896,7 @@ public actor UnifiedToolRuntime {
 
             let (grepOut, grepErr, _) = await shellExec(
                 args: grepArgs,
-                cwd: workspace,
+                cwd: rgCwd,
                 timeout: context.policy.timeoutMs
             )
             searchOutput = grepOut
@@ -1903,7 +1914,7 @@ public actor UnifiedToolRuntime {
                 startDate: startDate,
                 payload: [
                     "title": "Grep \(query)",
-                    "pathScope": scopes.joined(separator: ","),
+                    "pathScope": (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope,
                 ]
             )
         }
@@ -1917,12 +1928,13 @@ public actor UnifiedToolRuntime {
                 "output": "",
                 "count": "0",
                 "previewLines": "",
-                "pathScope": scopes.joined(separator: ","),
+                "pathScope": (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope,
             ], durationMs: durationMs)
         }
 
         let ranked = rankGrepResults(searchOutput, query: query)
         let matchLines = extractSearchMatchLines(ranked, limit: 500)
+        let pathScopeForPayload = (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope
         return ToolResult(ok: true, payload: [
             "title": "Grep \(query)",
             "query": query,
@@ -1930,7 +1942,7 @@ public actor UnifiedToolRuntime {
             "output": truncate(ranked, maxBytes: context.policy.maxBashOutputBytes),
             "count": "\(matchLines.count)",
             "previewLines": matchLines.prefix(8).joined(separator: "\n"),
-            "pathScope": scopes.joined(separator: ","),
+            "pathScope": pathScopeForPayload,
         ], durationMs: durationMs)
     }
 
@@ -2324,7 +2336,8 @@ public actor UnifiedToolRuntime {
         guard !query.isEmpty, !newName.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "Both query and new_name are required"], durationMs: 0)
         }
-        let workspace = context.workspaceContext.workspacePath.path
+        let allWorkspacePaths = context.workspaceContext.workspacePaths.map(\.path)
+        let primaryWorkspace = allWorkspacePaths.first ?? context.workspaceContext.workspacePath.path
 
         // Use index to find all references
         var files: [(path: String, line: Int, content: String)] = []
@@ -2340,17 +2353,18 @@ public actor UnifiedToolRuntime {
                     let parts = trimmed.components(separatedBy: ":")
                     if parts.count >= 2, let lineNum = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
                         let filePath = parts[0].trimmingCharacters(in: .whitespaces)
-                        let absPath = (filePath as NSString).isAbsolutePath ? filePath : (workspace as NSString).appendingPathComponent(filePath)
+                        let absPath = (filePath as NSString).isAbsolutePath ? filePath : (primaryWorkspace as NSString).appendingPathComponent(filePath)
                         files.append((path: absPath, line: lineNum, content: trimmed))
                     }
                 }
             }
         }
 
-        // Fallback to ripgrep if no index results
+        // Fallback to ripgrep across all workspace folders if no index results
         if files.isEmpty {
-            let rgArgs = ["-rn", "--no-heading", query, workspace]
-            let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: workspace, timeout: 15_000)
+            let searchPaths = allWorkspacePaths.isEmpty ? ["."] : allWorkspacePaths
+            let rgArgs = ["-rn", "--no-heading", query] + searchPaths
+            let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
             for line in output.components(separatedBy: "\n") {
                 let parts = line.components(separatedBy: ":")
                 if parts.count >= 3, let lineNum = Int(parts[1]) {
@@ -2397,19 +2411,20 @@ public actor UnifiedToolRuntime {
         let replacement = call.args["replacement"] ?? call.args["new_string"] ?? ""
         let fileType = call.args["file_type"] ?? call.args["fileType"] ?? ""
         let isRegex = (call.args["regex"] ?? "false").lowercased() == "true"
-        let workspace = context.workspaceContext.workspacePath.path
+        let searchPaths = context.workspaceContext.workspacePaths.map(\.path)
+        let primaryWorkspace = searchPaths.first ?? context.workspaceContext.workspacePath.path
 
         guard !pattern.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "pattern is required"], durationMs: 0)
         }
 
-        // Use ripgrep to find matching files
+        // Use ripgrep to find matching files across all workspace folders
         var rgArgs = ["-l", "--no-heading"]
         if !fileType.isEmpty { rgArgs += ["-t", fileType] }
         rgArgs.append(pattern)
-        rgArgs.append(workspace)
+        rgArgs.append(contentsOf: searchPaths.isEmpty ? ["."] : searchPaths)
 
-        let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: workspace, timeout: 15_000)
+        let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
         let matchingFiles = output.components(separatedBy: "\n").filter { !$0.isEmpty }
 
         guard !matchingFiles.isEmpty else {
@@ -2872,12 +2887,19 @@ public actor UnifiedToolRuntime {
             .filter { !$0.isEmpty }
         let rawLimit = call.args["limit"] ?? call.args["num_results"] ?? "25"
         let numResults = min(max(Int(rawLimit) ?? 25, 1), 50)
-        let workspace = context.workspaceContext.workspacePath.path
+        let allWorkspacePaths = context.workspaceContext.workspacePaths.map(\.path)
         let searchPaths: [String] = {
-            let paths = targetDirs.map { dir in
-                (dir as NSString).isAbsolutePath ? dir : (workspace as NSString).appendingPathComponent(dir)
+            if targetDirs.isEmpty {
+                return allWorkspacePaths
             }
-            if paths.isEmpty { return [workspace] }
+            let paths = targetDirs.flatMap { dir -> [String] in
+                if (dir as NSString).isAbsolutePath {
+                    return [dir]
+                }
+                return allWorkspacePaths.map { root in
+                    (root as NSString).appendingPathComponent(dir)
+                }
+            }
             var deduped: [String] = []
             var seen = Set<String>()
             for path in paths where seen.insert(path).inserted {
@@ -2962,13 +2984,27 @@ public actor UnifiedToolRuntime {
             static func < (lhs: FallbackResult, rhs: FallbackResult) -> Bool { lhs.score > rhs.score }
         }
 
+        func relativePathForDisplay(absolutePath: String) -> String {
+            let normalized = (absolutePath as NSString).standardizingPath
+            for root in allWorkspacePaths {
+                let rootNorm = (root as NSString).standardizingPath
+                if normalized == rootNorm { return (root as NSString).lastPathComponent }
+                let prefix = rootNorm.hasSuffix("/") ? rootNorm : rootNorm + "/"
+                if normalized.hasPrefix(prefix) {
+                    let tail = String(normalized.dropFirst(prefix.count))
+                    return ((root as NSString).lastPathComponent) + "/" + tail
+                }
+            }
+            return absolutePath
+        }
+
         var grepResults: [FallbackResult] = []
         for pattern in patterns.prefix(5) {
             for searchPath in searchPaths {
                 let output = await runSemanticTextSearch(
                     pattern: pattern,
                     searchPath: searchPath,
-                    workspace: workspace
+                    workspace: searchPath
                 )
                 guard !output.isEmpty else { continue }
 
@@ -2987,7 +3023,7 @@ public actor UnifiedToolRuntime {
                        contentLower.contains("function ") {
                         score += 1.5
                     }
-                    let relPath = filePath.hasPrefix(workspace) ? String(filePath.dropFirst(workspace.count + 1)) : filePath
+                    let relPath = relativePathForDisplay(absolutePath: filePath)
                     grepResults.append(FallbackResult(file: relPath, line: lineNum, snippet: content, score: score))
                 }
             }
