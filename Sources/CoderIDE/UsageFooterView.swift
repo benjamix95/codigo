@@ -293,10 +293,13 @@ struct UsageFooterView: View {
             return
         }
 
+        // Use real API-reported tokens when available
+        let realTokens = conversation.lastInputTokens
+
         let promptContext = chatStore.buildPromptContext(
             conversationId: conversation.id,
-            maxMessages: 8,
-            maxCharsPerMessage: 700,
+            maxMessages: 20,
+            maxCharsPerMessage: 2000,
             includeMemorySummary: true
         )
         let scopedContext = effectiveContext
@@ -321,7 +324,8 @@ struct UsageFooterView: View {
             let estimate = ContextEstimator.estimate(
                 messages: compactMessages,
                 contextPrompt: prompt,
-                modelContextSize: contextWindowSize
+                modelContextSize: contextWindowSize,
+                lastInputTokens: realTokens
             )
             Task { @MainActor in
                 guard generation == contextEstimateGeneration else { return }

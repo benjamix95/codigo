@@ -259,10 +259,32 @@ final class TaskActivityStore: ObservableObject {
 
     private let activitiesHardCap = 500
 
+    private var pendingActivities: [TaskActivity] = []
+    private var flushTask: Task<Void, Never>?
+
     func addActivity(_ activity: TaskActivity) {
-        activities.append(activity)
+        pendingActivities.append(activity)
+        // Flush immediately for important state changes, throttle others
+        if activity.isRunning || pendingActivities.count >= 8 {
+            flushPendingActivities()
+        } else {
+            flushTask?.cancel()
+            flushTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                guard !Task.isCancelled else { return }
+                self?.flushPendingActivities()
+            }
+        }
+    }
+
+    private func flushPendingActivities() {
+        guard !pendingActivities.isEmpty else { return }
+        flushTask?.cancel()
+        flushTask = nil
+        let batch = pendingActivities
+        pendingActivities.removeAll(keepingCapacity: true)
+        activities.append(contentsOf: batch)
         pruneCompletedTerminalActivities()
-        // Hard cap: drop oldest non-running activities to prevent unbounded growth.
         if activities.count > activitiesHardCap {
             let excess = activities.count - activitiesHardCap
             var removed = 0
@@ -273,7 +295,9 @@ final class TaskActivityStore: ObservableObject {
             }
         }
         recalcActiveOperations()
-        ingestSwarmCard(activity: activity)
+        for activity in batch {
+            ingestSwarmCard(activity: activity)
+        }
     }
 
     func addInstantGrep(_ result: InstantGrepResult) {

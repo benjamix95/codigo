@@ -1,16 +1,25 @@
 import Foundation
 import CoderEngine
 
-/// Stima token per messaggi + context (heuristica chars/4)
+/// Token estimation for context window tracking.
+/// Prefers real API-reported tokens when available, falls back to chars/4 heuristic.
 enum ContextEstimator {
     private static let charsPerToken = 4.0
     private static let systemPromptTokens = 500
 
+    /// Estimate using real API token count if available, otherwise heuristic.
     static func estimate(
         messages: [ChatMessage],
         contextPrompt: String,
-        modelContextSize: Int = 128_000
+        modelContextSize: Int = 128_000,
+        lastInputTokens: Int? = nil
     ) -> (estimatedTokens: Int, contextSize: Int, percentUsed: Double) {
+        // Prefer real token count from the API when available
+        if let real = lastInputTokens, real > 0 {
+            let pct = min(1.0, Double(real) / Double(modelContextSize))
+            return (real, modelContextSize, pct)
+        }
+        // Fallback: heuristic
         var totalChars = contextPrompt.count
         for msg in messages {
             totalChars += msg.content.count

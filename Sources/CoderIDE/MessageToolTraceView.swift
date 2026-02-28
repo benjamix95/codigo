@@ -39,14 +39,13 @@ struct MessageToolTraceView: View {
             let ordered = collapser(filtered)
             self.orderedEvents = ordered
             self.hasRunningEvent = ordered.contains(where: \.isRunning)
-            self.shouldShowRows = hasRunningEvent || isExpanded
+            self.shouldShowRows = !ordered.isEmpty || isExpanded
 
             if isExpanded {
                 displayEvents = ordered
-            } else if hasRunningEvent {
-                displayEvents = Array(ordered.suffix(runningCompactLimit))
             } else {
-                displayEvents = []
+                // Always show last N events in compact mode (running or completed)
+                displayEvents = Array(ordered.suffix(runningCompactLimit))
             }
             hiddenEventsCount = max(0, ordered.count - displayEvents.count)
             fileChanges = ToolTraceFileChangeMapper.collect(from: ordered)
@@ -1112,6 +1111,7 @@ struct MessageToolTraceView: View {
         }
         guard !ordered.isEmpty else { return }
         guard !didAutoCompactAfterCompletion else { return }
+        // On completion: collapse expanded details but keep compact view showing last N events
         withAnimation(.easeOut(duration: 0.15)) {
             isExpanded = false
             expandedIds.removeAll()

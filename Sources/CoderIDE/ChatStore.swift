@@ -150,6 +150,9 @@ struct Conversation: Identifiable, Codable {
     var isPinned: Bool
     var isFavorite: Bool
 
+    /// Last input_tokens reported by the API for this conversation (real usage, not heuristic).
+    var lastInputTokens: Int?
+
     // Legacy fields kept for one release migration path.
     var workspaceId: UUID?
     var adHocFolderPaths: [String]
@@ -170,6 +173,7 @@ struct Conversation: Identifiable, Codable {
         isArchived: Bool = false,
         isPinned: Bool = false,
         isFavorite: Bool = false,
+        lastInputTokens: Int? = nil,
         workspaceId: UUID? = nil,
         adHocFolderPaths: [String] = [],
         checkpoints: [ConversationCheckpoint] = []
@@ -188,13 +192,14 @@ struct Conversation: Identifiable, Codable {
         self.isArchived = isArchived
         self.isPinned = isPinned
         self.isFavorite = isFavorite
+        self.lastInputTokens = lastInputTokens
         self.workspaceId = workspaceId
         self.adHocFolderPaths = adHocFolderPaths
         self.checkpoints = checkpoints
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, contextMemorySummaryMarkdown, contextMemoryGeneratedAt, contextMemorySourceMessageCount, isArchived, isPinned, isFavorite, workspaceId, adHocFolderPaths, checkpoints
+        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, contextMemorySummaryMarkdown, contextMemoryGeneratedAt, contextMemorySourceMessageCount, isArchived, isPinned, isFavorite, lastInputTokens, workspaceId, adHocFolderPaths, checkpoints
     }
 
     init(from decoder: Decoder) throws {
@@ -220,6 +225,7 @@ struct Conversation: Identifiable, Codable {
         contextMemorySummaryMarkdown = try? c.decode(String.self, forKey: .contextMemorySummaryMarkdown)
         contextMemoryGeneratedAt = try? c.decode(Date.self, forKey: .contextMemoryGeneratedAt)
         contextMemorySourceMessageCount = try? c.decode(Int.self, forKey: .contextMemorySourceMessageCount)
+        lastInputTokens = try? c.decode(Int.self, forKey: .lastInputTokens)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -238,6 +244,7 @@ struct Conversation: Identifiable, Codable {
         try c.encode(isArchived, forKey: .isArchived)
         try c.encode(isPinned, forKey: .isPinned)
         try c.encode(isFavorite, forKey: .isFavorite)
+        try c.encodeIfPresent(lastInputTokens, forKey: .lastInputTokens)
 
         // Legacy compatibility (1 release)
         try c.encode(workspaceId, forKey: .workspaceId)
@@ -886,8 +893,23 @@ final class ChatStore: ObservableObject {
     }
 
     /// Removes CODERIDE markers from source to avoid flashes during streaming.
+    /// Protects code fences (```...```) from being corrupted by cleanup regexes.
     static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
-        var out = content
+        // Split into code-fence vs prose segments so regexes only touch prose
+        let segments = splitByCodeFences(content)
+        var result = segments.map { seg -> String in
+            guard !seg.isCodeFence else { return seg.text }
+            return stripProseSegment(seg.text, aggressive: aggressive)
+        }.joined()
+        // Final whitespace cleanup across the whole result (safe — doesn't alter code blocks)
+        applyRegex(MarkerRegex.excessiveNewlines, on: &result, template: "\n\n")
+        applyRegex(MarkerRegex.tripleNewlines, on: &result, template: "\n\n")
+        return aggressive ? result.trimmingCharacters(in: .whitespacesAndNewlines) : result
+    }
+
+    /// Strip markers from a prose (non-code-fence) segment.
+    private static func stripProseSegment(_ text: String, aggressive: Bool) -> String {
+        var out = text
         // 1. Standard [CODERIDE:...] markers
         while true {
             let ns = out as NSString
@@ -930,13 +952,37 @@ final class ChatStore: ObservableObject {
             applyRegex(MarkerRegex.keyValueBracket, on: &out, template: "")
             out = stripStructuredMarkerPayloads(out)
         }
-        // Cleanup formatting
+        // Cleanup formatting (safe on prose only)
         applyRegex(MarkerRegex.trailingSpaceNewline, on: &out, template: "\n")
-        applyRegex(MarkerRegex.excessiveNewlines, on: &out, template: "\n\n")
         applyRegex(MarkerRegex.excessiveSpaces, on: &out, template: " ")
         applyRegex(MarkerRegex.missingSpaceAfterPunct, on: &out, template: "$1 $2")
-        applyRegex(MarkerRegex.tripleNewlines, on: &out, template: "\n\n")
-        return aggressive ? out.trimmingCharacters(in: .whitespacesAndNewlines) : out
+        return out
+    }
+
+    /// Splits content into alternating prose / code-fence segments.
+    private static func splitByCodeFences(_ input: String) -> [(text: String, isCodeFence: Bool)] {
+        var segments: [(String, Bool)] = []
+        var cursor = input.startIndex
+        while cursor < input.endIndex {
+            guard let fenceRange = input[cursor...].range(of: "```") else {
+                let rest = String(input[cursor...])
+                if !rest.isEmpty { segments.append((rest, false)) }
+                break
+            }
+            let before = String(input[cursor..<fenceRange.lowerBound])
+            if !before.isEmpty { segments.append((before, false)) }
+            if let closingFence = input[fenceRange.upperBound...].range(of: "```") {
+                let fenceChunk = String(input[fenceRange.lowerBound..<closingFence.upperBound])
+                segments.append((fenceChunk, true))
+                cursor = closingFence.upperBound
+            } else {
+                // Unclosed fence — treat as code fence to protect it
+                let remainder = String(input[fenceRange.lowerBound...])
+                segments.append((remainder, true))
+                break
+            }
+        }
+        return segments
     }
 
     private static let structuredPayloadMarkerKeys: Set<String> = [
@@ -1261,6 +1307,12 @@ final class ChatStore: ObservableObject {
         savePlanBoards()
     }
 
+    /// Update real token usage from API response for a conversation.
+    func updateLastInputTokens(_ tokens: Int, for conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        conversations[idx].lastInputTokens = tokens
+    }
+
     func summarizeConversation(
         id: UUID?,
         keepLast: Int,
@@ -1350,8 +1402,8 @@ final class ChatStore: ObservableObject {
     /// Combines optional persistent memory summary with recent cleaned turns.
     func buildPromptContext(
         conversationId: UUID?,
-        maxMessages: Int = 8,
-        maxCharsPerMessage: Int = 700,
+        maxMessages: Int = 20,
+        maxCharsPerMessage: Int = 2000,
         includeMemorySummary: Bool = true,
         maxSummaryChars: Int = 6_000
     ) -> String {

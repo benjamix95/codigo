@@ -282,9 +282,8 @@ struct SidebarView: View {
                         Divider()
                         Button("Close context") { clearConversationContext() }
                     } label: {
-                        Image(systemName: "ellipsis")
-                            .rotationEffect(.degrees(90))
-                            .font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.tertiary)
                     }
                     .menuStyle(.borderlessButton)

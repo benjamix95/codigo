@@ -169,7 +169,7 @@ struct MessageRow: View {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
                 )
-                .fixedSize(horizontal: true, vertical: false)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: contentMaxWidth, alignment: .trailing)
                 if shouldShowCopyAction {
                     messageActionsRow
@@ -287,12 +287,12 @@ struct MessageRow: View {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.red.opacity(0.88))
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(
                             Capsule()
-                                .fill(Color.red.opacity(0.12))
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
                         )
                 }
                 .buttonStyle(.plain)

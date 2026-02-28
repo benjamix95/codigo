@@ -23,31 +23,34 @@ final class SwarmProgressStore: ObservableObject {
     @Published var steps: [SwarmStep] = []
 
     func setSteps(_ names: [String]) {
-        // Merge: preserve completed/inProgress status for existing steps.
         let existingByName = Dictionary(uniqueKeysWithValues: steps.map { ($0.name, $0.status) })
-        steps = names.map { name in
+        // Build new array then assign once (single @Published notification)
+        let newSteps = names.map { name in
             let preserved = existingByName[name]
             let status: SwarmStepStatus = (preserved == .completed || preserved == .inProgress) ? preserved! : .pending
             return SwarmStep(name: name, status: status)
         }
+        steps = newSteps
     }
 
     func markStarted(name: String) {
         guard let targetIndex = steps.firstIndex(where: { $0.name == name }) else { return }
-        // Only auto-complete steps that come BEFORE the target in sequential order.
-        // Steps after the target that are somehow inProgress should not be touched.
+        // Mutate a local copy, assign once to trigger a single @Published update
+        var updated = steps
         for i in 0..<targetIndex {
-            if steps[i].status == .inProgress {
-                steps[i].status = .completed
+            if updated[i].status == .inProgress {
+                updated[i].status = .completed
             }
         }
-        steps[targetIndex].status = .inProgress
+        updated[targetIndex].status = .inProgress
+        steps = updated
     }
 
     func markCompleted(name: String) {
-        if let idx = steps.firstIndex(where: { $0.name == name }) {
-            steps[idx].status = .completed
-        }
+        guard let idx = steps.firstIndex(where: { $0.name == name }) else { return }
+        var updated = steps
+        updated[idx].status = .completed
+        steps = updated
     }
 
     func clear() {

@@ -61,11 +61,11 @@ final class PromptOptimizerService {
             imageURLs: nil
         )
 
-        var result = ""
+        var parts: [String] = []
         for try await event in stream {
             switch event {
             case .textDelta(let delta):
-                result += delta
+                parts.append(delta)
             case .error(let msg):
                 throw OptimizeError.streamError(msg)
             case .started, .completed, .raw:
@@ -73,7 +73,7 @@ final class PromptOptimizerService {
             }
         }
 
-        let optimized = result.trimmingCharacters(in: .whitespacesAndNewlines)
+        let optimized = parts.joined().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !optimized.isEmpty else { throw OptimizeError.emptyResponse }
         return optimized
     }

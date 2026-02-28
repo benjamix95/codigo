@@ -6,33 +6,30 @@ import UniformTypeIdentifiers
 // MARK: - Mermaid Diagram Extraction
 
 enum MermaidExtractor {
-    /// Extract all ```mermaid code blocks from markdown content.
+    // Compiled once, reused on every call
+    private static let extractRegex: NSRegularExpression? =
+        try? NSRegularExpression(pattern: "```mermaid\\s*\\n([\\s\\S]*?)```", options: .caseInsensitive)
+    private static let stripRegex: NSRegularExpression? =
+        try? NSRegularExpression(pattern: "```mermaid\\s*\\n[\\s\\S]*?```", options: .caseInsensitive)
+
     static func extractMermaidBlocks(from markdown: String) -> [String] {
-        var blocks: [String] = []
-        let pattern = "```mermaid\\s*\\n([\\s\\S]*?)```"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return blocks
-        }
+        guard let regex = extractRegex else { return [] }
         let nsString = markdown as NSString
         let results = regex.matches(in: markdown, range: NSRange(location: 0, length: nsString.length))
+        var blocks: [String] = []
+        blocks.reserveCapacity(results.count)
         for match in results {
             if match.numberOfRanges >= 2 {
-                let range = match.range(at: 1)
-                let block = nsString.substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !block.isEmpty {
-                    blocks.append(block)
-                }
+                let block = nsString.substring(with: match.range(at: 1))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !block.isEmpty { blocks.append(block) }
             }
         }
         return blocks
     }
 
-    /// Remove mermaid code blocks from markdown, returning clean markdown.
     static func stripMermaidBlocks(from markdown: String) -> String {
-        let pattern = "```mermaid\\s*\\n[\\s\\S]*?```"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return markdown
-        }
+        guard let regex = stripRegex else { return markdown }
         let nsString = markdown as NSString
         return regex.stringByReplacingMatches(
             in: markdown,
@@ -292,24 +289,25 @@ struct MermaidWebView: NSViewRepresentable {
                     const exportedSVG = generateExportSVG();
                     postToHost('rendered', exportedSVG);
 
-                    // High quality PNG
+                    // High quality PNG from the export SVG (which includes background)
                     const scale = 4;
                     const img = new Image();
                     const blob = new Blob([exportedSVG], { type: 'image/svg+xml;charset=utf-8' });
                     const blobURL = URL.createObjectURL(blob);
                     img.onload = () => {
-                        const rect = svg.getBoundingClientRect();
-                        const cw = Math.max(1, Math.ceil(rect.width * scale));
-                        const ch = Math.max(1, Math.ceil(rect.height * scale));
+                        // Use the image's natural dimensions (from the export SVG viewBox)
+                        const naturalW = img.naturalWidth || img.width;
+                        const naturalH = img.naturalHeight || img.height;
+                        const cw = Math.max(1, Math.ceil(naturalW * scale));
+                        const ch = Math.max(1, Math.ceil(naturalH * scale));
                         const canvas = document.createElement('canvas');
                         canvas.width = cw;
                         canvas.height = ch;
                         const ctx = canvas.getContext('2d');
                         if (!ctx) { URL.revokeObjectURL(blobURL); return; }
-                        ctx.setTransform(scale, 0, 0, scale, 0, 0);
                         ctx.imageSmoothingEnabled = true;
                         ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(img, 0, 0, Math.ceil(rect.width), Math.ceil(rect.height));
+                        ctx.drawImage(img, 0, 0, cw, ch);
                         postToHost('renderedPNG', canvas.toDataURL('image/png'));
                         URL.revokeObjectURL(blobURL);
                     };
@@ -697,21 +695,17 @@ struct MermaidDiagramView: View {
         guard hasRendered else { return }
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
-
-        if latestDiagramPNGData != nil {
-            panel.allowedContentTypes = [.png, .svg]
-            panel.nameFieldStringValue = "diagram.png"
-        } else {
-            panel.allowedContentTypes = [.svg]
-            panel.nameFieldStringValue = "diagram.svg"
-        }
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = "diagram.png"
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            if url.pathExtension.lowercased() == "png", let pngData = latestDiagramPNGData {
+            if let pngData = latestDiagramPNGData {
                 try pngData.write(to: url, options: .atomic)
             } else if let svgData = latestDiagramSVG.data(using: .utf8) {
-                try svgData.write(to: url, options: .atomic)
+                // Fallback: save as SVG if PNG not ready
+                let svgUrl = url.deletingPathExtension().appendingPathExtension("svg")
+                try svgData.write(to: svgUrl, options: .atomic)
             }
         } catch {}
     }
