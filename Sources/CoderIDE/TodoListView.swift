@@ -222,13 +222,14 @@ struct TodoLiveInlineCard: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .frame(maxWidth: 520, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(Color(nsColor: .textBackgroundColor).opacity(0.3))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
             )
         }
     }

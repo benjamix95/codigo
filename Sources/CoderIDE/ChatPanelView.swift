@@ -6237,7 +6237,19 @@ struct ChatPanelView: View {
                 providerUsageStore.claudeUsageMessage = nil
             }
         }
+        if t == "subagent_batch_done" {
+            autoCompleteInProgressTodoAfterSubagents(status: p["status"] ?? "done")
+            return // Don't record this synthetic event as a visible activity
+        }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+    }
+
+    @MainActor
+    private func autoCompleteInProgressTodoAfterSubagents(status: String) {
+        let targetStatus: TodoStatus = status == "done" ? .done : .blocked
+        if let inProgress = todoStore.todos.first(where: { $0.status == .inProgress }) {
+            todoStore.setStatus(id: inProgress.id, status: targetStatus)
+        }
     }
 
     @MainActor

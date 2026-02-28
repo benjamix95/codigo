@@ -23,6 +23,8 @@ enum PromptExecutionPolicy {
       3. Only AFTER the TodoWrite is created, proceed to implement each task in order.
       4. Update todo status (in_progress, completed) as you progress through each task. The user tracks progress via the LiveCard — if you skip TodoWrite, the user sees no progress.
       5. This is mandatory and non-negotiable. Never jump from analysis directly to implementation without creating the TodoWrite list first.
+    - CRITICAL — Mandatory Code Review & Test before finalization:
+      After ALL implementation tasks are complete, you MUST ALWAYS add a final "Code Review & Test" todo and invoke subagent_reviewer and subagent_testWriter (in parallel) to review and test the changes. This is NON-NEGOTIABLE. You may NOT finalize or give the user a summary until these subagents have completed and you have reported their results. The execution loop is: implement -> code review & test (via subagents) -> report final outcome.
     - Use ALL available tools — not just Bash. Grep, Glob, Read, WebSearch, WebFetch, MCP, Skill, Task (subagents) are all available and should be used when appropriate.
     """
 }

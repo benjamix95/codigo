@@ -238,6 +238,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 return collected
                             }
                             // Emit results sequentially after parallel execution
+                            var anySubagentFailed = false
                             for result in results {
                                 for e in result.events {
                                     if case .raw(let innerType, let innerPayload) = e,
@@ -248,12 +249,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                        ) {
                                         didEmitPolicyAck = true
                                     }
+                                    if case .raw(let t, let p) = e,
+                                       t == "tool_result",
+                                       p["status"] == "failed" {
+                                        anySubagentFailed = true
+                                    }
                                     continuation.yield(e)
                                 }
                                 if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
                                     roundToolResults.append(summary)
                                 }
                             }
+                            // Auto-complete in-progress todos after subagent batch finishes.
+                            // The agent will continue in the next round and can update further.
+                            let autoStatus = anySubagentFailed ? "blocked" : "done"
+                            continuation.yield(.raw(type: "subagent_batch_done", payload: [
+                                "status": autoStatus,
+                                "count": "\(results.count)"
+                            ]))
                             pendingSubagentCalls.removeAll()
                         }
 
@@ -1186,6 +1199,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - Multiple subagent calls in the same round execute in PARALLEL automatically.
         - Each subagent runs to completion and returns its results to you in the next round.
         - Never call subagents after you've already completed the work — call them DURING your work.
+        - IMPORTANT: After subagent results return, immediately update todos via todo_write. Mark the corresponding todo as "done" if the subagent succeeded, or "blocked" if it failed. Then continue with remaining work and provide a final summary only at the end.
         """
     }
 
