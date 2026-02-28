@@ -334,13 +334,43 @@ final class ChatStore: ObservableObject {
     /// True when any conversation has an active task.
     var isLoading: Bool { !activeTaskConversationIds.isEmpty }
 
+    private func preferredConversationId(from ids: Set<UUID>) -> UUID? {
+        guard !ids.isEmpty else { return nil }
+        return ids.max { lhs, rhs in
+            let lhsStart = taskStartDates[lhs] ?? .distantPast
+            let rhsStart = taskStartDates[rhs] ?? .distantPast
+            if lhsStart == rhsStart {
+                return lhs.uuidString < rhs.uuidString
+            }
+            return lhsStart < rhsStart
+        }
+    }
+
     /// Convenience for callers that only need the single-active-task ID.
-    var activeTaskConversationId: UUID? { activeTaskConversationIds.first }
+    var activeTaskConversationId: UUID? { preferredConversationId(from: activeTaskConversationIds) }
 
     /// Per-conversation convenience (legacy compat).
     var taskStartDate: Date? {
-        guard let first = activeTaskConversationIds.first else { return nil }
-        return taskStartDates[first]
+        guard let preferred = activeTaskConversationId else { return nil }
+        return taskStartDates[preferred]
+    }
+
+    /// Best-effort target for syncing canonical todo status to plan steps.
+    /// Prefers active tasks that already own a plan board, then latest plan board overall.
+    func preferredPlanConversationIdForCanonicalSync() -> UUID? {
+        let activePlanConversationIds = Set(activeTaskConversationIds.filter { planBoards[$0] != nil })
+        if let preferredActivePlan = preferredConversationId(from: activePlanConversationIds) {
+            return preferredActivePlan
+        }
+        if let latestPlanBoardConversation = planBoards.max(by: {
+            if $0.value.updatedAt == $1.value.updatedAt {
+                return $0.key.uuidString < $1.key.uuidString
+            }
+            return $0.value.updatedAt < $1.value.updatedAt
+        })?.key {
+            return latestPlanBoardConversation
+        }
+        return activeTaskConversationId
     }
 
     /// Check whether a specific conversation has an active task.

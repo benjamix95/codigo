@@ -51,6 +51,67 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertNotEqual(id1, id2)
     }
 
+    func testActiveTaskConversationIdPrefersMostRecentTaskStartDate() throws {
+        let store = ChatStore()
+        let convA = try XCTUnwrap(store.conversations.first?.id)
+        let convB = store.createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+
+        store.beginTask(conversationId: convA)
+        store.beginTask(conversationId: convB)
+
+        // Force deterministic ordering for the test.
+        store.taskStartDates[convA] = Date(timeIntervalSince1970: 1_000)
+        store.taskStartDates[convB] = Date(timeIntervalSince1970: 2_000)
+
+        XCTAssertEqual(store.activeTaskConversationId, convB)
+        XCTAssertEqual(store.taskStartDate, Date(timeIntervalSince1970: 2_000))
+    }
+
+    func testPreferredPlanConversationIdForCanonicalSyncPrefersActiveTaskWithPlanBoard() throws {
+        let store = ChatStore()
+        let convA = try XCTUnwrap(store.conversations.first?.id)
+        let convB = store.createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+
+        store.setPlanBoard(makePlanBoard(updatedAt: Date(timeIntervalSince1970: 1_000)), for: convA)
+        store.setPlanBoard(makePlanBoard(updatedAt: Date(timeIntervalSince1970: 2_000)), for: convB)
+        store.beginTask(conversationId: convA)
+        store.beginTask(conversationId: convB)
+        store.taskStartDates[convA] = Date(timeIntervalSince1970: 3_000)
+        store.taskStartDates[convB] = Date(timeIntervalSince1970: 4_000)
+
+        XCTAssertEqual(store.preferredPlanConversationIdForCanonicalSync(), convB)
+    }
+
+    func testPreferredPlanConversationIdForCanonicalSyncFallsBackToLatestBoard() throws {
+        let store = ChatStore()
+        let convA = try XCTUnwrap(store.conversations.first?.id)
+        let convB = store.createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+
+        store.setPlanBoard(makePlanBoard(updatedAt: Date(timeIntervalSince1970: 1_000)), for: convA)
+        store.setPlanBoard(makePlanBoard(updatedAt: Date(timeIntervalSince1970: 2_000)), for: convB)
+
+        XCTAssertEqual(store.preferredPlanConversationIdForCanonicalSync(), convB)
+    }
+
+    private func makePlanBoard(updatedAt: Date) -> PlanBoard {
+        PlanBoard(
+            goal: "Goal",
+            options: [],
+            chosenPath: nil,
+            steps: [
+                PlanStep(
+                    id: "1",
+                    title: "Step",
+                    description: "Step",
+                    targetFile: nil,
+                    status: .pending
+                )
+            ],
+            updatedAt: updatedAt,
+            walkthroughMarkdown: nil
+        )
+    }
+
     private func clearPersistedState() {
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: planKey)

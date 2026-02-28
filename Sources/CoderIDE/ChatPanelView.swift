@@ -231,6 +231,37 @@ func shouldRoutePlanStreamToPlanPanel(
     return false
 }
 
+func shouldHidePlanMarkdownInChat(
+    shouldRoutePlanStreamToPanel: Bool,
+    coderMode: CoderMode,
+    shouldRunPlanInline: Bool,
+    fullLooksLikePlanPayload: Bool,
+    shouldHidePlanMarkdownForBuild: Bool,
+    hasActivePlanContext: Bool
+) -> Bool {
+    guard shouldRoutePlanStreamToPanel else { return false }
+    return coderMode == .plan
+        || shouldRunPlanInline
+        || fullLooksLikePlanPayload
+        || shouldHidePlanMarkdownForBuild
+        || hasActivePlanContext
+}
+
+func resolvePlanStepTargetConversationId(
+    eventConversationId: UUID?,
+    activeBuildPlanConversationId: UUID?,
+    activeTaskConversationId: UUID?
+) -> UUID? {
+    eventConversationId ?? activeBuildPlanConversationId ?? activeTaskConversationId
+}
+
+func shouldResetTaskActivityStoreBeforeStartingTurn(
+    activeTaskConversationIds: Set<UUID>,
+    targetConversationId: UUID
+) -> Bool {
+    !activeTaskConversationIds.contains { $0 != targetConversationId }
+}
+
 enum PlanQuestionPhaseDecision: Equatable {
     case clarification(String)
     case proceedToGeneration
@@ -1179,7 +1210,8 @@ struct ChatPanelView: View {
         guard todoStore.onCanonicalTodoStatusChange == nil else { return }
         todoStore.onCanonicalTodoStatusChange = { [weak chatStore] _, _ in
             guard let chatStore else { return }
-            let planConvId = activeBuildPlanConversationId ?? chatStore.activeTaskConversationId
+            let planConvId = activeBuildPlanConversationId
+                ?? chatStore.preferredPlanConversationIdForCanonicalSync()
             let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
             if let activeId = planConvId, !canonicalTodos.isEmpty {
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
@@ -3156,7 +3188,11 @@ struct ChatPanelView: View {
                 enableTaskPanelIfNeeded()
                 break
             case .planStepUpdate(let stepId, let status, let stepTitle):
-                let targetId = chatStore.activeTaskConversationId ?? conversationId
+                let targetId = resolvePlanStepTargetConversationId(
+                    eventConversationId: conversationId,
+                    activeBuildPlanConversationId: activeBuildPlanConversationId,
+                    activeTaskConversationId: chatStore.activeTaskConversationId
+                )
                 chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
                 if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
                     chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
@@ -4939,7 +4975,12 @@ struct ChatPanelView: View {
             providerId: provider.id
         )
         chatStore.beginTask(conversationId: agentConvId)
-        taskActivityStore.clear()
+        if shouldResetTaskActivityStoreBeforeStartingTurn(
+            activeTaskConversationIds: chatStore.activeTaskConversationIds,
+            targetConversationId: agentConvId
+        ) {
+            taskActivityStore.clear()
+        }
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
         let planExecutionWorkflow = """
@@ -5446,7 +5487,12 @@ struct ChatPanelView: View {
                 contextId: ctxId, folderPath: conv.contextFolderPath, conversationId: conv.id)
         }
         chatStore.beginTask(conversationId: targetConversationId)
-        taskActivityStore.clear()
+        if shouldResetTaskActivityStoreBeforeStartingTurn(
+            activeTaskConversationIds: chatStore.activeTaskConversationIds,
+            targetConversationId: targetConversationId
+        ) {
+            taskActivityStore.clear()
+        }
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
         // During an active plan build, keep canonical todos so the build's todo
@@ -7394,16 +7440,18 @@ struct ChatPanelView: View {
             ? normalizeBuildFinalResponse(fullText)
             : fullText
         let fullLooksLikePlanPayload = looksLikePlanPayload(full)
+        let shouldRoutePlanStreamToPanel = shouldRoutePlanStream(to: streamConversationId)
         let shouldHidePlanMarkdownForBuild =
-            planFlowPhase == .building && shouldRoutePlanStream(to: streamConversationId)
-        let shouldHidePlanMarkdownInChat =
-            (coderMode == .plan
-                || shouldRunPlanInline
-                || fullLooksLikePlanPayload
-                || shouldHidePlanMarkdownForBuild
-                || hasActivePlanContext(for: streamConversationId))
-            && shouldRoutePlanStream(to: streamConversationId)
-            || fullLooksLikePlanPayload
+            planFlowPhase == .building && shouldRoutePlanStreamToPanel
+        let hasPlanContextForStreamConversation = hasActivePlanContext(for: streamConversationId)
+        let shouldHidePlanMarkdown = shouldHidePlanMarkdownInChat(
+            shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,
+            coderMode: coderMode,
+            shouldRunPlanInline: shouldRunPlanInline,
+            fullLooksLikePlanPayload: fullLooksLikePlanPayload,
+            shouldHidePlanMarkdownForBuild: shouldHidePlanMarkdownForBuild,
+            hasActivePlanContext: hasPlanContextForStreamConversation
+        )
         if shouldHidePlanMarkdownForBuild,
            shouldAutoOpenPlanPanel(trigger: .flowStarted),
            !showPlanPanel
@@ -7413,7 +7461,7 @@ struct ChatPanelView: View {
                 source: .automaticFlow
             )
         }
-        let initialChatContent = shouldHidePlanMarkdownInChat
+        let initialChatContent = shouldHidePlanMarkdown
             ? "Processing plan output in Plan Panel..."
             : full
         chatStore.updateLastAssistantMessage(
@@ -7686,7 +7734,12 @@ struct ChatPanelView: View {
                 isInputFocused = true
                 planningState = .idle
                 planFlowPhase = .idle
-                taskActivityStore.clear()
+                if shouldResetTaskActivityStoreBeforeStartingTurn(
+                    activeTaskConversationIds: chatStore.activeTaskConversationIds,
+                    targetConversationId: convId
+                ) {
+                    taskActivityStore.clear()
+                }
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
@@ -7787,7 +7840,12 @@ struct ChatPanelView: View {
                 isInputFocused = true
                 planningState = .idle
                 planFlowPhase = .idle
-                taskActivityStore.clear()
+                if shouldResetTaskActivityStoreBeforeStartingTurn(
+                    activeTaskConversationIds: chatStore.activeTaskConversationIds,
+                    targetConversationId: conversationId
+                ) {
+                    taskActivityStore.clear()
+                }
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
@@ -7835,13 +7893,13 @@ struct ChatPanelView: View {
     }
 
     private func updateSidebarTaskStatus() {
-        for convId in chatStore.activeTaskConversationIds {
-            let status = TaskActivityStore.streamingStatusText(
-                isPaused: executionController.runState == .paused,
-                activities: taskActivityStore.activities
-            )
-            chatStore.setTaskStatus(status, for: convId)
-        }
+        guard let currentConversationId = conversationId,
+              chatStore.isTaskActive(for: currentConversationId) else { return }
+        let status = TaskActivityStore.streamingStatusText(
+            isPaused: executionController.runState == .paused,
+            activities: taskActivityStore.activities
+        )
+        chatStore.setTaskStatus(status, for: currentConversationId)
     }
 
     @MainActor

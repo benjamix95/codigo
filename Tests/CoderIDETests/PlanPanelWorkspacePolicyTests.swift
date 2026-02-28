@@ -103,4 +103,53 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
             )
         )
     }
+
+    func testPlanRenderSnapshotCacheKeyChangesWhenMiddleContentChanges() {
+        let prefix = String(repeating: "A", count: 220)
+        let suffix = String(repeating: "Z", count: 220)
+        let middleA = String(repeating: "1", count: 120)
+        let middleB = String(repeating: "2", count: 120)
+        let contentA = prefix + middleA + suffix
+        let contentB = prefix + middleB + suffix
+
+        XCTAssertEqual(contentA.count, contentB.count)
+        XCTAssertEqual(contentA.prefix(200), contentB.prefix(200))
+        XCTAssertEqual(contentA.suffix(200), contentB.suffix(200))
+
+        let keyA = makePlanRenderSnapshotCacheKey(content: contentA, canonicalTodos: [])
+        let keyB = makePlanRenderSnapshotCacheKey(content: contentB, canonicalTodos: [])
+        XCTAssertNotEqual(keyA, keyB)
+    }
+
+    func testPlanRenderSnapshotCacheKeyIncludesCanonicalTodoStatusFingerprint() {
+        let todoId = UUID()
+        let baseTodo = TodoItem(
+            id: todoId,
+            title: "Implement parser",
+            status: .pending,
+            priority: .medium,
+            source: .agent,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 10),
+            notes: "",
+            linkedFiles: [],
+            isPlanCanonical: true
+        )
+        let completedTodo = TodoItem(
+            id: todoId,
+            title: "Implement parser",
+            status: .done,
+            priority: .medium,
+            source: .agent,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 20),
+            notes: "",
+            linkedFiles: [],
+            isPlanCanonical: true
+        )
+        let content = "## Plan\n- Stable content"
+        let keyPending = makePlanRenderSnapshotCacheKey(content: content, canonicalTodos: [baseTodo])
+        let keyDone = makePlanRenderSnapshotCacheKey(content: content, canonicalTodos: [completedTodo])
+        XCTAssertNotEqual(keyPending, keyDone)
+    }
 }

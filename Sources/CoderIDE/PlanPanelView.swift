@@ -92,6 +92,25 @@ func isPlanHistoryEntryCompatibleWithCurrentContext(
     return matchesContext || matchesFolder
 }
 
+func stablePlanSnapshotContentHash(_ content: String) -> UInt64 {
+    var hash: UInt64 = 5381
+    for byte in content.utf8 {
+        hash = ((hash &<< 5) &+ hash) &+ UInt64(byte)
+    }
+    return hash
+}
+
+func makePlanRenderSnapshotCacheKey(content: String, canonicalTodos: [TodoItem]) -> String {
+    let todosFingerprint = canonicalTodos
+        .sorted { $0.id.uuidString < $1.id.uuidString }
+        .map { todo in
+            let updatedAtMs = Int(todo.updatedAt.timeIntervalSince1970 * 1_000)
+            return "\(todo.id.uuidString)|\(todo.status.rawValue)|\(updatedAtMs)"
+        }
+        .joined(separator: ";")
+    return "\(content.count)-\(stablePlanSnapshotContentHash(content))|\(todosFingerprint)"
+}
+
 /// Cursor-style side panel for planning.
 /// Fixed top bar (breadcrumb, model picker, Build), with scrollable content below.
 struct PlanPanelView: View {
@@ -761,8 +780,10 @@ struct PlanPanelView: View {
     /// Returns a cached snapshot, rebuilding only when plan content or todos actually change.
     private func resolveSnapshot() -> PlanRenderSnapshot {
         let content = displayPlanContent
-        let todosHash = canonicalPlanTodos.map { "\($0.id)-\($0.status.rawValue)" }.joined()
-        let key = "\(content.count)-\(content.prefix(200))-\(content.suffix(200))|\(todosHash)"
+        let key = makePlanRenderSnapshotCacheKey(
+            content: content,
+            canonicalTodos: canonicalPlanTodos
+        )
         if key == snapshotCache.key, let cached = snapshotCache.snapshot {
             return cached
         }

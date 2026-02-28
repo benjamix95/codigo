@@ -400,4 +400,81 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             )
         )
     }
+
+    func testShouldHidePlanMarkdownInChatRequiresPanelRouting() {
+        XCTAssertFalse(
+            shouldHidePlanMarkdownInChat(
+                shouldRoutePlanStreamToPanel: false,
+                coderMode: .agent,
+                shouldRunPlanInline: false,
+                fullLooksLikePlanPayload: true,
+                shouldHidePlanMarkdownForBuild: false,
+                hasActivePlanContext: false
+            )
+        )
+    }
+
+    func testShouldHidePlanMarkdownInChatWhenRoutedAndPlanSignalsPresent() {
+        XCTAssertTrue(
+            shouldHidePlanMarkdownInChat(
+                shouldRoutePlanStreamToPanel: true,
+                coderMode: .agent,
+                shouldRunPlanInline: false,
+                fullLooksLikePlanPayload: true,
+                shouldHidePlanMarkdownForBuild: false,
+                hasActivePlanContext: false
+            )
+        )
+    }
+
+    func testResolvePlanStepTargetConversationIdPrefersEventConversation() {
+        let eventConversationId = UUID()
+        let buildConversationId = UUID()
+        let activeTaskConversationId = UUID()
+        XCTAssertEqual(
+            resolvePlanStepTargetConversationId(
+                eventConversationId: eventConversationId,
+                activeBuildPlanConversationId: buildConversationId,
+                activeTaskConversationId: activeTaskConversationId
+            ),
+            eventConversationId
+        )
+    }
+
+    func testResolvePlanStepTargetConversationIdFallsBackToBuildThenActiveTask() {
+        let buildConversationId = UUID()
+        let activeTaskConversationId = UUID()
+        XCTAssertEqual(
+            resolvePlanStepTargetConversationId(
+                eventConversationId: nil,
+                activeBuildPlanConversationId: buildConversationId,
+                activeTaskConversationId: activeTaskConversationId
+            ),
+            buildConversationId
+        )
+        XCTAssertEqual(
+            resolvePlanStepTargetConversationId(
+                eventConversationId: nil,
+                activeBuildPlanConversationId: nil,
+                activeTaskConversationId: activeTaskConversationId
+            ),
+            activeTaskConversationId
+        )
+    }
+
+    func testShouldResetTaskActivityStoreBeforeStartingTurnOnlyWithoutOtherActiveTasks() {
+        let targetConversationId = UUID()
+        XCTAssertTrue(
+            shouldResetTaskActivityStoreBeforeStartingTurn(
+                activeTaskConversationIds: Set([targetConversationId]),
+                targetConversationId: targetConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldResetTaskActivityStoreBeforeStartingTurn(
+                activeTaskConversationIds: Set([targetConversationId, UUID()]),
+                targetConversationId: targetConversationId
+            )
+        )
+    }
 }
