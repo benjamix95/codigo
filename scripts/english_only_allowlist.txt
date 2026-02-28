@@ -36,7 +36,6 @@
 .*/CodebaseIndex/IndexedSymbol\.swift:.*
 
 .*/CodeReview/FileLockCoordinator\.swift:.*
-.*/CodeReview/CodebasePartitioner\.swift:.*
 
 .*/AgentSwarm/SwarmWorkerRunner\.swift:.*
 .*/AgentSwarm/SwarmOrchestrator\.swift:.*

@@ -723,7 +723,6 @@ enum ProviderFactory {
 
         let reviewConfig = MultiSwarmReviewConfig(
             maxWorkers: config.codeReviewPartitions,
-            yoloMode: config.globalYolo,
             enabledPhases: config.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
             maxReviewRounds: config.codeReviewMaxRounds,
             analysisBackend: resolvedAnalysisId,

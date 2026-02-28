@@ -30,7 +30,8 @@ struct CodeReviewPanelView: View {
     @State private var againstCommitRef = ""
     @State private var selectedTab: ReviewTab = .commands
 
-    /// Derived from codeReviewAnalysisOnly binding (inverted)
+    /// Whether autofix is enabled (inverse of analysisOnly mode).
+    /// Use this instead of `!codeReviewAnalysisOnly` for readability.
     private var autofixEnabled: Bool { !codeReviewAnalysisOnly }
     private func setAutofixEnabled(_ enabled: Bool) { codeReviewAnalysisOnly = !enabled }
 
@@ -63,25 +64,33 @@ struct CodeReviewPanelView: View {
 
         let activities = taskActivityStore.activities
         let workers: [WorkerInfoRow] = activities.compactMap { activity in
-            guard activity.type == "review-worker-plan",
-                  let wid = activity.payload["worker_id"],
+            guard activity.type == "review-worker-plan" else { return nil }
+            guard let wid = activity.payload["worker_id"],
                   let desc = activity.payload["description"],
                   let severity = activity.payload["severity"],
                   let fileCount = activity.payload["fileCount"],
                   let files = activity.payload["files"] else {
+                #if DEBUG
+                print("[CodeReviewPanel] Dropping malformed worker payload: \(activity.payload)")
+                #endif
                 return nil
             }
             return (wid, desc, severity, fileCount, files)
         }
 
-        let roundInfo = activities.reversed().compactMap { activity -> (String, String)? in
-            guard activity.type == "review-fix-round",
-                  let round = activity.payload["round"],
-                  let maxRounds = activity.payload["maxRounds"] else {
-                return nil
-            }
-            return (round, maxRounds)
-        }.first
+        // Only show round info when a review is actively running to avoid stale data
+        let roundInfo: (String, String)? = if isTaskRunning && coderMode == .codeReviewMultiSwarm {
+            activities.reversed().compactMap { activity -> (String, String)? in
+                guard activity.type == "review-fix-round",
+                      let round = activity.payload["round"],
+                      let maxRounds = activity.payload["maxRounds"] else {
+                    return nil
+                }
+                return (round, maxRounds)
+            }.first
+        } else {
+            nil
+        }
 
         return PanelMetrics(
             reviewCards: cards,
@@ -271,7 +280,7 @@ struct CodeReviewPanelView: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(againstCommitRef.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTaskRunning)
+                .disabled(!isValidGitRef(againstCommitRef) || isTaskRunning)
                 .help("Run review against commit")
             }
 
@@ -408,7 +417,7 @@ struct CodeReviewPanelView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            ForEach(Array(reviewCards.prefix(10)), id: \.swarmId) { card in
+            ForEach(reviewCards, id: \.swarmId) { card in
                 HStack(spacing: 8) {
                     Circle()
                         .fill(statusColor(for: card.status))
@@ -730,5 +739,15 @@ struct CodeReviewPanelView: View {
         case .failed: return .red
         case .idle: return .orange
         }
+    }
+
+    /// Basic git ref validation: non-empty, no spaces, no control characters.
+    private func isValidGitRef(_ ref: String) -> Bool {
+        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        // Git refs cannot contain spaces, control chars, or certain special sequences
+        let invalidChars = CharacterSet.whitespacesAndNewlines
+            .union(.controlCharacters)
+        return trimmed.unicodeScalars.allSatisfy { !invalidChars.contains($0) }
     }
 }

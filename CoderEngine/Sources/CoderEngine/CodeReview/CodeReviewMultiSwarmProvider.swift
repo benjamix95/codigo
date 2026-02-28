@@ -62,8 +62,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private enum ReviewPipelineError: Error, LocalizedError {
         case analysisTransportFailed(String)
         case analysisReturnedNoData
-        case taskPayloadMissing
-        case taskPayloadInvalid(String)
 
         var errorDescription: String? {
             switch self {
@@ -71,10 +69,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 "Analysis stream failed: \(reason)"
             case .analysisReturnedNoData:
                 "Analysis completed without text output."
-            case .taskPayloadMissing:
-                "No structured task payload found in analysis output."
-            case .taskPayloadInvalid(let reason):
-                "Invalid task payload in analysis output: \(reason)"
             }
         }
     }
@@ -92,7 +86,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     }
 
     public func isAuthenticated() -> Bool {
-        analysisProvider.isAuthenticated()
+        analysisProvider.isAuthenticated() && executionProvider.isAuthenticated()
     }
 
     public func debugSnapshot() async -> CodeReviewMultiSwarmDebugSnapshot {
@@ -159,9 +153,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                     let filesToReview: [String]
                     if let ref = againstRef {
-                        filesToReview = Self.gitDiffFiles(ref: ref, workspacePath: workspacePath)
+                        let (diffFiles, diffError) = Self.gitDiffFiles(ref: ref, workspacePath: workspacePath)
+                        filesToReview = diffFiles
                         if filesToReview.isEmpty {
-                            continuation.yield(.textDelta("No changed files found against `\(ref)`.\n"))
+                            let reason = diffError ?? "No changed files found"
+                            continuation.yield(.textDelta("\(reason) against `\(ref)`.\n"))
                             continuation.yield(.completed)
                             continuation.finish()
                             return
@@ -317,10 +313,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             testPassed = true
                         case .inconclusive(let reason):
                             continuation.yield(.textDelta("\n**Review validation incomplete:** \(reason)\n"))
-                            continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
-                            continuation.yield(.completed)
-                            continuation.finish()
-                            return
+                            continuation.yield(.textDelta("Continuing with next review round...\n"))
+                            testPassed = false
                         case .failed:
                             testPassed = false
                         }
@@ -481,7 +475,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         - Maximum \(maxWorkers) tasks — group smaller fixes together
         """
 
-        var fullText = ""
+        var textChunks: [String] = []
         do {
             let stream = try await analysisProvider.send(
                 prompt: analysisPrompt,
@@ -494,7 +488,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 // Pass ALL events through to the continuation (identical to agent mode)
                 continuation.yield(event)
                 if case .textDelta(let delta) = event {
-                    fullText += delta
+                    textChunks.append(delta)
                 }
             }
         } catch {
@@ -502,6 +496,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             throw ReviewPipelineError.analysisTransportFailed(error.localizedDescription)
         }
 
+        let fullText = textChunks.joined()
         let trimmed = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw ReviewPipelineError.analysisReturnedNoData
@@ -549,20 +544,25 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         allowedFiles: [String]? = nil
     ) -> ExtractedReviewTasks? {
         let allowedSet = allowedFiles.map(Set.init)
-        // Try markdown code block: ```json ... ``` — take the LAST match (the real task block, not examples)
+        // Try markdown code block: ```json ... ```
+        // Iterate matches from last to first — prefer the last valid task block,
+        // but fall back to earlier matches if the last one fails to parse.
         let codeBlockPattern = #"```json\s*\n(\[[\s\S]*?\])\s*\n```"#
         if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            // Use the last match — LLMs often include example blocks before the real one
-            if let match = matches.last,
-               let jsonRange = Range(match.range(at: 1), in: text) {
+            var lastInvalidReason: String?
+            for match in matches.reversed() {
+                guard let jsonRange = Range(match.range(at: 1), in: text) else { continue }
                 let jsonStr = String(text[jsonRange])
                 switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
                 case .tasks(let tasks):
                     return .jsonTasks(tasks)
                 case .invalidJSON(let reason):
-                    return .invalidJSON(reason: reason)
+                    lastInvalidReason = lastInvalidReason ?? reason
                 }
+            }
+            if let reason = lastInvalidReason {
+                return .invalidJSON(reason: reason)
             }
         }
 
@@ -593,6 +593,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
         var tasks: [ReviewTask] = []
         var invalidEntries = 0
+        var claimedFiles = Set<String>()
         for (index, dict) in arr.enumerated() {
             let id = (dict["id"] as? String) ?? "review-\(index)"
             let description = (dict["description"] as? String) ?? "Fix issues in assigned files"
@@ -601,9 +602,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             guard !filteredFiles.isEmpty else { continue }
             let scopedFiles: [String]
             if let allowedFiles {
-                scopedFiles = filteredFiles.filter { allowedFiles.contains($0) }
+                scopedFiles = filteredFiles.filter { allowedFiles.contains($0) && !claimedFiles.contains($0) }
             } else {
-                scopedFiles = filteredFiles
+                scopedFiles = filteredFiles.filter { !claimedFiles.contains($0) }
             }
             guard !scopedFiles.isEmpty else {
                 invalidEntries += 1
@@ -623,6 +624,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     severity: severity
                 )
             )
+            claimedFiles.formUnion(scopedFiles)
         }
         if tasks.isEmpty && !arr.isEmpty {
             return .invalidJSON(
@@ -669,14 +671,29 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 group.addTask {
                     if isCancelled() { return (task.id, []) }
 
+                    let taskFiles = Set(task.files)
                     // Acquire file locks (with cancellation awareness)
-                    await fileLockCoordinator.acquireLock(
-                        files: Set(task.files), swarmId: task.id, isCancelled: isCancelled
+                    let acquired = await fileLockCoordinator.acquireLock(
+                        files: taskFiles, swarmId: task.id, isCancelled: isCancelled
                     )
+
+                    guard acquired else {
+                        // Emit completed/failed so the UI card doesn't stay stuck on "started"
+                        continuation.yield(.raw(type: "agent", payload: [
+                            "title": task.description,
+                            "detail": "completed",
+                            "swarm_id": task.id,
+                            "group_id": "swarm-\(task.id)"
+                        ]))
+                        return (task.id, [.textDelta("\n**Worker \(task.id) skipped:** could not acquire file locks.\n")])
+                    }
 
                     var collected: [StreamEvent] = []
 
-                    // Build scoped context for this worker
+                    // Build scoped context for this worker.
+                    // Pass task.files as includedPaths so the provider scopes tool
+                    // access to the worker's assigned files, but the full workspace
+                    // remains available via workspacePaths for read-only context.
                     let scopedContext = WorkspaceContext(
                         workspacePaths: context.workspacePaths,
                         isNamedWorkspace: context.isNamedWorkspace,
@@ -731,6 +748,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         collected.append(.textDelta("\n**Worker \(task.id) error:** \(error.localizedDescription)\n"))
                     }
 
+                    // Release locks synchronously within the task group (not fire-and-forget)
+                    await fileLockCoordinator.releaseLock(files: taskFiles, swarmId: task.id)
+
                     // Emit completed event immediately for live card status
                     continuation.yield(.raw(type: "agent", payload: [
                         "title": task.description,
@@ -738,11 +758,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         "swarm_id": task.id,
                         "group_id": "swarm-\(task.id)"
                     ]))
-
-                    // Release file locks
-                    await fileLockCoordinator.releaseLock(
-                        files: Set(task.files), swarmId: task.id
-                    )
 
                     return (task.id, collected)
                 }
@@ -826,7 +841,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         Maximum \(maxWorkers) tasks. Group related fixes together.
         """
 
-        var fullText = ""
+        var reReviewChunks: [String] = []
         do {
             let stream = try await analysisProvider.send(
                 prompt: reReviewPrompt,
@@ -839,13 +854,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 // Pass through to continuation (streaming re-review identical to agent mode)
                 continuation.yield(event)
                 if case .textDelta(let delta) = event {
-                    fullText += delta
+                    reReviewChunks.append(delta)
                 }
             }
         } catch {
+            let partialText = reReviewChunks.joined()
             continuation.yield(.textDelta("\n**Re-review error:** \(error.localizedDescription)\n"))
             return ReReviewOutcome(
-                text: fullText,
+                text: partialText,
                 hasNewIssues: true,
                 findings: .inconclusive(
                     reason: "Re-review stream failed: \(error.localizedDescription)"
@@ -853,6 +869,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             )
         }
 
+        let fullText = reReviewChunks.joined()
         let findings = findingsContainIssues(fullText)
         switch findings {
         case .issues:
@@ -893,29 +910,37 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         return (clean.isEmpty ? "Review all changes" : clean, ref)
     }
 
-    /// Get files changed since a commit ref using git diff
-    static func gitDiffFiles(ref: String, workspacePath: URL) -> [String] {
+    /// Get files changed since a commit ref using git diff.
+    /// Returns `(files, error)` — error is non-nil if git failed.
+    static func gitDiffFiles(ref: String, workspacePath: URL) -> (files: [String], error: String?) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["diff", "--name-only", "--diff-filter=ACMR", ref]
         process.currentDirectoryURL = workspacePath
         let pipe = Pipe()
+        let errPipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = errPipe
         do {
             try process.run()
             process.waitUntilExit()
         } catch {
-            return []
+            return ([], "Failed to run git diff: \(error.localizedDescription)")
         }
-        guard process.terminationStatus == 0 else { return [] }
+        guard process.terminationStatus == 0 else {
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            let errMsg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
+            return ([], "git diff failed for ref '\(ref)': \(errMsg)")
+        }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else { return [] }
+        guard let output = String(data: data, encoding: .utf8) else {
+            return ([], "Failed to decode git diff output as UTF-8.")
+        }
         let sourceExtensions = Set([
             "swift", "ts", "tsx", "js", "jsx", "py", "go", "rs",
             "java", "kt", "rb", "php", "c", "cpp", "h", "hpp", "m", "mm"
         ])
-        return output
+        let files = output
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -923,6 +948,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 let ext = (path as NSString).pathExtension.lowercased()
                 return sourceExtensions.contains(ext)
             }
+        return (files, nil)
     }
 
     /// Check if findings text contains actionable issues.
@@ -931,32 +957,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private static func findingsContainIssues(_ text: String) -> ReviewFindingsState {
         let lower = text.lowercased()
 
-        let noIssuesIndicators = [
-            "no issues found",
-            "all clear",
-            "looks good",
-            "no problems",
-            "nothing to fix",
-            "no changes required",
-            "nothing else to change"
-        ]
-        if noIssuesIndicators.contains(where: { lower.contains($0) }) && text.count < 2_000 {
-            return .clean
-        }
-
-        let inconclusiveIndicators = [
-            "unable to determine",
-            "cannot determine",
-            "insufficient context",
-            "inconclusive",
-            "i couldn't",
-            "i am unable",
-            "not enough information"
-        ]
-        if inconclusiveIndicators.contains(where: { lower.contains($0) }) {
-            return .inconclusive(reason: "Re-review output did not reach a confident conclusion.")
-        }
-
+        // Check for issues FIRST — if the text contains strong issue indicators,
+        // it doesn't matter if it also mentions "looks good" somewhere.
         let strictIssueIndicators = [
             "critical",
             "high severity",
@@ -990,13 +992,41 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             return .issues
         }
 
-        if lower.count < 150 {
-            return .clean
-        }
-
         let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
         if weakWordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
             return .issues
+        }
+
+        // Check for clean indicators AFTER issue indicators — order matters.
+        let noIssuesIndicators = [
+            "no issues found",
+            "no issues were found",
+            "no significant issues",
+            "no problems found",
+            "no bugs found",
+            "code is clean",
+            "code looks good",
+            "looks good overall",
+            "no major issues",
+            "no critical issues",
+            "all checks pass",
+            "no vulnerabilities found",
+            "lgtm"
+        ]
+        if noIssuesIndicators.contains(where: { lower.contains($0) }) {
+            return .clean
+        }
+
+        let inconclusiveIndicators = [
+            "could not determine",
+            "unable to assess",
+            "insufficient context",
+            "need more information",
+            "cannot evaluate",
+            "unclear"
+        ]
+        if inconclusiveIndicators.contains(where: { lower.contains($0) }) {
+            return .inconclusive(reason: "Review text contained inconclusive language.")
         }
 
         return .inconclusive(reason: "No robust issue indicators found in re-review output.")
@@ -1044,9 +1074,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 let lower = fullOutput.lowercased()
                 let hasTestFailures = lower.contains("test failed")
                     || lower.contains("tests failed")
-                    || lower.contains("failing")
                     || lower.contains("assertion failed")
-                    || lower.contains("xctassert")
+                    || lower.contains("xctassertion failed")
                 let passed = (status == 0) && !hasTestFailures
 
                 if passed {

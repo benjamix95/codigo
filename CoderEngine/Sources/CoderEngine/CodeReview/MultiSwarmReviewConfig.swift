@@ -6,33 +6,13 @@ public enum ReviewPhase: String, Sendable {
     case analysisAndExecution = "analysis-and-execution"
 }
 
-/// Backend for Phase 2 (fix execution): supports CLI and API
-public enum CodeReviewExecutionBackend: String, Sendable, CaseIterable {
-    case codex
-    case claude
-    case anthropicApi = "anthropic-api"
-    case openaiApi = "openai-api"
-    case googleApi = "google-api"
-    case openrouterApi = "openrouter-api"
-
-    public var displayName: String {
-        switch self {
-        case .codex: return "Codex CLI"
-        case .claude: return "Claude CLI"
-        case .anthropicApi: return "Anthropic API"
-        case .openaiApi: return "OpenAI API"
-        case .googleApi: return "Google API"
-        case .openrouterApi: return "OpenRouter API"
-        }
-    }
-}
-
 /// Configuration for Multi-Swarm Code Review
 public struct MultiSwarmReviewConfig: Sendable {
-    /// Maximum number of concurrent review/fix workers (dynamic count, capped here)
+    /// Maximum number of concurrent review/fix workers (dynamic count, capped here).
+    /// Clamped to 1...12.
     public let maxWorkers: Int
-    public let yoloMode: Bool
     public let enabledPhases: ReviewPhase
+    /// Maximum review-fix rounds. Clamped to 1...10.
     public let maxReviewRounds: Int
     /// Backend for Phase 1 (analysis)
     public let analysisBackend: String
@@ -41,16 +21,22 @@ public struct MultiSwarmReviewConfig: Sendable {
 
     public init(
         maxWorkers: Int = 6,
-        yoloMode: Bool = false,
         enabledPhases: ReviewPhase = .analysisAndExecution,
         maxReviewRounds: Int = 3,
         analysisBackend: String = "codex",
         executionBackend: String = "codex"
     ) {
-        self.maxWorkers = min(12, max(1, maxWorkers))
-        self.yoloMode = yoloMode
+        let clampedWorkers = min(12, max(1, maxWorkers))
+        let clampedRounds = min(10, max(1, maxReviewRounds))
+        if clampedWorkers != maxWorkers {
+            print("[MultiSwarmReviewConfig] maxWorkers clamped from \(maxWorkers) to \(clampedWorkers)")
+        }
+        if clampedRounds != maxReviewRounds {
+            print("[MultiSwarmReviewConfig] maxReviewRounds clamped from \(maxReviewRounds) to \(clampedRounds)")
+        }
+        self.maxWorkers = clampedWorkers
         self.enabledPhases = enabledPhases
-        self.maxReviewRounds = min(10, max(1, maxReviewRounds))
+        self.maxReviewRounds = clampedRounds
         self.analysisBackend = analysisBackend
         self.executionBackend = executionBackend
     }
