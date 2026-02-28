@@ -105,12 +105,12 @@ struct ModeControlsBarView: View {
                 }
             }
 
-            // Panel toggles: full=icon+text, medium=icon-only, compact/minimal=hidden
+            // Panel toggles: full=icon+text, medium/compact/minimal=icon-only (always visible)
             if isAgent && hasRealProvider(pid) {
                 if tier == .full {
                     planButton
                     debugButton
-                } else if tier == .medium {
+                } else {
                     planButtonIconOnly
                     debugButtonIconOnly
                 }
@@ -119,7 +119,7 @@ struct ModeControlsBarView: View {
                     if tier == .full {
                         planButton
                         debugButton
-                    } else if tier == .medium {
+                    } else {
                         planButtonIconOnly
                         debugButtonIconOnly
                     }
