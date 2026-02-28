@@ -42,11 +42,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         case noPayload(reason: String)
     }
 
-    private enum AnalysisPhaseResult: Sendable {
-        case success(text: String)
-        case noPayload(text: String, reason: String)
-    }
-
     private enum ReviewFindingsState: Sendable {
         case issues
         case clean
@@ -126,7 +121,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let fileLockCoordinator = self.fileLockCoordinator
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     execController?.beginScope(.review)
                     defer { execController?.clearCurrentProcess() }
@@ -134,7 +129,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     execController?.clearSwarmPauseRequested()
 
                     let isCancelled: @Sendable () -> Bool = {
-                        execController?.swarmStopRequested == true
+                        Task.isCancelled || execController?.swarmStopRequested == true
                     }
 
                     let waitWhilePaused: @Sendable () async -> Void = {
@@ -184,15 +179,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         isCancelled: isCancelled,
                         waitWhilePaused: waitWhilePaused
                     )
-                    let analysisText: String
-                    switch analysisOutput {
-                    case .success(let text):
-                        analysisText = text
-                    case .noPayload(let text, let reason):
-                        // Analysis completed but no structured JSON found — treat as analysis-only result
-                        continuation.yield(.textDelta("\n---\n**Analysis complete.** \(reason) No fix tasks generated.\n"))
-                        analysisText = text
-                    }
+                    let analysisText = analysisOutput
 
                     if isCancelled() {
                         continuation.yield(.textDelta("\n**Review cancelled.**\n"))
@@ -412,6 +399,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
         }
     }
 
@@ -429,7 +419,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
         isCancelled: @Sendable @escaping () -> Bool,
         waitWhilePaused: @Sendable @escaping () async -> Void
-    ) async throws -> AnalysisPhaseResult {
+    ) async throws -> String {
         let fileList = filesToReview.joined(separator: "\n")
         let scopeDesc = againstRef.map { "Changes against `\($0)`" } ?? "Uncommitted changes"
 
@@ -502,15 +492,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             throw ReviewPipelineError.analysisReturnedNoData
         }
 
-        let extraction = extractReviewTasksJSON(from: trimmed)
-        switch extraction {
-        case .jsonTasks:
-            return .success(text: trimmed)
-        case .invalidJSON(let reason):
-            return .noPayload(text: trimmed, reason: reason)
-        case .none:
-            return .noPayload(text: trimmed, reason: "No structured task JSON block found.")
-        }
+        return trimmed
     }
 
     // MARK: - Phase 2: Parse Review Tasks
@@ -574,13 +556,13 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         case invalidJSON(reason: String)
     }
 
-    /// Parse JSON string into ReviewTask array
+    /// Result of parsing a JSON string into ReviewTask array
     private enum ParsedTasksResult {
         case tasks([ReviewTask])
         case invalidJSON(reason: String)
     }
 
-    /// Parse JSON string into ReviewTask array
+    /// Parse JSON string into ReviewTask array, filtering by allowed files.
     private static func parseTasksJSON(
         _ jsonStr: String,
         allowedFiles: Set<String>?
@@ -669,7 +651,16 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         ) { group in
             for task in tasks {
                 group.addTask {
-                    if isCancelled() { return (task.id, []) }
+                    if isCancelled() {
+                        // Emit completed so the UI card doesn't stay stuck on "started"
+                        continuation.yield(.raw(type: "agent", payload: [
+                            "title": task.description,
+                            "detail": "completed",
+                            "swarm_id": task.id,
+                            "group_id": "swarm-\(task.id)"
+                        ]))
+                        return (task.id, [])
+                    }
 
                     let taskFiles = Set(task.files)
                     // Acquire file locks (with cancellation awareness)
@@ -732,6 +723,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             imageURLs: nil
                         )
                         for try await event in stream {
+                            await waitWhilePaused()
                             if isCancelled() { break }
                             // Enrich raw events with swarm_id for SwarmLiveReducer routing
                             switch event {
@@ -786,7 +778,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
     private struct ReReviewOutcome {
         let text: String
-        let hasNewIssues: Bool
         let findings: ReviewFindingsState
     }
 
@@ -862,7 +853,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             continuation.yield(.textDelta("\n**Re-review error:** \(error.localizedDescription)\n"))
             return ReReviewOutcome(
                 text: partialText,
-                hasNewIssues: true,
                 findings: .inconclusive(
                     reason: "Re-review stream failed: \(error.localizedDescription)"
                 )
@@ -873,13 +863,12 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let findings = findingsContainIssues(fullText)
         switch findings {
         case .issues:
-            return ReReviewOutcome(text: fullText, hasNewIssues: true, findings: .issues)
+            return ReReviewOutcome(text: fullText, findings: .issues)
         case .clean:
-            return ReReviewOutcome(text: fullText, hasNewIssues: false, findings: .clean)
+            return ReReviewOutcome(text: fullText, findings: .clean)
         case .inconclusive(let reason):
             return ReReviewOutcome(
                 text: fullText,
-                hasNewIssues: false,
                 findings: .inconclusive(reason: reason)
             )
         }
@@ -921,18 +910,39 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let errPipe = Pipe()
         process.standardOutput = pipe
         process.standardError = errPipe
+
+        // Collect stderr asynchronously to prevent pipe buffer deadlock.
+        // If both stdout and stderr produce large output, blocking on one
+        // before the other can fill the pipe buffer and freeze the process.
+        var errData = Data()
+        let errLock = NSLock()
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            errLock.lock()
+            errData.append(chunk)
+            errLock.unlock()
+        }
+
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
+            errPipe.fileHandleForReading.readabilityHandler = nil
             return ([], "Failed to run git diff: \(error.localizedDescription)")
         }
+
+        // Read stdout BEFORE waitUntilExit to prevent pipe buffer deadlock
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        errPipe.fileHandleForReading.readabilityHandler = nil
+
         guard process.terminationStatus == 0 else {
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let errMsg = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
+            errLock.lock()
+            let capturedErrData = errData
+            errLock.unlock()
+            let errMsg = String(data: capturedErrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
             return ([], "git diff failed for ref '\(ref)': \(errMsg)")
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else {
             return ([], "Failed to decode git diff output as UTF-8.")
         }
@@ -992,12 +1002,10 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             return .issues
         }
 
-        let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
-        if weakWordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
-            return .issues
-        }
-
-        // Check for clean indicators AFTER issue indicators — order matters.
+        // Check clean/inconclusive phrases BEFORE weak single-word indicators.
+        // Multi-word clean phrases like "no issues found" or "code looks good" are more
+        // reliable than single words like "fix" or "error" which appear in negated contexts
+        // (e.g. "No fix needed", "No error found").
         let noIssuesIndicators = [
             "no issues found",
             "no issues were found",
@@ -1029,14 +1037,41 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             return .inconclusive(reason: "Review text contained inconclusive language.")
         }
 
+        // Weak single-word indicators checked LAST — they're prone to false positives
+        // in negated contexts, so multi-word clean phrases must be checked first.
+        let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
+        if weakWordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
+            return .issues
+        }
+
         return .inconclusive(reason: "No robust issue indicators found in re-review output.")
     }
 
+    /// Pre-compiled word-boundary regex cache to avoid recompilation on every call.
+    private static let wordRegexCache: [String: NSRegularExpression] = {
+        let words = ["leak", "exception", "permission", "authorization", "authentication",
+                     "bug", "fix", "warning", "error", "issue", "severity"]
+        var cache: [String: NSRegularExpression] = [:]
+        for word in words {
+            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                cache[word] = regex
+            }
+        }
+        return cache
+    }()
+
     /// Matches a word with word-boundary awareness to prevent substring false positives.
     private static func containsWord(_ text: String, word: String) -> Bool {
-        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
-            return text.contains(word)
+        let regex: NSRegularExpression
+        if let cached = wordRegexCache[word] {
+            regex = cached
+        } else {
+            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word))\\b"
+            guard let compiled = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+                return text.contains(word)
+            }
+            regex = compiled
         }
         return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
@@ -1088,6 +1123,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                 continuation.yield(.textDelta("```\n\(tailLines)\n```\n"))
 
                 if attempt < maxAttempts - 1 {
+                    if isCancelled() { return .failed }
                     continuation.yield(.textDelta("**Tests failed.** Sending to debugger...\n\n"))
 
                     let debugPrompt = """
