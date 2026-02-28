@@ -98,11 +98,13 @@ struct InlineActivityFeedView: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(isExpanded ? 4 : 1)
+                        .textShimmer(active: isRunning)
                     if !isExpanded, let detail = detailText(for: activity), !detail.isEmpty {
                         Text(detail)
                             .font(.system(size: 10.5))
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .lineLimit(1)
+                            .textShimmer(active: isRunning)
                     }
                 }
                 Spacer(minLength: 0)
@@ -334,6 +336,10 @@ struct InlineActivityFeedView: View {
         case "debug_hypothesize": return "ladybug.fill"
         case "debug_mark": return "mappin.and.ellipse"
         case "debug_clean": return "trash.fill"
+        case "debug_context": return "ant.fill"
+        case "debug_phase_update": return "arrow.triangle.turn.up.right.diamond.fill"
+        case "debug_user_request": return "questionmark.bubble.fill"
+        case "debug_resolved": return "checkmark.seal.fill"
         case "process_paused": return "pause.circle.fill"
         case "process_resumed": return "play.circle.fill"
         case "agent": return "person.circle.fill"

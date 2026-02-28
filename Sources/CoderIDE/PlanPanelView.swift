@@ -149,7 +149,7 @@ struct PlanPanelView: View {
                                 planColor: planColor,
                                 onSubmit: onSubmitClarificationAnswers
                             )
-                            .id("plan-clarification-wizard-\(questions.hashValue)")
+                            .id("plan-clarification-wizard-\(questions.count)")
                         } else {
                             PlanClarificationView(questions: questions, planColor: planColor)
                         }
@@ -183,7 +183,7 @@ struct PlanPanelView: View {
 
                     if shouldShowPlanDetailsSection {
                         // 5) Mermaid diagrams (all blocks)
-                        ForEach(Array(snapshot.mermaidBlocks.enumerated()), id: \.offset) { _, block in
+                        ForEach(Array(snapshot.mermaidBlocks.enumerated()), id: \.element) { _, block in
                             MermaidDiagramView(
                                 mermaidCode: block,
                                 accentColor: planColor
@@ -247,12 +247,15 @@ struct PlanPanelView: View {
             didAutoSelectSingleOption = false
         }
         .onChange(of: planningState) { _, _ in
-            // Reset single-option auto-select guard when planningState changes,
-            // so a new awaitingChoice with a single option can fire again.
             didAutoSelectSingleOption = false
+            walkthroughExpanded = false
         }
         .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
-            performBuild()
+            if isCurrentConversationLoading {
+                onStop()
+            } else {
+                performBuild()
+            }
         }
     }
 
@@ -347,7 +350,7 @@ struct PlanPanelView: View {
                 Text("No providers available")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(Array(allowedProviders.enumerated()), id: \.offset) { _, provider in
+                ForEach(Array(allowedProviders.enumerated()), id: \.element.id) { _, provider in
                     Button {
                         planProviderId = provider.id
                     } label: {
@@ -433,7 +436,7 @@ struct PlanPanelView: View {
         }) {
             return firstAuthenticated.id
         }
-        return "codex-cli"
+        return providerRegistry.selectedProviderId ?? providerRegistry.providers.first?.id ?? "codex-cli"
     }
 
     private var activeProviderLabel: String {
@@ -485,7 +488,7 @@ struct PlanPanelView: View {
         isPlanBuildEnabled(
             phase: planFlowPhase,
             hasBuildChoice: resolvedBuildChoice != nil,
-            allowIdleRebuild: false,
+            allowIdleRebuild: isPlanFullyBuilt,
             providerExecutionCapable: isActiveProviderExecutionCapable
         )
     }
@@ -741,16 +744,14 @@ struct PlanPanelView: View {
     /// Returns a cached snapshot, rebuilding only when plan content or todos actually change.
     private func resolveSnapshot() -> PlanRenderSnapshot {
         let content = displayPlanContent
-        let todosHash = canonicalPlanTodos.map(\.id.uuidString).joined()
-        let key = "\(content.hashValue)|\(todosHash)"
+        let todosHash = canonicalPlanTodos.map { "\($0.id)-\($0.status.rawValue)" }.joined()
+        let key = "\(content.count)-\(content.prefix(200))-\(content.suffix(200))|\(todosHash)"
         if key == lastSnapshotKey, let cached = cachedSnapshot {
             return cached
         }
         let snapshot = makeRenderSnapshot(content: content)
-        DispatchQueue.main.async {
-            lastSnapshotKey = key
-            cachedSnapshot = snapshot
-        }
+        lastSnapshotKey = key
+        cachedSnapshot = snapshot
         return snapshot
     }
 

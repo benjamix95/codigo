@@ -77,10 +77,16 @@ struct MermaidWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        if context.coordinator.lastRenderedCode != mermaidCode {
+        if context.coordinator.lastRenderedCode != mermaidCode
+            || context.coordinator.lastRenderedDarkMode != isDarkMode {
             context.coordinator.lastRenderedCode = mermaidCode
+            context.coordinator.lastRenderedDarkMode = isDarkMode
             loadMermaid(webView: webView)
         }
+    }
+
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "mermaidImageBridge")
     }
 
     func makeCoordinator() -> Coordinator {
@@ -339,6 +345,7 @@ struct MermaidWebView: NSViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var lastRenderedCode: String?
+        var lastRenderedDarkMode: Bool?
         private let onImageRendered: ((String) -> Void)?
         private let onImageRenderedPNG: ((Data) -> Void)?
         private let onHeightChanged: ((CGFloat) -> Void)?
@@ -659,11 +666,11 @@ struct MermaidDiagramView: View {
                 isDarkMode: colorScheme == .dark,
                 onImageRendered: { svg in
                     latestDiagramSVG = svg
-                    latestDiagramURL = writeTempFile(svg.data(using: .utf8), ext: "svg")
+                    latestDiagramURL = writeTempFile(svg.data(using: .utf8), ext: "svg", replacing: latestDiagramURL)
                 },
                 onImageRenderedPNG: { png in
                     latestDiagramPNGData = png
-                    latestDiagramPNGURL = writeTempFile(png, ext: "png")
+                    latestDiagramPNGURL = writeTempFile(png, ext: "png", replacing: latestDiagramPNGURL)
                 },
                 onHeightChanged: { h in
                     withAnimation(.easeOut(duration: 0.15)) {
@@ -726,8 +733,9 @@ struct MermaidDiagramView: View {
 
     // MARK: - Helpers
 
-    private func writeTempFile(_ data: Data?, ext: String) -> URL? {
+    private func writeTempFile(_ data: Data?, ext: String, replacing oldURL: URL? = nil) -> URL? {
         guard let data else { return nil }
+        if let oldURL { try? FileManager.default.removeItem(at: oldURL) }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("mermaid-\(UUID().uuidString).\(ext)")
         do {

@@ -929,7 +929,7 @@ struct ChatPanelView: View {
         if hasActivePlanContext(for: conversationId), looksLikePlanPayload(message.content) {
             return true
         }
-        return looksLikePlanPayload(message.content)
+        return false
     }
 
     private func chatDisplayMessage(
@@ -1000,6 +1000,7 @@ struct ChatPanelView: View {
                         executionController: executionController,
                         conversationId: conversationId,
                         coderMode: coderMode,
+                        debugPhase: debugStore.phase,
                         isSummarizing: isSummarizing,
                         activeModeColor: activeModeColor,
                         onInterrupt: { interruptTask() }
@@ -1174,6 +1175,10 @@ struct ChatPanelView: View {
                     }
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
                 } else if !isOpen && wasOpen {
+                    if planPanelPresentationSource == .automaticFlow {
+                        planPanelPresentationSource = .manualDeepLink
+                        return
+                    }
                     adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
                 }
                 if isOpen {
@@ -1319,6 +1324,8 @@ struct ChatPanelView: View {
             taskFlushTask = nil
             streamThrottleTask?.cancel()
             streamThrottleTask = nil
+            planStreamThrottleTask?.cancel()
+            planStreamThrottleTask = nil
             autoScrollWorkItem?.cancel()
             composerTimerAutoHideTask?.cancel()
             composerTimerAutoHideTask = nil
@@ -1513,6 +1520,7 @@ struct ChatPanelView: View {
                             todoStore: todoStore,
                             conversationId: conversationId,
                             coderMode: coderMode,
+                            debugPhase: debugStore.phase,
                             onOpenFile: { openFilesStore.openFile($0) },
                             effectivePrimaryPath: effectiveContext.primaryPath,
                             showTodoSection: shouldShowTaskPanelTodoSection
@@ -1583,16 +1591,22 @@ struct ChatPanelView: View {
                 handleShiftTabPlanShortcut()
                 return nil
             }
-            if showPlanPanel && event.modifierFlags.contains(.command) && event.keyCode == 36 {
+            if showPlanPanel
+                && event.modifierFlags.contains(.command)
+                && !event.modifierFlags.contains(.shift)
+                && !event.modifierFlags.contains(.option)
+                && !event.modifierFlags.contains(.control)
+                && event.keyCode == 36 {
                 NotificationCenter.default.post(name: Self.planBuildShortcutNotification, object: nil)
                 return nil
             }
             // Cmd+Shift+D toggles debug panel
-            if event.modifierFlags.contains([.command, .shift]),
+            let normalized = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if normalized.contains([.command, .shift]),
+               !normalized.contains(.option),
+               !normalized.contains(.control),
                event.charactersIgnoringModifiers?.lowercased() == "d" {
-                DispatchQueue.main.async {
-                    debugToggleEnabled.toggle()
-                }
+                debugToggleEnabled.toggle()
                 return nil
             }
             guard event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "v"
@@ -1638,21 +1652,28 @@ struct ChatPanelView: View {
 
     private func restorePlanStateIfNeeded(for conversationId: UUID?) {
         clearPlanStreamingState()
-        planAnalysisContext = ""
-        planUserRequest = ""
-        planClarificationAnswers = ""
+        planClarificationCycles = 0
+        planShouldRunInline = false
         guard let conversationId else {
+            planAnalysisContext = ""
+            planUserRequest = ""
+            planClarificationAnswers = ""
             planningState = .idle
             planFlowPhase = .idle
             return
         }
         // If a plan build is actively running for this conversation, restore .building
+        // Don't clear plan context — the background task still needs it.
         if activeBuildPlanConversationId == conversationId
             || chatStore.isTaskActive(for: conversationId) {
             planFlowPhase = .building
             planningState = .idle
             return
         }
+        // No active flow — safe to reset per-flow context
+        planAnalysisContext = ""
+        planUserRequest = ""
+        planClarificationAnswers = ""
         guard let board = chatStore.planBoard(for: conversationId) else {
             planningState = .idle
             planFlowPhase = .idle
@@ -2245,11 +2266,14 @@ struct ChatPanelView: View {
                         }
                     )
                 } else {
-                    let effectiveReasoning = (conv.id == streamingReasoningConversationId
-                        && isLastAssistant
-                        && message.isStreaming)
-                        ? streamingReasoningText
-                        : nil
+                    let effectiveReasoning: String? = {
+                        if conv.id == streamingReasoningConversationId
+                            && isLastAssistant
+                            && message.isStreaming {
+                            return streamingReasoningText
+                        }
+                        return message.reasoningText
+                    }()
                     let suppressPlanArtifacts = shouldSuppressPlanArtifactsInChat(
                         message: message,
                         conversationId: conv.id
@@ -2433,29 +2457,28 @@ struct ChatPanelView: View {
 
     @ViewBuilder
     private func subagentCardsSection(message: ChatMessage, isLatestAssistant: Bool) -> some View {
-        // During active streaming: show live cards from the activity store
-        if isLatestAssistant, isLoadingForCurrentConversation {
-            let liveCards = taskActivityStore.swarmCardStates()
-                .filter { $0.swarmId != "orchestrator" }
-            if !liveCards.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(liveCards) { card in
-                        SubagentChatCardView(
-                            card: card,
-                            onOpenInPanel: {
-                                selectedSwarmId = card.swarmId
-                                showSwarmPanel = true
-                            }
-                        )
-                    }
+        let liveCards: [SwarmLiveCardState] = (isLatestAssistant && isLoadingForCurrentConversation)
+            ? taskActivityStore.swarmCardStates().filter { $0.swarmId != "orchestrator" }
+            : []
+        let hasLiveCards = !liveCards.isEmpty
+
+        if hasLiveCards {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(liveCards) { card in
+                    SubagentChatCardView(
+                        card: card,
+                        onOpenInPanel: {
+                            selectedSwarmId = card.swarmId
+                            showSwarmPanel = true
+                        }
+                    )
                 }
-                .padding(.horizontal, 2)
             }
+            .padding(.horizontal, 2)
         }
-        // After completion: show persisted snapshot cards from the message
-        if let snapshots = message.subagentCards, !snapshots.isEmpty,
-           !(isLatestAssistant && isLoadingForCurrentConversation)
-        {
+        // Show persisted snapshot cards when live cards aren't available.
+        // This avoids a gap where neither live nor snapshot cards are visible.
+        if !hasLiveCards, let snapshots = message.subagentCards, !snapshots.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(snapshots) { snapshot in
                     SubagentSnapshotCardView(snapshot: snapshot)
@@ -2566,13 +2589,23 @@ struct ChatPanelView: View {
     }
 
     /// Snapshots current swarm cards into the last assistant message, then ends the task.
+    /// Flushes pending streaming content first to ensure no data is lost.
     @MainActor
     private func snapshotSubagentCardsAndEndTask(conversationId targetConversationId: UUID?) {
+        // Flush any pending streamed content so the assistant message is up-to-date
+        // before we attach subagent cards or end the task.
+        flushStreamingContent()
+
         let cards = taskActivityStore.swarmCardStates()
             .filter { $0.swarmId != "orchestrator" }
             .map { SubagentCardSnapshot(from: $0) }
-        chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
+        if !cards.isEmpty {
+            chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
+        }
         chatStore.endTask(conversationId: targetConversationId)
+        // Force immediate persistence so the final state (cards + content)
+        // survives an app crash right after task completion.
+        chatStore.saveConversationsImmediately()
     }
 
     private func interruptTask(for targetConversationId: UUID?) {
@@ -2602,8 +2635,10 @@ struct ChatPanelView: View {
             cancelFallbackTurnStartEvent()
         }
         snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
-        if targetConversationId == conversationId {
+        if activeBuildPlanConversationId == targetConversationId {
             activeBuildPlanConversationId = nil
+        }
+        if targetConversationId == conversationId {
             resetPlanFlowAfterInterruption()
         }
     }
@@ -2614,7 +2649,7 @@ struct ChatPanelView: View {
             planFlowPhase = .readyToBuild
             clearPlanStreamingState()
         case .proposalReady:
-            planFlowPhase = .readyToBuild
+            break
         case .analyzing, .questioning, .generating:
             planFlowPhase = .idle
             planningState = .idle
@@ -3062,8 +3097,7 @@ struct ChatPanelView: View {
                         activeForm: stepActiveForm,
                         linkedFiles: []
                     )
-                    if !updated {
-                        // No canonical todo matched — fall through to general upsert
+                    if !updated, planFlowPhase != .building {
                         todoStore.upsertFromAgent(
                             id: nil,
                             title: title,
@@ -3498,7 +3532,7 @@ struct ChatPanelView: View {
             originalContent: payload.originalContent
         ))
         if debugStore.phase == .fixing {
-            debugStore.phase = .instrumenting
+            debugStore.setPhase(.instrumenting)
         }
     }
 
@@ -4012,8 +4046,14 @@ struct ChatPanelView: View {
             } else {
                 providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
             }
-            planningState = .idle
-            planFlowPhase = .idle
+            // Only reset plan state when no active flow is in progress
+            switch planFlowPhase {
+            case .analyzing, .questioning, .generating, .building, .proposalReady, .readyToBuild:
+                break
+            default:
+                planningState = .idle
+                planFlowPhase = .idle
+            }
             planToggleEnabled = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
@@ -4598,13 +4638,12 @@ struct ChatPanelView: View {
             )
         )
 
-        // Store answers and continue to Phase 3 (don't restart full flow via sendMessage).
-        // Phase is set to .generating (not .questioning) because the user already submitted
-        // their answers — the next step is re-analysis / plan generation, not waiting for input.
+        // Store answers and continue the flow. Phase is set to .analyzing because the
+        // post-clarification flow starts with a re-analysis pass before plan generation.
         planClarificationAnswers = String(prompt.prefix(16_000))
         planningState = .idle
         clearPlanStreamingState()
-        planFlowPhase = .generating
+        planFlowPhase = .analyzing
 
         // Safety net: ensure any lingering task from the questioning phase is ended
         // before we attempt to continue. This prevents the guard in continuePlanFlowPhase3
@@ -4842,7 +4881,7 @@ struct ChatPanelView: View {
                         handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: agentConvId)
                     },
                     onError: { content in
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
                         }
                     },
@@ -5328,7 +5367,7 @@ struct ChatPanelView: View {
                             handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
                         },
                         onError: { content in
-                            DispatchQueue.main.async {
+                            Task { @MainActor in
                                 chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
                             }
                         },
@@ -5367,6 +5406,14 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }
                 }
+                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state
+                await MainActor.run {
+                    if targetConversationId == self.conversationId {
+                        planFlowPhase = .idle
+                        planningState = .idle
+                        clearPlanStreamingState()
+                    }
+                }
             }
             finalizeToolTraceTurn(conversationId: targetConversationId, outcome: traceOutcome)
             snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
@@ -5386,6 +5433,7 @@ struct ChatPanelView: View {
         // PHASE 1: Codebase Analysis
         // ========================
         await MainActor.run {
+            guard self.conversationId == conversationId else { return }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
         }
@@ -5403,7 +5451,7 @@ struct ChatPanelView: View {
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onError: { [self] content in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     chatStore.updateLastAssistantMessage(content: content, in: conversationId)
                 }
             },
@@ -5460,6 +5508,7 @@ struct ChatPanelView: View {
         // PHASE 2: Clarification Questions
         // ========================
         await MainActor.run {
+            guard self.conversationId == conversationId else { return }
             clearPlanStreamingState()
             planFlowPhase = .questioning
             let questionAssistantMessageId = UUID()
@@ -5495,7 +5544,7 @@ struct ChatPanelView: View {
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onError: { [self] content in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     chatStore.updateLastAssistantMessage(content: content, in: conversationId)
                 }
             },
@@ -5603,7 +5652,7 @@ struct ChatPanelView: View {
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onError: { [self] content in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     chatStore.updateLastAssistantMessage(content: content, in: conversationId)
                 }
             },
@@ -5660,7 +5709,7 @@ struct ChatPanelView: View {
                     handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
                 },
                 onError: { [self] content in
-                    DispatchQueue.main.async {
+                    Task { @MainActor in
                         chatStore.updateLastAssistantMessage(content: content, in: conversationId)
                     }
                 },
@@ -5824,6 +5873,14 @@ struct ChatPanelView: View {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }
                     }
                 }
+                // C1 fix: Reset plan flow phase on error to prevent permanent stuck state
+                await MainActor.run {
+                    if targetConversationId == self.conversationId {
+                        planFlowPhase = .idle
+                        planningState = .idle
+                        clearPlanStreamingState()
+                    }
+                }
             }
             finalizeToolTraceTurn(conversationId: targetConversationId, outcome: traceOutcome)
             snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
@@ -5839,6 +5896,7 @@ struct ChatPanelView: View {
     ) async throws {
         // Re-analysis phase: LLM analyzes based on the user's answers
         await MainActor.run {
+            guard self.conversationId == conversationId else { return }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
         }
@@ -5875,7 +5933,7 @@ struct ChatPanelView: View {
                 handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
             },
             onError: { [self] content in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     chatStore.updateLastAssistantMessage(content: content, in: conversationId)
                 }
             },

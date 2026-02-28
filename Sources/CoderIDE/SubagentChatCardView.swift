@@ -56,11 +56,6 @@ struct SubagentChatCardView: View {
                 .strokeBorder(statusColor.opacity(0.25), lineWidth: 0.8)
         )
         .contentShape(RoundedRectangle(cornerRadius: 10))
-        .onTapGesture {
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.9)) {
-                isExpanded.toggle()
-            }
-        }
     }
 
     // MARK: - Header

@@ -90,6 +90,7 @@ enum ToolTraceVisibility {
     }
 
     static func shouldDisplay(event: ToolTraceEvent) -> Bool {
+        if isSwarmPayload(event.payload) { return false }
         let type = normalizedType(event.type)
         if hiddenDisplayTypes.contains(type) { return false }
         if type == "mcp_tool_call" {
@@ -100,6 +101,7 @@ enum ToolTraceVisibility {
     }
 
     static func shouldDisplay(activity: TaskActivity) -> Bool {
+        if isSwarmPayload(activity.payload) { return false }
         let type = normalizedType(activity.type)
         if hiddenDisplayTypes.contains(type) { return false }
         if type == "mcp_tool_call" {

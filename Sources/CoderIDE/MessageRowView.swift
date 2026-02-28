@@ -180,7 +180,7 @@ struct MessageRow: View {
                 if let reasoning = isActivelyStreaming ? streamingReasoningText : message.reasoningText,
                    !reasoning.isEmpty
                 {
-                    ThinkingBlockView(text: reasoning)
+                    ThinkingBlockView(text: reasoning, isLiveStreaming: isActivelyStreaming)
                         .padding(.bottom, 8)
                 }
                 // Main content
@@ -335,11 +335,7 @@ struct MessageRow: View {
                 Text(streamingStatusText.isEmpty ? "Thinking" : streamingStatusText)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .clipShape(Rectangle())
-                    .overlay {
-                        ActivityShimmerTrail()
-                            .allowsHitTesting(false)
-                    }
+                    .textShimmer(active: true)
                 Spacer()
             }
             if let detail = streamingDetailText, !detail.isEmpty {
@@ -347,6 +343,7 @@ struct MessageRow: View {
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                    .textShimmer(active: true)
             }
         }
         .padding(.top, 2)
@@ -446,6 +443,7 @@ private final class MessageImageCache: @unchecked Sendable {
 
 struct ThinkingBlockView: View {
     let text: String
+    var isLiveStreaming: Bool = false
     @State private var isExpanded = false
     private let collapsedLineLimit = 5
     private let contentMaxWidth: CGFloat = 720
@@ -473,6 +471,7 @@ struct ThinkingBlockView: View {
                 Text("Thinking")
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.secondary.opacity(0.7))
+                    .textShimmer(active: isLiveStreaming)
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }

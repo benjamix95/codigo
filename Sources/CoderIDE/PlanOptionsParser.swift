@@ -111,7 +111,7 @@ private static let optionHeaderPattern =
     private static let fallbackNumberedRegex = try? NSRegularExpression(pattern: #"^(\d+)[.)]\s*(.+)"#)
 
     private static let taskHeaderPatternForSignals =
-        #"(?i)^(?:#{1,6}\s*)?(?:todo|to-do|tasks?|implementation\s+steps?|execution\s+steps?|next\s+steps?|checklist|action\s+items?|work\s*plan)\b"#
+        #"(?im)^(?:#{1,6}\s*)?(?:todo|to-do|tasks?|implementation\s+steps?|execution\s+steps?|next\s+steps?|checklist|action\s+items?|work\s*plan)\b"#
 
     private static func isFenceDelimiter(_ line: String) -> Bool {
         line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
@@ -256,7 +256,9 @@ private static let optionHeaderPattern =
         }
 
         flushQuestion()
-        guard !isInvalidStructuredBlock, !parsedQuestions.isEmpty else { return nil }
+        // If only the final question was invalid (truncated stream), keep previously valid questions
+        if isInvalidStructuredBlock && parsedQuestions.isEmpty { return nil }
+        guard !parsedQuestions.isEmpty else { return nil }
         return PlanClarificationQuestionnaire(questions: parsedQuestions)
     }
 
@@ -326,10 +328,12 @@ private static let optionHeaderPattern =
             if line.range(of: optionHeaderPattern, options: .regularExpression) != nil {
                 var num = 0
                 var title = "Option"
-                if let digitsRegex = Self.digitsRegex,
-                   let digitMatch = digitsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
-                   let digitRange = Range(digitMatch.range, in: line),
-                   let n = Int(String(line[digitRange])) {
+                let headerKeywordPattern = #"(?i)(?:Option|Approach|Plan)\s+(\d+)"#
+                if let headerDigitMatch = line.range(of: headerKeywordPattern, options: .regularExpression),
+                   let digitsRegex = Self.digitsRegex,
+                   let digitMatch = digitsRegex.firstMatch(in: String(line[headerDigitMatch]), range: NSRange(0..<line[headerDigitMatch].count)),
+                   let digitRange = Range(digitMatch.range, in: String(line[headerDigitMatch])),
+                   let n = Int(String(String(line[headerDigitMatch])[digitRange])) {
                     num = n
                 } else if let letterMatch = line.range(
                     of: #"(?i)(?:Option|Approach)\s+([A-Z])"#,
@@ -459,7 +463,8 @@ private static let optionHeaderPattern =
     }
 
     private static func hasLikelyPlanSignal(in text: String) -> Bool {
-        if text.range(of: optionHeaderPattern, options: .regularExpression) != nil {
+        let multilineOptionPattern = #"(?im)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)\s*[:\-\u{2013}\u{2014}]"#
+        if text.range(of: multilineOptionPattern, options: .regularExpression) != nil {
             return true
         }
         if text.range(of: taskHeaderPatternForSignals, options: .regularExpression) != nil {
@@ -501,26 +506,6 @@ private static let optionHeaderPattern =
             .replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func fallbackTodoFromPlanText(_ optionText: String) -> String? {
-        let lines = optionText
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard let firstLine = lines.first(where: { !isFenceDelimiter($0) }) else {
-            return nil
-        }
-        let normalized = normalizeTodoText(firstLine)
-        guard !normalized.isEmpty else { return nil }
-        let words = normalized
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-        guard words.count >= 2 else { return nil }
-        let truncated = normalized.count > 260
-            ? String(normalized.prefix(260)) + "…"
-            : normalized
-        return truncated
     }
 
     static func hasRequiredTodoHeader(_ optionText: String) -> Bool {
@@ -809,13 +794,19 @@ private static let optionHeaderPattern =
                 || title.hasPrefix("option ") || title == "options" || title.hasPrefix("options ")
                 || title.hasPrefix("todo")
                 || title.hasPrefix("to-do")
+                || title.hasPrefix("task") || title == "tasks"
+                || title.hasPrefix("checklist")
+                || title.hasPrefix("implementation step")
+                || title.hasPrefix("execution step")
+                || title.hasPrefix("next step")
+                || title.hasPrefix("action item")
+                || title.hasPrefix("work plan")
         }
 
         for line in lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
             if trimmedLine.hasPrefix("```") {
-                if trimmedLine.lowercased().hasPrefix("```mermaid") {
-                    // Mermaid is rendered in a dedicated section in the panel.
+                if !inFence && trimmedLine.lowercased().hasPrefix("```mermaid") {
                     inFence = true
                     skippingSection = true
                     continue

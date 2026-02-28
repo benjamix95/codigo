@@ -242,6 +242,7 @@ struct PlanLiveTraceView: View {
                 Text(item.displayTitle)
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
+                    .textShimmer(active: item.status == .running)
                 Spacer()
 
                 if let fileChange = item.fileChange {
@@ -283,6 +284,7 @@ struct PlanLiveTraceView: View {
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .textShimmer(active: item.status == .running)
             }
 
             if item.isExpandable {

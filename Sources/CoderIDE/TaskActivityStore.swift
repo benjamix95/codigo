@@ -218,7 +218,13 @@ final class TaskActivityStore: ObservableObject {
                 ?? lastConcreteVisibleActivity(in: activities) else {
             return "Thinking"
         }
-        // Dynamic label based on actual activity type and phase
+
+        // When the last tool call completed, the model is deciding what to do next.
+        if !last.isRunning {
+            return "Planning next move"
+        }
+
+        // Active tool call — show a specific label based on activity type
         let normalizedType = last.type.lowercased()
         if normalizedType.contains("read") || normalizedType.contains("glob") {
             return "Reading files"
@@ -382,7 +388,7 @@ final class TaskActivityStore: ObservableObject {
         }
         pruneCompletedTerminalActivities()
         recalcActiveOperations()
-        rebuildSwarmCards()
+        ingestSwarmCard(activity: activity)
     }
 
     private func pruneCompletedTerminalActivities() {
@@ -403,7 +409,9 @@ final class TaskActivityStore: ObservableObject {
     }
 
     private func recalcActiveOperations() {
-        activeOperationsCount = activities.suffix(40).filter(\.isRunning).count
+        activeOperationsCount = activities.suffix(40)
+            .filter { $0.isRunning && !SwarmMetadata.isSwarmEvent($0.payload) }
+            .count
     }
 
     private func shouldMerge(existing: TaskActivity, incoming: TaskActivity) -> Bool {
@@ -423,7 +431,7 @@ final class TaskActivityStore: ObservableObject {
         if existingTerminal != incomingTerminal {
             return false
         }
-        if existing.isRunning != incoming.isRunning, (!existing.isRunning || !incoming.isRunning) {
+        if existing.isRunning != incoming.isRunning {
             return false
         }
         return true
@@ -490,6 +498,9 @@ final class TaskActivityStore: ObservableObject {
         // Rebuild cards from remaining activities so subagent cards
         // stay visible after the task completes.
         rebuildSwarmCards()
+        // Bump counter so SwarmPanelView's onChange(of: liveChangeCount)
+        // fires even when rebuild produces no events (e.g. new conversation).
+        swarmEventsReceivedCount += 1
     }
 
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {

@@ -52,6 +52,11 @@ public struct SubagentPromptBuilder {
             You are the Debugger subagent. Identify bugs, analyze stack traces, and resolve issues.
             You have full tool access to investigate and fix problems.
 
+            - Start with `debug_context` to gather git status, lints, and recent changes
+            - Use `debug_log` to record observations, errors, and findings
+            - Use `debug_hypothesize` to propose and track hypotheses
+            - Use `debug_query` to search through the debug log
+            - Use `debug_mark` to insert temporary markers in code and `debug_clean` to remove them
             - Analyze error messages and stack traces carefully
             - Identify root causes, not just symptoms
             - Fix the underlying issue, not just the surface error

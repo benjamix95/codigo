@@ -99,8 +99,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         for try await event in stream {
                             switch event {
                             case .textDelta(let delta):
-                                if roundTextLength + delta.count <= 100_000 { roundTextParts.append(delta); roundTextLength += delta.count }
                                 let visibleDelta = sanitizeVisibleDelta(delta)
+                                if !visibleDelta.isEmpty, roundTextLength + visibleDelta.count <= 100_000 { roundTextParts.append(visibleDelta); roundTextLength += visibleDelta.count }
                                 if !visibleDelta.isEmpty {
                                     continuation.yield(.textDelta(visibleDelta))
                                     if isMeaningfulAssistantCompletion(visibleDelta) {
@@ -450,15 +450,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
 
         return """
-        \(SystemPrompts.taskCompletionStrict)
-
         \(toolProtocolPrompt)
 
         Original user prompt:
         \(originalPrompt)
 
         Conversation transcript:
-        \(transcript)
+        \(String(transcript.suffix(48_000)))
 
         \(resultsSection)
         """
@@ -474,10 +472,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         for (k, v) in dict {
             if let s = v as? String {
                 out[k] = s
+            } else if v is Bool {
+                out[k] = (v as! Bool) ? "true" : "false"
             } else if let n = v as? NSNumber {
                 out[k] = n.stringValue
-            } else if let b = v as? Bool {
-                out[k] = b ? "true" : "false"
             } else {
                 out[k] = String(describing: v)
             }
@@ -1209,6 +1207,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **show_task_panel** — Show the task panel. No required args.
         - **show_swarm_panel** — Open/focus swarm panel. Args: `swarm_id` (optional).
 
+        \(subagentProviderFactory != nil ? """
         ### Subagent Tools — MANDATORY PARALLEL EXECUTION (you MUST use these)
         - **subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
         - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
@@ -1241,6 +1240,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
           Round 4: edit file A...
           Round 5: edit file B...
           This is FORBIDDEN. Use subagents instead.
+        """ : "You are a focused subagent. Use the tools directly to complete your task. Do NOT attempt to spawn subagents.")
         """
     }
 
@@ -1475,8 +1475,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             }
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
-            // Truncate output for context window management
-            let output = String(fullTextParts.joined().prefix(12000))
+            let output = String(fullTextParts.joined().prefix(8000))
 
             // Emit completed event
             events.append(.raw(type: "agent", payload: [

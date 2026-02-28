@@ -268,6 +268,7 @@ struct ChatTerminalSessionsView: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(terminalCommandColor)
                 .lineLimit(isExpanded ? nil : 2)
+                .textShimmer(active: session.isRunning)
 
             if let cwd = session.cwd, !cwd.isEmpty {
                 HStack(spacing: 5) {
@@ -314,6 +315,7 @@ struct ChatTerminalSessionsView: View {
                     Text(session.isRunning ? "Command running…" : "Output unavailable (the provider did not return stdout/stderr for this command).")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+                        .textShimmer(active: session.isRunning)
                 }
             } else if let output = session.output, !output.isEmpty {
                 Text(output)
@@ -506,11 +508,13 @@ struct TaskActivityRow: View {
                 Text(activity.title)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
+                    .textShimmer(active: activity.isRunning)
                 if let detail = activity.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                        .textShimmer(active: activity.isRunning)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

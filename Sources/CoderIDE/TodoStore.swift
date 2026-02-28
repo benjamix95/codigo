@@ -449,9 +449,13 @@ final class TodoStore: ObservableObject {
         for idx in todos.indices where todos[idx].isPlanCanonical {
             let existingKey = canonicalKey(for: todos[idx].title)
             if !desiredKeys.contains(existingKey), todos[idx].status != .done {
+                let oldStatus = todos[idx].status
                 todos[idx].status = .blocked
                 todos[idx].notes = "Removed from current plan"
                 todos[idx].updatedAt = .now
+                if oldStatus != .blocked {
+                    onCanonicalTodoStatusChange?(todos[idx].title, .blocked)
+                }
             }
         }
 
@@ -486,7 +490,7 @@ final class TodoStore: ObservableObject {
 
     func remove(id: UUID) {
         if let todo = todos.first(where: { $0.id == id }), todo.isPlanCanonical {
-            onCanonicalTodoStatusChange?(todo.title, .pending)
+            onCanonicalTodoStatusChange?(todo.title, .blocked)
         }
         todos.removeAll { $0.id == id }
         saveTodos()

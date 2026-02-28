@@ -395,6 +395,7 @@ struct MessageToolTraceView: View {
                             .font(.system(size: 10.5))
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .lineLimit(isRowExpanded ? 4 : 1)
+                            .textShimmer(active: event.isRunning)
                     }
                 }
 

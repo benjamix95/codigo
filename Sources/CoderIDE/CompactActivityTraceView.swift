@@ -172,6 +172,13 @@ struct CompactActivityTraceView: View {
         case "process_resumed": return "play.circle.fill"
         case "plan_step_update": return "list.bullet.rectangle"
         case "debug_phase_update", "debug_user_request", "debug_resolved": return "ladybug.fill"
+        case "debug_context": return "ant.fill"
+        case "debug_log": return "text.badge.plus"
+        case "debug_query": return "text.magnifyingglass"
+        case "debug_session": return "play.circle.fill"
+        case "debug_hypothesize": return "questionmark.diamond.fill"
+        case "debug_mark": return "mappin.and.ellipse"
+        case "debug_clean": return "trash.fill"
         case "file_change", "edit": return "doc.text.fill"
         default: return "circle.fill"
         }

@@ -20,10 +20,10 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
 
     init(from card: SwarmLiveCardState) {
         self.swarmId = card.swarmId
-        self.status = card.status == .running ? .failed : card.status
+        self.status = card.status == .running ? .completed : card.status
         self.title = card.currentStepTitle
         self.detail = card.currentDetail
-        self.summary = card.summary
+        self.summary = card.summary ?? (card.status == .running ? "Completed (snapshotted while running)" : nil)
         self.errorCount = card.errorCount
     }
 }
@@ -382,12 +382,16 @@ final class ChatStore: ObservableObject {
             await MainActor.run {
                 // If a save happened while we were decoding, don't overwrite newer data.
                 guard !self.hasSavedSinceLoad else { return }
-                if self.conversations.isEmpty || self.conversations.first?.messages.isEmpty == true {
+                if self.conversations.isEmpty {
                     self.conversations = decoded
                 } else if !decoded.isEmpty {
+                    // Merge: keep any in-memory conversations (even if empty)
+                    // and prepend disk-only conversations that aren't already loaded.
                     let existingIds = Set(self.conversations.map(\.id))
                     let loaded = decoded.filter { !existingIds.contains($0.id) }
-                    self.conversations = loaded + self.conversations
+                    if !loaded.isEmpty {
+                        self.conversations = loaded + self.conversations
+                    }
                 }
             }
         }
@@ -405,6 +409,20 @@ final class ChatStore: ObservableObject {
                 guard let data = try? JSONEncoder().encode(snapshot) else { return }
                 defaults.value.set(data, forKey: conversationsStorageKey)
             }
+        }
+    }
+
+    /// Bypasses the 200ms debounce and writes to disk synchronously on the persist queue.
+    /// Use at critical moments (task end, snapshot save) to prevent data loss on crash.
+    func saveConversationsImmediately() {
+        hasSavedSinceLoad = true
+        pendingSaveTask?.cancel()
+        pendingSaveTask = nil
+        let snapshot = conversations
+        let defaults = SendableUserDefaults(value: self.userDefaults)
+        Self.persistQueue.sync {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            defaults.value.set(data, forKey: conversationsStorageKey)
         }
     }
 
@@ -835,10 +853,19 @@ final class ChatStore: ObservableObject {
 
     func saveSubagentCardsToLastAssistant(_ cards: [SubagentCardSnapshot], in conversationId: UUID?) {
         guard !cards.isEmpty else { return }
-        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
-        conversations[idx].messages[lastIdx].subagentCards = cards
-        saveConversations()
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else {
+            NSLog("[ChatStore] saveSubagentCardsToLastAssistant: conversation %@ not found — %d card(s) lost", conversationId?.uuidString ?? "nil", cards.count)
+            return
+        }
+        if let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) {
+            conversations[idx].messages[lastIdx].subagentCards = cards
+        } else {
+            NSLog("[ChatStore] saveSubagentCardsToLastAssistant: no assistant message in %@ — creating placeholder to preserve %d card(s)", conversationId?.uuidString ?? "?", cards.count)
+            var placeholder = ChatMessage(role: .assistant, content: "")
+            placeholder.subagentCards = cards
+            conversations[idx].messages.append(placeholder)
+        }
+        saveConversationsImmediately()
     }
 
     func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {

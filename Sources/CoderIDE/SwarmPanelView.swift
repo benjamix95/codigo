@@ -71,6 +71,7 @@ struct SwarmPanelView: View {
         )
         .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
         .onAppear {
+            isFollowingLive = true
             refreshCachedCards()
             if selectedSwarmId == nil {
                 selectedSwarmId = cachedCards.first(where: { $0.status == .running })?.swarmId
@@ -82,10 +83,27 @@ struct SwarmPanelView: View {
                !cachedCards.contains(where: { $0.swarmId == selectedSwarmId }) {
                 self.selectedSwarmId = nil
             }
+            // Auto-switch to a running subagent when the currently selected one completes
+            if let currentId = selectedSwarmId,
+               let currentCard = cachedCards.first(where: { $0.swarmId == currentId }),
+               currentCard.status != .running,
+               let firstRunning = cachedCards.first(where: { $0.status == .running }) {
+                selectedSwarmId = firstRunning.swarmId
+            }
             if selectedSwarmId == nil,
                let firstRunning = cachedCards.first(where: { $0.status == .running }) {
                 selectedSwarmId = firstRunning.swarmId
             }
+        }
+        .onChange(of: isTaskRunning) { _, newValue in
+            if newValue {
+                isFollowingLive = true
+            }
+        }
+        .onChange(of: conversationId) { _, _ in
+            isFollowingLive = true
+            expandedCardIds.removeAll()
+            expandedEventIds.removeAll()
         }
     }
 
@@ -153,28 +171,38 @@ struct SwarmPanelView: View {
     // MARK: - Swarm Selector
 
     private var swarmSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                selectorButton("Overview", isSelected: selectedSwarmId == nil) {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                        selectedSwarmId = nil
-                    }
-                }
-
-                ForEach(sortedCards) { card in
-                    selectorButton(
-                        card.swarmId,
-                        statusColor: cardStatusColor(card),
-                        isSelected: selectedSwarmId == card.swarmId
-                    ) {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    selectorButton("Overview", isSelected: selectedSwarmId == nil) {
                         withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                            selectedSwarmId = card.swarmId
+                            selectedSwarmId = nil
                         }
                     }
+                    .id("selector-overview")
+
+                    ForEach(sortedCards) { card in
+                        selectorButton(
+                            card.swarmId,
+                            statusColor: cardStatusColor(card),
+                            isSelected: selectedSwarmId == card.swarmId
+                        ) {
+                            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                                selectedSwarmId = card.swarmId
+                            }
+                        }
+                        .id("selector-\(card.swarmId)")
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+            .onChange(of: selectedSwarmId) { _, newId in
+                let targetId = newId.map { "selector-\($0)" } ?? "selector-overview"
+                withAnimation(.easeOut(duration: 0.2)) {
+                    proxy.scrollTo(targetId, anchor: .center)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
         }
     }
 
@@ -411,6 +439,7 @@ struct SwarmPanelView: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(isExpanded ? 4 : 1)
+                .textShimmer(active: card.status == .running)
 
             // Expanded: show recent events
             if isExpanded {
@@ -491,6 +520,7 @@ struct SwarmPanelView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
+                        .textShimmer(active: activity.isRunning)
                     Spacer()
                     Text(activity.timestamp.formatted(date: .omitted, time: .standard))
                         .font(.system(size: 8, design: .monospaced))
@@ -633,6 +663,7 @@ struct SwarmPanelView: View {
             Text(card.currentStepTitle)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
+                .textShimmer(active: card.status == .running)
 
             if let started = card.startedAt {
                 HStack(spacing: 12) {
@@ -666,6 +697,7 @@ struct SwarmPanelView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(isExpanded ? nil : 2)
+                    .textShimmer(active: activity.isRunning)
                 Spacer()
                 Text(activity.timestamp.formatted(date: .omitted, time: .standard))
                     .font(.system(size: 9, design: .monospaced))

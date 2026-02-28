@@ -12,6 +12,7 @@ struct TaskControlBar: View {
 
     let conversationId: UUID?
     let coderMode: CoderMode
+    let debugPhase: DebugFlowPhase
     let isSummarizing: Bool
     let activeModeColor: Color
     let onInterrupt: () -> Void
@@ -61,6 +62,7 @@ struct TaskControlBar: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .textShimmer(active: lastActivity.isRunning)
                 }
 
                 if taskActivityStore.activeOperationsCount > 0 {
@@ -231,6 +233,7 @@ struct TaskActivityPanel: View {
 
     let conversationId: UUID?
     let coderMode: CoderMode
+    let debugPhase: DebugFlowPhase
     let onOpenFile: (String) -> Void
     let effectivePrimaryPath: String?
     let showTodoSection: Bool
@@ -315,20 +318,21 @@ struct TaskActivityPanel: View {
         }
 
         // Web Search
-        let webActivities = taskActivityStore.activities.filter {
+        let nonSwarmActivities = taskActivityStore.activities.filter {
+            !SwarmMetadata.isSwarmEvent($0.payload)
+        }
+        let webActivities = nonSwarmActivities.filter {
             $0.type.hasPrefix("web_search")
-            && !SwarmMetadata.isSwarmEvent($0.payload)
         }
         if !webActivities.isEmpty {
-            WebSearchLiveView(activities: taskActivityStore.activities)
+            WebSearchLiveView(activities: nonSwarmActivities)
         }
 
         // Terminals (expandable)
-        let terminalActivities = taskActivityStore.activities.filter {
-            ($0.type == "command_execution" || $0.type == "bash"
+        let terminalActivities = nonSwarmActivities.filter {
+            $0.type == "command_execution" || $0.type == "bash"
                 || ($0.type == "mcp_tool_call"
-                    && ($0.payload["tool"] == "bash" || $0.payload["command"] != nil)))
-            && !SwarmMetadata.isSwarmEvent($0.payload)
+                    && ($0.payload["tool"] == "bash" || $0.payload["command"] != nil))
         }
         if !terminalActivities.isEmpty {
             expandableSection(
@@ -338,7 +342,7 @@ struct TaskActivityPanel: View {
                 color: .secondary,
                 isExpanded: $isTerminalsExpanded
             ) {
-                ChatTerminalSessionsView(activities: taskActivityStore.activities)
+                ChatTerminalSessionsView(activities: nonSwarmActivities)
             }
         }
 
@@ -493,7 +497,10 @@ struct TaskActivityPanel: View {
                 }
                 return "Code Review: Phase 1 (multi-swarm analysis)"
             case .debug:
-                return "Debug: investigating and verifying"
+                if debugPhase.isActive {
+                    return "Debug: \(debugPhase.label)"
+                }
+                return "Debug: investigating"
             default:
                 return "Agent: task running"
             }

@@ -166,7 +166,9 @@ final class PlanHistoryStore: ObservableObject {
             entries = decoded.sorted(by: { $0.createdAt > $1.createdAt })
             _ = trimEntriesInMemory()
             save()
-            userDefaults.removeObject(forKey: planHistoryUserDefaultsKey)
+            if FileManager.default.fileExists(atPath: storageURL.path) {
+                userDefaults.removeObject(forKey: planHistoryUserDefaultsKey)
+            }
             return
         }
     }

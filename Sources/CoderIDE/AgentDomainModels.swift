@@ -80,7 +80,7 @@ struct PlanBoard: Codable, Equatable {
             // Strip only leading '#' characters (markdown header prefix),
             // not '#' appearing mid-text (e.g. "C#", "F#").
             let stripped = firstHeader.drop(while: { $0 == "#" })
-            return String(stripped).trimmingCharacters(in: .whitespaces)
+            return String(stripped).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return String(text.prefix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
     }

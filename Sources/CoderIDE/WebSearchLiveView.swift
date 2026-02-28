@@ -97,6 +97,7 @@ struct WebSearchLiveView: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(isExpanded ? nil : 1)
+                        .textShimmer(active: activity.isRunning)
 
                     // Metadata row
                     HStack(spacing: 8) {
