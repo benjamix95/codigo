@@ -148,6 +148,7 @@ struct CompactActivityTraceView: View {
                 .font(.system(size: 10, weight: activity.isRunning ? .medium : .regular))
                 .foregroundStyle(activity.isRunning ? .primary : .secondary)
                 .lineLimit(1)
+                .textShimmer(active: activity.isRunning)
 
             Spacer()
 

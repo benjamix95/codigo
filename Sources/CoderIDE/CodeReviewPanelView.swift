@@ -28,8 +28,11 @@ struct CodeReviewPanelView: View {
     // MARK: - Local State
 
     @State private var againstCommitRef = ""
-    @State private var autofixEnabled = true
     @State private var selectedTab: ReviewTab = .commands
+
+    /// Derived from codeReviewAnalysisOnly binding (inverted)
+    private var autofixEnabled: Bool { !codeReviewAnalysisOnly }
+    private func setAutofixEnabled(_ enabled: Bool) { codeReviewAnalysisOnly = !enabled }
 
     private let topInteractiveInset: CGFloat = 22
     private let reviewColor = DesignSystem.Colors.reviewColor
@@ -53,7 +56,9 @@ struct CodeReviewPanelView: View {
     }
 
     private func panelMetrics() -> PanelMetrics {
+        // Filter out orchestrator — only show real review workers
         let cards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+            .filter { $0.swarmId != "orchestrator" }
         let activeCount = cards.filter { $0.status == .running }.count
 
         let activities = taskActivityStore.activities
@@ -273,7 +278,10 @@ struct CodeReviewPanelView: View {
 
             // Autofix toggle
             HStack(spacing: 8) {
-                Toggle(isOn: $autofixEnabled) {
+                Toggle(isOn: Binding(
+                    get: { autofixEnabled },
+                    set: { setAutofixEnabled($0) }
+                )) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 10))
@@ -485,8 +493,8 @@ struct CodeReviewPanelView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Picker("", selection: $codeReviewAnalysisBackend) {
                             Text("Auto (same as Agent)").tag("auto")
-                            Text("Codex CLI").tag("codex")
-                            Text("Claude Code").tag("claude")
+                            Text("Codex CLI").tag("codex-cli")
+                            Text("Claude Code").tag("claude-cli")
                             Text("Anthropic API").tag("anthropic-api")
                             Text("OpenAI API").tag("openai-api")
                             Text("Google API").tag("google-api")
@@ -509,8 +517,8 @@ struct CodeReviewPanelView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Picker("", selection: $codeReviewExecutionBackend) {
                                 Text("Auto (same as Agent)").tag("auto")
-                                Text("Codex CLI").tag("codex")
-                                Text("Claude Code").tag("claude")
+                                Text("Codex CLI").tag("codex-cli")
+                                Text("Claude Code").tag("claude-cli")
                                 Text("Anthropic API").tag("anthropic-api")
                                 Text("OpenAI API").tag("openai-api")
                                 Text("Google API").tag("google-api")

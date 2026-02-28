@@ -1263,95 +1263,167 @@ struct SettingsView: View {
     private func syncCodeReview() {}
 
     private func syncOpenAI() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
         reregisterProviderPreservingSelection(id: "openai-api", provider:
             ProviderFactory.openAIAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 reasoningEffort: effort,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncAnthropic() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "anthropic-api", provider:
             ProviderFactory.anthropicAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncGoogle() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "google-api", provider:
             ProviderFactory.googleAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncMiniMax() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "minimax-api", provider:
             ProviderFactory.miniMaxAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncOpenRouter() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "openrouter-api", provider:
             ProviderFactory.openRouterAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncGrok() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "grok-api", provider:
             ProviderFactory.grokAPIProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncCodex() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "codex-cli", provider:
             ProviderFactory.codexProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 
     private func syncClaude() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "claude-cli", provider:
             ProviderFactory.claudeProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
         syncSwarm(); syncPlanProvider()
     }
 
     private func syncGemini() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider:
             ProviderFactory.geminiProvider(
-                config: providerFactoryConfig(),
+                config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             ))
     }
 

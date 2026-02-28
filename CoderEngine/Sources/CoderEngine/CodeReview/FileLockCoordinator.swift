@@ -15,10 +15,13 @@ public struct ExecutionStep: Sendable {
 public actor FileLockCoordinator {
     private var lockedFiles: [String: String] = [:]
 
-    /// Acquisisce lock sui file; blocca fino a disponibilità
+    /// Acquisisce lock sui file; blocca fino a disponibilità con timeout di sicurezza
     public func acquireLock(files: Set<String>, swarmId: String) async {
         guard !files.isEmpty else { return }
-        while true {
+        // Timeout: max 5 minuti (1500 iterations × 200ms) per evitare spin loop infiniti
+        let maxAttempts = 1500
+        var attempt = 0
+        while attempt < maxAttempts {
             let intersection = files.filter { lockedFiles[$0] != nil && lockedFiles[$0] != swarmId }
             if intersection.isEmpty {
                 for f in files {
@@ -26,7 +29,12 @@ public actor FileLockCoordinator {
                 }
                 return
             }
+            attempt += 1
             try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        // Timeout reached — force-acquire to prevent permanent deadlock
+        for f in files {
+            lockedFiles[f] = swarmId
         }
     }
 

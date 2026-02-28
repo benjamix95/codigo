@@ -389,6 +389,7 @@ struct MessageToolTraceView: View {
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(isRowExpanded ? 3 : 1)
+                        .textShimmer(active: event.isRunning)
                     if !compactMode, let detail = compactDetail(for: event) {
                         Text(detail)
                             .font(.system(size: 10.5))

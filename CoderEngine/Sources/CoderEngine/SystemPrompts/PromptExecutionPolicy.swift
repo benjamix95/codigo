@@ -25,6 +25,7 @@ enum PromptExecutionPolicy {
       5. This is mandatory and non-negotiable. Never jump from analysis directly to implementation without creating the TodoWrite list first.
     - CRITICAL — Mandatory Code Review & Test before finalization:
       After ALL implementation tasks are complete, you MUST ALWAYS add a final "Code Review & Test" todo and invoke subagent_reviewer and subagent_testWriter (in parallel) to review and test the changes. This is NON-NEGOTIABLE. You may NOT finalize or give the user a summary until these subagents have completed and you have reported their results. The execution loop is: implement -> code review & test (via subagents) -> report final outcome.
+    - Subagents run on all configured backends (Codex, Claude, Gemini, OpenAI, Anthropic, etc.) in parallel — call multiple subagents in the SAME round (e.g. subagent_explorer + subagent_reviewer) to use different backends simultaneously.
     - Use ALL available tools — not just Bash. Grep, Glob, Read, WebSearch, WebFetch, MCP, Skill, Task (subagents) are all available and should be used when appropriate.
     """
 }

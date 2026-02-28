@@ -67,6 +67,11 @@ struct TodoListView: View {
                 }
             }
         }
+        .onChange(of: filteredTodos.map(\.id)) { _, ids in
+            if let exp = expandedTaskId, !ids.contains(exp) {
+                expandedTaskId = nil
+            }
+        }
     }
 
     private func row(_ todo: TodoItem) -> some View {
@@ -238,20 +243,25 @@ struct TodoLiveInlineCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             switch todo.status {
             case .inProgress:
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.primary.opacity(0.5))
-                    .frame(width: 12)
+                Image(systemName: "circle.inset.filled")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.55))
+                    .frame(width: 14)
             case .done:
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.tertiary)
-                    .frame(width: 12)
-            case .pending, .blocked:
-                Circle()
-                    .fill(Color.primary.opacity(0.12))
-                    .frame(width: 5, height: 5)
-                    .frame(width: 12)
+                    .frame(width: 14)
+            case .pending:
+                Image(systemName: "circle")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.primary.opacity(0.2))
+                    .frame(width: 14)
+            case .blocked:
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.orange.opacity(0.6))
+                    .frame(width: 14)
             }
 
             Text(todo.title)

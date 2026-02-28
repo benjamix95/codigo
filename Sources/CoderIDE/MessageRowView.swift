@@ -161,7 +161,8 @@ struct MessageRow: View {
                     onFileClicked: onFileClicked,
                     textAlignment: .leading,
                     isStreaming: false,
-                    aggressiveSanitization: false
+                    aggressiveSanitization: false,
+                    fillWidth: false
                 )
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

@@ -499,9 +499,9 @@ struct PlanPanelView: View {
             return true
         }
         switch planFlowPhase {
-        case .analyzing, .questioning, .generating, .proposalReady:
+        case .analyzing, .questioning, .generating:
             return true
-        case .idle, .readyToBuild, .building:
+        case .proposalReady, .idle, .readyToBuild, .building:
             return false
         }
     }
@@ -767,6 +767,12 @@ struct PlanPanelView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
+                    if isEditing, let convId = conversationId, !planText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if let board = chatStore.planBoard(for: convId) {
+                            let newBoard = PlanBoard.build(from: planText, options: board.options)
+                            chatStore.setPlanBoard(newBoard, for: convId)
+                        }
+                    }
                     if !isEditing {
                         planText = snapshot.planContent
                     }
@@ -862,7 +868,7 @@ struct PlanPanelView: View {
                 Text("\(items.count)")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.tertiary)
-                if !items.isEmpty {
+                if !items.isEmpty && (ctxId != nil || ctxPath != nil) {
                     Button(role: .destructive) {
                         showDeleteAllHistoryConfirmation = true
                     } label: {
@@ -1094,7 +1100,6 @@ struct PlanPanelView: View {
                             Image(systemName: todo.status.icon)
                                 .font(.system(size: 13))
                                 .foregroundStyle(todo.status.color)
-                                .symbolEffect(.pulse, isActive: todo.status == .inProgress)
                         }
                         .buttonStyle(.plain)
 

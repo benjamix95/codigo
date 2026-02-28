@@ -9,6 +9,7 @@ struct MarkdownContentView: View {
     var textAlignment: TextAlignment = .leading
     var isStreaming: Bool = false
     var aggressiveSanitization: Bool? = nil
+    var fillWidth: Bool = true
 
     private var shouldUseAggressiveSanitization: Bool {
         aggressiveSanitization ?? true
@@ -169,7 +170,7 @@ struct MarkdownContentView: View {
                 blockView(for: block, prevBlock: idx > 0 ? blocks[idx - 1] : nil)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: fillWidth ? .infinity : nil, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             if cachedBlocks == nil { cachedBlocks = parseBlocks() }

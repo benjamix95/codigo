@@ -91,6 +91,7 @@ struct SwarmPanelView: View {
 
     private func refreshCachedCards() {
         cachedCards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+            .filter { $0.swarmId != "orchestrator" }
     }
 
     // MARK: - Top Bar

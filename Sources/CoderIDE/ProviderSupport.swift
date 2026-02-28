@@ -13,6 +13,8 @@ enum ProviderSupport {
         "grok-api"
     ]
 
+    private static let allAgentProviderIds: [String] = agentProviderIds + agentApiProviderIds
+
     static func isAgentProvider(id: String?) -> Bool {
         guard let id else { return false }
         return agentProviderIds.contains(id)
@@ -25,7 +27,45 @@ enum ProviderSupport {
 
     static func isUserSelectableRealProvider(id: String?) -> Bool {
         guard let id else { return false }
-        return (agentProviderIds + agentApiProviderIds).contains(id)
+        return allAgentProviderIds.contains(id)
+    }
+
+    /// Returns true when provider id identifies a registered, known, and authenticated agent/API provider.
+    static func isHealthyAgentProvider(id: String?, registry: ProviderRegistry) -> Bool {
+        guard let id, isAgentCompatibleProvider(id: id) else { return false }
+        guard let provider = registry.provider(for: id) else { return false }
+        return provider.isAuthenticated()
+    }
+
+    /// Deterministic first-available provider, honoring `preferred` if healthy.
+    static func firstHealthyAgentProviderId(
+        preferred: String?,
+        registry: ProviderRegistry
+    ) -> String? {
+        if isHealthyAgentProvider(id: preferred, registry: registry), let preferred {
+            return preferred
+        }
+
+        for id in allAgentProviderIds where isHealthyAgentProvider(id: id, registry: registry) {
+            return id
+        }
+
+        return nil
+    }
+
+    /// Like `firstHealthyAgentProviderId`, but falls back to `codex-cli` when registered
+    /// if no healthy provider exists. Restores legacy UX for users with unconfigured providers.
+    static func firstHealthyAgentProviderIdWithCodexFallback(
+        preferred: String?,
+        registry: ProviderRegistry
+    ) -> String? {
+        if let id = firstHealthyAgentProviderId(preferred: preferred, registry: registry) {
+            return id
+        }
+        if isHealthyAgentProvider(id: "codex-cli", registry: registry) {
+            return "codex-cli"
+        }
+        return nil
     }
 
     /// Plan build requires Agent-compatible providers (CLI and API with tool support).

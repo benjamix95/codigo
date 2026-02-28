@@ -13,7 +13,7 @@ enum PromptToolsPolicy {
       • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
       • MCP tools → mcp_call, mcp_list_tools (use them when available)
       • Skills → Skill tool (when skills are available and relevant)
-      • Subagents → Task tool (for parallel or complex sub-tasks)
+      • Subagents → subagent_* tools (run on all backends in parallel — call 2+ in same round)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.

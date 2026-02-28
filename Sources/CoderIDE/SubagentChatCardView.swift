@@ -105,6 +105,7 @@ struct SubagentChatCardView: View {
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
             .lineLimit(isExpanded ? 4 : 1)
+            .textShimmer(active: card.status == .running)
     }
 
     // MARK: - Expanded Content
@@ -121,6 +122,7 @@ struct SubagentChatCardView: View {
                             .font(.system(size: 10))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
+                            .textShimmer(active: activity.isRunning)
                         Spacer()
                         Text(activity.timestamp.formatted(date: .omitted, time: .standard))
                             .font(.system(size: 8, design: .monospaced))

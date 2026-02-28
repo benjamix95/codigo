@@ -611,6 +611,7 @@ struct ChatPanelView: View {
     /// Loading state only for the currently displayed thread (avoids showing loading for other threads).
     private var isLoadingForCurrentConversation: Bool {
         chatStore.isTaskActive(for: conversationId)
+            || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
     }
 
     @State private var coderMode: CoderMode = .agent
@@ -1009,7 +1010,8 @@ struct ChatPanelView: View {
                 }
             }()
             // Find matching step by title in the active plan board and update
-            if let activeId = chatStore.activeTaskConversationId,
+            let planConvId = activeBuildPlanConversationId ?? chatStore.activeTaskConversationId
+            if let activeId = planConvId,
                var board = chatStore.planBoard(for: activeId),
                let idx = board.steps.firstIndex(where: {
                     $0.title.caseInsensitiveCompare(title) == .orderedSame
@@ -1020,7 +1022,7 @@ struct ChatPanelView: View {
             }
 
             let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
-            if let activeId = chatStore.activeTaskConversationId, !canonicalTodos.isEmpty {
+            if let activeId = planConvId, !canonicalTodos.isEmpty {
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
             }
         }
@@ -1199,6 +1201,11 @@ struct ChatPanelView: View {
             voiceInputController.cancel()
             flushPendingTaskActivities()
             removePasteMonitor()
+            for (_, task) in activeRunTaskByConversation {
+                task.cancel()
+            }
+            activeRunTaskByConversation.removeAll()
+            activeRunTokenByConversation.removeAll()
         }
         .onReceive(NotificationCenter.default.publisher(for: Self.attachmentPastedNotification)) {
             notification in
@@ -2144,12 +2151,13 @@ struct ChatPanelView: View {
                                 )
                                 .padding(.horizontal, 2)
                             }
-                            // Subagent cards inline (only on latest assistant message, while task running in agent mode)
+                            // Subagent / worker cards inline (latest assistant message, while task running)
+                            // Always filter out the orchestrator — only show real agent/worker cards
                             if message.id == latestAssistantMessageId,
-                               coderMode == .agent,
                                isLoadingForCurrentConversation
                             {
                                 let subagentCards = taskActivityStore.swarmCardStates()
+                                    .filter { $0.swarmId != "orchestrator" }
                                 if !subagentCards.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {
                                         ForEach(subagentCards) { card in
@@ -2436,6 +2444,8 @@ struct ChatPanelView: View {
         case .building:
             planFlowPhase = .readyToBuild
             planStreamingContent = ""
+        case .proposalReady:
+            planFlowPhase = .readyToBuild
         case .analyzing, .questioning, .generating:
             planFlowPhase = .idle
             planningState = .idle
@@ -3751,52 +3761,47 @@ struct ChatPanelView: View {
                     in: providerRegistry)
             }
         case .agent:
-            if let preferred = currentConv?.preferredProviderId,
-                ProviderSupport.isAgentCompatibleProvider(id: preferred),
-                providerRegistry.provider(for: preferred) != nil
-            {
-                providerRegistry.selectedProviderId = preferred
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
             } else if let current = providerRegistry.selectedProviderId,
                 ProviderSupport.isAgentCompatibleProvider(id: current)
             {
                 // Keep current provider if already valid for Agent
             } else {
-                providerRegistry.selectedProviderId = "codex-cli"
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
             }
         case .codeReviewMultiSwarm:
-            if let preferred = currentConv?.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
             } else if let current = providerRegistry.selectedProviderId,
                       ProviderSupport.isAgentCompatibleProvider(id: current) {
                 // keep current real provider
             } else {
-                providerRegistry.selectedProviderId = "codex-cli"
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
             }
         case .debug:
-            if let preferred = currentConv?.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
             } else if let current = providerRegistry.selectedProviderId,
                       ProviderSupport.isAgentCompatibleProvider(id: current) {
                 // keep current real provider
             } else {
-                providerRegistry.selectedProviderId = "codex-cli"
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
             }
             debugToggleEnabled = true
             showDebugPanel = true
         case .plan:
-            if let preferred = currentConv?.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
             } else if let current = providerRegistry.selectedProviderId,
                       ProviderSupport.isAgentCompatibleProvider(id: current) {
                 // keep current real provider
             } else {
-                providerRegistry.selectedProviderId = "codex-cli"
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
             }
             planningState = .idle
             planFlowPhase = .idle
@@ -3915,11 +3920,19 @@ struct ChatPanelView: View {
     }
 
     private func syncCodexProvider() {
-        let p = ProviderFactory.codexProvider(
-            config: providerFactoryConfig(),
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        let p = ProviderFactory.codexProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: p)
         syncSwarmProvider()
@@ -3929,11 +3942,19 @@ struct ChatPanelView: View {
     }
 
     private func syncClaudeProvider() {
-        let p = ProviderFactory.claudeProvider(
-            config: providerFactoryConfig(),
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        let p = ProviderFactory.claudeProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: p)
         syncSwarmProvider()
@@ -3942,11 +3963,19 @@ struct ChatPanelView: View {
     }
 
     private func syncGeminiProvider() {
-        let p = ProviderFactory.geminiProvider(
-            config: providerFactoryConfig(),
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        let p = ProviderFactory.geminiProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: p)
         checkProviderAuth()
@@ -3965,25 +3994,34 @@ struct ChatPanelView: View {
 
     private func syncToolRuntimePolicy() {
         let cfg = providerFactoryConfig()
-        let codex = ProviderFactory.codexProvider(
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
+        )
+        let codex = ProviderFactory.codexProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
         let claude = ProviderFactory.claudeProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: claude)
         let gemini = ProviderFactory.geminiProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: gemini)
 
@@ -3992,7 +4030,8 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
         }
@@ -4001,7 +4040,8 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "openai-api", provider: p)
         }
@@ -4010,7 +4050,8 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "anthropic-api", provider: p)
         }
@@ -4019,7 +4060,8 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "google-api", provider: p)
         }
@@ -4028,9 +4070,20 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "minimax-api", provider: p)
+        }
+        if !cfg.grokApiKey.isEmpty {
+            let p = ProviderFactory.grokAPIProvider(
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory
+            )
+            reregisterProviderPreservingSelection(id: "grok-api", provider: p)
         }
 
         syncSwarmProvider()
@@ -4137,7 +4190,12 @@ struct ChatPanelView: View {
         if userModeOverrideUntilConversationChange {
             return
         }
-        guard let id = pid else { return }
+        guard let id = pid else {
+            coderMode = .agent
+            planningState = .idle
+            planFlowPhase = .idle
+            return
+        }
         if ProviderSupport.isAgentCompatibleProvider(id: id) {
             if showDebugPanel || debugStore.phase.isActive {
                 coderMode = .debug
@@ -4381,17 +4439,7 @@ struct ChatPanelView: View {
         if planFlowPhase == .proposalReady || planFlowPhase == .idle {
             planFlowPhase = .readyToBuild
         }
-        guard canExecutePlanBuild(
-            phase: planFlowPhase,
-            choice: normalized
-        ) else {
-            return
-        }
-        executeWithPlanChoice(
-            normalized,
-            fromPlanConversationId: planConversationId,
-            providerOverrideId: providerOverrideId
-        )
+        // Do NOT auto-execute: wait for user to click "Build" in the plan panel.
     }
 
     private func executeWithPlanChoice(
@@ -4494,7 +4542,7 @@ struct ChatPanelView: View {
             try createCheckpointBeforeTurn(conversationId: agentConvId, workspaceContext: ctx)
         } catch {
             appendTechnicalErrorMessage(
-                "[Checkpoint error: \(error.localizedDescription)]", in: conversationId)
+                "[Checkpoint error: \(error.localizedDescription)]", in: agentConvId)
             return
         }
 
@@ -4510,7 +4558,8 @@ struct ChatPanelView: View {
             planHistoryStore.updateChosenPath(id: selected, chosenPath: choice)
             planHistoryStore.markRebuilt(id: selected)
         }
-        selectedConversationId = agentConvId
+        // Keep the user on the plan conversation — build progress is visible
+        // in the plan panel's trace section. Only switch mode and phase.
         providerRegistry.selectedProviderId = provider.id
         coderMode = .agent
         planFlowPhase = .building
@@ -4592,7 +4641,11 @@ struct ChatPanelView: View {
                 )
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 clearStreamingReasoning(for: agentConvId)
-                await MainActor.run { planFlowPhase = .readyToBuild }
+                await MainActor.run {
+                    if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
+                        planFlowPhase = .readyToBuild
+                    }
+                }
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: agentConvId)
                 clearStreamingReasoning(for: agentConvId)
@@ -4600,7 +4653,9 @@ struct ChatPanelView: View {
                     traceOutcome = .aborted
                     await MainActor.run {
                         applyFlowCoordinatorState(for: agentConvId) { $0.interrupt() }
-                        planFlowPhase = .readyToBuild
+                        if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
+                            planFlowPhase = .readyToBuild
+                        }
                     }
                 } else {
                     traceOutcome = .failed
@@ -4608,7 +4663,9 @@ struct ChatPanelView: View {
                         content: userFacingStreamError(error), in: agentConvId)
                     await MainActor.run {
                         applyFlowCoordinatorState(for: agentConvId) { $0.fail() }
-                        planFlowPhase = .readyToBuild
+                        if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
+                            planFlowPhase = .readyToBuild
+                        }
                     }
                 }
             }
@@ -5003,7 +5060,7 @@ struct ChatPanelView: View {
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id
         )
-        if coderMode == .agent { swarmProgressStore.clear() }
+        swarmProgressStore.clear()
 
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
         attachedComposerAttachments = []

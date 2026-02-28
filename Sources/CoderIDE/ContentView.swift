@@ -115,13 +115,11 @@ struct ContentView: View {
                 )
             }
             let agentConv = chatStore.conversation(for: selectedConversationId)
-            if let preferred = agentConv?.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
+            let preferredProvider = agentConv?.preferredProviderId
+            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: preferredProvider,
+                registry: providerRegistry
+            )
         }
         .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
         .sheet(isPresented: $showSettings) {
@@ -134,6 +132,14 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .coderOpenSettingsFromMenuBar)) { _ in
             showSettings = true
             NSApp.activate(ignoringOtherApps: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
+            let agentConv = chatStore.conversation(for: selectedConversationId)
+            let preferredProvider = agentConv?.preferredProviderId
+            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: preferredProvider,
+                registry: providerRegistry
+            )
         }
         .onReceive(appUpdateCenter.$availableUpdate.compactMap { $0 }) { update in
             pendingAppUpdate = update
@@ -329,6 +335,11 @@ struct ContentView: View {
         } else {
             selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
+        let preferredProvider = chatStore.conversation(for: selectedConversationId)?.preferredProviderId
+        providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+            preferred: preferredProvider,
+            registry: providerRegistry
+        )
     }
 
     // MARK: - Chat Panel

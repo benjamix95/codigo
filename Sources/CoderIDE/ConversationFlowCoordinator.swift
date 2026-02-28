@@ -28,11 +28,32 @@ private enum StreamWatchdogError: LocalizedError {
     }
 }
 
+private enum StreamIterationState: Error {
+    case ended
+}
+
 final class ConversationFlowCoordinator: ObservableObject {
+    private let initialEventTimeoutOverride: Int?
+    private let activityTimeoutOverride: Int?
+    private let initialRetryOverride: Int?
+    private let stallRetryOverride: Int?
+
+    init(
+        initialEventTimeoutOverride: Int? = nil,
+        activityTimeoutOverride: Int? = nil,
+        initialRetryOverride: Int? = nil,
+        stallRetryOverride: Int? = nil
+    ) {
+        self.initialEventTimeoutOverride = initialEventTimeoutOverride
+        self.activityTimeoutOverride = activityTimeoutOverride
+        self.initialRetryOverride = initialRetryOverride
+        self.stallRetryOverride = stallRetryOverride
+    }
+
     private enum StreamTimeoutPolicy {
         static let firstEventTimeoutSecDefault = 90
         static let firstEventTimeoutSecGemini = 180
-        static let inactivityTimeoutSec = 1800
+        static let activityTimeoutSec = 1800
         static let maxInitialNoEventRetries = 4
         static let maxInactivityStallRetries = 12
     }
@@ -121,45 +142,59 @@ final class ConversationFlowCoordinator: ObservableObject {
         await MainActor.run {
             onSignal?(.streamStarted(streamStartedAt))
         }
-        var full = ""
+        var fullParts: [String] = []
+        var fullPartsLength = 0
         let stream = try await provider.send(prompt: prompt, context: context, attachments: attachments)
         let iteratorHolder = IteratorHolder(stream)
         var hasReceivedAnyEvent = false
         var emittedFirstText = false
         // Keep watchdog permissive for long multi-agent/tool runs.
-        let firstEventTimeout = provider.id == "gemini-cli"
+        let firstEventTimeout = initialEventTimeoutOverride ?? (provider.id == "gemini-cli"
             ? StreamTimeoutPolicy.firstEventTimeoutSecGemini
-            : StreamTimeoutPolicy.firstEventTimeoutSecDefault
-        let inactivityTimeout = StreamTimeoutPolicy.inactivityTimeoutSec
+            : StreamTimeoutPolicy.firstEventTimeoutSecDefault)
+        let inactivityTimeout = activityTimeoutOverride ?? StreamTimeoutPolicy.activityTimeoutSec
+        let maxInitialNoEventRetries = initialRetryOverride ?? StreamTimeoutPolicy.maxInitialNoEventRetries
+        let maxInactivityStallRetries = stallRetryOverride ?? StreamTimeoutPolicy.maxInactivityStallRetries
         var initialNoEventRetries = 0
         var inactivityStallRetries = 0
+        var lastEventAt = streamStartedAt
+
+        let clampedFirst = min(3600, max(1, firstEventTimeout))
+        let clampedInactivity = min(3600, max(1, inactivityTimeout))
+        let clampedInitialRetries = min(max(0, maxInitialNoEventRetries), 100)
+        let clampedStallRetries = min(max(0, maxInactivityStallRetries), 100)
 
         while true {
-            let timeout = hasReceivedAnyEvent ? inactivityTimeout : firstEventTimeout
+            let timeout = hasReceivedAnyEvent ? clampedInactivity : clampedFirst
             let maybeEvent: StreamEvent?
             do {
-                maybeEvent = try await nextEvent(withinSeconds: timeout) {
+                maybeEvent = try await nextEvent(
+                    withinSeconds: timeout,
+                    isInitialPoll: !hasReceivedAnyEvent
+                ) {
                     try await iteratorHolder.next()
                 }
                 // Reset retry budgets after any successful poll.
                 initialNoEventRetries = 0
                 inactivityStallRetries = 0
+                lastEventAt = Date()
             } catch let timeoutError as StreamWatchdogError {
                 switch timeoutError {
                 case .noEvents:
                     initialNoEventRetries += 1
-                    if initialNoEventRetries <= StreamTimeoutPolicy.maxInitialNoEventRetries {
+                    if initialNoEventRetries <= clampedInitialRetries {
                         logStreamDiagnostic(
-                            "provider=\(provider.id) watchdog=no_events retry=\(initialNoEventRetries)"
+                            "provider=\(provider.id) watchdog=no_events stage=initial retry=\(initialNoEventRetries)/\(clampedInitialRetries) timeout=\(timeout)s"
                         )
                         continue
                     }
                     throw timeoutError
                 case .stalled:
                     inactivityStallRetries += 1
-                    if inactivityStallRetries <= StreamTimeoutPolicy.maxInactivityStallRetries {
+                    let elapsedSinceLastEvent = Int(Date().timeIntervalSince(lastEventAt) * 1_000)
+                    if inactivityStallRetries <= clampedStallRetries {
                         logStreamDiagnostic(
-                            "provider=\(provider.id) watchdog=stalled retry=\(inactivityStallRetries)"
+                            "provider=\(provider.id) watchdog=stalled stage=post-first retry=\(inactivityStallRetries)/\(clampedStallRetries) timeout=\(timeout)s elapsed_ms=\(elapsedSinceLastEvent)"
                         )
                         await Task.yield()
                         continue
@@ -192,14 +227,15 @@ final class ConversationFlowCoordinator: ObservableObject {
                         onSignal?(.firstTextDelta(firstTextAt))
                     }
                 }
-                full += d
-                let snapshot = full
+                if fullPartsLength + d.count <= 500_000 { fullParts.append(d); fullPartsLength += d.count }
+                let snapshot = fullParts.joined()
                 await MainActor.run {
                     onText(snapshot)
                 }
             case .error(let e):
-                full += "\n\n[Error: \(e)]"
-                let snapshot = full
+                let errStr = "\n\n[Error: \(e)]"
+                if fullPartsLength + errStr.count <= 500_000 { fullParts.append(errStr); fullPartsLength += errStr.count }
+                let snapshot = fullParts.joined()
                 await MainActor.run {
                     onError(snapshot)
                 }
@@ -220,28 +256,36 @@ final class ConversationFlowCoordinator: ObservableObject {
             onSignal?(.streamCompleted(completedAt))
         }
         await setState(.completed)
-        return full
+        return fullParts.joined()
     }
 
-    private func nextEvent<T>(
+    private func nextEvent(
         withinSeconds timeout: Int,
-        operation: @escaping @Sendable () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
+        isInitialPoll: Bool,
+        operation: @escaping @Sendable () async throws -> StreamEvent?
+    ) async throws -> StreamEvent? {
+        try await withThrowingTaskGroup(of: StreamEvent.self) { group in
             group.addTask {
-                try await operation()
+                guard let value = try await operation() else { throw StreamIterationState.ended }
+                return value
             }
             group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000_000)
-                throw timeout <= 60
+                let safeTimeout = max(1, timeout)
+                try await Task.sleep(nanoseconds: UInt64(safeTimeout) * 1_000_000_000)
+                throw isInitialPoll
                     ? StreamWatchdogError.noEvents(timeout: timeout)
                     : StreamWatchdogError.stalled(timeout: timeout)
             }
-            guard let value = try await group.next() else {
-                throw StreamWatchdogError.stalled(timeout: timeout)
+            do {
+                guard let value = try await group.next() else {
+                    throw StreamWatchdogError.stalled(timeout: timeout)
+                }
+                group.cancelAll()
+                return value
+            } catch StreamIterationState.ended {
+                group.cancelAll()
+                return nil
             }
-            group.cancelAll()
-            return value
         }
     }
 

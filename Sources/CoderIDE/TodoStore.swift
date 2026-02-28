@@ -19,8 +19,8 @@ enum TodoStatus: String, Codable, CaseIterable {
     var icon: String {
         switch self {
         case .pending: return "circle"
-        case .inProgress: return "play.circle.fill"
-        case .blocked: return "exclamationmark.triangle.fill"
+        case .inProgress: return "circle.inset.filled"
+        case .blocked: return "exclamationmark.circle"
         case .done: return "checkmark.circle.fill"
         }
     }

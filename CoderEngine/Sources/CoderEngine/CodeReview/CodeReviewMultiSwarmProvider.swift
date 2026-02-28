@@ -135,6 +135,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             Task {
                 do {
                     execController?.beginScope(.review)
+                    defer { execController?.clearCurrentProcess() }
                     execController?.clearSwarmStopRequested()
                     execController?.clearSwarmPauseRequested()
 
@@ -187,11 +188,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         isCancelled: isCancelled,
                         waitWhilePaused: waitWhilePaused
                     )
-                    guard case .success(let analysisText) = analysisOutput else {
-                        if case .noPayload(_, let reason) = analysisOutput {
-                            throw ReviewPipelineError.taskPayloadInvalid(reason)
-                        }
-                        throw ReviewPipelineError.taskPayloadMissing
+                    let analysisText: String
+                    switch analysisOutput {
+                    case .success(let text):
+                        analysisText = text
+                    case .noPayload(let text, let reason):
+                        // Analysis completed but no structured JSON found — treat as analysis-only result
+                        continuation.yield(.textDelta("\n---\n**Analysis complete.** \(reason) No fix tasks generated.\n"))
+                        analysisText = text
                     }
 
                     if isCancelled() {
@@ -210,14 +214,13 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                     let tasks: [ReviewTask]
                     switch taskExtraction {
-                    case .noFixes:
+                    case .noFixes, .noPayload:
                         tasks = []
                     case .tasks(let parsedTasks):
                         tasks = parsedTasks
-                    case .noPayload:
-                        throw ReviewPipelineError.taskPayloadMissing
                     case .invalidJSON(let reason):
-                        throw ReviewPipelineError.taskPayloadInvalid(reason)
+                        continuation.yield(.textDelta("\n**Warning:** Could not parse task JSON: \(reason). Treating as analysis-only.\n"))
+                        tasks = []
                     }
 
                     // Emit worker plan for UI
@@ -271,8 +274,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     var reviewRound = 0
                     var currentTasks = tasks
 
-                    while reviewRound < config.maxReviewRounds {
-                        if isCancelled() { break }
+                    reviewLoop: while reviewRound < config.maxReviewRounds {
+                        if isCancelled() { break reviewLoop }
                         await waitWhilePaused()
                         reviewRound += 1
 
@@ -294,7 +297,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             waitWhilePaused: waitWhilePaused
                         )
 
-                        if isCancelled() { break }
+                        if isCancelled() { break reviewLoop }
 
                         // ── Phase 4: Test ──────────────────────────────────────
                         continuation.yield(.textDelta("\n### Test Phase\n\n"))
@@ -322,7 +325,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             testPassed = false
                         }
 
-                        if isCancelled() { break }
+                        if isCancelled() { break reviewLoop }
 
                         // ── Phase 5: Re-Review ─────────────────────────────────
                         if reviewRound < config.maxReviewRounds {
@@ -335,7 +338,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                             if modifiedFiles.isEmpty {
                                 continuation.yield(.textDelta("No modified files remain. Review complete.\n"))
-                                break
+                                break reviewLoop
                             }
 
                             let reReviewOutcome = await Self.runReReviewPhase(
@@ -349,23 +352,20 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                                 waitWhilePaused: waitWhilePaused
                             )
 
-                            if isCancelled() { break }
+                            if isCancelled() { break reviewLoop }
 
-                            guard case .issues = reReviewOutcome.findings else {
-                                switch reReviewOutcome.findings {
-                                case .clean:
-                                    if !reReviewOutcome.hasNewIssues {
-                                        continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
-                                        break
-                                    }
-                                case .inconclusive(let reason):
-                                    continuation.yield(.textDelta(
-                                        "\n**Re-review inconclusive:** \(reason). Review stopped to avoid unsafe fallback.\n"
-                                    ))
-                                default:
-                                    break
-                                }
-                                break
+                            // If re-review found no issues or is inconclusive, stop the loop
+                            switch reReviewOutcome.findings {
+                            case .clean:
+                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                                break reviewLoop
+                            case .inconclusive(let reason):
+                                continuation.yield(.textDelta(
+                                    "\n**Re-review inconclusive:** \(reason). Review stopped to avoid unsafe fallback.\n"
+                                ))
+                                break reviewLoop
+                            case .issues:
+                                break // continue processing below
                             }
 
                             // Parse new dynamic tasks for next round
@@ -376,13 +376,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             )
 
                             switch nextRoundTasks {
-                            case .tasks(let tasks) where !tasks.isEmpty:
-                                currentTasks = tasks
-                            case .tasks:
-                                currentTasks = []
-                            case .noFixes:
-                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
-                                break
+                            case .tasks(let newTasks) where !newTasks.isEmpty:
+                                currentTasks = newTasks
+                            case .tasks, .noFixes:
+                                continuation.yield(.textDelta("\n**All clear.** No actionable fix tasks for next round.\n"))
+                                break reviewLoop
                             case .noPayload:
                                 continuation.yield(.textDelta(
                                     "\n**Re-review payload missing.** Unable to safely continue without validated tasks.\n"
@@ -401,26 +399,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                                 return
                             }
 
-                            if currentTasks.isEmpty && !reReviewOutcome.hasNewIssues {
-                                continuation.yield(.textDelta(
-                                    "\n**All clear.** No new issues found.\n"
-                                ))
-                                break
-                            }
-
-                            if currentTasks.isEmpty {
-                                continuation.yield(.textDelta(
-                                    "\n**Review stalled.** Re-review reports possible issues but no valid worker tasks were produced.\n"
-                                ))
-                                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
-                                continuation.yield(.completed)
-                                continuation.finish()
-                                return
-                            }
-
-                            if !reReviewOutcome.hasNewIssues || (testPassed && !reReviewOutcome.hasNewIssues) {
-                                continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
-                                break
+                            if testPassed {
+                                continuation.yield(.textDelta("\n**Tests passed.** No further fix rounds needed.\n"))
+                                break reviewLoop
                             }
 
                             continuation.yield(.textDelta(
@@ -573,17 +554,20 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         allowedFiles: [String]? = nil
     ) -> ExtractedReviewTasks? {
         let allowedSet = allowedFiles.map(Set.init)
-        // Try markdown code block first: ```json ... ```
+        // Try markdown code block: ```json ... ``` — take the LAST match (the real task block, not examples)
         let codeBlockPattern = #"```json\s*\n(\[[\s\S]*?\])\s*\n```"#
-        if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []),
-           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-           let jsonRange = Range(match.range(at: 1), in: text) {
-            let jsonStr = String(text[jsonRange])
-            switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
-            case .tasks(let tasks):
-                return .jsonTasks(tasks)
-            case .invalidJSON(let reason):
-                return .invalidJSON(reason: reason)
+        if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            // Use the last match — LLMs often include example blocks before the real one
+            if let match = matches.last,
+               let jsonRange = Range(match.range(at: 1), in: text) {
+                let jsonStr = String(text[jsonRange])
+                switch parseTasksJSON(jsonStr, allowedFiles: allowedSet) {
+                case .tasks(let tasks):
+                    return .jsonTasks(tasks)
+                case .invalidJSON(let reason):
+                    return .invalidJSON(reason: reason)
+                }
             }
         }
 
@@ -656,7 +640,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     // MARK: - Phase 3: Parallel Fix
 
     /// Runs fix workers in parallel with file-lock coordination.
-    /// Output is serialized: collected per-worker then emitted sequentially for linear chat.
+    /// Card lifecycle events (started/completed) are emitted immediately for live UI.
+    /// Text output is serialized: collected per-worker then emitted sequentially for linear chat.
     private static func runParallelFixPhase(
         tasks: [ReviewTask],
         context: WorkspaceContext,
@@ -670,7 +655,17 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
         continuation.yield(.textDelta("Launching \(tasks.count) parallel worker(s)...\n\n"))
 
-        // Run workers in parallel, collect their events
+        // Emit ALL worker started events immediately so cards appear in the chat at once
+        for task in tasks {
+            continuation.yield(.raw(type: "agent", payload: [
+                "title": task.description,
+                "detail": "started",
+                "swarm_id": task.id,
+                "group_id": "swarm-\(task.id)"
+            ]))
+        }
+
+        // Run workers in parallel, collect their text events
         let workerResults: [(taskId: String, events: [StreamEvent])] = await withTaskGroup(
             of: (String, [StreamEvent]).self,
             returning: [(String, [StreamEvent])].self
@@ -685,14 +680,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     )
 
                     var collected: [StreamEvent] = []
-
-                    // Emit started event for SwarmLiveReducer
-                    collected.append(.raw(type: "agent", payload: [
-                        "title": "Review Worker \(task.id)",
-                        "detail": "started",
-                        "swarm_id": task.id,
-                        "group_id": "swarm-\(task.id)"
-                    ]))
 
                     // Build scoped context for this worker
                     let scopedContext = WorkspaceContext(
@@ -739,7 +726,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             case .raw(let type, var payload):
                                 payload["swarm_id"] = task.id
                                 payload["group_id"] = "swarm-\(task.id)"
-                                collected.append(.raw(type: type, payload: payload))
+                                // Emit raw events immediately so card activity updates live
+                                continuation.yield(.raw(type: type, payload: payload))
                             default:
                                 collected.append(event)
                             }
@@ -748,9 +736,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         collected.append(.textDelta("\n**Worker \(task.id) error:** \(error.localizedDescription)\n"))
                     }
 
-                    // Emit completed event for SwarmLiveReducer
-                    collected.append(.raw(type: "agent", payload: [
-                        "title": "Review Worker \(task.id)",
+                    // Emit completed event immediately for live card status
+                    continuation.yield(.raw(type: "agent", payload: [
+                        "title": task.description,
                         "detail": "completed",
                         "swarm_id": task.id,
                         "group_id": "swarm-\(task.id)"
@@ -772,7 +760,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             return results
         }
 
-        // Serialize output: emit collected events one worker at a time for linear chat
+        // Serialize text output: emit collected text events one worker at a time for linear chat
         let sorted = workerResults.sorted { $0.taskId < $1.taskId }
         for (taskId, events) in sorted {
             await waitWhilePaused()
@@ -983,7 +971,6 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             "memory",
             "authorization",
             "authentication",
-            "authorization",
             "command injection",
             "sql",
             "leak",

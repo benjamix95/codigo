@@ -108,7 +108,8 @@ enum ProviderFactory {
         executionScope: ExecutionScope = .agent,
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
-        environmentOverride: [String: String]? = nil
+        environmentOverride: [String: String]? = nil,
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = CodexCLIProvider(
             codexPath: config.codexPath.isEmpty ? nil : config.codexPath,
@@ -137,7 +138,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -146,7 +148,8 @@ enum ProviderFactory {
         executionScope: ExecutionScope = .agent,
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
-        environmentOverride: [String: String]? = nil
+        environmentOverride: [String: String]? = nil,
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = ClaudeCLIProvider(
             claudePath: config.claudePath.isEmpty ? nil : config.claudePath,
@@ -169,7 +172,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -178,7 +182,8 @@ enum ProviderFactory {
         executionScope: ExecutionScope = .agent,
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
-        environmentOverride: [String: String]? = nil
+        environmentOverride: [String: String]? = nil,
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = GeminiCLIProvider(
             geminiPath: config.geminiCliPath.isEmpty ? nil : config.geminiCliPath,
@@ -200,7 +205,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -259,6 +265,67 @@ enum ProviderFactory {
             return "codex"
         }
         return normalized
+    }
+
+    /// All provider IDs that can serve as subagent backends (CLI + API). Used for round-robin.
+    private static let allSubagentBackendIds: [String] = [
+        "codex-cli", "claude-cli", "gemini-cli",
+        "openai-api", "anthropic-api", "google-api",
+        "openrouter-api", "minimax-api", "grok-api"
+    ]
+
+    /// Builds a thread-safe factory that returns subagent providers in round-robin order.
+    /// Each subagent can use a different backend across ALL configured providers (CLI + API).
+    /// Returns nil if no provider can be resolved (caller should pass nil to use main agent for subagents).
+    static func subagentProviderFactory(
+        config: ProviderFactoryConfig,
+        executionController: ExecutionController?,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = [],
+        backendIds: [String]? = nil
+    ) -> (@Sendable () -> any LLMProvider)? {
+        let ids = backendIds ?? allSubagentBackendIds
+        var providers: [any LLMProvider] = ids.compactMap { id in
+            resolveSwarmBackendProvider(
+                backendId: id,
+                config: config,
+                executionController: executionController,
+                codebaseIndex: codebaseIndex,
+                workspacePaths: workspacePaths
+            )
+        }
+        if providers.isEmpty {
+            // Fallback: try defaults
+            for id in allSubagentBackendIds where !ids.contains(id) {
+                if let p = resolveSwarmBackendProvider(
+                    backendId: id,
+                    config: config,
+                    executionController: executionController,
+                    codebaseIndex: codebaseIndex,
+                    workspacePaths: workspacePaths
+                ) {
+                    providers = [p]
+                    break
+                }
+            }
+        }
+        guard let first = providers.first else { return nil }
+        if providers.count == 1 {
+            return { first }
+        }
+        let providerList = providers
+        final class RoundRobinState: @unchecked Sendable {
+            var index = 0
+        }
+        let state = RoundRobinState()
+        let queue = DispatchQueue(label: "subagent.factory.roundrobin")
+        return { @Sendable in
+            queue.sync {
+                let i = state.index % providerList.count
+                state.index += 1
+                return providerList[i]
+            }
+        }
     }
 
     /// Resolve any backend identifier to a concrete LLMProvider.
@@ -400,7 +467,8 @@ enum ProviderFactory {
         executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openaiApiKey,
@@ -419,7 +487,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -427,7 +496,8 @@ enum ProviderFactory {
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = AnthropicAPIProvider(
             apiKey: config.anthropicApiKey,
@@ -446,7 +516,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -454,7 +525,8 @@ enum ProviderFactory {
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.googleApiKey,
@@ -475,7 +547,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -484,7 +557,8 @@ enum ProviderFactory {
         executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.minimaxApiKey,
@@ -505,7 +579,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -513,7 +588,8 @@ enum ProviderFactory {
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.openrouterApiKey,
@@ -535,7 +611,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 
@@ -543,7 +620,8 @@ enum ProviderFactory {
         config: ProviderFactoryConfig, executionScope: ExecutionScope = .agent,
         executionController: ExecutionController? = nil,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
     ) -> any LLMProvider {
         let base = OpenAIAPIProvider(
             apiKey: config.grokApiKey,
@@ -564,7 +642,8 @@ enum ProviderFactory {
             ),
             policy: toolRuntimePolicy(from: config),
             executionScope: executionScope,
-            executionController: executionController
+            executionController: executionController,
+            subagentProviderFactory: subagentProviderFactory
         )
     }
 

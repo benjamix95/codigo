@@ -161,90 +161,105 @@ struct CodigoApp: App {
     }
 
     private func registerProviders() {
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        )
         if providerRegistry.provider(for: "openai-api") == nil {
             let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
             providerRegistry.register(
                 ProviderFactory.openAIAPIProvider(
-                    config: providerFactoryConfig(), reasoningEffort: effort,
+                    config: cfg, reasoningEffort: effort,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
         if providerRegistry.provider(for: "anthropic-api") == nil {
             providerRegistry.register(
                 ProviderFactory.anthropicAPIProvider(
-                    config: providerFactoryConfig(),
+                    config: cfg,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
         if providerRegistry.provider(for: "google-api") == nil {
             providerRegistry.register(
                 ProviderFactory.googleAPIProvider(
-                    config: providerFactoryConfig(),
+                    config: cfg,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
         if providerRegistry.provider(for: "codex-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.codexProvider(
-                    config: providerFactoryConfig(),
+                    config: cfg,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
         if providerRegistry.provider(for: "claude-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.claudeProvider(
-                    config: providerFactoryConfig(),
+                    config: cfg,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths
-                ))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
         if providerRegistry.provider(for: "gemini-cli") == nil {
             providerRegistry.register(
                 ProviderFactory.geminiProvider(
-                    config: providerFactoryConfig(),
+                    config: cfg,
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
-                    workspacePaths: workspaceStore.activeWorkspacePaths
-                ))
+                    workspacePaths: workspaceStore.activeWorkspacePaths,
+                    subagentProviderFactory: subagentFactory))
         }
-        registerMiniMax()
-        registerOpenRouter()
-        registerGrok()
+        registerMiniMax(subagentFactory: subagentFactory)
+        registerOpenRouter(subagentFactory: subagentFactory)
+        registerGrok(subagentFactory: subagentFactory)
+        NotificationCenter.default.post(name: .providersDidRegister, object: nil)
     }
 
-    private func registerMiniMax() {
+    private func registerMiniMax(subagentFactory: (@Sendable () -> any LLMProvider)?) {
         providerRegistry.unregister(id: "minimax-api")
         providerRegistry.register(
             ProviderFactory.miniMaxAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths))
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory))
     }
 
-    private func registerOpenRouter() {
+    private func registerOpenRouter(subagentFactory: (@Sendable () -> any LLMProvider)?) {
         providerRegistry.unregister(id: "openrouter-api")
         providerRegistry.register(
             ProviderFactory.openRouterAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths))
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory))
     }
 
-    private func registerGrok() {
+    private func registerGrok(subagentFactory: (@Sendable () -> any LLMProvider)?) {
         providerRegistry.unregister(id: "grok-api")
         providerRegistry.register(
             ProviderFactory.grokAPIProvider(
                 config: providerFactoryConfig(),
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths))
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                subagentProviderFactory: subagentFactory))
     }
 
     private func providerFactoryConfig() -> ProviderFactoryConfig {

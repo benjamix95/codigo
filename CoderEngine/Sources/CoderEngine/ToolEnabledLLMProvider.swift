@@ -86,11 +86,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         var sawExecutableSuggestion = false
                         // Subagent calls are deferred and executed in parallel after the stream ends.
                         var pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)] = []
+                        // Use array to avoid O(n²) string concatenation
+                        var roundTextParts: [String] = []
+                        var roundTextLength = 0
 
                         for try await event in stream {
                             switch event {
                             case .textDelta(let delta):
-                                roundText += delta
+                                if roundTextLength + delta.count <= 100_000 { roundTextParts.append(delta); roundTextLength += delta.count }
                                 let visibleDelta = sanitizeVisibleDelta(delta)
                                 if !visibleDelta.isEmpty {
                                     continuation.yield(.textDelta(visibleDelta))
@@ -270,7 +273,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             pendingSubagentCalls.removeAll()
                         }
 
+                        roundText = roundTextParts.joined()
                         conversationTranscript += "\n[assistant]\n\(roundText)\n"
+                        // Cap transcript to avoid exponential prompt growth
+                        if conversationTranscript.count > 48_000 {
+                            conversationTranscript = String(conversationTranscript.suffix(40_000))
+                        }
                         if !roundToolResults.isEmpty {
                             lastToolResultsForFallback = roundToolResults
                             emittedVisibleTextAfterToolRound = false
@@ -306,20 +314,21 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 context: context,
                                 imageURLs: nil
                             )
-                            var forcedText = ""
+                            var forcedTextParts: [String] = []
+                            var forcedTextLength = 0
                             for try await forcedEvent in forcedStream {
                                 switch forcedEvent {
                                 case .textDelta(let delta):
                                     let visible = sanitizeVisibleDelta(delta)
                                     if !visible.isEmpty {
                                         continuation.yield(.textDelta(visible))
-                                        forcedText += visible
+                                        if forcedTextLength + visible.count <= 50_000 { forcedTextParts.append(visible); forcedTextLength += visible.count }
                                     }
                                 default:
                                     break
                                 }
                             }
-                            if !isMeaningfulAssistantCompletion(forcedText) {
+                            if !isMeaningfulAssistantCompletion(forcedTextParts.joined()) {
                                 continuation.yield(.raw(type: "tool_execution_error", payload: [
                                     "title": "Missing final outcome",
                                     "detail": "Provider finished without final summary after tool execution",
@@ -344,6 +353,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             if !fallback.isEmpty {
                                 continuation.yield(.textDelta(fallback))
                             }
+                            continuation.finish(throwing: error)
+                            return
                         }
                     }
                     if !hasAnyMeaningfulAssistantText && !lastToolResultsForFallback.isEmpty {
@@ -911,22 +922,23 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return false
     }
 
+    private static let blockedDeltaSnippets: [String] = [
+        "Initial user prompt:",
+        "Original user prompt:",
+        "Partial transcript:",
+        "Conversation transcript:",
+        "Tool results just executed:",
+        "Tool results from previous round:",
+        "When finished: MANDATORY",
+        "When finished: you MUST provide",
+        "(No tools used in the previous round.)",
+        "[assistant]",
+    ]
+
     private func sanitizeVisibleDelta(_ delta: String) -> String {
         if delta.isEmpty { return "" }
-        let blockedSnippets = [
-            "Initial user prompt:",
-            "Original user prompt:",
-            "Partial transcript:",
-            "Conversation transcript:",
-            "Tool results just executed:",
-            "Tool results from previous round:",
-            "When finished: MANDATORY",
-            "When finished: you MUST provide",
-            "(No tools used in the previous round.)",
-            "(No tools used in the previous round.)",
-            "[assistant]",
-        ]
-        for snippet in blockedSnippets where delta.contains(snippet) {
+        let lower = delta.lowercased()
+        for snippet in Self.blockedDeltaSnippets where lower.contains(snippet.lowercased()) {
             return ""
         }
         return delta
@@ -1193,10 +1205,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         - **subagent_securityAuditor** — Spawn a security audit subagent. Args: `task`.
 
         **Subagent guidelines:**
-        - Use subagents ONLY when the task truly benefits from parallel or specialist work.
-        - Do NOT use subagents for simple, linear operations you can do directly.
-        - Explorer subagents are lightweight (read-only) — use them freely for investigation.
-        - Multiple subagent calls in the same round execute in PARALLEL automatically.
+        - Subagents run on DIFFERENT backends (Codex, Claude, Gemini, OpenAI, Anthropic, Google, OpenRouter, MiniMax, Grok, etc.) in parallel — USE THEM. Call 2–5 subagents in the SAME round to maximize throughput and diverse perspectives.
+        - Use subagents for investigation, review, testing, docs, security checks — not just for simple tasks you can do directly.
+        - Explorer subagents are lightweight (read-only) — use them freely for parallel codebase exploration.
+        - Multiple subagent calls in the same round execute in PARALLEL automatically on different backends.
         - Each subagent runs to completion and returns its results to you in the next round.
         - Never call subagents after you've already completed the work — call them DURING your work.
         - IMPORTANT: After subagent results return, immediately update todos via todo_write. Mark the corresponding todo as "done" if the subagent succeeded, or "blocked" if it failed. Then continue with remaining work and provide a final summary only at the end.
@@ -1392,14 +1404,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             let prompt = SubagentPromptBuilder.build(role: role, task: task)
 
             // Run the subagent to completion
-            var fullText = ""
+            var fullTextParts: [String] = []
+            var fullTextLength = 0
             let stream = try await subagentProvider.send(
                 prompt: prompt, context: context, imageURLs: nil
             )
             for try await event in stream {
                 switch event {
                 case .textDelta(let delta):
-                    fullText += delta
+                    if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
                 case .raw(let type, var payload):
                     // Enrich all raw events with subagent routing info
                     payload["swarm_id"] = subagentId
@@ -1412,7 +1425,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
             // Truncate output for context window management
-            let output = String(fullText.prefix(12000))
+            let output = String(fullTextParts.joined().prefix(12000))
 
             // Emit completed event
             events.append(.raw(type: "agent", payload: [
