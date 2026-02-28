@@ -212,4 +212,35 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.count, 1)
         XCTAssertEqual(store.todos.first?.title, "Canonical task")
     }
+
+    func testClearDoesNotFireCanonicalCallback() {
+        let store = makeStore()
+        store.upsertCanonicalPlanTodos(["Step A", "Step B"])
+
+        var callbackFired = false
+        store.onCanonicalTodoStatusChange = { _, _ in
+            callbackFired = true
+        }
+
+        store.clear()
+
+        XCTAssertTrue(store.todos.isEmpty)
+        XCTAssertFalse(callbackFired, "clear() should not fire onCanonicalTodoStatusChange")
+    }
+
+    func testClearAgentTodosDoesNotFireCanonicalCallback() {
+        let store = makeStore()
+        store.upsertCanonicalPlanTodos(["Plan step"])
+        store.add(title: "Agent task", source: .agent)
+
+        var callbackFired = false
+        store.onCanonicalTodoStatusChange = { _, _ in
+            callbackFired = true
+        }
+
+        store.clearAgentTodos(includePlanCanonical: true)
+
+        XCTAssertEqual(store.todos.count, 0)
+        XCTAssertFalse(callbackFired, "clearAgentTodos should not fire onCanonicalTodoStatusChange")
+    }
 }

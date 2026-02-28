@@ -106,4 +106,22 @@ final class PlanFlowPhaseTests: XCTestCase {
         // The normalized text should strip the plan-echo sections
         XCTAssertFalse(normalized.contains("## Option 1"))
     }
+
+    func testPlanBuildDisabledReasonForNonExecutableProvider() {
+        let reason = planBuildDisabledReason(
+            phase: .readyToBuild,
+            hasBuildChoice: true,
+            providerExecutionCapable: false
+        )
+        XCTAssertEqual(reason, "Auth required")
+    }
+
+    func testHasPlanContextIncludesAllActivePhases() {
+        for phase: PlanFlowPhase in [.analyzing, .questioning, .generating, .proposalReady, .readyToBuild, .building] {
+            XCTAssertTrue(
+                hasPlanContext(phase: phase, planningState: .idle, hasPlanBoard: false, hasSelectedHistoryEntry: false),
+                "Phase \(phase) should have plan context"
+            )
+        }
+    }
 }

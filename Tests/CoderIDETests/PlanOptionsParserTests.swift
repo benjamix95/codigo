@@ -345,4 +345,58 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertEqual(blocks.count, 1)
         XCTAssertTrue(blocks[0].contains("graph TD"))
     }
+
+    func testExtractTodosSkipsCodeFences() {
+        let input = """
+        ## Todo
+        - [ ] Real step
+
+        ```bash
+        # Tasks
+        - [ ] Fake step inside code fence
+        ```
+        """
+        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
+        XCTAssertEqual(todos.count, 1)
+        XCTAssertEqual(todos[0], "Real step")
+    }
+
+    func testExtractTodosSkipsCodeFencesInFallbackPasses() {
+        let input = """
+        Some text
+
+        ```markdown
+        - [ ] Fake checklist in fence
+        ```
+
+        - [ ] Real checklist outside
+        """
+        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
+        XCTAssertEqual(todos.count, 1)
+        XCTAssertEqual(todos[0], "Real checklist outside")
+    }
+
+    func testChecklistPatternRequiresClosingBracket() {
+        let input = """
+        - [see documentation](https://example.com)
+        - [important note] about something
+        """
+        let hasTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(input)
+        XCTAssertFalse(hasTodoHeader, "Markdown links should not be detected as todo headers")
+    }
+
+    func testExtractDisplaySummaryStripsMermaid() {
+        let input = """
+        # My Plan
+        ## Architecture
+        ```mermaid
+        graph TD
+            A --> B
+        ```
+        Some approach text.
+        """
+        let (_, body) = PlanOptionsParser.extractDisplaySummary(from: input)
+        XCTAssertFalse(body.contains("mermaid"), "Summary body should strip mermaid blocks")
+        XCTAssertFalse(body.contains("graph TD"), "Summary body should strip mermaid content")
+    }
 }

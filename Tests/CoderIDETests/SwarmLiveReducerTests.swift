@@ -102,4 +102,72 @@ final class SwarmLiveReducerTests: XCTestCase {
         let cards = SwarmLiveReducer.reduce(activities: [a, b], limitRecentEvents: 80)
         XCTAssertEqual(cards["planner"]?.recentEvents.count, 1)
     }
+
+    func testQueuedSwarmIdPrefixIsFiltered() {
+        let activity = TaskActivity(
+            type: "agent",
+            title: "Explorer",
+            detail: "queued",
+            payload: ["swarm_id": "queued-tc123", "status": "queued"],
+            timestamp: Date(timeIntervalSince1970: 300),
+            phase: .planning,
+            isRunning: false,
+            groupId: nil
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [activity], limitRecentEvents: 80)
+        XCTAssertNil(cards["queued-tc123"], "Queued placeholder cards should be filtered out")
+    }
+
+    func testActiveOpsCountDecrementsOnNonRunningEvent() {
+        let started = TaskActivity(
+            type: "agent",
+            title: "Coder",
+            detail: "started",
+            payload: ["swarm_id": "coder", "group_id": "swarm-coder", "status": "started"],
+            timestamp: Date(timeIntervalSince1970: 100),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-coder"
+        )
+        let step = TaskActivity(
+            type: "read_batch_completed",
+            title: "Read files",
+            detail: "done",
+            payload: ["swarm_id": "coder", "group_id": "swarm-coder", "status": "ok"],
+            timestamp: Date(timeIntervalSince1970: 101),
+            phase: .executing,
+            isRunning: false,
+            groupId: "swarm-coder"
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [started, step], limitRecentEvents: 80)
+        XCTAssertEqual(cards["coder"]?.activeOpsCount, 0)
+    }
+
+    func testDedupWithFinerGranularity() {
+        let ts1 = Date(timeIntervalSince1970: 200.005)
+        let ts2 = Date(timeIntervalSince1970: 200.015)
+        let a = TaskActivity(
+            type: "agent",
+            title: "Planner",
+            detail: "step-a",
+            payload: ["swarm_id": "planner", "status": "started", "group_id": "swarm-planner"],
+            timestamp: ts1,
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-planner"
+        )
+        let b = TaskActivity(
+            type: "agent",
+            title: "Planner",
+            detail: "step-a",
+            payload: ["swarm_id": "planner", "status": "started", "group_id": "swarm-planner"],
+            timestamp: ts2,
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-planner"
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [a, b], limitRecentEvents: 80)
+        XCTAssertEqual(cards["planner"]?.recentEvents.count, 2,
+                       "Events 10ms apart should not be deduplicated")
+    }
 }

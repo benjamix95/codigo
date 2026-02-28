@@ -458,4 +458,34 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.type, "todo_read")
         XCTAssertTrue((mapped?.payload["title"] ?? "").contains("Read todo"))
     }
+
+    func testSubagentExplorerMapsToAgentEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "subagent_explorer",
+            payload: ["task": "Find authentication code"]
+        )
+        XCTAssertNotNil(mapped)
+        XCTAssertNotEqual(mapped?.type, "command_execution",
+                          "subagent_explorer should NOT fall back to command_execution")
+    }
+
+    func testSubagentCoderMapsToAgentEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "subagent_coder",
+            payload: ["task": "Implement feature"]
+        )
+        XCTAssertNotNil(mapped)
+        XCTAssertNotEqual(mapped?.type, "command_execution",
+                          "subagent_coder should NOT fall back to command_execution")
+    }
+
+    func testSubagentDebuggerMapsToAgentEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "subagent_debugger",
+            payload: ["task": "Debug crash"]
+        )
+        XCTAssertNotNil(mapped)
+        XCTAssertNotEqual(mapped?.type, "command_execution",
+                          "subagent_debugger should NOT fall back to command_execution")
+    }
 }

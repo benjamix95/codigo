@@ -461,4 +461,40 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         XCTAssertEqual(activity.type, "command_execution")
         XCTAssertEqual(activity.title, "command_execution")
     }
+
+    func testApplyPatchEnvelopeKindIsFileUpdate() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "apply_patch",
+            payload: ["path": "file.swift", "patch": "diff"]
+        )
+        XCTAssertEqual(envelope.kind, .fileUpdate)
+    }
+
+    func testWriteFileEnvelopeKindIsFileUpdate() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "write_file",
+            payload: ["path": "out.txt", "content": "data"]
+        )
+        XCTAssertEqual(envelope.kind, .fileUpdate)
+    }
+
+    func testNotebookEditEnvelopeKindIsFileUpdate() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "notebook_edit",
+            payload: ["path": "notebook.ipynb"]
+        )
+        XCTAssertEqual(envelope.kind, .fileUpdate)
+    }
+
+    func testNotebookWriteEnvelopeKindIsFileUpdate() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "notebook_write",
+            payload: ["path": "notebook.ipynb"]
+        )
+        XCTAssertEqual(envelope.kind, .fileUpdate)
+    }
 }
