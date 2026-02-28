@@ -4622,9 +4622,14 @@ struct ChatPanelView: View {
                 suppressedEmptyBuildAssistantMessageIds.remove(planBuildAssistantMessageId)
                 if traceOutcome == .success, let planConvId = activeBuildPlanConversationId {
                     let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
+                    let agentMessages = chatStore.conversation(for: agentConvId)?
+                        .messages.filter { $0.role == .assistant } ?? []
+                    let traceEventsForWalkthrough = toolTraceStore.allEvents(conversationId: agentConvId)
                     let walkthroughMd = buildWalkthroughMarkdown(
                         canonicalTodos: canonicalTodos,
-                        planBoard: chatStore.planBoard(for: planConvId)
+                        planBoard: chatStore.planBoard(for: planConvId),
+                        agentMessages: agentMessages,
+                        traceEvents: traceEventsForWalkthrough
                     )
                     chatStore.setWalkthrough(walkthroughMd, for: planConvId)
 
@@ -6501,14 +6506,19 @@ struct ChatPanelView: View {
 
     private func buildWalkthroughMarkdown(
         canonicalTodos: [TodoItem],
-        planBoard: PlanBoard?
+        planBoard: PlanBoard?,
+        agentMessages: [ChatMessage] = [],
+        traceEvents: [ToolTraceEvent] = []
     ) -> String {
         var lines: [String] = ["## Build Complete", ""]
         if let goal = planBoard?.goal, !goal.isEmpty {
             lines.append("**Objective:** \(goal)")
             lines.append("")
         }
-        lines.append("### Completed Steps")
+
+        // Steps with status
+        let doneCount = canonicalTodos.filter { $0.status == .done }.count
+        lines.append("### Steps (\(doneCount)/\(canonicalTodos.count) completed)")
         for todo in canonicalTodos {
             let icon = todo.status == .done ? "x" : " "
             lines.append("- [\(icon)] \(todo.title)")
@@ -6516,6 +6526,63 @@ struct ChatPanelView: View {
                 lines.append("  Files: \(todo.linkedFiles.joined(separator: ", "))")
             }
         }
+        lines.append("")
+
+        // Files changed (from trace events)
+        let fileChangeTypes: Set<String> = ["file_change", "edit", "write", "create_file", "str_replace", "multi_edit"]
+        let changedFiles = Set(
+            traceEvents
+                .filter { fileChangeTypes.contains($0.type) }
+                .compactMap { $0.payload["file"] ?? $0.payload["path"] ?? $0.title }
+                .map { url in
+                    // Show relative path only
+                    if let range = url.range(of: "Sources/") { return String(url[range.lowerBound...]) }
+                    if let range = url.range(of: "Tests/") { return String(url[range.lowerBound...]) }
+                    if let range = url.range(of: "CoderEngine/") { return String(url[range.lowerBound...]) }
+                    return (url as NSString).lastPathComponent
+                }
+        ).sorted()
+        if !changedFiles.isEmpty {
+            lines.append("### Files Modified (\(changedFiles.count))")
+            for file in changedFiles {
+                lines.append("- `\(file)`")
+            }
+            lines.append("")
+        }
+
+        // Commands run
+        let commands = traceEvents
+            .filter { $0.type == "command_execution" }
+            .compactMap { $0.payload["command"] ?? $0.title }
+            .filter { !$0.isEmpty }
+        if !commands.isEmpty {
+            let uniqueCommands = Array(Set(commands.map { cmd in
+                // Truncate long commands
+                cmd.count > 80 ? String(cmd.prefix(77)) + "..." : cmd
+            })).sorted().prefix(10)
+            lines.append("### Commands Executed")
+            for cmd in uniqueCommands {
+                lines.append("- `\(cmd)`")
+            }
+            lines.append("")
+        }
+
+        // Agent narrative — the actual text the agent wrote during execution
+        let narrativeBlocks = agentMessages
+            .map(\.content)
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .filter { content in
+                // Skip short auto-generated messages
+                content.count > 40
+            }
+        if !narrativeBlocks.isEmpty {
+            lines.append("### Execution Details")
+            // Include meaningful agent text, capped to avoid giant walkthroughs
+            let combined = narrativeBlocks.joined(separator: "\n\n---\n\n")
+            let capped = combined.count > 6000 ? String(combined.suffix(6000)) : combined
+            lines.append(capped)
+        }
+
         return lines.joined(separator: "\n")
     }
 

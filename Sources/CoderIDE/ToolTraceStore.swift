@@ -143,6 +143,12 @@ final class ToolTraceStore: ObservableObject {
         return loadIfNeeded(for: key)
     }
 
+    func allEvents(conversationId: UUID) -> [ToolTraceEvent] {
+        cache.filter { $0.key.conversationId == conversationId }
+            .flatMap(\.value)
+            .sorted { $0.sequence < $1.sequence }
+    }
+
     func hasTrace(conversationId: UUID, assistantMessageId: UUID) -> Bool {
         let key = TraceKey(conversationId: conversationId, assistantMessageId: assistantMessageId)
         if let cached = cache[key] {
