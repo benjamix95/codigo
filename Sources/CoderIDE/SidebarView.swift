@@ -287,6 +287,7 @@ struct SidebarView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
                 }
                 .padding(.vertical, 2)
 
