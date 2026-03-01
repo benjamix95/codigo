@@ -76,6 +76,8 @@ final class TaskActivityStore: ObservableObject {
     @Published private(set) var swarmEventsFallbackCount: Int = 0
 
     private var swarmCardDedupKeys: [String: Set<String>] = [:]
+    private var sortedSwarmCardsCache: [SwarmLiveCardState] = []
+    private var isSortedSwarmCardsCacheDirty = true
     private let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
 
     private let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
@@ -319,13 +321,11 @@ final class TaskActivityStore: ObservableObject {
 
     func addActivity(_ activity: TaskActivity) {
         pendingActivities.append(activity)
-        // Flush immediately for state changes that affect the UI (running tools,
-        // agent lifecycle, completions) so cards and streaming status update
-        // without the 50ms throttle delay.
+        // Keep running operations responsive, but batch non-running updates to
+        // reduce SwiftUI invalidation storms during heavy tool streams.
         let isImmediate = activity.isRunning
             || pendingActivities.count >= 8
             || activity.type == "agent"
-            || Self.isConcreteVisibleEventType(activity.type)
         if isImmediate {
             flushPendingActivities()
         } else {
@@ -421,12 +421,15 @@ final class TaskActivityStore: ObservableObject {
             addActivity(activity)
             return
         }
-        var didMerge = false
-        if let idx = activities.lastIndex(where: { $0.groupId == groupId && $0.type == activity.type }) {
+        let incomingConversationId = normalizedConversationId(activity)
+        if let idx = activities.lastIndex(where: {
+            $0.groupId == groupId
+                && $0.type == activity.type
+                && normalizedConversationId($0) == incomingConversationId
+        }) {
             let existing = activities[idx]
             if shouldMerge(existing: existing, incoming: activity) {
                 activities[idx] = activity
-                didMerge = true
             } else {
                 activities.append(activity)
             }
@@ -439,11 +442,9 @@ final class TaskActivityStore: ObservableObject {
             activities.removeFirst(excess)
         }
         recalcActiveOperations()
-        if didMerge {
-            rebuildSwarmCards()
-        } else {
-            ingestSwarmCard(activity: activity)
-        }
+        // Re-applying only the merged/new activity avoids rebuilding every card
+        // from scratch on high-frequency batch updates.
+        ingestSwarmCard(activity: activity)
     }
 
     private func pruneCompletedTerminalActivities() {
@@ -505,6 +506,12 @@ final class TaskActivityStore: ObservableObject {
         return raw.replacingOccurrences(of: "-", with: "_")
     }
 
+    private func normalizedConversationId(_ activity: TaskActivity) -> String {
+        (activity.payload["conversation_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
     private func isTerminalLike(_ activity: TaskActivity) -> Bool {
         let status = normalizedStatus(activity)
         if status.contains("completed")
@@ -525,6 +532,9 @@ final class TaskActivityStore: ObservableObject {
     }
 
     func clear() {
+        flushTask?.cancel()
+        flushTask = nil
+        pendingActivities.removeAll(keepingCapacity: true)
         activities.removeAll()
         instantGreps.removeAll()
         envelopes.removeAll()
@@ -532,6 +542,8 @@ final class TaskActivityStore: ObservableObject {
         unseenLiveEventsCount = 0
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
+        sortedSwarmCardsCache.removeAll()
+        isSortedSwarmCardsCacheDirty = false
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
@@ -547,6 +559,8 @@ final class TaskActivityStore: ObservableObject {
         }
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
+        sortedSwarmCardsCache.removeAll()
+        isSortedSwarmCardsCacheDirty = false
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
@@ -573,6 +587,7 @@ final class TaskActivityStore: ObservableObject {
             card.hasUnreadSinceCollapse = false
         }
         swarmCards[swarmId] = card
+        markSortedSwarmCardsDirty()
     }
 
     func swarmCardStates(limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit)
@@ -585,7 +600,8 @@ final class TaskActivityStore: ObservableObject {
             )
             return SwarmLiveReducer.sorted(states: Array(reduced.values))
         }
-        return SwarmLiveReducer.sorted(states: Array(swarmCards.values))
+        refreshSortedSwarmCardsCacheIfNeeded()
+        return sortedSwarmCardsCache
     }
 
     func recentActivities(limit: Int) -> [TaskActivity] {
@@ -751,11 +767,16 @@ final class TaskActivityStore: ObservableObject {
     }
 
     private static func isErrorEvent(_ activity: TaskActivity) -> Bool {
-        if ["web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error"].contains(activity.type) {
+        let normalizedType = activity.type.lowercased()
+        if ["web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout", "permission_denied", "error"].contains(normalizedType) {
             return true
         }
         let status = (activity.payload["status"] ?? "").lowercased()
-        return status == "failed" || status == "error"
+        if status == "error" || status == "fatal" {
+            return true
+        }
+        let severity = (activity.payload["severity"] ?? "").lowercased()
+        return severity == "error" || severity == "critical"
     }
 
     private func ingestSwarmCard(activity: TaskActivity) {
@@ -773,16 +794,29 @@ final class TaskActivityStore: ObservableObject {
             dedupeKeys: &swarmCardDedupKeys,
             limitRecentEvents: defaultSwarmEventsLimit
         )
+        markSortedSwarmCardsDirty()
     }
 
     private func rebuildSwarmCards() {
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
+        sortedSwarmCardsCache.removeAll()
+        isSortedSwarmCardsCacheDirty = false
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
         for activity in activities {
             ingestSwarmCard(activity: activity)
         }
+    }
+
+    private func markSortedSwarmCardsDirty() {
+        isSortedSwarmCardsCacheDirty = true
+    }
+
+    private func refreshSortedSwarmCardsCacheIfNeeded() {
+        guard isSortedSwarmCardsCacheDirty else { return }
+        sortedSwarmCardsCache = SwarmLiveReducer.sorted(states: Array(swarmCards.values))
+        isSortedSwarmCardsCacheDirty = false
     }
 }

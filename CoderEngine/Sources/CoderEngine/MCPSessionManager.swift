@@ -393,6 +393,7 @@ public actor MCPSessionManager {
             partialResult[kv.key] = parseValue(kv.value)
         }
 
+        let callStartedAt = Date()
         var finalResult: (content: [Tool.Content], isError: Bool?)?
         var attempt = 0
         while true {
@@ -433,7 +434,7 @@ public actor MCPSessionManager {
             await callMetrics.record(serverId: target.id, latencyMs: 0, success: false, error: "No result received")
             throw ToolRuntimeError.transport("MCP call interrupted — no result received")
         }
-        let latencyMs = max(1, Int(Date().timeIntervalSince(Date()) * 1000))
+        let latencyMs = max(1, Int(Date().timeIntervalSince(callStartedAt) * 1000))
         let isErr = result.isError ?? false
         await callMetrics.record(serverId: target.id, latencyMs: latencyMs, success: !isErr, error: isErr ? "isError=true" : nil)
         let text = flattenContent(result.content)
@@ -522,7 +523,42 @@ public actor MCPSessionManager {
     }
 
     public func unsubscribeResource(serverId: String, uri: String) async {
-        resourceSubscriptions[serverId]?.remove(uri)
+        let servers = resolveServers()
+        guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+            resourceSubscriptions[serverId]?.remove(uri)
+            return
+        }
+
+        resourceSubscriptions[cfg.id]?.remove(uri)
+        let remaining = resourceSubscriptions[cfg.id] ?? []
+        if remaining.isEmpty {
+            resourceSubscriptions.removeValue(forKey: cfg.id)
+        }
+
+        guard sessions[cfg.id] != nil else { return }
+
+        // The current MCP SDK surface exposes subscribe but no direct unsubscribe.
+        // Rebuild the session to guarantee server-side listeners are dropped, then
+        // restore only the remaining local subscriptions.
+        do {
+            try await resetSession(cfg.id)
+            if !remaining.isEmpty {
+                let refreshed = try await session(for: cfg)
+                for remainingURI in remaining {
+                    do {
+                        try await refreshed.client.subscribeToResource(uri: remainingURI)
+                    } catch {
+                        Self.logger.warning(
+                            "Failed to restore subscription uri=\(remainingURI, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                        )
+                    }
+                }
+            }
+        } catch {
+            Self.logger.warning(
+                "Failed to rebuild MCP session after unsubscribe uri=\(uri, privacy: .public) on server=\(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     public func listResourceTemplates(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws -> [MCPResourceTemplate] {

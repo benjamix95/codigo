@@ -123,7 +123,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         let workspacePath = context.workspacePath
         
         return AsyncThrowingStream { continuation in
-            Task {
+            let producerTask = Task {
+                var parserState = CodexStreamParserState(workspacePath: workspacePath.path)
                 do {
                     let execPath = path
                     guard FileManager.default.fileExists(atPath: execPath) else {
@@ -164,9 +165,9 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     )
                     
                     continuation.yield(.started)
-                    var parserState = CodexStreamParserState(workspacePath: workspacePath.path)
                     for try await rawLine in stream {
-                        let payloads = Self.parseStreamJSONPayloads(from: rawLine)
+                        try Task.checkCancellation()
+                        let payloads = Self.parseStreamJSONPayloads(from: rawLine, state: &parserState)
                         guard !payloads.isEmpty else { continue }
                         for json in payloads {
                             for event in Self.parseStreamJSONEvent(json, state: &parserState) {
@@ -180,11 +181,20 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                     continuation.yield(.completed)
                     continuation.finish()
                 } catch is CancellationError {
+                    for event in Self.finalizeStreamJSONState(state: &parserState) {
+                        continuation.yield(event)
+                    }
                     continuation.finish(throwing: CancellationError())
                 } catch {
+                    for event in Self.finalizeStreamJSONState(state: &parserState) {
+                        continuation.yield(event)
+                    }
                     continuation.yield(.error(error.localizedDescription))
                     continuation.finish(throwing: error)
                 }
+            }
+            continuation.onTermination = { _ in
+                producerTask.cancel()
             }
         }
     }
@@ -351,18 +361,28 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     }
 
     static func parseStreamJSONPayloads(from rawLine: String) -> [[String: Any]] {
+        var state = CodexStreamParserState()
+        return parseStreamJSONPayloads(from: rawLine, state: &state)
+    }
+
+    static func parseStreamJSONPayloads(
+        from rawLine: String,
+        state: inout CodexStreamParserState
+    ) -> [[String: Any]] {
         let cleaned = cleanedJSONCandidateLine(rawLine)
         guard !cleaned.isEmpty else { return [] }
 
-        if let direct = decodeJSONDictionary(cleaned) {
+        if state.jsonCarry.isEmpty, let direct = decodeJSONDictionary(cleaned) {
             return [direct]
         }
 
-        // Fallback: extract any nested JSON objects from noisy/concatenated lines.
-        let extracted = extractJSONObjectStrings(from: cleaned)
-        if extracted.isEmpty {
-            return []
+        if !state.jsonCarry.isEmpty {
+            state.jsonCarry += "\n"
         }
+        state.jsonCarry += cleaned
+        let (extracted, remainder) = extractJSONObjectStringsAndRemainder(from: state.jsonCarry)
+        state.jsonCarry = String(remainder.suffix(state.maxJSONCarryLength))
+        guard !extracted.isEmpty else { return [] }
         return extracted.compactMap { decodeJSONDictionary($0) }
     }
 
@@ -434,6 +454,65 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return results
     }
 
+    private static func extractJSONObjectStringsAndRemainder(from text: String) -> ([String], String) {
+        var results: [String] = []
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var startIndex: String.Index?
+        var lastConsumed = text.startIndex
+
+        var index = text.startIndex
+        while index < text.endIndex {
+            let ch = text[index]
+
+            if inString {
+                if escaped {
+                    escaped = false
+                } else if ch == "\\" {
+                    escaped = true
+                } else if ch == "\"" {
+                    inString = false
+                }
+                index = text.index(after: index)
+                continue
+            }
+
+            if ch == "\"" {
+                inString = true
+                index = text.index(after: index)
+                continue
+            }
+
+            if ch == "{" {
+                if depth == 0 {
+                    startIndex = index
+                }
+                depth += 1
+            } else if ch == "}" {
+                if depth > 0 {
+                    depth -= 1
+                    if depth == 0, let start = startIndex {
+                        let end = text.index(after: index)
+                        results.append(String(text[start..<end]))
+                        startIndex = nil
+                        lastConsumed = end
+                    }
+                }
+            }
+            index = text.index(after: index)
+        }
+
+        if depth > 0, let start = startIndex {
+            return (results, String(text[start...]))
+        }
+        if lastConsumed < text.endIndex {
+            let trailing = String(text[lastConsumed...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            return (results, trailing)
+        }
+        return (results, "")
+    }
+
     struct CodexStreamParserState {
         struct TurnState {
             var lastObservedAgentText = ""
@@ -447,6 +526,8 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         var emittedRawKeys: Set<String> = []
         var emittedContextCompacted = false
         var invokeSwarmEmitted = false
+        var jsonCarry = ""
+        let maxJSONCarryLength = 128_000
         /// Accumulates visible text emitted across all turns so far, used to
         /// move intermediate turn text into the reasoning/thinking block when
         /// a new turn starts.
@@ -592,7 +673,20 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     }
 
     static func finalizeStreamJSONState(state: inout CodexStreamParserState) -> [StreamEvent] {
-        finalizeAssistantTurnIfNeeded(state: &state)
+        var events: [StreamEvent] = []
+        if !state.jsonCarry.isEmpty {
+            let (objects, remainder) = extractJSONObjectStringsAndRemainder(from: state.jsonCarry)
+            for jsonObject in objects {
+                guard let payload = decodeJSONDictionary(jsonObject) else { continue }
+                events.append(contentsOf: parseStreamJSONEvent(payload, state: &state))
+            }
+            if !remainder.isEmpty, let trailing = decodeJSONDictionary(remainder) {
+                events.append(contentsOf: parseStreamJSONEvent(trailing, state: &state))
+            }
+            state.jsonCarry = ""
+        }
+        events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
+        return events
     }
 
     private static func processAgentMessageChunk(

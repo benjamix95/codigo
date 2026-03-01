@@ -245,6 +245,7 @@ struct SettingsView: View {
             .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexModelProvider) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexPreferResponsesWireAPI) { _, _ in syncCodex() }
+            .onChange(of: codexSessionFullAccess) { _, _ in syncCodex() }
             .onChange(of: codexNetworkAccess) { _, _ in saveCodexToml() }
             .onChange(of: codexAdditionalWriteRoots) { _, _ in saveCodexToml() }
             .onChange(of: codexCheckUpdate) { _, _ in saveCodexToml() }

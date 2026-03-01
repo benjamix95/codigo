@@ -86,7 +86,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         """
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producerTask = Task {
                 do {
                     var currentPrompt = initialPrompt
                     var conversationTranscript = ""
@@ -106,6 +106,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     let maxAutoInjectedFinalReviewBatchCount = 4
 
                     for _ in 0..<maxToolRounds {
+                        try Task.checkCancellation()
                         let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
                         var roundText = ""
                         var roundToolResults: [[String: String]] = []
@@ -214,7 +215,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                             "error_code": "subagent_first_required",
                                             "tool": name,
                                         ]))
-                                        sawExecutableSuggestion = true
                                         continue
                                     }
 
@@ -253,16 +253,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                             "status": "queued"
                                         ]))
                                     } else {
-                                        // Emit a real-time "started" event BEFORE tool execution
-                                        // so the tool trace shows live progress (like Codex CLI).
-                                        // Todo updates are lightweight state events and should not
-                                        // be represented as generic running tool operations.
-                                        if name != "todo_write", name != "todo_read" {
-                                            let startType = Self.toolStartEventType(for: name)
-                                            let startPayload = Self.toolStartPayload(for: name, args: args)
-                                            continuation.yield(.raw(type: startType, payload: startPayload))
-                                        }
-
                                         let produced = await events(for: marker, context: context)
                                         for e in produced {
                                             if Self.streamEventIndicatesCodeMutation(
@@ -641,6 +631,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     continuation.finish(throwing: error)
                 }
             }
+            continuation.onTermination = { _ in
+                producerTask.cancel()
+            }
         }
     }
 
@@ -656,7 +649,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 summary["status"] = "failed"
                 summary["detail"] = payload["detail"] ?? payload["stderr"] ?? "tool failed"
                 foundCompletion = true
-            } else if payload["status"] == "completed" {
+            } else if payload["status"] == "completed" || payload["status"] == "success" {
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
                 let name = (summary["name"] ?? "").lowercased()
@@ -2222,7 +2215,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 "title": "\(skillName) completed",
                 "detail": "Skill \(skillName) completed in \(durationMs)ms",
                 "output": output,
-                "status": "success",
+                "status": "completed",
                 "skill": skillName,
                 "duration_ms": "\(durationMs)"
             ]))

@@ -50,6 +50,7 @@ struct SwarmPanelView: View {
     private var sortedCards: [SwarmLiveCardState] { cachedCards }
     private var runningCount: Int { cachedCards.filter { $0.status == .running }.count }
     private var failedCount: Int { cachedCards.filter { $0.status == .failed }.count }
+    private var warningCount: Int { cachedCards.reduce(0) { $0 + max(0, $1.warningCount) } }
     private var completedCount: Int { cachedCards.filter { $0.status == .completed }.count }
     private var liveChangeCount: Int { taskActivityStore.swarmEventsReceivedCount }
 
@@ -114,7 +115,8 @@ struct SwarmPanelView: View {
     }
 
     private func refreshCachedCards() {
-        cachedCards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+        // taskActivityStore.swarmCardStates() is already sorted and cached.
+        cachedCards = taskActivityStore.swarmCardStates()
     }
 
     // MARK: - Top Bar
@@ -129,6 +131,7 @@ struct SwarmPanelView: View {
 
             if runningCount > 0 { badge("\(runningCount) running", accent) }
             if failedCount > 0 { badge("\(failedCount) failed", DesignSystem.Colors.error) }
+            if warningCount > 0 { badge("\(warningCount) warnings", DesignSystem.Colors.warning) }
             if completedCount > 0 { badge("\(completedCount) done", DesignSystem.Colors.success) }
 
             Spacer()
@@ -329,8 +332,9 @@ struct SwarmPanelView: View {
 
         let subtitle: String = {
             if card.status == .running { return "Planning next moves" }
-            if card.status == .completed { return "Done" }
+            if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
+            if card.warningCount > 0 { return "Warnings" }
             return "Idle"
         }()
 
@@ -385,8 +389,9 @@ struct SwarmPanelView: View {
 
         let headerSubtitle: String = {
             if card.status == .running { return "Planning next moves" }
-            if card.status == .completed { return "Done" }
+            if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
+            if card.warningCount > 0 { return "Warnings" }
             return "Idle"
         }()
 

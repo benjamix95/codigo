@@ -61,6 +61,8 @@ enum SwarmLiveReducer {
             }
             if isErrorEvent(activity) {
                 card.errorCount += 1
+            } else if isWarningEvent(activity) {
+                card.warningCount += 1
             }
         }
 
@@ -136,9 +138,7 @@ enum SwarmLiveReducer {
                 return true
             }
         }
-        if isErrorEvent(activity) { return true }
-        let status = (activity.payload["status"] ?? "").lowercased()
-        return status == "started" || status == "completed" || status == "failed"
+        return isErrorEvent(activity)
     }
 
     private enum Transition {
@@ -158,7 +158,7 @@ enum SwarmLiveReducer {
         if detail == "completed" || status == "completed" {
             return .completed
         }
-        if detail == "failed" || status == "failed" {
+        if activity.type == "agent", detail == "failed" || status == "failed" {
             return .failed
         }
         if detail == "started" || status == "started" || activity.isRunning {
@@ -168,14 +168,32 @@ enum SwarmLiveReducer {
     }
 
     private static func isErrorEvent(_ activity: TaskActivity) -> Bool {
+        let normalizedType = activity.type.lowercased()
         if [
             "web_search_failed", "web_fetch_failed", "tool_execution_error", "tool_validation_error", "tool_timeout",
             "permission_denied", "error",
-        ].contains(activity.type) {
+        ].contains(normalizedType) {
             return true
         }
         let status = (activity.payload["status"] ?? "").lowercased()
-        return status == "failed" || status == "error"
+        if status == "error" || status == "fatal" {
+            return true
+        }
+        let severity = (activity.payload["severity"] ?? "").lowercased()
+        return severity == "error" || severity == "critical"
+    }
+
+    private static func isWarningEvent(_ activity: TaskActivity) -> Bool {
+        guard !isErrorEvent(activity) else { return false }
+        let status = (activity.payload["status"] ?? "").lowercased()
+        if status == "failed" || status == "warning" {
+            return true
+        }
+        let severity = (activity.payload["severity"] ?? "").lowercased()
+        if severity == "warning" {
+            return true
+        }
+        return false
     }
 
     private static func summary(for events: [TaskActivity]) -> String {

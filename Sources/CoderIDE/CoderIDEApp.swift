@@ -29,6 +29,7 @@ struct CodigoApp: App {
     @AppStorage("google_model") private var googleModel = "gemini-2.5-pro"
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
+    @AppStorage("codex_session_full_access") private var codexSessionFullAccess = false
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
@@ -282,7 +283,7 @@ struct CodigoApp: App {
             grokModel: grokModel,
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
-            codexSessionFullAccess: false,
+            codexSessionFullAccess: codexSessionFullAccess,
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,

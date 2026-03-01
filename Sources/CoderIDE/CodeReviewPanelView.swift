@@ -53,8 +53,8 @@ struct CodeReviewPanelView: View {
         guard coderMode == .codeReviewMultiSwarm, isTaskRunning else {
             return Metrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
         }
-        let cards = SwarmLiveReducer
-            .sorted(states: taskActivityStore.swarmCardStates())
+        let cards = taskActivityStore
+            .swarmCardStates()
             .filter { $0.swarmId.hasPrefix("review-") }
         let active = cards.filter { $0.status == .running }.count
         let activities = taskActivityStore.activities
@@ -468,14 +468,25 @@ struct CodeReviewPanelView: View {
                             .lineLimit(1)
                             .textShimmer(active: card.status == .running)
 
+                        if card.warningCount > 0 && card.status != .failed {
+                            Text("⚠︎ \(card.warningCount)")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(DesignSystem.Colors.warning)
+                        }
+
                         Spacer(minLength: 4)
 
                         if card.status == .running {
                             ProgressView().controlSize(.mini).scaleEffect(0.7).frame(width: 12, height: 12)
                         } else {
-                            Image(systemName: card.status == .completed ? "checkmark.circle.fill" : card.status == .failed ? "xmark.circle.fill" : "circle")
+                            Image(systemName: card.status == .failed
+                                ? "xmark.circle.fill"
+                                : (card.warningCount > 0 ? "exclamationmark.triangle.fill"
+                                    : (card.status == .completed ? "checkmark.circle.fill" : "circle")))
                                 .font(.system(size: 9))
-                                .foregroundStyle(cardAccent.opacity(0.8))
+                                .foregroundStyle((card.warningCount > 0 && card.status != .failed)
+                                    ? DesignSystem.Colors.warning.opacity(0.85)
+                                    : cardAccent.opacity(0.8))
                         }
                     }
                     .padding(.leading, 8)

@@ -36,8 +36,9 @@ struct SubagentChatCardView: View {
             }
             return "Planning next moves"
         }
-        if card.status == .completed { return "Done" }
+        if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
         if card.status == .failed { return "Failed" }
+        if card.warningCount > 0 { return "Warnings" }
         return "Idle"
     }
 
@@ -92,6 +93,9 @@ struct SubagentSnapshotCardView: View {
     }
 
     private var subtitle: String {
+        if let warningCount = snapshot.warningCount, warningCount > 0, snapshot.status != .failed {
+            return "Done with warnings"
+        }
         if let summary = snapshot.summary, !summary.isEmpty { return summary }
         switch snapshot.status {
         case .completed: return "Done"

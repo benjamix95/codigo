@@ -4,6 +4,7 @@ struct MessageToolTraceView: View {
     let events: [ToolTraceEvent]
     let workspaceHints: [String]
     let onOpenFile: (String) -> Void
+    var onInteractionStart: (() -> Void)? = nil
 
     @State private var expandedIds: Set<UUID> = []
     @State private var isExpanded = false
@@ -30,6 +31,7 @@ struct MessageToolTraceView: View {
         let genericDisplayEvents: [ToolTraceEvent]
         let totalDurationMs: Int
         let errorCount: Int
+        let warningCount: Int
         let collapsedSummary: String
 
         init(events: [ToolTraceEvent], isExpanded: Bool, runningCompactLimit: Int, collapser: ([ToolTraceEvent]) -> [ToolTraceEvent]) {
@@ -60,6 +62,7 @@ struct MessageToolTraceView: View {
             }
             totalDurationMs = ordered.compactMap { Int($0.payload["duration_ms"] ?? "") }.reduce(0, +)
             errorCount = ordered.filter { Self.isErrorEvent($0) }.count
+            warningCount = ordered.filter { Self.isWarningEvent($0) }.count
             collapsedSummary = Self.computeCollapsedSummary(orderedEvents: ordered)
         }
 
@@ -155,26 +158,89 @@ struct MessageToolTraceView: View {
 
         private static func isErrorEvent(_ event: ToolTraceEvent) -> Bool {
             let type = event.type.lowercased()
-            return type.contains("error") || type.contains("failed") || type == "tool_timeout"
-                || type == "permission_denied"
-                || (event.payload["status"] ?? "").lowercased() == "failed"
+            let status = (event.payload["status"] ?? "").lowercased()
+            if MessageToolTraceView.hardErrorTypes.contains(type) || type.contains("error") {
+                return true
+            }
+            // Non-zero exits often surface as "failed" status for command-like tools.
+            // Keep them out of global error badges unless explicitly marked as error.
+            return status == "error" || status == "fatal"
+        }
+
+        private static func isWarningEvent(_ event: ToolTraceEvent) -> Bool {
+            guard !isErrorEvent(event) else { return false }
+            let type = event.type.lowercased()
+            let status = (event.payload["status"] ?? "").lowercased()
+            let severity = (event.payload["severity"] ?? "").lowercased()
+            if status == "failed" || status == "warning" {
+                return true
+            }
+            if severity == "warning" {
+                return true
+            }
+            // Non-critical failed-type events should render as warnings.
+            return type.contains("failed")
         }
     }
+
+    private static let hardErrorTypes: Set<String> = [
+        "error",
+        "permission_denied",
+        "tool_execution_error",
+        "tool_timeout",
+        "tool_validation_error",
+        "web_fetch_failed",
+        "web_search_failed",
+    ]
 
     private final class DerivedCache {
         var state: DerivedState?
         var eventCount: Int = -1
         var isExpanded: Bool = false
         var runningHash: Int = -1
+        var eventSignature: Int = -1
     }
     @State private var derivedCache = DerivedCache()
 
+    private struct EventsChangeToken: Equatable {
+        let count: Int
+        let lastId: UUID?
+        let lastSequence: Int
+        let lastRunning: Bool
+        let lastStatus: String
+        let lastDetail: String
+    }
+
+    private var eventsChangeToken: EventsChangeToken {
+        let last = events.last
+        return EventsChangeToken(
+            count: events.count,
+            lastId: last?.id,
+            lastSequence: last?.sequence ?? -1,
+            lastRunning: last?.isRunning ?? false,
+            lastStatus: last?.payload["status"] ?? "",
+            lastDetail: last?.detail ?? ""
+        )
+    }
+
+    private static func eventsSignature(_ events: [ToolTraceEvent]) -> Int {
+        events.reduce(into: 17) { hash, event in
+            hash = (hash &* 31) &+ event.id.hashValue
+            hash = (hash &* 31) &+ event.type.hashValue
+            hash = (hash &* 31) &+ (event.isRunning ? 1 : 0)
+            hash = (hash &* 31) &+ (event.payload["status"] ?? "").hashValue
+            hash = (hash &* 31) &+ (event.detail ?? "").hashValue
+        }
+    }
+
     private func currentDerived() -> DerivedState {
         let runningHash = events.reduce(0) { h, e in h ^ (e.isRunning ? e.id.hashValue : 0) }
+        let signature = Self.eventsSignature(events)
         if let cached = derivedCache.state,
            events.count == derivedCache.eventCount,
            isExpanded == derivedCache.isExpanded,
-           runningHash == derivedCache.runningHash {
+           runningHash == derivedCache.runningHash,
+           signature == derivedCache.eventSignature {
             return cached
         }
         let d = DerivedState(
@@ -187,20 +253,8 @@ struct MessageToolTraceView: View {
         derivedCache.eventCount = events.count
         derivedCache.isExpanded = isExpanded
         derivedCache.runningHash = runningHash
+        derivedCache.eventSignature = signature
         return d
-    }
-
-    private func refreshDerived() {
-        let d = DerivedState(
-            events: events,
-            isExpanded: isExpanded,
-            runningCompactLimit: runningCompactLimit,
-            collapser: collapseSupersededToolStates
-        )
-        derivedCache.state = d
-        derivedCache.eventCount = events.count
-        derivedCache.isExpanded = isExpanded
-        derivedCache.runningHash = events.reduce(0) { h, e in h ^ (e.isRunning ? e.id.hashValue : 0) }
     }
 
     var body: some View {
@@ -222,6 +276,11 @@ struct MessageToolTraceView: View {
                         fileChangesSectionView(derived: derived)
                             .padding(.top, 4)
                     }
+
+                    if isExpanded, derived.hasRunningEvent {
+                        collapseShortcutRow
+                            .padding(.top, 6)
+                    }
                 }
                 .padding(.leading, 20)
             }
@@ -229,18 +288,15 @@ struct MessageToolTraceView: View {
         .padding(.vertical, 4)
         .frame(maxWidth: 760, alignment: .leading)
         .onAppear {
-            refreshDerived()
-            syncAutoPresentationState()
+            syncAutoPresentationState(derived: currentDerived())
         }
-        .onChange(of: events.count) { _, _ in
-            refreshDerived()
-            syncAutoPresentationState()
+        .onChange(of: eventsChangeToken) { _, _ in
+            syncAutoPresentationState(derived: currentDerived())
         }
         .onChange(of: isExpanded) { _, expanded in
-            refreshDerived()
             guard expanded else { return }
             let changes = currentDerived().fileChanges
-            loadCompactDiffPreviewIfNeeded()
+            loadCompactDiffPreviewIfNeeded(changes: changes)
             for change in changes {
                 loadPreviewIfNeeded(for: change)
             }
@@ -251,6 +307,7 @@ struct MessageToolTraceView: View {
 
     private func headerView(derived: DerivedState) -> some View {
         Button {
+            onInteractionStart?()
             withAnimation(.easeOut(duration: 0.15)) {
                 isExpanded.toggle()
                 if isExpanded { userDidManuallyExpand = true }
@@ -274,6 +331,10 @@ struct MessageToolTraceView: View {
                         .scaleEffect(0.7)
                         .frame(width: 12, height: 12)
                 } else if derived.errorCount > 0 {
+                    Image(systemName: "xmark.octagon.fill")
+                        .font(.system(size: 10))
+                    .foregroundStyle(DesignSystem.Colors.error)
+                } else if derived.warningCount > 0 {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 10))
                         .foregroundStyle(DesignSystem.Colors.warning)
@@ -317,6 +378,30 @@ struct MessageToolTraceView: View {
         )
     }
 
+    private var collapseShortcutRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.up.and.line.horizontal.and.arrow.down")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.textQuaternary)
+            Button("Collapse trace") {
+                onInteractionStart?()
+                withAnimation(.easeOut(duration: 0.12)) {
+                    isExpanded = false
+                    userDidManuallyExpand = false
+                    expandedIds.removeAll()
+                    expandedFileIds.removeAll()
+                    isCompactDiffExpanded = false
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(DesignSystem.Colors.textTertiary)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+    }
+
     private func headerTitle(derived: DerivedState) -> String {
         let count = derived.orderedEvents.count
         if derived.hasRunningEvent {
@@ -356,6 +441,7 @@ struct MessageToolTraceView: View {
     private func traceRow(_ event: ToolTraceEvent, displayIndex: Int, compactMode: Bool, derived: DerivedState) -> some View {
         let isRowExpanded = isExpanded && expandedIds.contains(event.id)
         let isError = Self.isErrorType(event)
+        let isWarning = Self.isWarningType(event)
         let durationMs = Int(event.payload["duration_ms"] ?? "") ?? 0
 
         VStack(alignment: .leading, spacing: 0) {
@@ -365,7 +451,11 @@ struct MessageToolTraceView: View {
 
                 toolTitle(for: event)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isError ? DesignSystem.Colors.error : .primary)
+                    .foregroundStyle(
+                        isError
+                            ? DesignSystem.Colors.error
+                            : (isWarning ? DesignSystem.Colors.warning : .primary)
+                    )
                     .lineLimit(1)
                     .textShimmer(active: event.isRunning)
 
@@ -425,7 +515,11 @@ struct MessageToolTraceView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(isError ? DesignSystem.Colors.error.opacity(0.06) : Color.clear)
+                    .fill(
+                        isError
+                            ? DesignSystem.Colors.error.opacity(0.06)
+                            : (isWarning ? DesignSystem.Colors.warning.opacity(0.06) : Color.clear)
+                    )
             )
 
             if isRowExpanded {
@@ -448,7 +542,15 @@ struct MessageToolTraceView: View {
         let type = event.type.lowercased()
         let tool = (event.payload["tool"] ?? event.payload["name"] ?? "").lowercased()
 
-        if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed" || tool == "read" || tool == "read_range" {
+        if Self.isErrorType(event) {
+            Image(systemName: "xmark.circle")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.error)
+        } else if Self.isWarningType(event) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.warning)
+        } else if type.contains("read") || type == "read_batch_started" || type == "read_batch_completed" || tool == "read" || tool == "read_range" {
             Image(systemName: "doc.text")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.info)
@@ -516,10 +618,6 @@ struct MessageToolTraceView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.reviewColor)
-        } else if type.contains("error") || type == "tool_timeout" || type == "permission_denied" || type == "tool_validation_error" {
-            Image(systemName: "xmark.circle")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.error)
         } else if type.contains("glob") || tool == "glob" || tool == "list_dir" {
             Image(systemName: "folder")
                 .font(.system(size: 9.5, weight: .medium))
@@ -590,6 +688,7 @@ struct MessageToolTraceView: View {
     // MARK: - File Changes Section
 
     private func fileChangesSectionView(derived: DerivedState) -> some View {
+        let compactDiff = compactDiffPreview(fileChanges: derived.fileChanges)
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Image(systemName: "doc.on.doc")
@@ -613,9 +712,9 @@ struct MessageToolTraceView: View {
                 fileChangeRow(change)
             }
 
-            if let compactDiff = compactDiffPreview(fileChanges: derived.fileChanges) {
+            if let compactDiff {
                 compactDiffSection(diff: compactDiff, derived: derived)
-            } else if !derived.fileChanges.isEmpty && compactDiffPreview(fileChanges: derived.fileChanges) == nil {
+            } else if !derived.fileChanges.isEmpty {
                 buildDiffButton()
             }
         }
@@ -976,9 +1075,25 @@ struct MessageToolTraceView: View {
 
     private static func isErrorType(_ event: ToolTraceEvent) -> Bool {
         let type = event.type.lowercased()
-        return type.contains("error") || type.contains("failed") || type == "tool_timeout"
-            || type == "permission_denied"
-            || (event.payload["status"] ?? "").lowercased() == "failed"
+        let status = (event.payload["status"] ?? "").lowercased()
+        if Self.hardErrorTypes.contains(type) || type.contains("error") {
+            return true
+        }
+        return status == "error" || status == "fatal"
+    }
+
+    private static func isWarningType(_ event: ToolTraceEvent) -> Bool {
+        guard !isErrorType(event) else { return false }
+        let type = event.type.lowercased()
+        let status = (event.payload["status"] ?? "").lowercased()
+        let severity = (event.payload["severity"] ?? "").lowercased()
+        if status == "failed" || status == "warning" {
+            return true
+        }
+        if severity == "warning" {
+            return true
+        }
+        return type.contains("failed")
     }
 
     private func compactDetail(for event: ToolTraceEvent) -> String? {
@@ -1196,9 +1311,9 @@ struct MessageToolTraceView: View {
         }
     }
 
-    private func loadCompactDiffPreviewIfNeeded() {
+    private func loadCompactDiffPreviewIfNeeded(changes initialChanges: [ToolTraceFileChange]? = nil) {
         guard !isCompactDiffLoading else { return }
-        let changes = computeFileChanges()
+        let changes = initialChanges ?? currentDerived().fileChanges
         guard !changes.isEmpty else { return }
         isCompactDiffLoading = true
 
@@ -1218,7 +1333,7 @@ struct MessageToolTraceView: View {
 
             await MainActor.run {
                 isCompactDiffLoading = false
-                let updatedChanges = computeFileChanges()
+                let updatedChanges = currentDerived().fileChanges
                 if isExpanded, compactDiffPreview(fileChanges: updatedChanges) != nil {
                     withAnimation(.easeInOut(duration: 0.12)) {
                         isCompactDiffExpanded = true
@@ -1228,22 +1343,8 @@ struct MessageToolTraceView: View {
         }
     }
 
-    private func computeOrderedEvents() -> [ToolTraceEvent] {
-        let filtered = events
-            .filter { ToolTraceVisibility.shouldDisplay(event: $0) }
-            .sorted { lhs, rhs in
-                if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
-                return lhs.timestamp < rhs.timestamp
-            }
-        return collapseSupersededToolStates(filtered)
-    }
-
-    private func computeFileChanges() -> [ToolTraceFileChange] {
-        ToolTraceFileChangeMapper.collect(from: computeOrderedEvents())
-    }
-
-    private func syncAutoPresentationState() {
-        let ordered = computeOrderedEvents()
+    private func syncAutoPresentationState(derived: DerivedState) {
+        let ordered = derived.orderedEvents
         let running = ordered.contains(where: \.isRunning)
         if running {
             didAutoCompactAfterCompletion = false

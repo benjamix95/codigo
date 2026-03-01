@@ -3,10 +3,10 @@ import Foundation
 enum PromptToolsPolicy {
     static let toolUsage = """
     Tool usage policy:
-    - SUBAGENTS FIRST: For ANY non-trivial task, your FIRST action MUST be spawning subagents (subagent_explorer, subagent_coder, etc.). Do NOT manually grep/read/edit when subagents can do it in parallel across Codex, Claude, Gemini, and other backends. This is the #1 priority.
-    - NEVER do sequential work when parallel subagent work is possible. If a task has 2+ independent parts, split them into subagent calls in the SAME round.
+    - Prefer subagents for non-trivial tasks, especially when work can be parallelized (subagent_explorer, subagent_coder, etc.).
+    - Avoid sequential work when parallel subagent work is possible. If a task has 2+ independent parts, split them into subagent calls in the same round.
     - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
-    - Use ALL available tools — not just Bash. You have access to: Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch, Task (subagents), TodoWrite, Skill, MCP tools, NotebookEdit, and more.
+    - Use all available tools — not just Bash. Prefer canonical tool names (read, edit, write, bash, glob, grep, web_search/web_fetch, subagent_*, todo_write, skill, mcp_*).
     - CRITICAL: Do NOT default to Bash for everything. Use the right tool for the job:
       • File search → Glob, find_files (NOT `find` via Bash)
       • Content search → Grep, semantic_search, codebase_search (NOT `grep` via Bash)
@@ -14,7 +14,6 @@ enum PromptToolsPolicy {
       • Edit files → str_replace, Edit (NOT `sed` via Bash)
       • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
       • MCP tools → mcp_call, mcp_list_tools (use them when available)
-      • Skills → Skill tool (when skills are available and relevant)
       • Subagents → subagent_* tools (MANDATORY for concurrent work — call 2–5 in the SAME round, each runs on a different backend: Codex, Claude, Gemini, OpenAI, Anthropic, etc.)
       • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)

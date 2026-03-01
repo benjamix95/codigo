@@ -17,6 +17,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
     var currentDetail: String
     var activeOpsCount: Int
     var errorCount: Int
+    var warningCount: Int
     var recentEvents: [TaskActivity]
     var summary: String?
     var isCollapsed: Bool
@@ -34,6 +35,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         currentDetail: String = "",
         activeOpsCount: Int = 0,
         errorCount: Int = 0,
+        warningCount: Int = 0,
         recentEvents: [TaskActivity] = [],
         summary: String? = nil,
         isCollapsed: Bool = false,
@@ -48,6 +50,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         self.currentDetail = currentDetail
         self.activeOpsCount = activeOpsCount
         self.errorCount = errorCount
+        self.warningCount = warningCount
         self.recentEvents = recentEvents
         self.summary = summary
         self.isCollapsed = isCollapsed

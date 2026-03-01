@@ -735,6 +735,7 @@ struct ChatPanelView: View {
     @State private var draftSaveTask: Task<Void, Never>?
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
+    @AppStorage("codex_session_full_access") private var codexSessionFullAccess = false
     @AppStorage("codex_ask_for_approval") private var codexAskForApproval = "never"
     @AppStorage("codex_model_override") private var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") private var codexReasoningEffort = "low"
@@ -860,6 +861,8 @@ struct ChatPanelView: View {
     @State private var streamingReasoningText: String?
     @State private var streamingReasoningConversationId: UUID?
     @State private var streamingReasoningBlocks: [ReasoningBlock] = []
+    @State private var streamingSegments: [MessageSegment] = []
+    @State private var streamingSegmentTurnIndex: Int = 0
     /// Pending streaming content waiting to be flushed to ChatStore.
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
@@ -2087,6 +2090,7 @@ struct ChatPanelView: View {
     /// Scrolling to this instead of individual message IDs avoids LazyVStack
     /// height-estimation thrashing that causes an infinite scroll-up loop
     /// when the conversation has more than one exchange.
+    private let chatScrollTopAnchorId = "chat-scroll-top-anchor"
     private let chatScrollBottomAnchorId = "chat-scroll-bottom-anchor"
 
     // MARK: - Messages Area
@@ -2127,7 +2131,9 @@ struct ChatPanelView: View {
             handleTaskActivitiesChange(proxy: proxy)
         }
         .simultaneousGesture(
-            DragGesture(minimumDistance: 30).onChanged { _ in
+            // Keep this low so trackpad/mouse-wheel scrolling detaches live-follow
+            // quickly and prevents forced jumps back to the latest trace event.
+            DragGesture(minimumDistance: 2).onChanged { _ in
                 if isLoadingForCurrentConversation {
                     isFollowingLive = false
                 }
@@ -2135,7 +2141,7 @@ struct ChatPanelView: View {
             including: isLoadingForCurrentConversation ? .gesture : .subviews
         )
         .overlay(alignment: .bottomTrailing) {
-            messagesAreaBackToLiveButton(using: proxy)
+            messagesAreaFloatingScrollButtons(using: proxy)
         }
     }
 
@@ -2174,38 +2180,64 @@ struct ChatPanelView: View {
     }
 
     @ViewBuilder
-    private func messagesAreaBackToLiveButton(using proxy: ScrollViewProxy) -> some View {
-        if !isFollowingLive && isLoadingForCurrentConversation {
-            Button {
-                isFollowingLive = true
-                newEventsWhileDetached = 0
-                if let target = liveScrollTarget() {
-                    scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                }
-                taskActivityStore.markLiveEventsSeen()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text("Back to live")
-                        .font(.system(size: 11, weight: .semibold))
-                    if newEventsWhileDetached > 0 {
-                        Text("\(newEventsWhileDetached)")
-                            .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.white.opacity(0.22), in: Capsule())
+    private func messagesAreaFloatingScrollButtons(using proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 8) {
+            if !messagesAreaIsEmpty && (!isFollowingLive || isLoadingForCurrentConversation) {
+                Button {
+                    isFollowingLive = false
+                    scheduleAutoScroll(
+                        proxy: proxy,
+                        target: chatScrollTopAnchorId,
+                        animated: true,
+                        delay: 0
+                    )
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Torna su")
+                            .font(.system(size: 11, weight: .semibold))
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, 14)
-            .padding(.bottom, 10)
+
+            if !isFollowingLive && isLoadingForCurrentConversation {
+                Button {
+                    isFollowingLive = true
+                    newEventsWhileDetached = 0
+                    if let target = liveScrollTarget() {
+                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
+                    }
+                    taskActivityStore.markLiveEventsSeen()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Back to live")
+                            .font(.system(size: 11, weight: .semibold))
+                        if newEventsWhileDetached > 0 {
+                            Text("\(newEventsWhileDetached)")
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.white.opacity(0.22), in: Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.trailing, 14)
+        .padding(.bottom, 10)
     }
 
     private func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
@@ -2288,6 +2320,9 @@ struct ChatPanelView: View {
         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
         let latestAssistantMessageId = messages.last(where: { $0.role == .assistant })?.id
         LazyVStack(alignment: .leading, spacing: 28) {
+            Color.clear
+                .frame(height: 1)
+                .id(chatScrollTopAnchorId)
             ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                 chatMessageCell(
                     message: message,
@@ -2432,51 +2467,69 @@ struct ChatPanelView: View {
                         && lastMsg?.role == .assistant
                         && (lastMsg?.isStreaming ?? false)
                         && isLoadingForCurrentConversation
+                    let useSequentialLayout = isLiveReasoningTarget && !streamingSegments.isEmpty
                     VStack(alignment: .leading, spacing: 10) {
-                        MessageRow(
-                            message: displayMessage,
-                            context: effectiveContext.context,
-                            modeColor: activeModeColor,
-                            isActuallyLoading: isLoadingForCurrentConversation,
-                            streamingStatusText: streamingStatusText(for: displayMessage),
-                            streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conv.id),
-                            streamingReasoningText: effectiveReasoning,
-                            streamingReasoningBlocks: effectiveReasoningBlocks,
-                            showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
-                            onFileClicked: { openFilesStore.openFile($0) },
-                            onRestoreCheckpoint: restoreAction,
-                            onReply: replyAction,
-                            onDelete: deleteAction,
-                            canRewind: canRewindFromMessage,
-                            hasCheckpointForRestore: hasCheckpointForMessage,
-                            showTopDivider: needsDivider
-                        )
-                        if message.role == .assistant {
-                            if shouldShowPlanTodosInChat,
-                               !suppressPlanArtifacts,
-                               !todoStore.todos.isEmpty,
-                               message.id == latestAssistantMessageId
-                            {
-                                TodoLiveInlineCard(
-                                    store: todoStore,
-                                    onOpenFile: { openFilesStore.openFile($0) }
-                                )
-                                .padding(.horizontal, 2)
-                            }
-                            // Subagent / worker cards inline — persisted per-message + live for current task
-                            subagentCardsSection(
-                                message: message,
-                                isLatestAssistant: message.id == latestAssistantMessageId
+                        if useSequentialLayout {
+                            sequentialSegmentedContent(
+                                message: displayMessage,
+                                segments: streamingSegments,
+                                effectiveContext: effectiveContext,
+                                suppressPlanArtifacts: suppressPlanArtifacts,
+                                shouldHideStreamingBar: shouldHideStreamingBarOnPreviousAssistant,
+                                restoreAction: restoreAction,
+                                replyAction: replyAction,
+                                deleteAction: deleteAction,
+                                canRewindFromMessage: canRewindFromMessage,
+                                hasCheckpointForMessage: hasCheckpointForMessage,
+                                needsDivider: needsDivider,
+                                latestAssistantMessageId: latestAssistantMessageId,
+                                conv: conv
                             )
-                            let traceEvents = toolTraceStore.events(
-                                conversationId: conv.id,
-                                assistantMessageId: message.id
+                        } else {
+                            MessageRow(
+                                message: displayMessage,
+                                context: effectiveContext.context,
+                                modeColor: activeModeColor,
+                                isActuallyLoading: isLoadingForCurrentConversation,
+                                streamingStatusText: streamingStatusText(for: displayMessage),
+                                streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conv.id),
+                                streamingReasoningText: effectiveReasoning,
+                                streamingReasoningBlocks: effectiveReasoningBlocks,
+                                showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
+                                onFileClicked: { openFilesStore.openFile($0) },
+                                onRestoreCheckpoint: restoreAction,
+                                onReply: replyAction,
+                                onDelete: deleteAction,
+                                canRewind: canRewindFromMessage,
+                                hasCheckpointForRestore: hasCheckpointForMessage,
+                                showTopDivider: needsDivider
                             )
-                            if !traceEvents.isEmpty {
-                                messageTraceView(
-                                    traceEvents: traceEvents,
-                                    effectiveContext: effectiveContext
+                            if message.role == .assistant {
+                                if shouldShowPlanTodosInChat,
+                                   !suppressPlanArtifacts,
+                                   !todoStore.todos.isEmpty,
+                                   message.id == latestAssistantMessageId
+                                {
+                                    TodoLiveInlineCard(
+                                        store: todoStore,
+                                        onOpenFile: { openFilesStore.openFile($0) }
+                                    )
+                                    .padding(.horizontal, 2)
+                                }
+                                subagentCardsSection(
+                                    message: message,
+                                    isLatestAssistant: message.id == latestAssistantMessageId
                                 )
+                                let traceEvents = toolTraceStore.events(
+                                    conversationId: conv.id,
+                                    assistantMessageId: message.id
+                                )
+                                if !traceEvents.isEmpty {
+                                    messageTraceView(
+                                        traceEvents: traceEvents,
+                                        effectiveContext: effectiveContext
+                                    )
+                                }
                             }
                         }
                     }
@@ -2485,6 +2538,126 @@ struct ChatPanelView: View {
             }
             .id(message.id)
         }
+    }
+
+    @ViewBuilder
+    private func sequentialSegmentedContent(
+        message: ChatMessage,
+        segments: [MessageSegment],
+        effectiveContext: EffectiveContext,
+        suppressPlanArtifacts: Bool,
+        shouldHideStreamingBar: Bool,
+        restoreAction: (() -> Void)?,
+        replyAction: (() -> Void)?,
+        deleteAction: (() -> Void)?,
+        canRewindFromMessage: Bool,
+        hasCheckpointForMessage: Bool,
+        needsDivider: Bool,
+        latestAssistantMessageId: UUID?,
+        conv: Conversation
+    ) -> some View {
+        let contentMaxWidth: CGFloat = 800
+        let isStreaming = message.isStreaming && isLoadingForCurrentConversation
+
+        if needsDivider {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.primary.opacity(0.0),
+                            Color.primary.opacity(0.06),
+                            Color.primary.opacity(0.06),
+                            Color.primary.opacity(0.0),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 0.5)
+                .frame(maxWidth: 860)
+                .padding(.bottom, 20)
+        }
+
+        HStack(spacing: 5) {
+            Circle()
+                .fill(activeModeColor.opacity(0.6))
+                .frame(width: 5.5, height: 5.5)
+            Text("Codigo")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.3)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 2)
+        .padding(.bottom, 5)
+
+        ForEach(segments) { segment in
+            switch segment.kind {
+            case .reasoning(let text):
+                ThinkingBlockView(text: text, isLiveStreaming: isStreaming)
+                    .padding(.bottom, 4)
+            case .text(let content):
+                if !content.isEmpty {
+                    MarkdownContentView(
+                        content: content,
+                        context: effectiveContext.context,
+                        onFileClicked: { openFilesStore.openFile($0) },
+                        textAlignment: .leading,
+                        isStreaming: isStreaming
+                    )
+                    .frame(maxWidth: contentMaxWidth, alignment: .leading)
+                    .padding(.vertical, 4)
+                }
+            case .toolTrace(let events):
+                if !events.isEmpty {
+                    messageTraceView(
+                        traceEvents: events,
+                        effectiveContext: effectiveContext
+                    )
+                }
+            }
+        }
+
+        if isStreaming, !shouldHideStreamingBar {
+            let status = streamingStatusText(for: message).isEmpty ? "Thinking" : streamingStatusText(for: message)
+            HStack(spacing: 6) {
+                Text(status)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .textShimmer(active: true)
+                if status != "Planning next move",
+                   let detail = streamingDetailText(for: message, conversationId: conv.id),
+                   !detail.isEmpty
+                {
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                    Text(detail)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .textShimmer(active: true)
+                }
+                Spacer()
+            }
+            .padding(.top, 2)
+        }
+
+        if shouldShowPlanTodosInChat,
+           !suppressPlanArtifacts,
+           !todoStore.todos.isEmpty,
+           message.id == latestAssistantMessageId
+        {
+            TodoLiveInlineCard(
+                store: todoStore,
+                onOpenFile: { openFilesStore.openFile($0) }
+            )
+            .padding(.horizontal, 2)
+        }
+
+        subagentCardsSection(
+            message: message,
+            isLatestAssistant: message.id == latestAssistantMessageId
+        )
     }
 
     @ViewBuilder
@@ -2732,7 +2905,11 @@ struct ChatPanelView: View {
         MessageToolTraceView(
             events: traceEvents,
             workspaceHints: traceWorkspaceHints(for: effectiveContext),
-            onOpenFile: { openFilesStore.openFile($0) }
+            onOpenFile: { openFilesStore.openFile($0) },
+            onInteractionStart: {
+                guard isLoadingForCurrentConversation else { return }
+                isFollowingLive = false
+            }
         )
     }
 
@@ -3245,6 +3422,28 @@ struct ChatPanelView: View {
             let current = toolTraceOperationalCountByMessage[turn.assistantMessageId] ?? 0
             toolTraceOperationalCountByMessage[turn.assistantMessageId] = current + 1
         }
+        updateStreamingToolSegment(newEvent: event, conversationId: turn.conversationId, assistantMessageId: turn.assistantMessageId)
+    }
+
+    private func updateStreamingToolSegment(
+        newEvent: ToolTraceEvent,
+        conversationId: UUID,
+        assistantMessageId: UUID
+    ) {
+        guard conversationId == self.conversationId else { return }
+        let segId = "tools-\(streamingSegmentTurnIndex)"
+        if let idx = streamingSegments.firstIndex(where: { $0.id == segId }) {
+            if case .toolTrace(var existing) = streamingSegments[idx].kind {
+                if let updateIdx = existing.firstIndex(where: { $0.id == newEvent.id }) {
+                    existing[updateIdx] = newEvent
+                } else {
+                    existing.append(newEvent)
+                }
+                streamingSegments[idx].kind = .toolTrace(existing)
+            }
+        } else {
+            streamingSegments.append(MessageSegment(id: segId, kind: .toolTrace([newEvent])))
+        }
     }
 
     @MainActor
@@ -3262,20 +3461,24 @@ struct ChatPanelView: View {
         for event in envelope.events {
             switch event {
             case .taskActivity(let activity):
+                let scopedActivity = activityWithConversationContext(
+                    activity,
+                    conversationId: conversationId
+                )
                 ensureAutoTodoStartedBeforeOperationalActivity(
-                    activity: activity,
+                    activity: scopedActivity,
                     providerId: providerId,
                     conversationId: conversationId
                 )
-                enqueueTaskActivity(activity)
+                enqueueTaskActivity(scopedActivity)
                 appendToolTraceEvent(
-                    activity: activity,
+                    activity: scopedActivity,
                     rawKind: envelope.kind,
                     providerId: providerId,
                     conversationId: conversationId
                 )
                 updateAutoTodoProgressAfterOperationalActivity(
-                    activity: activity,
+                    activity: scopedActivity,
                     providerId: providerId,
                     conversationId: conversationId
                 )
@@ -3997,6 +4200,37 @@ struct ChatPanelView: View {
         let backlog = pendingTaskActivities.count + pendingInstantGreps.count
         guard backlog >= taskBacklogDiagnosticThreshold else { return }
         NSLog("[StreamDiag] task_backlog_high count=%d context=%@", backlog, context)
+    }
+
+    @MainActor
+    private func clearTaskActivityPipeline() {
+        taskFlushTask?.cancel()
+        taskFlushTask = nil
+        pendingTaskActivities.removeAll(keepingCapacity: true)
+        pendingInstantGreps.removeAll(keepingCapacity: true)
+        taskActivityStore.clear()
+    }
+
+    private func activityWithConversationContext(
+        _ activity: TaskActivity,
+        conversationId: UUID?
+    ) -> TaskActivity {
+        guard let conversationId else { return activity }
+        var payload = activity.payload
+        if payload["conversation_id"] == nil {
+            payload["conversation_id"] = conversationId.uuidString.lowercased()
+        }
+        return TaskActivity(
+            id: activity.id,
+            type: activity.type,
+            title: activity.title,
+            detail: activity.detail,
+            payload: payload,
+            timestamp: activity.timestamp,
+            phase: activity.phase,
+            isRunning: activity.isRunning,
+            groupId: activity.groupId
+        )
     }
 
     // MARK: - Composer
@@ -4839,7 +5073,7 @@ struct ChatPanelView: View {
             grokModel: "",
             codexPath: codexPath,
             codexSandbox: effectiveSandbox,
-            codexSessionFullAccess: false,
+            codexSessionFullAccess: codexSessionFullAccess,
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
@@ -5208,7 +5442,7 @@ struct ChatPanelView: View {
             activeTaskConversationIds: chatStore.activeTaskConversationIds,
             targetConversationId: agentConvId
         ) {
-            taskActivityStore.clear()
+            clearTaskActivityPipeline()
         }
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
@@ -5720,7 +5954,7 @@ struct ChatPanelView: View {
             activeTaskConversationIds: chatStore.activeTaskConversationIds,
             targetConversationId: targetConversationId
         ) {
-            taskActivityStore.clear()
+            clearTaskActivityPipeline()
         }
         // Preserve manual todos across turns; for a new standard turn reset all agent todos,
         // including stale canonical plan tasks from previous plans/conversations.
@@ -7131,10 +7365,15 @@ struct ChatPanelView: View {
             emitMCPEditRequiredViolation(payload: enriched, conversationId: convId)
             return
         }
+        if t == "turn_started" {
+            streamingSegmentTurnIndex += 1
+        }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
             let groupId = p["group_id"] ?? "reasoning-stream"
             if streamingReasoningConversationId != convId {
                 streamingReasoningBlocks = []
+                streamingSegments = []
+                streamingSegmentTurnIndex = 0
             }
             if let idx = streamingReasoningBlocks.firstIndex(where: { $0.id == groupId }) {
                 streamingReasoningBlocks[idx].text = Self.mergeReasoningText(
@@ -7146,6 +7385,14 @@ struct ChatPanelView: View {
             }
             streamingReasoningText = streamingReasoningBlocks.map(\.text).joined(separator: "\n\n")
             streamingReasoningConversationId = convId
+
+            let segId = "reasoning-\(streamingSegmentTurnIndex)"
+            let currentBlockText = streamingReasoningBlocks.last(where: { $0.id == groupId })?.text ?? output
+            if let segIdx = streamingSegments.firstIndex(where: { $0.id == segId }) {
+                streamingSegments[segIdx].kind = .reasoning(currentBlockText)
+            } else {
+                streamingSegments.append(MessageSegment(id: segId, kind: .reasoning(currentBlockText)))
+            }
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "coderide_show_swarm_panel", planFlowPhase != .building {
@@ -7456,6 +7703,8 @@ struct ChatPanelView: View {
         streamingReasoningText = nil
         streamingReasoningConversationId = nil
         streamingReasoningBlocks = []
+        streamingSegments = []
+        streamingSegmentTurnIndex = 0
     }
 
     private func clearPlanStreamingState() {
@@ -7641,6 +7890,8 @@ struct ChatPanelView: View {
         pendingStreamContent = sanitizedContent
         pendingStreamConversationId = conversationId
 
+        updateStreamingTextSegment(sanitizedContent)
+
         // If a throttle is already scheduled, let it pick up the latest content.
         if streamThrottleTask != nil { return }
 
@@ -7679,6 +7930,19 @@ struct ChatPanelView: View {
             persistImmediately: false
         )
         streamContentVersion &+= 1
+    }
+
+    private func updateStreamingTextSegment(_ content: String) {
+        let segId = "text-\(streamingSegmentTurnIndex)"
+        if content.isEmpty {
+            streamingSegments.removeAll { $0.id == segId }
+            return
+        }
+        if let idx = streamingSegments.firstIndex(where: { $0.id == segId }) {
+            streamingSegments[idx].kind = .text(content)
+        } else {
+            streamingSegments.append(MessageSegment(id: segId, kind: .text(content)))
+        }
     }
 
     // MARK: - Handle Stream Result (plan options + swarm delegation)
@@ -7993,7 +8257,7 @@ struct ChatPanelView: View {
                     activeTaskConversationIds: chatStore.activeTaskConversationIds,
                     targetConversationId: convId
                 ) {
-                    taskActivityStore.clear()
+                    clearTaskActivityPipeline()
                 }
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
@@ -8099,7 +8363,7 @@ struct ChatPanelView: View {
                     activeTaskConversationIds: chatStore.activeTaskConversationIds,
                     targetConversationId: conversationId
                 ) {
-                    taskActivityStore.clear()
+                    clearTaskActivityPipeline()
                 }
                 swarmProgressStore.clear()
                 activeBuildPlanConversationId = nil
@@ -8141,18 +8405,20 @@ struct ChatPanelView: View {
 
     private func streamingStatusText(for message: ChatMessage) -> String {
         guard message.isStreaming, message.role == .assistant else { return "" }
+        let scopedActivities = scopedTaskActivities(for: conversationId)
         return TaskActivityStore.streamingStatusText(
             isPaused: executionController.runState == .paused,
-            activities: taskActivityStore.activities
+            activities: scopedActivities
         )
     }
 
     private func updateSidebarTaskStatus() {
         guard let currentConversationId = conversationId,
               chatStore.isTaskActive(for: currentConversationId) else { return }
+        let scopedActivities = scopedTaskActivities(for: currentConversationId)
         let status = TaskActivityStore.streamingStatusText(
             isPaused: executionController.runState == .paused,
-            activities: taskActivityStore.activities
+            activities: scopedActivities
         )
         chatStore.setTaskStatus(status, for: currentConversationId)
     }
@@ -8160,9 +8426,10 @@ struct ChatPanelView: View {
     @MainActor
     private func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
+        let scopedActivities = scopedTaskActivities(for: convId)
         if let fromActivities = TaskActivityStore.streamingDetailText(
-            activities: taskActivityStore.activities,
-            activeOperationsCount: taskActivityStore.activeOperationsCount
+            activities: scopedActivities,
+            activeOperationsCount: scopedActiveOperationsCount(for: convId)
         ) {
             return fromActivities
         }
@@ -8178,5 +8445,23 @@ struct ChatPanelView: View {
             }
         }
         return nil
+    }
+
+    private func scopedTaskActivities(for targetConversationId: UUID?) -> [TaskActivity] {
+        guard let targetConversationId else { return taskActivityStore.activities }
+        let expected = targetConversationId.uuidString.lowercased()
+        return taskActivityStore.activities.filter { activity in
+            let tagged = (activity.payload["conversation_id"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return tagged.isEmpty || tagged == expected
+        }
+    }
+
+    private func scopedActiveOperationsCount(for targetConversationId: UUID?) -> Int {
+        let activities = scopedTaskActivities(for: targetConversationId)
+        return activities.suffix(40)
+            .filter { $0.isRunning && !SwarmMetadata.isSwarmEvent($0.payload) }
+            .count
     }
 }

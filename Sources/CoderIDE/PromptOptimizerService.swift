@@ -53,7 +53,19 @@ final class PromptOptimizerService {
         --- END ---
         """
 
-        let ctx = WorkspaceContext.forPromptOptimizer(systemInstruction: systemInstruction)
+        let ctx = WorkspaceContext(
+            workspacePaths: context.workspacePaths,
+            isNamedWorkspace: context.isNamedWorkspace,
+            workspaceName: context.workspaceName,
+            excludedPaths: context.excludedPaths,
+            includedPaths: context.includedPaths,
+            openFiles: [],
+            activeSelection: nil,
+            activeFilePath: nil,
+            activeRootPath: context.activeRootPath,
+            skipContextEnrichment: true,
+            systemPromptOverride: context.systemPromptOverride ?? systemInstruction
+        )
         let stream = try await provider.send(
             prompt: userPrompt,
             context: ctx,

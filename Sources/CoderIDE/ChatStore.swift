@@ -17,6 +17,7 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     let detail: String
     let summary: String?
     let errorCount: Int
+    let warningCount: Int?
 
     init(from card: SwarmLiveCardState) {
         self.swarmId = card.swarmId
@@ -27,6 +28,7 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
         self.detail = card.currentDetail
         self.summary = card.summary
         self.errorCount = card.errorCount
+        self.warningCount = card.warningCount
     }
 }
 

@@ -2775,13 +2775,26 @@ public actor UnifiedToolRuntime {
             return out
         }()
         let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let globPattern = call.args["glob"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let contextLines = Int(call.args["context_lines"] ?? "") ?? 2
         let caseSensitive = (call.args["case_sensitive"] ?? "false").lowercased() == "true"
         let multiline = (call.args["multiline"] ?? "false").lowercased() == "true"
+        let outputModeRaw = (call.args["output_mode"] ?? "content").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let outputMode: String = {
+            switch outputModeRaw {
+            case "files_only", "files", "paths":
+                return "files_only"
+            case "count":
+                return "count"
+            default:
+                return "content"
+            }
+        }()
+        let shouldUseContentMode = outputMode == "content"
 
         // If query looks like a symbol name (no regex chars) and index is available, try index first.
         // Use a short timeout (200ms) to avoid blocking grep when the index is still building.
-        if let indexTools, let codebaseIndex, !query.isEmpty, !containsRegexChars(query) {
+        if shouldUseContentMode, let indexTools, let codebaseIndex, !query.isEmpty, !containsRegexChars(query) {
             let indexReady = await codebaseIndex.waitUntilReady(timeoutMs: 200)
             if indexReady {
                 let indexEvents = await indexTools.execute(
@@ -2817,7 +2830,10 @@ public actor UnifiedToolRuntime {
         if !caseSensitive { rgArgs.append("-i") }
         if multiline { rgArgs.append("-U") }
         if !fileType.isEmpty { rgArgs.append(contentsOf: ["--type", fileType]) }
-        if maxContext > 0 { rgArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+        if !globPattern.isEmpty { rgArgs.append(contentsOf: ["--glob", globPattern]) }
+        if shouldUseContentMode, maxContext > 0 { rgArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+        if outputMode == "files_only" { rgArgs.append("-l") }
+        if outputMode == "count" { rgArgs.append("--count") }
         rgArgs.append(query)
         rgArgs.append(contentsOf: scopes)
         rgArgs.append(contentsOf: ["--glob", "!.build", "--glob", "!node_modules", "--glob", "!.git"])
@@ -2838,7 +2854,9 @@ public actor UnifiedToolRuntime {
             usedFallback = true
             var grepArgs = ["/usr/bin/env", "grep", "-RIn"]
             if !caseSensitive { grepArgs.append("-i") }
-            if maxContext > 0 { grepArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+            if shouldUseContentMode, maxContext > 0 { grepArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
+            if outputMode == "files_only" { grepArgs.append("-l") }
+            if outputMode == "count" { grepArgs.append("-c") }
             grepArgs.append(query)
             grepArgs.append(contentsOf: scopes)
 
@@ -2876,21 +2894,62 @@ public actor UnifiedToolRuntime {
                 "output": "",
                 "count": "0",
                 "previewLines": "",
+                "output_mode": outputMode,
                 "pathScope": (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope,
             ], durationMs: durationMs)
         }
 
-        let ranked = rankGrepResults(searchOutput, query: query)
-        let matchLines = extractSearchMatchLines(ranked, limit: 500)
+        let renderedOutput: String
+        let matchCount: Int
+        let previewLines: String
+        let detail: String
+
+        switch outputMode {
+        case "files_only":
+            let files = trimmedOutput
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            renderedOutput = files.joined(separator: "\n")
+            matchCount = files.count
+            previewLines = files.prefix(8).joined(separator: "\n")
+            detail = "\(matchCount) files matched"
+        case "count":
+            let rows = trimmedOutput
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let total = rows.reduce(0) { partial, row in
+                guard let tail = row.split(separator: ":").last,
+                      let value = Int(tail.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                    return partial
+                }
+                return partial + value
+            }
+            renderedOutput = rows.joined(separator: "\n")
+            matchCount = max(0, total)
+            previewLines = rows.prefix(8).joined(separator: "\n")
+            detail = "\(matchCount) total matches"
+        default:
+            let ranked = rankGrepResults(searchOutput, query: query)
+            let matchLines = extractSearchMatchLines(ranked, limit: 500)
+            renderedOutput = ranked
+            matchCount = matchLines.count
+            previewLines = matchLines.prefix(8).joined(separator: "\n")
+            detail = "\(matchCount) matches"
+        }
+
         let pathScopeForPayload = (rawScope.isEmpty || rawScope == ".") ? scopes.joined(separator: ",") : rawScope
         return ToolResult(ok: true, payload: [
             "title": "Grep \(query)",
             "query": query,
-            "detail": "\(matchLines.count) matches",
-            "output": truncate(ranked, maxBytes: context.policy.maxBashOutputBytes),
-            "count": "\(matchLines.count)",
-            "previewLines": matchLines.prefix(8).joined(separator: "\n"),
+            "detail": detail,
+            "output": truncate(renderedOutput, maxBytes: context.policy.maxBashOutputBytes),
+            "count": "\(matchCount)",
+            "previewLines": previewLines,
+            "output_mode": outputMode,
             "pathScope": pathScopeForPayload,
+            "glob": globPattern,
         ], durationMs: durationMs)
     }
 
