@@ -65,6 +65,8 @@ final class PromptOptimizerService {
             switch event {
             case .textDelta(let delta):
                 parts.append(delta)
+            case .textReplace(let replacement):
+                parts = replacement.isEmpty ? [] : [replacement]
             case .error(let msg):
                 throw OptimizeError.streamError(msg)
             case .started, .completed, .raw:

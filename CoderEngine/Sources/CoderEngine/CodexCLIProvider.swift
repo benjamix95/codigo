@@ -447,6 +447,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         var emittedRawKeys: Set<String> = []
         var emittedContextCompacted = false
         var invokeSwarmEmitted = false
+        /// Accumulates visible text emitted across all turns so far, used to
+        /// move intermediate turn text into the reasoning/thinking block when
+        /// a new turn starts.
+        var cumulativeVisibleText = ""
+        var turnCount = 0
 
         init(workspacePath: String? = nil) {
             self.workspacePath = workspacePath
@@ -467,6 +472,16 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
 
         if eventType == "turn.started" {
             events.append(contentsOf: finalizeAssistantTurnIfNeeded(state: &state))
+            if !state.cumulativeVisibleText.isEmpty && state.turnCount > 0 {
+                events.append(.raw(type: "reasoning", payload: [
+                    "output": String(state.cumulativeVisibleText.prefix(6_000)),
+                    "title": "Reasoning",
+                    "group_id": "codex-intermediate-turns",
+                ]))
+                events.append(.textReplace(""))
+                state.cumulativeVisibleText = ""
+            }
+            state.turnCount += 1
             state.resetTurn()
             var payload: [String: String] = [
                 "title": "Turn started",
@@ -611,6 +626,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             let cleaned = scrubTechnicalTextChunk(rawDelta, carry: &state.scrubCarry)
             if !cleaned.isEmpty {
                 state.turn.emittedAnyAssistantDelta = true
+                state.cumulativeVisibleText += cleaned
                 events.append(.textDelta(cleaned))
             }
         }
@@ -630,6 +646,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         let cleaned = scrubTechnicalTextChunk(state.turn.lastValidAgentMessage, carry: &cleanupCarry)
         if !cleaned.isEmpty {
             state.turn.emittedAnyAssistantDelta = true
+            state.cumulativeVisibleText += cleaned
             events.append(.textDelta(cleaned))
         }
         return events

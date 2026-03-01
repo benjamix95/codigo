@@ -232,6 +232,13 @@ final class ConversationFlowCoordinator: ObservableObject {
                 await MainActor.run {
                     onText(snapshot)
                 }
+            case .textReplace(let replacement):
+                fullParts = replacement.isEmpty ? [] : [replacement]
+                fullPartsLength = replacement.count
+                let snapshot = replacement
+                await MainActor.run {
+                    onText(snapshot)
+                }
             case .error(let e):
                 let errStr = "\n\n[Error: \(e)]"
                 if fullPartsLength + errStr.count <= 500_000 { fullParts.append(errStr); fullPartsLength += errStr.count }

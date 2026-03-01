@@ -13,20 +13,6 @@ private func panelRoleDisplayName(from swarmId: String) -> String {
     return id.capitalized
 }
 
-private func panelRoleIcon(for swarmId: String) -> String {
-    let lower = swarmId.lowercased()
-    if lower.hasPrefix("explorer") { return "magnifyingglass" }
-    if lower.hasPrefix("coder") { return "chevron.left.forwardslash.chevron.right" }
-    if lower.hasPrefix("debugger") { return "ladybug" }
-    if lower.hasPrefix("reviewer") { return "eye" }
-    if lower.hasPrefix("testwriter") || lower.hasPrefix("tester") { return "checkmark.shield" }
-    if lower.hasPrefix("docwriter") { return "doc.text" }
-    if lower.hasPrefix("securityauditor") || lower.hasPrefix("security") { return "lock.shield" }
-    if lower.hasPrefix("skill") { return "sparkle" }
-    if lower == "orchestrator" { return "cpu" }
-    return "gearshape"
-}
-
 private func panelStatusAccent(for status: SwarmCardStatus) -> Color {
     switch status {
     case .running: return DesignSystem.Colors.swarmColor
@@ -188,8 +174,6 @@ struct SwarmPanelView: View {
                     ForEach(sortedCards) { card in
                         selectorPill(
                             panelRoleDisplayName(from: card.swarmId),
-                            icon: panelRoleIcon(for: card.swarmId),
-                            statusColor: panelStatusAccent(for: card.status),
                             isSelected: selectedSwarmId == card.swarmId
                         ) {
                             withAnimation(.snappy(duration: 0.2)) { selectedSwarmId = card.swarmId }
@@ -211,7 +195,6 @@ struct SwarmPanelView: View {
     private func selectorPill(
         _ title: String,
         icon: String? = nil,
-        statusColor: Color? = nil,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -220,9 +203,6 @@ struct SwarmPanelView: View {
                 if let icon {
                     Image(systemName: icon)
                         .font(.system(size: 8.5, weight: .semibold))
-                }
-                if let sc = statusColor {
-                    Circle().fill(sc).frame(width: 5, height: 5)
                 }
                 Text(title)
                     .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
@@ -335,170 +315,59 @@ struct SwarmPanelView: View {
         )
     }
 
-    // MARK: - Overview Card (Cursor-style)
+    // MARK: - Overview Card (Minimal dark card)
 
     @ViewBuilder
     private func overviewCard(_ card: SwarmLiveCardState) -> some View {
-        let isExp = expandedCardIds.contains(card.swarmId)
-        let cardAccent = panelStatusAccent(for: card.status)
-        let name = panelRoleDisplayName(from: card.swarmId)
-        let icon = panelRoleIcon(for: card.swarmId)
+        let title: String = {
+            let raw = card.currentStepTitle
+            if raw.isEmpty || raw == "Awaiting events" {
+                return panelRoleDisplayName(from: card.swarmId)
+            }
+            return raw
+        }()
 
         let subtitle: String = {
-            if card.currentStepTitle.isEmpty || card.currentStepTitle == "Awaiting events" {
-                return card.status == .running ? "Working…" : "Done"
-            }
-            return card.currentStepTitle
+            if card.status == .running { return "Planning next moves" }
+            if card.status == .completed { return "Done" }
+            if card.status == .failed { return "Failed" }
+            return "Idle"
         }()
 
-        let dur: String? = {
-            guard let s = card.startedAt else { return nil }
-            let sec = Int((card.completedAt ?? Date()).timeIntervalSince(s))
-            if sec < 1 { return nil }
-            return sec < 60 ? "\(sec)s" : "\(sec / 60)m \(sec % 60)s"
-        }()
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.7))
+                .lineLimit(1)
+                .truncationMode(.tail)
 
-        HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(cardAccent)
-                .frame(width: 3)
-                .padding(.vertical, 4)
-
-            VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(cardAccent)
-                        .frame(width: 14, height: 14)
-
-                    Text(name)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .lineLimit(1)
-
-                    Spacer(minLength: 4)
-
-                    if card.errorCount > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 8))
-                            Text("\(card.errorCount)").font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        }
-                        .foregroundStyle(DesignSystem.Colors.error)
-                    }
-
-                    if card.status == .running {
-                        ProgressView().controlSize(.mini).scaleEffect(0.7).frame(width: 12, height: 12)
-                    } else {
-                        Image(systemName: card.status == .completed ? "checkmark.circle.fill" : card.status == .failed ? "xmark.circle.fill" : "circle")
-                            .font(.system(size: 10))
-                            .foregroundStyle(cardAccent.opacity(0.8))
-                    }
-
-                    Button {
-                        withAnimation(.snappy(duration: 0.2)) {
-                            if isExp { expandedCardIds.remove(card.swarmId) }
-                            else {
-                                expandedCardIds.insert(card.swarmId)
-                                taskActivityStore.setSwarmCardCollapsed(card.swarmId, collapsed: false)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.tertiary)
-                            .rotationEffect(.degrees(isExp ? 90 : 0))
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Subtitle
-                HStack(spacing: 4) {
-                    Text(subtitle)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .textShimmer(active: card.status == .running)
-                    Spacer(minLength: 0)
-                    if let d = dur {
-                        Text(d)
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.quaternary)
-                    }
-                }
-                .padding(.top, 2)
-
-                // Expanded
-                if isExp {
-                    expandedCardEvents(card, accent: cardAccent)
-                        .padding(.top, 6)
-                }
-            }
-            .padding(.leading, 8)
-            .padding(.vertical, 7)
-            .padding(.trailing, 8)
+            Text(subtitle)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.secondary.opacity(0.6))
+                .lineLimit(1)
+                .textShimmer(active: card.status == .running)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.15))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onTapGesture {
-            withAnimation(.snappy(duration: 0.2)) {
-                if isExp { expandedCardIds.remove(card.swarmId) }
-                else {
-                    expandedCardIds.insert(card.swarmId)
-                    taskActivityStore.setSwarmCardCollapsed(card.swarmId, collapsed: false)
-                }
+        .overlay {
+            if card.status == .running {
+                ActivityShimmerTrail()
+                    .allowsHitTesting(false)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         }
-    }
-
-    // MARK: - Expanded Events
-
-    @ViewBuilder
-    private func expandedCardEvents(_ card: SwarmLiveCardState, accent: Color) -> some View {
-        let events = card.recentEvents
-            .filter { TaskActivityStore.isConcreteVisibleEvent($0) }
-            .suffix(8)
-
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(Array(events)) { activity in
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(activity.isRunning ? accent : .secondary.opacity(0.5))
-                        .frame(width: 4, height: 4)
-                    Text(activity.title)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.primary.opacity(0.85))
-                        .lineLimit(1)
-                        .textShimmer(active: activity.isRunning)
-                    Spacer(minLength: 0)
-                    Text(activity.timestamp.formatted(date: .omitted, time: .standard))
-                        .font(.system(size: 8, design: .monospaced))
-                        .foregroundStyle(.quaternary)
-                }
-            }
-
-            HStack {
-                Spacer()
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) { selectedSwarmId = card.swarmId }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text("View Detail")
-                            .font(.system(size: 9.5, weight: .medium))
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 8.5))
-                    }
-                    .foregroundStyle(accent)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 2)
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture {
+            withAnimation(.snappy(duration: 0.2)) { selectedSwarmId = card.swarmId }
         }
     }
 
@@ -507,12 +376,23 @@ struct SwarmPanelView: View {
     private func detailView(for card: SwarmLiveCardState) -> some View {
         let cardAccent = panelStatusAccent(for: card.status)
         let name = panelRoleDisplayName(from: card.swarmId)
-        let icon = panelRoleIcon(for: card.swarmId)
+
+        let headerTitle: String = {
+            let raw = card.currentStepTitle
+            if raw.isEmpty || raw == "Awaiting events" { return name }
+            return raw
+        }()
+
+        let headerSubtitle: String = {
+            if card.status == .running { return "Planning next moves" }
+            if card.status == .completed { return "Done" }
+            if card.status == .failed { return "Failed" }
+            return "Idle"
+        }()
 
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    // Back
                     Button {
                         withAnimation(.snappy(duration: 0.2)) { selectedSwarmId = nil }
                     } label: {
@@ -526,71 +406,37 @@ struct SwarmPanelView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // Header card
-                    HStack(spacing: 0) {
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(cardAccent)
-                            .frame(width: 3)
-                            .padding(.vertical, 4)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(headerTitle)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary.opacity(0.7))
+                            .lineLimit(2)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                Image(systemName: icon)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(cardAccent)
-                                Text(name)
-                                    .font(.system(size: 14, weight: .bold))
-                                Text(card.status.rawValue.capitalized)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(cardAccent)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(cardAccent.opacity(0.12), in: Capsule())
-                                Spacer()
-                                if card.errorCount > 0 {
-                                    HStack(spacing: 2) {
-                                        Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9))
-                                        Text("\(card.errorCount)").font(.system(size: 10, weight: .semibold, design: .monospaced))
-                                    }
-                                    .foregroundStyle(DesignSystem.Colors.error)
-                                }
-                                if card.status == .running {
-                                    ProgressView().controlSize(.mini)
-                                }
-                            }
-
-                            Text(card.currentStepTitle)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .textShimmer(active: card.status == .running)
-
-                            if let s = card.startedAt {
-                                HStack(spacing: 12) {
-                                    Label(s.formatted(date: .omitted, time: .standard), systemImage: "play.circle")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.tertiary)
-                                    if let c = card.completedAt {
-                                        Label(c.formatted(date: .omitted, time: .standard), systemImage: "checkmark.circle")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.tertiary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.leading, 10)
-                        .padding(.vertical, 8)
-                        .padding(.trailing, 10)
+                        Text(headerSubtitle)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.secondary.opacity(0.6))
+                            .lineLimit(1)
+                            .textShimmer(active: card.status == .running)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.15))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                     )
+                    .overlay {
+                        if card.status == .running {
+                            ActivityShimmerTrail()
+                                .allowsHitTesting(false)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                    }
 
-                    // Detail
                     if !card.currentDetail.isEmpty {
                         Text(card.currentDetail)
                             .font(.system(size: 11))
@@ -603,7 +449,6 @@ struct SwarmPanelView: View {
                             )
                     }
 
-                    // Events timeline
                     let events = card.recentEvents.filter { TaskActivityStore.isConcreteVisibleEvent($0) }
                     if !events.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -630,7 +475,6 @@ struct SwarmPanelView: View {
                         }
                     }
 
-                    // Summary
                     if let summary = card.summary {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("SUMMARY")

@@ -133,12 +133,18 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         hasAnyMeaningfulAssistantText = true
                                     }
                                 }
+                            case .textReplace(let replacement):
+                                roundTextParts = replacement.isEmpty ? [] : [replacement]
+                                roundTextLength = replacement.count
+                                continuation.yield(.textReplace(replacement))
                             case .started:
                                 if isFirstRound {
                                     continuation.yield(.started)
                                 }
                             case .completed:
                                 break
+                            case .error:
+                                continuation.yield(event)
                             case .raw(let type, let payload):
                                 if type == "policy_ack" {
                                     if Self.matchesRequiredPolicyHash(
@@ -292,8 +298,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 } else {
                                     continuation.yield(event)
                                 }
-                            default:
-                                continuation.yield(event)
                             }
                         }
 
@@ -1779,16 +1783,19 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         ⚠️ MANDATORY PARALLEL EXECUTION POLICY — NON-NEGOTIABLE ⚠️
         - You are the ORCHESTRATOR. You COORDINATE and DELEGATE — you do NOT do implementation work yourself.
         - Subagents run on DIFFERENT backends (Codex, Claude, Gemini, OpenAI, Anthropic, Google, OpenRouter, MiniMax, Grok) in PARALLEL. Each call in the same round goes to a different backend automatically.
-        - You MUST call 2–5 subagents in the SAME round for ANY task with multiple independent parts.
-        - You MUST spawn subagents in your FIRST tool round. Do NOT waste rounds doing manual grep/read/edit.
-        - Explorer subagents are lightweight (read-only) — spawn them freely and in bulk (2–3 per round).
-        - For implementation: spawn multiple subagent_coder instances, each assigned to a different file or module.
+        - **MINIMUM 3 SUBAGENTS PER TASK**: You MUST spawn AT LEAST 3 subagents in your FIRST tool round. No exceptions. Even for simple tasks, spawn 3 explorers to investigate from different angles.
+        - You MUST spawn subagents in your FIRST tool round. Do NOT waste rounds doing manual grep/read/edit. NEVER call read, grep, glob, or any other tool before spawning subagents.
+        - Explorer subagents are lightweight (read-only) — spawn them freely and in bulk (3+ per round).
+        - For implementation: spawn multiple subagent_coder instances (2–4), each assigned to a different file or module.
         - AFTER implementation: you MUST spawn subagent_reviewer + subagent_testWriter in parallel. This is mandatory.
         - NEVER do work sequentially that can be parallelized across subagents.
+        - NEVER call tools directly (read, grep, edit, bash) when you can delegate to subagents instead.
         - After subagent results return, immediately update todos via todo_write.
 
+        **YOUR FIRST TOOL CALL MUST ALWAYS BE 3+ subagent_explorer CALLS. NO EXCEPTIONS.**
+
         CORRECT pattern (3 rounds, maximum parallelism):
-          Round 1: subagent_explorer("investigate data model") + subagent_explorer("investigate UI layer") + subagent_explorer("investigate tests")
+          Round 1: subagent_explorer("investigate data model") + subagent_explorer("investigate UI layer") + subagent_explorer("investigate tests")  [MINIMUM 3]
           Round 2: TodoWrite → subagent_coder("implement model changes") + subagent_coder("implement UI changes")
           Round 3: subagent_reviewer("review all changes") + subagent_testWriter("write tests for changes")
 
@@ -1799,6 +1806,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
           Round 4: edit file A...
           Round 5: edit file B...
           This is FORBIDDEN. Use subagents instead.
+
+        ALSO WRONG (too few subagents):
+          Round 1: subagent_explorer("investigate") — only 1 subagent. MUST be 3+.
         """ : "Subagent delegation is not available in this configuration. Use tools directly to complete your task.")
         """
     }

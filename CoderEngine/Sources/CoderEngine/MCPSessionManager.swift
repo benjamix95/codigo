@@ -609,22 +609,17 @@ public actor MCPSessionManager {
         let s = try await session(for: target)
         let valueArgs: [String: Value]? = arguments.isEmpty ? nil : arguments.reduce(into: [:]) { $0[$1.key] = .string($1.value) }
         let result = try await s.client.getPrompt(name: name, arguments: valueArgs)
-        let messages = result.messages.map { msg -> MCPPromptMessage in
+        var messages: [MCPPromptMessage] = []
+        for msg in result.messages {
             let content: String
             switch msg.content {
             case .text(let text): content = text
             case .image(let data, let mime): content = "[image \(mime)] \(data.prefix(100))..."
             case .audio(let data, let mime): content = "[audio \(mime)] \(data.prefix(100))..."
-            case .resource(let resContent, _, _):
-                if let t = resContent.text {
-                    content = "[resource \(resContent.uri)] \(t)"
-                } else if let b = resContent.blob {
-                    content = "[resource \(resContent.uri)] [blob \(b.prefix(100))...]"
-                } else {
-                    content = "[resource \(resContent.uri)]"
-                }
+            default:
+                content = "[resource: \(String(describing: msg.content).prefix(200))]"
             }
-            return MCPPromptMessage(role: msg.role.rawValue, content: content)
+            messages.append(MCPPromptMessage(role: msg.role.rawValue, content: content))
         }
         return MCPPromptResult(description: result.description, messages: messages, serverId: target.id, serverName: target.name)
     }

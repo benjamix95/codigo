@@ -859,6 +859,7 @@ struct ChatPanelView: View {
     @State private var streamContentVersion: Int = 0
     @State private var streamingReasoningText: String?
     @State private var streamingReasoningConversationId: UUID?
+    @State private var streamingReasoningBlocks: [ReasoningBlock] = []
     /// Pending streaming content waiting to be flushed to ChatStore.
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
@@ -2403,13 +2404,20 @@ struct ChatPanelView: View {
                         }
                     )
                 } else {
+                    let isLiveReasoningTarget = conv.id == streamingReasoningConversationId
+                        && isLastAssistant
+                        && message.isStreaming
                     let effectiveReasoning: String? = {
-                        if conv.id == streamingReasoningConversationId
-                            && isLastAssistant
-                            && message.isStreaming {
+                        if isLiveReasoningTarget {
                             return streamingReasoningText
                         }
                         return message.reasoningText
+                    }()
+                    let effectiveReasoningBlocks: [ReasoningBlock] = {
+                        if isLiveReasoningTarget {
+                            return streamingReasoningBlocks
+                        }
+                        return []
                     }()
                     let suppressPlanArtifacts = shouldSuppressPlanArtifactsInChat(
                         message: message,
@@ -2433,6 +2441,7 @@ struct ChatPanelView: View {
                             streamingStatusText: streamingStatusText(for: displayMessage),
                             streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conv.id),
                             streamingReasoningText: effectiveReasoning,
+                            streamingReasoningBlocks: effectiveReasoningBlocks,
                             showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
                             onFileClicked: { openFilesStore.openFile($0) },
                             onRestoreCheckpoint: restoreAction,
@@ -6649,27 +6658,36 @@ struct ChatPanelView: View {
                 accountsStore: cliAccountsStore,
                 makeProvider: { _, env in
                     let cfg = providerFactoryConfig()
+                    let subagentFactory = ProviderFactory.subagentProviderFactory(
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                     switch kind {
                     case .codex:
                         return ProviderFactory.codexProvider(
                             config: cfg, executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
                             workspacePaths: workspaceStore.activeWorkspacePaths,
-                            environmentOverride: env)
+                            environmentOverride: env,
+                            subagentProviderFactory: subagentFactory)
                     case .claude:
                         return ProviderFactory.claudeProvider(
                             config: cfg,
                             executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
                             workspacePaths: workspaceStore.activeWorkspacePaths,
-                            environmentOverride: env)
+                            environmentOverride: env,
+                            subagentProviderFactory: subagentFactory)
                     case .gemini:
                         return ProviderFactory.geminiProvider(
                             config: cfg,
                             executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
                             workspacePaths: workspaceStore.activeWorkspacePaths,
-                            environmentOverride: env)
+                            environmentOverride: env,
+                            subagentProviderFactory: subagentFactory)
                     }
                 }
             )
@@ -7114,14 +7132,19 @@ struct ChatPanelView: View {
             return
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
-            let existing =
-                streamingReasoningConversationId == convId
-                ? streamingReasoningText
-                : nil
-            streamingReasoningText = Self.mergeReasoningText(
-                existing: existing,
-                incoming: output
-            )
+            let groupId = p["group_id"] ?? "reasoning-stream"
+            if streamingReasoningConversationId != convId {
+                streamingReasoningBlocks = []
+            }
+            if let idx = streamingReasoningBlocks.firstIndex(where: { $0.id == groupId }) {
+                streamingReasoningBlocks[idx].text = Self.mergeReasoningText(
+                    existing: streamingReasoningBlocks[idx].text,
+                    incoming: output
+                )
+            } else {
+                streamingReasoningBlocks.append(ReasoningBlock(id: groupId, text: output))
+            }
+            streamingReasoningText = streamingReasoningBlocks.map(\.text).joined(separator: "\n\n")
             streamingReasoningConversationId = convId
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
@@ -7425,15 +7448,14 @@ struct ChatPanelView: View {
     }
 
     private func clearStreamingReasoning(for conversationId: UUID?) {
-        // Flush any pending throttled content before switching away from streaming mode.
         flushStreamingContent()
         guard let id = conversationId, streamingReasoningConversationId == id else { return }
-        // Persist reasoning into the message before clearing
         if let reasoning = streamingReasoningText, !reasoning.isEmpty {
             chatStore.saveReasoningToLastAssistant(reasoning: reasoning, in: id)
         }
         streamingReasoningText = nil
         streamingReasoningConversationId = nil
+        streamingReasoningBlocks = []
     }
 
     private func clearPlanStreamingState() {

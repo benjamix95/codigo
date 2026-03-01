@@ -46,6 +46,7 @@ struct UsageFooterView: View {
     @State private var contextEstimateSnapshot: (tokens: Int, size: Int, pct: Double) = (0, 128_000, 0)
     @State private var contextEstimateWorkItem: DispatchWorkItem?
     @State private var contextEstimateGeneration: Int = 0
+    @State private var lastContextEstimateFireDate: Date = .distantPast
     private static let contextEstimateQueue = DispatchQueue(label: "com.codigo.context-estimate", qos: .utility)
     private let cliSecretsStore = CLIAccountSecretsStore()
 
@@ -283,10 +284,22 @@ struct UsageFooterView: View {
         }
     }
 
+    /// Minimum interval between actual context estimate computations.
+    /// During streaming, `contextRefreshTick` fires rapidly; this throttle
+    /// ensures the progress indicator updates in real-time without overwhelming
+    /// the background queue, while a trailing debounce guarantees a final
+    /// accurate estimate after the last change.
+    private static let contextEstimateThrottleInterval: TimeInterval = 1.5
+
     private func scheduleContextEstimateRefresh() {
         contextEstimateWorkItem?.cancel()
         contextEstimateGeneration += 1
         let generation = contextEstimateGeneration
+
+        let timeSinceLast = Date().timeIntervalSince(lastContextEstimateFireDate)
+        let fireImmediately = timeSinceLast >= Self.contextEstimateThrottleInterval
+
+        let delay: TimeInterval = fireImmediately ? 0 : Self.contextEstimateThrottleInterval
 
         let model = effectiveContextModel
         let contextWindowSize = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
@@ -295,7 +308,6 @@ struct UsageFooterView: View {
             return
         }
 
-        // Use real API-reported tokens when available
         let realTokens = conversation.lastInputTokens
 
         let promptContext = chatStore.buildPromptContext(
@@ -330,12 +342,16 @@ struct UsageFooterView: View {
                 lastInputTokens: realTokens
             )
             Task { @MainActor in
-                guard generation == contextEstimateGeneration else { return }
-                contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
+                guard generation == self.contextEstimateGeneration else { return }
+                self.lastContextEstimateFireDate = Date()
+                self.contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
             }
         }
         contextEstimateWorkItem = workItem
-        Self.contextEstimateQueue.asyncAfter(deadline: .now() + 0.15, execute: workItem)
+        Self.contextEstimateQueue.asyncAfter(
+            deadline: .now() + delay,
+            execute: workItem
+        )
     }
 
     private func refreshUsage() {
