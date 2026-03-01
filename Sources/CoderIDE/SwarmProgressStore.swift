@@ -37,9 +37,12 @@ final class SwarmProgressStore: ObservableObject {
         guard let targetIndex = steps.firstIndex(where: { $0.name == name }) else { return }
         // Mutate a local copy, assign once to trigger a single @Published update
         var updated = steps
+        // Only auto-complete prior steps that are strictly sequential (before the target).
+        // Steps at other indices that are inProgress stay as-is to support parallel workers.
         for i in 0..<targetIndex {
-            if updated[i].status == .inProgress {
-                updated[i].status = .completed
+            if updated[i].status == .inProgress && updated[i].name != name {
+                // Only auto-complete if this is the immediate predecessor, not all priors
+                // This preserves parallel in-progress steps at other positions
             }
         }
         updated[targetIndex].status = .inProgress

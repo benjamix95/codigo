@@ -56,15 +56,37 @@ struct CodeReviewPanelView: View {
         let currentRoundInfo: (round: String, maxRounds: String)?
     }
 
+    /// Compute panel metrics. This is called from body and should be efficient.
+    /// For large activity lists, consider caching if profiling shows issues.
     private func panelMetrics() -> PanelMetrics {
+        // Only compute metrics when in review mode — short-circuit for other modes
+        guard coderMode == .codeReviewMultiSwarm else {
+            return PanelMetrics(reviewCards: [], activeReviewCount: 0, workerInfo: [], currentRoundInfo: nil)
+        }
+
         // Filter out orchestrator — only show real review workers
         let cards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
             .filter { $0.swarmId != "orchestrator" }
         let activeCount = cards.filter { $0.status == .running }.count
 
         let activities = taskActivityStore.activities
-        let workers: [WorkerInfoRow] = activities.compactMap { activity in
-            guard activity.type == "review-worker-plan" else { return nil }
+
+        // Only show workers from the most recent round — find the last
+        // "review-fix-round" activity to determine the current round boundary.
+        let workerActivities: [TaskActivity]
+        if let boundary = activities.lastIndex(where: { $0.type == "review-fix-round" }) {
+            // Find the last worker-plan batch AFTER the most recent round marker.
+            // If none found after the marker, show the last batch before it.
+            let afterRound = activities[(activities.index(after: boundary))...]
+            let plansAfter = afterRound.filter { $0.type == "review-worker-plan" }
+            workerActivities = plansAfter.isEmpty
+                ? activities[...boundary].filter { $0.type == "review-worker-plan" }
+                : Array(plansAfter)
+        } else {
+            workerActivities = activities.filter { $0.type == "review-worker-plan" }
+        }
+
+        let workers: [WorkerInfoRow] = workerActivities.compactMap { activity in
             guard let wid = activity.payload["worker_id"],
                   let desc = activity.payload["description"],
                   let severity = activity.payload["severity"],
@@ -321,11 +343,16 @@ struct CodeReviewPanelView: View {
 
             ForEach(slashCommands, id: \.id) { cmd in
                 Button {
-                    // Switch to review mode first if needed
+                    // Switch to review mode first if needed, then dispatch
+                    // the command after a brief delay to allow mode to settle.
                     if coderMode != .codeReviewMultiSwarm {
                         onSelectMode(.codeReviewMultiSwarm)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            onRunSlashCommand(cmd.prompt)
+                        }
+                    } else {
+                        onRunSlashCommand(cmd.prompt)
                     }
-                    onRunSlashCommand(cmd.prompt)
                 } label: {
                     HStack(spacing: 8) {
                         Text(cmd.slash)
@@ -641,11 +668,6 @@ struct CodeReviewPanelView: View {
         let ref = againstCommitRef.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ref.isEmpty else { return }
 
-        // Switch to review mode if needed
-        if coderMode != .codeReviewMultiSwarm {
-            onSelectMode(.codeReviewMultiSwarm)
-        }
-
         let autofixSuffix = autofixEnabled
             ? "\nAfter analysis, apply all confirmed fixes. Run build/tests and iterate up to \(codeReviewMaxRounds) rounds until clean."
             : "\nAnalysis only — report findings with priority/confidence, do NOT apply fixes."
@@ -660,7 +682,15 @@ struct CodeReviewPanelView: View {
             3) final verdict on patch correctness.\(autofixSuffix)
             """
 
-        onRunSlashCommand(prompt)
+        // Switch to review mode if needed, then dispatch after mode settles
+        if coderMode != .codeReviewMultiSwarm {
+            onSelectMode(.codeReviewMultiSwarm)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                onRunSlashCommand(prompt)
+            }
+        } else {
+            onRunSlashCommand(prompt)
+        }
     }
 
     // MARK: - Slash Command Presets
@@ -741,10 +771,12 @@ struct CodeReviewPanelView: View {
         }
     }
 
-    /// Basic git ref validation: non-empty, no spaces, no control characters.
+    /// Git ref validation: non-empty, no spaces, no control characters, no flag injection.
     private func isValidGitRef(_ ref: String) -> Bool {
         let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
+        // Reject refs that start with "-" to prevent git argument injection
+        guard !trimmed.hasPrefix("-") else { return false }
         // Git refs cannot contain spaces, control chars, or certain special sequences
         let invalidChars = CharacterSet.whitespacesAndNewlines
             .union(.controlCharacters)

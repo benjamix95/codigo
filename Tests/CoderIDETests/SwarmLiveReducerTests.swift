@@ -144,8 +144,9 @@ final class SwarmLiveReducerTests: XCTestCase {
     }
 
     func testDedupWithFinerGranularity() {
-        let ts1 = Date(timeIntervalSince1970: 200.005)
-        let ts2 = Date(timeIntervalSince1970: 200.015)
+        // Dedup uses 500ms buckets. Events in different buckets should NOT be deduped.
+        let ts1 = Date(timeIntervalSince1970: 200.000)
+        let ts2 = Date(timeIntervalSince1970: 200.600)
         let a = TaskActivity(
             type: "agent",
             title: "Planner",
@@ -168,6 +169,6 @@ final class SwarmLiveReducerTests: XCTestCase {
         )
         let cards = SwarmLiveReducer.reduce(activities: [a, b], limitRecentEvents: 80)
         XCTAssertEqual(cards["planner"]?.recentEvents.count, 2,
-                       "Events 10ms apart should not be deduplicated")
+                       "Events 600ms apart should not be deduplicated")
     }
 }

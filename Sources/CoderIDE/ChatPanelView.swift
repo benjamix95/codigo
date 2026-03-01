@@ -6395,7 +6395,11 @@ struct ChatPanelView: View {
             ) {
                 return multiSwarm
             }
-            // Fallback to selected provider if factory returns nil
+            // Factory returned nil — warn the user instead of silently falling back.
+            // Common cause: API key missing for the selected backend.
+            let analysisBackend = cfg.codeReviewAnalysisBackend
+            let executionBackend = cfg.codeReviewExecutionBackend
+            print("[CodeReview] WARNING: Failed to create multi-swarm provider (analysis=\(analysisBackend), execution=\(executionBackend)). Check API keys. Falling back to agent provider.")
             return selectedProvider
         }
         if multiCLIAccountEnabled,
