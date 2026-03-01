@@ -290,63 +290,84 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                         }
 
                         // Execute deferred subagent calls in parallel via withTaskGroup.
+                        // Emit "started" events for ALL subagents upfront so live cards
+                        // appear in the chat immediately, then stream results as each
+                        // subagent completes (rather than waiting for all to finish).
                         if !pendingSubagentCalls.isEmpty {
                             let calls = pendingSubagentCalls
+
+                            // Pre-generate stable subagent IDs and emit "started" events
+                            // before execution so the UI can show live cards right away.
+                            var subagentIdByToolCallId: [String: String] = [:]
+                            for call in calls {
+                                let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
+                                let role = SubagentRole.fromToolName(call.name)
+                                let subagentId = "\(role?.rawValue ?? call.name)-\(UUID().uuidString.prefix(8))"
+                                subagentIdByToolCallId[toolCallId] = subagentId
+                                continuation.yield(.raw(type: "agent", payload: [
+                                    "title": role?.displayName ?? call.name,
+                                    "detail": "started",
+                                    "swarm_id": subagentId,
+                                    "group_id": "swarm-\(subagentId)",
+                                    "tool_call_id": toolCallId,
+                                    "status": "started"
+                                ]))
+                            }
+
                             let capturedContext = context
-                            let results: [(events: [StreamEvent], marker: CoderIDEMarker)] = await withTaskGroup(
+                            let capturedSubagentIds = subagentIdByToolCallId
+                            var anySubagentFailed = false
+
+                            // Stream results as each subagent completes rather than
+                            // collecting all results first — this keeps live cards
+                            // updated incrementally.
+                            await withTaskGroup(
                                 of: (events: [StreamEvent], marker: CoderIDEMarker).self
                             ) { group in
                                 for call in calls {
                                     let m = call.marker
                                     group.addTask {
-                                        let produced = await self.events(for: m, context: capturedContext)
+                                        let produced = await self.events(for: m, context: capturedContext, preEmittedSubagentIds: capturedSubagentIds)
                                         return (events: produced, marker: m)
                                     }
                                 }
-                                var collected: [(events: [StreamEvent], marker: CoderIDEMarker)] = []
                                 for await result in group {
-                                    collected.append(result)
-                                }
-                                return collected
-                            }
-                            // Emit results sequentially after parallel execution
-                            var anySubagentFailed = false
-                            for result in results {
-                                let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
-                                for e in result.events {
-                                    if Self.streamEventIndicatesCodeMutation(
-                                        e,
-                                        originatingToolName: subagentToolName
-                                    ) {
-                                        sawCodeMutationDuringTask = true
-                                        reviewerCompletedAfterLatestMutation = false
-                                        testWriterCompletedAfterLatestMutation = false
-                                    }
-                                    if let completedRole = Self.completedSubagentRole(from: e) {
-                                        if completedRole == .reviewer {
-                                            reviewerCompletedAfterLatestMutation = true
+                                    let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
+                                    for e in result.events {
+                                        if Self.streamEventIndicatesCodeMutation(
+                                            e,
+                                            originatingToolName: subagentToolName
+                                        ) {
+                                            sawCodeMutationDuringTask = true
+                                            reviewerCompletedAfterLatestMutation = false
+                                            testWriterCompletedAfterLatestMutation = false
                                         }
-                                        if completedRole == .testWriter {
-                                            testWriterCompletedAfterLatestMutation = true
+                                        if let completedRole = Self.completedSubagentRole(from: e) {
+                                            if completedRole == .reviewer {
+                                                reviewerCompletedAfterLatestMutation = true
+                                            }
+                                            if completedRole == .testWriter {
+                                                testWriterCompletedAfterLatestMutation = true
+                                            }
                                         }
+                                        if case .raw(let innerType, let innerPayload) = e,
+                                           innerType == "policy_ack",
+                                           Self.matchesRequiredPolicyHash(
+                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                            requiredHash: requiredPolicyHash
+                                           ) {
+                                            didEmitPolicyAck = true
+                                        }
+                                        if case .raw(let t, let p) = e,
+                                           t == "tool_result",
+                                           p["status"] == "failed" {
+                                            anySubagentFailed = true
+                                        }
+                                        continuation.yield(e)
                                     }
-                                    if case .raw(let innerType, let innerPayload) = e,
-                                       innerType == "policy_ack",
-                                       Self.matchesRequiredPolicyHash(
-                                        innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                        requiredHash: requiredPolicyHash
-                                       ) {
-                                        didEmitPolicyAck = true
+                                    if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
+                                        roundToolResults.append(summary)
                                     }
-                                    if case .raw(let t, let p) = e,
-                                       t == "tool_result",
-                                       p["status"] == "failed" {
-                                        anySubagentFailed = true
-                                    }
-                                    continuation.yield(e)
-                                }
-                                if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
-                                    roundToolResults.append(summary)
                                 }
                             }
                             // Auto-complete in-progress todos after subagent batch finishes.
@@ -354,7 +375,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             let autoStatus = anySubagentFailed ? "blocked" : "done"
                             continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                 "status": autoStatus,
-                                "count": "\(results.count)"
+                                "count": "\(calls.count)"
                             ]))
                             pendingSubagentCalls.removeAll()
                         }
@@ -391,78 +412,82 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
                             if !injectedCalls.isEmpty {
                                 sawExecutableSuggestion = true
+
+                                // Pre-emit "started" events for injected subagents
+                                var injectedSubagentIds: [String: String] = [:]
                                 for call in injectedCalls {
                                     let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
+                                    let role = SubagentRole.fromToolName(call.name)
+                                    let subagentId = "\(role?.rawValue ?? call.name)-\(UUID().uuidString.prefix(8))"
+                                    injectedSubagentIds[toolCallId] = subagentId
                                     continuation.yield(.raw(type: "agent", payload: [
-                                        "title": SubagentRole.fromToolName(call.name)?.displayName ?? call.name,
-                                        "detail": "queued",
-                                        "swarm_id": "queued-\(toolCallId)",
+                                        "title": role?.displayName ?? call.name,
+                                        "detail": "started",
+                                        "swarm_id": subagentId,
+                                        "group_id": "swarm-\(subagentId)",
                                         "tool_call_id": toolCallId,
-                                        "status": "queued"
+                                        "status": "started"
                                     ]))
                                 }
 
                                 let capturedContext = context
-                                let injectedResults: [(events: [StreamEvent], marker: CoderIDEMarker)] = await withTaskGroup(
+                                let capturedInjectedIds = injectedSubagentIds
+
+                                var injectedAnyFailed = false
+                                await withTaskGroup(
                                     of: (events: [StreamEvent], marker: CoderIDEMarker).self
                                 ) { group in
                                     for call in injectedCalls {
                                         let marker = call.marker
                                         group.addTask {
-                                            let produced = await self.events(for: marker, context: capturedContext)
+                                            let produced = await self.events(for: marker, context: capturedContext, preEmittedSubagentIds: capturedInjectedIds)
                                             return (events: produced, marker: marker)
                                         }
                                     }
-                                    var collected: [(events: [StreamEvent], marker: CoderIDEMarker)] = []
-                                    for await result in group {
-                                        collected.append(result)
-                                    }
-                                    return collected
-                                }
 
-                                var injectedAnyFailed = false
-                                for result in injectedResults {
-                                    let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
-                                    for e in result.events {
-                                        if Self.streamEventIndicatesCodeMutation(
-                                            e,
-                                            originatingToolName: subagentToolName
-                                        ) {
-                                            sawCodeMutationDuringTask = true
-                                            reviewerCompletedAfterLatestMutation = false
-                                            testWriterCompletedAfterLatestMutation = false
-                                        }
-                                        if let completedRole = Self.completedSubagentRole(from: e) {
-                                            if completedRole == .reviewer {
-                                                reviewerCompletedAfterLatestMutation = true
+                                    for await result in group {
+                                        let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
+                                        for e in result.events {
+                                            if Self.streamEventIndicatesCodeMutation(
+                                                e,
+                                                originatingToolName: subagentToolName
+                                            ) {
+                                                sawCodeMutationDuringTask = true
+                                                reviewerCompletedAfterLatestMutation = false
+                                                testWriterCompletedAfterLatestMutation = false
                                             }
-                                            if completedRole == .testWriter {
-                                                testWriterCompletedAfterLatestMutation = true
+                                            if let completedRole = Self.completedSubagentRole(from: e) {
+                                                if completedRole == .reviewer {
+                                                    reviewerCompletedAfterLatestMutation = true
+                                                }
+                                                if completedRole == .testWriter {
+                                                    testWriterCompletedAfterLatestMutation = true
+                                                }
                                             }
+                                            if case .raw(let innerType, let innerPayload) = e,
+                                               innerType == "policy_ack",
+                                               Self.matchesRequiredPolicyHash(
+                                                innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                                requiredHash: requiredPolicyHash
+                                               ) {
+                                                didEmitPolicyAck = true
+                                            }
+                                            if case .raw(let t, let p) = e,
+                                               t == "tool_result",
+                                               p["status"] == "failed" {
+                                                injectedAnyFailed = true
+                                            }
+                                            continuation.yield(e)
                                         }
-                                        if case .raw(let innerType, let innerPayload) = e,
-                                           innerType == "policy_ack",
-                                           Self.matchesRequiredPolicyHash(
-                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                            requiredHash: requiredPolicyHash
-                                           ) {
-                                            didEmitPolicyAck = true
+                                        if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
+                                            roundToolResults.append(summary)
                                         }
-                                        if case .raw(let t, let p) = e,
-                                           t == "tool_result",
-                                           p["status"] == "failed" {
-                                            injectedAnyFailed = true
-                                        }
-                                        continuation.yield(e)
-                                    }
-                                    if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
-                                        roundToolResults.append(summary)
                                     }
                                 }
 
                                 continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                     "status": injectedAnyFailed ? "blocked" : "done",
-                                    "count": "\(injectedResults.count)"
+                                    "count": "\(injectedCalls.count)"
                                 ]))
                             }
                         }
@@ -868,7 +893,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
     /// Resolve a tool call (from native tool_call_suggested) into stream events.
     /// IDE-state tools are emitted as raw events; everything else goes through UnifiedToolRuntime.
-    private func events(for marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
+    /// `preEmittedSubagentIds` maps tool_call_id → subagent_id for subagents whose "started"
+    /// event was already emitted by the caller (parallel batch execution).
+    private func events(
+        for marker: CoderIDEMarker,
+        context: WorkspaceContext,
+        preEmittedSubagentIds: [String: String]? = nil
+    ) async -> [StreamEvent] {
         guard marker.kind == "tool_call" else { return [] }
         let toolName = inferredToolName(from: marker.payload)
         guard !toolName.isEmpty else { return [] }
@@ -929,7 +960,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         // Subagent tools — execute inline during the agent's streaming loop.
         if toolName.hasPrefix("subagent_") {
-            return await executeSubagentTool(toolName: toolName, marker: marker, context: context)
+            let toolCallId = marker.payload["id"] ?? ""
+            let preAssignedId = preEmittedSubagentIds?[toolCallId]
+            return await executeSubagentTool(
+                toolName: toolName,
+                marker: marker,
+                context: context,
+                preAssignedSubagentId: preAssignedId
+            )
         }
 
         // Skill tool — invoke a local skill (SKILL.md) via a subagent
@@ -1857,10 +1895,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     /// Execute a subagent tool inline during the agent's streaming loop.
     /// The subagent runs to completion using its own ToolEnabledLLMProvider instance,
     /// then returns the result as tool output events.
+    /// When `preAssignedSubagentId` is provided, the "started" event was already emitted
+    /// by the caller and will not be duplicated here.
     private func executeSubagentTool(
         toolName: String,
         marker: CoderIDEMarker,
-        context: WorkspaceContext
+        context: WorkspaceContext,
+        preAssignedSubagentId: String? = nil
     ) async -> [StreamEvent] {
         guard let role = SubagentRole.fromToolName(toolName) else {
             return [.raw(type: "tool_validation_error", payload: [
@@ -1885,19 +1926,22 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             ])]
         }
 
-        let subagentId = "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
+        let subagentId = preAssignedSubagentId ?? "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
         let toolCallId = marker.payload["id"] ?? UUID().uuidString
         var events: [StreamEvent] = []
 
-        // Emit started event for SwarmLiveReducer UI
-        events.append(.raw(type: "agent", payload: [
-            "title": role.displayName,
-            "detail": "started",
-            "swarm_id": subagentId,
-            "group_id": "swarm-\(subagentId)",
-            "tool_call_id": toolCallId,
-            "status": "started"
-        ]))
+        // Only emit "started" if it wasn't already emitted by the caller
+        // (parallel batch pre-emits started events for immediate UI feedback).
+        if preAssignedSubagentId == nil {
+            events.append(.raw(type: "agent", payload: [
+                "title": role.displayName,
+                "detail": "started",
+                "swarm_id": subagentId,
+                "group_id": "swarm-\(subagentId)",
+                "tool_call_id": toolCallId,
+                "status": "started"
+            ]))
+        }
 
         let startDate = Date()
 

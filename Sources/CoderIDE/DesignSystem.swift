@@ -58,26 +58,26 @@ struct DesignSystem {
         static let debugColor = Color(red: 0.94, green: 0.22, blue: 0.22)
         static let debugColorLight = debugColor.opacity(0.8)
 
-        // Background layers — rich blue-black in dark, system in light
+        // Background layers — neutral dark greys (Cursor style)
         static let backgroundDeep = codigoAdaptive(
             .windowBackgroundColor,
-            NSColor(red: 0.050, green: 0.050, blue: 0.075, alpha: 1)
+            NSColor(red: 0.067, green: 0.067, blue: 0.075, alpha: 1)
         )
         static let backgroundPrimary = codigoAdaptive(
             .windowBackgroundColor,
-            NSColor(red: 0.063, green: 0.063, blue: 0.098, alpha: 1)
+            NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1)
         )
         static let backgroundSecondary = codigoAdaptive(
             .controlBackgroundColor,
-            NSColor(red: 0.082, green: 0.082, blue: 0.133, alpha: 1)
+            NSColor(red: 0.118, green: 0.118, blue: 0.128, alpha: 1)
         )
         static let backgroundTertiary = codigoAdaptive(
             .textBackgroundColor,
-            NSColor(red: 0.098, green: 0.098, blue: 0.157, alpha: 1)
+            NSColor(red: 0.137, green: 0.137, blue: 0.149, alpha: 1)
         )
         static let backgroundElevated = codigoAdaptive(
             .controlBackgroundColor,
-            NSColor(red: 0.114, green: 0.114, blue: 0.188, alpha: 1)
+            NSColor(red: 0.157, green: 0.157, blue: 0.169, alpha: 1)
         )
 
         // Surfaces
@@ -102,23 +102,23 @@ struct DesignSystem {
             NSColor(red: 0.098, green: 0.098, blue: 0.106, alpha: 1.0)
         )
 
-        // Borders
+        // Borders — neutral greys (Cursor style)
         static let divider = codigoAdaptive(
             .separatorColor,
-            NSColor(red: 0.150, green: 0.150, blue: 0.243, alpha: 1)
+            NSColor(red: 0.196, green: 0.196, blue: 0.208, alpha: 1)
         )
         static let dividerStrong = codigoAdaptive(
             .separatorColor,
-            NSColor(red: 0.196, green: 0.196, blue: 0.314, alpha: 1)
+            NSColor(red: 0.235, green: 0.235, blue: 0.247, alpha: 1)
         )
         static let border = divider
         static let borderSubtle = codigoAdaptive(
             NSColor.separatorColor.withAlphaComponent(0.5),
-            NSColor(red: 0.125, green: 0.125, blue: 0.204, alpha: 1)
+            NSColor(red: 0.157, green: 0.157, blue: 0.169, alpha: 1)
         )
         static let borderAccent = codigoAdaptive(
             NSColor.separatorColor,
-            NSColor(red: 0.220, green: 0.220, blue: 0.365, alpha: 1)
+            NSColor(red: 0.255, green: 0.255, blue: 0.267, alpha: 1)
         )
 
         // Glass stubs

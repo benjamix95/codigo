@@ -17,6 +17,7 @@ struct ContentView: View {
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @EnvironmentObject var appUpdateCenter: AppUpdateCenter
     @StateObject private var debugStore = DebugStore()
+    @StateObject private var terminalSessionStore = TerminalSessionStore()
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -29,72 +30,154 @@ struct ContentView: View {
     @State private var showAppUpdateAlert = false
     @State private var pendingAppUpdate: AppUpdateCenter.AppUpdateManifest?
     @State private var isSelectingProjectFolders = false
+    @State private var activeActivityItem: ActivityBarItem? = .explorer
+    @State private var showChatPanel = true
+    @State private var coderMode: CoderMode = .agent
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
     @AppStorage("git_panel_width") private var gitPanelWidth: Double = 380
+    @AppStorage("chat_panel_width") private var chatPanelWidth: Double = 380
+    @AppStorage("side_panel_width") private var sidePanelWidth: Double = 240
     @AppStorage("auto_resize_side_panels") private var autoResizeSidePanels = false
+    @AppStorage("chat_panel_position") private var chatPanelPosition = "left"
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selectedConversationId: $selectedConversationId, showSettings: $showSettings, isSelectingProjectFolders: $isSelectingProjectFolders)
-                .environmentObject(providerRegistry)
-                .environmentObject(chatStore)
-                .environmentObject(workspaceStore)
-                .environmentObject(projectContextStore)
-                .environmentObject(openFilesStore)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
+            SidebarView(
+                selectedConversationId: $selectedConversationId,
+                showSettings: $showSettings,
+                isSelectingProjectFolders: $isSelectingProjectFolders
+            )
+            .environmentObject(providerRegistry)
+            .environmentObject(chatStore)
+            .environmentObject(workspaceStore)
+            .environmentObject(projectContextStore)
+            .environmentObject(openFilesStore)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 320)
         } detail: {
             GeometryReader { geo in
                 let detailWidth = geo.size.width
-                // Clamp git panel so the chat always keeps at least 320pt
-                let maxGitWidth = max(280, detailWidth - 340)
-                let clampedGitWidth = min(CGFloat(gitPanelWidth), maxGitWidth)
-                HStack(spacing: 6) {
-                    if showEditorPanel && detailWidth >= 750 {
-                        idePanel
-                            .frame(minWidth: 220, idealWidth: 380)
-                    }
-                    chatPanel
-                        .frame(minWidth: 280, idealWidth: 480)
-                        .layoutPriority(1)
-                    if gitPanelStore.isOpen && detailWidth >= 700 {
-                        PanelResizeHandle(
-                            panelWidth: Binding(
-                                get: { clampedGitWidth },
-                                set: { gitPanelWidth = Double($0) }
-                            ),
-                            minWidth: 280,
-                            maxWidth: maxGitWidth,
-                            leadingEdge: true
+                let maxChatW = max(300, detailWidth * 0.45)
+                let clampedChatW = min(CGFloat(chatPanelWidth), maxChatW)
+                let maxGitW = max(280, detailWidth - 340)
+                let clampedGitW = min(CGFloat(gitPanelWidth), maxGitW)
+
+                HStack(spacing: 0) {
+                    let chatIsLeft = chatPanelPosition == "left"
+                    let isIDEMode = coderMode == .ide
+
+                    if isIDEMode {
+                        // --- IDE MODE LAYOUT ---
+
+                        // Activity Bar
+                        ActivityBarView(
+                            selectedItem: $activeActivityItem,
+                            showSettings: $showSettings
                         )
-                        GitPanelView(
-                            store: gitPanelStore,
-                            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
-                            onOpenFile: { openFilesStore.openFile($0) }
-                        )
-                        .environmentObject(providerRegistry)
-                        .frame(width: clampedGitWidth)
+
+                        // Chat Panel (left side, if configured)
+                        if showChatPanel && chatIsLeft {
+                            chatPanel
+                                .frame(width: clampedChatW)
+
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { clampedChatW },
+                                    set: { chatPanelWidth = Double($0) }
+                                ),
+                                minWidth: 300,
+                                maxWidth: maxChatW,
+                                leadingEdge: false
+                            )
+                        }
+
+                        // Side Panel (Explorer / Search / Source Control)
+                        if let item = activeActivityItem, item != .settings {
+                            let ctx = effectiveContext(
+                                for: selectedConversationId,
+                                chatStore: chatStore,
+                                projectContextStore: projectContextStore
+                            )
+                            SidePanelView(
+                                activeItem: item,
+                                context: projectContextStore.context(id: ctx.contextId)
+                            )
+                            .environmentObject(openFilesStore)
+                            .environmentObject(projectContextStore)
+                            .environmentObject(gitPanelStore)
+                            .frame(width: max(180, min(CGFloat(sidePanelWidth), 400)))
+
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { CGFloat(sidePanelWidth) },
+                                    set: { sidePanelWidth = Double($0) }
+                                ),
+                                minWidth: 180,
+                                maxWidth: 400,
+                                leadingEdge: false
+                            )
+                        }
+
+                        // Editor Area (main, takes priority)
+                        editorArea
+                            .layoutPriority(1)
+
+                        // Chat Panel (right side, if configured)
+                        if showChatPanel && !chatIsLeft {
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { clampedChatW },
+                                    set: { chatPanelWidth = Double($0) }
+                                ),
+                                minWidth: 300,
+                                maxWidth: maxChatW,
+                                leadingEdge: true
+                            )
+
+                            chatPanel
+                                .frame(width: clampedChatW)
+                        }
+
+                        // Git Panel
+                        if gitPanelStore.isOpen && detailWidth >= 900 {
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { clampedGitW },
+                                    set: { gitPanelWidth = Double($0) }
+                                ),
+                                minWidth: 280,
+                                maxWidth: maxGitW,
+                                leadingEdge: true
+                            )
+                            GitPanelView(
+                                store: gitPanelStore,
+                                effectiveContext: effectiveContext(
+                                    for: selectedConversationId,
+                                    chatStore: chatStore,
+                                    projectContextStore: projectContextStore
+                                ),
+                                onOpenFile: { openFilesStore.openFile($0) }
+                            )
+                            .environmentObject(providerRegistry)
+                            .frame(width: clampedGitW)
+                        }
+                    } else {
+                        // --- AGENT MODE LAYOUT ---
+                        // Chat fills the entire space, no editor/explorer/activity bar
+                        chatPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(minWidth: 480)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 6)
+            .frame(minWidth: 720)
             .background(DesignSystem.Colors.backgroundDeep)
             .ignoresSafeArea(.container, edges: .top)
         }
         .onAppear {
-            // Initialize selection ONLY on first launch, otherwise onAppear would overwrite
-            // the conversation chosen by the user (e.g. after "New thread") every time the view reappears.
-            guard selectedConversationId == nil else {
-                return
-            }
-            // Prefer projectContextStore: it is the last context actually used.
+            guard selectedConversationId == nil else { return }
             let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
             let ctx = projectContextStore.context(id: defaultContextId)
             let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
-            // One thread per context: use lastActive or reuse an existing thread, creating
-            // a new thread only when no candidate exists.
             if let contextId = defaultContextId,
                let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
@@ -148,7 +231,6 @@ struct ContentView: View {
         .onChange(of: isSelectingProjectFolders) { _, isPresented in
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
-        // Mutual exclusion: only one side panel at a time to prevent layout overflow.
         .onChange(of: showPlanPanel) { _, isOpen in
             guard isOpen else { return }
             showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
@@ -167,7 +249,7 @@ struct ContentView: View {
         }
         .onChange(of: gitPanelStore.isOpen) { wasOpen, isOpen in
             guard autoResizeSidePanels else { return }
-            let panelWidth = CGFloat(gitPanelWidth) + 12 // panel + handle + spacing
+            let panelWidth = CGFloat(gitPanelWidth) + 12
             if isOpen && !wasOpen {
                 WindowResizeHelper.adjustWidth(by: panelWidth, animate: false)
             } else if !isOpen && wasOpen {
@@ -180,16 +262,13 @@ struct ContentView: View {
             if let selectedId = selectedConversationId,
                 let selected = chatStore.conversation(for: selectedId),
                 !selected.isArchived,
-                selected.messages.isEmpty
-            {
-                // If the user just manually created an empty thread, do not overwrite the selection.
+                selected.messages.isEmpty {
                 return
             }
             let conv = chatStore.conversation(for: selectedConversationId)
             guard conv?.contextId != newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
             let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
-            // If there's a thread you worked on in this tab, show it; otherwise new thread
             if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
                lastConv.contextId == newContextId,
@@ -206,14 +285,10 @@ struct ContentView: View {
             presenting: pendingAppUpdate
         ) { update in
             if let downloadURL = update.downloadURL, !downloadURL.isEmpty {
-                Button("Download Now") {
-                    openExternalURL(downloadURL)
-                }
+                Button("Download Now") { openExternalURL(downloadURL) }
             }
             if let notesURL = update.releaseNotesURL, !notesURL.isEmpty {
-                Button("View Release Notes") {
-                    openExternalURL(notesURL)
-                }
+                Button("View Release Notes") { openExternalURL(notesURL) }
             }
             Button("Dismiss") { }
         } message: { update in
@@ -226,47 +301,37 @@ struct ContentView: View {
         NSWorkspace.shared.open(url)
     }
 
-    private var showEditorPanel: Bool {
-        let conv = chatStore.conversation(for: selectedConversationId)
-        if conv?.mode == .ide { return true }
-        let pid = providerRegistry.selectedProviderId
-        return ProviderSupport.isIDEProvider(id: pid) && !ProviderSupport.isAgentCompatibleProvider(id: pid)
-    }
+    // MARK: - Editor Area
 
-    // MARK: - IDE Panel
-    private var idePanel: some View {
-        VStack(spacing: 0) {
-            // Align the editor bar to the same interactive level as the chat panel.
-            Color.clear
-                .frame(height: 22)
-                .allowsHitTesting(false)
-            ideHeader
-            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
+    private var editorArea: some View {
+        let ctx = effectiveContext(
+            for: selectedConversationId,
+            chatStore: chatStore,
+            projectContextStore: projectContextStore
+        )
 
-            let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
+        return VStack(spacing: 0) {
+            editorTopBar(ctx: ctx)
+            Divider().opacity(0.2)
+
             EditorPlaceholderView(folderPaths: ctx.folderPaths)
                 .environmentObject(openFilesStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if showTerminal {
-                Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.4)).frame(height: 0.5)
+                Divider().opacity(0.2)
                 TerminalPanelView(workingDirectory: ctx.primaryPath)
+                    .environmentObject(terminalSessionStore)
                     .frame(height: terminalHeight)
             }
         }
-        .sidebarPanel(cornerRadius: 14)
+        .background(DesignSystem.Colors.backgroundDeep)
     }
 
-    private var ideHeader: some View {
+    private func editorTopBar(ctx: EffectiveContext) -> some View {
         HStack(spacing: 8) {
             if let path = openFilesStore.openFilePath, !path.isEmpty {
-                Image(systemName: "doc.text.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.accentColor.opacity(0.7))
-                Text((path as NSString).lastPathComponent)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                breadcrumb(path: path, ctx: ctx)
             } else {
                 Image(systemName: "rectangle.split.2x1")
                     .font(.system(size: 10))
@@ -278,39 +343,119 @@ struct ContentView: View {
 
             Spacer()
 
-            contextBadge
-
-            Button { withAnimation(.easeOut(duration: 0.2)) { showTerminal.toggle() } } label: {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { showTerminal.toggle() }
+            } label: {
                 Image(systemName: "terminal.fill")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(showTerminal ? DesignSystem.Colors.agentColor : Color(nsColor: .tertiaryLabelColor))
+                    .foregroundStyle(showTerminal ? Color.accentColor : Color.secondary.opacity(0.5))
                     .padding(4)
-                    .background(showTerminal ? DesignSystem.Colors.agentColor.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                    .background(
+                        showTerminal ? Color.accentColor.opacity(0.12) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
             }
             .buttonStyle(.plain)
-            .help("Show/hide terminal")
+            .help("Toggle terminal")
+
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
+            } label: {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(showChatPanel ? Color.accentColor : Color.secondary.opacity(0.5))
+                    .padding(4)
+                    .background(
+                        showChatPanel ? Color.accentColor.opacity(0.12) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Toggle chat panel")
+
+            Button {
+                gitPanelStore.isOpen.toggle()
+            } label: {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(gitPanelStore.isOpen ? Color.accentColor : Color.secondary.opacity(0.5))
+                    .padding(4)
+                    .background(
+                        gitPanelStore.isOpen ? Color.accentColor.opacity(0.12) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Toggle git panel")
+
+            Button {
+                withAnimation(.snappy(duration: 0.2)) {
+                    chatPanelPosition = chatPanelPosition == "left" ? "right" : "left"
+                }
+            } label: {
+                Image(systemName: chatPanelPosition == "left" ? "sidebar.left" : "sidebar.right")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.5))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .help(chatPanelPosition == "left" ? "Move chat to right" : "Move chat to left")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
+        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.5))
     }
 
-    @ViewBuilder
-    private var contextBadge: some View {
-        let ctx = effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore)
-        if ctx.hasContext {
-            HStack(spacing: 4) {
-                Image(systemName: ctx.isWorkspace ? "folder.fill" : "folder")
-                    .font(.system(size: 9))
-                    .foregroundStyle(Color.accentColor.opacity(0.7))
-                Text(ctx.displayLabel)
-                    .font(.system(size: 10, weight: .medium))
+    private func breadcrumb(path: String, ctx: EffectiveContext) -> some View {
+        let components = breadcrumbComponents(path: path, rootPaths: ctx.folderPaths)
+        return HStack(spacing: 2) {
+            ForEach(Array(components.enumerated()), id: \.offset) { idx, component in
+                if idx > 0 {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(.quaternary)
+                }
+                Text(component)
+                    .font(.system(size: 11, weight: idx == components.count - 1 ? .medium : .regular))
+                    .foregroundStyle(idx == components.count - 1 ? .primary : .secondary)
                     .lineLimit(1)
-                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Color.accentColor.opacity(0.08), in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.12), lineWidth: 0.5))
         }
+    }
+
+    private func breadcrumbComponents(path: String, rootPaths: [String]) -> [String] {
+        for root in rootPaths {
+            if path.hasPrefix(root + "/") {
+                let relative = String(path.dropFirst(root.count + 1))
+                let rootName = (root as NSString).lastPathComponent
+                return [rootName] + relative.components(separatedBy: "/")
+            }
+        }
+        return path.components(separatedBy: "/").suffix(3).map { String($0) }
+    }
+
+    // MARK: - Chat Panel
+
+    private var chatPanel: some View {
+        ChatPanelView(
+            selectedConversationId: $selectedConversationId,
+            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
+            coderMode: $coderMode,
+            showPlanPanel: $showPlanPanel,
+            showDebugPanel: $showDebugPanel,
+            showSwarmPanel: $showSwarmPanel,
+            showCodeReviewPanel: $showCodeReviewPanel,
+            debugStore: debugStore
+        )
+        .environmentObject(providerRegistry)
+        .environmentObject(chatStore)
+        .environmentObject(projectContextStore)
+        .environmentObject(openFilesStore)
+        .environmentObject(planHistoryStore)
+        .chatPanelContainer(
+            style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
+            cornerRadius: 14
+        )
     }
 
     private func handleProjectFolderSelection(result: Result<[URL], Error>) {
@@ -339,28 +484,6 @@ struct ContentView: View {
         providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
             preferred: preferredProvider,
             registry: providerRegistry
-        )
-    }
-
-    // MARK: - Chat Panel
-    private var chatPanel: some View {
-        ChatPanelView(
-            selectedConversationId: $selectedConversationId,
-            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
-            showPlanPanel: $showPlanPanel,
-            showDebugPanel: $showDebugPanel,
-            showSwarmPanel: $showSwarmPanel,
-            showCodeReviewPanel: $showCodeReviewPanel,
-            debugStore: debugStore
-        )
-        .environmentObject(providerRegistry)
-        .environmentObject(chatStore)
-        .environmentObject(projectContextStore)
-        .environmentObject(openFilesStore)
-        .environmentObject(planHistoryStore)
-        .chatPanelContainer(
-            style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
-            cornerRadius: 14
         )
     }
 }

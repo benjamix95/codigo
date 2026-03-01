@@ -216,6 +216,16 @@ enum ToolSchemaCatalog {
             required: ["command"]
         ),
         ToolSchemaEntry(
+            name: "read_terminal",
+            description: "Read the output from the IDE terminal. Can read the active session or all sessions. Use this to see what the user ran in their terminal.",
+            properties: [
+                "session_id": ["type": "string", "description": "Optional session ID to read from. If omitted, reads the active terminal session."],
+                "last_n": ["type": "string", "description": "Number of characters to read from the end of the terminal buffer. Default 8000."],
+                "all_sessions": ["type": "string", "description": "Set to 'true' to read a summary of all terminal sessions."]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
             name: "read_range",
             description: "Read a line range from a file",
             properties: [

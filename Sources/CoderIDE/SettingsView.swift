@@ -118,6 +118,7 @@ struct SettingsView: View {
     // MARK: - Appearance
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("chat_background_style") private var chatBackgroundStyle = ChatBackgroundStyle.defaultRawValue
+    @AppStorage("chat_panel_position") private var chatPanelPosition = "left"
     @AppStorage("ui_sans_font_family") private var uiSansFontFamily = FontPreferences.defaultSansFamily
     @AppStorage("ui_sans_font_size") private var uiSansFontSize = FontPreferences.defaultSansSize
     @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
@@ -875,6 +876,17 @@ struct SettingsView: View {
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
                     }.labelsHidden().pickerStyle(.segmented)
+                }
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    fieldLabel("Chat panel position")
+                    Picker("", selection: $chatPanelPosition) {
+                        Text("Left").tag("left")
+                        Text("Right").tag("right")
+                    }.labelsHidden()
+                        .pickerStyle(.segmented)
                 }
             }
 

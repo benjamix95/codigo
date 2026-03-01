@@ -141,6 +141,13 @@ public struct ToolRuntimeDebugSnapshot: Sendable, Equatable {
     }
 }
 
+@MainActor
+public protocol TerminalBridge: AnyObject {
+    func executeInTerminal(command: String, cwd: String?, label: String) async -> (output: String, exitCode: Int32)
+    func readTerminalOutput(sessionId: String?, lastN: Int) -> String
+    func allSessionsSummary(lastN: Int) -> String
+}
+
 public actor UnifiedToolRuntime {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "UnifiedToolRuntime")
 
@@ -166,6 +173,9 @@ public actor UnifiedToolRuntime {
     /// Tracks hypothesis lifecycle for debug_hypothesize ID validation.
     private var debugHypotheses: [String: (title: String, description: String, status: String)] = [:]
 
+    /// Terminal bridge for IDE terminal integration
+    private weak var terminalBridge: (any TerminalBridge)?
+
     public init(
         executionController: ExecutionController? = nil,
         executionScope: ExecutionScope = .agent,
@@ -174,7 +184,8 @@ public actor UnifiedToolRuntime {
         workspacePaths: [URL] = [],
         excludedPaths: [String] = [],
         webSearchProvider: String? = nil,
-        webSearchApiKeys: [String: String]? = nil
+        webSearchApiKeys: [String: String]? = nil,
+        terminalBridge: (any TerminalBridge)? = nil
     ) {
         self.executionController = executionController
         self.executionScope = executionScope
@@ -183,6 +194,7 @@ public actor UnifiedToolRuntime {
         self.indexTools = index.map { CodebaseIndexTools(index: $0) }
         self.workspacePaths = workspacePaths
         self.excludedPaths = excludedPaths
+        self.terminalBridge = terminalBridge
 
         // Build web search service from provider + keys map
         let provider = WebSearchProvider(rawValue: webSearchProvider ?? "") ?? .duckduckgo
@@ -383,6 +395,8 @@ public actor UnifiedToolRuntime {
                     maxOutputBytes: context.policy.maxBashOutputBytes,
                     policy: context.policy
                 )
+            case "read_terminal":
+                return await executeReadTerminal(call: call, startDate: startDate)
             case "web_search":
                 return await executeWebSearch(call: call, context: context, startDate: startDate)
             case "web_fetch":
@@ -1428,6 +1442,22 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    private static let longRunningPatterns: [String] = [
+        "npm run", "npm start", "npm test", "yarn ", "pnpm ",
+        "swift build", "swift test", "swift run",
+        "cargo build", "cargo run", "cargo test",
+        "make", "cmake", "gradle",
+        "python ", "python3 ", "node ",
+        "docker ", "kubectl ",
+        "xcodebuild", "fastlane",
+        "serve", "watch", "dev"
+    ]
+
+    private func isLongRunningCommand(_ command: String) -> Bool {
+        let lower = command.lowercased()
+        return Self.longRunningPatterns.contains(where: { lower.contains($0) })
+    }
+
     private func runBash(
         command: String,
         cwd: URL,
@@ -1439,6 +1469,38 @@ public actor UnifiedToolRuntime {
     ) async -> ToolResult {
         do {
             try validateShell(command: command, policy: policy)
+
+            if isLongRunningCommand(command), let bridge = terminalBridge {
+                let label = "Agent: \(command.prefix(40))"
+                let result = await bridge.executeInTerminal(
+                    command: command,
+                    cwd: cwd.path,
+                    label: label
+                )
+                let output = truncate(String(result.output.prefix(maxOutputBytes)), maxBytes: maxOutputBytes)
+                if result.exitCode == 0 {
+                    return success([
+                        "title": title,
+                        "command": command,
+                        "cwd": cwd.path,
+                        "output": output,
+                        "ran_in_terminal": "true"
+                    ], startDate: startDate)
+                }
+                return failure(
+                    "exit \(result.exitCode): \(truncate(output, maxBytes: 3_000))",
+                    errorCode: "transport",
+                    startDate: startDate,
+                    payload: [
+                        "title": title,
+                        "command": command,
+                        "cwd": cwd.path,
+                        "output": output,
+                        "ran_in_terminal": "true"
+                    ]
+                )
+            }
+
             let controller = self.executionController
             let scope = self.executionScope
             let result = try await withThrowingTaskGroup(
@@ -1499,6 +1561,33 @@ public actor UnifiedToolRuntime {
                 "cwd": cwd.path
             ])
         }
+    }
+
+    // MARK: - Read Terminal
+
+    private func executeReadTerminal(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = terminalBridge else {
+            return failure(
+                "Terminal bridge not available",
+                errorCode: "transport",
+                startDate: startDate
+            )
+        }
+        let sessionId = call.args["session_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastN = max(500, min(32_000, Int(call.args["last_n"] ?? "8000") ?? 8_000))
+        let emptySessionId: String? = (sessionId?.isEmpty == true) ? nil : sessionId
+
+        let output: String
+        if call.args["all_sessions"] == "true" {
+            output = await bridge.allSessionsSummary(lastN: lastN)
+        } else {
+            output = await bridge.readTerminalOutput(sessionId: emptySessionId, lastN: lastN)
+        }
+
+        if output.isEmpty {
+            return success(["output": "(no terminal output)", "detail": "empty"], startDate: startDate)
+        }
+        return success(["output": output, "detail": "\(output.count) chars"], startDate: startDate)
     }
 
     // MARK: - Web Search

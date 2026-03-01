@@ -488,7 +488,8 @@ enum ProviderFactory {
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
         webSearchProvider: String? = nil,
-        webSearchApiKeys: [String: String]? = nil
+        webSearchApiKeys: [String: String]? = nil,
+        terminalBridge: (any TerminalBridge)? = nil
     ) -> UnifiedToolRuntime {
         UnifiedToolRuntime(
             executionController: executionController,
@@ -496,7 +497,8 @@ enum ProviderFactory {
             index: codebaseIndex,
             workspacePaths: workspacePaths,
             webSearchProvider: webSearchProvider,
-            webSearchApiKeys: webSearchApiKeys
+            webSearchApiKeys: webSearchApiKeys,
+            terminalBridge: terminalBridge
         )
     }
 

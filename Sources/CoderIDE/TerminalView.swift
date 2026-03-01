@@ -4,11 +4,19 @@ import SwiftTerm
 
 final class AutoFollowLocalProcessTerminalView: LocalProcessTerminalView {
     var isAutoFollowEnabled = true
+    var sessionId: UUID?
+    weak var sessionStore: TerminalSessionStore?
 
     override func dataReceived(slice: ArraySlice<UInt8>) {
         super.dataReceived(slice: slice)
+
+        if let sid = sessionId, let text = String(bytes: slice, encoding: .utf8) {
+            DispatchQueue.main.async { [weak self] in
+                self?.sessionStore?.appendOutput(sessionId: sid, text: text)
+            }
+        }
+
         guard isAutoFollowEnabled else { return }
-        // Keep terminal pinned to latest output for live-follow behavior.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.scroll(toPosition: 1.0)
@@ -18,6 +26,7 @@ final class AutoFollowLocalProcessTerminalView: LocalProcessTerminalView {
 
 struct TerminalPanelView: View {
     let workingDirectory: String?
+    @EnvironmentObject var terminalSessionStore: TerminalSessionStore
     @AppStorage("terminal_auto_follow_output") private var autoFollowOutput = true
     @AppStorage("ui_code_font_family") private var uiCodeFontFamily = FontPreferences.defaultCodeFamily
     @AppStorage("ui_code_font_size") private var uiCodeFontSize = FontPreferences.defaultCodeSize
@@ -27,111 +36,160 @@ struct TerminalPanelView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            terminalHeader
-            TerminalContainerView(
-                workingDirectory: workingDirectory,
-                autoFollowOutput: autoFollowOutput,
-                codeFontFamily: uiCodeFontFamily,
-                codeFontSize: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code)
-            )
+        VStack(spacing: 0) {
+            terminalTabBar
+            Divider().opacity(0.15)
+
+            if let session = terminalSessionStore.activeSession {
+                TerminalContainerView(
+                    sessionId: session.id,
+                    workingDirectory: session.workingDirectory ?? workingDirectory,
+                    autoFollowOutput: autoFollowOutput,
+                    codeFontFamily: uiCodeFontFamily,
+                    codeFontSize: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code)
+                )
+                .environmentObject(terminalSessionStore)
+                .id(session.id)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(terminalBorder, lineWidth: 0.8)
-                )
+            } else {
+                Text("No terminal session")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(terminalPanelFill)
-        )
+        .background(terminalPanelFill)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(terminalBorder.opacity(0.85), lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(terminalBorder.opacity(0.5), lineWidth: 0.5)
         )
+        .onAppear {
+            terminalSessionStore.ensureDefaultSession(cwd: workingDirectory)
+        }
     }
 
-    private var terminalHeader: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(terminalAccent)
-                Text("Terminale")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary)
-            }
-            Text(liveBadgeText)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(terminalAccent)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(terminalAccent.opacity(0.16), in: Capsule())
-            if let path = workingDirectory {
-                HStack(spacing: 4) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 10))
-                    Text(workingDirectoryDisplay(path))
-                        .codeFont(
-                            size: FontPreferences.sanitizeSize(uiCodeFontSize - 2, kind: .code),
-                            family: uiCodeFontFamily
-                        )
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+    // MARK: - Tab Bar
+
+    private var terminalTabBar: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(terminalSessionStore.sessions) { session in
+                        sessionTab(session)
+                    }
                 }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(terminalBorder.opacity(0.2), in: Capsule())
             }
+
             Spacer()
-            Text(shellDisplay)
-                .codeFont(
-                    size: FontPreferences.sanitizeSize(uiCodeFontSize - 2, kind: .code),
-                    family: uiCodeFontFamily
+
+            addToChatButton
+
+            Button {
+                terminalSessionStore.createSession(
+                    label: "Shell \(terminalSessionStore.sessions.count + 1)",
+                    cwd: workingDirectory,
+                    isAgent: false
                 )
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(terminalBorder.opacity(0.18), in: Capsule())
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(terminalAccent)
+                    .padding(5)
+            }
+            .buttonStyle(.plain)
+            .help("New terminal")
+            .padding(.trailing, 8)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(terminalHeaderFill)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(terminalBorder.opacity(0.75), lineWidth: 0.6)
-        )
+        .frame(height: 32)
+        .background(terminalHeaderFill)
     }
 
-    private func workingDirectoryDisplay(_ path: String) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        if path.hasPrefix(home) { return "~" + path.dropFirst(home.count) }
-        return path
+    private func sessionTab(_ session: TerminalSession) -> some View {
+        let isActive = terminalSessionStore.activeSessionId == session.id
+
+        return HStack(spacing: 5) {
+            Circle()
+                .fill(session.isAgentOwned ? Color.orange : terminalAccent)
+                .frame(width: 6, height: 6)
+
+            Image(systemName: session.isAgentOwned ? "cpu" : "terminal")
+                .font(.system(size: 9))
+                .foregroundStyle(isActive ? .primary : .secondary)
+
+            Text(session.label)
+                .font(.system(size: 10.5, weight: isActive ? .semibold : .regular))
+                .foregroundStyle(isActive ? .primary : .secondary)
+                .lineLimit(1)
+
+            if terminalSessionStore.sessions.count > 1 {
+                Button {
+                    terminalSessionStore.closeSession(id: session.id)
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .opacity(isActive ? 1 : 0)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isActive ? terminalPanelFill : .clear)
+        .overlay(alignment: .bottom) {
+            if isActive {
+                Rectangle()
+                    .fill(session.isAgentOwned ? Color.orange : terminalAccent)
+                    .frame(height: 1.5)
+            }
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(terminalBorder.opacity(0.2)).frame(width: 0.5)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            terminalSessionStore.activeSessionId = session.id
+        }
     }
 
-    private var shellDisplay: String {
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        return (shell as NSString).lastPathComponent
+    private var addToChatButton: some View {
+        Button {
+            let output = terminalSessionStore.readOutput(lastN: 4_000)
+            NotificationCenter.default.post(
+                name: .terminalAddToChat,
+                object: nil,
+                userInfo: ["content": output]
+            )
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "plus.bubble")
+                    .font(.system(size: 9, weight: .semibold))
+                Text("Add to Chat")
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundStyle(terminalAccent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(terminalAccent.opacity(0.1), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Add terminal output to chat context")
+        .padding(.trailing, 4)
     }
 
-    private var liveBadgeText: String { "LIVE" }
+    // MARK: - Style
 
     private var terminalPanelFill: SwiftUI.Color {
-        SwiftUI.Color(red: 0.07, green: 0.08, blue: 0.11).opacity(0.97)
+        SwiftUI.Color(red: 0.067, green: 0.067, blue: 0.075).opacity(0.97)
     }
 
     private var terminalHeaderFill: SwiftUI.Color {
-        SwiftUI.Color(red: 0.10, green: 0.12, blue: 0.16).opacity(0.88)
+        SwiftUI.Color(red: 0.098, green: 0.098, blue: 0.106).opacity(0.92)
     }
 
     private var terminalBorder: SwiftUI.Color {
-        SwiftUI.Color(red: 0.29, green: 0.35, blue: 0.43).opacity(0.78)
+        SwiftUI.Color(red: 0.196, green: 0.196, blue: 0.208).opacity(0.78)
     }
 
     private var terminalAccent: SwiftUI.Color {
@@ -139,21 +197,29 @@ struct TerminalPanelView: View {
     }
 }
 
+extension Notification.Name {
+    static let terminalAddToChat = Notification.Name("CoderIDE.TerminalAddToChat")
+}
+
 struct TerminalContainerView: NSViewRepresentable {
+    let sessionId: UUID
     let workingDirectory: String?
     let autoFollowOutput: Bool
     let codeFontFamily: String
     let codeFontSize: CGFloat
+    @EnvironmentObject var terminalSessionStore: TerminalSessionStore
 
     func makeNSView(context: Context) -> LocalProcessTerminalView {
         let view = AutoFollowLocalProcessTerminalView(frame: .zero)
         view.processDelegate = context.coordinator
         context.coordinator.terminal = view
         view.isAutoFollowEnabled = autoFollowOutput
+        view.sessionId = sessionId
+        view.sessionStore = terminalSessionStore
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor(red: 0.07, green: 0.08, blue: 0.11, alpha: 1).cgColor
+        view.layer?.backgroundColor = NSColor(red: 0.067, green: 0.067, blue: 0.075, alpha: 1).cgColor
         view.layer?.cornerCurve = .continuous
-        view.layer?.cornerRadius = 10
+        view.layer?.cornerRadius = 6
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let shellName = "-" + (shell as NSString).lastPathComponent
         view.startProcess(executable: shell, execName: shellName, currentDirectory: workingDirectory)
@@ -165,10 +231,17 @@ struct TerminalContainerView: NSViewRepresentable {
     func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
         (nsView as? AutoFollowLocalProcessTerminalView)?.isAutoFollowEnabled = autoFollowOutput
     }
-    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeCoordinator() -> Coordinator { Coordinator(sessionId: sessionId) }
 
     class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
         var terminal: LocalProcessTerminalView?
+        let sessionId: UUID
+
+        init(sessionId: UUID) {
+            self.sessionId = sessionId
+        }
+
         func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
         func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {}

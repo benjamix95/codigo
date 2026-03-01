@@ -1,9 +1,6 @@
 import SwiftUI
 import CoderEngine
 
-/// Cursor-style sidebar panel for Code Review operations.
-/// Provides quick-access slash commands, against-commit review,
-/// and an autofix loop with live status.
 struct CodeReviewPanelView: View {
     @ObservedObject var chatStore: ChatStore
     @ObservedObject var taskActivityStore: TaskActivityStore
@@ -25,117 +22,85 @@ struct CodeReviewPanelView: View {
     let onRunSlashCommand: (String) -> Void
     let onSelectMode: (CoderMode) -> Void
 
-    // MARK: - Local State
-
     @State private var againstCommitRef = ""
     @State private var selectedTab: ReviewTab = .commands
 
-    /// Whether autofix is enabled (inverse of analysisOnly mode).
-    /// Use this instead of `!codeReviewAnalysisOnly` for readability.
     private var autofixEnabled: Bool { !codeReviewAnalysisOnly }
-    private func setAutofixEnabled(_ enabled: Bool) { codeReviewAnalysisOnly = !enabled }
+    private func setAutofixEnabled(_ v: Bool) { codeReviewAnalysisOnly = !v }
 
     private let topInteractiveInset: CGFloat = 22
-    private let reviewColor = DesignSystem.Colors.reviewColor
+    private let accent = DesignSystem.Colors.reviewColor
 
     enum ReviewTab: String, CaseIterable {
         case commands = "Commands"
         case config = "Config"
     }
 
-    // MARK: - Derived Data
+    // MARK: - Metrics
 
-    private typealias WorkerInfoRow = (
+    private typealias WorkerRow = (
         id: String, description: String, severity: String, fileCount: String, files: String
     )
 
-    private struct PanelMetrics {
-        let reviewCards: [SwarmLiveCardState]
-        let activeReviewCount: Int
-        let workerInfo: [WorkerInfoRow]
-        let currentRoundInfo: (round: String, maxRounds: String)?
+    private struct Metrics {
+        let cards: [SwarmLiveCardState]
+        let activeCount: Int
+        let workers: [WorkerRow]
+        let roundInfo: (round: String, maxRounds: String)?
     }
 
-    /// Compute panel metrics. This is called from body and should be efficient.
-    /// For large activity lists, consider caching if profiling shows issues.
-    private func panelMetrics() -> PanelMetrics {
-        // Only compute metrics when in review mode — short-circuit for other modes
+    private func metrics() -> Metrics {
         guard coderMode == .codeReviewMultiSwarm else {
-            return PanelMetrics(reviewCards: [], activeReviewCount: 0, workerInfo: [], currentRoundInfo: nil)
+            return Metrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
         }
-
-        // Filter out orchestrator — only show real review workers
         let cards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
-            .filter { $0.swarmId != "orchestrator" }
-        let activeCount = cards.filter { $0.status == .running }.count
-
+        let active = cards.filter { $0.status == .running }.count
         let activities = taskActivityStore.activities
 
-        // Only show workers from the most recent round — find the last
-        // "review-fix-round" activity to determine the current round boundary.
         let workerActivities: [TaskActivity]
         if let boundary = activities.lastIndex(where: { $0.type == "review-fix-round" }) {
-            // Find the last worker-plan batch AFTER the most recent round marker.
-            // If none found after the marker, show the last batch before it.
-            let afterRound = activities[(activities.index(after: boundary))...]
-            let plansAfter = afterRound.filter { $0.type == "review-worker-plan" }
-            workerActivities = plansAfter.isEmpty
+            let after = activities[(activities.index(after: boundary))...]
+            let plans = after.filter { $0.type == "review-worker-plan" }
+            workerActivities = plans.isEmpty
                 ? activities[...boundary].filter { $0.type == "review-worker-plan" }
-                : Array(plansAfter)
+                : Array(plans)
         } else {
             workerActivities = activities.filter { $0.type == "review-worker-plan" }
         }
 
-        let workers: [WorkerInfoRow] = workerActivities.compactMap { activity in
-            guard let wid = activity.payload["worker_id"],
-                  let desc = activity.payload["description"],
-                  let severity = activity.payload["severity"],
-                  let fileCount = activity.payload["fileCount"],
-                  let files = activity.payload["files"] else {
-                #if DEBUG
-                print("[CodeReviewPanel] Dropping malformed worker payload: \(activity.payload)")
-                #endif
-                return nil
-            }
-            return (wid, desc, severity, fileCount, files)
+        let workers: [WorkerRow] = workerActivities.compactMap { a in
+            guard let wid = a.payload["worker_id"],
+                  let desc = a.payload["description"],
+                  let sev = a.payload["severity"],
+                  let fc = a.payload["fileCount"],
+                  let files = a.payload["files"] else { return nil }
+            return (wid, desc, sev, fc, files)
         }
 
-        // Only show round info when a review is actively running to avoid stale data
-        let roundInfo: (String, String)? = if isTaskRunning && coderMode == .codeReviewMultiSwarm {
-            activities.reversed().compactMap { activity -> (String, String)? in
-                guard activity.type == "review-fix-round",
-                      let round = activity.payload["round"],
-                      let maxRounds = activity.payload["maxRounds"] else {
-                    return nil
-                }
-                return (round, maxRounds)
+        let round: (String, String)? = if isTaskRunning && coderMode == .codeReviewMultiSwarm {
+            activities.reversed().compactMap { a -> (String, String)? in
+                guard a.type == "review-fix-round",
+                      let r = a.payload["round"],
+                      let m = a.payload["maxRounds"] else { return nil }
+                return (r, m)
             }.first
-        } else {
-            nil
-        }
+        } else { nil }
 
-        return PanelMetrics(
-            reviewCards: cards,
-            activeReviewCount: activeCount,
-            workerInfo: workers,
-            currentRoundInfo: roundInfo
-        )
+        return Metrics(cards: cards, activeCount: active, workers: workers, roundInfo: round)
     }
 
     // MARK: - Body
 
     var body: some View {
-        let metrics = panelMetrics()
+        let m = metrics()
         VStack(spacing: 0) {
-            Color.clear
-                .frame(height: topInteractiveInset)
-                .allowsHitTesting(false)
-            topBar(metrics: metrics)
-            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
+            Color.clear.frame(height: topInteractiveInset).allowsHitTesting(false)
+            topBar(m)
+            Divider().opacity(0.3)
             tabSelector
-            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
-            mainContent(metrics: metrics)
-            Rectangle().fill(Color(nsColor: .separatorColor).opacity(0.3)).frame(height: 0.5)
+            Divider().opacity(0.2)
+            mainContent(m)
+            Divider().opacity(0.2)
             bottomBar
         }
         .background(DesignSystem.Colors.chatPanelSolidBackground)
@@ -144,82 +109,82 @@ struct CodeReviewPanelView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
     }
 
     // MARK: - Top Bar
 
-    private func topBar(metrics: PanelMetrics) -> some View {
+    private func topBar(_ m: Metrics) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(reviewColor)
+                .foregroundStyle(accent)
             Text("Code Review")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-            if isTaskRunning && coderMode == .codeReviewMultiSwarm {
-                Circle()
-                    .fill(reviewColor)
-                    .frame(width: 6, height: 6)
-                    .modifier(PulseModifier())
-            }
-            Spacer()
 
-            // Round counter badge
-            if let roundInfo = metrics.currentRoundInfo, isTaskRunning {
-                Text("Round \(roundInfo.round)/\(roundInfo.maxRounds)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            if let ri = m.roundInfo, isTaskRunning {
+                Text("Round \(ri.round)/\(ri.maxRounds)")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(reviewColor))
+                    .background(Capsule().fill(accent))
             }
 
-            if metrics.activeReviewCount > 0 {
-                Text("\(metrics.activeReviewCount) active")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(reviewColor)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule().fill(reviewColor.opacity(0.12))
-                    )
+            if m.activeCount > 0 {
+                badge("\(m.activeCount) active", accent)
             }
-            Button {
-                onClose()
-            } label: {
+
+            Spacer()
+
+            if isTaskRunning && coderMode == .codeReviewMultiSwarm {
+                ProgressView().controlSize(.mini)
+            }
+
+            Button { onClose() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .background(
-                        Circle().fill(Color(nsColor: .separatorColor).opacity(0.15))
-                    )
+                    .frame(width: 20, height: 20)
+                    .background(Color.primary.opacity(0.06), in: Circle())
             }
             .buttonStyle(.plain)
+            .help("Close panel")
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
+    }
+
+    private func badge(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.12), in: Capsule())
     }
 
     // MARK: - Tab Selector
 
     private var tabSelector: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 4) {
             ForEach(ReviewTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        selectedTab = tab
-                    }
+                    withAnimation(.snappy(duration: 0.15)) { selectedTab = tab }
                 } label: {
-                    Text(tab.rawValue)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(selectedTab == tab ? reviewColor : .secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selectedTab == tab ? reviewColor.opacity(0.12) : Color.clear)
-                        )
+                    HStack(spacing: 4) {
+                        Image(systemName: tab == .commands ? "terminal" : "gearshape")
+                            .font(.system(size: 8.5, weight: .semibold))
+                        Text(tab.rawValue)
+                            .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .regular))
+                    }
+                    .foregroundStyle(selectedTab == tab ? accent : .secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(selectedTab == tab ? accent.opacity(0.14) : .clear)
+                    )
                 }
                 .buttonStyle(.plain)
             }
@@ -232,119 +197,114 @@ struct CodeReviewPanelView: View {
     // MARK: - Main Content
 
     @ViewBuilder
-    private func mainContent(metrics: PanelMetrics) -> some View {
+    private func mainContent(_ m: Metrics) -> some View {
         switch selectedTab {
-        case .commands:
-            commandsTab(metrics: metrics)
-        case .config:
-            configTab
+        case .commands: commandsTab(m)
+        case .config: configTab
         }
     }
 
     // MARK: - Commands Tab
 
-    private func commandsTab(metrics: PanelMetrics) -> some View {
+    private func commandsTab(_ m: Metrics) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                // Against-commit section
-                againstCommitSection
+            VStack(alignment: .leading, spacing: 14) {
+                againstCommitCard
+                slashCommandsCard
 
-                Divider().opacity(0.3)
-
-                // Quick slash commands
-                slashCommandsSection
-
-                Divider().opacity(0.3)
-
-                // Dynamic worker info during live review
-                if coderMode == .codeReviewMultiSwarm && !metrics.workerInfo.isEmpty {
-                    workerInfoSection(workerInfo: metrics.workerInfo)
-                    Divider().opacity(0.3)
+                if coderMode == .codeReviewMultiSwarm && !m.workers.isEmpty {
+                    workersCard(m.workers)
                 }
 
-                // Live review status
-                if coderMode == .codeReviewMultiSwarm && !metrics.reviewCards.isEmpty {
-                    liveStatusSection(reviewCards: metrics.reviewCards)
+                if coderMode == .codeReviewMultiSwarm && !m.cards.isEmpty {
+                    liveStatusCard(m.cards)
                 }
             }
-            .padding(14)
+            .padding(12)
         }
     }
 
-    // MARK: - Against Commit Section
+    // MARK: - Against Commit Card
 
-    private var againstCommitSection: some View {
+    private var againstCommitCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Against Commit", systemImage: "arrow.triangle.branch")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.primary)
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("AGAINST COMMIT")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.8)
+            }
 
-            Text("Review changes against a specific commit reference.")
-                .font(.system(size: 11))
+            Text("Review changes against a specific commit reference")
+                .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 TextField("HEAD~1, abc123, main..feature", text: $againstCommitRef)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
                     .frame(maxWidth: .infinity)
 
-                Button {
-                    runAgainstCommitReview()
-                } label: {
+                Button { runAgainstCommitReview() } label: {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 9))
                         .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(reviewColor)
-                        )
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(accent))
                 }
                 .buttonStyle(.plain)
                 .disabled(!isValidGitRef(againstCommitRef) || isTaskRunning)
-                .help("Run review against commit")
             }
 
-            // Autofix toggle
             HStack(spacing: 8) {
-                Toggle(isOn: Binding(
-                    get: { autofixEnabled },
-                    set: { setAutofixEnabled($0) }
-                )) {
+                Toggle(isOn: Binding(get: { autofixEnabled }, set: { setAutofixEnabled($0) })) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.system(size: 10))
-                        Text("Autofix Loop")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 9))
+                        Text("Autofix")
+                            .font(.system(size: 10.5, weight: .medium))
                     }
                 }
                 .toggleStyle(.switch)
-                .controlSize(.small)
-
+                .controlSize(.mini)
                 Spacer()
-
                 if autofixEnabled {
                     Text("max \(codeReviewMaxRounds) rounds")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.quaternary)
                 }
             }
         }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
+        )
     }
 
-    // MARK: - Slash Commands Section
+    // MARK: - Slash Commands Card
 
-    private var slashCommandsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Quick Commands", systemImage: "terminal")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.primary)
+    private var slashCommandsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("QUICK COMMANDS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.8)
+            }
 
             ForEach(slashCommands, id: \.id) { cmd in
                 Button {
-                    // Switch to review mode first if needed, then dispatch
-                    // the command after a brief delay to allow mode to settle.
                     if coderMode != .codeReviewMultiSwarm {
                         onSelectMode(.codeReviewMultiSwarm)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -354,25 +314,38 @@ struct CodeReviewPanelView: View {
                         onRunSlashCommand(cmd.prompt)
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        Text(cmd.slash)
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(reviewColor)
-                        Spacer()
-                        Text(cmd.label)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                    HStack(spacing: 0) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(accent.opacity(0.6))
+                            .frame(width: 2.5)
+                            .padding(.vertical, 3)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(cmd.slash)
+                                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(accent)
+                            Text(cmd.label)
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(.leading, 8)
+                        .padding(.vertical, 5)
+
+                        Spacer(minLength: 4)
+
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.quaternary)
+                            .padding(.trailing, 8)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.2), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
                     )
                 }
                 .buttonStyle(.plain)
@@ -381,152 +354,238 @@ struct CodeReviewPanelView: View {
         }
     }
 
-    // MARK: - Worker Info Section
+    // MARK: - Workers Card
 
-    private func workerInfoSection(workerInfo: [WorkerInfoRow]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Dynamic Workers", systemImage: "person.3.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.primary)
+    private func workersCard(_ workers: [WorkerRow]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("WORKERS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.8)
+                Spacer()
+                Text("\(workers.count)")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.quaternary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.primary.opacity(0.06), in: Capsule())
+            }
 
-            ForEach(workerInfo, id: \.id) { info in
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(info.id.uppercased())
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(reviewColor)
-                        Spacer()
-                        severityBadge(info.severity)
-                        Text("\(info.fileCount) files")
+            ForEach(workers, id: \.id) { w in
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(severityColor(w.severity))
+                        .frame(width: 2.5)
+                        .padding(.vertical, 3)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(w.id.uppercased())
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundStyle(accent)
+                            Spacer(minLength: 4)
+                            severityBadge(w.severity)
+                            Text("\(w.fileCount) files")
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.quaternary)
+                        }
+                        Text(w.description)
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary.opacity(0.85))
+                            .lineLimit(2)
+                        Text(w.files)
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
                     }
-                    Text(info.description)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    Text(info.files)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+                    .padding(.leading, 8)
+                    .padding(.vertical, 5)
+                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
                 )
             }
         }
     }
 
-    private func severityBadge(_ severity: String) -> some View {
-        let color: Color = switch severity.lowercased() {
-        case "critical": .red
-        case "warning": .orange
-        default: .blue
+    private func severityColor(_ s: String) -> Color {
+        switch s.lowercased() {
+        case "critical": return DesignSystem.Colors.error
+        case "warning": return DesignSystem.Colors.warning
+        default: return DesignSystem.Colors.info
         }
-        return Text(severity.capitalized)
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(color)
+    }
+
+    private func severityBadge(_ s: String) -> some View {
+        let c = severityColor(s)
+        return Text(s.capitalized)
+            .font(.system(size: 8.5, weight: .bold))
+            .foregroundStyle(c)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
-            .background(
-                Capsule().fill(color.opacity(0.12))
-            )
+            .background(c.opacity(0.12), in: Capsule())
     }
 
-    // MARK: - Live Status Section
+    // MARK: - Live Status Card
 
-    private func liveStatusSection(reviewCards: [SwarmLiveCardState]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Live Status", systemImage: "waveform.path.ecg")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.primary)
+    private func liveStatusCard(_ cards: [SwarmLiveCardState]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accent)
+                Text("LIVE STATUS")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.tertiary)
+                    .tracking(0.8)
+            }
 
-            ForEach(reviewCards, id: \.swarmId) { card in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor(for: card.status))
-                        .frame(width: 6, height: 6)
-                    Text(card.swarmId)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(card.status.rawValue)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+            ForEach(cards, id: \.swarmId) { card in
+                let cardAccent = statusAccent(card.status)
+                let name = reviewCardName(card.swarmId)
+
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(cardAccent)
+                        .frame(width: 2.5)
+                        .padding(.vertical, 3)
+
+                    HStack(spacing: 6) {
+                        Text(name)
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text(card.currentStepTitle)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .textShimmer(active: card.status == .running)
+
+                        Spacer(minLength: 4)
+
+                        if card.status == .running {
+                            ProgressView().controlSize(.mini).scaleEffect(0.7).frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: card.status == .completed ? "checkmark.circle.fill" : card.status == .failed ? "xmark.circle.fill" : "circle")
+                                .font(.system(size: 9))
+                                .foregroundStyle(cardAccent.opacity(0.8))
+                        }
+                    }
+                    .padding(.leading, 8)
+                    .padding(.vertical, 5)
+                    .padding(.trailing, 8)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.border.opacity(0.3), lineWidth: 0.5)
                 )
             }
         }
+    }
+
+    private func statusAccent(_ s: SwarmCardStatus) -> Color {
+        switch s {
+        case .running: return accent
+        case .completed: return DesignSystem.Colors.success
+        case .failed: return DesignSystem.Colors.error
+        case .idle: return .secondary
+        }
+    }
+
+    private func reviewCardName(_ swarmId: String) -> String {
+        let id = swarmId
+        if let dash = id.range(of: "-", options: .backwards),
+           id[dash.upperBound...].count <= 10,
+           id[dash.upperBound...].allSatisfy({ $0.isHexDigit || $0.isLetter }) {
+            return String(id[..<dash.lowerBound]).capitalized
+        }
+        return id.capitalized
     }
 
     // MARK: - Config Tab
 
     private var configTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                // Max Workers
-                configSection(title: "Max Workers", icon: "person.3.fill") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Max concurrent workers")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                            Stepper(value: $codeReviewPartitions, in: 1...12) {
-                                Text("\(codeReviewPartitions)")
-                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(reviewColor)
-                            }
-                            .fixedSize()
-                        }
-                        Text("The analysis LLM decides how many workers to spawn (up to this limit)")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-
-                // Max rounds
-                configSection(title: "Max Review Rounds", icon: "arrow.triangle.2.circlepath") {
+            VStack(alignment: .leading, spacing: 10) {
+                configCard(title: "Max Workers", icon: "person.3.fill") {
                     HStack {
-                        Stepper(value: $codeReviewMaxRounds, in: 1...10) {
-                            Text("\(codeReviewMaxRounds)")
-                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(reviewColor)
+                        Text("Concurrent workers")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Stepper(value: $codeReviewPartitions, in: 1...12) {
+                            Text("\(codeReviewPartitions)")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(accent)
                         }
                         .fixedSize()
-                        Text("rounds per autofix loop")
-                            .font(.system(size: 11))
+                    }
+                    Text("The analysis LLM decides how many to spawn (up to this limit)")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.quaternary)
+                }
+
+                configCard(title: "Max Rounds", icon: "arrow.triangle.2.circlepath") {
+                    HStack {
+                        Text("Autofix rounds")
+                            .font(.system(size: 10.5))
                             .foregroundStyle(.secondary)
+                        Spacer()
+                        Stepper(value: $codeReviewMaxRounds, in: 1...10) {
+                            Text("\(codeReviewMaxRounds)")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundStyle(accent)
+                        }
+                        .fixedSize()
                     }
                 }
 
-                // Analysis only toggle
-                configSection(title: "Mode", icon: "eye") {
+                configCard(title: "Mode", icon: "eye") {
                     Toggle(isOn: $codeReviewAnalysisOnly) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 1) {
                             Text("Analysis Only")
-                                .font(.system(size: 11, weight: .medium))
-                            Text("Skip autofix, report findings only")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
+                                .font(.system(size: 10.5, weight: .medium))
+                            Text("Report findings without applying fixes")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.quaternary)
                         }
                     }
                     .toggleStyle(.switch)
-                    .controlSize(.small)
+                    .controlSize(.mini)
                 }
 
-                // Analysis backend
-                configSection(title: "Analysis Backend", icon: "cpu") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Picker("", selection: $codeReviewAnalysisBackend) {
+                configCard(title: "Analysis Backend", icon: "cpu") {
+                    Picker("", selection: $codeReviewAnalysisBackend) {
+                        Text("Auto (same as Agent)").tag("auto")
+                        Text("Codex CLI").tag("codex-cli")
+                        Text("Claude Code").tag("claude-cli")
+                        Text("Anthropic API").tag("anthropic-api")
+                        Text("OpenAI API").tag("openai-api")
+                        Text("Google API").tag("google-api")
+                        Text("OpenRouter API").tag("openrouter-api")
+                    }
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+
+                if !codeReviewAnalysisOnly {
+                    configCard(title: "Execution Backend", icon: "hammer") {
+                        Picker("", selection: $codeReviewExecutionBackend) {
                             Text("Auto (same as Agent)").tag("auto")
                             Text("Codex CLI").tag("codex-cli")
                             Text("Claude Code").tag("claude-cli")
@@ -537,52 +596,36 @@ struct CodeReviewPanelView: View {
                         }
                         .pickerStyle(.menu)
                         .fixedSize()
-
-                        if codeReviewAnalysisBackend == "auto" {
-                            Text("Uses the same provider selected in Agent tab")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-
-                // Execution backend
-                if !codeReviewAnalysisOnly {
-                    configSection(title: "Execution Backend", icon: "hammer") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Picker("", selection: $codeReviewExecutionBackend) {
-                                Text("Auto (same as Agent)").tag("auto")
-                                Text("Codex CLI").tag("codex-cli")
-                                Text("Claude Code").tag("claude-cli")
-                                Text("Anthropic API").tag("anthropic-api")
-                                Text("OpenAI API").tag("openai-api")
-                                Text("Google API").tag("google-api")
-                                Text("OpenRouter API").tag("openrouter-api")
-                            }
-                            .pickerStyle(.menu)
-                            .fixedSize()
-
-                            if codeReviewExecutionBackend == "auto" {
-                                Text("Uses the same provider selected in Agent tab")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
                     }
                 }
             }
-            .padding(14)
+            .padding(12)
         }
     }
 
-    private func configSection<Content: View>(title: String, icon: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.primary)
-            content()
+    private func configCard<C: View>(title: String, icon: String, @ViewBuilder content: () -> C) -> some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(accent.opacity(0.5))
+                .frame(width: 2.5)
+                .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Image(systemName: icon)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(accent)
+                    Text(title.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                        .tracking(0.6)
+                }
+                content()
+            }
+            .padding(.leading, 8)
+            .padding(.vertical, 8)
+            .padding(.trailing, 10)
         }
-        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -590,7 +633,7 @@ struct CodeReviewPanelView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.15), lineWidth: 0.5)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
     }
 
@@ -604,30 +647,28 @@ struct CodeReviewPanelView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.right.circle")
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                         Text("Activate Review Mode")
                             .font(.system(size: 10, weight: .medium))
                     }
-                    .foregroundStyle(reviewColor)
+                    .foregroundStyle(accent)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(reviewColor.opacity(0.1))
-                    )
+                    .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
             } else {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(reviewColor)
-                Text("Review mode active")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(reviewColor)
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                    Text("Review mode active")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(accent)
             }
+
             Spacer()
 
-            // Commit & Push action button (shown when review is not running)
             if coderMode == .codeReviewMultiSwarm && !isTaskRunning {
                 Button {
                     onRunSlashCommand("""
@@ -639,25 +680,21 @@ struct CodeReviewPanelView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.system(size: 9))
                         Text("Commit & Push")
                             .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(reviewColor)
-                    )
+                    .background(accent, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .help("Commit fixes and push to remote")
             }
 
             if isTaskRunning && coderMode == .codeReviewMultiSwarm {
-                ProgressView()
-                    .controlSize(.small)
+                ProgressView().controlSize(.mini)
             }
         }
         .padding(.horizontal, 14)
@@ -670,26 +707,22 @@ struct CodeReviewPanelView: View {
         let ref = againstCommitRef.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ref.isEmpty else { return }
 
-        let autofixSuffix = autofixEnabled
+        let suffix = autofixEnabled
             ? "\nAfter analysis, apply all confirmed fixes. Run build/tests and iterate up to \(codeReviewMaxRounds) rounds until clean."
             : "\nAnalysis only — report findings with priority/confidence, do NOT apply fixes."
 
-        // Prefix prompt with [AGAINST:ref] so the provider knows the commit scope
         let prompt = """
             [AGAINST:\(ref)] Run deep code review on changes from \(ref) to HEAD.
             Scope: all modified, added, and renamed files in that range.
             Required output:
             1) prioritized findings (P0-P3) with file:line references,
             2) regression risks,
-            3) final verdict on patch correctness.\(autofixSuffix)
+            3) final verdict on patch correctness.\(suffix)
             """
 
-        // Switch to review mode if needed, then dispatch after mode settles
         if coderMode != .codeReviewMultiSwarm {
             onSelectMode(.codeReviewMultiSwarm)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                onRunSlashCommand(prompt)
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { onRunSlashCommand(prompt) }
         } else {
             onRunSlashCommand(prompt)
         }
@@ -710,94 +743,51 @@ struct CodeReviewPanelView: View {
                 id: "review-uncommitted",
                 slash: "/review-uncommitted",
                 label: "Full uncommitted audit",
-                prompt: """
-                    Run ultra-deep code review on all uncommitted changes (staged, unstaged, untracked).
-                    Required output:
-                    1) prioritized findings (P0-P3),
-                    2) impacted areas file-by-file,
-                    3) regression risks,
-                    4) final verdict on patch correctness.
-                    """
+                prompt: "Run ultra-deep code review on all uncommitted changes (staged, unstaged, untracked). Required output: 1) prioritized findings (P0-P3), 2) impacted areas file-by-file, 3) regression risks, 4) final verdict on patch correctness."
             ),
             SlashCommand(
                 id: "review-staged",
                 slash: "/review-staged",
                 label: "Staged diff only",
-                prompt: """
-                    Review ONLY staged changes.
-                    Ignore unstaged and untracked.
-                    Return severe and actionable findings with priority/confidence.
-                    """
+                prompt: "Review ONLY staged changes. Ignore unstaged and untracked. Return severe and actionable findings with priority/confidence."
             ),
             SlashCommand(
                 id: "review-autofix",
                 slash: "/review-autofix",
                 label: "Review + auto fix",
-                prompt: """
-                    Deep review uncommitted changes and directly fix all confirmed bugs.
-                    After fixes, run relevant build/tests and report the technical changelog.
-                    """
+                prompt: "Deep review uncommitted changes and directly fix all confirmed bugs. After fixes, run relevant build/tests and report the technical changelog."
             ),
             SlashCommand(
                 id: "review-autofix-commit",
                 slash: "/review-autofix-commit",
                 label: "Review + fix + commit",
-                prompt: """
-                    Run full review on staged/unstaged/untracked, apply necessary fixes and create final atomic commit.
-                    Requirements: no superfluous changes, green build/tests, specific commit message.
-                    """
+                prompt: "Run full review on staged/unstaged/untracked, apply necessary fixes and create final atomic commit. Requirements: no superfluous changes, green build/tests, specific commit message."
             ),
             SlashCommand(
                 id: "review-focus-ui",
                 slash: "/review-focus-ui",
                 label: "Focus UI flows",
-                prompt: """
-                    Focus on review realtime flows:
-                    - visible step-by-step stream,
-                    - live updated read/tool/terminal cards,
-                    - consistent todos without layout glitches.
-                    Fix any issues found and validate with tests/build.
-                    """
+                prompt: "Focus on review realtime flows: visible step-by-step stream, live updated read/tool/terminal cards, consistent todos without layout glitches. Fix any issues found and validate with tests/build."
             ),
         ]
     }
 
     // MARK: - Helpers
 
-    private func statusColor(for status: SwarmCardStatus) -> Color {
-        switch status {
-        case .running: return .blue
-        case .completed: return .green
-        case .failed: return .red
-        case .idle: return .orange
-        }
-    }
-
     private func isValidGitRef(_ ref: String) -> Bool {
         isValidGitRefFormat(ref)
     }
 }
 
-/// Git revision validation for "Against Commit": allows common revision expressions
-/// like `HEAD~1` and `main..feature`, while still blocking flag-style input and
-/// unsafe characters.
 func isValidGitRefFormat(_ ref: String) -> Bool {
     let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
-    // Reject refs that start with "-" to prevent git argument injection
     guard !trimmed.hasPrefix("-") else { return false }
-    // Reject refs ending with ".lock" (git rule)
     guard !trimmed.hasSuffix(".lock") else { return false }
-    // Reject refs ending with "." (git rule)
     guard !trimmed.hasSuffix(".") else { return false }
-    // Git refs cannot contain spaces, control chars, or certain special sequences
-    let invalidChars = CharacterSet.whitespacesAndNewlines
-        .union(.controlCharacters)
+    let invalidChars = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
     guard trimmed.unicodeScalars.allSatisfy({ !invalidChars.contains($0) }) else { return false }
-    // Reject obviously unsafe/special path syntaxes for this context.
-    let forbiddenSubstrings = [":", "?", "*", "[", "\\", "@{"]
-    for seq in forbiddenSubstrings {
-        if trimmed.contains(seq) { return false }
-    }
+    let forbidden = [":", "?", "*", "[", "\\", "@{"]
+    for seq in forbidden { if trimmed.contains(seq) { return false } }
     return true
 }

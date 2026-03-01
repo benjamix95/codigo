@@ -288,8 +288,14 @@ final class TaskActivityStore: ObservableObject {
 
     func addActivity(_ activity: TaskActivity) {
         pendingActivities.append(activity)
-        // Flush immediately for important state changes, throttle others
-        if activity.isRunning || pendingActivities.count >= 8 {
+        // Flush immediately for state changes that affect the UI (running tools,
+        // agent lifecycle, completions) so cards and streaming status update
+        // without the 50ms throttle delay.
+        let isImmediate = activity.isRunning
+            || pendingActivities.count >= 8
+            || activity.type == "agent"
+            || Self.isConcreteVisibleEventType(activity.type)
+        if isImmediate {
             flushPendingActivities()
         } else {
             flushTask?.cancel()

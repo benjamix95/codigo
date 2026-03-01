@@ -1,7 +1,45 @@
 import SwiftUI
 
-/// Inline card displayed in chat when a subagent is running or has completed.
-/// Shows subagent title, status, current step, and expandable event list.
+// MARK: - Shared Helpers
+
+private func roleDisplayName(from swarmId: String) -> String {
+    let id = swarmId
+    if let dashRange = id.range(of: "-", options: .backwards),
+       id[dashRange.upperBound...].count <= 10,
+       id[dashRange.upperBound...].allSatisfy({ $0.isHexDigit || $0.isLetter }) {
+        return String(id[..<dashRange.lowerBound]).capitalized
+    }
+    return id
+}
+
+private func roleIcon(for swarmId: String) -> String {
+    let lower = swarmId.lowercased()
+    if lower.hasPrefix("explorer") { return "magnifyingglass" }
+    if lower.hasPrefix("coder") { return "chevron.left.forwardslash.chevron.right" }
+    if lower.hasPrefix("debugger") { return "ladybug" }
+    if lower.hasPrefix("reviewer") { return "eye" }
+    if lower.hasPrefix("testwriter") || lower.hasPrefix("tester") { return "checkmark.shield" }
+    if lower.hasPrefix("docwriter") { return "doc.text" }
+    if lower.hasPrefix("securityauditor") || lower.hasPrefix("security") { return "lock.shield" }
+    if lower.hasPrefix("skill") { return "sparkle" }
+    if lower == "orchestrator" { return "cpu" }
+    return "gearshape"
+}
+
+private func statusAccentColor(for status: SwarmCardStatus) -> Color {
+    switch status {
+    case .running: return DesignSystem.Colors.swarmColor
+    case .completed: return DesignSystem.Colors.success
+    case .failed: return DesignSystem.Colors.error
+    case .idle: return .secondary
+    }
+}
+
+// MARK: - Live Card
+
+/// Compact inline card for a running or recently completed subagent, modeled
+/// after the Cursor-style task cards: left accent bar, role icon, live
+/// subtitle with shimmer, and an expandable event list.
 struct SubagentChatCardView: View {
     let card: SwarmLiveCardState
     let onOpenInPanel: () -> Void
@@ -17,108 +55,143 @@ struct SubagentChatCardView: View {
             .map { $0 }
     }
 
-    private var statusColor: Color {
-        switch card.status {
-        case .running: return DesignSystem.Colors.swarmColor
-        case .completed: return DesignSystem.Colors.success
-        case .failed: return DesignSystem.Colors.error
-        case .idle: return .secondary
+    private var name: String { roleDisplayName(from: card.swarmId) }
+    private var icon: String { roleIcon(for: card.swarmId) }
+    private var accent: Color { statusAccentColor(for: card.status) }
+
+    private var subtitle: String {
+        if card.currentStepTitle.isEmpty || card.currentStepTitle == "Awaiting events" {
+            return card.status == .running ? "Working…" : "Done"
         }
+        return card.currentStepTitle
     }
 
-    private var statusLabel: String {
-        switch card.status {
-        case .running: return "Running"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        case .idle: return "Idle"
-        }
+    private var durationText: String? {
+        guard let start = card.startedAt else { return nil }
+        let end = card.completedAt ?? Date()
+        let seconds = Int(end.timeIntervalSince(start))
+        if seconds < 1 { return nil }
+        if seconds < 60 { return "\(seconds)s" }
+        return "\(seconds / 60)m \(seconds % 60)s"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            headerRow
-            stepRow
+        HStack(spacing: 0) {
+            // Left accent bar
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(accent)
+                .frame(width: 3)
+                .padding(.vertical, 4)
 
-            if isExpanded {
-                expandedContent
+            VStack(alignment: .leading, spacing: 0) {
+                // Header row
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .frame(width: 14, height: 14)
+
+                    Text(name)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 4)
+
+                    if card.errorCount > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                            Text("\(card.errorCount)")
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        }
+                        .foregroundStyle(DesignSystem.Colors.error)
+                    }
+
+                    if card.status == .running {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.7)
+                            .frame(width: 12, height: 12)
+                    } else {
+                        Image(systemName: card.status == .completed ? "checkmark.circle.fill" : card.status == .failed ? "xmark.circle.fill" : "circle")
+                            .font(.system(size: 10))
+                            .foregroundStyle(accent.opacity(0.8))
+                    }
+
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Subtitle row
+                HStack(spacing: 4) {
+                    Text(subtitle)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .textShimmer(active: card.status == .running)
+
+                    Spacer(minLength: 0)
+
+                    if let dur = durationText {
+                        Text(dur)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.quaternary)
+                    }
+                }
+                .padding(.top, 2)
+
+                // Expanded event list
+                if isExpanded {
+                    expandedContent
+                        .padding(.top, 6)
+                }
             }
-
-            footerRow
+            .padding(.leading, 8)
+            .padding(.vertical, 7)
+            .padding(.trailing, 8)
         }
-        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(statusColor.opacity(0.25), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
-        .contentShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    // MARK: - Header
-
-    private var headerRow: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-
-            Text(card.swarmId)
-                .font(.system(size: 11, weight: .semibold))
-                .lineLimit(1)
-
-            Text(statusLabel)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(statusColor)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(statusColor.opacity(0.12), in: Capsule())
-
-            Spacer()
-
-            if card.activeOpsCount > 0 {
-                Text("\(card.activeOpsCount) ops")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
-
-            if card.errorCount > 0 {
-                Text("\(card.errorCount) err")
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.error)
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture {
+            withAnimation(.snappy(duration: 0.2)) {
+                isExpanded.toggle()
             }
         }
     }
 
-    // MARK: - Step
-
-    private var stepRow: some View {
-        Text(card.currentStepTitle)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(.secondary)
-            .lineLimit(isExpanded ? 4 : 1)
-            .textShimmer(active: card.status == .running)
-    }
-
-    // MARK: - Expanded Content
+    // MARK: - Expanded
 
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             if !visibleEvents.isEmpty {
                 ForEach(visibleEvents) { activity in
                     HStack(spacing: 5) {
                         Circle()
-                            .fill(activity.isRunning ? DesignSystem.Colors.warning : .secondary)
-                            .frame(width: 5, height: 5)
+                            .fill(activity.isRunning ? accent : .secondary.opacity(0.5))
+                            .frame(width: 4, height: 4)
                         Text(activity.title)
                             .font(.system(size: 10))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(.primary.opacity(0.85))
                             .lineLimit(1)
                             .textShimmer(active: activity.isRunning)
-                        Spacer()
+                        Spacer(minLength: 0)
                         Text(activity.timestamp.formatted(date: .omitted, time: .standard))
                             .font(.system(size: 8, design: .monospaced))
                             .foregroundStyle(.quaternary)
@@ -127,129 +200,102 @@ struct SubagentChatCardView: View {
             }
 
             if let summary = card.summary, !summary.isEmpty {
-                Rectangle()
-                    .fill(DesignSystem.Colors.border.opacity(0.4))
-                    .frame(height: 0.5)
-                    .padding(.vertical, 2)
                 Text(summary)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(6)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Footer
-
-    private var footerRow: some View {
-        HStack(spacing: 8) {
-            Button(isExpanded ? "Collapse" : "Expand") {
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.9)) {
-                    isExpanded.toggle()
-                }
-            }
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-
-            Button {
-                onOpenInPanel()
-            } label: {
-                HStack(spacing: 3) {
-                    Text("Open in Panel")
-                        .font(.system(size: 10, weight: .medium))
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 8, weight: .semibold))
-                }
-                .foregroundStyle(DesignSystem.Colors.swarmColor)
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            if let completedAt = card.completedAt {
-                Text(completedAt.formatted(date: .omitted, time: .standard))
-                    .font(.system(size: 9, design: .monospaced))
+                    .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
-            } else if let lastEvent = card.lastEventAt {
-                Text(lastEvent.formatted(date: .omitted, time: .standard))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .lineLimit(3)
+                    .padding(.top, 2)
             }
+
+            HStack {
+                Spacer()
+                Button {
+                    onOpenInPanel()
+                } label: {
+                    HStack(spacing: 3) {
+                        Text("Open in Panel")
+                            .font(.system(size: 9.5, weight: .medium))
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 8.5))
+                    }
+                    .foregroundStyle(accent)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 2)
         }
     }
 }
 
-/// Static card for persisted subagent snapshots (shown in chat history after task completes).
+// MARK: - Snapshot Card
+
+/// Static card for persisted subagent snapshots shown in chat history after task completes.
 struct SubagentSnapshotCardView: View {
     let snapshot: SubagentCardSnapshot
 
-    private var statusColor: Color {
-        switch snapshot.status {
-        case .running: return DesignSystem.Colors.swarmColor
-        case .completed: return DesignSystem.Colors.success
-        case .failed: return DesignSystem.Colors.error
-        case .idle: return .secondary
-        }
-    }
-
-    private var statusLabel: String {
-        switch snapshot.status {
-        case .running: return "Running"
-        case .completed: return "Completed"
-        case .failed: return "Failed"
-        case .idle: return "Idle"
-        }
-    }
+    private var name: String { roleDisplayName(from: snapshot.swarmId) }
+    private var icon: String { roleIcon(for: snapshot.swarmId) }
+    private var accent: Color { statusAccentColor(for: snapshot.status) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 7, height: 7)
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(accent)
+                .frame(width: 3)
+                .padding(.vertical, 4)
 
-                Text(snapshot.swarmId)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(accent)
+                        .frame(width: 14, height: 14)
 
-                Text(statusLabel)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(statusColor)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(statusColor.opacity(0.12), in: Capsule())
+                    Text(name)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-                if snapshot.errorCount > 0 {
-                    Label("\(snapshot.errorCount)", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9, weight: .semibold))
+                    Spacer(minLength: 4)
+
+                    if snapshot.errorCount > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                            Text("\(snapshot.errorCount)")
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        }
                         .foregroundStyle(DesignSystem.Colors.error)
+                    }
+
+                    Image(systemName: snapshot.status == .completed ? "checkmark.circle.fill" : snapshot.status == .failed ? "xmark.circle.fill" : "circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(accent.opacity(0.8))
                 }
 
-                Spacer()
-            }
+                Text(snapshot.title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
-            Text(snapshot.title)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            if let summary = snapshot.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(2)
+                if let summary = snapshot.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
             }
+            .padding(.leading, 8)
+            .padding(.vertical, 7)
+            .padding(.trailing, 8)
         }
-        .padding(10)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(statusColor.opacity(0.25), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.4), lineWidth: 0.5)
         )
     }
 }

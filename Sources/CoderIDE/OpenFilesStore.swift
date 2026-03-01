@@ -129,6 +129,20 @@ final class OpenFilesStore: ObservableObject {
         loadErrors[path] = nil
     }
 
+    /// Called by MonacoEditorView bridge when the user edits in the WebView.
+    /// Updates internal content and dirty state without triggering a
+    /// round-trip back to Monaco (the editor already has the new value).
+    func contentDidChangeFromMonaco(_ content: String, for path: String) {
+        fileContents[path] = content
+        let snapshot = diskSnapshot[path] ?? ""
+        if content == snapshot {
+            dirtyPaths.remove(path)
+        } else {
+            dirtyPaths.insert(path)
+        }
+        loadErrors[path] = nil
+    }
+
     @discardableResult
     func save(path: String) -> Bool {
         let content = fileContents[path] ?? ""

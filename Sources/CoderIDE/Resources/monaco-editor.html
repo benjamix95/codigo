@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  #container { width: 100%; height: 100%; }
+  #loading {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    font-size: 13px; color: rgba(255,255,255,0.35);
+    background: #1a1a2e;
+  }
+</style>
+</head>
+<body>
+<div id="loading">Loading editor...</div>
+<div id="container" style="display:none;"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const DEBOUNCE_MS = 250;
+  let editor = null;
+  let currentPath = '';
+  let isSettingValue = false;
+  let debounceTimer = null;
+
+  function postToSwift(type, payload) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.monacobridge) {
+      window.webkit.messageHandlers.monacobridge.postMessage({ type: type, payload: payload });
+    }
+  }
+
+  const EXT_TO_LANG = {
+    'swift':'swift','py':'python','pyw':'python','js':'javascript','jsx':'javascript',
+    'ts':'typescript','tsx':'typescript','json':'json','jsonc':'json',
+    'md':'markdown','mdx':'markdown','html':'html','htm':'html',
+    'css':'css','scss':'scss','less':'less','sass':'scss',
+    'rs':'rust','go':'go','java':'java','kt':'kotlin','kts':'kotlin',
+    'c':'c','h':'c','cpp':'cpp','cc':'cpp','cxx':'cpp','hpp':'cpp',
+    'rb':'ruby','sh':'shell','bash':'shell','zsh':'shell','fish':'shell',
+    'yml':'yaml','yaml':'yaml','toml':'ini','xml':'xml','svg':'xml',
+    'sql':'sql','graphql':'graphql','gql':'graphql',
+    'dockerfile':'dockerfile','proto':'protobuf',
+    'lua':'lua','r':'r','pl':'perl','php':'php',
+    'ex':'elixir','exs':'elixir','erl':'erlang',
+    'zig':'zig','nim':'nim','dart':'dart','vue':'html',
+    'svelte':'html','astro':'html',
+    'txt':'plaintext','log':'plaintext','csv':'plaintext',
+    'env':'ini','gitignore':'ini','editorconfig':'ini',
+    'plist':'xml','xcconfig':'ini','pbxproj':'ini',
+    'lock':'json','resolved':'json'
+  };
+
+  function langForPath(path) {
+    if (!path) return 'plaintext';
+    const base = path.split('/').pop() || '';
+    if (base === 'Dockerfile' || base.startsWith('Dockerfile.')) return 'dockerfile';
+    if (base === 'Makefile' || base === 'GNUmakefile') return 'makefile';
+    if (base === 'CMakeLists.txt') return 'cmake';
+    if (base === 'Podfile' || base === 'Gemfile' || base === 'Rakefile') return 'ruby';
+    if (base === 'Package.swift') return 'swift';
+    const ext = base.includes('.') ? base.split('.').pop().toLowerCase() : '';
+    return EXT_TO_LANG[ext] || 'plaintext';
+  }
+
+  // Cursor-inspired dark theme
+  monaco.editor.defineTheme && void 0; // will define after require
+
+  require.config({
+    paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' }
+  });
+
+  require(['vs/editor/editor.main'], function() {
+    monaco.editor.defineTheme('codigo-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6A737D', fontStyle: 'italic' },
+        { token: 'keyword', foreground: 'C586C0' },
+        { token: 'string', foreground: 'CE9178' },
+        { token: 'number', foreground: 'B5CEA8' },
+        { token: 'type', foreground: '4EC9B0' },
+        { token: 'function', foreground: 'DCDCAA' },
+        { token: 'variable', foreground: '9CDCFE' },
+        { token: 'constant', foreground: '4FC1FF' },
+        { token: 'operator', foreground: 'D4D4D4' }
+      ],
+      colors: {
+        'editor.background': '#1a1a2e',
+        'editor.foreground': '#d4d4d4',
+        'editor.lineHighlightBackground': '#ffffff08',
+        'editor.selectionBackground': '#264f78',
+        'editor.inactiveSelectionBackground': '#3a3d41',
+        'editorLineNumber.foreground': '#4a4a6a',
+        'editorLineNumber.activeForeground': '#c6c6c6',
+        'editorCursor.foreground': '#aeafad',
+        'editor.selectionHighlightBackground': '#add6ff26',
+        'editorIndentGuide.background': '#ffffff10',
+        'editorIndentGuide.activeBackground': '#ffffff30',
+        'editorBracketMatch.background': '#ffffff10',
+        'editorBracketMatch.border': '#888888',
+        'editorGutter.background': '#1a1a2e',
+        'minimap.background': '#1a1a2e',
+        'scrollbarSlider.background': '#ffffff15',
+        'scrollbarSlider.hoverBackground': '#ffffff25',
+        'scrollbarSlider.activeBackground': '#ffffff35'
+      }
+    });
+
+    monaco.editor.defineTheme('codigo-light', {
+      base: 'vs',
+      inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6A737D', fontStyle: 'italic' },
+        { token: 'keyword', foreground: 'AF00DB' },
+        { token: 'string', foreground: 'A31515' },
+        { token: 'number', foreground: '098658' },
+        { token: 'type', foreground: '267F99' },
+        { token: 'function', foreground: '795E26' },
+        { token: 'variable', foreground: '001080' }
+      ],
+      colors: {
+        'editor.background': '#f8f8fa',
+        'editor.foreground': '#1e1e1e',
+        'editor.lineHighlightBackground': '#00000008',
+        'editorLineNumber.foreground': '#b0b0b0',
+        'editorLineNumber.activeForeground': '#333333',
+        'editorGutter.background': '#f8f8fa',
+        'minimap.background': '#f8f8fa'
+      }
+    });
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('container').style.display = 'block';
+
+    editor = monaco.editor.create(document.getElementById('container'), {
+      value: '',
+      language: 'plaintext',
+      theme: 'codigo-dark',
+      minimap: { enabled: true, renderCharacters: false, scale: 1 },
+      lineNumbers: 'on',
+      wordWrap: 'off',
+      tabSize: 4,
+      insertSpaces: true,
+      fontSize: 13,
+      lineHeight: 20,
+      fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+      fontLigatures: true,
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      renderWhitespace: 'selection',
+      bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: true, indentation: true },
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorSmoothCaretAnimation: 'on',
+      cursorStyle: 'line',
+      cursorWidth: 2,
+      roundedSelection: true,
+      padding: { top: 8, bottom: 8 },
+      scrollbar: {
+        verticalScrollbarSize: 10,
+        horizontalScrollbarSize: 10,
+        useShadows: false,
+        verticalHasArrows: false,
+        horizontalHasArrows: false
+      },
+      overviewRulerLanes: 0,
+      hideCursorInOverviewRuler: true,
+      overviewRulerBorder: false,
+      contextmenu: true,
+      mouseWheelZoom: true,
+      suggestOnTriggerCharacters: true,
+      quickSuggestions: true,
+      folding: true,
+      foldingHighlight: true,
+      showFoldingControls: 'mouseover',
+      links: true,
+      colorDecorators: true,
+      renderLineHighlight: 'line',
+      renderLineHighlightOnlyWhenFocus: false,
+      stickyScroll: { enabled: true }
+    });
+
+    // Inline ghost-text completion provider (Tab to accept, like Cursor)
+    var inlineProvider = monaco.languages.registerInlineCompletionsProvider('*', {
+      provideInlineCompletions: function(model, position, context, token) {
+        return { items: [] };
+      },
+      freeInlineCompletions: function() {}
+    });
+
+    // "Fix in Chat" and "Add to Chat" context menu actions
+    editor.addAction({
+      id: 'codigo-fix-in-chat',
+      label: 'Fix in Chat',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF],
+      contextMenuGroupId: 'codigo',
+      contextMenuOrder: 1,
+      run: function(ed) {
+        var sel = ed.getModel().getValueInRange(ed.getSelection());
+        var line = ed.getPosition().lineNumber;
+        postToSwift('fixInChat', {
+          path: currentPath,
+          selection: sel || ed.getModel().getLineContent(line),
+          line: line
+        });
+      }
+    });
+
+    editor.addAction({
+      id: 'codigo-add-to-chat',
+      label: 'Add to Chat',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyL],
+      contextMenuGroupId: 'codigo',
+      contextMenuOrder: 2,
+      run: function(ed) {
+        var sel = ed.getModel().getValueInRange(ed.getSelection());
+        postToSwift('addToChat', {
+          path: currentPath,
+          selection: sel,
+          line: ed.getPosition().lineNumber
+        });
+      }
+    });
+
+    editor.onDidChangeModelContent(function(e) {
+      if (isSettingValue) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function() {
+        postToSwift('contentChanged', {
+          path: currentPath,
+          content: btoa(unescape(encodeURIComponent(editor.getValue())))
+        });
+      }, DEBOUNCE_MS);
+    });
+
+    editor.onDidChangeCursorPosition(function(e) {
+      postToSwift('cursorChanged', {
+        line: e.position.lineNumber,
+        column: e.position.column
+      });
+    });
+
+    editor.onDidChangeCursorSelection(function(e) {
+      const sel = e.selection;
+      postToSwift('selectionChanged', {
+        startLine: sel.startLineNumber,
+        startColumn: sel.startColumn,
+        endLine: sel.endLineNumber,
+        endColumn: sel.endColumn
+      });
+    });
+
+    // Cmd+S override
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+      postToSwift('save', { path: currentPath });
+    });
+
+    postToSwift('ready', {});
+  });
+
+  // API called from Swift via evaluateJavaScript
+  window.monacoAPI = {
+    setValue: function(b64Content, filePath) {
+      if (!editor) return;
+      isSettingValue = true;
+      currentPath = filePath || '';
+      const content = decodeURIComponent(escape(atob(b64Content)));
+      const lang = langForPath(filePath);
+      const model = editor.getModel();
+      if (model) {
+        monaco.editor.setModelLanguage(model, lang);
+      }
+      editor.setValue(content);
+      editor.setScrollTop(0);
+      editor.setPosition({ lineNumber: 1, column: 1 });
+      editor.focus();
+      isSettingValue = false;
+    },
+
+    setTheme: function(themeName) {
+      if (!editor) return;
+      monaco.editor.setTheme(themeName);
+    },
+
+    setLanguage: function(lang) {
+      if (!editor) return;
+      const model = editor.getModel();
+      if (model) monaco.editor.setModelLanguage(model, lang);
+    },
+
+    setFontSize: function(size) {
+      if (!editor) return;
+      editor.updateOptions({ fontSize: size });
+    },
+
+    setFontFamily: function(family) {
+      if (!editor) return;
+      editor.updateOptions({ fontFamily: family });
+    },
+
+    setReadOnly: function(readOnly) {
+      if (!editor) return;
+      editor.updateOptions({ readOnly: readOnly });
+    },
+
+    setWordWrap: function(wrap) {
+      if (!editor) return;
+      editor.updateOptions({ wordWrap: wrap ? 'on' : 'off' });
+    },
+
+    setMinimap: function(enabled) {
+      if (!editor) return;
+      editor.updateOptions({ minimap: { enabled: enabled } });
+    },
+
+    focus: function() {
+      if (!editor) return;
+      editor.focus();
+    },
+
+    revealLine: function(line) {
+      if (!editor) return;
+      editor.revealLineInCenter(line);
+    },
+
+    getContent: function() {
+      if (!editor) return '';
+      return btoa(unescape(encodeURIComponent(editor.getValue())));
+    }
+  };
+})();
+</script>
+</body>
+</html>

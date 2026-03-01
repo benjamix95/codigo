@@ -727,7 +727,7 @@ struct ChatPanelView: View {
             || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
     }
 
-    @State private var coderMode: CoderMode = .agent
+    @Binding var coderMode: CoderMode
     @State private var inputText = ""
     @State private var isInputFocused: Bool = false
     @State private var draftSaveTask: Task<Void, Never>?
@@ -2724,6 +2724,11 @@ struct ChatPanelView: View {
         // before we attach subagent cards or end the task.
         flushStreamingContent()
 
+        // Flush pending task activities so subagent swarm cards are fully
+        // populated before we snapshot them into the assistant message.
+        flushPendingTaskActivities()
+        taskActivityStore.flushPending()
+
         let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {
@@ -2736,8 +2741,7 @@ struct ChatPanelView: View {
     }
 
     private func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
-        let nonOrchestrator = cards.filter { $0.swarmId != "orchestrator" }
-        return nonOrchestrator.isEmpty ? cards : nonOrchestrator
+        return cards
     }
 
     private func interruptTask(for targetConversationId: UUID?) {
@@ -3780,7 +3784,20 @@ struct ChatPanelView: View {
     private func enqueueTaskActivity(_ activity: TaskActivity) {
         pendingTaskActivities.append(activity)
         logTaskBacklogIfNeeded(context: "enqueue_activity")
-        scheduleTaskActivityFlush()
+
+        // Flush immediately for events that change visible status (agent
+        // lifecycle, tool starts/completions) so the streaming bar and
+        // subagent cards update without the 100ms throttle delay.
+        let needsImmediateFlush = activity.type == "agent"
+            || activity.isRunning
+            || TaskActivityStore.isConcreteVisibleEventType(activity.type)
+        if needsImmediateFlush {
+            taskFlushTask?.cancel()
+            taskFlushTask = nil
+            flushPendingTaskActivities()
+        } else {
+            scheduleTaskActivityFlush()
+        }
     }
 
     @MainActor

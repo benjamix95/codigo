@@ -10,19 +10,14 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "CoderEngine"),
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.2.0"),
-        .package(
-            url: "https://github.com/mchakravarty/CodeEditorView.git",
-            revision: "5386056ab53d43363083cb96069715a9608aa048"
-        )
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.2.0")
     ],
     targets: [
         .executableTarget(
             name: "CoderIDE",
             dependencies: [
                 .product(name: "CoderEngine", package: "CoderEngine"),
-                .product(name: "SwiftTerm", package: "SwiftTerm"),
-                .product(name: "CodeEditorView", package: "CodeEditorView")
+                .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
             path: "Sources/CoderIDE",
             exclude: ["Info.plist"],
