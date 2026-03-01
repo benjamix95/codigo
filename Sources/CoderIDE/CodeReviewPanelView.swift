@@ -50,23 +50,16 @@ struct CodeReviewPanelView: View {
     }
 
     private func metrics() -> Metrics {
-        guard coderMode == .codeReviewMultiSwarm else {
+        guard coderMode == .codeReviewMultiSwarm, isTaskRunning else {
             return Metrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
         }
-        let cards = SwarmLiveReducer.sorted(states: taskActivityStore.swarmCardStates())
+        let cards = SwarmLiveReducer
+            .sorted(states: taskActivityStore.swarmCardStates())
+            .filter { $0.swarmId.hasPrefix("review-") }
         let active = cards.filter { $0.status == .running }.count
         let activities = taskActivityStore.activities
 
-        let workerActivities: [TaskActivity]
-        if let boundary = activities.lastIndex(where: { $0.type == "review-fix-round" }) {
-            let after = activities[(activities.index(after: boundary))...]
-            let plans = after.filter { $0.type == "review-worker-plan" }
-            workerActivities = plans.isEmpty
-                ? activities[...boundary].filter { $0.type == "review-worker-plan" }
-                : Array(plans)
-        } else {
-            workerActivities = activities.filter { $0.type == "review-worker-plan" }
-        }
+        let workerActivities = selectReviewWorkerActivities(from: activities)
 
         let workers: [WorkerRow] = workerActivities.compactMap { a in
             guard let wid = a.payload["worker_id"],
@@ -790,4 +783,32 @@ func isValidGitRefFormat(_ ref: String) -> Bool {
     let forbidden = [":", "?", "*", "[", "\\", "@{"]
     for seq in forbidden { if trimmed.contains(seq) { return false } }
     return true
+}
+
+func latestReviewWorkerPlanBatch(in activities: [TaskActivity], windowSeconds: TimeInterval = 2.0)
+    -> [TaskActivity]
+{
+    let plans = activities
+        .filter { $0.type == "review-worker-plan" }
+        .sorted { $0.timestamp < $1.timestamp }
+    guard let last = plans.last else { return [] }
+    let cutoff = last.timestamp.addingTimeInterval(-windowSeconds)
+    return plans.filter { $0.timestamp >= cutoff }
+}
+
+func selectReviewWorkerActivities(from activities: [TaskActivity]) -> [TaskActivity] {
+    guard !activities.isEmpty else { return [] }
+
+    if let boundary = activities.lastIndex(where: { $0.type == "review-fix-round" }) {
+        let after = Array(activities[(activities.index(after: boundary))...])
+        let plansAfterBoundary = latestReviewWorkerPlanBatch(in: after)
+        if !plansAfterBoundary.isEmpty {
+            return plansAfterBoundary
+        }
+
+        let upToBoundary = Array(activities[...boundary])
+        return latestReviewWorkerPlanBatch(in: upToBoundary)
+    }
+
+    return latestReviewWorkerPlanBatch(in: activities)
 }

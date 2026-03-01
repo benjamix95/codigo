@@ -262,7 +262,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     // ── Phase 3–5: Fix → Test → Re-Review Loop ─────────────────
                     var reviewRound = 0
                     var currentTasks = tasks
-                    var lastTestPassed = false
+                    var lastTestResult: TestExecutionResult = .inconclusive(reason: "No test rounds executed.")
+                    var finalReviewState: ReviewFindingsState?
 
                     reviewLoop: while reviewRound < config.maxReviewRounds {
                         if isCancelled() { break reviewLoop }
@@ -301,6 +302,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             waitWhilePaused: waitWhilePaused
                         )
 
+                        lastTestResult = testResult
                         let testPassed: Bool
                         switch testResult {
                         case .passed:
@@ -312,16 +314,13 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         case .failed:
                             testPassed = false
                         }
-                        lastTestPassed = testPassed
-
                         if isCancelled() { break reviewLoop }
 
                         // ── Phase 5: Re-Review ─────────────────────────────────
-                        // Skip re-review on the final round — there's no subsequent
-                        // fix phase to act on the findings.
-                        guard reviewRound < config.maxReviewRounds else { break reviewLoop }
-
-                        continuation.yield(.textDelta("\n### Re-Review Phase (Round \(reviewRound))\n\n"))
+                        let isFinalRound = reviewRound >= config.maxReviewRounds
+                        continuation.yield(.textDelta(
+                            "\n### Re-Review Phase (Round \(reviewRound)\(isFinalRound ? " - Final Verification" : ""))\n\n"
+                        ))
 
                         let modifiedFiles = WorkspaceScanner.listUncommittedSourceFiles(
                             workspacePath: workspacePath,
@@ -330,6 +329,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                         if modifiedFiles.isEmpty {
                             continuation.yield(.textDelta("No modified files remain. Review complete.\n"))
+                            finalReviewState = .clean
                             break reviewLoop
                         }
 
@@ -350,14 +350,22 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         switch reReviewOutcome.findings {
                         case .clean:
                             continuation.yield(.textDelta("\n**All clear.** No new issues found.\n"))
+                            finalReviewState = .clean
                             break reviewLoop
                         case .inconclusive(let reason):
                             continuation.yield(.textDelta(
                                 "\n**Re-review inconclusive:** \(reason). Review stopped to avoid unsafe fallback.\n"
                             ))
+                            finalReviewState = .inconclusive(reason: reason)
                             break reviewLoop
                         case .issues:
-                            break // continue processing below
+                            finalReviewState = .issues
+                            if isFinalRound {
+                                continuation.yield(.textDelta(
+                                    "\n**Issues remain after final round.** Maximum rounds reached; manual follow-up required.\n"
+                                ))
+                                break reviewLoop
+                            }
                         }
 
                         // Parse new dynamic tasks for next round
@@ -371,7 +379,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         case .tasks(let newTasks) where !newTasks.isEmpty:
                             currentTasks = newTasks
                         case .tasks, .noFixes:
-                            continuation.yield(.textDelta("\n**All clear.** No actionable fix tasks for next round.\n"))
+                            let reason = "Re-review flagged issues but returned no actionable tasks for another round."
+                            continuation.yield(.textDelta(
+                                "\n**Re-review inconsistent:** \(reason) Stopping for safety.\n"
+                            ))
+                            finalReviewState = .inconclusive(reason: reason)
                             break reviewLoop
                         case .noPayload:
                             continuation.yield(.textDelta(
@@ -399,8 +411,31 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     if isCancelled() {
                         continuation.yield(.textDelta("\n**Review cancelled.**\n"))
                     } else {
-                        let testVerdict = lastTestPassed ? "Tests passing." : "Tests failing — manual intervention may be needed."
-                        continuation.yield(.textDelta("\n---\n**Multi-swarm code review complete.** \(testVerdict)\n"))
+                        let testVerdict: String
+                        switch lastTestResult {
+                        case .passed:
+                            testVerdict = "Tests passing."
+                        case .failed:
+                            testVerdict = "Tests failing — manual intervention may be needed."
+                        case .inconclusive(let reason):
+                            testVerdict = "Test status inconclusive (\(reason))."
+                        }
+
+                        let reviewVerdict: String
+                        switch finalReviewState {
+                        case .clean:
+                            reviewVerdict = "Re-review clean."
+                        case .issues:
+                            reviewVerdict = "Re-review found remaining issues."
+                        case .inconclusive(let reason):
+                            reviewVerdict = "Re-review inconclusive (\(reason))."
+                        case nil:
+                            reviewVerdict = "Re-review not executed."
+                        }
+
+                        continuation.yield(.textDelta(
+                            "\n---\n**Multi-swarm code review complete.** \(testVerdict) \(reviewVerdict)\n"
+                        ))
                     }
 
                     continuation.yield(.completed)
@@ -1027,18 +1062,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     /// (e.g. "dismissal" should not match "sql", "submission" should not match "permission").
     ///
     /// Priority order:
-    /// 1. Check clean/no-issues phrases FIRST (most reliable, handles negated contexts like
-    ///    "No critical issues found" which would otherwise false-positive on "critical").
-    /// 2. Check inconclusive phrases.
-    /// 3. Check strict multi-word issue indicators.
-    /// 4. Check word-boundary single-word indicators last (weakest signal).
+    /// 1. Detect clean/no-issues phrases and strip them from issue scanning.
+    /// 2. Detect strong/weak issue indicators on stripped text.
+    /// 3. If issue indicators exist, treat output as `.issues` (conservative).
+    /// 4. Fallback to clean / inconclusive.
     private static func findingsContainIssues(_ text: String) -> ReviewFindingsState {
         let lower = text.lowercased()
 
-        // ── 1. Check clean/no-issues phrases FIRST ──────────────────────
-        // These are the most reliable signals because they're multi-word phrases
-        // that explicitly negate issues. Must be checked before issue indicators
-        // to prevent false positives like "No critical issues" matching "critical".
+        // ── 1. Detect clean/no-issues phrases and strip from issue scan ──
         let noIssuesIndicators = [
             "no issues found",
             "no issues were found",
@@ -1075,8 +1106,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             "no actionable issues",
             "no remaining issues"
         ]
-        if noIssuesIndicators.contains(where: { lower.contains($0) }) {
-            return .clean
+        let hasCleanIndicator = noIssuesIndicators.contains(where: { lower.contains($0) })
+        let issueScanText = noIssuesIndicators.reduce(lower) { partial, phrase in
+            partial.replacingOccurrences(of: phrase, with: " ")
         }
 
         // ── 2. Check inconclusive phrases ───────────────────────────────
@@ -1088,13 +1120,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             "cannot evaluate",
             "unclear"
         ]
-        if inconclusiveIndicators.contains(where: { lower.contains($0) }) {
-            return .inconclusive(reason: "Review text contained inconclusive language.")
-        }
+        let hasInconclusiveIndicator = inconclusiveIndicators.contains(where: { lower.contains($0) })
 
         // ── 3. Check strict multi-word issue indicators ─────────────────
-        // These are strong signals that real issues exist. Checked after clean
-        // phrases so "No critical issues found" is correctly handled.
+        // Scan the text with clean phrases removed so negated clean sentences
+        // don't trigger false positives.
         let strictIssueIndicators = [
             "critical",
             "high severity",
@@ -1117,24 +1147,46 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             "thread-safety",
             "use-after-free"
         ]
-        if strictIssueIndicators.contains(where: { lower.contains($0) }) {
-            return .issues
-        }
+        let hasStrictIssueIndicator = strictIssueIndicators.contains(where: { issueScanText.contains($0) })
 
         // ── 4. Word-boundary indicators (weakest signal) ────────────────
         let wordBoundaryIndicators = [
             "leak", "exception", "permission", "authorization", "authentication"
         ]
-        if wordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
-            return .issues
+        let hasWordBoundaryIssueIndicator = wordBoundaryIndicators.contains {
+            containsWord(issueScanText, word: $0)
         }
 
         let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
-        if weakWordBoundaryIndicators.contains(where: { containsWord(lower, word: $0) }) {
+        let hasWeakWordBoundaryIssueIndicator = weakWordBoundaryIndicators.contains {
+            containsWord(issueScanText, word: $0)
+        }
+
+        if hasStrictIssueIndicator || hasWordBoundaryIssueIndicator || hasWeakWordBoundaryIssueIndicator {
             return .issues
         }
 
+        if hasCleanIndicator {
+            return .clean
+        }
+
+        if hasInconclusiveIndicator {
+            return .inconclusive(reason: "Review text contained inconclusive language.")
+        }
+
         return .inconclusive(reason: "No robust issue indicators found in re-review output.")
+    }
+
+    /// Testing hook for findings classification without exposing private enum internals.
+    static func findingsStateDebugLabel(for text: String) -> String {
+        switch findingsContainIssues(text) {
+        case .issues:
+            return "issues"
+        case .clean:
+            return "clean"
+        case .inconclusive:
+            return "inconclusive"
+        }
     }
 
     /// Pre-compiled word-boundary regex cache to avoid recompilation on every call.

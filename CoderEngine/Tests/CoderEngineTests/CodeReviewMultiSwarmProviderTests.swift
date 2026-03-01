@@ -194,4 +194,27 @@ final class CodeReviewMultiSwarmProviderTests: XCTestCase {
         XCTAssertTrue(files.isEmpty)
         XCTAssertNotNil(error)
     }
+
+    // MARK: - findingsContainIssues
+
+    func testFindingsContainIssues_cleanPhraseOnly_returnsClean() {
+        let state = CodeReviewMultiSwarmProvider.findingsStateDebugLabel(
+            for: "No issues found. Everything looks good."
+        )
+        XCTAssertEqual(state, "clean")
+    }
+
+    func testFindingsContainIssues_noCriticalIssuesPhrase_doesNotFalsePositive() {
+        let state = CodeReviewMultiSwarmProvider.findingsStateDebugLabel(
+            for:
+            "No critical issues found in the reviewed files."
+        )
+        XCTAssertEqual(state, "clean")
+    }
+
+    func testFindingsContainIssues_mixedCleanAndIssueText_returnsIssues() {
+        let text = "No critical issues in module A, but a security vulnerability remains in auth flow."
+        let state = CodeReviewMultiSwarmProvider.findingsStateDebugLabel(for: text)
+        XCTAssertEqual(state, "issues")
+    }
 }
