@@ -300,7 +300,10 @@ struct CodeReviewPanelView: View {
                 Button {
                     if coderMode != .codeReviewMultiSwarm {
                         onSelectMode(.codeReviewMultiSwarm)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        // Yield to the next main-actor turn so SwiftUI processes
+                        // the mode change before the command runs (deterministic
+                        // vs. the previous hardcoded 150ms asyncAfter race).
+                        Task { @MainActor in
                             onRunSlashCommand(cmd.prompt)
                         }
                     } else {
@@ -715,7 +718,9 @@ struct CodeReviewPanelView: View {
 
         if coderMode != .codeReviewMultiSwarm {
             onSelectMode(.codeReviewMultiSwarm)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { onRunSlashCommand(prompt) }
+            Task { @MainActor in
+                onRunSlashCommand(prompt)
+            }
         } else {
             onRunSlashCommand(prompt)
         }

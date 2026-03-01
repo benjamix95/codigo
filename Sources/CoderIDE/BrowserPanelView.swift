@@ -317,7 +317,7 @@ struct BrowserPanelView: View {
     }
 
     private func actionButtons(store: BrowserSessionStore) -> some View {
-        HStack(spacing: 1) {
+        HStack(spacing: 6) {
             tbBtn(
                 icon: tabManager.isBookmarked(store.currentURL) ? "star.fill" : "star",
                 disabled: store.currentURL.isEmpty,
@@ -382,6 +382,7 @@ struct BrowserPanelView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .frame(width: 22)
@@ -408,6 +409,7 @@ struct BrowserPanelView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .frame(width: 22)

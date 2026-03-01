@@ -655,6 +655,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             }
             guard !scopedFiles.isEmpty else {
                 invalidEntries += 1
+                let droppedList = filteredFiles.joined(separator: ", ")
+                NSLog("[CodeReview] Task '%@' dropped: files [%@] outside review scope or already claimed by another worker.", id, droppedList)
                 continue
             }
             let normalizedDescription = description.isEmpty
@@ -1024,12 +1026,24 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
             return ([], "Failed to run git diff: \(error.localizedDescription)")
         }
 
+        // Safety timeout: terminate git if it hangs (network FS, lock contention, etc.)
+        let gitTimeoutSeconds: TimeInterval = 30
+        let timeoutItem = DispatchWorkItem {
+            guard process.isRunning else { return }
+            process.terminate()
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + gitTimeoutSeconds, execute: timeoutItem)
+
         // Read stdout BEFORE waitUntilExit to prevent pipe buffer deadlock
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        timeoutItem.cancel()
         errPipe.fileHandleForReading.readabilityHandler = nil
 
         guard process.terminationStatus == 0 else {
+            if process.terminationReason == .uncaughtSignal {
+                return ([], "git diff timed out after \(Int(gitTimeoutSeconds))s for ref '\(ref)'")
+            }
             errLock.lock()
             let capturedErrData = errData
             errLock.unlock()

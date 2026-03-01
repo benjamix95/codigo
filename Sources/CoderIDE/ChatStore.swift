@@ -20,10 +20,12 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
 
     init(from card: SwarmLiveCardState) {
         self.swarmId = card.swarmId
-        self.status = card.status == .running ? .completed : card.status
+        // Preserve the real status — forcing .running → .completed hides failures.
+        // A card that was still running at snapshot time keeps its actual state.
+        self.status = card.status
         self.title = card.currentStepTitle
         self.detail = card.currentDetail
-        self.summary = card.summary ?? (card.status == .running ? "Completed (snapshotted while running)" : nil)
+        self.summary = card.summary
         self.errorCount = card.errorCount
     }
 }

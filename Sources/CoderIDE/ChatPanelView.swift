@@ -2082,6 +2082,12 @@ struct ChatPanelView: View {
         .buttonStyle(.plain)
     }
 
+    /// Stable scroll anchor placed at the very bottom of the messages LazyVStack.
+    /// Scrolling to this instead of individual message IDs avoids LazyVStack
+    /// height-estimation thrashing that causes an infinite scroll-up loop
+    /// when the conversation has more than one exchange.
+    private let chatScrollBottomAnchorId = "chat-scroll-bottom-anchor"
+
     // MARK: - Messages Area
     private var messagesArea: some View {
         ScrollViewReader { proxy in
@@ -2202,19 +2208,13 @@ struct ChatPanelView: View {
     }
 
     private func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
-        if let last = chatStore.conversation(for: conversationId)?.messages.last,
-           isFollowingLive
-        {
-            scheduleAutoScroll(proxy: proxy, target: last.id, delay: 0.016)
-        }
+        guard isFollowingLive else { return }
+        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.016)
     }
 
     private func handleMessagesCountChange(proxy: ScrollViewProxy) {
-        if let last = chatStore.conversation(for: conversationId)?.messages.last,
-           isFollowingLive
-        {
-            scheduleAutoScroll(proxy: proxy, target: last.id, animated: true, delay: 0.05)
-        }
+        guard isFollowingLive else { return }
+        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, animated: true, delay: 0.05)
     }
 
     private func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
@@ -2326,6 +2326,12 @@ struct ChatPanelView: View {
                 .padding(.bottom, 8)
                 .id("plan-board")
             }
+            // Invisible anchor at the very bottom – scrollTo targets this
+            // instead of a message id so that LazyVStack doesn't thrash
+            // height estimates for off-screen items.
+            Color.clear
+                .frame(height: 1)
+                .id(chatScrollBottomAnchorId)
         }
     }
 
@@ -2662,10 +2668,7 @@ struct ChatPanelView: View {
 
     private func liveScrollTarget() -> AnyHashable? {
         guard isLoadingForCurrentConversation else { return nil }
-        if let last = chatStore.conversation(for: conversationId)?.messages.last {
-            return AnyHashable(last.id)
-        }
-        return nil
+        return AnyHashable(chatScrollBottomAnchorId)
     }
 
     private var liveTraceEventCount: Int {
@@ -2737,10 +2740,8 @@ struct ChatPanelView: View {
     }
 
     private func latestMessageScrollTarget() -> AnyHashable? {
-        if let last = chatStore.conversation(for: conversationId)?.messages.last {
-            return AnyHashable(last.id)
-        }
-        return nil
+        guard chatStore.conversation(for: conversationId)?.messages.last != nil else { return nil }
+        return AnyHashable(chatScrollBottomAnchorId)
     }
 
     private func scheduleAutoScroll(

@@ -28,7 +28,7 @@ public actor FileLockCoordinator {
         var backoffNs: UInt64 = 100_000_000 // Start at 100ms
 
         while (DispatchTime.now().uptimeNanoseconds - startTime) < maxDuration {
-            if isCancelled?() == true {
+            if isCancelled?() == true || Task.isCancelled {
                 waitQueue.removeAll { $0 == swarmId }
                 return false
             }
@@ -59,5 +59,12 @@ public actor FileLockCoordinator {
         for f in files where lockedFiles[f] == swarmId {
             lockedFiles.removeValue(forKey: f)
         }
+    }
+
+    /// Releases ALL locks held by the specified swarm and removes it from the wait queue.
+    /// Use this for cleanup on task cancellation or errors to prevent orphaned locks.
+    public func releaseAllLocks(swarmId: String) {
+        lockedFiles = lockedFiles.filter { $0.value != swarmId }
+        waitQueue.removeAll { $0 == swarmId }
     }
 }
