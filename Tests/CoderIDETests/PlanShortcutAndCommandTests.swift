@@ -346,7 +346,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertFalse(result)
     }
 
-    func testPlanContextActivatesWhenPanelIsOpenEvenWithoutActivePhase() {
+    func testPlanContextDoesNotActivateFromPanelOpenOnly() {
         let currentConversationId = UUID()
         let result = shouldTreatConversationAsPlanContext(
             coderMode: .agent,
@@ -359,7 +359,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             showPlanPanel: true,
             activeBuildPlanConversationId: nil
         )
-        XCTAssertTrue(result)
+        XCTAssertFalse(result)
     }
 
     func testPlanContextDoesNotLeakToDifferentStreamConversationWhenInlinePlanActive() {
@@ -394,6 +394,29 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             activeBuildPlanConversationId: buildConversationId
         )
         XCTAssertTrue(result)
+    }
+
+    func testShouldMutatePlanStateOnlyForCurrentConversation() {
+        let currentConversationId = UUID()
+        let otherConversationId = UUID()
+        XCTAssertTrue(
+            shouldMutatePlanState(
+                targetConversationId: currentConversationId,
+                currentConversationId: currentConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldMutatePlanState(
+                targetConversationId: otherConversationId,
+                currentConversationId: currentConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldMutatePlanState(
+                targetConversationId: otherConversationId,
+                currentConversationId: nil
+            )
+        )
     }
 
     func testRoutePlanStreamOnlyForPlanContextOrActiveBuildConversations() {
