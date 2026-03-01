@@ -408,7 +408,7 @@ enum ToolSchemaCatalog {
                 "query": ["type": "string", "description": "Symbol name"],
                 "name": ["type": "string", "description": "Alias for query"]
             ],
-            required: ["query"]
+            required: []
         ),
         ToolSchemaEntry(
             name: "project_structure",

@@ -7,7 +7,16 @@ func isClarificationSelectionComplete(
     customText: String?
 ) -> Bool {
     if question.isMultiSelect {
-        return !(selectedOptions ?? Set()).isEmpty
+        let selectedIds = selectedOptions ?? Set()
+        guard !selectedIds.isEmpty else { return false }
+        let selectedIncludesOther = question.options.contains {
+            selectedIds.contains($0.id) && PlanOptionsParser.isOtherLikeClarificationOption($0)
+        }
+        if selectedIncludesOther {
+            let custom = customText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !custom.isEmpty
+        }
+        return true
     }
     guard let selectedOption else { return false }
     if PlanOptionsParser.isOtherLikeClarificationOption(selectedOption) {
@@ -190,7 +199,7 @@ struct PlanClarificationWizardView: View {
 
         if shouldShowCustomField(for: question) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Custom response (overrides selection)")
+                Text(question.isMultiSelect ? "Custom response for \"Other\"" : "Custom response (overrides selection)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 TextField(
@@ -338,9 +347,11 @@ struct PlanClarificationWizardView: View {
     }
 
     private func shouldShowCustomField(for question: PlanClarificationQuestion) -> Bool {
-        guard !question.isMultiSelect else { return false } // No custom field for multi-select
-        guard let selectedOption = selectedOption(for: question) else { return false }
-        return PlanOptionsParser.isOtherLikeClarificationOption(selectedOption)
+        let selectedIds = selectedOptionsByQuestionId[question.id] ?? Set()
+        guard !selectedIds.isEmpty else { return false }
+        let selected = question.options.filter { selectedIds.contains($0.id) }
+        guard !selected.isEmpty else { return false }
+        return selected.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)
     }
 
     private func isLastQuestion(_ question: PlanClarificationQuestion) -> Bool {
@@ -361,6 +372,16 @@ struct PlanClarificationWizardView: View {
                 current.insert(option.id)
             }
             selectedOptionsByQuestionId[question.id] = current
+            let selectedOptions = question.options.filter { current.contains($0.id) }
+            let includesOther = selectedOptions.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)
+            if includesOther {
+                focusedField = .customQuestion(question.id)
+            } else {
+                customTextByQuestionId[question.id] = ""
+                if focusedField == .customQuestion(question.id) {
+                    focusedField = nil
+                }
+            }
             // Don't auto-advance for multi-select — user must explicitly press Continue
             return
         }
@@ -411,12 +432,8 @@ struct PlanClarificationWizardView: View {
             let primaryOption = selectedOptions.first!
             let customText = customTextByQuestionId[question.id]?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let customResponse: String?
-            if !question.isMultiSelect, PlanOptionsParser.isOtherLikeClarificationOption(primaryOption) {
-                customResponse = customText.isEmpty ? nil : customText
-            } else {
-                customResponse = nil
-            }
+            let includesOther = selectedOptions.contains(where: PlanOptionsParser.isOtherLikeClarificationOption)
+            let customResponse: String? = includesOther ? (customText.isEmpty ? nil : customText) : nil
             return PlanClarificationAnswer(
                 questionId: question.id,
                 question: question.prompt,

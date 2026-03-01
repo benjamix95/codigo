@@ -216,6 +216,10 @@ enum SwarmLiveReducer {
             activity.payload["query"],
             activity.payload["path"],
             activity.payload["command"],
+            activity.payload["tool"],
+            activity.payload["mcp_tool"],
+            activity.payload["name"],
+            activity.payload["uri"],
         ]
         for candidate in candidates {
             let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

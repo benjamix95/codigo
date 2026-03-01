@@ -1036,7 +1036,9 @@ enum ProviderToolEventMapper {
 
         case "activate_plan_mode":
             var mapped: [String: String] = [:]
-            if let reason = firstString(in: payload, keys: ["reason"]) { mapped["reason"] = reason }
+            if let reason = firstString(in: payload, keys: ["reason", "question", "prompt", "message", "detail"]) {
+                mapped["reason"] = reason
+            }
             return ("activate_plan_mode", mapped)
 
         case "activate_debug_mode":

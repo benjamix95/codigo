@@ -55,4 +55,55 @@ final class PlanClarificationSelectionTests: XCTestCase {
             )
         )
     }
+
+    func testMultiSelectWithOtherLikeOptionRequiresCustomText() {
+        let question = PlanClarificationQuestion(
+            id: 3,
+            prompt: "Seleziona i target (select all that apply)",
+            options: [
+                PlanClarificationOption(id: "A", text: "iOS"),
+                PlanClarificationOption(id: "B", text: "Other (specify)"),
+                PlanClarificationOption(id: "C", text: "Android"),
+            ],
+            isMultiSelect: true
+        )
+
+        XCTAssertFalse(
+            isClarificationSelectionComplete(
+                question: question,
+                selectedOption: nil,
+                selectedOptions: Set(["A", "B"]),
+                customText: " "
+            )
+        )
+        XCTAssertTrue(
+            isClarificationSelectionComplete(
+                question: question,
+                selectedOption: nil,
+                selectedOptions: Set(["A", "B"]),
+                customText: "Web/Desktop"
+            )
+        )
+    }
+
+    func testMultiSelectWithoutOtherLikeOptionDoesNotRequireCustomText() {
+        let question = PlanClarificationQuestion(
+            id: 4,
+            prompt: "Seleziona stack",
+            options: [
+                PlanClarificationOption(id: "A", text: "SwiftUI"),
+                PlanClarificationOption(id: "B", text: "UIKit"),
+            ],
+            isMultiSelect: true
+        )
+
+        XCTAssertTrue(
+            isClarificationSelectionComplete(
+                question: question,
+                selectedOption: nil,
+                selectedOptions: Set(["A"]),
+                customText: nil
+            )
+        )
+    }
 }

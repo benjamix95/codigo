@@ -199,6 +199,25 @@ func shouldResetPlanFlowAfterPreflightFailure(
     }
 }
 
+func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
+    switch phase {
+    case .analyzing, .questioning, .generating, .building:
+        return false
+    case .idle, .proposalReady, .readyToBuild:
+        return true
+    }
+}
+
+func shouldDisablePlanToggleWhenPanelCloses(
+    phase: PlanFlowPhase,
+    planningState: PlanningState,
+    coderMode: CoderMode
+) -> Bool {
+    guard coderMode != .plan else { return false }
+    guard planningState == .idle else { return false }
+    return shouldAllowPlanToggleDeactivation(phase: phase)
+}
+
 func shouldTreatConversationAsPlanContext(
     coderMode: CoderMode,
     hasInlinePlanSession: Bool,
@@ -732,6 +751,8 @@ struct ChatPanelView: View {
     @Binding var coderMode: CoderMode
     @State private var inputText = ""
     @State private var isInputFocused: Bool = false
+    @State private var didAutoFocusComposerOnLaunch: Bool = false
+    @State private var composerAutoFocusTask: Task<Void, Never>?
     @State private var draftSaveTask: Task<Void, Never>?
     @AppStorage("codex_path") private var codexPath = ""
     @AppStorage("codex_sandbox") private var codexSandbox = ""
@@ -1210,6 +1231,7 @@ struct ChatPanelView: View {
             swarmProgressStore.clear()
             syncProviderFromConversation()
             restorePlanStateIfNeeded(for: newId)
+            requestInitialComposerFocusIfNeeded()
         }
         .onAppear {
             migrateSwarmProviderDefaultsIfNeeded()
@@ -1223,6 +1245,7 @@ struct ChatPanelView: View {
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
             restorePlanStateIfNeeded(for: selectedConversationId)
             wireTodoPlanBidirectionalSync()
+            requestInitialComposerFocusIfNeeded()
         }
     }
 
@@ -1303,6 +1326,15 @@ struct ChatPanelView: View {
                 }
                 if isOpen {
                     planToggleEnabled = true
+                } else if wasOpen,
+                          !isPlanShortcutCycling,
+                          shouldDisablePlanToggleWhenPanelCloses(
+                            phase: planFlowPhase,
+                            planningState: planningState,
+                            coderMode: coderMode
+                          )
+                {
+                    planToggleEnabled = false
                 }
             }
             .onChange(of: planToggleEnabled) { _, isEnabled in
@@ -1311,9 +1343,12 @@ struct ChatPanelView: View {
                     if !showPlanPanel && !isPlanShortcutCycling {
                         openPlanPanelForCurrentContext(source: .manualShortcut)
                     }
-                } else if showPlanPanel && planFlowPhase == .idle {
+                } else if showPlanPanel && shouldAllowPlanToggleDeactivation(phase: planFlowPhase) {
                     showPlanPanel = false
+                    planningState = .idle
+                    planFlowPhase = .idle
                     clearPlanStreamingState()
+                    planHistoryStore.setSelectedEntry(id: nil)
                 }
             }
             .onChange(of: showCodeReviewPanel) { wasOpen, isOpen in
@@ -1447,6 +1482,8 @@ struct ChatPanelView: View {
             installPasteMonitor()
         }
         .onDisappear {
+            composerAutoFocusTask?.cancel()
+            composerAutoFocusTask = nil
             taskFlushTask?.cancel()
             taskFlushTask = nil
             streamThrottleTask?.cancel()
@@ -1480,6 +1517,20 @@ struct ChatPanelView: View {
             }
             inputText = prompt
             sendMessage()
+        }
+    }
+
+    @MainActor
+    private func requestInitialComposerFocusIfNeeded() {
+        guard !didAutoFocusComposerOnLaunch else { return }
+        guard selectedConversationId != nil else { return }
+        didAutoFocusComposerOnLaunch = true
+        composerAutoFocusTask?.cancel()
+        composerAutoFocusTask = Task { @MainActor in
+            // Delay slightly to ensure the window/composer NSView is mounted.
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            isInputFocused = true
         }
     }
 
@@ -1867,14 +1918,20 @@ struct ChatPanelView: View {
             currentPlanToggleEnabled: planToggleEnabled,
             currentShowPlanPanel: showPlanPanel
         )
+        let requestedPlanToggleOff = !transition.nextPlanToggleEnabled
+        let canDeactivatePlanToggle = shouldAllowPlanToggleDeactivation(phase: planFlowPhase)
+        let resolvedPlanToggleEnabled =
+            requestedPlanToggleOff && !canDeactivatePlanToggle
+            ? true
+            : transition.nextPlanToggleEnabled
         withAnimation(.easeInOut(duration: 0.2)) {
-            planToggleEnabled = transition.nextPlanToggleEnabled
+            planToggleEnabled = resolvedPlanToggleEnabled
                 if transition.nextShowPlanPanel {
                     openPlanPanelForCurrentContext(source: .manualShortcut)
                 } else {
                     showPlanPanel = false
                     planShortcutPrimedUntil = nil
-                    if !transition.nextPlanToggleEnabled {
+                    if requestedPlanToggleOff && canDeactivatePlanToggle {
                         planningState = .idle
                         planFlowPhase = .idle
                         clearPlanStreamingState()
@@ -2315,21 +2372,26 @@ struct ChatPanelView: View {
 
     @ViewBuilder
     private func messagesStack(for conv: Conversation) -> some View {
+        let convId = conv.id
         let messages = conv.messages
         let lastMsg = messages.last
         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
         let latestAssistantMessageId = messages.last(where: { $0.role == .assistant })?.id
+        let messageIndexById: [UUID: Int] = Dictionary(
+            uniqueKeysWithValues: messages.enumerated().map { ($0.element.id, $0.offset) }
+        )
         LazyVStack(alignment: .leading, spacing: 28) {
             Color.clear
                 .frame(height: 1)
                 .id(chatScrollTopAnchorId)
-            ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+            ForEach(messages, id: \.id) { message in
+                let index = messageIndexById[message.id] ?? 0
                 chatMessageCell(
                     message: message,
                     index: index,
                     lastMsg: lastMsg,
                     latestAssistantMessageId: latestAssistantMessageId,
-                    conv: conv
+                    conversationId: convId
                 )
             }
             if shouldShowInlinePlanSummaryInChat,
@@ -2377,24 +2439,24 @@ struct ChatPanelView: View {
         index: Int,
         lastMsg: ChatMessage?,
         latestAssistantMessageId: UUID?,
-        conv: Conversation
+        conversationId: UUID
     ) -> some View {
         let isLast = message.id == lastMsg?.id
         let isLastAssistant = lastMsg?.role == .assistant && isLast
         let userMessageCheckpoint = message.role == .user
-            ? chatStore.checkpoint(forMessageIndex: index, conversationId: conv.id)
+            ? chatStore.checkpoint(forMessageIndex: index, conversationId: conversationId)
             : nil
         let hasCheckpointForMessage = userMessageCheckpoint != nil
         let canRewindFromMessage = message.role == .user && !isRewinding
         let needsDivider = message.role == .user && index > 0
         let restoreAction: (() -> Void)? = message.role == .user
-            ? { rewindToMessage(at: index, conversationId: conv.id) }
+            ? { rewindToMessage(at: index, conversationId: conversationId) }
             : nil
         let replyAction: (() -> Void)? = message.role == .assistant
             ? { beginReply(to: message) }
             : nil
         let deleteAction: (() -> Void)? = message.role == .assistant
-            ? { chatStore.removeMessage(messageId: message.id, in: conv.id) }
+            ? { chatStore.removeMessage(messageId: message.id, in: conversationId) }
             : nil
 
         if shouldHideBuildKickoffMessage(message) {
@@ -2439,7 +2501,7 @@ struct ChatPanelView: View {
                         }
                     )
                 } else {
-                    let isLiveReasoningTarget = conv.id == streamingReasoningConversationId
+                    let isLiveReasoningTarget = conversationId == streamingReasoningConversationId
                         && isLastAssistant
                         && message.isStreaming
                     let effectiveReasoning: String? = {
@@ -2456,10 +2518,10 @@ struct ChatPanelView: View {
                     }()
                     let suppressPlanArtifacts = shouldSuppressPlanArtifactsInChat(
                         message: message,
-                        conversationId: conv.id
+                        conversationId: conversationId
                     )
                     let displayMessage = suppressPlanArtifacts
-                        ? chatDisplayMessage(from: message, conversationId: conv.id)
+                        ? chatDisplayMessage(from: message, conversationId: conversationId)
                         : message
                     let shouldHideStreamingBarOnPreviousAssistant =
                         message.role == .assistant
@@ -2483,7 +2545,7 @@ struct ChatPanelView: View {
                                 hasCheckpointForMessage: hasCheckpointForMessage,
                                 needsDivider: needsDivider,
                                 latestAssistantMessageId: latestAssistantMessageId,
-                                conv: conv
+                                conversationId: conversationId
                             )
                         } else {
                             MessageRow(
@@ -2492,7 +2554,7 @@ struct ChatPanelView: View {
                                 modeColor: activeModeColor,
                                 isActuallyLoading: isLoadingForCurrentConversation,
                                 streamingStatusText: streamingStatusText(for: displayMessage),
-                                streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conv.id),
+                                streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conversationId),
                                 streamingReasoningText: effectiveReasoning,
                                 streamingReasoningBlocks: effectiveReasoningBlocks,
                                 showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
@@ -2521,7 +2583,7 @@ struct ChatPanelView: View {
                                     isLatestAssistant: message.id == latestAssistantMessageId
                                 )
                                 let traceEvents = toolTraceStore.events(
-                                    conversationId: conv.id,
+                                    conversationId: conversationId,
                                     assistantMessageId: message.id
                                 )
                                 if !traceEvents.isEmpty {
@@ -2554,7 +2616,7 @@ struct ChatPanelView: View {
         hasCheckpointForMessage: Bool,
         needsDivider: Bool,
         latestAssistantMessageId: UUID?,
-        conv: Conversation
+        conversationId: UUID
     ) -> some View {
         let contentMaxWidth: CGFloat = 800
         let isStreaming = message.isStreaming && isLoadingForCurrentConversation
@@ -2626,7 +2688,7 @@ struct ChatPanelView: View {
                     .foregroundStyle(.secondary)
                     .textShimmer(active: true)
                 if status != "Planning next move",
-                   let detail = streamingDetailText(for: message, conversationId: conv.id),
+                   let detail = streamingDetailText(for: message, conversationId: conversationId),
                    !detail.isEmpty
                 {
                     Text("·")
@@ -2666,11 +2728,11 @@ struct ChatPanelView: View {
         let messageCount = conv?.messages.count ?? 0
         let assistantCount = conv?.messages.filter { $0.role == .assistant }.count ?? 0
         let userCount = conv?.messages.filter { $0.role == .user }.count ?? 0
-        let traceEvents = conv.flatMap { c in
-            c.messages.filter { $0.role == .assistant }.flatMap { msg in
-                toolTraceStore.events(conversationId: c.id, assistantMessageId: msg.id)
-            }
-        } ?? []
+        let latestAssistantMessageId = conv?.messages.last(where: { $0.role == .assistant })?.id
+        let traceEvents = {
+            guard let c = conv, let assistantId = latestAssistantMessageId else { return [ToolTraceEvent]() }
+            return toolTraceStore.events(conversationId: c.id, assistantMessageId: assistantId)
+        }()
         let editCount = traceEvents.filter { ToolTraceFileChangeMapper.isFileChangeEvent($0) }.count
         let fileChanges = ToolTraceFileChangeMapper.collect(from: traceEvents)
         let linesAdded = fileChanges.reduce(0) { $0 + max(0, $1.added) }

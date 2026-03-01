@@ -401,6 +401,47 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         )
     }
 
+    func testPlanToggleDeactivationPolicyBlocksOnlyInProgressPhases() {
+        XCTAssertFalse(shouldAllowPlanToggleDeactivation(phase: .analyzing))
+        XCTAssertFalse(shouldAllowPlanToggleDeactivation(phase: .questioning))
+        XCTAssertFalse(shouldAllowPlanToggleDeactivation(phase: .generating))
+        XCTAssertFalse(shouldAllowPlanToggleDeactivation(phase: .building))
+        XCTAssertTrue(shouldAllowPlanToggleDeactivation(phase: .idle))
+        XCTAssertTrue(shouldAllowPlanToggleDeactivation(phase: .proposalReady))
+        XCTAssertTrue(shouldAllowPlanToggleDeactivation(phase: .readyToBuild))
+    }
+
+    func testPanelCloseDisablesToggleOnlyWhenNoActivePlanContext() {
+        XCTAssertTrue(
+            shouldDisablePlanToggleWhenPanelCloses(
+                phase: .idle,
+                planningState: .idle,
+                coderMode: .agent
+            )
+        )
+        XCTAssertFalse(
+            shouldDisablePlanToggleWhenPanelCloses(
+                phase: .building,
+                planningState: .idle,
+                coderMode: .agent
+            )
+        )
+        XCTAssertFalse(
+            shouldDisablePlanToggleWhenPanelCloses(
+                phase: .idle,
+                planningState: .awaitingClarification(questions: "## Questions\n1. X?"),
+                coderMode: .agent
+            )
+        )
+        XCTAssertFalse(
+            shouldDisablePlanToggleWhenPanelCloses(
+                phase: .idle,
+                planningState: .idle,
+                coderMode: .plan
+            )
+        )
+    }
+
     func testShouldHidePlanMarkdownInChatRequiresPanelRouting() {
         XCTAssertFalse(
             shouldHidePlanMarkdownInChat(

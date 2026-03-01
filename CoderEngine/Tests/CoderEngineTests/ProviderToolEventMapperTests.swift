@@ -422,6 +422,16 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["reason"], "Manual activation")
     }
 
+    func testAskUserQuestionAliasMapsQuestionToPlanReason() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "ask_user_question",
+            payload: ["question": "Do you prefer SwiftUI or UIKit?"]
+        )
+
+        XCTAssertEqual(mapped?.type, "activate_plan_mode")
+        XCTAssertEqual(mapped?.payload["reason"], "Do you prefer SwiftUI or UIKit?")
+    }
+
     func testLegacyDebugPanelMapsToValidationError() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "coderide_debug_panel",

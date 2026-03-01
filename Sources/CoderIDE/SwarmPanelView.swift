@@ -42,9 +42,16 @@ struct SwarmPanelView: View {
     @State private var expandedCardIds: Set<String> = []
     @State private var expandedEventIds: Set<UUID> = []
     @State private var isFollowingLive = true
+    @State private var isOrchestratorPopoverPresented = false
+    @State private var isWorkerPopoverPresented = false
 
     private let topInteractiveInset: CGFloat = 22
     private let accent = DesignSystem.Colors.swarmColor
+
+    private struct ProviderOption: Identifiable {
+        let id: String
+        let label: String
+    }
 
     @State private var cachedCards: [SwarmLiveCardState] = []
     private var sortedCards: [SwarmLiveCardState] { cachedCards }
@@ -94,12 +101,6 @@ struct SwarmPanelView: View {
             if let sel = selectedSwarmId,
                !cachedCards.contains(where: { $0.swarmId == sel }) {
                 selectedSwarmId = nil
-            }
-            if let sel = selectedSwarmId,
-               let card = cachedCards.first(where: { $0.swarmId == sel }),
-               card.status != .running,
-               let firstRunning = cachedCards.first(where: { $0.status == .running }) {
-                selectedSwarmId = firstRunning.swarmId
             }
             if selectedSwarmId == nil,
                let firstRunning = cachedCards.first(where: { $0.status == .running }) {
@@ -331,7 +332,9 @@ struct SwarmPanelView: View {
         }()
 
         let subtitle: String = {
-            if card.status == .running { return "Planning next moves" }
+            if card.status == .running {
+                return liveSubtitle(for: card) ?? "Planning next moves"
+            }
             if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
             if card.warningCount > 0 { return "Warnings" }
@@ -388,7 +391,9 @@ struct SwarmPanelView: View {
         }()
 
         let headerSubtitle: String = {
-            if card.status == .running { return "Planning next moves" }
+            if card.status == .running {
+                return liveSubtitle(for: card) ?? "Planning next moves"
+            }
             if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
             if card.warningCount > 0 { return "Warnings" }
@@ -454,7 +459,7 @@ struct SwarmPanelView: View {
                             )
                     }
 
-                    let events = card.recentEvents.filter { TaskActivityStore.isConcreteVisibleEvent($0) }
+                    let events = card.recentEvents
                     if !events.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -639,22 +644,9 @@ struct SwarmPanelView: View {
     }
 
     private var orchestratorPicker: some View {
-        Menu {
-            orchButton("auto", "Auto (same as Agent)")
-            Divider()
-            Section("API") {
-                orchButton("openai", "OpenAI API")
-                orchButton("anthropic-api", "Anthropic API")
-                orchButton("google-api", "Google API")
-                orchButton("openrouter-api", "OpenRouter")
-                orchButton("minimax-api", "MiniMax API")
-                orchButton("grok-api", "Grok API")
-            }
-            Section("CLI") {
-                orchButton("codex", "Codex CLI")
-                orchButton("claude", "Claude Code")
-                orchButton("gemini", "Gemini CLI")
-            }
+        Button {
+            isWorkerPopoverPresented = false
+            isOrchestratorPopoverPresented.toggle()
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "cpu").font(.system(size: 8))
@@ -663,18 +655,17 @@ struct SwarmPanelView: View {
             }
             .foregroundStyle(.secondary)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize()
-    }
-
-    private func orchButton(_ id: String, _ label: String) -> some View {
-        Button {
-            swarmOrchestrator = id
-            onSyncSwarmProvider()
-        } label: {
-            HStack {
-                Text(label)
-                if swarmOrchestrator == id { Image(systemName: "checkmark") }
+        .popover(isPresented: $isOrchestratorPopoverPresented, arrowEdge: .bottom) {
+            providerPopover(
+                title: "Orchestrator Backend",
+                options: orchestratorOptions,
+                selectedId: swarmOrchestrator
+            ) { id in
+                swarmOrchestrator = id
+                onSyncSwarmProvider()
+                isOrchestratorPopoverPresented = false
             }
         }
     }
@@ -695,22 +686,9 @@ struct SwarmPanelView: View {
     }
 
     private var workerPicker: some View {
-        Menu {
-            workerButton("auto", "Auto (same as Agent)")
-            Divider()
-            Section("API") {
-                workerButton("openai-api", "OpenAI API")
-                workerButton("anthropic-api", "Anthropic API")
-                workerButton("google-api", "Google API")
-                workerButton("openrouter-api", "OpenRouter")
-                workerButton("minimax-api", "MiniMax API")
-                workerButton("grok-api", "Grok API")
-            }
-            Section("CLI") {
-                workerButton("codex", "Codex CLI")
-                workerButton("claude", "Claude Code")
-                workerButton("gemini", "Gemini CLI")
-            }
+        Button {
+            isOrchestratorPopoverPresented = false
+            isWorkerPopoverPresented.toggle()
         } label: {
             HStack(spacing: 3) {
                 Text("Worker: \(workerLabel)").font(.system(size: 10))
@@ -718,20 +696,98 @@ struct SwarmPanelView: View {
             }
             .foregroundStyle(.secondary)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize()
-    }
-
-    private func workerButton(_ id: String, _ label: String) -> some View {
-        Button {
-            swarmWorkerBackend = id
-            onSyncSwarmProvider()
-        } label: {
-            HStack {
-                Text(label)
-                if swarmWorkerBackend == id { Image(systemName: "checkmark") }
+        .popover(isPresented: $isWorkerPopoverPresented, arrowEdge: .bottom) {
+            providerPopover(
+                title: "Worker Backend",
+                options: workerOptions,
+                selectedId: swarmWorkerBackend
+            ) { id in
+                swarmWorkerBackend = id
+                onSyncSwarmProvider()
+                isWorkerPopoverPresented = false
             }
         }
+    }
+
+    private var orchestratorOptions: [ProviderOption] {
+        [
+            .init(id: "auto", label: "Auto (same as Agent)"),
+            .init(id: "openai", label: "OpenAI API"),
+            .init(id: "anthropic-api", label: "Anthropic API"),
+            .init(id: "google-api", label: "Google API"),
+            .init(id: "openrouter-api", label: "OpenRouter"),
+            .init(id: "minimax-api", label: "MiniMax API"),
+            .init(id: "grok-api", label: "Grok API"),
+            .init(id: "codex", label: "Codex CLI"),
+            .init(id: "claude", label: "Claude Code"),
+            .init(id: "gemini", label: "Gemini CLI"),
+        ]
+    }
+
+    private var workerOptions: [ProviderOption] {
+        [
+            .init(id: "auto", label: "Auto (same as Agent)"),
+            .init(id: "openai-api", label: "OpenAI API"),
+            .init(id: "anthropic-api", label: "Anthropic API"),
+            .init(id: "google-api", label: "Google API"),
+            .init(id: "openrouter-api", label: "OpenRouter"),
+            .init(id: "minimax-api", label: "MiniMax API"),
+            .init(id: "grok-api", label: "Grok API"),
+            .init(id: "codex", label: "Codex CLI"),
+            .init(id: "claude", label: "Claude Code"),
+            .init(id: "gemini", label: "Gemini CLI"),
+        ]
+    }
+
+    private func providerPopover(
+        title: String,
+        options: [ProviderOption],
+        selectedId: String,
+        onSelect: @escaping (String) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+            Divider().opacity(0.3)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(options) { option in
+                        Button {
+                            onSelect(option.id)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(option.label)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 6)
+                                if selectedId == option.id {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(accent)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(selectedId == option.id ? accent.opacity(0.12) : Color.clear)
+                        )
+                    }
+                }
+            }
+            .frame(width: 240)
+            .frame(maxHeight: 260)
+        }
+        .padding(10)
     }
 
     // MARK: - Helpers
@@ -757,6 +813,30 @@ struct SwarmPanelView: View {
         !(activity.payload["stderr"] ?? "").isEmpty ||
         !(activity.payload["cwd"] ?? "").isEmpty ||
         !(activity.payload["diffPreview"] ?? "").isEmpty
+    }
+
+    private func liveSubtitle(for card: SwarmLiveCardState) -> String? {
+        let last = card.recentEvents.last
+        let candidates: [String?] = [
+            card.currentDetail,
+            last?.detail,
+            last?.payload["detail"],
+            last?.payload["query"],
+            last?.payload["path"],
+            last?.payload["command"],
+            last?.payload["tool"],
+            last?.payload["mcp_tool"],
+        ]
+        for candidate in candidates {
+            let text = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            let lower = text.lowercased()
+            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" {
+                continue
+            }
+            return String(text.prefix(120))
+        }
+        return nil
     }
 
     private func rawDetail(for activity: TaskActivity) -> String {

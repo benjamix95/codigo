@@ -195,26 +195,43 @@ struct MessageToolTraceView: View {
 
     private final class DerivedCache {
         var state: DerivedState?
-        var eventCount: Int = -1
         var isExpanded: Bool = false
-        var runningHash: Int = -1
-        var eventSignature: Int = -1
+        var changeToken: EventsChangeToken = .empty
     }
     @State private var derivedCache = DerivedCache()
 
     private struct EventsChangeToken: Equatable {
         let count: Int
+        let firstId: UUID?
+        let firstSequence: Int
+        let firstRunning: Bool
         let lastId: UUID?
         let lastSequence: Int
         let lastRunning: Bool
         let lastStatus: String
         let lastDetail: String
+
+        static let empty = EventsChangeToken(
+            count: -1,
+            firstId: nil,
+            firstSequence: -1,
+            firstRunning: false,
+            lastId: nil,
+            lastSequence: -1,
+            lastRunning: false,
+            lastStatus: "",
+            lastDetail: ""
+        )
     }
 
     private var eventsChangeToken: EventsChangeToken {
+        let first = events.first
         let last = events.last
         return EventsChangeToken(
             count: events.count,
+            firstId: first?.id,
+            firstSequence: first?.sequence ?? -1,
+            firstRunning: first?.isRunning ?? false,
             lastId: last?.id,
             lastSequence: last?.sequence ?? -1,
             lastRunning: last?.isRunning ?? false,
@@ -223,24 +240,11 @@ struct MessageToolTraceView: View {
         )
     }
 
-    private static func eventsSignature(_ events: [ToolTraceEvent]) -> Int {
-        events.reduce(into: 17) { hash, event in
-            hash = (hash &* 31) &+ event.id.hashValue
-            hash = (hash &* 31) &+ event.type.hashValue
-            hash = (hash &* 31) &+ (event.isRunning ? 1 : 0)
-            hash = (hash &* 31) &+ (event.payload["status"] ?? "").hashValue
-            hash = (hash &* 31) &+ (event.detail ?? "").hashValue
-        }
-    }
-
     private func currentDerived() -> DerivedState {
-        let runningHash = events.reduce(0) { h, e in h ^ (e.isRunning ? e.id.hashValue : 0) }
-        let signature = Self.eventsSignature(events)
+        let token = eventsChangeToken
         if let cached = derivedCache.state,
-           events.count == derivedCache.eventCount,
            isExpanded == derivedCache.isExpanded,
-           runningHash == derivedCache.runningHash,
-           signature == derivedCache.eventSignature {
+           token == derivedCache.changeToken {
             return cached
         }
         let d = DerivedState(
@@ -250,10 +254,8 @@ struct MessageToolTraceView: View {
             collapser: collapseSupersededToolStates
         )
         derivedCache.state = d
-        derivedCache.eventCount = events.count
         derivedCache.isExpanded = isExpanded
-        derivedCache.runningHash = runningHash
-        derivedCache.eventSignature = signature
+        derivedCache.changeToken = token
         return d
     }
 
@@ -689,7 +691,7 @@ struct MessageToolTraceView: View {
 
     private func fileChangesSectionView(derived: DerivedState) -> some View {
         let compactDiff = compactDiffPreview(fileChanges: derived.fileChanges)
-        VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 9.5, weight: .medium))
@@ -1345,7 +1347,7 @@ struct MessageToolTraceView: View {
 
     private func syncAutoPresentationState(derived: DerivedState) {
         let ordered = derived.orderedEvents
-        let running = ordered.contains(where: \.isRunning)
+        let running = derived.hasRunningEvent
         if running {
             didAutoCompactAfterCompletion = false
             return

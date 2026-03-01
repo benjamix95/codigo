@@ -30,9 +30,8 @@ struct SubagentChatCardView: View {
 
     private var subtitle: String {
         if card.status == .running {
-            if card.activeOpsCount == 0 {
-                let elapsed = Date().timeIntervalSince(card.lastEventAt ?? .distantPast)
-                if elapsed > 2 { return "Planning next moves" }
+            if let live = liveRunningSubtitle() {
+                return live
             }
             return "Planning next moves"
         }
@@ -40,6 +39,30 @@ struct SubagentChatCardView: View {
         if card.status == .failed { return "Failed" }
         if card.warningCount > 0 { return "Warnings" }
         return "Idle"
+    }
+
+    private func liveRunningSubtitle() -> String? {
+        let candidates: [String?] = [
+            card.currentDetail,
+            card.recentEvents.last?.detail,
+            card.recentEvents.last?.payload["detail"],
+            card.recentEvents.last?.payload["query"],
+            card.recentEvents.last?.payload["path"],
+            card.recentEvents.last?.payload["command"],
+            card.recentEvents.last?.payload["tool"],
+            card.recentEvents.last?.payload["mcp_tool"],
+        ]
+        for candidate in candidates {
+            let text = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            let lower = text.lowercased()
+            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" {
+                continue
+            }
+            if text == title { continue }
+            return String(text.prefix(120))
+        }
+        return nil
     }
 
     var body: some View {
