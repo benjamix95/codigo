@@ -92,9 +92,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     let enforceSubagentFirstRound = executionScope == .agent && subagentProviderFactory != nil
                     var acceptedSubagentInFirstRound = false
                     var sawCodeMutationDuringTask = false
-                    var invokedReviewerSubagent = false
-                    var invokedTestWriterSubagent = false
-                    var autoInjectedFinalReviewBatch = false
+                    var reviewerCompletedAfterLatestMutation = false
+                    var testWriterCompletedAfterLatestMutation = false
+                    var autoInjectedFinalReviewBatchCount = 0
+                    let maxAutoInjectedFinalReviewBatchCount = 4
 
                     for _ in 0..<maxToolRounds {
                         let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
@@ -220,10 +221,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         if isFirstRound {
                                             acceptedSubagentInFirstRound = true
                                         }
-                                        if let role = SubagentRole.fromToolName(name) {
-                                            if role == .reviewer { invokedReviewerSubagent = true }
-                                            if role == .testWriter { invokedTestWriterSubagent = true }
-                                        }
                                         pendingSubagentCalls.append((marker: marker, name: name))
                                         let toolCallId = marker.payload["id"] ?? UUID().uuidString
                                         continuation.yield(.raw(type: "agent", payload: [
@@ -251,6 +248,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                                 originatingToolName: name
                                             ) {
                                                 sawCodeMutationDuringTask = true
+                                                reviewerCompletedAfterLatestMutation = false
+                                                testWriterCompletedAfterLatestMutation = false
+                                            }
+                                            if let completedRole = Self.completedSubagentRole(from: e) {
+                                                if completedRole == .reviewer {
+                                                    reviewerCompletedAfterLatestMutation = true
+                                                }
+                                                if completedRole == .testWriter {
+                                                    testWriterCompletedAfterLatestMutation = true
+                                                }
                                             }
                                             if case .raw(let innerType, let innerPayload) = e,
                                                innerType == "policy_ack",
@@ -298,16 +305,22 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             var anySubagentFailed = false
                             for result in results {
                                 let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
-                                if let role = SubagentRole.fromToolName(subagentToolName) {
-                                    if role == .reviewer { invokedReviewerSubagent = true }
-                                    if role == .testWriter { invokedTestWriterSubagent = true }
-                                }
                                 for e in result.events {
                                     if Self.streamEventIndicatesCodeMutation(
                                         e,
                                         originatingToolName: subagentToolName
                                     ) {
                                         sawCodeMutationDuringTask = true
+                                        reviewerCompletedAfterLatestMutation = false
+                                        testWriterCompletedAfterLatestMutation = false
+                                    }
+                                    if let completedRole = Self.completedSubagentRole(from: e) {
+                                        if completedRole == .reviewer {
+                                            reviewerCompletedAfterLatestMutation = true
+                                        }
+                                        if completedRole == .testWriter {
+                                            testWriterCompletedAfterLatestMutation = true
+                                        }
                                     }
                                     if case .raw(let innerType, let innerPayload) = e,
                                        innerType == "policy_ack",
@@ -338,15 +351,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             pendingSubagentCalls.removeAll()
                         }
 
-                        let mandatoryReviewSatisfied = invokedReviewerSubagent && invokedTestWriterSubagent
+                        let mandatoryReviewSatisfied =
+                            reviewerCompletedAfterLatestMutation && testWriterCompletedAfterLatestMutation
                         if subagentProviderFactory != nil,
                            sawCodeMutationDuringTask,
                            !mandatoryReviewSatisfied,
-                           !autoInjectedFinalReviewBatch
+                           autoInjectedFinalReviewBatchCount < maxAutoInjectedFinalReviewBatchCount
                         {
-                            autoInjectedFinalReviewBatch = true
+                            autoInjectedFinalReviewBatchCount += 1
                             var injectedCalls: [(marker: CoderIDEMarker, name: String)] = []
-                            if !invokedReviewerSubagent {
+                            if !reviewerCompletedAfterLatestMutation {
                                 injectedCalls.append((
                                     marker: CoderIDEMarker(kind: "tool_call", payload: [
                                         "id": "auto-reviewer-\(UUID().uuidString)",
@@ -355,9 +369,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     ]),
                                     name: SubagentRole.reviewer.toolName
                                 ))
-                                invokedReviewerSubagent = true
                             }
-                            if !invokedTestWriterSubagent {
+                            if !testWriterCompletedAfterLatestMutation {
                                 injectedCalls.append((
                                     marker: CoderIDEMarker(kind: "tool_call", payload: [
                                         "id": "auto-testwriter-\(UUID().uuidString)",
@@ -366,7 +379,6 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     ]),
                                     name: SubagentRole.testWriter.toolName
                                 ))
-                                invokedTestWriterSubagent = true
                             }
 
                             if !injectedCalls.isEmpty {
@@ -409,6 +421,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                             originatingToolName: subagentToolName
                                         ) {
                                             sawCodeMutationDuringTask = true
+                                            reviewerCompletedAfterLatestMutation = false
+                                            testWriterCompletedAfterLatestMutation = false
+                                        }
+                                        if let completedRole = Self.completedSubagentRole(from: e) {
+                                            if completedRole == .reviewer {
+                                                reviewerCompletedAfterLatestMutation = true
+                                            }
+                                            if completedRole == .testWriter {
+                                                testWriterCompletedAfterLatestMutation = true
+                                            }
                                         }
                                         if case .raw(let innerType, let innerPayload) = e,
                                            innerType == "policy_ack",
@@ -527,6 +549,17 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             "detail": "No meaningful final content produced",
                             "status": "failed",
                             "error_code": "missing_final_outcome"
+                        ]))
+                    }
+                    if subagentProviderFactory != nil,
+                       sawCodeMutationDuringTask,
+                       !(reviewerCompletedAfterLatestMutation && testWriterCompletedAfterLatestMutation)
+                    {
+                        continuation.yield(.raw(type: "tool_validation_error", payload: [
+                            "title": "Mandatory review incomplete",
+                            "detail": "Code mutations were detected, but reviewer/testWriter coverage for the latest changes is incomplete.",
+                            "status": "failed",
+                            "error_code": "mandatory_review_incomplete"
                         ]))
                     }
 
@@ -774,6 +807,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return isCodeMutationTool(tool) && isSuccessfulStatus(payload["status"])
         }
         return false
+    }
+
+    private static func completedSubagentRole(from event: StreamEvent) -> SubagentRole? {
+        guard case .raw(let type, let payload) = event else { return nil }
+        guard type == "tool_result" else { return nil }
+        guard isSuccessfulStatus(payload["status"]) else { return nil }
+        let tool = payload["name"] ?? payload["tool"] ?? ""
+        return SubagentRole.fromToolName(tool)
     }
 
     private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {

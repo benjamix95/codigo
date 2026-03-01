@@ -31,6 +31,42 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         }
     }
 
+    private final class RoundSequencedEventProvider: LLMProvider, @unchecked Sendable {
+        let id = "policy-ack-round-sequenced"
+        let displayName = "Policy Ack Round Sequenced"
+
+        private let rounds: [[StreamEvent]]
+        private var cursor = 0
+        private let lock = NSLock()
+
+        init(rounds: [[StreamEvent]]) {
+            self.rounds = rounds
+        }
+
+        func isAuthenticated() -> Bool { true }
+
+        func send(
+            prompt _: String,
+            context _: WorkspaceContext,
+            imageURLs _: [URL]?
+        ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+            let roundEvents: [StreamEvent] = lock.withLock {
+                guard !rounds.isEmpty else { return [] }
+                let index = min(cursor, rounds.count - 1)
+                cursor += 1
+                return rounds[index]
+            }
+            return AsyncThrowingStream { continuation in
+                continuation.yield(.started)
+                for event in roundEvents {
+                    continuation.yield(event)
+                }
+                continuation.yield(.completed)
+                continuation.finish()
+            }
+        }
+    }
+
     private final class TextOnlyProvider: LLMProvider, @unchecked Sendable {
         let id = "subagent-text-only"
         let displayName = "Subagent Text Only"
@@ -437,5 +473,134 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
 
         XCTAssertTrue(sawReviewer, "Reviewer subagent should be auto-injected")
         XCTAssertTrue(sawTestWriter, "TestWriter subagent should be auto-injected")
+    }
+
+    func testAutoInjectsFinalReviewAgainAfterLaterMutation() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-auto-review-repeat-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = RoundSequencedEventProvider(rounds: [
+            [
+                .raw(type: "tool_call_suggested", payload: [
+                    "id": "tc-coder-r1",
+                    "name": "subagent_coder",
+                    "args": #"{"task":"Round 1 change"}"#,
+                    "is_partial": "false",
+                ]),
+            ],
+            [
+                .raw(type: "tool_call_suggested", payload: [
+                    "id": "tc-coder-r2",
+                    "name": "subagent_coder",
+                    "args": #"{"task":"Round 2 change"}"#,
+                    "is_partial": "false",
+                ]),
+            ],
+            [],
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 4,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Implementa in due step",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var reviewerCompletions = 0
+        var testWriterCompletions = 0
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            guard type == "tool_result", payload["status"] == "completed" else { continue }
+            if payload["name"] == "subagent_reviewer" {
+                reviewerCompletions += 1
+            }
+            if payload["name"] == "subagent_testwriter" {
+                testWriterCompletions += 1
+            }
+        }
+
+        XCTAssertGreaterThanOrEqual(
+            reviewerCompletions,
+            2,
+            "Reviewer should run again after subsequent mutations"
+        )
+        XCTAssertGreaterThanOrEqual(
+            testWriterCompletions,
+            2,
+            "TestWriter should run again after subsequent mutations"
+        )
+    }
+
+    func testFailedReviewerSuggestionDoesNotSatisfyMandatoryFinalReview() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-reviewer-failed-suggestion-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-coder-1",
+                "name": "subagent_coder",
+                "args": #"{"task":"Implement fix"}"#,
+                "is_partial": "false",
+            ]),
+            // Invalid reviewer call: missing task should fail validation and must
+            // NOT count as completed review coverage.
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-reviewer-invalid",
+                "name": "subagent_reviewer",
+                "args": #"{}"#,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 2,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Implementa e verifica",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawMissingTaskValidation = false
+        var reviewerCompleted = false
+        var testWriterCompleted = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_validation_error",
+               payload["error_code"] == "missing_argument",
+               payload["name"] == "subagent_reviewer" {
+                sawMissingTaskValidation = true
+            }
+            if type == "tool_result",
+               payload["name"] == "subagent_reviewer",
+               payload["status"] == "completed" {
+                reviewerCompleted = true
+            }
+            if type == "tool_result",
+               payload["name"] == "subagent_testwriter",
+               payload["status"] == "completed" {
+                testWriterCompleted = true
+            }
+        }
+
+        XCTAssertTrue(sawMissingTaskValidation, "Initial invalid reviewer call should fail validation")
+        XCTAssertTrue(reviewerCompleted, "Reviewer should be auto-injected after invalid suggestion")
+        XCTAssertTrue(testWriterCompleted, "TestWriter should be auto-injected for mandatory final review")
     }
 }

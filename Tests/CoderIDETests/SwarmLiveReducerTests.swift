@@ -46,6 +46,25 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertNotNil(card?.summary)
     }
 
+    func testCompletedDetailOverridesIsRunningFlag() {
+        let completedButRunning = TaskActivity(
+            type: "agent",
+            title: "Reviewer",
+            detail: "completed",
+            payload: [
+                "swarm_id": "reviewer",
+                "group_id": "swarm-reviewer",
+                "status": "completed",
+            ],
+            timestamp: Date(timeIntervalSince1970: 106),
+            phase: .executing,
+            isRunning: true, // Some providers may leak a stale running flag.
+            groupId: "swarm-reviewer"
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [completedButRunning], limitRecentEvents: 80)
+        XCTAssertEqual(cards["reviewer"]?.status, .completed)
+    }
+
     func testErrorEventSetsFailedStatus() {
         let failed = TaskActivity(
             type: "tool_execution_error",

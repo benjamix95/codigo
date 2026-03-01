@@ -71,6 +71,23 @@ func rolloverAutoTodoOutcome(
     }
 }
 
+func todoIDsToAutoCompleteAfterSubagentBatch(
+    todos: [TodoItem],
+    reviewTodoTitle: String = "Code Review & Test"
+) -> [UUID] {
+    let normalizedReviewTitle = reviewTodoTitle
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    var ids = Set(todos.filter { $0.status == .inProgress }.map(\.id))
+    if let pendingReview = todos.first(where: {
+        $0.status == .pending
+            && $0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedReviewTitle
+    }) {
+        ids.insert(pendingReview.id)
+    }
+    return Array(ids)
+}
+
 func canExecutePlanBuild(phase: PlanFlowPhase, choice: String, allowIdleRebuild: Bool = false) -> Bool {
     let trimmed = choice.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
@@ -6955,9 +6972,9 @@ struct ChatPanelView: View {
     @MainActor
     private func autoCompleteInProgressTodoAfterSubagents(status: String) {
         let targetStatus: TodoStatus = status == "done" ? .done : .blocked
-        let inProgressTodos = todoStore.todos.filter { $0.status == .inProgress }
-        for todo in inProgressTodos {
-            todoStore.setStatus(id: todo.id, status: targetStatus)
+        let targetIDs = todoIDsToAutoCompleteAfterSubagentBatch(todos: todoStore.todos)
+        for id in targetIDs {
+            todoStore.setStatus(id: id, status: targetStatus)
         }
     }
 
