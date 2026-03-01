@@ -229,19 +229,30 @@ func shouldTreatConversationAsPlanContext(
     showPlanPanel: Bool,
     activeBuildPlanConversationId: UUID?
 ) -> Bool {
-    if coderMode == .plan { return true }
-    if hasInlinePlanSession { return true }
-    if hasActivePlanFlowPhase { return true }
+    let isCurrentConversationStream: Bool = {
+        guard let streamConversationId else { return true }
+        guard let currentConversationId else { return false }
+        return streamConversationId == currentConversationId
+    }()
+
+    if isCurrentConversationStream {
+        if coderMode == .plan { return true }
+        if hasInlinePlanSession { return true }
+        if hasActivePlanFlowPhase { return true }
+    }
 
     if let streamConversationId {
-        if hasPlanBoardForStreamConversation { return true }
+        // A persisted plan board alone must not force plan routing for normal
+        // agent chat turns. Route only when an active plan session/panel/build
+        // is in progress.
+        _ = hasPlanBoardForStreamConversation
         if streamConversationId == activeBuildPlanConversationId { return true }
         if showPlanPanel && streamConversationId == currentConversationId { return true }
         return false
     }
 
     if currentConversationId != nil {
-        if hasPlanBoardForCurrentConversation { return true }
+        _ = hasPlanBoardForCurrentConversation
         if currentConversationId == activeBuildPlanConversationId { return true }
         if showPlanPanel { return true }
     }
@@ -1308,21 +1319,21 @@ struct ChatPanelView: View {
             }
             // Auto-expand/shrink window when side panels open/close
             .onChange(of: showPlanPanel) { wasOpen, isOpen in
+                let shouldSkipResize = (planPanelPresentationSource == .automaticFlow)
                 if isOpen && showDebugPanel {
                     debugToggleEnabled = false
                     showDebugPanel = false
                 }
                 if isOpen && !wasOpen {
-                    if planPanelPresentationSource == .automaticFlow {
-                        return
+                    if !shouldSkipResize {
+                        adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
                     }
-                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
                 } else if !isOpen && wasOpen {
-                    if planPanelPresentationSource == .automaticFlow {
+                    if shouldSkipResize {
                         planPanelPresentationSource = .manualDeepLink
-                        return
+                    } else {
+                        adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
                     }
-                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
                 }
                 if isOpen {
                     planToggleEnabled = true

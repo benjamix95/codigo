@@ -329,6 +329,73 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertFalse(result)
     }
 
+    func testPlanContextDoesNotActivateFromPersistedPlanBoardOnly() {
+        let currentConversationId = UUID()
+        let streamConversationId = currentConversationId
+        let result = shouldTreatConversationAsPlanContext(
+            coderMode: .agent,
+            hasInlinePlanSession: false,
+            hasActivePlanFlowPhase: false,
+            streamConversationId: streamConversationId,
+            currentConversationId: currentConversationId,
+            hasPlanBoardForStreamConversation: true,
+            hasPlanBoardForCurrentConversation: true,
+            showPlanPanel: false,
+            activeBuildPlanConversationId: nil
+        )
+        XCTAssertFalse(result)
+    }
+
+    func testPlanContextActivatesWhenPanelIsOpenEvenWithoutActivePhase() {
+        let currentConversationId = UUID()
+        let result = shouldTreatConversationAsPlanContext(
+            coderMode: .agent,
+            hasInlinePlanSession: false,
+            hasActivePlanFlowPhase: false,
+            streamConversationId: currentConversationId,
+            currentConversationId: currentConversationId,
+            hasPlanBoardForStreamConversation: true,
+            hasPlanBoardForCurrentConversation: true,
+            showPlanPanel: true,
+            activeBuildPlanConversationId: nil
+        )
+        XCTAssertTrue(result)
+    }
+
+    func testPlanContextDoesNotLeakToDifferentStreamConversationWhenInlinePlanActive() {
+        let currentConversationId = UUID()
+        let otherConversationId = UUID()
+        let result = shouldTreatConversationAsPlanContext(
+            coderMode: .agent,
+            hasInlinePlanSession: true,
+            hasActivePlanFlowPhase: true,
+            streamConversationId: otherConversationId,
+            currentConversationId: currentConversationId,
+            hasPlanBoardForStreamConversation: false,
+            hasPlanBoardForCurrentConversation: true,
+            showPlanPanel: true,
+            activeBuildPlanConversationId: nil
+        )
+        XCTAssertFalse(result)
+    }
+
+    func testPlanContextStillActivatesForExplicitActiveBuildConversation() {
+        let currentConversationId = UUID()
+        let buildConversationId = UUID()
+        let result = shouldTreatConversationAsPlanContext(
+            coderMode: .agent,
+            hasInlinePlanSession: false,
+            hasActivePlanFlowPhase: false,
+            streamConversationId: buildConversationId,
+            currentConversationId: currentConversationId,
+            hasPlanBoardForStreamConversation: false,
+            hasPlanBoardForCurrentConversation: false,
+            showPlanPanel: false,
+            activeBuildPlanConversationId: buildConversationId
+        )
+        XCTAssertTrue(result)
+    }
+
     func testRoutePlanStreamOnlyForPlanContextOrActiveBuildConversations() {
         let streamConversationId = UUID()
         let activeBuildPlanConversationId = UUID()
