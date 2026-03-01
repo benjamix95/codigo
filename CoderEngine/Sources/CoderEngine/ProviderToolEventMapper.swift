@@ -850,6 +850,16 @@ enum ProviderToolEventMapper {
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if (resolvedSwarmId ?? "").isEmpty,
+           let structuredOutput,
+           let structuredSwarmID = firstString(
+               in: structuredOutput,
+               keys: ["swarm_id", "swarmId", "subagent_id", "subagentId", "agent", "role"]
+           ),
+           !structuredSwarmID.isEmpty {
+            resolvedSwarmId = structuredSwarmID.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if (resolvedSwarmId ?? "").isEmpty,
            let existingGroup = mapped["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
            existingGroup.lowercased().hasPrefix("swarm-"),
            existingGroup.count > "swarm-".count {
@@ -867,8 +877,14 @@ enum ProviderToolEventMapper {
             if let explicitSwarmID = firstString(in: payload, keys: ["swarm", "swarm_name", "swarmName"]),
                !explicitSwarmID.isEmpty {
                 resolvedSwarmId = explicitSwarmID
+            } else if let structuredOutput,
+                      let structuredSwarmID = firstString(in: structuredOutput, keys: ["swarm", "swarm_name", "swarmName"]),
+                      !structuredSwarmID.isEmpty {
+                resolvedSwarmId = structuredSwarmID
             } else if let token = mapped["tool_call_id"] ?? firstString(in: payload, keys: ["tool_call_id", "call_id", "id"]) {
                 resolvedSwarmId = syntheticInvokeSwarmID(from: token)
+            } else {
+                resolvedSwarmId = "invoke-swarm"
             }
         }
 

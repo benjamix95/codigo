@@ -603,4 +603,101 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         XCTAssertTrue(reviewerCompleted, "Reviewer should be auto-injected after invalid suggestion")
         XCTAssertTrue(testWriterCompleted, "TestWriter should be auto-injected for mandatory final review")
     }
+
+    func testLegacyInvokeSwarmToolIsAdaptedToSubagentExecution() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("legacy-invoke-swarm-direct-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-legacy-invoke-direct",
+                "name": "invoke_swarm",
+                "args": #"{"task":"Review all changes","role":"reviewer"}"#,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Fai review finale",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawReviewerAgentStarted = false
+        var sawReviewerToolResult = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "agent",
+               payload["status"] == "started",
+               (payload["swarm_id"] ?? "").hasPrefix("reviewer-") {
+                sawReviewerAgentStarted = true
+            }
+            if type == "tool_result",
+               payload["name"] == "subagent_reviewer",
+               payload["status"] == "completed" {
+                sawReviewerToolResult = true
+            }
+        }
+
+        XCTAssertTrue(sawReviewerAgentStarted)
+        XCTAssertTrue(sawReviewerToolResult)
+    }
+
+    func testLegacyInvokeSwarmViaMCPCallIsAdaptedToSubagentExecution() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("legacy-invoke-swarm-mcp-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-legacy-invoke-mcp",
+                "name": "mcp_call",
+                "args": #"{"server":"coderide","tool":"coderide_invoke_swarm","task":"write tests for changes","role":"testwriter"}"#,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Esegui swarm legacy",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawTestWriterToolResult = false
+        var sawLegacyMCPToolCall = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_result",
+               payload["name"] == "subagent_testwriter",
+               payload["status"] == "completed" {
+                sawTestWriterToolResult = true
+            }
+            if type == "mcp_tool_call",
+               payload["mcp_tool"] == "coderide_invoke_swarm" || payload["tool"] == "invoke_swarm" {
+                sawLegacyMCPToolCall = true
+            }
+        }
+
+        XCTAssertTrue(sawTestWriterToolResult)
+        XCTAssertFalse(sawLegacyMCPToolCall, "Legacy invoke_swarm should be adapted before MCP runtime execution")
+    }
 }

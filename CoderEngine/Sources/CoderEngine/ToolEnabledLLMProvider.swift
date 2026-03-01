@@ -181,11 +181,16 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
                                     args["name"] = name
                                     let marker = CoderIDEMarker(kind: "tool_call", payload: args)
+                                    let legacyInvokeSwarm = Self.isLegacyInvokeSwarmSuggestion(
+                                        toolName: name,
+                                        payload: args
+                                    )
 
                                     if enforceSubagentFirstRound,
                                        isFirstRound,
                                        !acceptedSubagentInFirstRound,
                                        !name.hasPrefix("subagent_"),
+                                       !legacyInvokeSwarm,
                                        !Self.isSubagentFirstRoundExemptTool(name)
                                     {
                                         continuation.yield(.raw(type: "tool_validation_error", payload: [
@@ -206,6 +211,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     emittedMarkerIds.insert(dedupeId)
                                     toolCallsThisRound += 1
                                     sawExecutableSuggestion = true
+                                    if isFirstRound, legacyInvokeSwarm {
+                                        acceptedSubagentInFirstRound = true
+                                    }
                                     if let hash = requiredPolicyHash,
                                        shouldEmitSyntheticPolicyAck(
                                         for: marker,
@@ -758,6 +766,23 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
+    private static func isLegacyInvokeSwarmSuggestion(
+        toolName: String,
+        payload: [String: String]
+    ) -> Bool {
+        let normalizedTool = ProviderToolEventMapper.normalizeToolIdentifier(toolName)
+        if normalizedTool == "invoke_swarm" {
+            return true
+        }
+        guard normalizedTool == "mcp_call" else {
+            return false
+        }
+        let targetTool = ProviderToolEventMapper.normalizeToolIdentifier(
+            payload["tool"] ?? payload["mcp_tool"] ?? payload["tool_name"] ?? ""
+        )
+        return targetTool == "invoke_swarm"
+    }
+
     private static func isSuccessfulStatus(_ raw: String?) -> Bool {
         let status = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if status.isEmpty { return true }
@@ -848,6 +873,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         let toolName = inferredToolName(from: marker.payload)
         guard !toolName.isEmpty else { return [] }
 
+        if let legacyInvokeEvents = await executeLegacyInvokeSwarmIfNeeded(
+            marker: marker,
+            toolName: toolName,
+            context: context
+        ) {
+            return legacyInvokeEvents
+        }
+
         if let enforcementEvents = await enforcedMCPEditEventsIfNeeded(
             marker: marker,
             toolName: toolName,
@@ -914,6 +947,119 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             scope: executionScope
         )
         return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
+    }
+
+    private func executeLegacyInvokeSwarmIfNeeded(
+        marker: CoderIDEMarker,
+        toolName: String,
+        context: WorkspaceContext
+    ) async -> [StreamEvent]? {
+        let normalizedTool = ProviderToolEventMapper.normalizeToolIdentifier(toolName)
+
+        // Legacy direct tool call: invoke_swarm(...)
+        let isDirectLegacyInvoke = normalizedTool == "invoke_swarm"
+
+        // Legacy MCP wrapper: mcp_call(tool: coderide_invoke_swarm | invoke_swarm, ...)
+        let targetMCPTool = ProviderToolEventMapper.normalizeToolIdentifier(
+            marker.payload["tool"] ?? marker.payload["mcp_tool"] ?? marker.payload["tool_name"] ?? ""
+        )
+        let isLegacyInvokeViaMCP = normalizedTool == "mcp_call" && targetMCPTool == "invoke_swarm"
+
+        guard isDirectLegacyInvoke || isLegacyInvokeViaMCP else { return nil }
+
+        guard subagentProviderFactory != nil else {
+            return [.raw(type: "tool_validation_error", payload: [
+                "id": marker.payload["id"] ?? UUID().uuidString,
+                "name": toolName,
+                "title": "invoke_swarm non supportato",
+                "detail": "invoke_swarm è legacy; usa subagent_* (subagent_explorer/coder/reviewer/...).",
+                "status": "failed",
+                "error_code": "legacy_invoke_swarm_disabled",
+            ])]
+        }
+
+        var adaptedPayload = marker.payload
+        if (adaptedPayload["task"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let fallbackTask = adaptedPayload["prompt"]
+                ?? adaptedPayload["detail"]
+                ?? adaptedPayload["query"]
+                ?? adaptedPayload["objective"]
+                ?? adaptedPayload["goal"]
+                ?? ""
+            if !fallbackTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                adaptedPayload["task"] = fallbackTask
+            }
+        }
+
+        guard let task = adaptedPayload["task"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !task.isEmpty else {
+            return [.raw(type: "tool_validation_error", payload: [
+                "id": marker.payload["id"] ?? UUID().uuidString,
+                "name": toolName,
+                "title": "Missing task",
+                "detail": "invoke_swarm richiede un task non vuoto; usa subagent_* con task.",
+                "status": "failed",
+                "error_code": "missing_argument",
+            ])]
+        }
+
+        let role = Self.resolveLegacyInvokeSwarmRole(payload: adaptedPayload, task: task)
+        let mappedToolName = ProviderToolEventMapper.normalizeToolIdentifier(role.toolName)
+        adaptedPayload["task"] = task
+        adaptedPayload["name"] = mappedToolName
+        adaptedPayload["tool"] = mappedToolName
+        adaptedPayload["tool_name"] = mappedToolName
+
+        let adaptedMarker = CoderIDEMarker(kind: marker.kind, payload: adaptedPayload)
+        return await executeSubagentTool(
+            toolName: mappedToolName,
+            marker: adaptedMarker,
+            context: context
+        )
+    }
+
+    private static func resolveLegacyInvokeSwarmRole(
+        payload: [String: String],
+        task: String
+    ) -> SubagentRole {
+        let roleCandidates = [
+            payload["role"],
+            payload["agent"],
+            payload["swarm"],
+            payload["swarm_id"],
+            payload["worker"],
+            payload["type"],
+        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        for candidate in roleCandidates where !candidate.isEmpty {
+            let normalized = candidate
+                .replacingOccurrences(of: "-", with: "_")
+                .replacingOccurrences(of: " ", with: "_")
+                .lowercased()
+            if let fromToolName = SubagentRole.fromToolName("subagent_\(normalized)") {
+                return fromToolName
+            }
+            if normalized.contains("review") { return .reviewer }
+            if normalized.contains("debug") { return .debugger }
+            if normalized.contains("test") { return .testWriter }
+            if normalized.contains("doc") { return .docWriter }
+            if normalized.contains("security") || normalized.contains("audit") { return .securityAuditor }
+            if normalized.contains("code") || normalized.contains("implement") { return .coder }
+            if normalized.contains("explore") || normalized.contains("research") || normalized.contains("analy") {
+                return .explorer
+            }
+        }
+
+        let taskText = task.lowercased()
+        if taskText.contains("review") { return .reviewer }
+        if taskText.contains("debug") || taskText.contains("bug") { return .debugger }
+        if taskText.contains("test") { return .testWriter }
+        if taskText.contains("doc") { return .docWriter }
+        if taskText.contains("security") || taskText.contains("audit") { return .securityAuditor }
+        if taskText.contains("implement") || taskText.contains("fix") || taskText.contains("code") {
+            return .coder
+        }
+        return .explorer
     }
 
     private func enforcedMCPEditEventsIfNeeded(

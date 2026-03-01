@@ -83,6 +83,21 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["status"], "completed")
     }
 
+    func testMCPInvokeSwarmSynthesizesStableFallbackWhenNoIDsExist() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "invoke_swarm",
+                "status": "in_progress",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "invoke-swarm")
+        XCTAssertEqual(mapped?.payload["group_id"], "swarm-invoke-swarm")
+    }
+
     func testMCPSubagentToolDerivesSwarmMetadataFromToolName() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "mcp_call",
