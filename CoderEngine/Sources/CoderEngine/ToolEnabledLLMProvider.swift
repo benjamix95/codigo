@@ -91,6 +91,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     var didEmitPolicyAck = false
                     let enforceSubagentFirstRound = executionScope == .agent && subagentProviderFactory != nil
                     var acceptedSubagentInFirstRound = false
+                    var sawCodeMutationDuringTask = false
+                    var invokedReviewerSubagent = false
+                    var invokedTestWriterSubagent = false
+                    var autoInjectedFinalReviewBatch = false
 
                     for _ in 0..<maxToolRounds {
                         let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
@@ -216,6 +220,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                         if isFirstRound {
                                             acceptedSubagentInFirstRound = true
                                         }
+                                        if let role = SubagentRole.fromToolName(name) {
+                                            if role == .reviewer { invokedReviewerSubagent = true }
+                                            if role == .testWriter { invokedTestWriterSubagent = true }
+                                        }
                                         pendingSubagentCalls.append((marker: marker, name: name))
                                         let toolCallId = marker.payload["id"] ?? UUID().uuidString
                                         continuation.yield(.raw(type: "agent", payload: [
@@ -238,6 +246,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
                                         let produced = await events(for: marker, context: context)
                                         for e in produced {
+                                            if Self.streamEventIndicatesCodeMutation(
+                                                e,
+                                                originatingToolName: name
+                                            ) {
+                                                sawCodeMutationDuringTask = true
+                                            }
                                             if case .raw(let innerType, let innerPayload) = e,
                                                innerType == "policy_ack",
                                                Self.matchesRequiredPolicyHash(
@@ -283,7 +297,18 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             // Emit results sequentially after parallel execution
                             var anySubagentFailed = false
                             for result in results {
+                                let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
+                                if let role = SubagentRole.fromToolName(subagentToolName) {
+                                    if role == .reviewer { invokedReviewerSubagent = true }
+                                    if role == .testWriter { invokedTestWriterSubagent = true }
+                                }
                                 for e in result.events {
+                                    if Self.streamEventIndicatesCodeMutation(
+                                        e,
+                                        originatingToolName: subagentToolName
+                                    ) {
+                                        sawCodeMutationDuringTask = true
+                                    }
                                     if case .raw(let innerType, let innerPayload) = e,
                                        innerType == "policy_ack",
                                        Self.matchesRequiredPolicyHash(
@@ -311,6 +336,105 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 "count": "\(results.count)"
                             ]))
                             pendingSubagentCalls.removeAll()
+                        }
+
+                        let mandatoryReviewSatisfied = invokedReviewerSubagent && invokedTestWriterSubagent
+                        if subagentProviderFactory != nil,
+                           sawCodeMutationDuringTask,
+                           !mandatoryReviewSatisfied,
+                           !autoInjectedFinalReviewBatch
+                        {
+                            autoInjectedFinalReviewBatch = true
+                            var injectedCalls: [(marker: CoderIDEMarker, name: String)] = []
+                            if !invokedReviewerSubagent {
+                                injectedCalls.append((
+                                    marker: CoderIDEMarker(kind: "tool_call", payload: [
+                                        "id": "auto-reviewer-\(UUID().uuidString)",
+                                        "name": SubagentRole.reviewer.toolName,
+                                        "task": "Review all code changes completed in this task. Report bugs, regressions, and risks with concrete findings.",
+                                    ]),
+                                    name: SubagentRole.reviewer.toolName
+                                ))
+                                invokedReviewerSubagent = true
+                            }
+                            if !invokedTestWriterSubagent {
+                                injectedCalls.append((
+                                    marker: CoderIDEMarker(kind: "tool_call", payload: [
+                                        "id": "auto-testwriter-\(UUID().uuidString)",
+                                        "name": SubagentRole.testWriter.toolName,
+                                        "task": "Write and run focused regression tests for all code changes completed in this task. Report failures and coverage gaps.",
+                                    ]),
+                                    name: SubagentRole.testWriter.toolName
+                                ))
+                                invokedTestWriterSubagent = true
+                            }
+
+                            if !injectedCalls.isEmpty {
+                                sawExecutableSuggestion = true
+                                for call in injectedCalls {
+                                    let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
+                                    continuation.yield(.raw(type: "agent", payload: [
+                                        "title": SubagentRole.fromToolName(call.name)?.displayName ?? call.name,
+                                        "detail": "queued",
+                                        "swarm_id": "queued-\(toolCallId)",
+                                        "tool_call_id": toolCallId,
+                                        "status": "queued"
+                                    ]))
+                                }
+
+                                let capturedContext = context
+                                let injectedResults: [(events: [StreamEvent], marker: CoderIDEMarker)] = await withTaskGroup(
+                                    of: (events: [StreamEvent], marker: CoderIDEMarker).self
+                                ) { group in
+                                    for call in injectedCalls {
+                                        let marker = call.marker
+                                        group.addTask {
+                                            let produced = await self.events(for: marker, context: capturedContext)
+                                            return (events: produced, marker: marker)
+                                        }
+                                    }
+                                    var collected: [(events: [StreamEvent], marker: CoderIDEMarker)] = []
+                                    for await result in group {
+                                        collected.append(result)
+                                    }
+                                    return collected
+                                }
+
+                                var injectedAnyFailed = false
+                                for result in injectedResults {
+                                    let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
+                                    for e in result.events {
+                                        if Self.streamEventIndicatesCodeMutation(
+                                            e,
+                                            originatingToolName: subagentToolName
+                                        ) {
+                                            sawCodeMutationDuringTask = true
+                                        }
+                                        if case .raw(let innerType, let innerPayload) = e,
+                                           innerType == "policy_ack",
+                                           Self.matchesRequiredPolicyHash(
+                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
+                                            requiredHash: requiredPolicyHash
+                                           ) {
+                                            didEmitPolicyAck = true
+                                        }
+                                        if case .raw(let t, let p) = e,
+                                           t == "tool_result",
+                                           p["status"] == "failed" {
+                                            injectedAnyFailed = true
+                                        }
+                                        continuation.yield(e)
+                                    }
+                                    if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
+                                        roundToolResults.append(summary)
+                                    }
+                                }
+
+                                continuation.yield(.raw(type: "subagent_batch_done", payload: [
+                                    "status": injectedAnyFailed ? "blocked" : "done",
+                                    "count": "\(injectedResults.count)"
+                                ]))
+                            }
                         }
 
                         roundText = roundTextParts.joined()
@@ -599,6 +723,57 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         default:
             return false
         }
+    }
+
+    private static func isSuccessfulStatus(_ raw: String?) -> Bool {
+        let status = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if status.isEmpty { return true }
+        return status == "completed" || status == "ok" || status == "success" || status == "done"
+    }
+
+    private static func isCodeMutationTool(_ rawTool: String) -> Bool {
+        let tool = ProviderToolEventMapper.normalizeToolIdentifier(rawTool)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if tool.isEmpty { return false }
+        if tool.hasPrefix("subagent_"),
+           let role = SubagentRole.fromToolName(tool) {
+            return role == .coder || role == .debugger
+        }
+        if tool == "create_file" || tool == "delete_file" || tool == "apply_patch" {
+            return true
+        }
+        return tool.contains("edit")
+            || tool.contains("write")
+            || tool.contains("replace")
+            || tool == "parallel_apply"
+            || tool == "multi_edit"
+            || tool == "find_and_replace_all"
+            || tool == "rename_symbol"
+            || tool == "undo_edit"
+    }
+
+    private static func streamEventIndicatesCodeMutation(
+        _ event: StreamEvent,
+        originatingToolName: String
+    ) -> Bool {
+        guard case .raw(let type, let payload) = event else { return false }
+        let normalizedType = type
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if normalizedType == "file_change" {
+            return isSuccessfulStatus(payload["status"])
+        }
+        if normalizedType == "mcp_tool_call" {
+            let mcpTool = payload["mcp_tool"] ?? payload["tool"] ?? ""
+            return isCodeMutationTool(mcpTool) && isSuccessfulStatus(payload["status"])
+        }
+        if normalizedType == "tool_result" {
+            let tool = payload["name"] ?? originatingToolName
+            return isCodeMutationTool(tool) && isSuccessfulStatus(payload["status"])
+        }
+        return false
     }
 
     private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {

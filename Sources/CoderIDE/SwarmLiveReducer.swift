@@ -70,7 +70,9 @@ enum SwarmLiveReducer {
             card.status = .running
             card.completedAt = nil
             card.summary = nil
-            card.errorCount = 0
+            // Preserve errorCount across running transitions — errors from
+            // previous phases should not be silently discarded when a card
+            // re-enters running state (e.g. retry after failure).
             if card.isCollapsed {
                 card.hasUnreadSinceCollapse = true
             }
@@ -150,11 +152,17 @@ enum SwarmLiveReducer {
         if isErrorEvent(activity) { return .failed }
         let detail = (activity.detail ?? activity.payload["detail"] ?? "").lowercased()
         let status = (activity.payload["status"] ?? "").lowercased()
-        if detail == "started" || status == "started" || activity.isRunning {
-            return .running
-        }
+        // Check completed/failed BEFORE isRunning — an explicit "completed" detail
+        // must take priority over the isRunning flag to prevent cards from being
+        // stuck in running state when the stream marks them completed.
         if detail == "completed" || status == "completed" {
             return .completed
+        }
+        if detail == "failed" || status == "failed" {
+            return .failed
+        }
+        if detail == "started" || status == "started" || activity.isRunning {
+            return .running
         }
         return .none
     }
@@ -199,7 +207,9 @@ enum SwarmLiveReducer {
     }
 
     private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {
-        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 100)
+        // Use 500ms buckets (divide by 2) instead of 10ms to reduce boundary effects.
+        // Events within the same 500ms window with identical properties are deduped.
+        let bucket = Int(activity.timestamp.timeIntervalSince1970 * 2)
         let status = (activity.payload["status"] ?? "").lowercased()
         let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
         return [

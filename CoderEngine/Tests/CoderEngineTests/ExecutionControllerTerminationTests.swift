@@ -2,6 +2,18 @@ import XCTest
 @testable import CoderEngine
 
 final class ExecutionControllerTerminationTests: XCTestCase {
+    func testEndScopeTransitionsToIdleWhenNoRunningProcess() {
+        let controller = ExecutionController()
+
+        controller.beginScope(.review)
+        XCTAssertEqual(controller.activeScope, .review)
+        XCTAssertEqual(controller.runState, .running)
+
+        controller.endScope(.review)
+        XCTAssertNil(controller.activeScope)
+        XCTAssertEqual(controller.runState, .idle)
+    }
+
     func testTerminateScopeKeepsStoppingStateUntilClearCurrentProcess() throws {
         let controller = ExecutionController()
         let process = Process()

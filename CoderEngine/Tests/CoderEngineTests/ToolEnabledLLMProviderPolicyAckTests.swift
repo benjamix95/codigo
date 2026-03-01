@@ -389,4 +389,53 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         XCTAssertTrue(sawSubagentPolicyError)
         XCTAssertFalse(sawReadExecution)
     }
+
+    func testAutoInjectsReviewerAndTestWriterAfterCoderMutation() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-auto-review-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-coder-1",
+                "name": "subagent_coder",
+                "args": #"{"task":"Implement fix"}"#,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Implementa e chiudi",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawReviewer = false
+        var sawTestWriter = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_result",
+               payload["name"] == "subagent_reviewer",
+               payload["status"] == "completed" {
+                sawReviewer = true
+            }
+            if type == "tool_result",
+               payload["name"] == "subagent_testwriter",
+               payload["status"] == "completed" {
+                sawTestWriter = true
+            }
+        }
+
+        XCTAssertTrue(sawReviewer, "Reviewer subagent should be auto-injected")
+        XCTAssertTrue(sawTestWriter, "TestWriter subagent should be auto-injected")
+    }
 }

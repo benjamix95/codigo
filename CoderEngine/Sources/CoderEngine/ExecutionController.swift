@@ -42,6 +42,27 @@ public final class ExecutionController: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Ends a logical execution scope started with `beginScope`.
+    ///
+    /// This method is intentionally conservative:
+    /// - if a matching process is still running, scope teardown is deferred
+    /// - if no process is running, the controller transitions back to idle
+    public func endScope(_ scope: ExecutionScope) {
+        lock.withLock {
+            guard currentScope == scope || scope == .system else { return }
+
+            if let process = currentProcess {
+                if process.isRunning {
+                    return
+                }
+                currentProcess = nil
+            }
+
+            currentScope = nil
+            _runState = .idle
+        }
+    }
+
     /// Clears the process reference (called when a process terminates).
     /// If a specific process is provided, clears only when it matches the tracked one.
     public func clearCurrentProcess(_ process: Process? = nil) {
