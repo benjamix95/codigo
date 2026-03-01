@@ -164,8 +164,10 @@ enum EventNormalizer {
         }
 
         if type == "todo_write" {
-            // Parse the full todos array when available (serialized as JSON by mapTodo).
-            if let todosJson = payload["todos_json"],
+            // Parse the full todos array when available.
+            // mapTodo (MCP/CodexCLI) writes "todos_json"; the native provider
+            // passes the raw "todos" key directly — accept both.
+            if let todosJson = payload["todos_json"] ?? payload["todos"],
                let todosData = todosJson.data(using: .utf8),
                let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]] {
                 // Empty array is valid — means "clear todos" or "no-op"; skip batch processing

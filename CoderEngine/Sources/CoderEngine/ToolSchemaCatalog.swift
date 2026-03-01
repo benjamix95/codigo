@@ -208,10 +208,10 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "bash",
-            description: "Run shell command in the workspace",
+            description: "Run shell command. The working directory defaults to the workspace root (the project folder paths listed in the context). Always operate within the workspace — never search the full filesystem unless explicitly asked.",
             properties: [
-                "command": ["type": "string", "description": "Shell command"],
-                "cwd": ["type": "string", "description": "Optional working directory"]
+                "command": ["type": "string", "description": "Shell command to execute. Paths should be relative to the workspace root."],
+                "cwd": ["type": "string", "description": "Optional working directory override. Defaults to the workspace root."]
             ],
             required: ["command"]
         ),
@@ -932,6 +932,62 @@ enum ToolSchemaCatalog {
                 "url": ["type": "string", "description": "HTTP(S) URL to fetch"]
             ],
             required: ["url"]
+        ),
+
+        // MARK: Browser Tools
+        ToolSchemaEntry(
+            name: "browser_navigate",
+            description: "Navigate the integrated browser to a URL. Opens the browser panel if not already visible.",
+            properties: [
+                "url": ["type": "string", "description": "URL to navigate to (e.g. http://localhost:3000)"]
+            ],
+            required: ["url"]
+        ),
+        ToolSchemaEntry(
+            name: "browser_screenshot",
+            description: "Take a screenshot of the current browser page. Returns a base64-encoded PNG image.",
+            properties: [:],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "browser_console_logs",
+            description: "Read console logs from the integrated browser. Returns recent console output including errors, warnings, and info messages.",
+            properties: [
+                "level": ["type": "string", "description": "Filter by log level", "enum": "log,info,warn,error,debug"],
+                "last_n": ["type": "string", "description": "Number of recent log entries to return (default: 100)"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "browser_click",
+            description: "Click an element in the browser page using a CSS selector.",
+            properties: [
+                "selector": ["type": "string", "description": "CSS selector of the element to click (e.g. '#submit-btn', '.nav-link')"]
+            ],
+            required: ["selector"]
+        ),
+        ToolSchemaEntry(
+            name: "browser_type",
+            description: "Type text into an input field in the browser page.",
+            properties: [
+                "selector": ["type": "string", "description": "CSS selector of the input element"],
+                "text": ["type": "string", "description": "Text to type into the field"]
+            ],
+            required: ["selector", "text"]
+        ),
+        ToolSchemaEntry(
+            name: "browser_evaluate_js",
+            description: "Execute arbitrary JavaScript in the browser page and return the result.",
+            properties: [
+                "script": ["type": "string", "description": "JavaScript code to execute in the page context"]
+            ],
+            required: ["script"]
+        ),
+        ToolSchemaEntry(
+            name: "browser_get_content",
+            description: "Get the full HTML content of the current browser page.",
+            properties: [:],
+            required: []
         )
     ]
 

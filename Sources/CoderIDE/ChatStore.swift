@@ -444,15 +444,17 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    /// Bypasses the 200ms debounce and writes to disk synchronously on the persist queue.
-    /// Use at critical moments (task end, snapshot save) to prevent data loss on crash.
+    /// Bypasses the 200ms debounce and writes to disk on the persist queue.
+    /// Uses async dispatch to avoid deadlocking the main thread — UserDefaults.set
+    /// can post NSUserDefaultsDidChangeNotification which synchronously dispatches
+    /// back to the main thread, causing a deadlock if we used dispatch_sync here.
     func saveConversationsImmediately() {
         hasSavedSinceLoad = true
         pendingSaveTask?.cancel()
         pendingSaveTask = nil
         let snapshot = conversations
         let defaults = SendableUserDefaults(value: self.userDefaults)
-        Self.persistQueue.sync {
+        Self.persistQueue.async {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
             defaults.value.set(data, forKey: conversationsStorageKey)
         }

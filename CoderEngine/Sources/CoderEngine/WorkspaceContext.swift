@@ -126,6 +126,10 @@ public struct WorkspaceContext: Sendable {
         } else if !workspacePaths.isEmpty {
             parts.append("\n**Project folders:** \(workspacePaths.map { $0.path }.joined(separator: ", "))")
         }
+        if let primaryPath = workspacePaths.first {
+            parts.append("\n**Working directory (cwd for all tools):** \(primaryPath.path)")
+            parts.append("All file paths should be relative to this directory. Do not search outside the workspace unless explicitly asked.")
+        }
         
         if !excludedPaths.isEmpty {
             parts.append("\n**Excluded:** \(excludedPaths.joined(separator: ", "))")

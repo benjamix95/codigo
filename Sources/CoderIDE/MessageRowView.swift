@@ -1,5 +1,6 @@
 import AppKit
 import CoderEngine
+import QuickLookUI
 import SwiftUI
 
 // MARK: - Message Row
@@ -25,8 +26,8 @@ struct MessageRow: View {
     @State private var hoverTask: Task<Void, Never>?
     private let userRowMaxWidth: CGFloat = 620
     private let assistantRowMaxWidth: CGFloat = 920
-    private let userImageThumbWidth: CGFloat = 80
-    private let userImageThumbHeight: CGFloat = 56
+    private let userImageThumbWidth: CGFloat = 140
+    private let userImageThumbHeight: CGFloat = 100
 
     private var isActivelyStreaming: Bool {
         message.isStreaming && isActuallyLoading
@@ -347,7 +348,7 @@ struct MessageRow: View {
 }
 
 /// Loads an image thumbnail asynchronously and caches the result.
-/// Supports context menu for Quick Look, copy, and save.
+/// Click opens a full-size Quick Look panel; context menu provides copy, save, and reveal.
 private struct CachedThumbnailView: View {
     let path: String
     let width: CGFloat
@@ -355,61 +356,83 @@ private struct CachedThumbnailView: View {
 
     @State private var loadedImage: NSImage?
     @State private var loadFailed = false
-    @State private var isShowingQuickLook = false
     @State private var isHovered = false
+    @State private var showFullPreview = false
 
     var body: some View {
-        Group {
-            if let img = loadedImage {
-                Image(nsImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if loadFailed {
-                Image(systemName: "photo")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Color.clear
+        ZStack {
+            Group {
+                if let img = loadedImage {
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else if loadFailed {
+                    Image(systemName: "photo")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
+            .frame(width: width, height: height)
+            .clipped()
+
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(isHovered ? 0.2 : 0))
+                .frame(width: width, height: height)
+                .overlay(
+                    VStack(spacing: 4) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 2)
+                        Text("Preview")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.5), radius: 2)
+                    }
+                    .opacity(isHovered ? 1 : 0)
+                )
         }
         .frame(width: width, height: height)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color.black.opacity(isHovered ? 0.15 : 0))
-                .overlay(
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .opacity(isHovered ? 0.9 : 0)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(
+                    isHovered ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.08),
+                    lineWidth: isHovered ? 1.5 : 0.5
                 )
         )
-        .onHover { isHovered = $0 }
+        .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) { isHovered = hovering }
+        }
         .onTapGesture {
             openImageInPreview()
         }
+        .popover(isPresented: $showFullPreview, arrowEdge: .bottom) {
+            imageFullPreviewPopover
+        }
         .contextMenu {
-            Button {
-                openImageInPreview()
-            } label: {
-                Label("Open", systemImage: "eye")
+            Button { openImageInPreview() } label: {
+                Label("Open in Preview", systemImage: "eye")
             }
-            Button {
-                copyImageToClipboard()
-            } label: {
-                Label("Copy Image", systemImage: "doc.on.doc")
-            }
-            Button {
-                saveImageToDesktop()
-            } label: {
-                Label("Save to Desktop", systemImage: "square.and.arrow.down")
+            Button { showFullPreview = true } label: {
+                Label("Quick Look", systemImage: "magnifyingglass")
             }
             Divider()
-            Button {
-                revealInFinder()
-            } label: {
+            Button { copyImageToClipboard() } label: {
+                Label("Copy Image", systemImage: "doc.on.doc")
+            }
+            Button { saveImageAs() } label: {
+                Label("Save As…", systemImage: "square.and.arrow.down")
+            }
+            Divider()
+            Button { revealInFinder() } label: {
                 Label("Reveal in Finder", systemImage: "folder")
             }
         }
@@ -431,9 +454,66 @@ private struct CachedThumbnailView: View {
         }
     }
 
+    @ViewBuilder
+    private var imageFullPreviewPopover: some View {
+        if let img = loadedImage {
+            let imgSize = img.size
+            let maxW: CGFloat = 600
+            let maxH: CGFloat = 500
+            let scale = min(maxW / max(imgSize.width, 1), maxH / max(imgSize.height, 1), 1.0)
+            let displayW = imgSize.width * scale
+            let displayH = imgSize.height * scale
+
+            VStack(spacing: 8) {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: max(displayW, 200), height: max(displayH, 150))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                HStack(spacing: 12) {
+                    Text((path as NSString).lastPathComponent)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Button { openImageInPreview() } label: {
+                        Label("Open", systemImage: "arrow.up.forward.square")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+
+                    Button { saveImageAs() } label: {
+                        Label("Save", systemImage: "square.and.arrow.down")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+
+                    Button { copyImageToClipboard() } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(12)
+            .frame(minWidth: 220)
+        }
+    }
+
     private func openImageInPreview() {
         let url = URL(fileURLWithPath: path)
-        NSWorkspace.shared.open(url)
+        guard FileManager.default.fileExists(atPath: path) else { return }
+        NSWorkspace.shared.open(
+            [url],
+            withApplicationAt: URL(fileURLWithPath: "/System/Applications/Preview.app"),
+            configuration: NSWorkspace.OpenConfiguration()
+        )
     }
 
     private func copyImageToClipboard() {
@@ -445,11 +525,12 @@ private struct CachedThumbnailView: View {
         pb.writeObjects([url])
     }
 
-    private func saveImageToDesktop() {
+    private func saveImageAs() {
         let panel = NSSavePanel()
         let fileName = (path as NSString).lastPathComponent
         panel.nameFieldStringValue = fileName
         panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.png, .jpeg]
         panel.begin { result in
             guard result == .OK, let dest = panel.url else { return }
             try? FileManager.default.copyItem(

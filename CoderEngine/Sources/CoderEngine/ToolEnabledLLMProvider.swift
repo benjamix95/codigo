@@ -52,6 +52,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         await runtime.debugSnapshot()
     }
 
+    public func setBrowserBridge(_ bridge: (any BrowserBridge)?) async {
+        await runtime.setBrowserBridge(bridge)
+    }
+
+    public func setTerminalBridge(_ bridge: (any TerminalBridge)?) async {
+        await runtime.setTerminalBridge(bridge)
+    }
+
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         // When systemPromptOverride is set (e.g. prompt optimization), pass through to base without
         // adding taskCompletionStrict or toolProtocolPrompt — the context carries the custom system prompt.
@@ -326,8 +334,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             ) { group in
                                 for call in calls {
                                     let m = call.marker
-                                    group.addTask {
-                                        let produced = await self.events(for: m, context: capturedContext, preEmittedSubagentIds: capturedSubagentIds)
+                                    group.addTask { @Sendable in
+                                        let produced = await self.events(
+                                            for: m,
+                                            context: capturedContext,
+                                            preEmittedSubagentIds: capturedSubagentIds,
+                                            onLiveSubagentEvent: { liveEvent in
+                                                continuation.yield(liveEvent)
+                                            }
+                                        )
                                         return (events: produced, marker: m)
                                     }
                                 }
@@ -363,15 +378,21 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                            p["status"] == "failed" {
                                             anySubagentFailed = true
                                         }
-                                        continuation.yield(e)
+                                        // Events already streamed live via onLiveSubagentEvent
+                                        // are not re-yielded to avoid duplicates.
+                                        let alreadyEmitted: Bool = {
+                                            if case .raw(_, let p) = e { return p["_live_emitted"] == "1" }
+                                            return false
+                                        }()
+                                        if !alreadyEmitted {
+                                            continuation.yield(e)
+                                        }
                                     }
                                     if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
                                         roundToolResults.append(summary)
                                     }
                                 }
                             }
-                            // Auto-complete in-progress todos after subagent batch finishes.
-                            // The agent will continue in the next round and can update further.
                             let autoStatus = anySubagentFailed ? "blocked" : "done"
                             continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                 "status": autoStatus,
@@ -439,8 +460,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 ) { group in
                                     for call in injectedCalls {
                                         let marker = call.marker
-                                        group.addTask {
-                                            let produced = await self.events(for: marker, context: capturedContext, preEmittedSubagentIds: capturedInjectedIds)
+                                        group.addTask { @Sendable in
+                                            let produced = await self.events(
+                                                for: marker,
+                                                context: capturedContext,
+                                                preEmittedSubagentIds: capturedInjectedIds,
+                                                onLiveSubagentEvent: { liveEvent in
+                                                    continuation.yield(liveEvent)
+                                                }
+                                            )
                                             return (events: produced, marker: marker)
                                         }
                                     }
@@ -477,7 +505,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                                p["status"] == "failed" {
                                                 injectedAnyFailed = true
                                             }
-                                            continuation.yield(e)
+                                            let alreadyEmitted: Bool = {
+                                                if case .raw(_, let p) = e { return p["_live_emitted"] == "1" }
+                                                return false
+                                            }()
+                                            if !alreadyEmitted {
+                                                continuation.yield(e)
+                                            }
                                         }
                                         if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
                                             roundToolResults.append(summary)
@@ -895,10 +929,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     /// IDE-state tools are emitted as raw events; everything else goes through UnifiedToolRuntime.
     /// `preEmittedSubagentIds` maps tool_call_id → subagent_id for subagents whose "started"
     /// event was already emitted by the caller (parallel batch execution).
+    /// `onLiveSubagentEvent` is called for intermediate subagent events during execution,
+    /// enabling real-time card updates before the subagent fully completes.
     private func events(
         for marker: CoderIDEMarker,
         context: WorkspaceContext,
-        preEmittedSubagentIds: [String: String]? = nil
+        preEmittedSubagentIds: [String: String]? = nil,
+        onLiveSubagentEvent: (@Sendable (StreamEvent) -> Void)? = nil
     ) async -> [StreamEvent] {
         guard marker.kind == "tool_call" else { return [] }
         let toolName = inferredToolName(from: marker.payload)
@@ -966,7 +1003,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 toolName: toolName,
                 marker: marker,
                 context: context,
-                preAssignedSubagentId: preAssignedId
+                preAssignedSubagentId: preAssignedId,
+                onLiveEvent: onLiveSubagentEvent
             )
         }
 
@@ -1728,11 +1766,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
         \(subagentProviderFactory != nil ? """
         ### Subagent Tools — MANDATORY PARALLEL EXECUTION (you MUST use these)
-        - **subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
-        - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
-        - **subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.
-        - **subagent_debugger** — Spawn a debugger subagent. Investigates and fixes bugs. Args: `task`.
-        - **subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
+        These tools are available both as native tools and as MCP tools (prefixed with `coderide_`).
+        Call them by whichever name is in your tool schema — e.g. `subagent_explorer` or `coderide_subagent_explorer`.
+        - **subagent_explorer** / **coderide_subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
+        - **subagent_coder** / **coderide_subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
+        - **subagent_reviewer** / **coderide_subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.
+        - **subagent_debugger** / **coderide_subagent_debugger** — Spawn a debugger subagent. Investigates and fixes bugs. Args: `task`.
+        - **subagent_testWriter** / **coderide_subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
         - **subagent_docWriter** — Spawn a documentation subagent. Args: `task`.
         - **subagent_securityAuditor** — Spawn a security audit subagent. Args: `task`.
 
@@ -1897,11 +1937,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     /// then returns the result as tool output events.
     /// When `preAssignedSubagentId` is provided, the "started" event was already emitted
     /// by the caller and will not be duplicated here.
+    /// `onLiveEvent` is called for every intermediate event during execution, enabling
+    /// real-time streaming of subagent activity to the UI (card subtitle updates, etc.).
     private func executeSubagentTool(
         toolName: String,
         marker: CoderIDEMarker,
         context: WorkspaceContext,
-        preAssignedSubagentId: String? = nil
+        preAssignedSubagentId: String? = nil,
+        onLiveEvent: (@Sendable (StreamEvent) -> Void)? = nil
     ) async -> [StreamEvent] {
         guard let role = SubagentRole.fromToolName(toolName) else {
             return [.raw(type: "tool_validation_error", payload: [
@@ -1987,15 +2030,20 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             let stream = try await subagentProvider.send(
                 prompt: prompt, context: context, imageURLs: nil
             )
+            let hasLiveCallback = onLiveEvent != nil
             for try await event in stream {
                 switch event {
                 case .textDelta(let delta):
                     if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
                 case .raw(let type, var payload):
-                    // Enrich all raw events with subagent routing info
                     payload["swarm_id"] = subagentId
                     payload["group_id"] = "swarm-\(subagentId)"
-                    events.append(.raw(type: type, payload: payload))
+                    if hasLiveCallback {
+                        payload["_live_emitted"] = "1"
+                    }
+                    let enriched = StreamEvent.raw(type: type, payload: payload)
+                    events.append(enriched)
+                    onLiveEvent?(enriched)
                 default:
                     break
                 }

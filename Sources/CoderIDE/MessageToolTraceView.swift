@@ -70,6 +70,7 @@ struct MessageToolTraceView: View {
             var commandCount = 0
             var editCount = 0
             var mcpCount = 0
+            var browserCount = 0
             var skillNames = Set<String>()
 
             for event in orderedEvents {
@@ -81,6 +82,7 @@ struct MessageToolTraceView: View {
                 if type == "bash" || type == "command_execution" { commandCount += 1 }
                 if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
                 if ToolTraceVisibility.isMCPEvent(event: event) { mcpCount += 1 }
+                if type.contains("browser_action") || (event.payload["tool"] ?? "").hasPrefix("browser_") { browserCount += 1 }
                 if event.type == "skill_invocation" || event.payload["tool"] == "skill",
                    let skill = event.payload["skill"], !skill.isEmpty { skillNames.insert(skill) }
                 for raw in skillPathCandidates(for: event) {
@@ -100,6 +102,7 @@ struct MessageToolTraceView: View {
             if searchCount > 0 { parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))") }
             if commandCount > 0 { parts.append("\(commandCount) \(pluralized("command", count: commandCount))") }
             if mcpCount > 0 { parts.append("MCP \(mcpCount) \(pluralized("call", count: mcpCount))") }
+            if browserCount > 0 { parts.append("\(browserCount) browser \(pluralized("action", count: browserCount))") }
             if !skillNames.isEmpty {
                 let skills = skillNames.sorted()
                 parts.append(skills.count <= 2 ? "Skills: \(skills.joined(separator: ", "))" : "Skills: \(skills.prefix(2).joined(separator: ", ")) +\(skills.count - 2)")
@@ -456,6 +459,22 @@ struct MessageToolTraceView: View {
             Image(systemName: "arrow.down.doc")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.info)
+        } else if type.contains("browser_action") || tool.hasPrefix("browser_") {
+            let icon: String = {
+                switch tool {
+                case "browser_navigate": return "safari"
+                case "browser_screenshot": return "camera.viewfinder"
+                case "browser_console_logs": return "terminal"
+                case "browser_click": return "cursorarrow.click.2"
+                case "browser_type": return "keyboard"
+                case "browser_evaluate_js": return "chevron.left.forwardslash.chevron.right"
+                case "browser_get_content": return "doc.richtext"
+                default: return "globe"
+                }
+            }()
+            Image(systemName: icon)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.browserColor)
         } else if type == "mcp_tool_call" || tool.hasPrefix("mcp") {
             Image(systemName: "square.grid.3x3")
                 .font(.system(size: 9.5, weight: .medium))
@@ -734,7 +753,11 @@ struct MessageToolTraceView: View {
                 detailPill(label: "Latency", value: "\(latency)ms")
             }
             if let output = event.payload["output"], !output.isEmpty {
-                codeBlock(label: "Output", value: String(output.prefix(4000)))
+                if output.hasPrefix("data:image/png;base64,") {
+                    browserScreenshotBlock(base64: String(output.dropFirst("data:image/png;base64,".count)))
+                } else {
+                    codeBlock(label: "Output", value: String(output.prefix(4000)))
+                }
             }
             if let diffPreview = nonEmpty(
                 event.payload["diffPreview"]
@@ -755,6 +778,37 @@ struct MessageToolTraceView: View {
     }
 
     // MARK: - UI Components
+
+    @ViewBuilder
+    private func browserScreenshotBlock(base64: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.browserColor)
+                Text("Browser Screenshot")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+            if let data = Data(base64Encoded: base64),
+               let nsImage = NSImage(data: data) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: 480, maxHeight: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+            } else {
+                Text("(screenshot data unavailable)")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+        }
+    }
 
     private func detailPill(label: String, value: String) -> some View {
         HStack(spacing: 4) {

@@ -18,6 +18,7 @@ struct ContentView: View {
     @EnvironmentObject var appUpdateCenter: AppUpdateCenter
     @StateObject private var debugStore = DebugStore()
     @StateObject private var terminalSessionStore = TerminalSessionStore()
+    @StateObject private var browserTabManager = BrowserTabManager()
     @State private var selectedConversationId: UUID?
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     @State private var showTerminal = false
@@ -27,6 +28,7 @@ struct ContentView: View {
     @State private var showDebugPanel = false
     @State private var showSwarmPanel = false
     @State private var showCodeReviewPanel = false
+    @State private var showBrowserPanel = false
     @State private var showAppUpdateAlert = false
     @State private var pendingAppUpdate: AppUpdateCenter.AppUpdateManifest?
     @State private var isSelectingProjectFolders = false
@@ -39,6 +41,7 @@ struct ContentView: View {
     @AppStorage("side_panel_width") private var sidePanelWidth: Double = 240
     @AppStorage("auto_resize_side_panels") private var autoResizeSidePanels = false
     @AppStorage("chat_panel_position") private var chatPanelPosition = "left"
+    @AppStorage("browser_panel_width") private var browserPanelWidth: Double = 500
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -121,6 +124,25 @@ struct ContentView: View {
                         editorArea
                             .layoutPriority(1)
 
+                        // Browser Panel
+                        if showBrowserPanel {
+                            let maxBrowserW = max(300, detailWidth * 0.55)
+                            let clampedBrowserW = min(CGFloat(browserPanelWidth), maxBrowserW)
+
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { clampedBrowserW },
+                                    set: { browserPanelWidth = Double($0) }
+                                ),
+                                minWidth: 300,
+                                maxWidth: maxBrowserW,
+                                leadingEdge: true
+                            )
+
+                            BrowserPanelView(tabManager: browserTabManager)
+                                .frame(width: clampedBrowserW)
+                        }
+
                         // Chat Panel (right side, if configured)
                         if showChatPanel && !chatIsLeft {
                             PanelResizeHandle(
@@ -159,6 +181,30 @@ struct ContentView: View {
                             )
                             .environmentObject(providerRegistry)
                             .frame(width: clampedGitW)
+                        }
+                    } else if coderMode == .browser {
+                        // --- BROWSER MODE LAYOUT ---
+                        // Chat on the left, browser panel on the right
+                        chatPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .layoutPriority(1)
+
+                        if showBrowserPanel {
+                            let maxBrowserW = max(300, detailWidth * 0.65)
+                            let clampedBrowserW = min(CGFloat(browserPanelWidth), maxBrowserW)
+
+                            PanelResizeHandle(
+                                panelWidth: Binding(
+                                    get: { clampedBrowserW },
+                                    set: { browserPanelWidth = Double($0) }
+                                ),
+                                minWidth: 300,
+                                maxWidth: maxBrowserW,
+                                leadingEdge: true
+                            )
+
+                            BrowserPanelView(tabManager: browserTabManager)
+                                .frame(width: clampedBrowserW)
                         }
                     } else {
                         // --- AGENT MODE LAYOUT ---
@@ -231,6 +277,11 @@ struct ContentView: View {
         .onChange(of: isSelectingProjectFolders) { _, isPresented in
             if isPresented { NSApp.activate(ignoringOtherApps: true) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: BrowserTabManager.browserShouldOpenNotification)) { _ in
+            if !showBrowserPanel {
+                withAnimation(.snappy(duration: 0.2)) { showBrowserPanel = true }
+            }
+        }
         .onChange(of: showPlanPanel) { _, isOpen in
             guard isOpen else { return }
             showDebugPanel = false; showSwarmPanel = false; showCodeReviewPanel = false
@@ -257,6 +308,11 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .onChange(of: coderMode) { _, newMode in
+            withAnimation(.snappy(duration: 0.2)) {
+                columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .automatic
+            }
+        }
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
             if let selectedId = selectedConversationId,
@@ -359,6 +415,21 @@ struct ContentView: View {
             .help("Toggle terminal")
 
             Button {
+                withAnimation(.snappy(duration: 0.2)) { showBrowserPanel.toggle() }
+            } label: {
+                Image(systemName: "globe")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(showBrowserPanel ? DesignSystem.Colors.browserColor : Color.secondary.opacity(0.5))
+                    .padding(4)
+                    .background(
+                        showBrowserPanel ? DesignSystem.Colors.browserColor.opacity(0.12) : .clear,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Toggle browser")
+
+            Button {
                 withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
             } label: {
                 Image(systemName: "bubble.left.and.bubble.right")
@@ -445,6 +516,7 @@ struct ContentView: View {
             showDebugPanel: $showDebugPanel,
             showSwarmPanel: $showSwarmPanel,
             showCodeReviewPanel: $showCodeReviewPanel,
+            showBrowserPanel: $showBrowserPanel,
             debugStore: debugStore
         )
         .environmentObject(providerRegistry)
@@ -452,6 +524,7 @@ struct ContentView: View {
         .environmentObject(projectContextStore)
         .environmentObject(openFilesStore)
         .environmentObject(planHistoryStore)
+        .environmentObject(browserTabManager)
         .chatPanelContainer(
             style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
             cornerRadius: 14

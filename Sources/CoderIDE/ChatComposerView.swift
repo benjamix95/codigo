@@ -472,9 +472,8 @@ struct ChatComposerView: View {
             HStack(spacing: 8) {
                 ForEach(Array(attachedAttachments.enumerated()), id: \.element.id) { index, item in
                     if item.kind == .image {
-                        // Images: thumbnail only with remove overlay
                         ZStack(alignment: .topTrailing) {
-                            attachmentPreview(for: item)
+                            composerImagePreview(for: item)
                             Button {
                                 attachedAttachments.remove(at: index)
                             } label: {
@@ -538,26 +537,64 @@ struct ChatComposerView: View {
     }
 
     @ViewBuilder
+    private func composerImagePreview(for item: ComposerAttachment) -> some View {
+        Group {
+            if let img = NSImage(contentsOf: item.url) {
+                Image(nsImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Image(systemName: "photo")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 56, height: 38)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+        )
+        .onTapGesture {
+            let url = item.url
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            NSWorkspace.shared.open(
+                [url],
+                withApplicationAt: URL(fileURLWithPath: "/System/Applications/Preview.app"),
+                configuration: NSWorkspace.OpenConfiguration()
+            )
+        }
+        .contextMenu {
+            Button {
+                let url = item.url
+                guard FileManager.default.fileExists(atPath: url.path) else { return }
+                NSWorkspace.shared.open(
+                    [url],
+                    withApplicationAt: URL(fileURLWithPath: "/System/Applications/Preview.app"),
+                    configuration: NSWorkspace.OpenConfiguration()
+                )
+            } label: {
+                Label("Open in Preview", systemImage: "eye")
+            }
+            Button {
+                let panel = NSSavePanel()
+                panel.nameFieldStringValue = item.originalName
+                panel.canCreateDirectories = true
+                panel.begin { result in
+                    guard result == .OK, let dest = panel.url else { return }
+                    try? FileManager.default.copyItem(at: item.url, to: dest)
+                }
+            } label: {
+                Label("Save As…", systemImage: "square.and.arrow.down")
+            }
+        }
+    }
+
+    @ViewBuilder
     private func attachmentPreview(for item: ComposerAttachment) -> some View {
         if item.kind == .image {
-            Group {
-                if let img = NSImage(contentsOf: item.url) {
-                    Image(nsImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    Image(systemName: "photo")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 42, height: 28)
-            .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
-            )
+            composerImagePreview(for: item)
         } else {
             Image(systemName: iconForAttachment(item.kind))
                 .font(.system(size: 11, weight: .semibold))

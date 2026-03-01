@@ -63,6 +63,12 @@ struct SubagentChatCardView: View {
         if card.currentStepTitle.isEmpty || card.currentStepTitle == "Awaiting events" {
             return card.status == .running ? "Working…" : "Done"
         }
+        if card.status == .running && card.activeOpsCount == 0 {
+            let elapsed = Date().timeIntervalSince(card.lastEventAt ?? .distantPast)
+            if elapsed > 2 {
+                return "Thinking…"
+            }
+        }
         return card.currentStepTitle
     }
 

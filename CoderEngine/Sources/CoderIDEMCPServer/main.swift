@@ -443,6 +443,68 @@ struct CoderIDETools {
             annotations: .init(title: "Show Swarm Panel", readOnlyHint: false)
         ),
 
+        // --- Subagent Tools ---
+        Tool(
+            name: "coderide_subagent_explorer",
+            description: "Spawn a read-only explorer subagent for parallel codebase investigation. The subagent can search, read, and analyze code but cannot edit files. Use for gathering context in parallel.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "What the explorer should investigate"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: Explorer", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_subagent_coder",
+            description: "Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file or module in parallel.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "Implementation task for the coder"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: Coder", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_subagent_debugger",
+            description: "Spawn a debugger subagent. Investigates and fixes bugs using search, read, edit and bash tools.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "Bug or issue to investigate and fix"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: Debugger", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_subagent_reviewer",
+            description: "Spawn a code review subagent. Reviews code quality, bugs, style, and potential issues.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "What code changes to review"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: Reviewer", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_subagent_testWriter",
+            description: "Spawn a test-writing subagent that writes and runs tests for code changes.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "What to test and what tests to write"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: TestWriter", readOnlyHint: false)
+        ),
+
         // --- Debug Tools ---
         Tool(
             name: "coderide_debug_context",
@@ -650,6 +712,26 @@ struct CoderIDEMCPServerApp {
             }
             if ideStateTools.contains(toolName) {
                 return handleIDEStateTool(name: toolName, args: stringArgs)
+            }
+
+            // Subagent tools — execute as a one-shot CLI subprocess.
+            if toolName.hasPrefix("subagent_") {
+                let task = stringArgs["task"] ?? ""
+                guard !task.isEmpty else {
+                    return CallTool.Result(
+                        content: [.text("Error: 'task' argument is required")],
+                        isError: true
+                    )
+                }
+                let result = await Self.executeSubagentViaCLI(
+                    role: toolName,
+                    task: task,
+                    workspacePath: workspacePath
+                )
+                return CallTool.Result(
+                    content: [.text(result.output)],
+                    isError: result.isError ? true : nil
+                )
             }
 
             let call = ToolCall(
@@ -1003,6 +1085,212 @@ struct CoderIDEMCPServerApp {
             return nil
         }
         return String(data: data, encoding: .utf8)
+    }
+
+    // MARK: - Subagent Execution
+
+    struct SubagentResult {
+        let output: String
+        let isError: Bool
+    }
+
+    static func executeSubagentViaCLI(
+        role: String,
+        task: String,
+        workspacePath: String
+    ) async -> SubagentResult {
+        let roleConfig = subagentRoleConfig(for: role)
+
+        let systemInstructions = """
+            You are a \(roleConfig.displayName) subagent. Your task is:
+            \(task)
+
+            Workspace: \(workspacePath)
+            \(roleConfig.constraints)
+            Be concise. Focus on the task. Return results directly.
+            """
+
+        let cliPath = resolveAvailableCLI()
+        guard let cliPath else {
+            return SubagentResult(
+                output: "No CLI backend available for subagent execution. Install codex, claude, or gemini CLI.",
+                isError: true
+            )
+        }
+
+        let args = buildCLIArgs(
+            cliPath: cliPath,
+            prompt: systemInstructions,
+            workspacePath: workspacePath,
+            readOnly: roleConfig.readOnly
+        )
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: cliPath)
+        process.arguments = args
+        process.currentDirectoryURL = URL(fileURLWithPath: workspacePath)
+
+        var env = ProcessInfo.processInfo.environment
+        env["NO_COLOR"] = "1"
+        process.environment = env
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        do {
+            try process.run()
+        } catch {
+            return SubagentResult(
+                output: "Failed to launch subagent CLI: \(error.localizedDescription)",
+                isError: true
+            )
+        }
+
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                process.waitUntilExit()
+                let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+                let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                let outStr = String(data: outData, encoding: .utf8) ?? ""
+                let errStr = String(data: errData, encoding: .utf8) ?? ""
+
+                let exitCode = process.terminationStatus
+                var result = outStr
+                if !errStr.isEmpty && result.isEmpty {
+                    result = errStr
+                }
+                if result.isEmpty {
+                    result = exitCode == 0 ? "Subagent completed successfully." : "Subagent failed (exit \(exitCode))."
+                }
+
+                let truncated = result.count > 100_000
+                    ? String(result.prefix(100_000)) + "\n... [truncated]"
+                    : result
+
+                continuation.resume(returning: SubagentResult(
+                    output: truncated,
+                    isError: exitCode != 0
+                ))
+            }
+        }
+    }
+
+    private struct SubagentRoleConfig {
+        let displayName: String
+        let readOnly: Bool
+        let constraints: String
+    }
+
+    private static func subagentRoleConfig(for role: String) -> SubagentRoleConfig {
+        switch role {
+        case "subagent_explorer":
+            return SubagentRoleConfig(
+                displayName: "Explorer",
+                readOnly: true,
+                constraints: "You are READ-ONLY. Use only search and read tools. Do NOT edit files."
+            )
+        case "subagent_reviewer":
+            return SubagentRoleConfig(
+                displayName: "Reviewer",
+                readOnly: true,
+                constraints: "You are a code reviewer. Analyze code quality, potential bugs, and suggest improvements. Do NOT edit files."
+            )
+        case "subagent_coder":
+            return SubagentRoleConfig(
+                displayName: "Coder",
+                readOnly: false,
+                constraints: "You can read and edit files. Focus on implementation."
+            )
+        case "subagent_debugger":
+            return SubagentRoleConfig(
+                displayName: "Debugger",
+                readOnly: false,
+                constraints: "Investigate and fix bugs. You can read, edit, and run commands."
+            )
+        case "subagent_testWriter":
+            return SubagentRoleConfig(
+                displayName: "TestWriter",
+                readOnly: false,
+                constraints: "Write tests for the specified code. You can read and edit files."
+            )
+        default:
+            return SubagentRoleConfig(
+                displayName: "Agent",
+                readOnly: false,
+                constraints: ""
+            )
+        }
+    }
+
+    private static func resolveAvailableCLI() -> String? {
+        let candidates = [
+            "/usr/local/bin/codex",
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/gemini",
+            "/opt/homebrew/bin/gemini",
+        ]
+        for path in candidates {
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        }
+        let whichPaths = ["codex", "claude", "gemini"]
+        for name in whichPaths {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+            proc.arguments = [name]
+            let pipe = Pipe()
+            proc.standardOutput = pipe
+            proc.standardError = Pipe()
+            do {
+                try proc.run()
+                proc.waitUntilExit()
+                if proc.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    let path = String(data: data, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    if !path.isEmpty { return path }
+                }
+            } catch {
+                continue
+            }
+        }
+        return nil
+    }
+
+    private static func buildCLIArgs(
+        cliPath: String,
+        prompt: String,
+        workspacePath: String,
+        readOnly: Bool
+    ) -> [String] {
+        let basename = URL(fileURLWithPath: cliPath).lastPathComponent.lowercased()
+
+        switch basename {
+        case "codex":
+            var args = ["-q", "--full-auto", prompt]
+            if readOnly {
+                args.insert(contentsOf: ["--sandbox", "read-only"], at: 0)
+            }
+            return args
+
+        case "claude":
+            var args = ["-p", prompt, "--output-format", "text"]
+            if readOnly {
+                args.append(contentsOf: ["--allowedTools", "Read,Search,Glob,Grep"])
+            }
+            return args
+
+        case "gemini":
+            return ["-p", prompt]
+
+        default:
+            return [prompt]
+        }
     }
 
     static func valueToString(_ value: Value) -> String {

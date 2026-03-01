@@ -148,6 +148,23 @@ public protocol TerminalBridge: AnyObject {
     func allSessionsSummary(lastN: Int) -> String
 }
 
+@MainActor
+public protocol BrowserBridge: AnyObject {
+    func navigate(to url: String) async
+    func goBack() async
+    func goForward() async
+    func reload() async
+    func takeScreenshot() async -> Data?
+    func getConsoleLogs(level: String?) -> String
+    func clearConsoleLogs()
+    func evaluateJS(_ script: String) async -> String?
+    func click(selector: String) async -> Bool
+    func type(selector: String, text: String) async -> Bool
+    func getPageContent() async -> String?
+    func getPageTitle() async -> String?
+    func getCurrentURL() -> String?
+}
+
 public actor UnifiedToolRuntime {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "UnifiedToolRuntime")
 
@@ -175,6 +192,8 @@ public actor UnifiedToolRuntime {
 
     /// Terminal bridge for IDE terminal integration
     private weak var terminalBridge: (any TerminalBridge)?
+    /// Browser bridge for integrated browser control
+    private weak var browserBridge: (any BrowserBridge)?
 
     public init(
         executionController: ExecutionController? = nil,
@@ -185,7 +204,8 @@ public actor UnifiedToolRuntime {
         excludedPaths: [String] = [],
         webSearchProvider: String? = nil,
         webSearchApiKeys: [String: String]? = nil,
-        terminalBridge: (any TerminalBridge)? = nil
+        terminalBridge: (any TerminalBridge)? = nil,
+        browserBridge: (any BrowserBridge)? = nil
     ) {
         self.executionController = executionController
         self.executionScope = executionScope
@@ -195,6 +215,7 @@ public actor UnifiedToolRuntime {
         self.workspacePaths = workspacePaths
         self.excludedPaths = excludedPaths
         self.terminalBridge = terminalBridge
+        self.browserBridge = browserBridge
 
         // Build web search service from provider + keys map
         let provider = WebSearchProvider(rawValue: webSearchProvider ?? "") ?? .duckduckgo
@@ -208,6 +229,14 @@ public actor UnifiedToolRuntime {
         }
         self.webSearch = WebSearchService(provider: provider, apiKeys: typedKeys)
         self.webFetch = WebFetchService()
+    }
+
+    public func setBrowserBridge(_ bridge: (any BrowserBridge)?) {
+        self.browserBridge = bridge
+    }
+
+    public func setTerminalBridge(_ bridge: (any TerminalBridge)?) {
+        self.terminalBridge = bridge
     }
 
     public func debugSnapshot() -> ToolRuntimeDebugSnapshot {
@@ -401,6 +430,20 @@ public actor UnifiedToolRuntime {
                 return await executeWebSearch(call: call, context: context, startDate: startDate)
             case "web_fetch":
                 return await executeWebFetch(call: call, context: context, startDate: startDate)
+            case "browser_navigate":
+                return await executeBrowserNavigate(call: call, startDate: startDate)
+            case "browser_screenshot":
+                return await executeBrowserScreenshot(call: call, startDate: startDate)
+            case "browser_console_logs":
+                return await executeBrowserConsoleLogs(call: call, startDate: startDate)
+            case "browser_click":
+                return await executeBrowserClick(call: call, startDate: startDate)
+            case "browser_type":
+                return await executeBrowserType(call: call, startDate: startDate)
+            case "browser_evaluate_js":
+                return await executeBrowserEvaluateJS(call: call, startDate: startDate)
+            case "browser_get_content":
+                return await executeBrowserGetContent(call: call, startDate: startDate)
             // New Cursor-style tools
             case "parallel_apply":
                 return try await executeParallelApply(call: call, context: context, startDate: startDate)
@@ -1659,6 +1702,145 @@ public actor UnifiedToolRuntime {
         }
     }
 
+    // MARK: - Browser Tools
+
+    private func executeBrowserNavigate(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        let url = (call.args["url"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else {
+            return failure("url is required", errorCode: "validation", startDate: startDate)
+        }
+        await bridge.navigate(to: url)
+        try? await Task.sleep(for: .milliseconds(500))
+        let currentURL = await bridge.getCurrentURL() ?? url
+        let title = await bridge.getPageTitle() ?? ""
+        return success([
+            "title": "Navigated to \(currentURL)",
+            "detail": title.isEmpty ? currentURL : "\(title) — \(currentURL)",
+            "url": currentURL,
+            "output": "Successfully navigated to \(currentURL)\(title.isEmpty ? "" : "\nPage title: \(title)")"
+        ], startDate: startDate)
+    }
+
+    private func executeBrowserScreenshot(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        guard let pngData = await bridge.takeScreenshot() else {
+            return failure("Failed to capture screenshot", errorCode: "runtime", startDate: startDate)
+        }
+        let base64 = pngData.base64EncodedString()
+        let currentURL = await bridge.getCurrentURL() ?? ""
+        return success([
+            "title": "Screenshot captured",
+            "detail": "\(pngData.count / 1024)KB PNG",
+            "url": currentURL,
+            "output": "data:image/png;base64,\(base64)"
+        ], startDate: startDate)
+    }
+
+    private func executeBrowserConsoleLogs(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        let levelFilter = call.args["level"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastN = Int(call.args["last_n"] ?? "100") ?? 100
+        let logs = await bridge.getConsoleLogs(level: levelFilter)
+        let lines = logs.split(separator: "\n")
+        let recentLogs = lines.suffix(lastN).joined(separator: "\n")
+        return success([
+            "title": "Console logs",
+            "detail": "\(lines.count) entries\(levelFilter.map { " (filter: \($0))" } ?? "")",
+            "output": recentLogs.isEmpty ? "(no console logs)" : recentLogs
+        ], startDate: startDate)
+    }
+
+    private func executeBrowserClick(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        let selector = (call.args["selector"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selector.isEmpty else {
+            return failure("selector is required", errorCode: "validation", startDate: startDate)
+        }
+        let clicked = await bridge.click(selector: selector)
+        if clicked {
+            return success([
+                "title": "Clicked element",
+                "detail": selector,
+                "output": "Successfully clicked element matching '\(selector)'"
+            ], startDate: startDate)
+        } else {
+            return failure(
+                "Element not found: \(selector)",
+                errorCode: "not_found",
+                startDate: startDate,
+                payload: ["title": "Click failed", "detail": selector]
+            )
+        }
+    }
+
+    private func executeBrowserType(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        let selector = (call.args["selector"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = call.args["text"] ?? ""
+        guard !selector.isEmpty else {
+            return failure("selector is required", errorCode: "validation", startDate: startDate)
+        }
+        let typed = await bridge.type(selector: selector, text: text)
+        if typed {
+            return success([
+                "title": "Typed text",
+                "detail": "'\(text.prefix(40))' into \(selector)",
+                "output": "Successfully typed text into element matching '\(selector)'"
+            ], startDate: startDate)
+        } else {
+            return failure(
+                "Element not found: \(selector)",
+                errorCode: "not_found",
+                startDate: startDate,
+                payload: ["title": "Type failed", "detail": selector]
+            )
+        }
+    }
+
+    private func executeBrowserEvaluateJS(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        let script = (call.args["script"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !script.isEmpty else {
+            return failure("script is required", errorCode: "validation", startDate: startDate)
+        }
+        let result = await bridge.evaluateJS(script)
+        return success([
+            "title": "Evaluated JS",
+            "detail": "\(script.prefix(60))",
+            "output": result ?? "undefined"
+        ], startDate: startDate)
+    }
+
+    private func executeBrowserGetContent(call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let bridge = browserBridge else {
+            return failure("Browser bridge not available", errorCode: "transport", startDate: startDate)
+        }
+        guard let content = await bridge.getPageContent() else {
+            return failure("Failed to get page content", errorCode: "runtime", startDate: startDate)
+        }
+        let truncated = content.count > 100_000 ? String(content.prefix(100_000)) + "\n... (truncated)" : content
+        let currentURL = await bridge.getCurrentURL() ?? ""
+        return success([
+            "title": "Page content",
+            "url": currentURL,
+            "detail": "\(content.count) chars",
+            "output": truncated
+        ], startDate: startDate)
+    }
+
     private func validate(call: ToolCall, normalizedName: String) throws {
         switch normalizedName {
         case "read", "write", "edit", "read_range", "list_dir", "read_json", "write_json", "tail_log",
@@ -1694,6 +1876,26 @@ public actor UnifiedToolRuntime {
             let url = call.args["url"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if url.isEmpty {
                 throw ToolRuntimeError.validation("url is required")
+            }
+        case "browser_navigate":
+            let url = call.args["url"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if url.isEmpty {
+                throw ToolRuntimeError.validation("url is required")
+            }
+        case "browser_click":
+            let selector = call.args["selector"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if selector.isEmpty {
+                throw ToolRuntimeError.validation("selector is required")
+            }
+        case "browser_type":
+            let selector = call.args["selector"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let text = call.args["text"] ?? ""
+            if selector.isEmpty { throw ToolRuntimeError.validation("selector is required") }
+            if text.isEmpty { throw ToolRuntimeError.validation("text is required") }
+        case "browser_evaluate_js":
+            let script = call.args["script"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if script.isEmpty {
+                throw ToolRuntimeError.validation("script is required")
             }
         case "list_symbols", "file_outline", "dependency_graph":
             let path = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -1872,6 +2074,9 @@ public actor UnifiedToolRuntime {
             return "web_search_started"
         case "web_fetch":
             return "web_fetch_started"
+        case "browser_navigate", "browser_screenshot", "browser_console_logs",
+             "browser_click", "browser_type", "browser_evaluate_js", "browser_get_content":
+            return "browser_action_started"
         default:
             return "read_batch_started"
         }
@@ -1905,6 +2110,9 @@ public actor UnifiedToolRuntime {
             return ok ? "web_search_completed" : "web_search_failed"
         case "web_fetch":
             return ok ? "web_fetch_completed" : "web_fetch_failed"
+        case "browser_navigate", "browser_screenshot", "browser_console_logs",
+             "browser_click", "browser_type", "browser_evaluate_js", "browser_get_content":
+            return ok ? "browser_action_completed" : "browser_action_failed"
         default:
             return ok ? "command_execution" : "tool_execution_error"
         }

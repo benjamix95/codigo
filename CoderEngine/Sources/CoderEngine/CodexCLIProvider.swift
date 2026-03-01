@@ -891,6 +891,30 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             }
             return [("coderide_show_swarm_panel", [:])]
 
+        case let t where t.hasPrefix("subagent_"):
+            let role = String(t.dropFirst("subagent_".count))
+            let task = firstString(in: arguments, keys: ["task"]) ?? ""
+            let subagentId = "\(role)-\(UUID().uuidString.prefix(8).lowercased())"
+            var events: [(type: String, payload: [String: String])] = []
+            events.append(("agent", [
+                "swarm_id": subagentId,
+                "role": role,
+                "status": "started",
+                "title": "Subagent \(role.capitalized) started",
+                "detail": task,
+            ]))
+            let output = firstString(in: arguments, keys: ["output"]) ?? payload["output"] ?? ""
+            if !output.isEmpty {
+                events.append(("agent", [
+                    "swarm_id": subagentId,
+                    "role": role,
+                    "status": "completed",
+                    "title": "Subagent \(role.capitalized) completed",
+                    "detail": output,
+                ]))
+            }
+            return events
+
         default:
             return []
         }

@@ -9,6 +9,7 @@ enum CoderMode: String, CaseIterable {
     case debug = "Debug"
     case plan = "Plan"
     case ide = "IDE"
+    case browser = "Browser"
     case mcpServer = "MCP Server"
 }
 
@@ -444,7 +445,7 @@ func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
 
 func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     switch mode {
-    case .agent, .debug, .plan, .codeReviewMultiSwarm:
+    case .agent, .debug, .plan, .codeReviewMultiSwarm, .browser:
         return true
     case .ide, .mcpServer:
         return false
@@ -716,6 +717,7 @@ struct ChatPanelView: View {
     @EnvironmentObject var providerUsageStore: ProviderUsageStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
+    @EnvironmentObject var browserTabManager: BrowserTabManager
     @Binding var selectedConversationId: UUID?
     let effectiveContext: EffectiveContext
 
@@ -793,6 +795,7 @@ struct ChatPanelView: View {
     @Binding var showDebugPanel: Bool
     @Binding var showSwarmPanel: Bool
     @Binding var showCodeReviewPanel: Bool
+    @Binding var showBrowserPanel: Bool
     @State private var selectedSwarmId: String?
     @State private var planPanelPresentationSource: PlanPanelPresentationSource = .manualDeepLink
     @ObservedObject var debugStore: DebugStore
@@ -2051,6 +2054,7 @@ struct ChatPanelView: View {
         HStack(spacing: 2) {
             modeTabButton("Agent", icon: "brain", mode: .agent, color: DesignSystem.Colors.agentColor)
             modeTabButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
+            modeTabButton("Browser", icon: "globe", mode: .browser, color: DesignSystem.Colors.browserColor)
         }
     }
 
@@ -3785,9 +3789,6 @@ struct ChatPanelView: View {
         pendingTaskActivities.append(activity)
         logTaskBacklogIfNeeded(context: "enqueue_activity")
 
-        // Flush immediately for events that change visible status (agent
-        // lifecycle, tool starts/completions) so the streaming bar and
-        // subagent cards update without the 100ms throttle delay.
         let needsImmediateFlush = activity.type == "agent"
             || activity.isRunning
             || TaskActivityStore.isConcreteVisibleEventType(activity.type)
@@ -3795,9 +3796,37 @@ struct ChatPanelView: View {
             taskFlushTask?.cancel()
             taskFlushTask = nil
             flushPendingTaskActivities()
+
+            // Fast-path: push the sidebar subtitle immediately so it
+            // reflects the current tool without waiting for the
+            // TaskActivityStore's internal 50ms coalescing buffer.
+            if TaskActivityStore.isConcreteVisibleEvent(activity) {
+                let label = Self.immediateSubtitleLabel(for: activity)
+                if !label.isEmpty, let cid = conversationId {
+                    chatStore.setTaskStatus(label, for: cid)
+                }
+            }
         } else {
             scheduleTaskActivityFlush()
         }
+    }
+
+    private static func immediateSubtitleLabel(for activity: TaskActivity) -> String {
+        let t = activity.type.lowercased()
+        if activity.isRunning {
+            if t.contains("read") || t.contains("glob") { return "Reading files" }
+            if t.contains("grep") || t.contains("search") { return "Searching codebase" }
+            if t.contains("edit") || t.contains("write") || t.contains("file_change") { return "Editing code" }
+            if t.contains("bash") || t.contains("command") { return "Running command" }
+            if t.contains("mcp") { return "Calling MCP tool" }
+            if t.contains("web_search") { return "Searching web" }
+            if t.contains("web_fetch") { return "Fetching page" }
+            if t.contains("agent") || t.contains("subagent") { return "Running subagent" }
+            if t.hasPrefix("debug_") { return "Debugging" }
+            if t.contains("todo") || t.contains("plan_step") { return "Planning next move" }
+            return "Running"
+        }
+        return ""
     }
 
     @MainActor
@@ -3994,6 +4023,16 @@ struct ChatPanelView: View {
                 set: { newValue in
                     showCodeReviewPanel = newValue
                 }
+            ),
+            browserToggleEnabled: Binding(
+                get: { coderMode == .browser },
+                set: { newValue in
+                    if newValue {
+                        selectMode(.browser)
+                    } else if coderMode == .browser {
+                        selectMode(.agent)
+                    }
+                }
             )
         )
     }
@@ -4045,6 +4084,7 @@ struct ChatPanelView: View {
         case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
         case .plan: return "Plan with options + custom response"
         case .ide: return "IDE mode: API chat + manual editing in the editor"
+        case .browser: return "Browser mode: agent can navigate, test, and capture screenshots"
         case .mcpServer: return "Send to configured MCP server"
         }
     }
@@ -4213,6 +4253,16 @@ struct ChatPanelView: View {
                 planFlowPhase = .idle
             }
             planToggleEnabled = true
+        case .browser:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+            showBrowserPanel = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         coderMode = mode
@@ -4237,6 +4287,9 @@ struct ChatPanelView: View {
             debugToggleEnabled = false
             showDebugPanel = false
         }
+        if mode != .browser {
+            showBrowserPanel = false
+        }
         chatStore.updateConversationMode(conversationId: selectedConversationId, mode: mode)
     }
 
@@ -4247,6 +4300,7 @@ struct ChatPanelView: View {
         case .debug: return DesignSystem.Colors.debugColor
         case .plan: return DesignSystem.Colors.planColor
         case .ide: return DesignSystem.Colors.ideColor
+        case .browser: return DesignSystem.Colors.browserColor
         case .mcpServer: return DesignSystem.Colors.mcpColor
         }
     }
@@ -4257,6 +4311,7 @@ struct ChatPanelView: View {
         case .debug: return "ladybug.fill"
         case .plan: return "list.bullet.rectangle"
         case .ide: return "sparkles"
+        case .browser: return "globe"
         case .mcpServer: return "server.rack"
         }
     }
@@ -4267,6 +4322,7 @@ struct ChatPanelView: View {
         case .debug: return DesignSystem.Colors.debugGradient
         case .plan: return DesignSystem.Colors.planGradient
         case .ide: return DesignSystem.Colors.ideGradient
+        case .browser: return DesignSystem.Colors.browserGradient
         case .mcpServer: return DesignSystem.Colors.mcpGradient
         }
     }
@@ -4388,13 +4444,23 @@ struct ChatPanelView: View {
     }
 
     private func syncOpenRouterProvider() {
-        let p = ProviderFactory.openRouterAPIProvider(
-            config: providerFactoryConfig(),
+        let cfg = providerFactoryConfig()
+        let subagentFactory = ProviderFactory.subagentProviderFactory(
+            config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths
         )
+        let p = ProviderFactory.openRouterAPIProvider(
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths,
+            subagentProviderFactory: subagentFactory
+        )
         reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
+        syncSwarmProvider()
+        syncPlanProvider()
         checkProviderAuth()
     }
 
@@ -4496,6 +4562,17 @@ struct ChatPanelView: View {
         syncPlanProvider()
         checkProviderAuth()
         persistCodexConfigToToml()
+        injectBrowserBridgeIntoProviders()
+    }
+
+    private func injectBrowserBridgeIntoProviders() {
+        for provider in providerRegistry.providers {
+            if let toolProvider = provider as? ToolEnabledLLMProvider {
+                Task {
+                    await toolProvider.setBrowserBridge(browserTabManager)
+                }
+            }
+        }
     }
 
     private func reregisterProviderPreservingSelection(id: String, provider: any LLMProvider) {
@@ -4587,6 +4664,17 @@ struct ChatPanelView: View {
             }
             debugToggleEnabled = true
             showDebugPanel = true
+        case .browser:
+            if let preferred = conv.preferredProviderId,
+               ProviderSupport.isAgentCompatibleProvider(id: preferred),
+               providerRegistry.provider(for: preferred) != nil {
+                providerRegistry.selectedProviderId = preferred
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+            } else {
+                providerRegistry.selectedProviderId = "codex-cli"
+            }
+            showBrowserPanel = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
         checkProviderAuth()

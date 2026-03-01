@@ -57,6 +57,12 @@ struct DesignSystem {
         static let planColorLight = planColor.opacity(0.8)
         static let debugColor = Color(red: 0.94, green: 0.22, blue: 0.22)
         static let debugColorLight = debugColor.opacity(0.8)
+        static let browserColor = Color(red: 0.30, green: 0.68, blue: 0.95)
+        static let browserColorLight = browserColor.opacity(0.8)
+        static let browserGradient = LinearGradient(
+            colors: [browserColor, Color(red: 0.22, green: 0.82, blue: 0.88)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
 
         // Background layers — neutral dark greys (Cursor style)
         static let backgroundDeep = codigoAdaptive(
@@ -463,12 +469,13 @@ struct ModeBadge: View {
         switch mode {
         case .agent: return "brain.head.profile"; case .ide: return "sparkles"; case .mcpServer: return "server.rack"
         case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"; case .debug: return "ladybug.fill"; case .plan: return "list.bullet.rectangle"
+        case .browser: return "globe"
         }
     }
     private var modeColor: Color {
         switch mode {
         case .agent: return DesignSystem.Colors.agentColor; case .ide: return DesignSystem.Colors.ideColor
-        case .mcpServer: return DesignSystem.Colors.mcpColor
+        case .mcpServer: return DesignSystem.Colors.mcpColor; case .browser: return DesignSystem.Colors.browserColor
         case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor; case .debug: return DesignSystem.Colors.debugColor; case .plan: return DesignSystem.Colors.planColor
         }
     }

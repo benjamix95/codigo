@@ -12,7 +12,7 @@
     width: 100%; height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
     font-size: 13px; color: rgba(255,255,255,0.35);
-    background: #1a1a2e;
+    background: #111113;
   }
 </style>
 </head>
@@ -24,6 +24,29 @@
 <script>
 (function() {
   'use strict';
+
+  var MONACO_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min';
+
+  self.MonacoEnvironment = {
+    getWorkerUrl: function(moduleId, label) {
+      var workerMap = {
+        json:       'vs/language/json/json.worker.js',
+        css:        'vs/language/css/css.worker.js',
+        scss:       'vs/language/css/css.worker.js',
+        less:       'vs/language/css/css.worker.js',
+        html:       'vs/language/html/html.worker.js',
+        handlebars: 'vs/language/html/html.worker.js',
+        razor:      'vs/language/html/html.worker.js',
+        typescript: 'vs/language/typescript/ts.worker.js',
+        javascript: 'vs/language/typescript/ts.worker.js'
+      };
+      var path = workerMap[label] || 'vs/editor/editor.worker.js';
+      return "data:text/javascript;charset=utf-8," + encodeURIComponent(
+        'self.MonacoEnvironment = { baseUrl: "' + MONACO_CDN + '/" };' +
+        'importScripts("' + MONACO_CDN + '/' + path + '");'
+      );
+    }
+  };
 
   const DEBOUNCE_MS = 250;
   let editor = null;
@@ -70,9 +93,6 @@
     return EXT_TO_LANG[ext] || 'plaintext';
   }
 
-  // Cursor-inspired dark theme
-  monaco.editor.defineTheme && void 0; // will define after require
-
   require.config({
     paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' }
   });
@@ -93,12 +113,12 @@
         { token: 'operator', foreground: 'D4D4D4' }
       ],
       colors: {
-        'editor.background': '#1a1a2e',
+        'editor.background': '#111113',
         'editor.foreground': '#d4d4d4',
         'editor.lineHighlightBackground': '#ffffff08',
         'editor.selectionBackground': '#264f78',
         'editor.inactiveSelectionBackground': '#3a3d41',
-        'editorLineNumber.foreground': '#4a4a6a',
+        'editorLineNumber.foreground': '#555558',
         'editorLineNumber.activeForeground': '#c6c6c6',
         'editorCursor.foreground': '#aeafad',
         'editor.selectionHighlightBackground': '#add6ff26',
@@ -106,11 +126,19 @@
         'editorIndentGuide.activeBackground': '#ffffff30',
         'editorBracketMatch.background': '#ffffff10',
         'editorBracketMatch.border': '#888888',
-        'editorGutter.background': '#1a1a2e',
-        'minimap.background': '#1a1a2e',
+        'editorGutter.background': '#111113',
+        'minimap.background': '#111113',
+        'editorWidget.background': '#1a1a1b',
+        'editorSuggestWidget.background': '#1a1a1b',
+        'editorHoverWidget.background': '#1a1a1b',
         'scrollbarSlider.background': '#ffffff15',
         'scrollbarSlider.hoverBackground': '#ffffff25',
-        'scrollbarSlider.activeBackground': '#ffffff35'
+        'scrollbarSlider.activeBackground': '#ffffff35',
+        'sideBar.background': '#19191b',
+        'sideBarTitle.foreground': '#cccccc',
+        'list.activeSelectionBackground': '#2a2d2e',
+        'list.hoverBackground': '#2a2d2e',
+        'input.background': '#1e1e20'
       }
     });
 

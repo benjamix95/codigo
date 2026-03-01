@@ -150,8 +150,20 @@ struct MermaidWebView: NSViewRepresentable {
                 .node rect, .node circle, .node polygon, .node ellipse {
                     transition: filter 0.15s ease;
                 }
+                .node rect {
+                    rx: 10 !important;
+                    ry: 10 !important;
+                }
+                .cluster rect {
+                    rx: 12 !important;
+                    ry: 12 !important;
+                }
                 .edgeLabel {
                     font-size: 12px !important;
+                }
+                .edgeLabel rect {
+                    rx: 6 !important;
+                    ry: 6 !important;
                 }
                 .label {
                     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif !important;
@@ -217,6 +229,7 @@ struct MermaidWebView: NSViewRepresentable {
                         nodeSpacing: 50,
                         rankSpacing: 55,
                         padding: 16,
+                        diagramPadding: 12,
                         defaultRenderer: 'dagre-wrapper'
                     },
                     sequence: {
@@ -486,28 +499,28 @@ private struct MermaidPalette {
     // MARK: - Dark
 
     static let dark = MermaidPalette(
-        primaryColor: "#6BA1F7",
-        primaryTextColor: "#E5E7EB",
-        primaryBorderColor: "#3D4F66",
-        lineColor: "#6B7A8D",
-        secondaryColor: "#1A2233",
-        tertiaryColor: "#243044",
-        nodeBg: "#1C2537",
-        nodeBorder: "#334155",
-        nodeTextColor: "#E5E7EB",
-        clusterBkg: "#141D2E",
-        clusterBorder: "#2D3B50",
-        titleColor: "#F3F4F6",
-        edgeLabelBg: "#1C2537",
-        textColor: "#D1D5DB",
-        canvasBg: "#0F1724",
-        secondaryBorderColor: "#334155",
-        noteBg: "#2A2520",
-        noteTextColor: "#E5D9C3",
-        noteBorderColor: "#4A4030",
-        activationBg: "#1E2D47",
-        sequenceNumberColor: "#E5E7EB",
-        exportBg: "#0F1724",
+        primaryColor: "#2a2a2a",
+        primaryTextColor: "#b0b0b0",
+        primaryBorderColor: "#3a3a3a",
+        lineColor: "#555555",
+        secondaryColor: "#1e1e1e",
+        tertiaryColor: "#242424",
+        nodeBg: "#1e1e1e",
+        nodeBorder: "#3a3a3a",
+        nodeTextColor: "#b0b0b0",
+        clusterBkg: "#161616",
+        clusterBorder: "#333333",
+        titleColor: "#cccccc",
+        edgeLabelBg: "#1a1a1a",
+        textColor: "#999999",
+        canvasBg: "#0d0d0d",
+        secondaryBorderColor: "#333333",
+        noteBg: "#222222",
+        noteTextColor: "#aaaaaa",
+        noteBorderColor: "#3a3a3a",
+        activationBg: "#252525",
+        sequenceNumberColor: "#b0b0b0",
+        exportBg: "#0d0d0d",
         cardBg: "transparent",
         cardBorder: "#1F2937",
         headerBg: "transparent",

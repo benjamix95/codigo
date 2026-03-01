@@ -58,6 +58,9 @@ enum ToolTraceVisibility {
         "web_fetch_started",
         "web_fetch_completed",
         "web_fetch_failed",
+        "browser_action_started",
+        "browser_action_completed",
+        "browser_action_failed",
     ]
 
     private static let operationalPayloadKeys: Set<String> = [

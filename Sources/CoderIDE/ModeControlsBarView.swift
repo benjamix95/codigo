@@ -54,6 +54,7 @@ struct ModeControlsBarView: View {
     @Binding var debugToggleEnabled: Bool
     @Binding var swarmToggleEnabled: Bool
     @Binding var codeReviewToggleEnabled: Bool
+    @Binding var browserToggleEnabled: Bool
 
     // MARK: - Collapse Tiers
 
@@ -108,6 +109,7 @@ struct ModeControlsBarView: View {
 
             Spacer(minLength: 0)
 
+            browserIconButton
             planIconButton
             debugIconButton
             codeReviewIconButton
@@ -612,6 +614,32 @@ struct ModeControlsBarView: View {
         }
         .buttonStyle(.plain)
         .help("Toggle Debug panel")
+    }
+
+    private var browserIconButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                browserToggleEnabled.toggle()
+            }
+        } label: {
+            Image(systemName: "globe")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(
+                    browserToggleEnabled
+                        ? DesignSystem.Colors.browserColor : .secondary
+                )
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            browserToggleEnabled
+                                ? DesignSystem.Colors.browserColor.opacity(0.14)
+                                : Color.clear
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Browser panel")
     }
 
     private var codeReviewIconButton: some View {
