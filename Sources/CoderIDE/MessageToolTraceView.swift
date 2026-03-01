@@ -1155,24 +1155,7 @@ struct MessageToolTraceView: View {
     }
 
     private func collapseSupersededToolStates(_ input: [ToolTraceEvent]) -> [ToolTraceEvent] {
-        var latestByToolCall: [String: ToolTraceEvent] = [:]
-        var passthrough: [ToolTraceEvent] = []
-
-        for event in input {
-            let toolCallId = (event.payload["tool_call_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if toolCallId.isEmpty {
-                passthrough.append(event)
-                continue
-            }
-            latestByToolCall[toolCallId] = event
-        }
-
-        let collapsed = Array(latestByToolCall.values)
-        let merged = passthrough + collapsed
-        return merged.sorted {
-            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
-            return $0.timestamp < $1.timestamp
-        }
+        ToolTraceEventCollapser.collapseSupersededToolStates(input)
     }
 
     private func toggleExpandedFile(_ change: ToolTraceFileChange) {
