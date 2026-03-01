@@ -1286,6 +1286,7 @@ struct ChatPanelView: View {
         .onAppear {
             migrateSwarmProviderDefaultsIfNeeded()
             syncProviderFromConversation()
+            syncToolRuntimePolicy()
             codexModels = CodexModelsCache.loadModels()
             geminiModels = GeminiModelsCache.loadModels()
             syncSwarmProvider()
@@ -1503,6 +1504,14 @@ struct ChatPanelView: View {
                 syncCodeReviewRuntimeConfig()
             }
             .onChange(of: workspaceStore.workspaces.map(\.id)) { _, _ in
+                syncToolRuntimePolicy()
+                syncCodeReviewRuntimeConfig()
+            }
+            .onChange(of: projectContextStore.activeContextId) { _, _ in
+                syncToolRuntimePolicy()
+                syncCodeReviewRuntimeConfig()
+            }
+            .onChange(of: effectiveContext.folderPaths) { _, _ in
                 syncToolRuntimePolicy()
                 syncCodeReviewRuntimeConfig()
             }
@@ -4856,13 +4865,13 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths
         )
         let p = ProviderFactory.codexProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: p)
@@ -4878,13 +4887,13 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths
         )
         let p = ProviderFactory.claudeProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: p)
@@ -4899,13 +4908,13 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths
         )
         let p = ProviderFactory.geminiProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: p)
@@ -4918,13 +4927,13 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths
         )
         let p = ProviderFactory.openRouterAPIProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
@@ -4939,13 +4948,13 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths
         )
         let codex = ProviderFactory.codexProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
@@ -4953,7 +4962,7 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: claude)
@@ -4961,7 +4970,7 @@ struct ChatPanelView: View {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths,
+            workspacePaths: runtimeWorkspacePaths,
             subagentProviderFactory: subagentFactory
         )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: gemini)
@@ -4971,7 +4980,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
@@ -4981,7 +4990,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "openai-api", provider: p)
@@ -4991,7 +5000,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "anthropic-api", provider: p)
@@ -5001,7 +5010,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "google-api", provider: p)
@@ -5011,7 +5020,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "minimax-api", provider: p)
@@ -5021,7 +5030,7 @@ struct ChatPanelView: View {
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths,
+                workspacePaths: runtimeWorkspacePaths,
                 subagentProviderFactory: subagentFactory
             )
             reregisterProviderPreservingSelection(id: "grok-api", provider: p)
@@ -5063,6 +5072,15 @@ struct ChatPanelView: View {
     private func syncSwarmProvider() {
         // Swarm provider is created on-demand at runtime using real providers.
         checkProviderAuth()
+    }
+
+    private var runtimeWorkspacePaths: [URL] {
+        let contextPaths = effectiveContext.folderPaths
+            .map { URL(fileURLWithPath: $0) }
+        if !contextPaths.isEmpty {
+            return contextPaths
+        }
+        return workspaceStore.activeWorkspacePaths
     }
 
     private func migrateSwarmProviderDefaultsIfNeeded() {
@@ -6991,7 +7009,7 @@ struct ChatPanelView: View {
                 executionController: executionController,
                 agentProviderId: providerRegistry.selectedProviderId,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: workspaceStore.activeWorkspacePaths
+                workspacePaths: runtimeWorkspacePaths
             ) {
                 return multiSwarm
             }
@@ -7033,14 +7051,14 @@ struct ChatPanelView: View {
                         config: cfg,
                         executionController: executionController,
                         codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: workspaceStore.activeWorkspacePaths
+                        workspacePaths: runtimeWorkspacePaths
                     )
                     switch kind {
                     case .codex:
                         return ProviderFactory.codexProvider(
                             config: cfg, executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
-                            workspacePaths: workspaceStore.activeWorkspacePaths,
+                            workspacePaths: runtimeWorkspacePaths,
                             environmentOverride: env,
                             subagentProviderFactory: subagentFactory)
                     case .claude:
@@ -7048,7 +7066,7 @@ struct ChatPanelView: View {
                             config: cfg,
                             executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
-                            workspacePaths: workspaceStore.activeWorkspacePaths,
+                            workspacePaths: runtimeWorkspacePaths,
                             environmentOverride: env,
                             subagentProviderFactory: subagentFactory)
                     case .gemini:
@@ -7056,7 +7074,7 @@ struct ChatPanelView: View {
                             config: cfg,
                             executionController: executionController,
                             codebaseIndex: workspaceStore.codebaseIndex,
-                            workspacePaths: workspaceStore.activeWorkspacePaths,
+                            workspacePaths: runtimeWorkspacePaths,
                             environmentOverride: env,
                             subagentProviderFactory: subagentFactory)
                     }

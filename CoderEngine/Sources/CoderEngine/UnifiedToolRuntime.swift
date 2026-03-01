@@ -4982,6 +4982,9 @@ public actor UnifiedToolRuntime {
     }
 
     private func preferredWorkspacePaths(for context: ToolExecutionContext) -> [URL] {
+        if !context.workspaceContext.workspacePaths.isEmpty {
+            return context.workspaceContext.workspacePaths
+        }
         if !workspacePaths.isEmpty {
             return workspacePaths
         }
