@@ -111,6 +111,20 @@ func makePlanRenderSnapshotCacheKey(content: String, canonicalTodos: [TodoItem])
     return "\(content.count)-\(stablePlanSnapshotContentHash(content))|\(todosFingerprint)"
 }
 
+func filterPlanTraceActivitiesForConversation(
+    _ activities: [TaskActivity],
+    conversationId: UUID?
+) -> [TaskActivity] {
+    guard let conversationId else { return activities }
+    let scopedId = conversationId.uuidString.lowercased()
+    return activities.filter { activity in
+        let payloadConversationId = activity.payload["conversation_id"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return payloadConversationId == scopedId
+    }
+}
+
 /// Cursor-style side panel for planning.
 /// Fixed top bar (breadcrumb, model picker, Build), with scrollable content below.
 struct PlanPanelView: View {
@@ -169,7 +183,8 @@ struct PlanPanelView: View {
         }
 
     private var planTraceActivities: [TaskActivity] {
-        taskActivityStore.planRelevantRecentActivities(limit: 120)
+        let recent = taskActivityStore.planRelevantRecentActivities(limit: 120)
+        return filterPlanTraceActivitiesForConversation(recent, conversationId: conversationId)
     }
 
     var body: some View {

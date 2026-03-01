@@ -238,6 +238,57 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(shouldAutoOpenPlanPanel(trigger: .awaitingChoice))
     }
 
+    func testShouldAllowStartingPlanBuildBlocksWhenAnotherBuildTaskIsActive() {
+        XCTAssertFalse(
+            shouldAllowStartingPlanBuild(
+                isLoadingCurrentConversation: false,
+                phase: .readyToBuild,
+                activeBuildPlanConversationId: UUID(),
+                hasActiveBuildTask: true
+            )
+        )
+    }
+
+    func testShouldAllowStartingPlanBuildAllowsWhenNoActiveBuildTask() {
+        XCTAssertTrue(
+            shouldAllowStartingPlanBuild(
+                isLoadingCurrentConversation: false,
+                phase: .readyToBuild,
+                activeBuildPlanConversationId: nil,
+                hasActiveBuildTask: false
+            )
+        )
+    }
+
+    func testIsPlanBuildContextMatchesActiveBuildConversationEvenWhenPhaseIdle() {
+        let buildPlanConversationId = UUID()
+        let buildAgentConversationId = UUID()
+        XCTAssertTrue(
+            isPlanBuildContext(
+                conversationId: buildPlanConversationId,
+                phase: .idle,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
+            )
+        )
+        XCTAssertTrue(
+            isPlanBuildContext(
+                conversationId: buildAgentConversationId,
+                phase: .idle,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
+            )
+        )
+        XCTAssertFalse(
+            isPlanBuildContext(
+                conversationId: UUID(),
+                phase: .idle,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId
+            )
+        )
+    }
+
     func testShouldEnableTaskPanelForOperationalModes() {
         XCTAssertTrue(shouldEnableTaskPanelForMode(.agent))
         XCTAssertTrue(shouldEnableTaskPanelForMode(.debug))
@@ -446,6 +497,17 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             )
         )
 
+        XCTAssertTrue(
+            shouldRoutePlanStreamToPlanPanel(
+                shouldRoutePlanStreamingToPanel: false,
+                streamConversationId: activeBuildAgentConversationId,
+                hasActivePlanContext: false,
+                phase: .building,
+                activeBuildPlanConversationId: activeBuildPlanConversationId,
+                activeBuildAgentConversationId: activeBuildAgentConversationId
+            )
+        )
+
         XCTAssertFalse(
             shouldRoutePlanStreamToPlanPanel(
                 shouldRoutePlanStreamingToPanel: true,
@@ -454,6 +516,27 @@ final class PlanShortcutAndCommandTests: XCTestCase {
                 phase: .building,
                 activeBuildPlanConversationId: activeBuildPlanConversationId,
                 activeBuildAgentConversationId: activeBuildAgentConversationId
+            )
+        )
+    }
+
+    func testShouldClearPlanCanonicalTodosOnNewTurnPolicy() {
+        XCTAssertTrue(
+            shouldClearPlanCanonicalTodosOnNewTurn(
+                phase: .idle,
+                hasActivePlanBuildTask: false
+            )
+        )
+        XCTAssertFalse(
+            shouldClearPlanCanonicalTodosOnNewTurn(
+                phase: .building,
+                hasActivePlanBuildTask: false
+            )
+        )
+        XCTAssertFalse(
+            shouldClearPlanCanonicalTodosOnNewTurn(
+                phase: .idle,
+                hasActivePlanBuildTask: true
             )
         )
     }

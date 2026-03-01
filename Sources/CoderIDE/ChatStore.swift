@@ -576,6 +576,9 @@ final class ChatStore: ObservableObject {
         conversations.removeAll { $0.id == id }
         planBoards.removeValue(forKey: id)
         draftTexts.removeValue(forKey: id)
+        activeTaskConversationIds.remove(id)
+        taskStartDates.removeValue(forKey: id)
+        taskStatusTexts.removeValue(forKey: id)
         if conversations.isEmpty { createConversation(contextId: nil, contextFolderPath: nil, mode: nil) }
         saveConversations()
         savePlanBoards()

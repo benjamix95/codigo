@@ -365,13 +365,6 @@ struct SwarmPanelView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
-        .overlay {
-            if card.status == .running {
-                ActivityShimmerTrail()
-                    .allowsHitTesting(false)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-        }
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture {
             withAnimation(.snappy(duration: 0.2)) { selectedSwarmId = card.swarmId }
@@ -439,13 +432,6 @@ struct SwarmPanelView: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                     )
-                    .overlay {
-                        if card.status == .running {
-                            ActivityShimmerTrail()
-                                .allowsHitTesting(false)
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        }
-                    }
 
                     if !card.currentDetail.isEmpty {
                         Text(card.currentDetail)

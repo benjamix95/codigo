@@ -93,6 +93,26 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertEqual(store.preferredPlanConversationIdForCanonicalSync(), convB)
     }
 
+    func testDeleteConversationClearsActiveTaskStateForDeletedId() throws {
+        let store = ChatStore()
+        let convA = try XCTUnwrap(store.conversations.first?.id)
+        let convB = store.createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+
+        store.beginTask(conversationId: convA)
+        store.beginTask(conversationId: convB)
+        store.taskStartDates[convA] = Date(timeIntervalSince1970: 3_000)
+        store.taskStartDates[convB] = Date(timeIntervalSince1970: 4_000)
+        XCTAssertEqual(store.activeTaskConversationId, convB)
+
+        store.deleteConversation(id: convB)
+
+        XCTAssertFalse(store.activeTaskConversationIds.contains(convB))
+        XCTAssertNil(store.taskStartDates[convB])
+        XCTAssertNil(store.taskStatusTexts[convB])
+        XCTAssertEqual(store.activeTaskConversationId, convA)
+        XCTAssertTrue(store.isLoading)
+    }
+
     private func makePlanBoard(updatedAt: Date) -> PlanBoard {
         PlanBoard(
             goal: "Goal",

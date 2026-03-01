@@ -186,6 +186,41 @@ func canStartPlanBuild(isLoading: Bool, phase: PlanFlowPhase) -> Bool {
     !isLoading && phase != .building
 }
 
+func shouldAllowStartingPlanBuild(
+    isLoadingCurrentConversation: Bool,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    hasActiveBuildTask: Bool
+) -> Bool {
+    guard canStartPlanBuild(isLoading: isLoadingCurrentConversation, phase: phase) else {
+        return false
+    }
+    if activeBuildPlanConversationId != nil && hasActiveBuildTask {
+        return false
+    }
+    return true
+}
+
+func shouldClearPlanCanonicalTodosOnNewTurn(
+    phase: PlanFlowPhase,
+    hasActivePlanBuildTask: Bool
+) -> Bool {
+    if hasActivePlanBuildTask { return false }
+    return phase != .building
+}
+
+func isPlanBuildContext(
+    conversationId: UUID?,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> Bool {
+    if phase == .building { return true }
+    guard let conversationId else { return false }
+    return conversationId == activeBuildPlanConversationId
+        || conversationId == activeBuildAgentConversationId
+}
+
 func shouldResetPlanFlowAfterPreflightFailure(
     isPlanModeRequested: Bool,
     phase: PlanFlowPhase
@@ -273,14 +308,13 @@ func shouldRoutePlanStreamToPlanPanel(
     activeBuildPlanConversationId: UUID?,
     activeBuildAgentConversationId: UUID?
 ) -> Bool {
-    guard shouldRoutePlanStreamingToPanel, let streamConversationId else {
-        return false
-    }
+    guard let streamConversationId else { return false }
     if hasActivePlanContext { return true }
     if phase == .building {
         if streamConversationId == activeBuildPlanConversationId { return true }
         if streamConversationId == activeBuildAgentConversationId { return true }
     }
+    _ = shouldRoutePlanStreamingToPanel
     return false
 }
 
@@ -1324,20 +1358,16 @@ struct ChatPanelView: View {
             }
             // Auto-expand/shrink window when side panels open/close
             .onChange(of: showPlanPanel) { wasOpen, isOpen in
-                let shouldSkipResize = (planPanelPresentationSource == .automaticFlow)
                 if isOpen && showDebugPanel {
                     debugToggleEnabled = false
                     showDebugPanel = false
                 }
                 if isOpen && !wasOpen {
-                    if !shouldSkipResize {
-                        adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
-                    }
+                    adjustWindowForPanelToggle(isOpening: true, width: CGFloat(planPanelWidthStorage))
                 } else if !isOpen && wasOpen {
-                    if shouldSkipResize {
+                    adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
+                    if planPanelPresentationSource == .automaticFlow {
                         planPanelPresentationSource = .manualDeepLink
-                    } else {
-                        adjustWindowForPanelToggle(isOpening: false, width: CGFloat(planPanelWidthStorage))
                     }
                 }
                 if isOpen {
@@ -1565,7 +1595,6 @@ struct ChatPanelView: View {
             workspaceSource: planPanelPresentationSource,
             onClose: {
                 showPlanPanel = false
-                planToggleEnabled = false
             },
             onSelectOption: { option, providerId in
                 selectPlanChoice(
@@ -2957,6 +2986,10 @@ struct ChatPanelView: View {
                         onOpenInPanel: {
                             selectedSwarmId = card.swarmId
                             showSwarmPanel = true
+                        },
+                        onStop: {
+                            lastTaskEndedByManualStop = true
+                            interruptTask()
                         }
                     )
                 }
@@ -3568,7 +3601,12 @@ struct ChatPanelView: View {
             case .todoWrite(let todo):
                 guard shouldAcceptTodoWrite(todo, conversationId: conversationId) else { break }
                 enableTaskPanelIfNeeded()
-                if planFlowPhase == .building {
+                if isPlanBuildContext(
+                    conversationId: conversationId,
+                    phase: planFlowPhase,
+                    activeBuildPlanConversationId: activeBuildPlanConversationId,
+                    activeBuildAgentConversationId: activeBuildAgentConversationId
+                ) {
                     let updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: todo.id,
                         title: todo.title,
@@ -3630,7 +3668,13 @@ struct ChatPanelView: View {
                         activeForm: stepActiveForm,
                         linkedFiles: []
                     )
-                    if !updated, planFlowPhase != .building {
+                    if !updated,
+                       !isPlanBuildContext(
+                        conversationId: conversationId,
+                        phase: planFlowPhase,
+                        activeBuildPlanConversationId: activeBuildPlanConversationId,
+                        activeBuildAgentConversationId: activeBuildAgentConversationId
+                       ) {
                         todoStore.upsertFromAgent(
                             id: nil,
                             title: title,
@@ -3813,7 +3857,12 @@ struct ChatPanelView: View {
     }
 
     private func shouldAcceptTodoWrite(_ todo: TodoWritePayload, conversationId: UUID?) -> Bool {
-        if planFlowPhase == .building {
+        if isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ) {
             return true
         }
         if isPlaceholderTodoTitle(todo.title) {
@@ -3845,7 +3894,12 @@ struct ChatPanelView: View {
     }
 
     private func shouldAcceptTodoRead(conversationId: UUID?) -> Bool {
-        if planFlowPhase == .building {
+        if isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ) {
             return true
         }
         guard todoStore.todos.contains(where: { $0.source == .agent || $0.isPlanCanonical }) else {
@@ -5382,8 +5436,31 @@ struct ChatPanelView: View {
         allowIdleRebuild: Bool = false
     ) {
         guard conversationId != nil else { return }
-        guard canStartPlanBuild(isLoading: isLoadingForCurrentConversation, phase: planFlowPhase) else {
+        let planConversationId = explicitPlanConversationId ?? conversationId
+        let hasActiveBuildTask = activeBuildAgentConversationId.map { chatStore.isTaskActive(for: $0) } ?? false
+        let canStartBuild = shouldAllowStartingPlanBuild(
+            isLoadingCurrentConversation: isLoadingForCurrentConversation,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            hasActiveBuildTask: hasActiveBuildTask
+        )
+        guard canStartBuild else {
+            if hasActiveBuildTask {
+                let scopeText =
+                    (activeBuildPlanConversationId == planConversationId)
+                    ? ""
+                    : " for another conversation"
+                appendTechnicalErrorMessage(
+                    "[Plan] A build is already running\(scopeText). Wait for completion before starting another build.",
+                    in: conversationId
+                )
+            }
             return
+        }
+        if activeBuildPlanConversationId != nil, !hasActiveBuildTask {
+            // Defensive cleanup for stale build IDs after interruptions.
+            activeBuildPlanConversationId = nil
+            activeBuildAgentConversationId = nil
         }
         guard canExecutePlanBuild(
             phase: planFlowPhase,
@@ -5411,7 +5488,6 @@ struct ChatPanelView: View {
             }
             return
         }
-        let planConversationId = explicitPlanConversationId ?? conversationId
         let provider: any LLMProvider
         let normalizedOverride = providerOverrideId?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let overrideId = normalizedOverride, !overrideId.isEmpty {
@@ -6038,7 +6114,12 @@ struct ChatPanelView: View {
         // including stale canonical plan tasks from previous plans/conversations.
         // During an active plan build, keep canonical todos so the build's todo
         // tracking isn't wiped by a concurrent user message.
-        todoStore.clearAgentTodos(includePlanCanonical: planFlowPhase != .building)
+        let hasActivePlanBuildTask = activeBuildAgentConversationId.map { chatStore.isTaskActive(for: $0) } ?? false
+        let shouldClearPlanCanonicalTodos = shouldClearPlanCanonicalTodosOnNewTurn(
+            phase: planFlowPhase,
+            hasActivePlanBuildTask: hasActivePlanBuildTask
+        )
+        todoStore.clearAgentTodos(includePlanCanonical: shouldClearPlanCanonicalTodos)
         scheduleFallbackTurnStartEvent(
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id
@@ -6326,6 +6407,10 @@ struct ChatPanelView: View {
         if case .clarification(let questions) = questionDecision {
             // Parse questions and pause for user input
             await MainActor.run {
+                guard shouldMutatePlanState(
+                    targetConversationId: conversationId,
+                    currentConversationId: self.conversationId
+                ) else { return }
                 planClarificationCycles += 1
                 planningState = .awaitingClarification(questions: questions)
                 updatePlanStreamingContent(questionText, conversationId: conversationId)
@@ -7910,7 +7995,13 @@ struct ChatPanelView: View {
         content: String,
         conversationId: UUID?
     ) {
-        let sanitizedContent = (planFlowPhase == .building) ? stripPlanCheckboxes(content) : content
+        let shouldSanitize = isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        let sanitizedContent = shouldSanitize ? stripPlanCheckboxes(content) : content
         let isBuildConversationForCurrentPlanFlow = shouldRoutePlanStream(to: conversationId)
         let shouldRouteToPlanPanel = isBuildConversationForCurrentPlanFlow
 
@@ -7959,8 +8050,14 @@ struct ChatPanelView: View {
                 streamThrottleTask = nil
                 if let pending = pendingStreamContent {
                     pendingStreamContent = nil
+                    let shouldSanitizePending = isPlanBuildContext(
+                        conversationId: pendingStreamConversationId,
+                        phase: planFlowPhase,
+                        activeBuildPlanConversationId: activeBuildPlanConversationId,
+                        activeBuildAgentConversationId: activeBuildAgentConversationId
+                    )
                     chatStore.updateLastAssistantMessage(
-                        content: (planFlowPhase == .building) ? stripPlanCheckboxes(pending) : pending,
+                        content: shouldSanitizePending ? stripPlanCheckboxes(pending) : pending,
                         in: pendingStreamConversationId,
                         persistImmediately: false
                     )
@@ -7975,7 +8072,13 @@ struct ChatPanelView: View {
         streamThrottleTask = nil
         guard let content = pendingStreamContent else { return }
         pendingStreamContent = nil
-        let sanitizedContent = (planFlowPhase == .building) ? stripPlanCheckboxes(content) : content
+        let shouldSanitizePending = isPlanBuildContext(
+            conversationId: pendingStreamConversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        let sanitizedContent = shouldSanitizePending ? stripPlanCheckboxes(content) : content
         chatStore.updateLastAssistantMessage(
             content: sanitizedContent,
             in: pendingStreamConversationId,
@@ -8007,13 +8110,19 @@ struct ChatPanelView: View {
         attachmentsToSend: [LLMAttachment]?,
         prompt: String
     ) async {
-        let full = (planFlowPhase == .building)
+        let isBuildContext = isPlanBuildContext(
+            conversationId: streamConversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        let full = isBuildContext
             ? normalizeBuildFinalResponse(fullText)
             : fullText
         let fullLooksLikePlanPayload = looksLikePlanPayload(full)
         let shouldRoutePlanStreamToPanel = shouldRoutePlanStream(to: streamConversationId)
         let shouldHidePlanMarkdownForBuild =
-            planFlowPhase == .building && shouldRoutePlanStreamToPanel
+            isBuildContext && shouldRoutePlanStreamToPanel
         let hasPlanContextForStreamConversation = hasActivePlanContext(for: streamConversationId)
         let shouldHidePlanMarkdown = shouldHidePlanMarkdownInChat(
             shouldRoutePlanStreamToPanel: shouldRoutePlanStreamToPanel,

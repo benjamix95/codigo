@@ -15,10 +15,15 @@ private func roleDisplayName(from swarmId: String) -> String {
 // MARK: - Live Card
 
 /// Minimal inline card for a running or recently completed subagent.
-/// Dark rounded rectangle with title + subtitle, shimmer overlay when running.
+/// Dark rounded rectangle with title + subtitle, text shimmer on subtitle when running.
+/// Hover reveals Stop button and expand chevron; expand shows recent events.
 struct SubagentChatCardView: View {
     let card: SwarmLiveCardState
     let onOpenInPanel: () -> Void
+    var onStop: (() -> Void)? = nil
+
+    @State private var isHovered = false
+    @State private var isExpanded = false
 
     private var title: String {
         let raw = card.currentStepTitle
@@ -65,40 +70,138 @@ struct SubagentChatCardView: View {
         return nil
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.7))
-                .lineLimit(1)
-                .truncationMode(.tail)
+    private var visibleEvents: [TaskActivity] {
+        card.recentEvents
+            .filter { TaskActivityStore.isConcreteVisibleEvent($0) }
+            .suffix(15)
+            .map { $0 }
+    }
 
-            Text(subtitle)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(.secondary.opacity(0.6))
-                .lineLimit(1)
-                .textShimmer(active: card.status == .running)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.7))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                        .lineLimit(1)
+                        .textShimmer(active: card.status == .running)
+                }
+
+                Spacer(minLength: 0)
+
+                if isHovered || isExpanded {
+                    HStack(spacing: 10) {
+                        if card.status == .running, let onStop {
+                            Button {
+                                onStop()
+                            } label: {
+                                Text("Stop")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.quaternary)
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+
+            // Expanded events
+            if isExpanded, !visibleEvents.isEmpty {
+                Divider()
+                    .opacity(0.15)
+                    .padding(.horizontal, 12)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(visibleEvents) { activity in
+                        eventRow(activity)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.15))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(
+                    Color.white.opacity(isHovered || isExpanded ? 0.14 : 0.08),
+                    lineWidth: 1
+                )
         )
-        .overlay {
-            if card.status == .running {
-                ActivityShimmerTrail()
-                    .allowsHitTesting(false)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-        }
         .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onTapGesture { onOpenInPanel() }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
+        .onTapGesture {
+            withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+        }
+    }
+
+    // MARK: - Event Row
+
+    @ViewBuilder
+    private func eventRow(_ activity: TaskActivity) -> some View {
+        let isLast = activity.id == visibleEvents.last?.id
+        HStack(spacing: 6) {
+            Image(systemName: eventIcon(for: activity))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(
+                    activity.isRunning
+                        ? phaseColor(for: activity)
+                        : .secondary.opacity(0.5)
+                )
+                .frame(width: 14, alignment: .center)
+
+            Text(activity.title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(activity.isRunning ? Color.primary.opacity(0.8) : Color.secondary.opacity(0.7))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .textShimmer(active: activity.isRunning && isLast)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func phaseColor(for activity: TaskActivity) -> Color {
+        switch activity.phase {
+        case .executing: return DesignSystem.Colors.warning
+        case .editing: return DesignSystem.Colors.info
+        case .searching: return DesignSystem.Colors.swarmColor
+        case .planning: return DesignSystem.Colors.planColor
+        case .thinking: return DesignSystem.Colors.swarmColor
+        }
+    }
+
+    private func eventIcon(for activity: TaskActivity) -> String {
+        switch activity.type {
+        case "command_execution", "bash": return "terminal.fill"
+        case "file_change", "edit": return "pencil"
+        case "mcp_tool_call": return "wrench.and.screwdriver.fill"
+        case "web_search", "web_search_started", "web_search_completed": return "magnifyingglass"
+        case "web_fetch", "web_fetch_started", "web_fetch_completed": return "globe"
+        case "read_batch_started", "read_batch_completed": return "doc.on.doc"
+        case "todo_write", "todo_read": return "checklist"
+        case "agent": return "person.circle.fill"
+        default: return "gearshape.fill"
+        }
     }
 }
 
