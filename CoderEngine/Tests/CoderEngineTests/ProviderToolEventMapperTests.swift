@@ -488,4 +488,16 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertNotEqual(mapped?.type, "command_execution",
                           "subagent_debugger should NOT fall back to command_execution")
     }
+
+    func testSubagentTestWriterInjectsSwarmMetadataFromToolNameWhenPayloadHasNoRole() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "subagent_testWriter",
+            payload: ["task": "Write regression tests"]
+        )
+
+        XCTAssertEqual(mapped?.type, "agent")
+        XCTAssertEqual(mapped?.payload["tool"], "subagent_testwriter")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "testWriter")
+        XCTAssertEqual(mapped?.payload["group_id"], "swarm-testWriter")
+    }
 }

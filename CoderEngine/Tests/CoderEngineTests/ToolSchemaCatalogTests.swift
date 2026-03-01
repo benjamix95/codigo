@@ -22,7 +22,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "index_status", "reindex",
             "parallel_apply", "regex_replace", "rename_symbol", "find_and_replace_all", "undo_edit",
             "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
-            "mcp", "mcp_call", "web_search", "web_fetch"
+            "mcp_call", "web_search", "web_fetch"
         ]
 
         let missing = required.subtracting(names)
@@ -46,7 +46,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
 
         let findSymbol = try XCTUnwrap(entry("find_symbol"))
         XCTAssertNotNil(findSymbol.properties["name"])
-        XCTAssertFalse(findSymbol.required.contains("query"))
+        XCTAssertTrue(findSymbol.required.contains("query"))
 
         let findReferences = try XCTUnwrap(entry("find_references"))
         XCTAssertNotNil(findReferences.properties["name"])
@@ -60,5 +60,45 @@ final class ToolSchemaCatalogTests: XCTestCase {
 
         let codebaseSearch = try XCTUnwrap(entry("codebase_search"))
         XCTAssertNotNil(codebaseSearch.properties["path"])
+    }
+
+    func testOpenAISchemaIncludesPlanAndSwarmTools() {
+        let names: Set<String> = Set(
+            ToolSchemaCatalog.openAIFunctionTools.compactMap { item in
+                guard let function = item["function"] as? [String: Any] else { return nil }
+                return function["name"] as? String
+            }
+        )
+
+        let required: [String] = [
+            "todo_write",
+            "todo_read",
+            "plan_step_update",
+            "mermaid_render",
+            "policy_ack",
+            "activate_plan_mode",
+            "activate_debug_mode",
+            "show_task_panel",
+            "show_swarm_panel",
+            "subagent_explorer",
+            "subagent_coder",
+            "subagent_debugger",
+            "subagent_reviewer",
+            "subagent_testWriter",
+            "subagent_docWriter",
+            "subagent_securityAuditor",
+        ]
+
+        for tool in required {
+            XCTAssertTrue(names.contains(tool), "Missing function tool: \(tool)")
+        }
+    }
+
+    func testAnthropicSchemaIncludesSubagentTools() {
+        let names = Set(ToolSchemaCatalog.anthropicTools.compactMap { $0["name"] as? String })
+        XCTAssertTrue(names.contains("subagent_explorer"))
+        XCTAssertTrue(names.contains("subagent_coder"))
+        XCTAssertTrue(names.contains("subagent_testWriter"))
+        XCTAssertTrue(names.contains("subagent_securityAuditor"))
     }
 }

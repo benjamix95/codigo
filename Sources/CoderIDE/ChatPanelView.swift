@@ -6610,6 +6610,9 @@ struct ChatPanelView: View {
                     8. If MCP is available and external/domain capabilities are needed, verify MCP availability first with `mcp_list_servers`, then `mcp_list_tools`, and run calls with `mcp_call`.
                     9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
                     10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
+                    11. If subagent tools are available, the FIRST operational tool round must start with at least one `subagent_*` call. For independent workstreams, call 2-5 subagents in the same round.
+                    12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
+                    13. When the first subagent starts, emit \(CoderIDEMarkers.showSwarmPanel) so the swarm panel/card lane is visible.
                     To update plan steps use marker:
                     \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
                     For code searches with rg, you can emit markers with results:

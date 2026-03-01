@@ -10,6 +10,7 @@ public enum CodexSandboxMode: String, CaseIterable, Sendable {
 /// Markers the model can emit to activate the Task Activity Panel
 public enum CoderIDEMarkers {
     public static let showTaskPanel = "[CODERIDE:show_task_panel]"
+    public static let showSwarmPanel = "[CODERIDE:show_swarm_panel]"
     @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")
     public static let invokeSwarmPrefix = "[CODERIDE:invoke_swarm:"
     @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")

@@ -47,9 +47,33 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
 
     /// Resolve a `SubagentRole` from a tool name like `subagent_explorer`.
     public static func fromToolName(_ name: String) -> SubagentRole? {
-        guard name.hasPrefix("subagent_") else { return nil }
-        let suffix = String(name.dropFirst("subagent_".count))
-        return SubagentRole(rawValue: suffix)
+        let normalized = name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "-", with: "_")
+            .lowercased()
+        guard normalized.hasPrefix("subagent_") else { return nil }
+        let suffix = String(normalized.dropFirst("subagent_".count))
+
+        // Accept canonical names plus legacy/normalized aliases so tool calls from
+        // different providers (camelCase, snake_case, lowercase) all resolve.
+        switch suffix {
+        case "explorer":
+            return .explorer
+        case "coder":
+            return .coder
+        case "debugger":
+            return .debugger
+        case "reviewer":
+            return .reviewer
+        case "testwriter", "test_writer", "tester":
+            return .testWriter
+        case "docwriter", "doc_writer":
+            return .docWriter
+        case "securityauditor", "security_auditor":
+            return .securityAuditor
+        default:
+            return nil
+        }
     }
 
     /// All tool names for registering in the system prompt.

@@ -89,6 +89,8 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                     var hasAnyMeaningfulAssistantText = false
                     let requiredPolicyHash = Self.requiredPolicyHash(from: context)
                     var didEmitPolicyAck = false
+                    let enforceSubagentFirstRound = executionScope == .agent && subagentProviderFactory != nil
+                    var acceptedSubagentInFirstRound = false
 
                     for _ in 0..<maxToolRounds {
                         let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
@@ -174,6 +176,24 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
                                     args["name"] = name
                                     let marker = CoderIDEMarker(kind: "tool_call", payload: args)
+
+                                    if enforceSubagentFirstRound,
+                                       isFirstRound,
+                                       !acceptedSubagentInFirstRound,
+                                       !name.hasPrefix("subagent_"),
+                                       !Self.isSubagentFirstRoundExemptTool(name)
+                                    {
+                                        continuation.yield(.raw(type: "tool_validation_error", payload: [
+                                            "title": "Subagent-first policy",
+                                            "detail": "First operational tool round must start with subagent_* delegation before direct tool execution.",
+                                            "status": "failed",
+                                            "error_code": "subagent_first_required",
+                                            "tool": name,
+                                        ]))
+                                        sawExecutableSuggestion = true
+                                        continue
+                                    }
+
                                     let dedupeId = markerDedupeKey(marker)
                                     let count = toolCallCountByKey[dedupeId, default: 0]
                                     if count >= policy.maxRepeatedSameToolPerRound { continue }
@@ -193,6 +213,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     // Subagent tools are deferred for parallel execution
                                     // after the current stream round ends.
                                     if name.hasPrefix("subagent_") {
+                                        if isFirstRound {
+                                            acceptedSubagentInFirstRound = true
+                                        }
                                         pendingSubagentCalls.append((marker: marker, name: name))
                                         let toolCallId = marker.payload["id"] ?? UUID().uuidString
                                         continuation.yield(.raw(type: "agent", payload: [
@@ -567,6 +590,17 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
+    private static func isSubagentFirstRoundExemptTool(_ toolName: String) -> Bool {
+        switch toolName {
+        case "todo_read", "todo_write", "plan_step_update", "mermaid_render",
+             "policy_ack", "activate_plan_mode", "activate_debug_mode",
+             "show_task_panel", "show_swarm_panel":
+            return true
+        default:
+            return false
+        }
+    }
+
     private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
         let prompt = context.contextPrompt()
         guard !prompt.isEmpty else { return nil }
@@ -879,7 +913,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             "semantic_search", "read_lints", "debug_context",
             // Subagent and skill tools
             "skill",
-            "subagent_explorer", "subagent_coder", "subagent_tester", "subagent_reviewer"
+            "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
+            "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor",
+            // Legacy alias kept for backward compatibility
+            "subagent_tester"
         ]
         let explicitCandidates = [
             payload["name"],
@@ -894,6 +931,9 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             let name = ProviderToolEventMapper.normalizeToolIdentifier(rawName)
             if name == "debug_panel" {
                 // Legacy hard-cut: never execute, always route to validation error.
+                return name
+            }
+            if name.hasPrefix("subagent_"), SubagentRole.fromToolName(name) != nil {
                 return name
             }
             if supportedTools.contains(name) {

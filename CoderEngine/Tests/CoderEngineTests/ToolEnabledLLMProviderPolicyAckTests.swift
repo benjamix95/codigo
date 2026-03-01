@@ -31,6 +31,26 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         }
     }
 
+    private final class TextOnlyProvider: LLMProvider, @unchecked Sendable {
+        let id = "subagent-text-only"
+        let displayName = "Subagent Text Only"
+
+        func isAuthenticated() -> Bool { true }
+
+        func send(
+            prompt _: String,
+            context _: WorkspaceContext,
+            imageURLs _: [URL]?
+        ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+            AsyncThrowingStream { continuation in
+                continuation.yield(.started)
+                continuation.yield(.textDelta("Subagent completed task"))
+                continuation.yield(.completed)
+                continuation.finish()
+            }
+        }
+    }
+
     func testInjectsSyntheticPolicyAckBeforeOperationalToolEvent() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-inject-\(UUID().uuidString)", isDirectory: true)
@@ -261,5 +281,112 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
 
         XCTAssertEqual(validationPayload?["error_code"], "mcp_edit_required")
         XCTAssertEqual(validationPayload?["tool"], "write")
+    }
+
+    func testSubagentTestWriterSuggestionIsAcceptedAndExecuted() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-testwriter-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        // Ensure policy bundle exists so synthetic policy_ack path is exercised too.
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let args = #"{"task":"Write tests for plan panel regressions"}"#
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-subagent-1",
+                "name": "subagent_testWriter",
+                "args": args,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Scrivi test mancanti",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawQueued = false
+        var sawStarted = false
+        var sawCompletedResult = false
+
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "agent", payload["detail"] == "queued",
+               (payload["swarm_id"] ?? "").hasPrefix("queued-") {
+                sawQueued = true
+            }
+            if type == "agent", payload["detail"] == "started",
+               (payload["swarm_id"] ?? "").hasPrefix("testWriter-") {
+                sawStarted = true
+            }
+            if type == "tool_result",
+               payload["status"] == "completed",
+               payload["name"] == "subagent_testwriter",
+               (payload["subagent_id"] ?? "").hasPrefix("testWriter-") {
+                sawCompletedResult = true
+            }
+        }
+
+        XCTAssertTrue(sawQueued)
+        XCTAssertTrue(sawStarted)
+        XCTAssertTrue(sawCompletedResult)
+    }
+
+    func testFirstRoundRejectsDirectOperationalToolWhenSubagentIsRequired() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-first-policy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let sourceFile = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let args = #"{"path":"\#(sourceFile.path)"}"#
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-direct-1",
+                "name": "read",
+                "args": args,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Analizza il file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawSubagentPolicyError = false
+        var sawReadExecution = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_validation_error", payload["error_code"] == "subagent_first_required" {
+                sawSubagentPolicyError = true
+            }
+            if type == "read_batch_started" || type == "read_batch_completed" {
+                sawReadExecution = true
+            }
+        }
+
+        XCTAssertTrue(sawSubagentPolicyError)
+        XCTAssertFalse(sawReadExecution)
     }
 }

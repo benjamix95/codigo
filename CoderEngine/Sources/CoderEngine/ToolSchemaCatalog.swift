@@ -623,6 +623,147 @@ enum ToolSchemaCatalog {
             required: ["summary"]
         ),
         ToolSchemaEntry(
+            name: "todo_write",
+            description: "Create or update todo items in the LiveCard/task panel",
+            properties: [
+                "title": ["type": "string", "description": "Todo title (single-item mode)"],
+                "status": ["type": "string", "description": "pending|in_progress|done|blocked"],
+                "priority": ["type": "string", "description": "low|medium|high"],
+                "notes": ["type": "string", "description": "Optional note"],
+                "activeForm": ["type": "string", "description": "Optional present-tense activity label"],
+                "linkedFiles": ["type": "string", "description": "Optional JSON array of related file paths"],
+                "todos": ["type": "string", "description": "Optional JSON array of todo items for batch updates"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "todo_read",
+            description: "Read the current todo list from the LiveCard/task panel",
+            properties: [:],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "plan_step_update",
+            description: "Update a plan step status in the plan panel",
+            properties: [
+                "step_id": ["type": "string", "description": "Plan step identifier"],
+                "status": ["type": "string", "description": "pending|running|done|failed"],
+                "title": ["type": "string", "description": "Optional step title"]
+            ],
+            required: ["step_id", "status"]
+        ),
+        ToolSchemaEntry(
+            name: "mermaid_render",
+            description: "Render a Mermaid diagram in the IDE plan/chat panels",
+            properties: [
+                "code": ["type": "string", "description": "Mermaid diagram source code"],
+                "title": ["type": "string", "description": "Optional diagram title"]
+            ],
+            required: ["code"]
+        ),
+        ToolSchemaEntry(
+            name: "policy_ack",
+            description: "Acknowledge the required policy hash before operational tool calls",
+            properties: [
+                "hash": ["type": "string", "description": "Policy hash from context"]
+            ],
+            required: ["hash"]
+        ),
+        ToolSchemaEntry(
+            name: "activate_plan_mode",
+            description: "Activate the plan panel in the IDE",
+            properties: [
+                "reason": ["type": "string", "description": "Optional reason for activation"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "activate_debug_mode",
+            description: "Activate the debug panel in the IDE",
+            properties: [
+                "reason": ["type": "string", "description": "Optional reason for activation"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "show_task_panel",
+            description: "Open/focus the task panel in the IDE",
+            properties: [:],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "show_swarm_panel",
+            description: "Open/focus the swarm panel in the IDE",
+            properties: [
+                "swarm_id": ["type": "string", "description": "Optional swarm id to focus"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "subagent_explorer",
+            description: "Spawn a read-only explorer subagent for parallel codebase investigation",
+            properties: [
+                "task": ["type": "string", "description": "Task to investigate"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_coder",
+            description: "Spawn a coding subagent for implementation work",
+            properties: [
+                "task": ["type": "string", "description": "Implementation task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_debugger",
+            description: "Spawn a debugger subagent for bug investigation/fixes",
+            properties: [
+                "task": ["type": "string", "description": "Debug task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_reviewer",
+            description: "Spawn a reviewer subagent for quality/code-review checks",
+            properties: [
+                "task": ["type": "string", "description": "Review task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_testWriter",
+            description: "Spawn a test-writer subagent for test creation and verification",
+            properties: [
+                "task": ["type": "string", "description": "Testing task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_tester",
+            description: "Legacy alias of subagent_testWriter",
+            properties: [
+                "task": ["type": "string", "description": "Testing task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_docWriter",
+            description: "Spawn a documentation subagent for docs/changelog updates",
+            properties: [
+                "task": ["type": "string", "description": "Documentation task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
+            name: "subagent_securityAuditor",
+            description: "Spawn a security-auditor subagent for security analysis",
+            properties: [
+                "task": ["type": "string", "description": "Security audit task"]
+            ],
+            required: ["task"]
+        ),
+        ToolSchemaEntry(
             name: "skill",
             description: "Invoke a local skill (SKILL.md) from ~/.codex/skills, ~/.claude/skills, or ~/.agents/skills. Use when task matches a skill (doc, imagegen, transcribe, playwright, cloudflare-deploy, gh-fix-ci). Prefer skills over manual workflows.",
             properties: [

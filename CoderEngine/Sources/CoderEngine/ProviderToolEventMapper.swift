@@ -301,7 +301,7 @@ enum ProviderToolEventMapper {
         "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel",
         // Subagent tools
         "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
-        "subagent_testWriter", "subagent_docWriter", "subagent_securityAuditor",
+        "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor", "subagent_tester",
     ]
 
     private static let canonicalToolAliases: [String: String] = [
@@ -333,6 +333,11 @@ enum ProviderToolEventMapper {
         "readrange": "read_range",
         "strreplace": "str_replace",
         "showswarmpanel": "show_swarm_panel",
+        // Subagent aliases / normalization
+        "subagent_test_writer": "subagent_testwriter",
+        "subagent_doc_writer": "subagent_docwriter",
+        "subagent_security_auditor": "subagent_securityauditor",
+        "subagent_tester": "subagent_testwriter",
         "todowrite": "todo_write",
         "todoread": "todo_read",
         "webfetch": "web_fetch",
@@ -866,17 +871,40 @@ enum ProviderToolEventMapper {
 
     private static func mapAgent(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
         let title = payloadTitle(payload, fallback: "Agent task")
+        let normalizedTool = normalizeToolIdentifier(rawTool)
         var mapped: [String: String] = [
             "title": title,
             "detail": firstString(in: payload, keys: ["detail", "task", "description"]) ?? "",
-            "tool": normalizeToolIdentifier(rawTool),
+            "tool": normalizedTool,
         ]
         if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
             mapped["status"] = status
         }
-        if let swarmId = firstString(in: payload, keys: ["swarm_id", "agent", "role"]), !swarmId.isEmpty {
+
+        if let groupId = firstString(in: payload, keys: ["group_id"]), !groupId.isEmpty {
+            mapped["group_id"] = groupId
+        }
+
+        var resolvedSwarmId = firstString(in: payload, keys: ["swarm_id", "agent", "role"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if (resolvedSwarmId ?? "").isEmpty,
+           let existingGroup = mapped["group_id"],
+           existingGroup.lowercased().hasPrefix("swarm-"),
+           existingGroup.count > "swarm-".count {
+            resolvedSwarmId = String(existingGroup.dropFirst("swarm-".count))
+        }
+
+        if (resolvedSwarmId ?? "").isEmpty,
+           let role = SubagentRole.fromToolName(normalizedTool) {
+            resolvedSwarmId = role.rawValue
+        }
+
+        if let swarmId = resolvedSwarmId, !swarmId.isEmpty {
             mapped["swarm_id"] = swarmId
-            mapped["group_id"] = "swarm-\(swarmId)"
+            if (mapped["group_id"] ?? "").isEmpty {
+                mapped["group_id"] = "swarm-\(swarmId)"
+            }
         }
         return ("agent", mapped)
     }
