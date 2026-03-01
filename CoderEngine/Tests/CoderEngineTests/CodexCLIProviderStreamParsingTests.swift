@@ -493,6 +493,50 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         XCTAssertEqual(parsed.payload["is_mcp"], "true")
     }
 
+    func testRawMCPSubagentToolCallDerivesSwarmMetadataFromToolName() {
+        let json: [String: Any] = [
+            "type": "item.started",
+            "item": [
+                "id": "mcp-sub-1",
+                "type": "mcp_tool_call",
+                "tool": "functions.mcp_call",
+                "mcp_tool": "coderide_subagent_reviewer",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected raw subagent MCP event")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "mcp_tool_call")
+        XCTAssertEqual(parsed.payload["status"], "started")
+        XCTAssertEqual(parsed.payload["swarm_id"], "reviewer")
+        XCTAssertEqual(parsed.payload["group_id"], "swarm-reviewer")
+    }
+
+    func testRawMCPToolCallWithSwarmIdUsesCanonicalSwarmGroup() {
+        let json: [String: Any] = [
+            "type": "item.completed",
+            "item": [
+                "id": "mcp-sub-2",
+                "type": "mcp_tool_call",
+                "tool": "functions.mcp_call",
+                "mcp_tool": "coderide_list_dir",
+                "swarm_id": "reviewer-42",
+            ],
+        ]
+
+        guard let parsed = CodexCLIProvider.parseRawEvent(from: json) else {
+            XCTFail("Expected raw MCP event with swarm_id")
+            return
+        }
+
+        XCTAssertEqual(parsed.type, "mcp_tool_call")
+        XCTAssertEqual(parsed.payload["swarm_id"], "reviewer-42")
+        XCTAssertEqual(parsed.payload["group_id"], "swarm-reviewer-42")
+    }
+
     func testFunctionCallNamespacedSemanticSearchMapsToSemanticSearch() {
         let json: [String: Any] = [
             "type": "item.completed",

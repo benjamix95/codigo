@@ -1094,8 +1094,15 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                 break
             }
         }
-        if let groupId = firstString(in: item, keys: ["group_id", "id"]) { payload["group_id"] = groupId }
+        if let explicitGroupId = firstString(in: item, keys: ["group_id"]), !explicitGroupId.isEmpty {
+            payload["group_id"] = explicitGroupId
+        }
         _ = SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item)
+        if (payload["group_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let fallbackGroupId = firstString(in: item, keys: ["id"]),
+           !fallbackGroupId.isEmpty {
+            payload["group_id"] = fallbackGroupId
+        }
         if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]) { payload["tool_call_id"] = toolCallId }
         if let count = item["result_count"] as? Int { payload["resultCount"] = "\(count)" }
         if let duration = item["duration_ms"] as? Int { payload["duration_ms"] = "\(duration)" }
@@ -1107,6 +1114,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             if !detail.isEmpty {
                 payload["detail"] = detail
             }
+            applySubagentSwarmMetadataFromMCP(to: &payload, item: item)
         }
         
         return (type, payload)
@@ -1164,11 +1172,10 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             }
         }
 
-        if let itemId = firstString(in: item, keys: ["id"]), !itemId.isEmpty {
+        let itemId = firstString(in: item, keys: ["id"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let itemId, !itemId.isEmpty {
             payload["id"] = itemId
-            if payload["group_id"] == nil || payload["group_id"]?.isEmpty == true {
-                payload["group_id"] = itemId
-            }
         }
         if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]), !toolCallId.isEmpty {
             payload["tool_call_id"] = toolCallId
@@ -1177,8 +1184,52 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             payload["tool_call_id"] = id
         }
         SwarmMetadataResolver.applySwarmMetadata(to: &payload, from: item)
+        if (payload["group_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let itemId, !itemId.isEmpty {
+            payload["group_id"] = itemId
+        }
+        if mapped.type == "mcp_tool_call" {
+            applySubagentSwarmMetadataFromMCP(to: &payload, item: item)
+        }
 
         return (mapped.type, payload)
+    }
+
+    private static func applySubagentSwarmMetadataFromMCP(
+        to payload: inout [String: String],
+        item: [String: Any]
+    ) {
+        let candidates = [
+            payload["mcp_tool"],
+            firstString(in: item, keys: ["mcp_tool", "tool_name", "server_tool"]),
+            payload["tool_raw"],
+            payload["tool"],
+            firstString(in: item, keys: ["tool", "name"]),
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var resolvedRole: SubagentRole?
+        for candidate in candidates {
+            let normalized = ProviderToolEventMapper.normalizeToolIdentifier(candidate)
+            if let role = SubagentRole.fromToolName(normalized) {
+                resolvedRole = role
+                break
+            }
+        }
+        guard let role = resolvedRole else { return }
+
+        let existingSwarmId = (payload["swarm_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let swarmId = existingSwarmId.isEmpty ? role.rawValue : existingSwarmId
+        payload["swarm_id"] = swarmId
+
+        let currentGroupId = (payload["group_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if currentGroupId.isEmpty || !currentGroupId.hasPrefix("swarm-") {
+            payload["group_id"] = SwarmMetadataResolver.normalizeGroupID(from: swarmId)
+        }
     }
 
     private static func applyGitHeadFallbackIfNeeded(
