@@ -527,7 +527,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
     /// Try to extract JSON review tasks from analysis text.
     /// Supports both fenced code blocks (```json ... ```) and bare JSON arrays.
-    private static func extractReviewTasksJSON(
+    static func extractReviewTasksJSON(
         from text: String,
         allowedFiles: [String]? = nil
     ) -> ExtractedReviewTasks? {
@@ -575,19 +575,19 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         return .none
     }
 
-    private enum ExtractedReviewTasks {
+    enum ExtractedReviewTasks {
         case jsonTasks([ReviewTask])
         case invalidJSON(reason: String)
     }
 
     /// Result of parsing a JSON string into ReviewTask array
-    private enum ParsedTasksResult {
+    enum ParsedTasksResult {
         case tasks([ReviewTask])
         case invalidJSON(reason: String)
     }
 
     /// Parse JSON string into ReviewTask array, filtering by allowed files.
-    private static func parseTasksJSON(
+    static func parseTasksJSON(
         _ jsonStr: String,
         allowedFiles: Set<String>?
     ) -> ParsedTasksResult {
@@ -934,8 +934,10 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     static func gitDiffFiles(ref: String, workspacePath: URL) -> (files: [String], error: String?) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        // Use "--" separator to prevent ref from being interpreted as a git flag
-        process.arguments = ["diff", "--name-only", "--diff-filter=ACMR", "--", ref]
+        // Place ref BEFORE "--" so git treats it as a revision, not a pathspec.
+        // The "--" separator prevents any subsequent path arguments from being
+        // interpreted as flags, but the revision must precede it.
+        process.arguments = ["diff", "--name-only", "--diff-filter=ACMR", ref, "--"]
         process.currentDirectoryURL = workspacePath
         let pipe = Pipe()
         let errPipe = Pipe()

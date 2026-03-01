@@ -4,12 +4,14 @@ enum SwarmMetadata {
     private static let swarmGroupPrefix = "swarm-"
 
     static func swarmId(from payload: [String: String]) -> String? {
-        if let direct = payload["swarm_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let direct = (payload["swarm_id"] ?? payload["swarmId"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
            !direct.isEmpty {
             return direct
         }
 
-        guard let groupId = payload["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let groupId = (payload["group_id"] ?? payload["groupId"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
               groupId.lowercased().hasPrefix(swarmGroupPrefix),
               groupId.count > swarmGroupPrefix.count else {
             return nil
@@ -30,4 +32,3 @@ enum SwarmMetadata {
         return swarmId(from: payload) != nil
     }
 }
-

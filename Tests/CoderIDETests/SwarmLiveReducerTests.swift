@@ -96,6 +96,36 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertNotNil(cards["reviewer"])
     }
 
+    func testCamelCaseSwarmIdMapsEventToSwarm() {
+        let activity = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP invoke swarm",
+            detail: "completed",
+            payload: ["swarmId": "invoke-call-7", "status": "completed"],
+            timestamp: Date(timeIntervalSince1970: 132),
+            phase: .executing,
+            isRunning: false,
+            groupId: nil
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [activity], limitRecentEvents: 80)
+        XCTAssertNotNil(cards["invoke-call-7"])
+    }
+
+    func testCamelCaseGroupIdFallbackMapsEventToSwarm() {
+        let activity = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP invoke swarm",
+            detail: "started",
+            payload: ["groupId": "swarm-reviewer", "status": "started"],
+            timestamp: Date(timeIntervalSince1970: 133),
+            phase: .executing,
+            isRunning: true,
+            groupId: nil
+        )
+        let cards = SwarmLiveReducer.reduce(activities: [activity], limitRecentEvents: 80)
+        XCTAssertNotNil(cards["reviewer"])
+    }
+
     func testDedupByStableKeyPreventsDuplicateRecentEvents() {
         let ts = Date(timeIntervalSince1970: 200)
         let a = TaskActivity(

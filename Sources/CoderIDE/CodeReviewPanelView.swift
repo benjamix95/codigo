@@ -631,7 +631,9 @@ struct CodeReviewPanelView: View {
             if coderMode == .codeReviewMultiSwarm && !isTaskRunning {
                 Button {
                     onRunSlashCommand("""
-                        Stage all changes and create a clean atomic commit with a descriptive commit message.
+                        Stage ONLY the files that were modified as part of this review session \
+                        (do NOT use `git add -A` or `git add .`). \
+                        Create a clean atomic commit with a descriptive commit message. \
                         Then push to the remote. Requirements: green build/tests before committing.
                         """)
                 } label: {
@@ -771,15 +773,30 @@ struct CodeReviewPanelView: View {
         }
     }
 
-    /// Git ref validation: non-empty, no spaces, no control characters, no flag injection.
     private func isValidGitRef(_ ref: String) -> Bool {
-        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        // Reject refs that start with "-" to prevent git argument injection
-        guard !trimmed.hasPrefix("-") else { return false }
-        // Git refs cannot contain spaces, control chars, or certain special sequences
-        let invalidChars = CharacterSet.whitespacesAndNewlines
-            .union(.controlCharacters)
-        return trimmed.unicodeScalars.allSatisfy { !invalidChars.contains($0) }
+        isValidGitRefFormat(ref)
     }
+}
+
+/// Git ref validation: non-empty, no spaces, no control characters, no flag injection,
+/// and no sequences that git-check-ref-format(1) forbids.
+func isValidGitRefFormat(_ ref: String) -> Bool {
+    let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return false }
+    // Reject refs that start with "-" to prevent git argument injection
+    guard !trimmed.hasPrefix("-") else { return false }
+    // Reject refs ending with ".lock" (git rule)
+    guard !trimmed.hasSuffix(".lock") else { return false }
+    // Reject refs ending with "." (git rule)
+    guard !trimmed.hasSuffix(".") else { return false }
+    // Git refs cannot contain spaces, control chars, or certain special sequences
+    let invalidChars = CharacterSet.whitespacesAndNewlines
+        .union(.controlCharacters)
+    guard trimmed.unicodeScalars.allSatisfy({ !invalidChars.contains($0) }) else { return false }
+    // Reject sequences forbidden by git: "..", "~", "^", ":", "?", "*", "[", "\\"
+    let forbiddenSubstrings = ["..", "~", "^", ":", "?", "*", "[", "\\", "@{"]
+    for seq in forbiddenSubstrings {
+        if trimmed.contains(seq) { return false }
+    }
+    return true
 }

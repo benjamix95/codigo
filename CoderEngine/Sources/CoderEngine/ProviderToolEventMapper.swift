@@ -741,6 +741,7 @@ enum ProviderToolEventMapper {
         let normalizedTool = normalizeToolIdentifier(rawTool)
         let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name", "tool"]) ?? ""
         let mcpServer = firstString(in: payload, keys: ["mcp_server", "server_id", "server"]) ?? ""
+        let normalizedMCPTool = normalizeToolIdentifier(mcpTool)
         let structuredOutput = firstString(in: payload, keys: ["output", "result", "content"])
             .flatMap(decodeJSONObjectString)
         let title: String = {
@@ -777,6 +778,12 @@ enum ProviderToolEventMapper {
         if !mcpServer.isEmpty {
             mapped["mcp_server"] = mcpServer
             mapped["server_id"] = mcpServer
+        }
+        if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
+            mapped["status"] = status
+        }
+        if let toolCallId = firstString(in: payload, keys: ["tool_call_id", "call_id", "id"]), !toolCallId.isEmpty {
+            mapped["tool_call_id"] = toolCallId
         }
         if let added = firstInt(in: payload, keys: ["linesAdded", "additions", "insertions", "added"]) {
             mapped["linesAdded"] = "\(max(0, added))"
@@ -828,7 +835,62 @@ enum ProviderToolEventMapper {
                 mapped["linesRemoved"] = mapped["linesRemoved"] ?? "\(inferred.removed)"
             }
         }
+
+        if let groupId = firstString(in: payload, keys: ["group_id", "groupId"]), !groupId.isEmpty {
+            mapped["group_id"] = groupId
+        } else if let structuredOutput,
+                  let groupId = firstString(in: structuredOutput, keys: ["group_id", "groupId"]),
+                  !groupId.isEmpty {
+            mapped["group_id"] = groupId
+        }
+
+        var resolvedSwarmId = firstString(
+            in: payload,
+            keys: ["swarm_id", "swarmId", "subagent_id", "subagentId", "agent", "role"]
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if (resolvedSwarmId ?? "").isEmpty,
+           let existingGroup = mapped["group_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           existingGroup.lowercased().hasPrefix("swarm-"),
+           existingGroup.count > "swarm-".count {
+            resolvedSwarmId = String(existingGroup.dropFirst("swarm-".count))
+        }
+
+        if (resolvedSwarmId ?? "").isEmpty,
+           normalizedMCPTool.hasPrefix("subagent_"),
+           let role = SubagentRole.fromToolName(normalizedMCPTool) {
+            resolvedSwarmId = role.rawValue
+        }
+
+        if (resolvedSwarmId ?? "").isEmpty,
+           normalizedMCPTool == "invoke_swarm" {
+            if let explicitSwarmID = firstString(in: payload, keys: ["swarm", "swarm_name", "swarmName"]),
+               !explicitSwarmID.isEmpty {
+                resolvedSwarmId = explicitSwarmID
+            } else if let token = mapped["tool_call_id"] ?? firstString(in: payload, keys: ["tool_call_id", "call_id", "id"]) {
+                resolvedSwarmId = syntheticInvokeSwarmID(from: token)
+            }
+        }
+
+        if let swarmId = resolvedSwarmId?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !swarmId.isEmpty {
+            mapped["swarm_id"] = swarmId
+            if (mapped["group_id"] ?? "").isEmpty {
+                mapped["group_id"] = "swarm-\(swarmId)"
+            }
+        }
         return ("mcp_tool_call", mapped)
+    }
+
+    private static func syntheticInvokeSwarmID(from token: String) -> String {
+        let cleaned = token
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9_-]"#, with: "", options: .regularExpression)
+        if cleaned.isEmpty {
+            return "invoke-swarm"
+        }
+        return "invoke-\(String(cleaned.prefix(20)))"
     }
 
     private static func mapWebSearch(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

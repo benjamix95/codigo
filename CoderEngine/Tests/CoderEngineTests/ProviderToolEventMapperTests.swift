@@ -46,6 +46,58 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["is_mcp"], "true")
     }
 
+    func testMCPCallPreservesSwarmMetadataFromPayload() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_invoke_swarm",
+                "status": "started",
+                "tool_call_id": "call-42",
+                "swarm_id": "reviewer-42",
+                "group_id": "swarm-reviewer-42",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["status"], "started")
+        XCTAssertEqual(mapped?.payload["tool_call_id"], "call-42")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "reviewer-42")
+        XCTAssertEqual(mapped?.payload["group_id"], "swarm-reviewer-42")
+    }
+
+    func testMCPInvokeSwarmSynthesizesSwarmMetadataWhenMissing() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_invoke_swarm",
+                "tool_call_id": "call-99",
+                "status": "completed",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "invoke-call-99")
+        XCTAssertEqual(mapped?.payload["group_id"], "swarm-invoke-call-99")
+        XCTAssertEqual(mapped?.payload["status"], "completed")
+    }
+
+    func testMCPSubagentToolDerivesSwarmMetadataFromToolName() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "subagent_reviewer",
+                "status": "started",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "mcp_tool_call")
+        XCTAssertEqual(mapped?.payload["swarm_id"], "reviewer")
+        XCTAssertEqual(mapped?.payload["group_id"], "swarm-reviewer")
+    }
+
     func testMCPStrReplaceSummaryInfersLineCounters() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "mcp_call",

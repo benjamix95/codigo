@@ -2585,7 +2585,7 @@ struct ChatPanelView: View {
     @ViewBuilder
     private func subagentCardsSection(message: ChatMessage, isLatestAssistant: Bool) -> some View {
         let liveCards: [SwarmLiveCardState] = (isLatestAssistant && isLoadingForCurrentConversation)
-            ? taskActivityStore.swarmCardStates().filter { $0.swarmId != "orchestrator" }
+            ? visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
             : []
         let hasLiveCards = !liveCards.isEmpty
 
@@ -2724,8 +2724,7 @@ struct ChatPanelView: View {
         // before we attach subagent cards or end the task.
         flushStreamingContent()
 
-        let cards = taskActivityStore.swarmCardStates()
-            .filter { $0.swarmId != "orchestrator" }
+        let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
@@ -2734,6 +2733,11 @@ struct ChatPanelView: View {
         // Force immediate persistence so the final state (cards + content)
         // survives an app crash right after task completion.
         chatStore.saveConversationsImmediately()
+    }
+
+    private func visibleSwarmCardsForChat(from cards: [SwarmLiveCardState]) -> [SwarmLiveCardState] {
+        let nonOrchestrator = cards.filter { $0.swarmId != "orchestrator" }
+        return nonOrchestrator.isEmpty ? cards : nonOrchestrator
     }
 
     private func interruptTask(for targetConversationId: UUID?) {
@@ -6412,11 +6416,13 @@ struct ChatPanelView: View {
             ) {
                 return multiSwarm
             }
-            // Factory returned nil — warn the user instead of silently falling back.
+            // Factory returned nil — surface the error in chat so the user knows.
             // Common cause: API key missing for the selected backend.
             let analysisBackend = cfg.codeReviewAnalysisBackend
             let executionBackend = cfg.codeReviewExecutionBackend
-            print("[CodeReview] WARNING: Failed to create multi-swarm provider (analysis=\(analysisBackend), execution=\(executionBackend)). Check API keys. Falling back to agent provider.")
+            let msg = "[Code Review] Failed to create multi-swarm provider (analysis: \(analysisBackend), execution: \(executionBackend)). Check your API keys in Settings. Falling back to standard agent."
+            print("[CodeReview] WARNING: \(msg)")
+            appendTechnicalErrorMessage(msg, in: conversationId)
             return selectedProvider
         }
         if multiCLIAccountEnabled,
