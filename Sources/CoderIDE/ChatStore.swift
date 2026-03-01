@@ -1523,13 +1523,16 @@ final class ChatStore: ObservableObject {
         let cleanedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         conversations[idx].contextMemorySummaryMarkdown = cleanedSummary
         conversations[idx].contextMemoryGeneratedAt = .now
-        conversations[idx].contextMemorySourceMessageCount = msgs.count
+        conversations[idx].contextMemorySourceMessageCount = toSummarize.count
         saveConversations()
         return true
     }
 
     /// Builds compact conversation context for prompts without mutating visible chat history.
     /// Combines optional persistent memory summary with recent cleaned turns.
+    /// When a memory summary exists, only the messages *after* the summarized range
+    /// are included — the summary replaces the older messages, compressing the context
+    /// sent to the LLM (similar to Cursor's context compression).
     func buildPromptContext(
         conversationId: UUID?,
         maxMessages: Int = 20,
@@ -1539,6 +1542,9 @@ final class ChatStore: ObservableObject {
     ) -> String {
         guard let conv = conversation(for: conversationId) else { return "" }
         var sections: [String] = []
+
+        var hasMemorySummary = false
+        var summarizedMessageCount = 0
 
         if includeMemorySummary,
            let memory = conv.contextMemorySummaryMarkdown?
@@ -1550,15 +1556,27 @@ final class ChatStore: ObservableObject {
                     ? String(cleanedMemory.prefix(maxSummaryChars)) + "…"
                     : cleanedMemory
                 sections.append("### Conversation memory\n\(clippedMemory)")
+                hasMemorySummary = true
+                summarizedMessageCount = conv.contextMemorySourceMessageCount ?? 0
             }
         }
 
-        let cleanedTurns = conv.messages
-            .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .suffix(maxMessages)
+        let messagesToInclude: ArraySlice<ChatMessage>
+        if hasMemorySummary && summarizedMessageCount > 0 {
+            let unsummarizedMessages = Array(conv.messages.suffix(
+                max(0, conv.messages.count - summarizedMessageCount)
+            ))
+            messagesToInclude = unsummarizedMessages
+                .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .suffix(maxMessages)[...]
+        } else {
+            messagesToInclude = conv.messages
+                .filter { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                .suffix(maxMessages)[...]
+        }
 
         var lines: [String] = []
-        for msg in cleanedTurns {
+        for msg in messagesToInclude {
             let roleLabel = msg.role == .user ? "User" : "Assistant"
             let normalized = ChatStore.stripCoderideMarkers(msg.content)
                 .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)

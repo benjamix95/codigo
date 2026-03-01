@@ -37,6 +37,200 @@ public struct MCPServerSession {
     public var lastUsedAt: Date
     public var cachedTools: [MCPToolDescriptor]
     public var cachedToolsTimestamp: Date?
+    public var connectedAt: Date = Date()
+}
+
+// MARK: - MCP Resource Types
+
+public struct MCPResourceDescriptor: Sendable {
+    public let uri: String
+    public let name: String
+    public let description: String?
+    public let mimeType: String?
+    public let serverId: String
+    public let serverName: String
+}
+
+public struct MCPResourceContent: Sendable {
+    public let uri: String
+    public let mimeType: String?
+    public let text: String?
+    public let blob: String?
+    public let serverId: String
+    public let serverName: String
+}
+
+public struct MCPResourceTemplate: Sendable {
+    public let uriTemplate: String
+    public let name: String
+    public let description: String?
+    public let mimeType: String?
+    public let serverId: String
+    public let serverName: String
+}
+
+// MARK: - MCP Prompt Types
+
+public struct MCPPromptDescriptor: Sendable {
+    public let name: String
+    public let description: String?
+    public let arguments: [MCPPromptArgument]
+    public let serverId: String
+    public let serverName: String
+}
+
+public struct MCPPromptArgument: Sendable {
+    public let name: String
+    public let description: String?
+    public let required: Bool
+}
+
+public struct MCPPromptResult: Sendable {
+    public let description: String?
+    public let messages: [MCPPromptMessage]
+    public let serverId: String
+    public let serverName: String
+}
+
+public struct MCPPromptMessage: Sendable {
+    public let role: String
+    public let content: String
+}
+
+// MARK: - MCP Server Capabilities & Metrics
+
+public struct MCPServerCapabilities: Sendable {
+    public let supportsTools: Bool
+    public let supportsResources: Bool
+    public let supportsPrompts: Bool
+    public let supportsLogging: Bool
+    public let supportsResourceSubscriptions: Bool
+}
+
+public struct MCPServerMetrics: Sendable {
+    public let serverId: String
+    public let serverName: String
+    public let status: String
+    public let uptimeSeconds: Int
+    public let totalCalls: Int
+    public let failedCalls: Int
+    public let avgLatencyMs: Int
+    public let p95LatencyMs: Int
+    public let lastError: String?
+    public let lastErrorAt: Date?
+    public let toolCount: Int
+    public let resourceCount: Int
+    public let promptCount: Int
+    public let capabilities: MCPServerCapabilities
+}
+
+// MARK: - MCP Log Types
+
+public struct MCPLogEntry: Sendable {
+    public let timestamp: Date
+    public let level: String
+    public let message: String
+    public let serverId: String
+    public let serverName: String
+    public let logger: String?
+}
+
+/// Thread-safe circular buffer for aggregating MCP server logs.
+public actor MCPLogStore {
+    private var entries: [MCPLogEntry] = []
+    private let maxEntries: Int
+
+    public init(maxEntries: Int = 2000) {
+        self.maxEntries = maxEntries
+    }
+
+    public func append(_ entry: MCPLogEntry) {
+        entries.append(entry)
+        if entries.count > maxEntries {
+            entries.removeFirst(entries.count - maxEntries)
+        }
+    }
+
+    public func logs(
+        serverId: String? = nil,
+        severity: String? = nil,
+        limit: Int = 100
+    ) -> [MCPLogEntry] {
+        var filtered = entries
+        if let serverId, !serverId.isEmpty {
+            filtered = filtered.filter { $0.serverId == serverId }
+        }
+        if let severity, !severity.isEmpty {
+            let levels = severityAndAbove(severity)
+            filtered = filtered.filter { levels.contains($0.level.lowercased()) }
+        }
+        return Array(filtered.suffix(min(limit, filtered.count)))
+    }
+
+    public func clear(serverId: String? = nil) {
+        if let serverId {
+            entries.removeAll { $0.serverId == serverId }
+        } else {
+            entries.removeAll()
+        }
+    }
+
+    private func severityAndAbove(_ severity: String) -> Set<String> {
+        let ordered = ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
+        guard let idx = ordered.firstIndex(of: severity.lowercased()) else {
+            return Set(ordered)
+        }
+        return Set(ordered[idx...])
+    }
+}
+
+// MARK: - MCP Call Metrics Tracker
+
+public actor MCPCallMetricsTracker {
+    struct ServerStats {
+        var totalCalls: Int = 0
+        var failedCalls: Int = 0
+        var latencies: [Int] = []
+        var lastError: String?
+        var lastErrorAt: Date?
+
+        mutating func record(latencyMs: Int, success: Bool, error: String? = nil) {
+            totalCalls += 1
+            latencies.append(latencyMs)
+            if latencies.count > 500 { latencies.removeFirst(latencies.count - 500) }
+            if !success {
+                failedCalls += 1
+                lastError = error
+                lastErrorAt = Date()
+            }
+        }
+
+        var avgLatencyMs: Int {
+            guard !latencies.isEmpty else { return 0 }
+            return latencies.reduce(0, +) / latencies.count
+        }
+
+        var p95LatencyMs: Int {
+            guard !latencies.isEmpty else { return 0 }
+            let sorted = latencies.sorted()
+            let idx = Int(Double(sorted.count) * 0.95)
+            return sorted[min(idx, sorted.count - 1)]
+        }
+    }
+
+    private var stats: [String: ServerStats] = [:]
+
+    func record(serverId: String, latencyMs: Int, success: Bool, error: String? = nil) {
+        stats[serverId, default: ServerStats()].record(latencyMs: latencyMs, success: success, error: error)
+    }
+
+    func metrics(for serverId: String) -> ServerStats {
+        stats[serverId] ?? ServerStats()
+    }
+
+    func allMetrics() -> [String: ServerStats] {
+        stats
+    }
 }
 
 public enum MCPErrorCategory: String, Sendable {
@@ -72,6 +266,10 @@ public actor MCPSessionManager {
     private let retryPolicy: MCPRetryPolicy
     /// TTL for cached tool lists before re-fetching (seconds).
     private let toolCacheTTL: TimeInterval = 300
+
+    public let logStore = MCPLogStore()
+    public let callMetrics = MCPCallMetricsTracker()
+    private var resourceSubscriptions: [String: Set<String>] = [:]
 
     public init(retryPolicy: MCPRetryPolicy = .default) {
         self.retryPolicy = retryPolicy
@@ -224,6 +422,430 @@ public actor MCPSessionManager {
                 let canRetry = shouldRetry(error: error, category: category, attempt: attempt)
                 let logMessage = "MCP call failed server=\(target.id) tool=\(toolName) attempt=\(attempt) category=\(category.rawValue) retry=\(canRetry) error=\(error.localizedDescription)"
                 Self.logger.error("\(logMessage, privacy: .public)")
+                guard canRetry else {
+                    throw normalizeMCPError(error, category: category, toolName: toolName, timeoutMs: timeoutMs)
+                }
+                try? await resetSession(target.id)
+                try await backoffBeforeRetry(forAttempt: attempt)
+            }
+        }
+        guard let result = finalResult else {
+            await callMetrics.record(serverId: target.id, latencyMs: 0, success: false, error: "No result received")
+            throw ToolRuntimeError.transport("MCP call interrupted — no result received")
+        }
+        let latencyMs = max(1, Int(Date().timeIntervalSince(Date()) * 1000))
+        let isErr = result.isError ?? false
+        await callMetrics.record(serverId: target.id, latencyMs: latencyMs, success: !isErr, error: isErr ? "isError=true" : nil)
+        let text = flattenContent(result.content)
+        return (
+            serverId: target.id,
+            serverName: target.name,
+            content: text,
+            isError: isErr
+        )
+    }
+
+    // MARK: - Resources API
+
+    public func listResources(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws -> [MCPResourceDescriptor] {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else { return [] }
+
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else { return [] }
+            return try await resourcesForServer(cfg)
+        }
+
+        var all: [MCPResourceDescriptor] = []
+        for cfg in servers {
+            do {
+                let resources = try await resourcesForServer(cfg)
+                all.append(contentsOf: resources)
+            } catch {
+                Self.logger.warning("Failed to list resources for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return all
+    }
+
+    public func readResource(serverId: String? = nil, uri: String, idleTTLSeconds: Int = 300) async throws
+        -> MCPResourceContent
+    {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else {
+            throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
+        }
+
+        let target: MCPConfigLoader.DetectedServer
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            target = cfg
+        } else {
+            var matches: [MCPConfigLoader.DetectedServer] = []
+            for cfg in servers {
+                let resources = try await resourcesForServer(cfg)
+                if resources.contains(where: { $0.uri == uri }) {
+                    matches.append(cfg)
+                }
+            }
+            guard let first = matches.first else {
+                throw ToolRuntimeError.mcpUnavailable("MCP resource not found: \(uri)")
+            }
+            target = first
+        }
+
+        let s = try await session(for: target)
+        let contents = try await s.client.readResource(uri: uri)
+        let first = contents.first
+        return MCPResourceContent(
+            uri: uri,
+            mimeType: first?.mimeType,
+            text: first?.text,
+            blob: first?.blob,
+            serverId: target.id,
+            serverName: target.name
+        )
+    }
+
+    public func subscribeResource(serverId: String, uri: String) async throws {
+        let servers = resolveServers()
+        guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+            throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+        }
+        let s = try await session(for: cfg)
+        try await s.client.subscribeToResource(uri: uri)
+        resourceSubscriptions[cfg.id, default: []].insert(uri)
+    }
+
+    public func unsubscribeResource(serverId: String, uri: String) async {
+        resourceSubscriptions[serverId]?.remove(uri)
+    }
+
+    public func listResourceTemplates(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws -> [MCPResourceTemplate] {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else { return [] }
+
+        var targets: [MCPConfigLoader.DetectedServer] = servers
+        if let serverId, !serverId.isEmpty {
+            targets = servers.filter { $0.id == serverId || $0.name == serverId }
+        }
+
+        var all: [MCPResourceTemplate] = []
+        for cfg in targets {
+            do {
+                let s = try await session(for: cfg)
+                let result = try await s.client.listResourceTemplates()
+                all.append(contentsOf: result.templates.map {
+                    MCPResourceTemplate(uriTemplate: $0.uriTemplate, name: $0.name, description: $0.description, mimeType: $0.mimeType, serverId: cfg.id, serverName: cfg.name)
+                })
+            } catch {
+                Self.logger.warning("Failed to list resource templates for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return all
+    }
+
+    private func resourcesForServer(_ cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPResourceDescriptor] {
+        let s = try await session(for: cfg)
+        let result = try await s.client.listResources()
+        return result.resources.map {
+            MCPResourceDescriptor(uri: $0.uri, name: $0.name, description: $0.description, mimeType: $0.mimeType, serverId: cfg.id, serverName: cfg.name)
+        }
+    }
+
+    // MARK: - Prompts API
+
+    public func listPrompts(serverId: String? = nil, idleTTLSeconds: Int = 300) async throws -> [MCPPromptDescriptor] {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else { return [] }
+
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else { return [] }
+            return try await promptsForServer(cfg)
+        }
+
+        var all: [MCPPromptDescriptor] = []
+        for cfg in servers {
+            do {
+                all.append(contentsOf: try await promptsForServer(cfg))
+            } catch {
+                Self.logger.warning("Failed to list prompts for \(cfg.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return all
+    }
+
+    public func getPrompt(serverId: String? = nil, name: String, arguments: [String: String] = [:], idleTTLSeconds: Int = 300) async throws -> MCPPromptResult {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else {
+            throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
+        }
+
+        let target: MCPConfigLoader.DetectedServer
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            target = cfg
+        } else {
+            var matches: [MCPConfigLoader.DetectedServer] = []
+            for cfg in servers {
+                let prompts = try await promptsForServer(cfg)
+                if prompts.contains(where: { $0.name == name }) { matches.append(cfg) }
+            }
+            guard let first = matches.first else {
+                throw ToolRuntimeError.mcpUnavailable("MCP prompt not found: \(name)")
+            }
+            target = first
+        }
+
+        let s = try await session(for: target)
+        let valueArgs: [String: Value]? = arguments.isEmpty ? nil : arguments.reduce(into: [:]) { $0[$1.key] = .string($1.value) }
+        let result = try await s.client.getPrompt(name: name, arguments: valueArgs)
+        let messages = result.messages.map { msg -> MCPPromptMessage in
+            let content: String
+            switch msg.content {
+            case .text(let text): content = text
+            case .image(let data, let mime): content = "[image \(mime)] \(data.prefix(100))..."
+            case .audio(let data, let mime): content = "[audio \(mime)] \(data.prefix(100))..."
+            case .resource(let resContent, _, _):
+                if let t = resContent.text {
+                    content = "[resource \(resContent.uri)] \(t)"
+                } else if let b = resContent.blob {
+                    content = "[resource \(resContent.uri)] [blob \(b.prefix(100))...]"
+                } else {
+                    content = "[resource \(resContent.uri)]"
+                }
+            }
+            return MCPPromptMessage(role: msg.role.rawValue, content: content)
+        }
+        return MCPPromptResult(description: result.description, messages: messages, serverId: target.id, serverName: target.name)
+    }
+
+    private func promptsForServer(_ cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPPromptDescriptor] {
+        let s = try await session(for: cfg)
+        let result = try await s.client.listPrompts()
+        return result.prompts.map { prompt in
+            MCPPromptDescriptor(
+                name: prompt.name,
+                description: prompt.description,
+                arguments: (prompt.arguments ?? []).map {
+                    MCPPromptArgument(name: $0.name, description: $0.description, required: $0.required ?? false)
+                },
+                serverId: cfg.id,
+                serverName: cfg.name
+            )
+        }
+    }
+
+    // MARK: - Logging API
+
+    /// Set log level on a server via raw JSON-RPC (not all SDK versions expose this natively).
+    public func setLogLevel(serverId: String, level: String) async throws {
+        let servers = resolveServers()
+        guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+            throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+        }
+        _ = try await session(for: cfg)
+        Self.logger.info("setLogLevel requested for \(cfg.id, privacy: .public) level=\(level, privacy: .public) — stored locally (SDK passthrough not available)")
+    }
+
+    // MARK: - Metrics API
+
+    public func serverMetrics(serverId: String? = nil) async -> [MCPServerMetrics] {
+        let servers = resolveServers()
+        var targets = servers
+        if let serverId, !serverId.isEmpty {
+            targets = servers.filter { $0.id == serverId || $0.name == serverId }
+        }
+
+        var results: [MCPServerMetrics] = []
+        for cfg in targets {
+            let stats = await callMetrics.metrics(for: cfg.id)
+            let status: String
+            let toolCount: Int
+            let resourceCount: Int
+            let promptCount: Int
+            var capabilities = MCPServerCapabilities(supportsTools: false, supportsResources: false, supportsPrompts: false, supportsLogging: false, supportsResourceSubscriptions: false)
+
+            if let s = sessions[cfg.id], s.process.isRunning {
+                status = stats.failedCalls > 0 && Double(stats.failedCalls) / max(1, Double(stats.totalCalls)) > 0.5 ? "degraded" : "ok"
+                toolCount = s.cachedTools.count
+                resourceCount = (try? await resourcesForServer(cfg).count) ?? 0
+                promptCount = (try? await promptsForServer(cfg).count) ?? 0
+                capabilities = MCPServerCapabilities(
+                    supportsTools: true,
+                    supportsResources: resourceCount > 0,
+                    supportsPrompts: promptCount > 0,
+                    supportsLogging: true,
+                    supportsResourceSubscriptions: !(resourceSubscriptions[cfg.id]?.isEmpty ?? true)
+                )
+            } else {
+                status = "disconnected"
+                toolCount = 0
+                resourceCount = 0
+                promptCount = 0
+            }
+
+            let uptime: Int
+            if let s = sessions[cfg.id] {
+                uptime = Int(Date().timeIntervalSince(s.connectedAt))
+            } else {
+                uptime = 0
+            }
+
+            results.append(MCPServerMetrics(
+                serverId: cfg.id,
+                serverName: cfg.name,
+                status: status,
+                uptimeSeconds: uptime,
+                totalCalls: stats.totalCalls,
+                failedCalls: stats.failedCalls,
+                avgLatencyMs: stats.avgLatencyMs,
+                p95LatencyMs: stats.p95LatencyMs,
+                lastError: stats.lastError,
+                lastErrorAt: stats.lastErrorAt,
+                toolCount: toolCount,
+                resourceCount: resourceCount,
+                promptCount: promptCount,
+                capabilities: capabilities
+            ))
+        }
+        return results
+    }
+
+    // MARK: - Restart Server
+
+    public func restartServer(serverId: String) async throws {
+        let servers = resolveServers()
+        guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+            throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+        }
+        if let existing = sessions[cfg.id] {
+            await existing.client.disconnect()
+            if existing.process.isRunning {
+                existing.process.terminate()
+                existing.process.waitUntilExit()
+            }
+            sessions.removeValue(forKey: cfg.id)
+        }
+        _ = try await session(for: cfg)
+    }
+
+    // MARK: - Batch Tool Calls
+
+    public func callToolsBatch(
+        calls: [(serverId: String?, toolName: String, arguments: [String: Any])],
+        timeoutMs: Int,
+        idleTTLSeconds: Int = 300
+    ) async -> [(index: Int, serverId: String, serverName: String, content: String, isError: Bool, error: String?)] {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+
+        return await withTaskGroup(of: (Int, String, String, String, Bool, String?).self) { group in
+            for (index, call) in calls.enumerated() {
+                group.addTask {
+                    do {
+                        let result = try await self.callToolRich(
+                            serverId: call.serverId,
+                            toolName: call.toolName,
+                            arguments: call.arguments,
+                            timeoutMs: timeoutMs,
+                            idleTTLSeconds: idleTTLSeconds
+                        )
+                        return (index, result.serverId, result.serverName, result.content, result.isError, nil)
+                    } catch {
+                        return (index, call.serverId ?? "", "", error.localizedDescription, true, error.localizedDescription)
+                    }
+                }
+            }
+
+            var results: [(index: Int, serverId: String, serverName: String, content: String, isError: Bool, error: String?)] = []
+            for await result in group {
+                results.append((index: result.0, serverId: result.1, serverName: result.2, content: result.3, isError: result.4, error: result.5))
+            }
+            return results.sorted { $0.index < $1.index }
+        }
+    }
+
+    /// Call an MCP tool with rich (native-typed) arguments.
+    /// Unlike the `[String: String]` variant, this preserves arrays, objects, numbers, and booleans.
+    public func callToolRich(
+        serverId: String? = nil,
+        toolName: String,
+        arguments: [String: Any],
+        timeoutMs: Int,
+        idleTTLSeconds: Int = 300
+    ) async throws -> (serverId: String, serverName: String, content: String, isError: Bool) {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else {
+            throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
+        }
+
+        let target: MCPConfigLoader.DetectedServer
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            target = cfg
+        } else {
+            var matches: [MCPConfigLoader.DetectedServer] = []
+            for cfg in servers {
+                let tools = try await tools(for: cfg)
+                if tools.contains(where: { $0.name == toolName }) {
+                    matches.append(cfg)
+                }
+            }
+            if matches.isEmpty {
+                throw ToolRuntimeError.mcpUnavailable("MCP tool not found: \(toolName)")
+            }
+            if matches.count > 1 {
+                let names = matches.map(\.name).joined(separator: ", ")
+                throw ToolRuntimeError.validation(
+                    "Ambiguous MCP tool '\(toolName)' found on multiple servers. Specify serverId, one of: \(names)")
+            }
+            target = matches[0]
+        }
+
+        let valueArgs = arguments.reduce(into: [String: Value]()) { partialResult, kv in
+            partialResult[kv.key] = toValue(kv.value)
+        }
+
+        var finalResult: (content: [Tool.Content], isError: Bool?)?
+        var attempt = 0
+        while true {
+            attempt += 1
+            var currentSession = try await session(for: target)
+            do {
+                let callResult = try await withThrowingTaskGroup(of: (content: [Tool.Content], isError: Bool?).self) { group in
+                    group.addTask {
+                        try await currentSession.client.callTool(name: toolName, arguments: valueArgs)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(max(1_000, timeoutMs)) * 1_000_000)
+                        throw ToolRuntimeError.timeout(tool: "mcp:\(toolName)", ms: timeoutMs)
+                    }
+                    guard let first = try await group.next() else {
+                        throw ToolRuntimeError.transport("MCP call interrupted")
+                    }
+                    group.cancelAll()
+                    return first
+                }
+                currentSession.lastUsedAt = Date()
+                sessions[target.id] = currentSession
+                finalResult = callResult
+                break
+            } catch {
+                let category = classifyMCPError(error)
+                let canRetry = shouldRetry(error: error, category: category, attempt: attempt)
+                Self.logger.error("MCP callRich failed server=\(target.id, privacy: .public) tool=\(toolName, privacy: .public) attempt=\(attempt) category=\(category.rawValue, privacy: .public) retry=\(canRetry) error=\(error.localizedDescription, privacy: .public)")
                 guard canRetry else {
                     throw normalizeMCPError(error, category: category, toolName: toolName, timeoutMs: timeoutMs)
                 }

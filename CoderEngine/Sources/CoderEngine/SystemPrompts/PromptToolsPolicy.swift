@@ -45,9 +45,54 @@ enum PromptToolsPolicy {
     - If "Detected local skills" or AGENTS.md/SKILL.md are in the context, USE the `skill` tool when the task matches. Example: doc for DOCX, imagegen for images, transcribe for audio. Do NOT skip — invoke the skill.
     - MCP tools from connected servers are registered as native function tools — call them directly by name, no discovery needed.
     - Use `mcp_call` only for tools that aren't registered natively. Use `mcp_list_tools` only if you need to discover additional tools at runtime.
-    - If a native MCP tool call fails, try `mcp_reconnect` for the server, then retry.
-    - When debugging, start with `debug_context` to gather full environment state, then follow the structured debug flow.
-    - For debug panel control, use typed tools: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
+    - If a native MCP tool call fails, try `mcp_reconnect` for the server, then retry. If reconnect fails, use `mcp_restart_server` for a full process restart.
+    - MCP Advanced Tools — use these for powerful MCP operations:
+      • `mcp_batch` — Execute multiple MCP tool calls IN PARALLEL. Use this whenever you need 2+ independent MCP tool calls — much faster than sequential `mcp_call`. Pass a JSON array of calls: [{"server": "...", "tool": "...", "args": {...}}, ...].
+      • `mcp_list_resources` / `mcp_read_resource` — Access contextual data exposed by MCP servers (files, database schemas, API specs, application state). Use `mcp_list_resources` to discover, then `mcp_read_resource` with the URI to read content.
+      • `mcp_subscribe` — Watch an MCP resource for changes. The system receives notifications when subscribed resources update.
+      • `mcp_list_prompts` / `mcp_get_prompt` — Use prompt templates from MCP servers. Prompts are pre-built message templates with arguments, useful for standardized interactions. Discover with `mcp_list_prompts`, then resolve with `mcp_get_prompt`.
+      • `mcp_logs` — Read structured logs from MCP servers. Filter by severity (debug/info/warning/error/critical). Use action='set_level' to change server log verbosity, action='clear' to reset the buffer.
+      • `mcp_health` — Now returns detailed metrics: uptime, call counts, latency (avg/p95), capabilities, error history. Use for diagnostics and monitoring.
+      • `mcp_restart_server` — Full server process restart (kill + reconnect). More aggressive than `mcp_reconnect`. Use when a server is unresponsive or in a bad state.
+    - Debug tools: comprehensive flow for systematic debugging. Follow this sequence:
+
+      PHASE 1 — DESCRIBE (understand the problem):
+      1. `debug_session` action=start → begins a new debug session.
+      2. `debug_set_phase` phase=describing → enter Describe phase.
+      3. `debug_context` → gather full workspace context (git, build, lints, env, tests, crashes). Use scope= for targeted collection.
+      4. `debug_trace_analyze` → if you have an error, stack trace, or crash log, parse it structurally to extract files, lines, and causes.
+
+      PHASE 2 — REPRODUCE (reproduce the bug):
+      5. `debug_set_phase` phase=reproducing → enter Reproduce phase.
+      6. `debug_instrument` → insert targeted instrumentation (log/assert/timing/variable/conditional_break) in suspected files.
+      7. `debug_request_user` kind=reproduce → ask the user to trigger the bug so instrumentation logs capture data.
+      8. `debug_log` → record observations and runtime data. Use batch= for multiple entries, tags= for filtering, hypothesis_id= for linking.
+
+      PHASE 3 — FIX (hypothesize and apply fix):
+      9. `debug_set_phase` phase=fixing → enter Fix phase.
+      10. `debug_snapshot` action=capture label=before-fix → save state BEFORE attempting fix.
+      11. `debug_hypothesize` action=propose → propose hypotheses with confidence=, root_cause_type=, related_files=, related_tests=.
+      12. Apply fix using code editing tools.
+      13. `debug_snapshot` action=capture label=after-fix → save state AFTER fix.
+
+      PHASE 4 — VERIFY (test the fix):
+      14. `debug_set_phase` phase=verifying → enter Verify phase.
+      15. `debug_test_check` → run targeted tests (scope=related for modified files, scope=file for specific file).
+      16. `debug_snapshot` action=compare label=after-fix compare_with=before-fix → compare states.
+      17. `debug_hypothesize` action=update → confirm or reject hypothesis based on test results.
+
+      PHASE 5 — RESOLVE:
+      18. `debug_timeline` → generate chronological event timeline for the full session.
+      19. `debug_session` action=export → export full debug report.
+      20. `debug_resolve` → resolve session with comprehensive summary.
+      21. `debug_clean` → remove all debug markers/instrumentation. Use dry_run=true first to preview.
+
+      Additional debug tool tips:
+      - `debug_mark` vs `debug_instrument`: Use debug_mark for simple comment markers. Use debug_instrument for real executable code (logging, assertions, timing).
+      - `debug_query` supports group_by= for aggregation, time_range= for recent logs, export formats (json/markdown).
+      - `debug_snapshot` action=capture before AND after every fix attempt — compare to track progress.
+      - `debug_timeline` format=mermaid for visual diagrams, format=text for plain lists.
+      - For debug panel control, use typed tools: `debug_set_phase`, `debug_request_user`, `debug_resolve`. Legacy `debug_panel` is invalid.
 
     Mandatory execution workflow — follow this sequence for every task:
     1. INVESTIGATE VIA SUBAGENTS (MANDATORY): Spawn 2–3 subagent_explorer in PARALLEL to investigate different areas of the codebase simultaneously. Do NOT manually grep/read across multiple files yourself — delegate to explorers. Each explorer investigates a different aspect (e.g., one explores the data model, another explores the UI layer, another explores tests). Only use direct tools (grep/read) for quick single-file lookups while waiting for subagent results.

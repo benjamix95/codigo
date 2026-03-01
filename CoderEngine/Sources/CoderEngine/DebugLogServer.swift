@@ -51,6 +51,26 @@ public actor DebugLogServer {
         public let totalCount: Int
         public let errorCount: Int
         public let warningCount: Int
+
+        public func filteredByDetail(_ predicate: (String?) -> Bool) -> QueryResult {
+            let filtered = entries.filter { predicate($0.detail) }
+            return QueryResult(
+                entries: filtered,
+                totalCount: filtered.count,
+                errorCount: filtered.filter { $0.severity == "error" }.count,
+                warningCount: filtered.filter { $0.severity == "warning" }.count
+            )
+        }
+
+        public func filteredByTime(after cutoff: Date) -> QueryResult {
+            let filtered = entries.filter { $0.timestamp > cutoff }
+            return QueryResult(
+                entries: filtered,
+                totalCount: filtered.count,
+                errorCount: filtered.filter { $0.severity == "error" }.count,
+                warningCount: filtered.filter { $0.severity == "warning" }.count
+            )
+        }
     }
 
     // MARK: - State
@@ -315,6 +335,19 @@ public actor DebugLogServer {
             let cat = entry.category.map { "[\($0)] " } ?? ""
             return "[\(ts)] \(entry.severity.uppercased()) \(cat)\(entry.source): \(entry.message)"
         }.joined(separator: "\n")
+    }
+
+    /// All entries in the current session
+    public func allEntries() -> [LogEntry] {
+        if let sid = activeSessionId {
+            return entries.filter { $0.sessionId == sid }
+        }
+        return entries
+    }
+
+    /// Current active session ID
+    public func currentSessionId() -> String? {
+        return activeSessionId
     }
 
     // MARK: - Clear

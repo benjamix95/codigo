@@ -70,6 +70,9 @@ struct MessageToolTraceView: View {
             var commandCount = 0
             var editCount = 0
             var mcpCount = 0
+            var mcpBatchCount = 0
+            var mcpResourceCount = 0
+            var mcpPromptCount = 0
             var browserCount = 0
             var skillNames = Set<String>()
 
@@ -81,7 +84,13 @@ struct MessageToolTraceView: View {
                 if type.contains("search") || type.contains("grep") || type == "instant_grep" { searchCount += 1 }
                 if type == "bash" || type == "command_execution" { commandCount += 1 }
                 if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
-                if ToolTraceVisibility.isMCPEvent(event: event) { mcpCount += 1 }
+                if ToolTraceVisibility.isMCPEvent(event: event) {
+                    mcpCount += 1
+                    let mcpTool = (event.payload["tool"] ?? event.payload["mcp_tool"] ?? "").lowercased()
+                    if mcpTool == "mcp_batch" { mcpBatchCount += 1 }
+                    if mcpTool == "mcp_list_resources" || mcpTool == "mcp_read_resource" { mcpResourceCount += 1 }
+                    if mcpTool == "mcp_list_prompts" || mcpTool == "mcp_get_prompt" { mcpPromptCount += 1 }
+                }
                 if type.contains("browser_action") || (event.payload["tool"] ?? "").hasPrefix("browser_") { browserCount += 1 }
                 if event.type == "skill_invocation" || event.payload["tool"] == "skill",
                    let skill = event.payload["skill"], !skill.isEmpty { skillNames.insert(skill) }
@@ -101,7 +110,15 @@ struct MessageToolTraceView: View {
             }
             if searchCount > 0 { parts.append("\(searchCount) \(pluralized("search", count: searchCount, plural: "searches"))") }
             if commandCount > 0 { parts.append("\(commandCount) \(pluralized("command", count: commandCount))") }
-            if mcpCount > 0 { parts.append("MCP \(mcpCount) \(pluralized("call", count: mcpCount))") }
+            if mcpCount > 0 {
+                var mcpDetail = "MCP \(mcpCount) \(pluralized("call", count: mcpCount))"
+                var extras: [String] = []
+                if mcpBatchCount > 0 { extras.append("\(mcpBatchCount) batch") }
+                if mcpResourceCount > 0 { extras.append("\(mcpResourceCount) \(pluralized("resource", count: mcpResourceCount))") }
+                if mcpPromptCount > 0 { extras.append("\(mcpPromptCount) \(pluralized("prompt", count: mcpPromptCount))") }
+                if !extras.isEmpty { mcpDetail += " (\(extras.joined(separator: ", ")))" }
+                parts.append(mcpDetail)
+            }
             if browserCount > 0 { parts.append("\(browserCount) browser \(pluralized("action", count: browserCount))") }
             if !skillNames.isEmpty {
                 let skills = skillNames.sorted()
@@ -476,7 +493,23 @@ struct MessageToolTraceView: View {
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.browserColor)
         } else if type == "mcp_tool_call" || tool.hasPrefix("mcp") {
-            Image(systemName: "square.grid.3x3")
+            let mcpIcon: String = {
+                switch tool {
+                case "mcp_batch": return "square.grid.3x3.topleft.filled"
+                case "mcp_list_resources", "mcp_read_resource": return "tray.2"
+                case "mcp_subscribe": return "bell.badge"
+                case "mcp_list_prompts", "mcp_get_prompt": return "text.bubble"
+                case "mcp_logs": return "list.bullet.rectangle"
+                case "mcp_restart_server": return "arrow.clockwise.circle"
+                case "mcp_health": return "heart.text.square"
+                case "mcp_reconnect": return "arrow.triangle.2.circlepath"
+                case "mcp_list_servers": return "server.rack"
+                case "mcp_list_tools": return "wrench.and.screwdriver"
+                case "mcp_describe_tool": return "doc.text.magnifyingglass"
+                default: return "square.grid.3x3"
+                }
+            }()
+            Image(systemName: mcpIcon)
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.mcpColor)
         } else if type == "skill_invocation" || tool == "skill" {
@@ -495,8 +528,27 @@ struct MessageToolTraceView: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.warning)
-        } else if type.contains("debug") {
-            Image(systemName: "ladybug")
+        } else if type.contains("debug") || tool.hasPrefix("debug_") {
+            let debugIcon: String = {
+                switch tool {
+                case "debug_trace_analyze": return "waveform.path.ecg"
+                case "debug_instrument": return "syringe"
+                case "debug_timeline": return "chart.bar.xaxis"
+                case "debug_snapshot": return "camera.circle"
+                case "debug_test_check": return "checkmark.shield"
+                case "debug_context": return "doc.text.magnifyingglass"
+                case "debug_log": return "text.badge.plus"
+                case "debug_query": return "magnifyingglass.circle"
+                case "debug_hypothesize": return "lightbulb"
+                case "debug_mark": return "pin.circle"
+                case "debug_clean": return "trash.circle"
+                case "debug_session": return "play.circle"
+                case "debug_set_phase": return "arrow.right.circle"
+                case "debug_resolve": return "checkmark.circle"
+                default: return "ladybug"
+                }
+            }()
+            Image(systemName: debugIcon)
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.debugColor)
         } else if tool == "git_diff" {
@@ -751,6 +803,12 @@ struct MessageToolTraceView: View {
             }
             if let latency = event.payload["mcp_latency_ms"], !latency.isEmpty {
                 detailPill(label: "Latency", value: "\(latency)ms")
+            }
+            if let uri = event.payload["uri"], !uri.isEmpty {
+                detailPill(label: "URI", value: uri)
+            }
+            if let promptName = event.payload["prompt_name"], !promptName.isEmpty {
+                detailPill(label: "Prompt", value: promptName)
             }
             if let output = event.payload["output"], !output.isEmpty {
                 if output.hasPrefix("data:image/png;base64,") {

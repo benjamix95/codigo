@@ -7165,6 +7165,10 @@ struct ChatPanelView: View {
                 providerUsageStore.claudeUsage = merged
                 providerUsageStore.claudeUsageMessage = nil
             }
+            let prev = chatStore.conversation(for: convId)?.lastInputTokens ?? 0
+            if inp > prev {
+                chatStore.updateLastInputTokens(inp, for: convId)
+            }
         }
         if t == "subagent_batch_done" {
             autoCompleteInProgressTodoAfterSubagents(status: p["status"] ?? "done")

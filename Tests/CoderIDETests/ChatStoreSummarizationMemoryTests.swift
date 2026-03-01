@@ -77,7 +77,8 @@ final class ChatStoreSummarizationMemoryTests: XCTestCase {
             return XCTFail("Conversation missing after summarize")
         }
         XCTAssertEqual(updated.messages.count, beforeCount)
-        XCTAssertEqual(updated.contextMemorySourceMessageCount, beforeCount)
+        // contextMemorySourceMessageCount tracks the number of *summarized* messages (total - keepLast)
+        XCTAssertEqual(updated.contextMemorySourceMessageCount, beforeCount - 3)
         XCTAssertNotNil(updated.contextMemoryGeneratedAt)
         XCTAssertTrue(updated.contextMemorySummaryMarkdown?.contains("## Objectives") == true)
         XCTAssertTrue(updated.contextMemorySummaryMarkdown?.contains("Use memory summary.") == true)

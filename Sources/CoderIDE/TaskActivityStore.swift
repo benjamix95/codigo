@@ -123,6 +123,11 @@ final class TaskActivityStore: ObservableObject {
         "debug_hypothesize",
         "debug_mark",
         "debug_clean",
+        "debug_trace_analyze",
+        "debug_instrument",
+        "debug_timeline",
+        "debug_snapshot",
+        "debug_test_check",
         "process_paused",
         "process_resumed",
         "read_batch_started",
@@ -244,7 +249,19 @@ final class TaskActivityStore: ObservableObject {
             return "Running command"
         }
         if normalizedType.contains("mcp") {
-            return "Calling MCP tool"
+            let tool = (last.payload["tool"] ?? last.payload["mcp_tool"] ?? "").lowercased()
+            switch tool {
+            case "mcp_batch": return "Running MCP batch"
+            case "mcp_list_resources": return "Listing MCP resources"
+            case "mcp_read_resource": return "Reading MCP resource"
+            case "mcp_subscribe": return "Subscribing to resource"
+            case "mcp_list_prompts": return "Listing MCP prompts"
+            case "mcp_get_prompt": return "Resolving MCP prompt"
+            case "mcp_logs": return "Reading MCP logs"
+            case "mcp_restart_server": return "Restarting MCP server"
+            case "mcp_health": return "Checking MCP health"
+            default: return "Calling MCP tool"
+            }
         }
         if normalizedType.contains("web_search") {
             return "Searching web"
@@ -253,7 +270,24 @@ final class TaskActivityStore: ObservableObject {
             return "Fetching page"
         }
         if normalizedType.hasPrefix("debug_") {
-            return "Debugging"
+            let tool = (last.payload["tool"] ?? last.payload["name"] ?? normalizedType).lowercased()
+            switch tool {
+            case "debug_trace_analyze": return "Analyzing trace"
+            case "debug_instrument": return "Instrumenting code"
+            case "debug_timeline": return "Building timeline"
+            case "debug_snapshot": return "Capturing snapshot"
+            case "debug_test_check": return "Checking tests"
+            case "debug_context": return "Gathering context"
+            case "debug_log": return "Logging observation"
+            case "debug_query": return "Querying logs"
+            case "debug_hypothesize": return "Hypothesizing"
+            case "debug_mark": return "Placing marker"
+            case "debug_clean": return "Cleaning markers"
+            case "debug_session": return "Managing session"
+            case "debug_set_phase": return "Updating phase"
+            case "debug_resolve": return "Resolving"
+            default: return "Debugging"
+            }
         }
         if normalizedType.contains("todo") || normalizedType.contains("plan_step") {
             return "Planning next move"
@@ -572,6 +606,7 @@ final class TaskActivityStore: ObservableObject {
                  "activate_plan_mode", "activate_debug_mode",
                  "debug_phase_update", "debug_user_request", "debug_resolved",
                  "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+                 "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
                  "semantic_search", "read_lints", "debug_context",
                  "file_change", "edit":
                 return true

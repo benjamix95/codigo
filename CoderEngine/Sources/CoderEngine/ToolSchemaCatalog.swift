@@ -535,102 +535,187 @@ enum ToolSchemaCatalog {
             ],
             required: ["path"]
         ),
+        // MARK: Debug Tools (Optimized)
         ToolSchemaEntry(
             name: "debug_context",
-            description: "Gather debugging context",
-            properties: [:],
+            description: "Gather comprehensive debugging context for the current workspace. Use at the START of every debug session (Describe phase). Collects git state, build errors, linter diagnostics, environment info, recent crash logs, dependencies, and open file context. Use 'scope' to focus on specific areas.",
+            properties: [
+                "scope": ["type": "string", "description": "What to collect: 'full' (default, everything), 'git' (status/diff/log only), 'build' (build errors), 'lints' (linter diagnostics), 'env' (Swift/Xcode/SDK versions), 'tests' (test listing), 'crashes' (recent crash reports). Comma-separated for multiple."],
+                "include_file_content": ["type": "string", "description": "If 'true', includes source code around files with errors (20 lines context). Default: false."],
+                "max_depth": ["type": "string", "description": "Max depth for directory scanning (default: 3)"]
+            ],
             required: []
         ),
         ToolSchemaEntry(
             name: "debug_log",
-            description: "Write an entry to debug log",
+            description: "Write one or more entries to the debug log. Use throughout the debug session to record observations, findings, and evidence. Supports batch mode for multiple entries in one call. Use category='runtime' or 'instrumentation' for runtime logs that link to hypotheses.",
             properties: [
                 "severity": ["type": "string", "description": "error|warning|info|verbose|trace"],
-                "source": ["type": "string", "description": "Source component or file"],
-                "message": ["type": "string", "description": "Log message"],
-                "detail": ["type": "string", "description": "Optional detail"],
-                "category": ["type": "string", "description": "Optional category"]
+                "source": ["type": "string", "description": "Source component, file:line, or module name"],
+                "message": ["type": "string", "description": "Log message describing the observation"],
+                "detail": ["type": "string", "description": "Extended detail: stack trace, variable dump, error context"],
+                "category": ["type": "string", "description": "Category: compiler, runtime, test, network, instrumentation, custom"],
+                "tags": ["type": "string", "description": "Comma-separated tags for filtering (e.g. 'memory,leak,hypothesis-1')"],
+                "stack_trace": ["type": "string", "description": "Full stack trace to attach (kept separate from detail for structured access)"],
+                "hypothesis_id": ["type": "string", "description": "Link this log entry to a specific hypothesis"],
+                "run_id": ["type": "string", "description": "Group logs by reproduce run"],
+                "data": ["type": "string", "description": "JSON object of arbitrary key-value data (variable values, timing, etc.)"],
+                "batch": ["type": "string", "description": "JSON array of log entries: [{severity, source, message, detail?, category?, tags?}, ...]. When provided, other fields are ignored."]
             ],
             required: ["severity", "source", "message"]
         ),
         ToolSchemaEntry(
             name: "debug_query",
-            description: "Query debug logs",
+            description: "Query and analyze debug logs with powerful filtering. Use to review observations, find patterns, and correlate evidence. Supports aggregation, time filtering, hypothesis linking, and export.",
             properties: [
-                "severity": ["type": "string", "description": "Optional severity filter"],
-                "category": ["type": "string", "description": "Optional category filter"],
-                "source": ["type": "string", "description": "Optional source filter"],
-                "search": ["type": "string", "description": "Optional search query"],
-                "format": ["type": "string", "description": "summary|full"],
-                "limit": ["type": "string", "description": "Maximum number of rows"]
+                "severity": ["type": "string", "description": "Filter by severity: error, warning, info, verbose, trace"],
+                "category": ["type": "string", "description": "Filter by category: compiler, runtime, test, network, instrumentation"],
+                "source": ["type": "string", "description": "Filter by source component or file"],
+                "search": ["type": "string", "description": "Full-text search across messages and details"],
+                "tags": ["type": "string", "description": "Filter by tags (comma-separated, matches any)"],
+                "hypothesis_id": ["type": "string", "description": "Show only logs linked to this hypothesis"],
+                "time_range": ["type": "string", "description": "Show logs from last N minutes (e.g. '5' for last 5 minutes)"],
+                "group_by": ["type": "string", "description": "Aggregate results: severity, source, category, tags. Returns counts per group."],
+                "format": ["type": "string", "description": "'summary' (stats overview), 'full' (all entries), 'json' (structured JSON export), 'markdown' (formatted report)"],
+                "limit": ["type": "string", "description": "Maximum entries to return (default: 50, max: 500)"]
             ],
             required: []
         ),
         ToolSchemaEntry(
             name: "debug_session",
-            description: "Manage debug sessions",
+            description: "Manage debug sessions with lifecycle control, snapshots, and export. Use 'start' at the beginning, 'snapshot' to save state for comparison, 'stats' for session metrics, 'export' for a full report, and 'end'/'clear' to finish.",
             properties: [
-                "action": ["type": "string", "description": "start|end|clear"]
+                "action": ["type": "string", "description": "start|end|clear|snapshot|export|stats"],
+                "label": ["type": "string", "description": "Label for snapshot (used with action=snapshot). Use descriptive names like 'before-fix', 'after-refactor'."]
             ],
             required: ["action"]
         ),
         ToolSchemaEntry(
             name: "debug_hypothesize",
-            description: "Propose or update debug hypothesis (ID-based contract)",
+            description: "Propose, update, or rank debug hypotheses with structured metadata. Each hypothesis tracks a potential root cause with confidence, evidence, related files, and type classification. Use during the Fix phase to systematically narrow down the bug.",
             properties: [
-                "action": ["type": "string", "description": "propose|update"],
+                "action": ["type": "string", "description": "propose (create new) | update (modify existing)"],
                 "hypothesis_id": ["type": "string", "description": "Required for update; returned by propose"],
-                "title": ["type": "string", "description": "Required for propose"],
-                "description": ["type": "string", "description": "Optional hypothesis description"],
+                "title": ["type": "string", "description": "Concise hypothesis title (required for propose)"],
+                "description": ["type": "string", "description": "Detailed explanation of the hypothesized root cause"],
                 "status": ["type": "string", "description": "proposed|investigating|confirmed|rejected"],
-                "evidence": ["type": "string", "description": "Optional evidence notes"]
+                "evidence": ["type": "string", "description": "Evidence notes supporting or refuting the hypothesis"],
+                "confidence": ["type": "string", "description": "Confidence level 0-100 (0=wild guess, 100=certain). Helps rank hypotheses."],
+                "root_cause_type": ["type": "string", "description": "Classification: logic, concurrency, config, dependency, state, memory, type, nil_safety, api_misuse"],
+                "related_files": ["type": "string", "description": "Comma-separated file paths relevant to this hypothesis"],
+                "related_tests": ["type": "string", "description": "Comma-separated test names that would verify/refute this hypothesis"]
             ],
             required: ["action"]
         ),
         ToolSchemaEntry(
             name: "debug_mark",
-            description: "Insert a debug marker into a file",
+            description: "Insert a typed debug marker or instrumentation into a file. Supports plain markers, logging statements, assertions, timing measurements, and variable captures. All markers are tracked for automatic cleanup with debug_clean. Use during Reproduce/Fix phases.",
             properties: [
-                "path": ["type": "string", "description": "File path"],
-                "line": ["type": "string", "description": "Line number"],
-                "comment": ["type": "string", "description": "Marker comment"],
-                "code": ["type": "string", "description": "Optional marker code"]
+                "path": ["type": "string", "description": "File path to insert the marker"],
+                "line": ["type": "string", "description": "Line number (1-based) where the marker is inserted AFTER"],
+                "comment": ["type": "string", "description": "Human-readable comment describing what this marker checks"],
+                "code": ["type": "string", "description": "Custom code to insert (overrides type-based generation)"],
+                "type": ["type": "string", "description": "'marker' (comment only, default), 'log' (print statement), 'assert' (assertion), 'timing' (execution timing), 'variable' (variable state capture)"],
+                "expression": ["type": "string", "description": "Expression to log/assert/capture. For 'log': the value to print. For 'assert': the condition. For 'variable': the variable name."],
+                "hypothesis_id": ["type": "string", "description": "Link this marker to a hypothesis for correlation"]
             ],
             required: ["path", "line", "comment"]
         ),
         ToolSchemaEntry(
             name: "debug_clean",
-            description: "Remove debug markers",
+            description: "Remove debug markers and instrumentation from files. Supports selective cleanup by type, dry-run preview, and hypothesis-scoped removal. Called automatically during 'Mark Fixed' flow, but can be used manually anytime.",
             properties: [
-                "path": ["type": "string", "description": "Optional file scope"]
+                "path": ["type": "string", "description": "Clean only this file. If omitted, searches entire workspace."],
+                "type": ["type": "string", "description": "'all' (default), 'markers' (comment-only markers), 'logs' (print statements), 'asserts' (assertions), 'timing' (timing code)"],
+                "dry_run": ["type": "string", "description": "If 'true', shows what would be removed without actually removing. Useful for preview."],
+                "hypothesis_id": ["type": "string", "description": "Remove only markers linked to this hypothesis"]
             ],
             required: []
         ),
         ToolSchemaEntry(
             name: "debug_set_phase",
-            description: "Set the current debug flow phase in the IDE panel",
+            description: "Set the current debug flow phase in the IDE panel. Controls the progress bar visualization. Phases: describing (gather context) -> reproducing (reproduce the bug) -> fixing (hypothesize and fix) -> instrumenting (add instrumentation) -> verifying (run tests) -> resolved (done).",
             properties: [
                 "phase": ["type": "string", "description": "describing|reproducing|fixing|instrumenting|verifying|resolved"],
-                "detail": ["type": "string", "description": "Optional detail about the phase transition"]
+                "detail": ["type": "string", "description": "Brief explanation of why this phase transition is happening"]
             ],
             required: ["phase"]
         ),
         ToolSchemaEntry(
             name: "debug_request_user",
-            description: "Request user input or bug reproduction during debug",
+            description: "Request user input or ask them to reproduce the bug. Use 'question' to ask clarifying questions, 'reproduce' to ask the user to trigger the bug so instrumentation can capture data.",
             properties: [
                 "kind": ["type": "string", "description": "question|reproduce"],
-                "prompt": ["type": "string", "description": "The question or reproduction instructions for the user"]
+                "prompt": ["type": "string", "description": "The question or step-by-step reproduction instructions"]
             ],
             required: ["kind", "prompt"]
         ),
         ToolSchemaEntry(
             name: "debug_resolve",
-            description: "Resolve the debug session with a final summary",
+            description: "Resolve the debug session with a comprehensive final summary. Triggers automatic cleanup of debug markers. Include: root cause, fix applied, verification results, and any remaining risks.",
             properties: [
-                "summary": ["type": "string", "description": "Summary of the root cause, fix applied, and verification outcome"]
+                "summary": ["type": "string", "description": "Final summary: root cause, fix applied, tests passed, and any caveats"]
             ],
             required: ["summary"]
+        ),
+
+        // MARK: Debug Advanced Tools (New)
+        ToolSchemaEntry(
+            name: "debug_trace_analyze",
+            description: "Analyze an error message, stack trace, crash log, or test failure output. Parses the text structurally, extracts file paths and line numbers, identifies the error type, and suggests files to investigate. Use in the Describe phase right after debug_context.",
+            properties: [
+                "error_text": ["type": "string", "description": "The error output, stack trace, crash log, or test failure to analyze"],
+                "error_type": ["type": "string", "description": "'compile' (build errors), 'runtime' (crashes/exceptions), 'crash' (crash reports), 'test_failure' (test assertions), 'assertion' (precondition/assert). Auto-detected if omitted."],
+                "context": ["type": "string", "description": "Additional context about when/where the error occurs"]
+            ],
+            required: ["error_text"]
+        ),
+        ToolSchemaEntry(
+            name: "debug_instrument",
+            description: "Insert intelligent, executable instrumentation code into a source file. More powerful than debug_mark: generates real Swift code for logging, assertions, timing measurements, variable captures, and conditional breakpoints. All instrumentation is tracked and auto-cleaned on session resolve.",
+            properties: [
+                "path": ["type": "string", "description": "File to instrument"],
+                "line": ["type": "string", "description": "Line number (1-based) — code is inserted AFTER this line"],
+                "type": ["type": "string", "description": "'log' (print expression value), 'assert' (assert condition), 'timing' (measure execution time of the enclosing scope), 'variable' (capture and print variable state), 'conditional_break' (log only when condition is true)"],
+                "expression": ["type": "string", "description": "The expression to log/assert/capture. For 'log': value to print. For 'assert': boolean condition. For 'variable': variable name. For 'conditional_break': guard condition."],
+                "condition": ["type": "string", "description": "For 'conditional_break': only log when this condition is true. For 'assert': custom failure message."],
+                "hypothesis_id": ["type": "string", "description": "Link this instrumentation to a hypothesis"],
+                "label": ["type": "string", "description": "Human-readable label for this instrumentation point (shown in debug panel)"]
+            ],
+            required: ["path", "line", "type", "expression"]
+        ),
+        ToolSchemaEntry(
+            name: "debug_timeline",
+            description: "Generate a chronological timeline of all debug events in the current session: logs, phase changes, hypotheses, markers, instrumentation. Helps understand the sequence of observations and decisions. Use for analysis and final reporting.",
+            properties: [
+                "filter": ["type": "string", "description": "'all' (default), 'logs', 'hypotheses', 'markers', 'phases'. Comma-separated for multiple."],
+                "time_range": ["type": "string", "description": "Show events from last N minutes"],
+                "hypothesis_id": ["type": "string", "description": "Show only events linked to this hypothesis"],
+                "format": ["type": "string", "description": "'text' (default, chronological list), 'mermaid' (Mermaid sequence diagram)"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "debug_snapshot",
+            description: "Capture, compare, or list debug session snapshots. Snapshots save the full debug state (phase, hypotheses, markers, log counts, file changes) at a point in time. Use before and after each fix attempt to track progress and detect regressions.",
+            properties: [
+                "action": ["type": "string", "description": "'capture' (save current state), 'compare' (diff two snapshots), 'list' (show all snapshots)"],
+                "label": ["type": "string", "description": "Descriptive label for the snapshot (e.g. 'before-fix', 'after-refactor'). Required for capture."],
+                "compare_with": ["type": "string", "description": "Label of the snapshot to compare against (used with action=compare)"]
+            ],
+            required: ["action"]
+        ),
+        ToolSchemaEntry(
+            name: "debug_test_check",
+            description: "Run a targeted test check to verify a fix or detect regressions. More focused than run_tests: identifies tests related to specific files, runs only those, and compares results with previous runs. Use in the Verify phase after applying a fix.",
+            properties: [
+                "scope": ["type": "string", "description": "'all' (run all tests), 'related' (tests related to modified files), 'failing' (only previously failing tests), 'file' (tests in/for a specific file)"],
+                "path": ["type": "string", "description": "File path to find related tests for (used with scope=file or scope=related)"],
+                "filter": ["type": "string", "description": "Test name filter pattern"],
+                "hypothesis_id": ["type": "string", "description": "Run tests related to the files in this hypothesis"],
+                "timeout_ms": ["type": "string", "description": "Timeout in milliseconds (default: 60000)"]
+            ],
+            required: []
         ),
         ToolSchemaEntry(
             name: "todo_write",
@@ -902,7 +987,7 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "mcp_health",
-            description: "Check health status of MCP servers. Returns 'ok' or error details for each server.",
+            description: "Check health and detailed metrics of MCP servers. Returns status, uptime, call counts, latency stats (avg/p95), capabilities (tools/resources/prompts/logging), and error history for each server.",
             properties: [
                 "server": ["type": "string", "description": "Check specific server. If omitted, checks all servers."]
             ],
@@ -913,6 +998,82 @@ enum ToolSchemaCatalog {
             description: "Force reconnect to an MCP server. Use when a server connection is broken or stale.",
             properties: [
                 "server": ["type": "string", "description": "Server identifier to reconnect."]
+            ],
+            required: ["server"]
+        ),
+
+        // MARK: MCP Advanced Tools
+        ToolSchemaEntry(
+            name: "mcp_batch",
+            description: "Execute multiple MCP tool calls in parallel. Accepts a JSON array of calls and returns all results. Much faster than sequential mcp_call for independent operations.",
+            properties: [
+                "calls": ["type": "string", "description": "JSON array of call objects: [{\"server\": \"...\", \"tool\": \"...\", \"args\": {...}}, ...]. Each call runs in parallel."],
+                "timeout_ms": ["type": "string", "description": "Per-call timeout in milliseconds (default: 30000)"]
+            ],
+            required: ["calls"]
+        ),
+        ToolSchemaEntry(
+            name: "mcp_list_resources",
+            description: "List all resources exposed by MCP servers. Resources provide contextual data like files, database schemas, API specs, and application state.",
+            properties: [
+                "server": ["type": "string", "description": "Filter by server identifier. If omitted, lists resources from all servers."]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "mcp_read_resource",
+            description: "Read the content of an MCP resource by URI. Returns text or binary (base64) content. Use mcp_list_resources first to discover available URIs.",
+            properties: [
+                "uri": ["type": "string", "description": "Resource URI to read (e.g. 'file:///path', 'db://schema', 'api://endpoint')"],
+                "server": ["type": "string", "description": "Server identifier. Required if URI exists on multiple servers."]
+            ],
+            required: ["uri"]
+        ),
+        ToolSchemaEntry(
+            name: "mcp_subscribe",
+            description: "Subscribe to changes on an MCP resource. When the resource changes, the system receives a notification. Use 'unsubscribe' action to stop watching.",
+            properties: [
+                "uri": ["type": "string", "description": "Resource URI to watch for changes"],
+                "server": ["type": "string", "description": "Server identifier"],
+                "action": ["type": "string", "description": "'subscribe' (default) or 'unsubscribe'"]
+            ],
+            required: ["uri", "server"]
+        ),
+        ToolSchemaEntry(
+            name: "mcp_list_prompts",
+            description: "List prompt templates exposed by MCP servers. Prompts are reusable message templates with arguments for interacting with LLMs.",
+            properties: [
+                "server": ["type": "string", "description": "Filter by server identifier. If omitted, lists prompts from all servers."]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "mcp_get_prompt",
+            description: "Resolve an MCP prompt template with arguments. Returns the generated messages ready to use. Use mcp_list_prompts first to discover available prompts and their arguments.",
+            properties: [
+                "name": ["type": "string", "description": "Prompt template name"],
+                "server": ["type": "string", "description": "Server identifier. Required if prompt name exists on multiple servers."],
+                "args": ["type": "string", "description": "JSON object of prompt arguments, e.g. {\"language\": \"python\", \"topic\": \"error handling\"}"]
+            ],
+            required: ["name"]
+        ),
+        ToolSchemaEntry(
+            name: "mcp_logs",
+            description: "Read structured logs from MCP servers. Filter by severity and server. Also supports setting the log level on a server.",
+            properties: [
+                "server": ["type": "string", "description": "Filter by server identifier. If omitted, shows logs from all servers."],
+                "severity": ["type": "string", "description": "Minimum severity: debug, info, notice, warning, error, critical (default: info)"],
+                "limit": ["type": "string", "description": "Maximum number of log entries to return (default: 50)"],
+                "action": ["type": "string", "description": "'read' (default) to read logs, 'set_level' to change server log level, 'clear' to clear log buffer"],
+                "level": ["type": "string", "description": "Log level to set when action is 'set_level'"]
+            ],
+            required: []
+        ),
+        ToolSchemaEntry(
+            name: "mcp_restart_server",
+            description: "Fully restart an MCP server process. Kills the process, resets the session, and reconnects. More aggressive than mcp_reconnect — use when reconnect fails or the server is in a bad state.",
+            properties: [
+                "server": ["type": "string", "description": "Server identifier to restart"]
             ],
             required: ["server"]
         ),

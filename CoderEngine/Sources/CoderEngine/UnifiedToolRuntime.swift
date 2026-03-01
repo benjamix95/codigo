@@ -8,6 +8,9 @@ public struct ToolCall: Sendable {
     public let sourceProvider: String
     public let swarmId: String?
     public let scope: ExecutionScope
+    /// Rich arguments preserving native types (arrays, objects, numbers, booleans).
+    /// When present, MCP tool calls prefer these over the string-only `args`.
+    public let richArgs: [String: any Sendable]?
 
     public init(
         id: String,
@@ -15,7 +18,8 @@ public struct ToolCall: Sendable {
         args: [String: String],
         sourceProvider: String,
         swarmId: String?,
-        scope: ExecutionScope
+        scope: ExecutionScope,
+        richArgs: [String: any Sendable]? = nil
     ) {
         self.id = id
         self.name = name
@@ -23,6 +27,7 @@ public struct ToolCall: Sendable {
         self.sourceProvider = sourceProvider
         self.swarmId = swarmId
         self.scope = scope
+        self.richArgs = richArgs
     }
 }
 
@@ -188,7 +193,19 @@ public actor UnifiedToolRuntime {
     public let debugLogServer = DebugLogServer()
 
     /// Tracks hypothesis lifecycle for debug_hypothesize ID validation.
-    private var debugHypotheses: [String: (title: String, description: String, status: String)] = [:]
+    private var debugHypotheses: [String: DebugHypothesis] = [:]
+
+    struct DebugHypothesis {
+        var title: String
+        var description: String
+        var status: String
+        var confidence: Int
+        var rootCauseType: String
+        var relatedFiles: [String]
+        var relatedTests: [String]
+        var evidence: [String]
+        var createdAt: Date
+    }
 
     /// Terminal bridge for IDE terminal integration
     private weak var terminalBridge: (any TerminalBridge)?
@@ -477,6 +494,16 @@ public actor UnifiedToolRuntime {
                 return await executeDebugMark(call: call, context: context, startDate: startDate)
             case "debug_clean":
                 return await executeDebugClean(call: call, context: context, startDate: startDate)
+            case "debug_trace_analyze":
+                return await executeDebugTraceAnalyze(call: call, context: context, startDate: startDate)
+            case "debug_instrument":
+                return await executeDebugInstrument(call: call, context: context, startDate: startDate)
+            case "debug_timeline":
+                return await executeDebugTimeline(call: call, context: context, startDate: startDate)
+            case "debug_snapshot":
+                return await executeDebugSnapshot(call: call, context: context, startDate: startDate)
+            case "debug_test_check":
+                return await executeDebugTestCheck(call: call, context: context, startDate: startDate)
 
             // Power tools
             case "apply_diff":
@@ -518,6 +545,22 @@ public actor UnifiedToolRuntime {
                 return await executeMCPListServers(context: context, startDate: startDate)
             case "mcp_reconnect":
                 return await executeMCPReconnect(call: call, context: context, startDate: startDate)
+            case "mcp_batch":
+                return await executeMCPBatch(call: call, context: context, startDate: startDate)
+            case "mcp_list_resources":
+                return await executeMCPListResources(call: call, context: context, startDate: startDate)
+            case "mcp_read_resource":
+                return await executeMCPReadResource(call: call, context: context, startDate: startDate)
+            case "mcp_subscribe":
+                return await executeMCPSubscribe(call: call, context: context, startDate: startDate)
+            case "mcp_list_prompts":
+                return await executeMCPListPrompts(call: call, context: context, startDate: startDate)
+            case "mcp_get_prompt":
+                return await executeMCPGetPrompt(call: call, context: context, startDate: startDate)
+            case "mcp_logs":
+                return await executeMCPLogs(call: call, context: context, startDate: startDate)
+            case "mcp_restart_server":
+                return await executeMCPRestartServer(call: call, context: context, startDate: startDate)
             default:
                 if context.policy.enableMCP {
                     if let route = MCPNativeToolRegistry.shared.routing[normalizedName] {
@@ -687,13 +730,26 @@ public actor UnifiedToolRuntime {
         }
 
         do {
-            let result = try await mcpSessions.callTool(
-                serverId: invocation.serverId,
-                toolName: invocation.toolName,
-                arguments: invocation.arguments,
-                timeoutMs: context.policy.mcpPerCallTimeoutMs,
-                idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
-            )
+            let result: (serverId: String, serverName: String, content: String, isError: Bool)
+            if let rich = call.richArgs, !rich.isEmpty {
+                var richFiltered = rich
+                for key in Self.mcpWrapperKeys { richFiltered.removeValue(forKey: key) }
+                result = try await mcpSessions.callToolRich(
+                    serverId: invocation.serverId,
+                    toolName: invocation.toolName,
+                    arguments: richFiltered,
+                    timeoutMs: context.policy.mcpPerCallTimeoutMs,
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            } else {
+                result = try await mcpSessions.callTool(
+                    serverId: invocation.serverId,
+                    toolName: invocation.toolName,
+                    arguments: invocation.arguments,
+                    timeoutMs: context.policy.mcpPerCallTimeoutMs,
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            }
 
             var payload: [String: String] = [
                 "title": "MCP \(result.serverName)/\(invocation.toolName)",
@@ -818,14 +874,48 @@ public actor UnifiedToolRuntime {
             )
         }
         let server = resolveMCPServerArg(from: call.args)
-        let states = await mcpSessions.health(serverId: server)
-        let lines = states.keys.sorted().map { "\($0): \(states[$0] ?? "unknown")" }
+        let serverId = server.isEmpty ? nil : server
+
+        let metrics = await mcpSessions.serverMetrics(serverId: serverId)
+        if metrics.isEmpty {
+            let states = await mcpSessions.health(serverId: server)
+            let lines = states.keys.sorted().map { "\($0): \(states[$0] ?? "unknown")" }
+            return success([
+                "title": "MCP health",
+                "tool": "mcp_health",
+                "server_id": server,
+                "output": lines.joined(separator: "\n"),
+                "detail": "\(states.count) servers",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        }
+
+        var lines: [String] = []
+        for m in metrics {
+            var caps: [String] = []
+            if m.capabilities.supportsTools { caps.append("tools") }
+            if m.capabilities.supportsResources { caps.append("resources") }
+            if m.capabilities.supportsPrompts { caps.append("prompts") }
+            if m.capabilities.supportsLogging { caps.append("logging") }
+            if m.capabilities.supportsResourceSubscriptions { caps.append("subscriptions") }
+
+            lines.append("""
+            \(m.serverId) (\(m.serverName)):
+              status: \(m.status)
+              uptime: \(m.uptimeSeconds)s
+              calls: \(m.totalCalls) total, \(m.failedCalls) failed
+              latency: avg \(m.avgLatencyMs)ms, p95 \(m.p95LatencyMs)ms
+              tools: \(m.toolCount), resources: \(m.resourceCount), prompts: \(m.promptCount)
+              capabilities: [\(caps.joined(separator: ", "))]\(m.lastError.map { "\n  last_error: \($0)" } ?? "")
+            """)
+        }
+
         return success([
-            "title": "MCP health",
+            "title": "MCP health (detailed)",
             "tool": "mcp_health",
-            "server_id": server,
+            "server_id": serverId ?? "",
             "output": lines.joined(separator: "\n"),
-            "detail": "\(states.count) servers",
+            "detail": "\(metrics.count) servers",
             "is_mcp": "true"
         ], startDate: startDate)
     }
@@ -897,18 +987,31 @@ public actor UnifiedToolRuntime {
             )
         }
 
-        var args = call.args
         let metadataKeys: Set<String> = ["id", "name", "tool", "tool_name", "function", "function_name", "is_partial", "type", "status", "title", "detail", "output"]
-        for key in metadataKeys { args.removeValue(forKey: key) }
 
         do {
-            let result = try await mcpSessions.callTool(
-                serverId: route.serverId,
-                toolName: route.toolName,
-                arguments: args,
-                timeoutMs: context.policy.mcpPerCallTimeoutMs,
-                idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
-            )
+            let result: (serverId: String, serverName: String, content: String, isError: Bool)
+            if let rich = call.richArgs, !rich.isEmpty {
+                var richFiltered = rich
+                for key in metadataKeys { richFiltered.removeValue(forKey: key) }
+                result = try await mcpSessions.callToolRich(
+                    serverId: route.serverId,
+                    toolName: route.toolName,
+                    arguments: richFiltered,
+                    timeoutMs: context.policy.mcpPerCallTimeoutMs,
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            } else {
+                var args = call.args
+                for key in metadataKeys { args.removeValue(forKey: key) }
+                result = try await mcpSessions.callTool(
+                    serverId: route.serverId,
+                    toolName: route.toolName,
+                    arguments: args,
+                    timeoutMs: context.policy.mcpPerCallTimeoutMs,
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            }
 
             var payload: [String: String] = [
                 "title": "\(result.serverName)/\(route.toolName)",
@@ -972,6 +1075,329 @@ public actor UnifiedToolRuntime {
                 return failure("Unsupported tool: \(toolName)", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
             }
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    // MARK: - MCP Advanced Tool Executors
+
+    private func executeMCPBatch(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let callsJSON = call.args["calls"] ?? ""
+        guard !callsJSON.isEmpty,
+              let data = callsJSON.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return failure("Invalid 'calls' argument — expected JSON array of {server, tool, args}", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+
+        let timeoutMs = Int(call.args["timeout_ms"] ?? "") ?? context.policy.mcpPerCallTimeoutMs
+        var batchCalls: [(serverId: String?, toolName: String, arguments: [String: Any])] = []
+        for item in parsed {
+            let server = item["server"] as? String
+            guard let tool = item["tool"] as? String, !tool.isEmpty else { continue }
+            let args = (item["args"] as? [String: Any]) ?? [:]
+            batchCalls.append((serverId: server, toolName: tool, arguments: args))
+        }
+
+        guard !batchCalls.isEmpty else {
+            return failure("No valid calls in batch", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+
+        let results = await mcpSessions.callToolsBatch(
+            calls: batchCalls,
+            timeoutMs: timeoutMs,
+            idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+        )
+
+        var outputLines: [String] = []
+        var allOk = true
+        for r in results {
+            let status = r.isError ? "ERROR" : "OK"
+            if r.isError { allOk = false }
+            let tool = batchCalls[r.index].toolName
+            let contentPreview = truncate(r.content, maxBytes: context.policy.maxBashOutputBytes / max(1, results.count))
+            outputLines.append("[\(r.index)] \(tool) [\(status)]: \(contentPreview)")
+        }
+
+        return ToolResult(
+            ok: allOk,
+            payload: [
+                "title": "MCP batch (\(results.count) calls)",
+                "tool": "mcp_batch",
+                "output": outputLines.joined(separator: "\n\n"),
+                "detail": "\(results.count) calls, \(results.filter { !$0.isError }.count) succeeded",
+                "is_mcp": "true"
+            ],
+            durationMs: max(1, Int(Date().timeIntervalSince(startDate) * 1000))
+        )
+    }
+
+    private func executeMCPListResources(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let server = resolveMCPServerArg(from: call.args)
+        let serverId = server.isEmpty ? nil : server
+        do {
+            let resources = try await mcpSessions.listResources(serverId: serverId, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+            let templates = try await mcpSessions.listResourceTemplates(serverId: serverId, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+
+            var lines: [String] = []
+            for r in resources {
+                let mime = r.mimeType.map { " (\($0))" } ?? ""
+                let desc = r.description.map { " — \($0)" } ?? ""
+                lines.append("\(r.serverId)/\(r.uri): \(r.name)\(mime)\(desc)")
+            }
+            if !templates.isEmpty {
+                lines.append("\n--- Resource Templates ---")
+                for t in templates {
+                    let desc = t.description.map { " — \($0)" } ?? ""
+                    lines.append("\(t.serverId)/\(t.uriTemplate): \(t.name)\(desc)")
+                }
+            }
+
+            return success([
+                "title": "MCP resources",
+                "tool": "mcp_list_resources",
+                "server_id": serverId ?? "",
+                "output": truncate(lines.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
+                "detail": "\(resources.count) resources, \(templates.count) templates",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    private func executeMCPReadResource(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let uri = (call.args["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !uri.isEmpty else {
+            return failure("Missing required 'uri' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let server = resolveMCPServerArg(from: call.args)
+        let serverId = server.isEmpty ? nil : server
+
+        do {
+            let content = try await mcpSessions.readResource(serverId: serverId, uri: uri, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+            let output: String
+            if let text = content.text {
+                output = text
+            } else if let blob = content.blob {
+                output = "[binary \(content.mimeType ?? "application/octet-stream")] \(blob.count) bytes (base64)"
+            } else {
+                output = "(empty resource)"
+            }
+            return success([
+                "title": "MCP resource \(uri)",
+                "tool": "mcp_read_resource",
+                "server_id": content.serverId,
+                "mcp_server": content.serverName,
+                "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+                "detail": content.mimeType ?? "unknown type",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    private func executeMCPSubscribe(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let uri = (call.args["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let server = resolveMCPServerArg(from: call.args)
+        let action = (call.args["action"] ?? "subscribe").lowercased()
+
+        guard !uri.isEmpty else {
+            return failure("Missing required 'uri' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        guard !server.isEmpty else {
+            return failure("Missing required 'server' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+
+        do {
+            if action == "unsubscribe" {
+                await mcpSessions.unsubscribeResource(serverId: server, uri: uri)
+                return success([
+                    "title": "MCP unsubscribe",
+                    "tool": "mcp_subscribe",
+                    "server_id": server,
+                    "detail": "Unsubscribed from \(uri)",
+                    "is_mcp": "true"
+                ], startDate: startDate)
+            } else {
+                try await mcpSessions.subscribeResource(serverId: server, uri: uri)
+                return success([
+                    "title": "MCP subscribe",
+                    "tool": "mcp_subscribe",
+                    "server_id": server,
+                    "detail": "Subscribed to \(uri)",
+                    "is_mcp": "true"
+                ], startDate: startDate)
+            }
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    private func executeMCPListPrompts(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let server = resolveMCPServerArg(from: call.args)
+        let serverId = server.isEmpty ? nil : server
+
+        do {
+            let prompts = try await mcpSessions.listPrompts(serverId: serverId, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+            let lines = prompts.map { p -> String in
+                let args = p.arguments.isEmpty ? "" : " args: \(p.arguments.map { "\($0.name)\($0.required ? "*" : "")" }.joined(separator: ", "))"
+                let desc = p.description.map { " — \($0)" } ?? ""
+                return "\(p.serverId)/\(p.name)\(desc)\(args)"
+            }
+            return success([
+                "title": "MCP prompts",
+                "tool": "mcp_list_prompts",
+                "server_id": serverId ?? "",
+                "output": truncate(lines.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
+                "detail": "\(prompts.count) prompts discovered",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    private func executeMCPGetPrompt(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let promptName = (call.args["name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !promptName.isEmpty else {
+            return failure("Missing required 'name' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let server = resolveMCPServerArg(from: call.args)
+        let serverId = server.isEmpty ? nil : server
+
+        var promptArgs: [String: String] = [:]
+        if let argsJSON = call.args["args"], !argsJSON.isEmpty,
+           let data = argsJSON.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+            promptArgs = parsed
+        }
+
+        do {
+            let result = try await mcpSessions.getPrompt(serverId: serverId, name: promptName, arguments: promptArgs, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+            var output = ""
+            if let desc = result.description {
+                output += "Description: \(desc)\n\n"
+            }
+            for msg in result.messages {
+                output += "[\(msg.role)]\n\(msg.content)\n\n"
+            }
+            return success([
+                "title": "MCP prompt \(promptName)",
+                "tool": "mcp_get_prompt",
+                "server_id": result.serverId,
+                "mcp_server": result.serverName,
+                "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
+                "detail": "\(result.messages.count) messages",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        } catch {
+            return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+    }
+
+    private func executeMCPLogs(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let server = resolveMCPServerArg(from: call.args)
+        let serverId = server.isEmpty ? nil : server
+        let action = (call.args["action"] ?? "read").lowercased()
+
+        switch action {
+        case "set_level":
+            let level = (call.args["level"] ?? "info").lowercased()
+            guard let sid = serverId, !sid.isEmpty else {
+                return failure("'server' is required for set_level action", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+            }
+            do {
+                try await mcpSessions.setLogLevel(serverId: sid, level: level)
+                return success([
+                    "title": "MCP log level set",
+                    "tool": "mcp_logs",
+                    "server_id": sid,
+                    "detail": "Log level set to \(level)",
+                    "is_mcp": "true"
+                ], startDate: startDate)
+            } catch {
+                return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
+            }
+        case "clear":
+            await mcpSessions.logStore.clear(serverId: serverId)
+            return success([
+                "title": "MCP logs cleared",
+                "tool": "mcp_logs",
+                "server_id": serverId ?? "",
+                "detail": "Log buffer cleared",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        default:
+            let severity = call.args["severity"] ?? "info"
+            let limit = Int(call.args["limit"] ?? "50") ?? 50
+            let entries = await mcpSessions.logStore.logs(serverId: serverId, severity: severity, limit: limit)
+            if entries.isEmpty {
+                return success([
+                    "title": "MCP logs",
+                    "tool": "mcp_logs",
+                    "server_id": serverId ?? "",
+                    "output": "(no log entries)",
+                    "detail": "0 entries",
+                    "is_mcp": "true"
+                ], startDate: startDate)
+            }
+            let df = ISO8601DateFormatter()
+            let lines = entries.map { e in
+                let ts = df.string(from: e.timestamp)
+                let logger = e.logger.map { " [\($0)]" } ?? ""
+                return "\(ts) [\(e.level.uppercased())]\(logger) \(e.serverId): \(e.message)"
+            }
+            return success([
+                "title": "MCP logs",
+                "tool": "mcp_logs",
+                "server_id": serverId ?? "",
+                "output": truncate(lines.joined(separator: "\n"), maxBytes: context.policy.maxBashOutputBytes),
+                "detail": "\(entries.count) entries",
+                "is_mcp": "true"
+            ], startDate: startDate)
+        }
+    }
+
+    private func executeMCPRestartServer(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        if !context.policy.enableMCP {
+            return failure("MCP disabled by policy", errorCode: ToolRuntimeError.mcpUnavailable("disabled").errorCode, startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        let serverId = resolveMCPServerArg(from: call.args)
+        guard !serverId.isEmpty else {
+            return failure("Missing required 'server' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        do {
+            try await mcpSessions.restartServer(serverId: serverId)
+            return success([
+                "title": "MCP restart",
+                "tool": "mcp_restart_server",
+                "server_id": serverId,
+                "detail": "Server fully restarted and reconnected",
+                "is_mcp": "true"
+            ], startDate: startDate)
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1907,13 +2333,32 @@ public actor UnifiedToolRuntime {
             if command.isEmpty {
                 throw ToolRuntimeError.validation("command is required")
             }
-        case "mcp_reconnect":
+        case "mcp_reconnect", "mcp_restart_server":
             let server = resolveMCPServerArg(from: call.args)
             if server.isEmpty {
                 throw ToolRuntimeError.validation("server is required")
             }
         case "mcp", "mcp_call":
             _ = try buildMCPInvocation(call: call)
+        case "mcp_batch":
+            if (call.args["calls"] ?? "").isEmpty {
+                throw ToolRuntimeError.validation("'calls' is required — JSON array of {server, tool, args}")
+            }
+        case "mcp_read_resource":
+            if (call.args["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw ToolRuntimeError.validation("'uri' is required")
+            }
+        case "mcp_subscribe":
+            if (call.args["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw ToolRuntimeError.validation("'uri' is required")
+            }
+            if resolveMCPServerArg(from: call.args).isEmpty {
+                throw ToolRuntimeError.validation("'server' is required for subscribe")
+            }
+        case "mcp_get_prompt":
+            if (call.args["name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw ToolRuntimeError.validation("'name' is required")
+            }
         default:
             break
         }
@@ -2099,7 +2544,8 @@ public actor UnifiedToolRuntime {
              "batch_read", "diff_files", "git_status", "git_show", "code_context",
              "related_files", "git_log_search":
             return ok ? "read_batch_completed" : "tool_execution_error"
-        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+             "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check":
             return ok ? name : "tool_execution_error"
         case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
              "rename_symbol", "find_and_replace_all", "undo_edit", "apply_diff":
@@ -3046,11 +3492,18 @@ public actor UnifiedToolRuntime {
     // MARK: - Debug Tools
 
     private func executeDebugLog(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        // Batch mode: log multiple entries at once
+        if let batchJSON = call.args["batch"], !batchJSON.isEmpty {
+            return await executeDebugLogBatch(batchJSON: batchJSON, call: call, startDate: startDate)
+        }
+
         let severity = call.args["severity"] ?? "info"
         let source = call.args["source"] ?? "agent"
         let message = call.args["message"] ?? ""
         let detail = call.args["detail"]
         let category = call.args["category"]
+        let tags = call.args["tags"]
+        let stackTrace = call.args["stack_trace"]
         let data = call.args["data"]
         let runId = call.args["run_id"] ?? call.args["runId"]
         let hypothesisId = call.args["hypothesis_id"] ?? call.args["hypothesisId"]
@@ -3059,34 +3512,73 @@ public actor UnifiedToolRuntime {
             return ToolResult(ok: false, payload: ["detail": "message is required"], durationMs: 0)
         }
 
+        let enrichedDetail: String? = {
+            var parts: [String] = []
+            if let d = detail { parts.append(d) }
+            if let st = stackTrace { parts.append("Stack Trace:\n\(st)") }
+            if let t = tags { parts.append("Tags: \(t)") }
+            return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+        }()
+
         if let category, category == "runtime" || category == "instrumentation" {
             await debugLogServer.logRuntime(
                 source: source,
                 message: message,
                 severity: severity,
-                detail: detail,
+                detail: enrichedDetail,
                 category: category,
                 data: parseDebugDataArg(data),
                 runId: runId,
                 hypothesisId: hypothesisId
             )
         } else {
-            await debugLogServer.log(severity: severity, source: source, message: message, detail: detail, category: category)
+            await debugLogServer.log(severity: severity, source: source, message: message, detail: enrichedDetail, category: category)
         }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
         return ToolResult(ok: true, payload: [
             "title": "debug_log",
             "detail": "[\(severity.uppercased())] \(message)",
-            "output": "Logged: [\(severity)] \(source): \(message)",
+            "output": "Logged: [\(severity)] \(source): \(message)\(tags != nil ? " [tags: \(tags!)]" : "")\(hypothesisId != nil ? " [hypothesis: \(hypothesisId!)]" : "")",
             "severity": severity,
             "source": source,
             "message": message,
-            "log_detail": detail ?? "",
+            "log_detail": enrichedDetail ?? "",
             "category": category ?? "",
+            "tags": tags ?? "",
+            "stack_trace": stackTrace ?? "",
             "data": data ?? "",
             "run_id": runId ?? "",
             "hypothesis_id": hypothesisId ?? ""
+        ], durationMs: ms)
+    }
+
+    private func executeDebugLogBatch(batchJSON: String, call: ToolCall, startDate: Date) async -> ToolResult {
+        guard let jsonData = batchJSON.data(using: .utf8),
+              let entries = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: String]] else {
+            return ToolResult(ok: false, payload: ["detail": "batch must be a JSON array of log entries: [{severity, source, message, ...}]"], durationMs: 0)
+        }
+
+        var logged = 0
+        for entry in entries {
+            let sev = entry["severity"] ?? "info"
+            let src = entry["source"] ?? "agent"
+            let msg = entry["message"] ?? ""
+            let det = entry["detail"]
+            let cat = entry["category"]
+            guard !msg.isEmpty else { continue }
+
+            await debugLogServer.log(severity: sev, source: src, message: msg, detail: det, category: cat)
+            logged += 1
+        }
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: true, payload: [
+            "title": "debug_log (batch)",
+            "detail": "Batch logged \(logged) entries",
+            "output": "Batch logged \(logged)/\(entries.count) entries",
+            "logged_count": "\(logged)",
+            "total_count": "\(entries.count)"
         ], durationMs: ms)
     }
 
@@ -3095,12 +3587,16 @@ public actor UnifiedToolRuntime {
         let category = call.args["category"]
         let source = call.args["source"]
         let search = call.args["search"] ?? call.args["query"]
+        let tags = call.args["tags"]
+        let hypothesisId = call.args["hypothesis_id"]
+        let timeRange = call.args["time_range"]
+        let groupBy = call.args["group_by"]
         let requestedLimit = Int(call.args["limit"] ?? "50") ?? 50
         let limit = min(max(requestedLimit, 1), 500)
         let format = (call.args["format"] ?? "summary").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         if format == "summary",
-           severity == nil, category == nil, source == nil,
+           severity == nil, category == nil, source == nil, tags == nil, hypothesisId == nil,
            (search?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
             let summary = await debugLogServer.sessionSummary()
             let ms = Int(Date().timeIntervalSince(startDate) * 1000)
@@ -3112,7 +3608,7 @@ public actor UnifiedToolRuntime {
             ], durationMs: ms)
         }
 
-        let result = await debugLogServer.query(
+        var result = await debugLogServer.query(
             severity: severity,
             category: category,
             source: source,
@@ -3120,15 +3616,82 @@ public actor UnifiedToolRuntime {
             limit: limit
         )
 
+        // Post-filter by tags
+        if let tags, !tags.isEmpty {
+            let tagSet = Set(tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
+            result = result.filteredByDetail { detail in
+                guard let d = detail?.lowercased() else { return false }
+                return tagSet.contains(where: { d.contains($0) })
+            }
+        }
+
+        // Post-filter by hypothesis_id
+        if let hypothesisId, !hypothesisId.isEmpty {
+            result = result.filteredByDetail { detail in
+                detail?.contains(hypothesisId) ?? false
+            }
+        }
+
+        // Post-filter by time_range (minutes)
+        if let timeRange, let minutes = Double(timeRange), minutes > 0 {
+            let cutoff = Date().addingTimeInterval(-minutes * 60)
+            result = result.filteredByTime(after: cutoff)
+        }
+
+        // Group-by aggregation
+        if let groupBy, !groupBy.isEmpty {
+            let output = buildGroupByOutput(result: result, groupBy: groupBy)
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(ok: true, payload: [
+                "title": "debug_query (grouped)",
+                "detail": "Grouped by \(groupBy): \(result.totalCount) entries",
+                "output": output,
+                "format": "grouped",
+                "group_by": groupBy
+            ], durationMs: ms)
+        }
+
         let output: String
-        if format == "summary" {
+        switch format {
+        case "json":
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            let jsonEntries = result.entries.map { entry -> [String: String] in
+                var e: [String: String] = [
+                    "timestamp": formatter.string(from: entry.timestamp),
+                    "severity": entry.severity,
+                    "source": entry.source,
+                    "message": entry.message
+                ]
+                if let d = entry.detail { e["detail"] = d }
+                if let c = entry.category { e["category"] = c }
+                return e
+            }
+            if let jsonData = try? JSONSerialization.data(withJSONObject: jsonEntries, options: [.prettyPrinted, .sortedKeys]),
+               let jsonStr = String(data: jsonData, encoding: .utf8) {
+                output = jsonStr
+            } else {
+                output = "Failed to serialize to JSON"
+            }
+        case "markdown":
+            var md = "# Debug Log Report\n\n"
+            md += "| Time | Severity | Source | Message |\n|------|----------|--------|---------|\n"
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
+            for entry in result.entries {
+                let ts = formatter.string(from: entry.timestamp)
+                md += "| \(ts) | \(entry.severity.uppercased()) | \(entry.source) | \(entry.message) |\n"
+            }
+            md += "\n**Total**: \(result.totalCount), **Errors**: \(result.errorCount), **Warnings**: \(result.warningCount)"
+            output = md
+        case "summary":
             output = """
             Debug Query Summary:
               Total entries: \(result.totalCount)
               Errors: \(result.errorCount)
               Warnings: \(result.warningCount)
             """
-        } else {
+        default:
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
             output = result.entries.isEmpty
@@ -3150,14 +3713,41 @@ public actor UnifiedToolRuntime {
         ], durationMs: ms)
     }
 
+    private func buildGroupByOutput(result: DebugLogServer.QueryResult, groupBy: String) -> String {
+        var groups: [String: Int] = [:]
+        for entry in result.entries {
+            let key: String
+            switch groupBy.lowercased() {
+            case "severity": key = entry.severity
+            case "source": key = entry.source
+            case "category": key = entry.category ?? "(none)"
+            default: key = entry.severity
+            }
+            groups[key, default: 0] += 1
+        }
+        let sorted = groups.sorted { $0.value > $1.value }
+        var lines = ["## Group by: \(groupBy) (\(result.totalCount) total)"]
+        for (key, count) in sorted {
+            let bar = String(repeating: "█", count: min(count, 40))
+            lines.append("  \(key): \(count) \(bar)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private var debugSessionSnapshots: [String: [String: String]] = [:]
+    private var debugSessionStartTime: Date?
+
     private func executeDebugSession(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let action = (call.args["action"] ?? "start").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let label = (call.args["label"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
 
         switch action {
         case "start":
             let sessionId = await debugLogServer.startSession()
             debugHypotheses.removeAll()
+            debugSessionSnapshots.removeAll()
+            debugSessionStartTime = Date()
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Debug session started (id: \(sessionId.prefix(8)))",
@@ -3165,26 +3755,125 @@ public actor UnifiedToolRuntime {
                 "action": "start",
                 "session_id": sessionId
             ], durationMs: ms)
+
         case "end", "stop":
             await debugLogServer.endSession()
             let summary = await debugLogServer.sessionSummary()
+            debugSessionStartTime = nil
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Debug session ended",
                 "output": summary,
                 "action": action
             ], durationMs: ms)
+
         case "clear":
             await debugLogServer.clearSession()
             debugHypotheses.removeAll()
+            debugSessionSnapshots.removeAll()
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Session logs cleared",
                 "output": "Session logs cleared",
                 "action": "clear"
             ], durationMs: ms)
+
+        case "snapshot":
+            let snapshotLabel = label.isEmpty ? "snapshot-\(debugSessionSnapshots.count + 1)" : label
+            let logResult = await debugLogServer.query(limit: 500)
+            let hypothesesSummary = debugHypotheses.map { (id, h) in
+                "\(id.prefix(8)): [\(h.status)] \(h.title) (\(h.confidence)%)"
+            }.joined(separator: "\n")
+
+            let snapshot: [String: String] = [
+                "timestamp": ISO8601DateFormatter().string(from: Date()),
+                "log_count": "\(logResult.totalCount)",
+                "error_count": "\(logResult.errorCount)",
+                "warning_count": "\(logResult.warningCount)",
+                "hypothesis_count": "\(debugHypotheses.count)",
+                "hypotheses": hypothesesSummary,
+                "label": snapshotLabel
+            ]
+            debugSessionSnapshots[snapshotLabel] = snapshot
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Snapshot '\(snapshotLabel)' saved",
+                "output": "Snapshot '\(snapshotLabel)': \(logResult.totalCount) logs, \(logResult.errorCount) errors, \(debugHypotheses.count) hypotheses",
+                "action": "snapshot",
+                "label": snapshotLabel,
+                "snapshot_count": "\(debugSessionSnapshots.count)"
+            ], durationMs: ms)
+
+        case "export":
+            let logResult = await debugLogServer.query(limit: 200)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
+
+            var md = "# Debug Session Report\n\n"
+            if let start = debugSessionStartTime {
+                let duration = Int(Date().timeIntervalSince(start))
+                md += "**Duration**: \(duration / 60)m \(duration % 60)s\n\n"
+            }
+
+            md += "## Hypotheses (\(debugHypotheses.count))\n\n"
+            for (id, h) in debugHypotheses.sorted(by: { $0.value.confidence > $1.value.confidence }) {
+                md += "### \(h.title)\n"
+                md += "- ID: `\(id.prefix(8))`\n"
+                md += "- Status: **\(h.status)** | Confidence: \(h.confidence)%\n"
+                if !h.rootCauseType.isEmpty { md += "- Type: \(h.rootCauseType)\n" }
+                if !h.relatedFiles.isEmpty { md += "- Files: \(h.relatedFiles.joined(separator: ", "))\n" }
+                if !h.description.isEmpty { md += "- \(h.description)\n" }
+                md += "\n"
+            }
+
+            md += "## Log Summary\n\n"
+            md += "- Total: \(logResult.totalCount)\n"
+            md += "- Errors: \(logResult.errorCount)\n"
+            md += "- Warnings: \(logResult.warningCount)\n\n"
+
+            if !logResult.entries.isEmpty {
+                md += "## Recent Logs\n\n"
+                for entry in logResult.entries.suffix(50) {
+                    let ts = formatter.string(from: entry.timestamp)
+                    md += "- `[\(ts)]` **\(entry.severity.uppercased())** \(entry.source): \(entry.message)\n"
+                }
+            }
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Session exported as markdown",
+                "output": md,
+                "action": "export"
+            ], durationMs: ms)
+
+        case "stats":
+            let logResult = await debugLogServer.query(limit: 1)
+            var stats = "## Session Statistics\n\n"
+            if let start = debugSessionStartTime {
+                let duration = Int(Date().timeIntervalSince(start))
+                stats += "Duration: \(duration / 60)m \(duration % 60)s\n"
+            }
+            stats += "Total logs: \(logResult.totalCount)\n"
+            stats += "Errors: \(logResult.errorCount)\n"
+            stats += "Warnings: \(logResult.warningCount)\n"
+            stats += "Hypotheses: \(debugHypotheses.count)\n"
+
+            let statusCounts = Dictionary(grouping: debugHypotheses.values, by: \.status).mapValues(\.count)
+            for (status, count) in statusCounts.sorted(by: { $0.key < $1.key }) {
+                stats += "  - \(status): \(count)\n"
+            }
+            stats += "Snapshots: \(debugSessionSnapshots.count)\n"
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_session",
+                "detail": "Session stats: \(logResult.totalCount) logs, \(debugHypotheses.count) hypotheses",
+                "output": stats,
+                "action": "stats"
+            ], durationMs: ms)
+
         default:
-            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, or clear."], durationMs: ms)
+            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, clear, snapshot, export, or stats."], durationMs: ms)
         }
     }
 
@@ -3195,6 +3884,10 @@ public actor UnifiedToolRuntime {
         let hypothesisId = (call.args["hypothesis_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let requestedStatus = (call.args["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let evidence = call.args["evidence"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let confidence = Int(call.args["confidence"] ?? "") ?? -1
+        let rootCauseType = (call.args["root_cause_type"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let relatedFiles = (call.args["related_files"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let relatedTests = (call.args["related_tests"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
 
@@ -3206,29 +3899,51 @@ public actor UnifiedToolRuntime {
 
             let newHypothesisId = UUID().uuidString
             let normalizedStatus = normalizeHypothesisStatus(requestedStatus, fallback: "proposed")
-            debugHypotheses[newHypothesisId] = (
+            let clampedConfidence = confidence >= 0 ? min(max(confidence, 0), 100) : 50
+
+            debugHypotheses[newHypothesisId] = DebugHypothesis(
                 title: title,
                 description: description,
-                status: normalizedStatus
+                status: normalizedStatus,
+                confidence: clampedConfidence,
+                rootCauseType: rootCauseType,
+                relatedFiles: relatedFiles,
+                relatedTests: relatedTests,
+                evidence: evidence != nil ? [evidence!] : [],
+                createdAt: Date()
             )
+
+            var logDetail = description
+            if !rootCauseType.isEmpty { logDetail += "\nType: \(rootCauseType)" }
+            if !relatedFiles.isEmpty { logDetail += "\nFiles: \(relatedFiles.joined(separator: ", "))" }
 
             await debugLogServer.log(
                 severity: "info",
                 source: "hypothesis",
-                message: "Hypothesis \(newHypothesisId.prefix(8)) proposed: \(title)",
-                detail: description,
+                message: "Hypothesis \(newHypothesisId.prefix(8)) proposed: \(title) [confidence: \(clampedConfidence)%]",
+                detail: logDetail,
                 category: "debug"
             )
 
+            var output = "Proposed hypothesis \(newHypothesisId.prefix(8)): \(title)\n"
+            output += "  Status: \(normalizedStatus)\n"
+            output += "  Confidence: \(clampedConfidence)%\n"
+            if !rootCauseType.isEmpty { output += "  Root cause type: \(rootCauseType)\n" }
+            if !relatedFiles.isEmpty { output += "  Related files: \(relatedFiles.joined(separator: ", "))\n" }
+            if !relatedTests.isEmpty { output += "  Related tests: \(relatedTests.joined(separator: ", "))\n" }
+
             return ToolResult(ok: true, payload: [
                 "title": "debug_hypothesize",
-                "detail": "Hypothesis proposed: \(title)",
-                "output": "Proposed hypothesis \(newHypothesisId.prefix(8)): \(title)",
+                "detail": "Hypothesis proposed: \(title) [\(clampedConfidence)%]",
+                "output": output,
                 "action": "propose",
                 "hypothesis_id": newHypothesisId,
                 "hypothesis_title": title,
                 "description": description,
                 "hypothesis_status": normalizedStatus,
+                "confidence": "\(clampedConfidence)",
+                "root_cause_type": rootCauseType,
+                "related_files": relatedFiles.joined(separator: ","),
                 "evidence": evidence ?? ""
             ], durationMs: ms)
 
@@ -3242,25 +3957,40 @@ public actor UnifiedToolRuntime {
 
             let nextStatus = normalizeHypothesisStatus(requestedStatus, fallback: existing.status)
             existing.status = nextStatus
+            if confidence >= 0 { existing.confidence = min(max(confidence, 0), 100) }
+            if !rootCauseType.isEmpty { existing.rootCauseType = rootCauseType }
+            if !relatedFiles.isEmpty { existing.relatedFiles = relatedFiles }
+            if !relatedTests.isEmpty { existing.relatedTests = relatedTests }
+            if let evidence { existing.evidence.append(evidence) }
             debugHypotheses[hypothesisId] = existing
 
             await debugLogServer.log(
                 severity: "info",
                 source: "hypothesis",
-                message: "Hypothesis \(hypothesisId.prefix(8)) updated to \(nextStatus)",
+                message: "Hypothesis \(hypothesisId.prefix(8)) updated to \(nextStatus) [confidence: \(existing.confidence)%]",
                 detail: evidence,
                 category: "debug"
             )
 
+            var output = "Updated hypothesis \(hypothesisId.prefix(8)) -> \(nextStatus)\n"
+            output += "  Title: \(existing.title)\n"
+            output += "  Confidence: \(existing.confidence)%\n"
+            if !existing.rootCauseType.isEmpty { output += "  Root cause type: \(existing.rootCauseType)\n" }
+            if !existing.relatedFiles.isEmpty { output += "  Related files: \(existing.relatedFiles.joined(separator: ", "))\n" }
+            if existing.evidence.count > 1 { output += "  Evidence entries: \(existing.evidence.count)\n" }
+
             return ToolResult(ok: true, payload: [
                 "title": "debug_hypothesize",
-                "detail": "Hypothesis updated to \(nextStatus)",
-                "output": "Updated hypothesis \(hypothesisId.prefix(8)) -> \(nextStatus)",
+                "detail": "Hypothesis updated to \(nextStatus) [\(existing.confidence)%]",
+                "output": output,
                 "action": "update",
                 "hypothesis_id": hypothesisId,
                 "hypothesis_title": existing.title,
                 "description": existing.description,
                 "hypothesis_status": nextStatus,
+                "confidence": "\(existing.confidence)",
+                "root_cause_type": existing.rootCauseType,
+                "related_files": existing.relatedFiles.joined(separator: ","),
                 "evidence": evidence ?? ""
             ], durationMs: ms)
 
@@ -3269,13 +3999,16 @@ public actor UnifiedToolRuntime {
         }
     }
 
-    // MARK: - debug_mark: Insert a debug marker comment into a file
+    // MARK: - debug_mark: Insert a typed debug marker/instrumentation into a file
 
     private func executeDebugMark(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let rawPath = call.args["path"] ?? ""
         let lineStr = call.args["line"] ?? ""
         let comment = call.args["comment"] ?? "DEBUG"
         let code = call.args["code"] ?? ""
+        let markerType = (call.args["type"] ?? "marker").lowercased()
+        let expression = call.args["expression"] ?? ""
+        let hypothesisId = call.args["hypothesis_id"] ?? ""
         let workspace = context.workspaceContext.workspacePath.path
 
         guard !rawPath.isEmpty else {
@@ -3287,18 +4020,33 @@ public actor UnifiedToolRuntime {
 
         let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        let hypTag = hypothesisId.isEmpty ? "" : " [H:\(hypothesisId.prefix(8))]"
 
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             var lines = content.components(separatedBy: "\n")
-
             let insertIdx = min(lineNum, lines.count)
-            let adjacentContent = insertIdx > 0 && insertIdx <= lines.count
-                ? lines[insertIdx - 1].trimmingCharacters(in: .whitespacesAndNewlines)
-                : nil
-            let markerLine = code.isEmpty
-                ? "// \u{1F41B} DEBUG: \(comment)"
-                : code + " // \u{1F41B} DEBUG: \(comment)"
+
+            let markerLine: String
+            if !code.isEmpty {
+                markerLine = code + " // \u{1F41B} DEBUG[\(markerType)]: \(comment)\(hypTag)"
+            } else {
+                switch markerType {
+                case "log":
+                    let expr = expression.isEmpty ? "\"checkpoint\"" : expression
+                    markerLine = "print(\"\\u{1F41B} DEBUG[\\(#file):\\(#line)] \(comment): \\(\(expr))\") // \u{1F41B} DEBUG[log]: \(comment)\(hypTag)"
+                case "assert":
+                    let expr = expression.isEmpty ? "true" : expression
+                    markerLine = "assert(\(expr), \"\\u{1F41B} DEBUG ASSERT: \(comment)\") // \u{1F41B} DEBUG[assert]: \(comment)\(hypTag)"
+                case "timing":
+                    markerLine = "let _debugTimerStart_\(lineNum) = CFAbsoluteTimeGetCurrent(); defer { print(\"\\u{1F41B} DEBUG TIMING [\(comment)]: \\(CFAbsoluteTimeGetCurrent() - _debugTimerStart_\(lineNum))s\") } // \u{1F41B} DEBUG[timing]: \(comment)\(hypTag)"
+                case "variable":
+                    let expr = expression.isEmpty ? "self" : expression
+                    markerLine = "print(\"\\u{1F41B} DEBUG VAR [\(comment)] \(expr) = \\(\(expr))\") // \u{1F41B} DEBUG[variable]: \(comment)\(hypTag)"
+                default:
+                    markerLine = "// \u{1F41B} DEBUG[marker]: \(comment)\(hypTag)"
+                }
+            }
 
             lines.insert(markerLine, at: insertIdx)
             try lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: String.Encoding.utf8)
@@ -3306,24 +4054,22 @@ public actor UnifiedToolRuntime {
             await debugLogServer.log(
                 severity: "info",
                 source: "debug_mark",
-                message: "Marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
+                message: "[\(markerType)] Marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
                 detail: markerLine,
                 category: "debug"
             )
 
-            var payload: [String: String] = [
+            return ToolResult(ok: true, payload: [
                 "title": "debug_mark",
-                "detail": "Debug marker inserted at \((path as NSString).lastPathComponent):\(lineNum)",
-                "output": "Inserted: \(markerLine)",
-                "marker_info": "\(path)|\(lineNum)|\(comment)",
+                "detail": "[\(markerType)] marker at \((path as NSString).lastPathComponent):\(lineNum)",
+                "output": "Inserted [\(markerType)]: \(markerLine)",
+                "marker_info": "\(path)|\(lineNum)|\(comment)|\(markerType)",
                 "path": path,
                 "line": "\(lineNum)",
-                "comment": comment
-            ]
-            if let adjacentContent {
-                payload["original_content"] = adjacentContent
-            }
-            return ToolResult(ok: true, payload: payload, durationMs: ms)
+                "comment": comment,
+                "type": markerType,
+                "hypothesis_id": hypothesisId
+            ], durationMs: ms)
         } catch {
             return ToolResult(ok: false, payload: [
                 "title": "debug_mark",
@@ -3332,36 +4078,60 @@ public actor UnifiedToolRuntime {
         }
     }
 
-    // MARK: - debug_clean: Remove all debug markers from files
+    // MARK: - debug_clean: Remove debug markers with type filtering, dry-run, and hypothesis scoping
 
     private func executeDebugClean(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let rawPath = call.args["path"] ?? ""
+        let cleanType = (call.args["type"] ?? "all").lowercased()
+        let isDryRun = call.args["dry_run"]?.lowercased() == "true"
+        let hypothesisId = call.args["hypothesis_id"] ?? ""
         let workspace = context.workspaceContext.workspacePath.path
-        let debugTag = "\u{1F41B} DEBUG:"
+        let debugTag = "\u{1F41B} DEBUG"
         var cleanedCount = 0
+        var previewLines: [String] = []
         var errors: [String] = []
 
-        // If path is specified, clean only that file; otherwise search workspace
         let filesToClean: [String]
         if !rawPath.isEmpty {
             let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
             filesToClean = [path]
         } else {
-            // Use ripgrep to find all files with debug markers
             let (output, _, _) = await shellExec(args: ["/usr/bin/rg", "-l", "--no-heading", debugTag, workspace], cwd: workspace, timeout: 15_000)
             filesToClean = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+        }
+
+        let typePatterns: [String]
+        switch cleanType {
+        case "markers": typePatterns = ["DEBUG[marker]"]
+        case "logs": typePatterns = ["DEBUG[log]"]
+        case "asserts": typePatterns = ["DEBUG[assert]"]
+        case "timing": typePatterns = ["DEBUG[timing]"]
+        case "variables": typePatterns = ["DEBUG[variable]"]
+        default: typePatterns = [debugTag]
         }
 
         for filePath in filesToClean {
             do {
                 let content = try String(contentsOfFile: filePath, encoding: .utf8)
                 let lines = content.components(separatedBy: "\n")
-                let filtered = lines.filter { !$0.contains(debugTag) }
+                let fileName = (filePath as NSString).lastPathComponent
 
-                if filtered.count < lines.count {
-                    let removed = lines.count - filtered.count
+                let filtered = lines.enumerated().compactMap { (idx, line) -> String? in
+                    let shouldRemove = typePatterns.contains(where: { line.contains($0) })
+                    let matchesHypothesis = hypothesisId.isEmpty || line.contains("[H:\(hypothesisId.prefix(8))]")
+
+                    if shouldRemove && matchesHypothesis {
+                        cleanedCount += 1
+                        if isDryRun {
+                            previewLines.append("  \(fileName):\(idx + 1) | \(line.trimmingCharacters(in: .whitespaces))")
+                        }
+                        return nil
+                    }
+                    return line
+                }
+
+                if !isDryRun && filtered.count < lines.count {
                     try filtered.joined(separator: "\n").write(toFile: filePath, atomically: true, encoding: String.Encoding.utf8)
-                    cleanedCount += removed
                 }
             } catch {
                 errors.append("\((filePath as NSString).lastPathComponent): \(error.localizedDescription)")
@@ -3369,17 +4139,26 @@ public actor UnifiedToolRuntime {
         }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        let modeLabel = isDryRun ? "DRY RUN" : "CLEANED"
+        let typeLabel = cleanType == "all" ? "all types" : cleanType
         let detail: String
         let isSuccess: Bool
+
         if !errors.isEmpty {
-            detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files; errors: \(errors.prefix(3).joined(separator: "; "))"
+            detail = "[\(modeLabel)] \(cleanedCount) markers (\(typeLabel)) in \(filesToClean.count) files; errors: \(errors.prefix(3).joined(separator: "; "))"
             isSuccess = false
-        } else if cleanedCount == 0 && filesToClean.isEmpty {
-            detail = "No debug markers found to clean"
+        } else if cleanedCount == 0 {
+            detail = "No \(typeLabel) debug markers found"
             isSuccess = true
         } else {
-            detail = "Removed \(cleanedCount) debug markers from \(filesToClean.count) files"
+            detail = "[\(modeLabel)] \(cleanedCount) \(typeLabel) markers in \(filesToClean.count) files"
             isSuccess = true
+        }
+
+        var output = detail
+        if isDryRun && !previewLines.isEmpty {
+            output += "\n\nWould remove:\n" + previewLines.prefix(30).joined(separator: "\n")
+            if previewLines.count > 30 { output += "\n  ... +\(previewLines.count - 30) more" }
         }
 
         await debugLogServer.log(severity: "info", source: "debug_clean", message: detail, category: "debug")
@@ -3387,10 +4166,543 @@ public actor UnifiedToolRuntime {
         return ToolResult(ok: isSuccess, payload: [
             "title": "debug_clean",
             "detail": detail,
-            "output": detail,
+            "output": output,
             "cleaned_markers": "\(cleanedCount)",
             "cleaned_files": "\(filesToClean.count)",
+            "type": cleanType,
+            "dry_run": isDryRun ? "true" : "false",
             "status": isSuccess ? "completed" : "failed"
+        ], durationMs: ms)
+    }
+
+    // MARK: - debug_trace_analyze: Parse and analyze errors, stack traces, crash logs
+
+    private func executeDebugTraceAnalyze(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let errorText = call.args["error_text"] ?? ""
+        let errorTypeHint = (call.args["error_type"] ?? "").lowercased()
+        let extraContext = call.args["context"] ?? ""
+        let workspace = context.workspaceContext.workspacePath.path
+
+        guard !errorText.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "error_text is required"], durationMs: 0)
+        }
+
+        var analysis: [String] = []
+        var extractedFiles: [(file: String, line: Int, col: Int?)] = []
+        var suggestedCauses: [String] = []
+
+        // Auto-detect error type
+        let detectedType: String
+        if !errorTypeHint.isEmpty {
+            detectedType = errorTypeHint
+        } else if errorText.contains("error:") && (errorText.contains(".swift:") || errorText.contains(".m:")) {
+            detectedType = "compile"
+        } else if errorText.contains("Fatal error") || errorText.contains("Thread ") || errorText.contains("EXC_") {
+            detectedType = "crash"
+        } else if errorText.contains("XCTAssert") || errorText.contains("failed -") || errorText.contains("FAIL") {
+            detectedType = "test_failure"
+        } else if errorText.contains("Assertion failed") || errorText.contains("precondition") {
+            detectedType = "assertion"
+        } else {
+            detectedType = "runtime"
+        }
+        analysis.append("## Error Type: \(detectedType)")
+
+        let lines = errorText.components(separatedBy: "\n")
+
+        // Parse Swift compiler errors: file.swift:line:col: error: message
+        let compilerPattern = try? NSRegularExpression(pattern: #"([^\s:]+\.\w+):(\d+):(\d+):\s*(error|warning|note):\s*(.+)"#)
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = compilerPattern?.firstMatch(in: line, range: range) {
+                let file = String(line[Range(match.range(at: 1), in: line)!])
+                let lineNum = Int(line[Range(match.range(at: 2), in: line)!]) ?? 0
+                let col = Int(line[Range(match.range(at: 3), in: line)!])
+                let severity = String(line[Range(match.range(at: 4), in: line)!])
+                let message = String(line[Range(match.range(at: 5), in: line)!])
+
+                if severity == "error" || severity == "warning" {
+                    extractedFiles.append((file: file, line: lineNum, col: col))
+                    suggestedCauses.append("\(severity): \(message) at \(file):\(lineNum)")
+                }
+            }
+        }
+
+        // Parse stack trace frames: N ModuleName 0xADDR functionName + offset
+        let stackPattern = try? NSRegularExpression(pattern: #"^\d+\s+(\S+)\s+0x[0-9a-fA-F]+\s+(.+)\s*\+\s*\d+"#, options: .anchorsMatchLines)
+        var stackFrames: [String] = []
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = stackPattern?.firstMatch(in: line, range: range) {
+                let module = String(line[Range(match.range(at: 1), in: line)!])
+                let symbol = String(line[Range(match.range(at: 2), in: line)!])
+                stackFrames.append("\(module): \(symbol)")
+            }
+        }
+        if !stackFrames.isEmpty {
+            analysis.append("## Stack Trace (\(stackFrames.count) frames)\n" + stackFrames.prefix(15).enumerated().map { "  #\($0.offset) \($0.element)" }.joined(separator: "\n"))
+        }
+
+        // Parse test assertion failures: XCTAssertEqual failed: ("A") is not equal to ("B")
+        let assertPattern = try? NSRegularExpression(pattern: #"(XCT\w+)\s+failed[:\s]*(.+)"#)
+        for line in lines {
+            let range = NSRange(line.startIndex..., in: line)
+            if let match = assertPattern?.firstMatch(in: line, range: range) {
+                let assertType = String(line[Range(match.range(at: 1), in: line)!])
+                let detail = String(line[Range(match.range(at: 2), in: line)!])
+                suggestedCauses.append("Test \(assertType) failed: \(detail)")
+            }
+        }
+
+        // Check if extracted files exist in workspace
+        var existingFiles: [String] = []
+        var missingFiles: [String] = []
+        for extracted in extractedFiles {
+            let fullPath = extracted.file.hasPrefix("/") ? extracted.file : workspace + "/" + extracted.file
+            if FileManager.default.fileExists(atPath: fullPath) {
+                existingFiles.append("\(extracted.file):\(extracted.line)")
+            } else {
+                missingFiles.append(extracted.file)
+            }
+        }
+
+        if !extractedFiles.isEmpty {
+            analysis.append("## Files Involved (\(extractedFiles.count))\n" + extractedFiles.map { "  - \($0.file):\($0.line)\($0.col != nil ? ":\($0.col!)" : "")" }.joined(separator: "\n"))
+        }
+
+        if !suggestedCauses.isEmpty {
+            analysis.append("## Suggested Causes (\(suggestedCauses.count))\n" + suggestedCauses.enumerated().map { "  \($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        }
+
+        if !existingFiles.isEmpty {
+            analysis.append("## Files to Investigate\n" + existingFiles.map { "  - \($0)" }.joined(separator: "\n"))
+        }
+
+        if !extraContext.isEmpty {
+            analysis.append("## Additional Context\n\(extraContext)")
+        }
+
+        await debugLogServer.log(
+            severity: "info",
+            source: "debug_trace_analyze",
+            message: "Analyzed \(detectedType) error: \(extractedFiles.count) files, \(suggestedCauses.count) causes",
+            detail: analysis.joined(separator: "\n\n"),
+            category: "debug"
+        )
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: true, payload: [
+            "title": "debug_trace_analyze",
+            "detail": "\(detectedType): \(extractedFiles.count) files, \(suggestedCauses.count) causes, \(stackFrames.count) stack frames",
+            "output": analysis.joined(separator: "\n\n"),
+            "error_type": detectedType,
+            "files_count": "\(extractedFiles.count)",
+            "causes_count": "\(suggestedCauses.count)",
+            "stack_frames": "\(stackFrames.count)"
+        ], durationMs: ms)
+    }
+
+    // MARK: - debug_instrument: Insert intelligent executable instrumentation
+
+    private func executeDebugInstrument(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let rawPath = call.args["path"] ?? ""
+        let lineStr = call.args["line"] ?? ""
+        let instrType = (call.args["type"] ?? "log").lowercased()
+        let expression = call.args["expression"] ?? ""
+        let condition = call.args["condition"] ?? ""
+        let hypothesisId = call.args["hypothesis_id"] ?? ""
+        let label = call.args["label"] ?? ""
+        let workspace = context.workspaceContext.workspacePath.path
+
+        guard !rawPath.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "path is required"], durationMs: 0)
+        }
+        guard let lineNum = Int(lineStr), lineNum > 0 else {
+            return ToolResult(ok: false, payload: ["detail": "valid line number is required"], durationMs: 0)
+        }
+        guard !expression.isEmpty else {
+            return ToolResult(ok: false, payload: ["detail": "expression is required"], durationMs: 0)
+        }
+
+        let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+        let hypTag = hypothesisId.isEmpty ? "" : " [H:\(hypothesisId.prefix(8))]"
+        let labelTag = label.isEmpty ? "" : " [\(label)]"
+
+        let generatedCode: String
+        switch instrType {
+        case "log":
+            generatedCode = "print(\"\\u{1F50D} INSTRUMENT\(labelTag): \\(\(expression))\") // \u{1F41B} DEBUG[instrument-log]: \(label.isEmpty ? expression : label)\(hypTag)"
+        case "assert":
+            let msg = condition.isEmpty ? expression : condition
+            generatedCode = "assert(\(expression), \"\\u{1F6A8} INSTRUMENT ASSERT\(labelTag): \(msg)\") // \u{1F41B} DEBUG[instrument-assert]: \(label.isEmpty ? expression : label)\(hypTag)"
+        case "timing":
+            let timerName = "_instrTimer_\(lineNum)"
+            generatedCode = "let \(timerName) = CFAbsoluteTimeGetCurrent(); defer { print(\"\\u{23F1} INSTRUMENT TIMING\(labelTag): \\(String(format: \"%.4f\", CFAbsoluteTimeGetCurrent() - \(timerName)))s for \(expression)\") } // \u{1F41B} DEBUG[instrument-timing]: \(label.isEmpty ? expression : label)\(hypTag)"
+        case "variable":
+            generatedCode = "print(\"\\u{1F4CB} INSTRUMENT VAR\(labelTag) \(expression) = \\(\(expression)) [type: \\(type(of: \(expression)))]\") // \u{1F41B} DEBUG[instrument-variable]: \(label.isEmpty ? expression : label)\(hypTag)"
+        case "conditional_break":
+            let cond = condition.isEmpty ? "true" : condition
+            generatedCode = "if \(cond) { print(\"\\u{1F6D1} INSTRUMENT BREAK\(labelTag): condition met — \(expression) = \\(\(expression))\") } // \u{1F41B} DEBUG[instrument-conditional]: \(label.isEmpty ? expression : label)\(hypTag)"
+        default:
+            generatedCode = "print(\"\\u{1F50D} INSTRUMENT\(labelTag): \\(\(expression))\") // \u{1F41B} DEBUG[instrument-log]: \(label.isEmpty ? expression : label)\(hypTag)"
+        }
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            var lines = content.components(separatedBy: "\n")
+            let insertIdx = min(lineNum, lines.count)
+
+            lines.insert(generatedCode, at: insertIdx)
+            try lines.joined(separator: "\n").write(toFile: path, atomically: true, encoding: String.Encoding.utf8)
+
+            await debugLogServer.log(
+                severity: "info",
+                source: "debug_instrument",
+                message: "[\(instrType)] Instrumented \((path as NSString).lastPathComponent):\(lineNum)\(labelTag)",
+                detail: generatedCode,
+                category: "instrumentation"
+            )
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_instrument",
+                "detail": "[\(instrType)] instrumented \((path as NSString).lastPathComponent):\(lineNum)",
+                "output": "Inserted [\(instrType)] instrumentation at line \(lineNum):\n\(generatedCode)",
+                "path": path,
+                "line": "\(lineNum)",
+                "type": instrType,
+                "expression": expression,
+                "hypothesis_id": hypothesisId,
+                "label": label
+            ], durationMs: ms)
+        } catch {
+            return ToolResult(ok: false, payload: [
+                "title": "debug_instrument",
+                "detail": "Failed to instrument: \(error.localizedDescription)"
+            ], durationMs: ms)
+        }
+    }
+
+    // MARK: - debug_timeline: Chronological event timeline
+
+    private func executeDebugTimeline(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let filterRaw = (call.args["filter"] ?? "all").lowercased()
+        let filters = Set(filterRaw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+        let showAll = filters.contains("all")
+        let timeRange = call.args["time_range"]
+        let hypothesisId = call.args["hypothesis_id"]
+        let format = (call.args["format"] ?? "text").lowercased()
+
+        let allEntries = await debugLogServer.allEntries()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
+
+        var events: [(date: Date, type: String, text: String)] = []
+
+        // Collect log events
+        if showAll || filters.contains("logs") {
+            for entry in allEntries {
+                if let hid = hypothesisId, !(entry.hypothesisId == hid || (entry.detail?.contains(hid) ?? false)) {
+                    continue
+                }
+                let cat = entry.category ?? "log"
+                events.append((date: entry.timestamp, type: "log[\(cat)]", text: "[\(entry.severity.uppercased())] \(entry.source): \(entry.message)"))
+            }
+        }
+
+        // Collect phase changes
+        if showAll || filters.contains("phases") {
+            for entry in allEntries where entry.category == "system" {
+                events.append((date: entry.timestamp, type: "phase", text: entry.message))
+            }
+        }
+
+        // Collect hypotheses events
+        if showAll || filters.contains("hypotheses") {
+            for entry in allEntries where entry.category == "debug" && entry.source == "hypothesis" {
+                if let hid = hypothesisId, !entry.message.contains(hid.prefix(8)) { continue }
+                events.append((date: entry.timestamp, type: "hypothesis", text: entry.message))
+            }
+        }
+
+        // Collect marker events
+        if showAll || filters.contains("markers") {
+            for entry in allEntries where entry.source == "debug_mark" || entry.source == "debug_instrument" {
+                events.append((date: entry.timestamp, type: "marker", text: entry.message))
+            }
+        }
+
+        // Filter by time range
+        if let timeRange, let minutes = Double(timeRange), minutes > 0 {
+            let cutoff = Date().addingTimeInterval(-minutes * 60)
+            events = events.filter { $0.date > cutoff }
+        }
+
+        events.sort { $0.date < $1.date }
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        if events.isEmpty {
+            return ToolResult(ok: true, payload: [
+                "title": "debug_timeline",
+                "detail": "No events found",
+                "output": "No debug events match the filter criteria.",
+                "event_count": "0"
+            ], durationMs: ms)
+        }
+
+        let output: String
+        if format == "mermaid" {
+            var mermaid = "gantt\n    title Debug Timeline\n    dateFormat HH:mm:ss\n"
+            for (i, event) in events.prefix(30).enumerated() {
+                let ts = formatter.string(from: event.date)
+                let safeText = event.text.prefix(40).replacingOccurrences(of: ":", with: "-")
+                mermaid += "    \(event.type) \(i + 1) - \(safeText) : \(ts), 1s\n"
+            }
+            output = mermaid
+        } else {
+            var lines: [String] = ["## Debug Timeline (\(events.count) events)\n"]
+            for event in events {
+                let ts = formatter.string(from: event.date)
+                let icon: String
+                switch event.type {
+                case "phase": icon = "🔄"
+                case "hypothesis": icon = "💡"
+                case "marker": icon = "📌"
+                default: icon = "📝"
+                }
+                lines.append("  \(ts) \(icon) [\(event.type)] \(event.text)")
+            }
+            output = lines.joined(separator: "\n")
+        }
+
+        return ToolResult(ok: true, payload: [
+            "title": "debug_timeline",
+            "detail": "\(events.count) events (\(filterRaw))",
+            "output": output,
+            "event_count": "\(events.count)",
+            "format": format
+        ], durationMs: ms)
+    }
+
+    // MARK: - debug_snapshot: Capture and compare session state
+
+    private func executeDebugSnapshot(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let action = (call.args["action"] ?? "capture").lowercased()
+        let label = (call.args["label"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let compareWith = (call.args["compare_with"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+
+        switch action {
+        case "capture":
+            let snapshotLabel = label.isEmpty ? "snap-\(debugSessionSnapshots.count + 1)" : label
+            let logResult = await debugLogServer.query(limit: 500)
+
+            let hypothesesData = debugHypotheses.map { (id, h) in
+                "\(id.prefix(8))|[\(h.status)]\(h.title)|\(h.confidence)%"
+            }.joined(separator: "\n")
+
+            let snapshot: [String: String] = [
+                "timestamp": ISO8601DateFormatter().string(from: Date()),
+                "log_count": "\(logResult.totalCount)",
+                "error_count": "\(logResult.errorCount)",
+                "warning_count": "\(logResult.warningCount)",
+                "hypothesis_count": "\(debugHypotheses.count)",
+                "hypotheses": hypothesesData,
+                "confirmed_count": "\(debugHypotheses.values.filter { $0.status == "confirmed" }.count)",
+                "rejected_count": "\(debugHypotheses.values.filter { $0.status == "rejected" }.count)",
+                "label": snapshotLabel
+            ]
+            debugSessionSnapshots[snapshotLabel] = snapshot
+
+            var output = "## Snapshot '\(snapshotLabel)' captured\n\n"
+            output += "- Logs: \(logResult.totalCount) (\(logResult.errorCount) errors, \(logResult.warningCount) warnings)\n"
+            output += "- Hypotheses: \(debugHypotheses.count)\n"
+            for (id, h) in debugHypotheses {
+                output += "  - \(id.prefix(8)): [\(h.status)] \(h.title) (\(h.confidence)%)\n"
+            }
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_snapshot",
+                "detail": "Snapshot '\(snapshotLabel)' captured",
+                "output": output,
+                "action": "capture",
+                "label": snapshotLabel,
+                "snapshot_count": "\(debugSessionSnapshots.count)"
+            ], durationMs: ms)
+
+        case "compare":
+            guard !label.isEmpty else {
+                return ToolResult(ok: false, payload: ["detail": "label is required for compare (current snapshot label)"], durationMs: ms)
+            }
+            guard !compareWith.isEmpty else {
+                return ToolResult(ok: false, payload: ["detail": "compare_with is required (previous snapshot label)"], durationMs: ms)
+            }
+            guard let snapA = debugSessionSnapshots[compareWith] else {
+                return ToolResult(ok: false, payload: ["detail": "Snapshot '\(compareWith)' not found. Available: \(debugSessionSnapshots.keys.sorted().joined(separator: ", "))"], durationMs: ms)
+            }
+
+            // Capture current state as snapB
+            let logResult = await debugLogServer.query(limit: 1)
+            let snapB: [String: String] = [
+                "timestamp": ISO8601DateFormatter().string(from: Date()),
+                "log_count": "\(logResult.totalCount)",
+                "error_count": "\(logResult.errorCount)",
+                "warning_count": "\(logResult.warningCount)",
+                "hypothesis_count": "\(debugHypotheses.count)",
+                "confirmed_count": "\(debugHypotheses.values.filter { $0.status == "confirmed" }.count)",
+                "rejected_count": "\(debugHypotheses.values.filter { $0.status == "rejected" }.count)",
+                "label": label
+            ]
+
+            var diff = "## Snapshot Comparison: '\(compareWith)' -> '\(label)'\n\n"
+            let fields = ["log_count", "error_count", "warning_count", "hypothesis_count", "confirmed_count", "rejected_count"]
+            for field in fields {
+                let a = Int(snapA[field] ?? "0") ?? 0
+                let b = Int(snapB[field] ?? "0") ?? 0
+                let delta = b - a
+                let arrow = delta > 0 ? "↑\(delta)" : (delta < 0 ? "↓\(abs(delta))" : "→")
+                diff += "- \(field): \(a) \(arrow) \(b)\n"
+            }
+            diff += "\n- Time: \(snapA["timestamp"] ?? "?") -> \(snapB["timestamp"] ?? "?")\n"
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_snapshot",
+                "detail": "Compared '\(compareWith)' with current state",
+                "output": diff,
+                "action": "compare"
+            ], durationMs: ms)
+
+        case "list":
+            if debugSessionSnapshots.isEmpty {
+                return ToolResult(ok: true, payload: [
+                    "title": "debug_snapshot",
+                    "detail": "No snapshots available",
+                    "output": "No snapshots have been captured yet. Use action=capture to save one.",
+                    "action": "list"
+                ], durationMs: ms)
+            }
+
+            var output = "## Available Snapshots (\(debugSessionSnapshots.count))\n\n"
+            for (snapLabel, data) in debugSessionSnapshots.sorted(by: { ($0.value["timestamp"] ?? "") < ($1.value["timestamp"] ?? "") }) {
+                output += "- **\(snapLabel)** (\(data["timestamp"] ?? "?")): \(data["log_count"] ?? "0") logs, \(data["hypothesis_count"] ?? "0") hypotheses\n"
+            }
+
+            return ToolResult(ok: true, payload: [
+                "title": "debug_snapshot",
+                "detail": "\(debugSessionSnapshots.count) snapshots available",
+                "output": output,
+                "action": "list"
+            ], durationMs: ms)
+
+        default:
+            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use capture, compare, or list."], durationMs: ms)
+        }
+    }
+
+    // MARK: - debug_test_check: Targeted test verification
+
+    private func executeDebugTestCheck(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+        let scope = (call.args["scope"] ?? "related").lowercased()
+        let rawPath = call.args["path"] ?? ""
+        let filter = call.args["filter"] ?? ""
+        let hypothesisId = call.args["hypothesis_id"] ?? ""
+        let timeoutMs = Int(call.args["timeout_ms"] ?? "60000") ?? 60000
+        let workspace = context.workspaceContext.workspacePath.path
+
+        var testArgs: [String] = ["/usr/bin/swift", "test"]
+
+        // Determine test filter based on scope
+        var testFilter = filter
+        if testFilter.isEmpty {
+            switch scope {
+            case "file":
+                if !rawPath.isEmpty {
+                    let fileName = (rawPath as NSString).lastPathComponent.replacingOccurrences(of: ".swift", with: "")
+                    testFilter = fileName
+                }
+            case "related":
+                if !rawPath.isEmpty {
+                    let fileName = (rawPath as NSString).lastPathComponent.replacingOccurrences(of: ".swift", with: "")
+                    testFilter = fileName
+                } else if !hypothesisId.isEmpty, let hyp = debugHypotheses[hypothesisId] {
+                    let fileNames = hyp.relatedFiles.compactMap { ($0 as NSString).lastPathComponent.replacingOccurrences(of: ".swift", with: "") }
+                    if let first = fileNames.first { testFilter = first }
+                }
+            case "all":
+                break
+            default:
+                break
+            }
+        }
+
+        if !testFilter.isEmpty {
+            testArgs += ["--filter", testFilter]
+        }
+
+        await debugLogServer.log(
+            severity: "info",
+            source: "debug_test_check",
+            message: "Running tests [scope=\(scope)]\(testFilter.isEmpty ? "" : " filter=\(testFilter)")",
+            category: "test"
+        )
+
+        let (stdout, stderr, exitCode) = await shellExec(
+            args: testArgs,
+            cwd: workspace,
+            timeout: timeoutMs
+        )
+
+        let combined = (stdout + "\n" + stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Parse test results
+        var passed = 0
+        var failed = 0
+        var failedTests: [String] = []
+        let resultLines = combined.components(separatedBy: "\n")
+        for line in resultLines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.contains("passed") && trimmed.contains("Test Case") {
+                passed += 1
+            } else if trimmed.contains("failed") && trimmed.contains("Test Case") {
+                failed += 1
+                failedTests.append(trimmed)
+            }
+        }
+
+        // Check for overall pass/fail from Swift test summary
+        let overallPassed = exitCode == 0
+
+        await debugLogServer.log(
+            severity: overallPassed ? "info" : "error",
+            source: "debug_test_check",
+            message: "Tests \(overallPassed ? "PASSED" : "FAILED"): \(passed) passed, \(failed) failed",
+            detail: failedTests.isEmpty ? nil : failedTests.joined(separator: "\n"),
+            category: "test"
+        )
+
+        var output = "## Test Results [\(scope)]\n\n"
+        output += "- Status: \(overallPassed ? "PASSED ✓" : "FAILED ✗")\n"
+        output += "- Passed: \(passed)\n"
+        output += "- Failed: \(failed)\n"
+        if !testFilter.isEmpty { output += "- Filter: \(testFilter)\n" }
+        if !failedTests.isEmpty {
+            output += "\n### Failed Tests\n" + failedTests.map { "  - \($0)" }.joined(separator: "\n")
+        }
+        output += "\n\n### Output (truncated)\n```\n\(String(combined.suffix(2000)))\n```"
+
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: true, payload: [
+            "title": "debug_test_check",
+            "detail": "\(overallPassed ? "PASSED" : "FAILED"): \(passed) passed, \(failed) failed [\(scope)]",
+            "output": output,
+            "scope": scope,
+            "passed": "\(passed)",
+            "failed": "\(failed)",
+            "exit_code": "\(exitCode)",
+            "overall_status": overallPassed ? "passed" : "failed",
+            "filter": testFilter
         ], durationMs: ms)
     }
 
@@ -3798,34 +5110,169 @@ public actor UnifiedToolRuntime {
         let workspace = context.workspaceContext.workspacePath.path
         var sections: [String] = []
 
-        // 1. Git status
-        let (gitStatus, _, gitExit) = await shellExec(
-            args: ["/usr/bin/git", "status", "--short", "--branch"],
-            cwd: workspace, timeout: 5_000
-        )
-        if gitExit == 0 {
-            sections.append("## Git Status\n\(gitStatus)")
+        let scopeRaw = call.args["scope"] ?? "full"
+        let scopes = Set(scopeRaw.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+        let isFull = scopes.contains("full")
+        let includeContent = call.args["include_file_content"]?.lowercased() == "true"
+
+        // 1. Git status + diff + log
+        if isFull || scopes.contains("git") {
+            let (gitStatus, _, gitExit) = await shellExec(
+                args: ["/usr/bin/git", "status", "--short", "--branch"],
+                cwd: workspace, timeout: 5_000
+            )
+            if gitExit == 0 {
+                sections.append("## Git Status\n\(gitStatus)")
+            }
+
+            let (gitDiff, _, _) = await shellExec(
+                args: ["/usr/bin/git", "diff", "--stat", "HEAD"],
+                cwd: workspace, timeout: 5_000
+            )
+            if !gitDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                sections.append("## Git Diff (stat)\n\(gitDiff)")
+            }
+
+            let (gitLog, _, _) = await shellExec(
+                args: ["/usr/bin/git", "log", "--oneline", "-5"],
+                cwd: workspace, timeout: 5_000
+            )
+            if !gitLog.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                sections.append("## Recent Commits\n\(gitLog)")
+            }
         }
 
-        // 2. Git diff (staged + unstaged, compact)
-        let (gitDiff, _, _) = await shellExec(
-            args: ["/usr/bin/git", "diff", "--stat", "HEAD"],
-            cwd: workspace, timeout: 5_000
-        )
-        if !gitDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sections.append("## Git Diff (stat)\n\(gitDiff)")
+        // 2. Build errors
+        if isFull || scopes.contains("build") {
+            let (buildOut, buildErr, buildExit) = await shellExec(
+                args: ["/usr/bin/swift", "build", "--skip-update", "2>&1"],
+                cwd: workspace, timeout: 30_000
+            )
+            let buildOutput = (buildOut + "\n" + buildErr).trimmingCharacters(in: .whitespacesAndNewlines)
+            if buildExit != 0 && !buildOutput.isEmpty {
+                let truncatedBuild = String(buildOutput.prefix(3000))
+                sections.append("## Build Errors (exit \(buildExit))\n```\n\(truncatedBuild)\n```")
+            } else {
+                sections.append("## Build Status\nClean build (exit 0)")
+            }
         }
 
-        // 3. Recent git log (last 5 commits)
-        let (gitLog, _, _) = await shellExec(
-            args: ["/usr/bin/git", "log", "--oneline", "-5"],
-            cwd: workspace, timeout: 5_000
-        )
-        if !gitLog.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sections.append("## Recent Commits\n\(gitLog)")
+        // 3. Linter diagnostics
+        if isFull || scopes.contains("lints") {
+            let lintStartDate = Date()
+            let lintCall = ToolCall(
+                id: UUID().uuidString, name: "read_lints",
+                args: ["severity": "error", "limit": "20"],
+                sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
+            )
+            let lintResult = await executeReadLints(call: lintCall, context: context, startDate: lintStartDate)
+            if lintResult.ok {
+                let errorCount = lintResult.payload["error_count"] ?? "0"
+                let warningCount = lintResult.payload["warning_count"] ?? "0"
+                let linter = lintResult.payload["linter"] ?? "unknown"
+                var lintSection = "## Linter Diagnostics (\(linter))\nErrors: \(errorCount), Warnings: \(warningCount)"
+                if let output = lintResult.payload["output"], !output.isEmpty, errorCount != "0" {
+                    lintSection += "\n```\n\(String(output.prefix(2000)))\n```"
+
+                    if includeContent {
+                        let errorFiles = parseErrorFiles(from: output)
+                        for (filePath, lineNum) in errorFiles.prefix(5) {
+                            let fullPath = filePath.hasPrefix("/") ? filePath : workspace + "/" + filePath
+                            if let fileContent = try? String(contentsOfFile: fullPath, encoding: .utf8) {
+                                let allLines = fileContent.components(separatedBy: "\n")
+                                let start = max(0, lineNum - 10)
+                                let end = min(allLines.count, lineNum + 10)
+                                let snippet = allLines[start..<end].enumerated().map { "\(start + $0.offset + 1)| \($0.element)" }.joined(separator: "\n")
+                                lintSection += "\n\n### \(filePath):\(lineNum)\n```\n\(snippet)\n```"
+                            }
+                        }
+                    }
+                }
+                sections.append(lintSection)
+            }
         }
 
-        // 4. Open files from workspace context
+        // 4. Environment info
+        if isFull || scopes.contains("env") {
+            var envLines: [String] = []
+            let (swiftVer, _, _) = await shellExec(
+                args: ["/usr/bin/swift", "--version"],
+                cwd: workspace, timeout: 5_000
+            )
+            if !swiftVer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                envLines.append("Swift: \(swiftVer.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n").first ?? swiftVer)")
+            }
+
+            let (xcodeVer, _, _) = await shellExec(
+                args: ["/usr/bin/xcodebuild", "-version"],
+                cwd: workspace, timeout: 5_000
+            )
+            if !xcodeVer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                envLines.append("Xcode: \(xcodeVer.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: ", "))")
+            }
+
+            let (sdkPath, _, _) = await shellExec(
+                args: ["/usr/bin/xcrun", "--show-sdk-path"],
+                cwd: workspace, timeout: 5_000
+            )
+            if !sdkPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                envLines.append("SDK: \(sdkPath.trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
+
+            envLines.append("Platform: \(ProcessInfo.processInfo.operatingSystemVersionString)")
+            envLines.append("CPU cores: \(ProcessInfo.processInfo.activeProcessorCount)")
+
+            sections.append("## Environment\n\(envLines.joined(separator: "\n"))")
+        }
+
+        // 5. Test listing
+        if isFull || scopes.contains("tests") {
+            let (testList, _, testExit) = await shellExec(
+                args: ["/usr/bin/swift", "test", "list", "2>&1"],
+                cwd: workspace, timeout: 15_000
+            )
+            let trimmed = testList.trimmingCharacters(in: .whitespacesAndNewlines)
+            if testExit == 0 && !trimmed.isEmpty {
+                let testLines = trimmed.components(separatedBy: "\n")
+                sections.append("## Tests (\(testLines.count) test cases)\n\(testLines.prefix(30).joined(separator: "\n"))\(testLines.count > 30 ? "\n... +\(testLines.count - 30) more" : "")")
+            } else if !trimmed.isEmpty {
+                sections.append("## Tests\n```\n\(String(trimmed.prefix(1500)))\n```")
+            }
+        }
+
+        // 6. Recent crash reports
+        if isFull || scopes.contains("crashes") {
+            let crashDir = NSHomeDirectory() + "/Library/Logs/DiagnosticReports"
+            let fm = FileManager.default
+            if fm.fileExists(atPath: crashDir) {
+                let (crashFiles, _, _) = await shellExec(
+                    args: ["/bin/ls", "-t", crashDir],
+                    cwd: workspace, timeout: 3_000
+                )
+                let files = crashFiles.components(separatedBy: "\n").filter { !$0.isEmpty }
+                let recentCrashes = files.prefix(5)
+                if !recentCrashes.isEmpty {
+                    var crashSection = "## Recent Crash Reports (\(files.count) total, showing \(recentCrashes.count))\n"
+                    for crashFile in recentCrashes {
+                        crashSection += "- \(crashFile)\n"
+                    }
+                    sections.append(crashSection)
+                }
+            }
+        }
+
+        // 7. Dependencies (Package.resolved)
+        if isFull || scopes.contains("build") {
+            let resolvedPath = workspace + "/Package.resolved"
+            if FileManager.default.fileExists(atPath: resolvedPath) {
+                if let resolvedContent = try? String(contentsOfFile: resolvedPath, encoding: .utf8) {
+                    let truncated = String(resolvedContent.prefix(2000))
+                    sections.append("## Dependencies (Package.resolved)\n```json\n\(truncated)\n```")
+                }
+            }
+        }
+
+        // 8. Open files
         let openFiles = context.workspaceContext.openFiles
         if !openFiles.isEmpty {
             var fileSection = "## Open Files (\(openFiles.count))\n"
@@ -3836,35 +5283,16 @@ public actor UnifiedToolRuntime {
             sections.append(fileSection)
         }
 
-        // 5. Active file and selection
+        // 9. Active file and selection
         if let activeFile = context.workspaceContext.activeFilePath {
             sections.append("## Active File\n\(activeFile)")
         }
         if let selection = context.workspaceContext.activeSelection, !selection.isEmpty {
-            let preview = selection.count > 200 ? String(selection.prefix(200)) + "..." : selection
+            let preview = selection.count > 500 ? String(selection.prefix(500)) + "..." : selection
             sections.append("## Active Selection\n```\n\(preview)\n```")
         }
 
-        // 6. Quick lint check (errors only, fast)
-        let lintStartDate = Date()
-        let lintCall = ToolCall(
-            id: UUID().uuidString, name: "read_lints",
-            args: ["severity": "error", "limit": "10"],
-            sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope
-        )
-        let lintResult = await executeReadLints(call: lintCall, context: context, startDate: lintStartDate)
-        if lintResult.ok {
-            let errorCount = lintResult.payload["error_count"] ?? "0"
-            let warningCount = lintResult.payload["warning_count"] ?? "0"
-            let linter = lintResult.payload["linter"] ?? "unknown"
-            var lintSection = "## Linter Diagnostics (\(linter))\nErrors: \(errorCount), Warnings: \(warningCount)"
-            if let output = lintResult.payload["output"], !output.isEmpty, errorCount != "0" {
-                lintSection += "\n```\n\(output.prefix(1000))\n```"
-            }
-            sections.append(lintSection)
-        }
-
-        // 7. Debug log summary (include only when logs exist)
+        // 10. Debug log summary
         let debugSnapshot = await debugLogServer.query(limit: 5)
         if debugSnapshot.totalCount > 0 {
             let summary = await debugLogServer.sessionSummary()
@@ -3878,10 +5306,27 @@ public actor UnifiedToolRuntime {
 
         return ToolResult(ok: true, payload: [
             "title": "debug_context",
-            "detail": "Debug context gathered: \(sections.count) sections",
+            "detail": "Debug context gathered: \(sections.count) sections [\(scopes.joined(separator: ","))]",
             "output": truncate(fullContext, maxBytes: context.policy.maxBashOutputBytes),
-            "sections": "\(sections.count)"
+            "sections": "\(sections.count)",
+            "scopes": scopeRaw
         ], durationMs: ms)
+    }
+
+    private func parseErrorFiles(from lintOutput: String) -> [(String, Int)] {
+        var result: [(String, Int)] = []
+        let lines = lintOutput.components(separatedBy: "\n")
+        for line in lines {
+            let parts = line.split(separator: ":", maxSplits: 3)
+            if parts.count >= 3,
+               let lineNum = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
+                let filePath = String(parts[0])
+                if !result.contains(where: { $0.0 == filePath && $0.1 == lineNum }) {
+                    result.append((filePath, lineNum))
+                }
+            }
+        }
+        return result
     }
 
     // MARK: - apply_diff

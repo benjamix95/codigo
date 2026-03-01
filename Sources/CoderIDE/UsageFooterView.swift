@@ -87,12 +87,14 @@ struct UsageFooterView: View {
         let lastMessageId = conversation.messages.last?.id.uuidString ?? "none"
         let memoryTimestamp = conversation.contextMemoryGeneratedAt?.timeIntervalSince1970 ?? 0
         let memoryCount = conversation.contextMemorySourceMessageCount ?? -1
+        let realTokens = conversation.lastInputTokens ?? 0
         return [
             conversation.id.uuidString,
             "\(conversation.messages.count)",
             lastMessageId,
             "\(Int(memoryTimestamp))",
             "\(memoryCount)",
+            "\(realTokens)",
         ].joined(separator: "|")
     }
 
