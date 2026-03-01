@@ -35,6 +35,24 @@ final class CodeReviewMultiSwarmProviderTests: XCTestCase {
         XCTAssertEqual(clean, "prefix [AGAINST:abc] rest")
     }
 
+    // MARK: - isValidAgainstRefFormat
+
+    func testIsValidAgainstRefFormat_acceptsCommonRevisionExpressions() {
+        XCTAssertTrue(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("HEAD~1"))
+        XCTAssertTrue(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("main..feature"))
+        XCTAssertTrue(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("abc123def"))
+        XCTAssertTrue(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("feature^"))
+    }
+
+    func testIsValidAgainstRefFormat_rejectsUnsafeOrInvalidInput() {
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat(""))
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat(" "))
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("--cached"))
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("ref with space"))
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("ref:path"))
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("ref@{0}"))
+    }
+
     // MARK: - parseTasksJSON
 
     func testParseTasksJSON_validTasks() {

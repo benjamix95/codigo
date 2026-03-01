@@ -148,6 +148,12 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                     let filesToReview: [String]
                     if let ref = againstRef {
+                        guard Self.isValidAgainstRefFormat(ref) else {
+                            continuation.yield(.textDelta("Invalid AGAINST ref `\(ref)`. Use values like `HEAD~1`, `abc123`, or `main..feature`.\n"))
+                            continuation.yield(.completed)
+                            continuation.finish()
+                            return
+                        }
                         let (diffFiles, diffError) = Self.gitDiffFiles(ref: ref, workspacePath: workspacePath)
                         filesToReview = diffFiles
                         if filesToReview.isEmpty {
@@ -927,6 +933,25 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let cleanRange = Range(match.range, in: prompt)!
         let clean = String(prompt[cleanRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         return (clean.isEmpty ? "Review all changes" : clean, ref)
+    }
+
+    /// Validation for AGAINST revision expressions.
+    /// Supports common syntaxes like `HEAD~1` and `main..feature`.
+    static func isValidAgainstRefFormat(_ ref: String) -> Bool {
+        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !trimmed.hasPrefix("-") else { return false }
+        guard !trimmed.hasSuffix(".lock") else { return false }
+        guard !trimmed.hasSuffix(".") else { return false }
+
+        let invalidChars = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
+        guard trimmed.unicodeScalars.allSatisfy({ !invalidChars.contains($0) }) else { return false }
+
+        let forbiddenSubstrings = [":", "?", "*", "[", "\\", "@{"]
+        for seq in forbiddenSubstrings where trimmed.contains(seq) {
+            return false
+        }
+        return true
     }
 
     /// Get files changed since a commit ref using git diff.

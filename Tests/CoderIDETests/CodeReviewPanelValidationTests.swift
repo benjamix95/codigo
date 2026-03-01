@@ -11,6 +11,9 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertTrue(isValidGitRefFormat("abc123def"))
         XCTAssertTrue(isValidGitRefFormat("feature/my-branch"))
         XCTAssertTrue(isValidGitRefFormat("v1.0.0"))
+        XCTAssertTrue(isValidGitRefFormat("HEAD~3"))
+        XCTAssertTrue(isValidGitRefFormat("main..HEAD"))
+        XCTAssertTrue(isValidGitRefFormat("feature^"))
     }
 
     func testEmptyAndWhitespace() {
@@ -25,14 +28,13 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertFalse(isValidGitRefFormat("--exec=evil"))
     }
 
-    func testDoubleDot() {
-        XCTAssertFalse(isValidGitRefFormat("main..HEAD"))
-        XCTAssertFalse(isValidGitRefFormat("a..b"))
+    func testRangeRefsAreAllowed() {
+        XCTAssertTrue(isValidGitRefFormat("main..HEAD"))
+        XCTAssertTrue(isValidGitRefFormat("a..b"))
     }
 
     func testForbiddenChars() {
         XCTAssertFalse(isValidGitRefFormat("ref with space"))
-        XCTAssertFalse(isValidGitRefFormat("ref^2"))
         XCTAssertFalse(isValidGitRefFormat("ref:path"))
         XCTAssertFalse(isValidGitRefFormat("ref?"))
         XCTAssertFalse(isValidGitRefFormat("ref*"))
@@ -49,8 +51,8 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertFalse(isValidGitRefFormat("branch."))
     }
 
-    func testTildeRejected() {
-        // ~ is forbidden by git-check-ref-format in ref names
-        XCTAssertFalse(isValidGitRefFormat("HEAD~3"))
+    func testTildeAndCaretAreAllowedForRevisionExpressions() {
+        XCTAssertTrue(isValidGitRefFormat("HEAD~3"))
+        XCTAssertTrue(isValidGitRefFormat("HEAD^"))
     }
 }

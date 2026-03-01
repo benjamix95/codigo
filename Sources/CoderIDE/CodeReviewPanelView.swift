@@ -778,8 +778,9 @@ struct CodeReviewPanelView: View {
     }
 }
 
-/// Git ref validation: non-empty, no spaces, no control characters, no flag injection,
-/// and no sequences that git-check-ref-format(1) forbids.
+/// Git revision validation for "Against Commit": allows common revision expressions
+/// like `HEAD~1` and `main..feature`, while still blocking flag-style input and
+/// unsafe characters.
 func isValidGitRefFormat(_ ref: String) -> Bool {
     let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return false }
@@ -793,8 +794,8 @@ func isValidGitRefFormat(_ ref: String) -> Bool {
     let invalidChars = CharacterSet.whitespacesAndNewlines
         .union(.controlCharacters)
     guard trimmed.unicodeScalars.allSatisfy({ !invalidChars.contains($0) }) else { return false }
-    // Reject sequences forbidden by git: "..", "~", "^", ":", "?", "*", "[", "\\"
-    let forbiddenSubstrings = ["..", "~", "^", ":", "?", "*", "[", "\\", "@{"]
+    // Reject obviously unsafe/special path syntaxes for this context.
+    let forbiddenSubstrings = [":", "?", "*", "[", "\\", "@{"]
     for seq in forbiddenSubstrings {
         if trimmed.contains(seq) { return false }
     }
