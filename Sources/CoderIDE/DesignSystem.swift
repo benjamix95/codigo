@@ -174,25 +174,25 @@ struct DesignSystem {
 
     // MARK: - Typography
     struct Typography {
-        static let display = Font.system(size: 34, weight: .bold, design: .rounded)
-        static let displayMedium = Font.system(size: 28, weight: .semibold, design: .rounded)
-        static let largeTitle = Font.system(.largeTitle, design: .rounded)
-        static let title = Font.system(.title, design: .rounded)
-        static let title2 = Font.system(.title2, design: .rounded)
-        static let title3 = Font.system(.title3, design: .rounded)
-        static let headline = Font.headline
-        static let body = Font.body
-        static let bodyMedium = Font.body.weight(.medium)
-        static let callout = Font.callout
-        static let subheadline = Font.subheadline
-        static let subheadlineMedium = Font.subheadline.weight(.medium)
-        static let footnote = Font.footnote
-        static let caption = Font.caption
-        static let captionMedium = Font.caption.weight(.medium)
-        static let caption2 = Font.caption2
-        static let code = Font.system(size: 13, design: .monospaced)
-        static let codeSmall = Font.system(size: 11, design: .monospaced)
-        static let codeLarge = Font.system(size: 15, design: .monospaced)
+        static let display = FontPreferences.resolveSansFont(size: 34, family: FontPreferences.defaultSansFamily, weight: .bold)
+        static let displayMedium = FontPreferences.resolveSansFont(size: 28, family: FontPreferences.defaultSansFamily, weight: .semibold)
+        static let largeTitle = FontPreferences.resolveSansFont(size: 26, family: FontPreferences.defaultSansFamily, weight: .bold)
+        static let title = FontPreferences.resolveSansFont(size: 22, family: FontPreferences.defaultSansFamily, weight: .semibold)
+        static let title2 = FontPreferences.resolveSansFont(size: 19, family: FontPreferences.defaultSansFamily, weight: .semibold)
+        static let title3 = FontPreferences.resolveSansFont(size: 17, family: FontPreferences.defaultSansFamily, weight: .semibold)
+        static let headline = FontPreferences.resolveSansFont(size: 15, family: FontPreferences.defaultSansFamily, weight: .semibold)
+        static let body = FontPreferences.resolveSansFont(size: 13.5, family: FontPreferences.defaultSansFamily)
+        static let bodyMedium = FontPreferences.resolveSansFont(size: 13.5, family: FontPreferences.defaultSansFamily, weight: .medium)
+        static let callout = FontPreferences.resolveSansFont(size: 13, family: FontPreferences.defaultSansFamily)
+        static let subheadline = FontPreferences.resolveSansFont(size: 12, family: FontPreferences.defaultSansFamily)
+        static let subheadlineMedium = FontPreferences.resolveSansFont(size: 12, family: FontPreferences.defaultSansFamily, weight: .medium)
+        static let footnote = FontPreferences.resolveSansFont(size: 11, family: FontPreferences.defaultSansFamily)
+        static let caption = FontPreferences.resolveSansFont(size: 10.5, family: FontPreferences.defaultSansFamily)
+        static let captionMedium = FontPreferences.resolveSansFont(size: 10.5, family: FontPreferences.defaultSansFamily, weight: .medium)
+        static let caption2 = FontPreferences.resolveSansFont(size: 10, family: FontPreferences.defaultSansFamily)
+        static let code = FontPreferences.resolveCodeFont(size: 13, family: FontPreferences.defaultCodeFamily)
+        static let codeSmall = FontPreferences.resolveCodeFont(size: 11, family: FontPreferences.defaultCodeFamily)
+        static let codeLarge = FontPreferences.resolveCodeFont(size: 15, family: FontPreferences.defaultCodeFamily)
 
         static func medium(_ font: Font) -> Font { font.weight(.medium) }
         static func semibold(_ font: Font) -> Font { font.weight(.semibold) }

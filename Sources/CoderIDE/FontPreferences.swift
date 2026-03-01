@@ -11,8 +11,8 @@ struct FontPreferences {
     static let systemSansToken = "__system_sans__"
     static let systemMonoToken = "__system_mono__"
 
-    static let defaultSansFamily = systemSansToken
-    static let defaultCodeFamily = systemMonoToken
+    static let defaultSansFamily = "Geist"
+    static let defaultCodeFamily = "Geist Mono"
     static let defaultSansSize: Double = 13
     static let defaultCodeSize: Double = 12
 
@@ -20,7 +20,7 @@ struct FontPreferences {
     static let codeSizeRange: ClosedRange<CGFloat> = 10...24
 
     private static let monoFamilyWhitelist = [
-        "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code",
+        "Geist Mono", "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code",
     ]
 
     private static var didRegisterBundledFonts = false
@@ -79,7 +79,7 @@ struct FontPreferences {
         if let postScript = postScriptName(forFamily: family) {
             return .custom(postScript, size: size).weight(weight)
         }
-        if let fallback = firstAvailablePostScript(fromFamilies: ["Inter", "Helvetica Neue", "Helvetica", "Arial"]) {
+        if let fallback = firstAvailablePostScript(fromFamilies: ["Geist", "Inter", "Helvetica Neue", "Helvetica", "Arial"]) {
             return .custom(fallback, size: size).weight(weight)
         }
         return .system(size: size, weight: weight, design: design)
@@ -92,7 +92,7 @@ struct FontPreferences {
         if let postScript = postScriptName(forFamily: family) {
             return .custom(postScript, size: size).weight(weight)
         }
-        if let fallback = firstAvailablePostScript(fromFamilies: ["SF Mono", "Menlo", "Monaco", "JetBrains Mono"]) {
+        if let fallback = firstAvailablePostScript(fromFamilies: ["Geist Mono", "SF Mono", "Menlo", "Monaco", "JetBrains Mono"]) {
             return .custom(fallback, size: size).weight(weight)
         }
         return .system(size: size, weight: weight, design: .monospaced)
@@ -106,7 +106,7 @@ struct FontPreferences {
            let resolved = NSFont(name: postScript, size: size) {
             return resolved
         }
-        if let fallback = firstAvailablePostScript(fromFamilies: ["SF Mono", "Menlo", "Monaco", "JetBrains Mono"]),
+        if let fallback = firstAvailablePostScript(fromFamilies: ["Geist Mono", "SF Mono", "Menlo", "Monaco", "JetBrains Mono"]),
            let resolved = NSFont(name: fallback, size: size) {
             return resolved
         }

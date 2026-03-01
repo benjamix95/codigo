@@ -24,8 +24,8 @@ struct MessageRow: View {
     @State private var isHovered = false
     @State private var didCopyMessage = false
     @State private var hoverTask: Task<Void, Never>?
-    private let userRowMaxWidth: CGFloat = 620
-    private let assistantRowMaxWidth: CGFloat = 920
+    private let userRowMaxWidth: CGFloat = 640
+    private let assistantRowMaxWidth: CGFloat = 860
     private let userImageThumbWidth: CGFloat = 140
     private let userImageThumbHeight: CGFloat = 100
 
@@ -39,7 +39,7 @@ struct MessageRow: View {
 
     private var isUser: Bool { message.role == .user }
     private var rowMaxWidth: CGFloat { isUser ? userRowMaxWidth : assistantRowMaxWidth }
-    private var contentMaxWidth: CGFloat { isUser ? 560 : 860 }
+    private var contentMaxWidth: CGFloat { isUser ? 580 : 800 }
     private var shouldShowCopyAction: Bool { Self.shouldShowCopyAction(for: message) }
 
     var body: some View {
@@ -58,7 +58,7 @@ struct MessageRow: View {
                 if !isUser { Spacer(minLength: 0) }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -66,7 +66,7 @@ struct MessageRow: View {
             if hovering {
                 hoverTask?.cancel()
                 hoverTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 40_000_000) // 40ms debounce
+                    try? await Task.sleep(nanoseconds: 40_000_000)
                     guard !Task.isCancelled else { return }
                     isHovered = true
                 }
@@ -82,16 +82,27 @@ struct MessageRow: View {
 
     private var messageDivider: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.04))
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.primary.opacity(0.0),
+                        Color.primary.opacity(0.06),
+                        Color.primary.opacity(0.06),
+                        Color.primary.opacity(0.0),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
             .frame(height: 0.5)
             .frame(maxWidth: rowMaxWidth)
-            .padding(.bottom, 16)
+            .padding(.bottom, 20)
     }
 
     // MARK: - User Header
 
     private var userHeader: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Spacer(minLength: 0)
             if canRewind {
                 Button {
@@ -110,33 +121,35 @@ struct MessageRow: View {
                 .accessibilityLabel("Restore checkpoint")
             }
             Text("You")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.quaternary)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.3)
         }
         .padding(.trailing, 10)
-        .padding(.bottom, 4)
+        .padding(.bottom, 5)
     }
 
     // MARK: - Assistant Header
 
     private var assistantHeader: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Circle()
-                .fill(modeColor.opacity(0.5))
-                .frame(width: 5, height: 5)
+                .fill(modeColor.opacity(0.6))
+                .frame(width: 5.5, height: 5.5)
             Text("Codigo")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.quaternary)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .tracking(0.3)
             Spacer(minLength: 0)
         }
         .padding(.leading, 2)
-        .padding(.bottom, 4)
+        .padding(.bottom, 5)
     }
 
     // MARK: - Message Content
 
     private var messageContent: some View {
-        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
             if isUser {
                 if let attachments = message.attachments, !attachments.isEmpty {
                     userAttachmentsRow(attachments: attachments)
@@ -154,8 +167,8 @@ struct MessageRow: View {
                     aggressiveSanitization: false,
                     fillWidth: false
                 )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 13)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .fill(DesignSystem.Colors.chatUserBubbleFill)
@@ -166,14 +179,12 @@ struct MessageRow: View {
                     messageActionsRow
                 }
             } else {
-                // Thinking block — show live reasoning during streaming, or persisted reasoning on historical messages
                 if let reasoning = isActivelyStreaming ? streamingReasoningText : message.reasoningText,
                    !reasoning.isEmpty
                 {
                     ThinkingBlockView(text: reasoning, isLiveStreaming: isActivelyStreaming)
-                        .padding(.bottom, 8)
+                        .padding(.bottom, 10)
                 }
-                // Main content
                 MarkdownContentView(
                     content: message.content,
                     context: context,
@@ -183,7 +194,6 @@ struct MessageRow: View {
                 )
                 .frame(maxWidth: contentMaxWidth, alignment: .leading)
                 .padding(.vertical, 4)
-                // Streaming bar
                 if shouldShowStreamingBar { streamingBar }
                 if shouldShowCopyAction {
                     messageActionsRow
@@ -575,24 +585,24 @@ struct ThinkingBlockView: View {
     let text: String
     var isLiveStreaming: Bool = false
     @State private var isExpanded = false
-    private let contentMaxWidth: CGFloat = 860
+    private let contentMaxWidth: CGFloat = 800
 
     @Environment(\.colorScheme) private var colorScheme
 
     private var accentBarColor: Color {
         colorScheme == .dark
-            ? Color(red: 0.55, green: 0.63, blue: 0.95).opacity(0.30)
-            : Color(red: 0.30, green: 0.38, blue: 0.75).opacity(0.25)
+            ? Color(red: 0.55, green: 0.63, blue: 0.95).opacity(0.25)
+            : Color(red: 0.30, green: 0.38, blue: 0.75).opacity(0.20)
     }
-    private var thinkingTextColor: Color { .primary.opacity(0.38) }
-    private var headerTextColor: Color { .primary.opacity(0.32) }
+    private var thinkingTextColor: Color { .primary.opacity(0.35) }
+    private var headerTextColor: Color { .primary.opacity(0.30) }
 
     private var isShowingContent: Bool { isExpanded }
 
     private var previewLine: String {
         let first = text.components(separatedBy: .newlines)
             .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
-        return first.count > 80 ? String(first.prefix(80)) + "…" : first
+        return first.count > 80 ? String(first.prefix(80)) + "..." : first
     }
 
     var body: some View {
@@ -600,14 +610,18 @@ struct ThinkingBlockView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { isExpanded.toggle() }
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: isShowingContent ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 7.5, weight: .bold))
+                        .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(headerTextColor)
                         .frame(width: 10)
-                    Text(isLiveStreaming ? "Thinking…" : "Thought process")
-                        .font(.system(size: 10.5, weight: .medium))
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(accentBarColor)
+                    Text(isLiveStreaming ? "Thinking..." : "Thought process")
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(headerTextColor)
+                        .tracking(0.2)
                         .textShimmer(active: isLiveStreaming)
                     if !isShowingContent {
                         Text(previewLine)
@@ -621,20 +635,20 @@ struct ThinkingBlockView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.bottom, isShowingContent ? 6 : 0)
+            .padding(.bottom, isShowingContent ? 8 : 0)
 
             if isShowingContent {
                 HStack(alignment: .top, spacing: 0) {
-                    RoundedRectangle(cornerRadius: 1)
+                    RoundedRectangle(cornerRadius: 1.5)
                         .fill(accentBarColor)
                         .frame(width: 2)
                     Text(text)
                         .font(.system(size: 11.5))
                         .foregroundStyle(thinkingTextColor)
-                        .lineSpacing(5)
+                        .lineSpacing(5.5)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 10)
+                        .padding(.leading, 12)
                 }
                 .padding(.leading, 4)
                 .transition(.opacity.combined(with: .move(edge: .top)))

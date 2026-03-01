@@ -34,7 +34,7 @@ struct MarkdownContentView: View {
 
     private var bodyFont: CGFloat { FontPreferences.sanitizeSize(uiSansFontSize + 0.5, kind: .sans) }
     private var codeFontSize: CGFloat { FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code) }
-    private var bodyLineSpacing: CGFloat { 6.5 }
+    private var bodyLineSpacing: CGFloat { 7 }
 
     // Text
     private var textPrimary: Color { .primary.opacity(0.93) }

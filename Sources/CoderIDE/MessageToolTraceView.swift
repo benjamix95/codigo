@@ -209,7 +209,7 @@ struct MessageToolTraceView: View {
                 .padding(.leading, 20)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
         .frame(maxWidth: 760, alignment: .leading)
         .onAppear {
             refreshDerived()

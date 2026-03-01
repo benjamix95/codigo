@@ -7,6 +7,8 @@ struct PlanSummaryCardView: View {
     let onToggleCollapse: () -> Void
     let onExpandPlan: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var summaryPreview: String {
         let raw = summaryMarkdown
             .components(separatedBy: .newlines)
@@ -16,17 +18,26 @@ struct PlanSummaryCardView: View {
         return MermaidExtractor.stripMermaidBlocks(from: raw)
     }
 
+    private var accentColor: Color {
+        DesignSystem.Colors.planColor
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "list.bullet.rectangle")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accentColor.opacity(0.7))
                 Text("Plan")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
+                    .tracking(0.4)
+                    .textCase(.uppercase)
                 Spacer()
                 Button(action: onToggleCollapse) {
                     Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
                 .help(isCollapsed ? "Expand plan" : "Collapse plan")
@@ -34,9 +45,10 @@ struct PlanSummaryCardView: View {
 
             if !isCollapsed {
                 Text(title)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold))
                     .lineLimit(2)
                     .foregroundStyle(.primary)
+                    .tracking(-0.2)
 
                 MarkdownContentView(
                     content: summaryPreview,
@@ -51,23 +63,46 @@ struct PlanSummaryCardView: View {
                     Button(action: onExpandPlan) {
                         HStack(spacing: 5) {
                             Text("Open full plan")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.system(size: 11, weight: .semibold))
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.system(size: 9, weight: .bold))
                         }
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(accentColor.opacity(0.7))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(accentColor.opacity(colorScheme == .dark ? 0.08 : 0.06))
+                        )
                     }
                     .buttonStyle(.plain)
                     Spacer()
                 }
-                .padding(.top, 4)
+                .padding(.top, 2)
             }
         }
-        .padding(12)
-        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    colorScheme == .dark
+                        ? Color.primary.opacity(0.025)
+                        : Color.primary.opacity(0.015)
+                )
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            accentColor.opacity(0.12),
+                            Color.primary.opacity(0.05),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.5
+                )
         )
     }
 }
