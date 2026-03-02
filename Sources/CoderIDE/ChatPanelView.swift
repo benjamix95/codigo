@@ -942,6 +942,7 @@ struct ChatPanelView: View {
     @State private var pendingPlanStreamingContent: String?
     @State private var pendingPlanStreamConversationId: UUID?
     @State private var planStreamThrottleTask: Task<Void, Never>?
+    @State private var toolRuntimeSyncTask: Task<Void, Never>?
     @State private var activeRunTaskByConversation: [UUID: Task<Void, Never>] = [:]
     @State private var activeRunTokenByConversation: [UUID: UUID] = [:]
     @State private var activeToolTraceTurnsByConversation: [UUID: ToolTraceTurnContext] = [:]
@@ -1286,7 +1287,7 @@ struct ChatPanelView: View {
         .onAppear {
             migrateSwarmProviderDefaultsIfNeeded()
             syncProviderFromConversation()
-            syncToolRuntimePolicy()
+            scheduleToolRuntimePolicySync(immediate: true)
             codexModels = CodexModelsCache.loadModels()
             geminiModels = GeminiModelsCache.loadModels()
             syncSwarmProvider()
@@ -1487,10 +1488,10 @@ struct ChatPanelView: View {
             .onChange(of: unifiedToolRuntimeEnabled) { _, _ in
                 syncClaudeProvider()
                 syncGeminiProvider()
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
             }
             .onChange(of: mcpEditEnforcementEnabled) { _, _ in
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
             }
             .onChange(of: globalYolo) { _, _ in
                 syncCodexProvider()
@@ -1500,19 +1501,19 @@ struct ChatPanelView: View {
 
         let workspaceTracked = swarmTracked
             .onChange(of: workspaceStore.activeWorkspaceId) { _, _ in
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
                 syncCodeReviewRuntimeConfig()
             }
             .onChange(of: workspaceStore.workspaces.map(\.id)) { _, _ in
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
                 syncCodeReviewRuntimeConfig()
             }
             .onChange(of: projectContextStore.activeContextId) { _, _ in
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
                 syncCodeReviewRuntimeConfig()
             }
             .onChange(of: effectiveContext.folderPaths) { _, _ in
-                syncToolRuntimePolicy()
+                scheduleToolRuntimePolicySync()
                 syncCodeReviewRuntimeConfig()
             }
 
@@ -1539,6 +1540,8 @@ struct ChatPanelView: View {
         .onDisappear {
             composerAutoFocusTask?.cancel()
             composerAutoFocusTask = nil
+            toolRuntimeSyncTask?.cancel()
+            toolRuntimeSyncTask = nil
             taskFlushTask?.cancel()
             taskFlushTask = nil
             streamThrottleTask?.cancel()
@@ -4944,6 +4947,24 @@ struct ChatPanelView: View {
         syncSwarmProvider()
         syncPlanProvider()
         checkProviderAuth()
+    }
+
+    @MainActor
+    private func scheduleToolRuntimePolicySync(immediate: Bool = false) {
+        if immediate {
+            toolRuntimeSyncTask?.cancel()
+            toolRuntimeSyncTask = nil
+            syncToolRuntimePolicy()
+            return
+        }
+
+        toolRuntimeSyncTask?.cancel()
+        toolRuntimeSyncTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 180_000_000) // 180ms debounce
+            guard !Task.isCancelled else { return }
+            syncToolRuntimePolicy()
+            toolRuntimeSyncTask = nil
+        }
     }
 
     private func syncToolRuntimePolicy() {

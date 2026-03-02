@@ -20,7 +20,7 @@ struct ContentView: View {
     @StateObject private var terminalSessionStore = TerminalSessionStore()
     @StateObject private var browserTabManager = BrowserTabManager()
     @State private var selectedConversationId: UUID?
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var showTerminal = false
     @State private var terminalHeight: CGFloat = 200
     @State private var showSettings = false
@@ -310,8 +310,26 @@ struct ContentView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .onChange(of: coderMode) { _, newMode in
             withAnimation(.snappy(duration: 0.2)) {
-                columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .automatic
+                columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .all
             }
+        }
+        .onChange(of: chatStore.conversations.map(\.id)) { _, conversationIds in
+            guard !conversationIds.isEmpty else {
+                selectedConversationId = nil
+                return
+            }
+            if let selectedConversationId, conversationIds.contains(selectedConversationId) {
+                return
+            }
+            let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+            let ctx = projectContextStore.context(id: defaultContextId)
+            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+            let preferred = chatStore.conversations.first { conv in
+                !conv.isArchived
+                    && conv.contextId == defaultContextId
+                    && conv.contextFolderPath == folderScope
+            }?.id
+            selectedConversationId = preferred ?? conversationIds.first
         }
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }

@@ -2,6 +2,12 @@ import SwiftUI
 import CoderEngine
 
 struct SidePanelView: View {
+    private struct ExplorerEntry: Hashable {
+        let name: String
+        let fullPath: String
+        let isDirectory: Bool
+    }
+
     let activeItem: ActivityBarItem
     let context: ProjectContext?
     @EnvironmentObject var openFilesStore: OpenFilesStore
@@ -128,9 +134,9 @@ struct SidePanelView: View {
 
     private func folderItems(_ ctx: ProjectContext, root: String, atPath: String, depth: Int) -> some View {
         let items = depth > 14 ? [] : filteredItems(ctx, root: root, dir: atPath)
-        return ForEach(items, id: \.self) { item in
-            let fullPath = (atPath as NSString).appendingPathComponent(item)
-            let isDir = isDirectory(fullPath)
+        return ForEach(items, id: \.fullPath) { item in
+            let fullPath = item.fullPath
+            let isDir = item.isDirectory
             let key = "\(root)::\(fullPath)"
             let exp = expandedFolders.contains(key)
             let selected = openFilesStore.openFilePath == fullPath
@@ -146,11 +152,11 @@ struct SidePanelView: View {
                 } label: {
                     HStack(spacing: 5) {
                         Spacer().frame(width: CGFloat(depth) * 12 + 10)
-                        Image(systemName: fileIcon(item, isDir: isDir, expanded: exp))
+                        Image(systemName: fileIcon(item.name, isDir: isDir, expanded: exp))
                             .font(.system(size: isDir ? 8 : 10, weight: isDir ? .bold : .regular))
-                            .foregroundStyle(isDir ? Color.secondary.opacity(0.5) : fileIconColor(item))
+                            .foregroundStyle(isDir ? Color.secondary.opacity(0.5) : fileIconColor(item.name))
                             .frame(width: 12)
-                        Text(item)
+                        Text(item.name)
                             .font(.system(size: 12, weight: selected ? .semibold : .regular))
                             .foregroundStyle(selected ? Color.accentColor : .primary)
                             .lineLimit(1)
@@ -299,22 +305,36 @@ struct SidePanelView: View {
         ".DS_Store", "__pycache__", ".tox", ".eggs", "Pods"
     ]
 
-    private func filteredItems(_ ctx: ProjectContext, root: String, dir: String) -> [String] {
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
-        return items
-            .filter { !$0.hasPrefix(".") || $0 == ".env" }
-            .filter { !Self.excludedDirs.contains($0) }
-            .filter { item in
-                let full = (dir as NSString).appendingPathComponent(item)
-                let rel = full.replacingOccurrences(of: root + "/", with: "")
-                return !ctx.excludedPaths.contains(where: { rel.hasPrefix($0) || full.hasPrefix($0) })
-            }
-            .sorted { a, b in
-                let aDir = isDirectory((dir as NSString).appendingPathComponent(a))
-                let bDir = isDirectory((dir as NSString).appendingPathComponent(b))
-                if aDir != bDir { return aDir }
-                return a.localizedCaseInsensitiveCompare(b) == .orderedAscending
-            }
+    private func filteredItems(_ ctx: ProjectContext, root: String, dir: String) -> [ExplorerEntry] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
+        var entries: [ExplorerEntry] = []
+        entries.reserveCapacity(names.count)
+
+        for name in names {
+            if name.hasPrefix("."), name != ".env" { continue }
+            if Self.excludedDirs.contains(name) { continue }
+
+            let full = (dir as NSString).appendingPathComponent(name)
+            let rel = full.replacingOccurrences(of: root + "/", with: "")
+            let isExcluded = ctx.excludedPaths.contains { rel.hasPrefix($0) || full.hasPrefix($0) }
+            if isExcluded { continue }
+
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: full, isDirectory: &isDir)
+            entries.append(
+                ExplorerEntry(
+                    name: name,
+                    fullPath: full,
+                    isDirectory: isDir.boolValue
+                )
+            )
+        }
+
+        entries.sort { lhs, rhs in
+            if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory && !rhs.isDirectory }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        return entries
     }
 
     private func isDirectory(_ path: String) -> Bool {
