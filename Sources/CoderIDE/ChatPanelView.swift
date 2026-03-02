@@ -74,19 +74,108 @@ func rolloverAutoTodoOutcome(
 
 func todoIDsToAutoCompleteAfterSubagentBatch(
     todos: [TodoItem],
+    conversationId: UUID? = nil,
+    includePendingReviewTodo: Bool = false,
     reviewTodoTitle: String = "Code Review & Test"
 ) -> [UUID] {
-    let normalizedReviewTitle = reviewTodoTitle
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .lowercased()
-    var ids = Set(todos.filter { $0.status == .inProgress }.map(\.id))
-    if let pendingReview = todos.first(where: {
-        $0.status == .pending
-            && $0.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedReviewTitle
-    }) {
+    let normalizedReviewTitle = normalizedTodoTitle(reviewTodoTitle)
+    let isInScope = todoConversationScopeFilter(todos: todos, conversationId: conversationId)
+    var ids = Set(todos.filter { isInScope($0) && $0.status == .inProgress }.map(\.id))
+    if includePendingReviewTodo,
+       let pendingReview = todos.first(where: {
+           isInScope($0)
+               && $0.status == .pending
+               && normalizedTodoTitle($0.title) == normalizedReviewTitle
+       })
+    {
         ids.insert(pendingReview.id)
     }
     return Array(ids)
+}
+
+func shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [String: String]) -> Bool {
+    let roles = Set(
+        (subagentBatchPayload["roles"] ?? "")
+            .split(separator: ",")
+            .map { normalizeRoleToken(String($0)) }
+            .filter { !$0.isEmpty }
+    )
+    return roles.contains("reviewer") && roles.contains("testwriter")
+}
+
+func todoConversationScopeFilter(
+    todos: [TodoItem],
+    conversationId: UUID?
+) -> (TodoItem) -> Bool {
+    guard let conversationId else { return { _ in true } }
+    let hasScoped = todos.contains { $0.planConversationId == conversationId }
+    return { todo in
+        if let scopedConversationId = todo.planConversationId {
+            return scopedConversationId == conversationId
+        }
+        // Legacy fallback: keep unscoped todos visible when no scoped todo exists yet.
+        return !hasScoped
+    }
+}
+
+func traceEventsContainSuccessfulCodeEdits(_ traceEvents: [ToolTraceEvent]) -> Bool {
+    traceEvents.contains { event in
+        guard event.phase == .editing else { return false }
+        return isSuccessfulMutationEventStatus(event.payload["status"], isRunning: event.isRunning)
+    }
+}
+
+func touchedFilePathsFromTraceEvents(
+    _ traceEvents: [ToolTraceEvent],
+    maxCount: Int = 50
+) -> [String] {
+    let files = traceEvents.compactMap { event -> String? in
+        guard event.phase == .editing else { return nil }
+        guard isSuccessfulMutationEventStatus(event.payload["status"], isRunning: event.isRunning) else {
+            return nil
+        }
+        let rawPath = (event.payload["file"] ?? event.payload["path"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawPath.isEmpty else { return nil }
+        return normalizeTouchedFilePath(rawPath)
+    }
+
+    guard maxCount > 0 else { return [] }
+    return Array(Set(files)).sorted().prefix(maxCount).map { $0 }
+}
+
+private func normalizedTodoTitle(_ value: String) -> String {
+    value
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+}
+
+private func normalizeRoleToken(_ value: String) -> String {
+    value
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "_", with: "")
+        .replacingOccurrences(of: "-", with: "")
+        .lowercased()
+}
+
+private func isSuccessfulMutationEventStatus(_ rawStatus: String?, isRunning: Bool) -> Bool {
+    let normalized = (rawStatus ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if normalized.isEmpty {
+        return !isRunning
+    }
+    return normalized == "completed"
+        || normalized == "success"
+        || normalized == "ok"
+        || normalized == "done"
+}
+
+private func normalizeTouchedFilePath(_ rawPath: String) -> String {
+    if let range = rawPath.range(of: "Sources/") { return String(rawPath[range.lowerBound...]) }
+    if let range = rawPath.range(of: "Tests/") { return String(rawPath[range.lowerBound...]) }
+    if let range = rawPath.range(of: "CoderEngine/") { return String(rawPath[range.lowerBound...]) }
+    return (rawPath as NSString).lastPathComponent
 }
 
 func canExecutePlanBuild(phase: PlanFlowPhase, choice: String, allowIdleRebuild: Bool = false) -> Bool {
@@ -5883,6 +5972,7 @@ struct ChatPanelView: View {
                         agentMessages: agentMessages,
                         traceEvents: traceEventsForWalkthrough
                     )
+                    let reviewLinkedFiles = touchedFilePathsFromTraceEvents(traceEventsForWalkthrough)
                     chatStore.setWalkthrough(walkthroughMd, for: planConvId)
 
                     let doneCount = canonicalTodos.filter { $0.status == .done }.count
@@ -5904,7 +5994,7 @@ struct ChatPanelView: View {
                         priority: .high,
                         notes: "Review changes and run tests",
                         activeForm: "Reviewing code and running tests",
-                        linkedFiles: [],
+                        linkedFiles: reviewLinkedFiles,
                         conversationId: planConvId
                     )
                 }
@@ -7417,7 +7507,18 @@ struct ChatPanelView: View {
                     let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
                         .map { t -> String in
                             let check = t.status == .done ? "x" : " "
-                            return "- [\(check)] \(t.title) (\(t.status.rawValue))"
+                            let trimmedNotes = t.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let notesSuffix = trimmedNotes.isEmpty ? "" : " — \(trimmedNotes)"
+                            let linkedPreview = t.linkedFiles.prefix(8)
+                            let linkedFilesSuffix: String
+                            if linkedPreview.isEmpty {
+                                linkedFilesSuffix = ""
+                            } else {
+                                let joined = linkedPreview.joined(separator: ", ")
+                                let overflow = t.linkedFiles.count > linkedPreview.count ? ", ..." : ""
+                                linkedFilesSuffix = " [files: \(joined)\(overflow)]"
+                            }
+                            return "- [\(check)] \(t.title) (\(t.status.rawValue))\(notesSuffix)\(linkedFilesSuffix)"
                         }
                         .joined(separator: "\n")
                     prompt += "\n\n## Current todos\n\(todoSection)"
@@ -7754,16 +7855,30 @@ struct ChatPanelView: View {
             }
         }
         if t == "subagent_batch_done" {
-            autoCompleteInProgressTodoAfterSubagents(status: p["status"] ?? "done")
+            autoCompleteInProgressTodoAfterSubagents(
+                status: p["status"] ?? "done",
+                payload: p,
+                conversationId: convId
+            )
             return // Don't record this synthetic event as a visible activity
         }
         recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
     }
 
     @MainActor
-    private func autoCompleteInProgressTodoAfterSubagents(status: String) {
+    private func autoCompleteInProgressTodoAfterSubagents(
+        status: String,
+        payload: [String: String],
+        conversationId: UUID?
+    ) {
         let targetStatus: TodoStatus = status == "done" ? .done : .blocked
-        let targetIDs = todoIDsToAutoCompleteAfterSubagentBatch(todos: todoStore.todos)
+        let targetIDs = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: todoStore.todos,
+            conversationId: conversationId,
+            includePendingReviewTodo: shouldAutoCompletePendingReviewTodo(
+                subagentBatchPayload: payload
+            )
+        )
         for id in targetIDs {
             todoStore.setStatus(id: id, status: targetStatus)
         }
@@ -8498,24 +8613,45 @@ struct ChatPanelView: View {
             }
         }
 
-        // After any agent turn with file edits (non-plan), add a Code Review todo
+        // After a turn that actually produced code edits (non-plan), ensure a review+test todo exists.
         let isPlanBuildContext = (planFlowPhase == .building || planFlowPhase == .readyToBuild)
+        let reviewTodoTitle = "Code Review & Test"
+        let currentAssistantMessageId = chatStore.conversation(for: streamConversationId)?
+            .messages
+            .last(where: { $0.role == .assistant })?
+            .id
+        let turnTraceEvents: [ToolTraceEvent] = {
+            guard let currentAssistantMessageId else { return [] }
+            return toolTraceStore.events(
+                conversationId: streamConversationId,
+                assistantMessageId: currentAssistantMessageId
+            )
+        }()
         if !isPlanBuildContext,
-           taskActivityStore.activities.contains(where: { $0.phase == .editing })
+           traceEventsContainSuccessfulCodeEdits(turnTraceEvents)
         {
-            let alreadyHasReview = todoStore.todos.contains {
-                $0.title == "Code Review & Test" && $0.status != .done
+            let isInScope = todoConversationScopeFilter(
+                todos: todoStore.todos,
+                conversationId: streamConversationId
+            )
+            let hasActiveReviewTodo = todoStore.todos.contains {
+                isInScope($0)
+                    && normalizedTodoTitle($0.title) == normalizedTodoTitle(reviewTodoTitle)
+                    && ($0.status == .pending || $0.status == .inProgress)
             }
-            if !alreadyHasReview {
+            if !hasActiveReviewTodo {
+                let linkedFiles = touchedFilePathsFromTraceEvents(
+                    toolTraceStore.allEvents(conversationId: streamConversationId)
+                )
                 await MainActor.run {
                     todoStore.upsertFromAgent(
                         id: nil,
-                        title: "Code Review & Test",
+                        title: reviewTodoTitle,
                         status: .pending,
                         priority: .high,
-                        notes: "Review changes and run tests",
+                        notes: "Review all touched files and run tests",
                         activeForm: "Reviewing code and running tests",
-                        linkedFiles: [],
+                        linkedFiles: linkedFiles,
                         conversationId: streamConversationId
                     )
                 }

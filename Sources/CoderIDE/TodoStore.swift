@@ -259,6 +259,21 @@ final class TodoStore: ObservableObject {
         }
     }
 
+    private func runtimeScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
+        guard let conversationId else {
+            return { !$0.isPlanCanonical }
+        }
+        let hasScoped = todos.contains { !$0.isPlanCanonical && $0.planConversationId == conversationId }
+        return { item in
+            guard !item.isPlanCanonical else { return false }
+            if let scopedConversation = item.planConversationId {
+                return scopedConversation == conversationId
+            }
+            // Legacy fallback for older todos without conversation scoping.
+            return !hasScoped
+        }
+    }
+
     init(
         storageKey: String = todosStorageKey,
         userDefaults: UserDefaults = .standard
@@ -360,6 +375,7 @@ final class TodoStore: ObservableObject {
     ) {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return }
+        let isRuntimeInScope = runtimeScopeFilter(for: conversationId)
 
         func applyActiveForm(at idx: Int) {
             if let activeForm, !activeForm.isEmpty { todos[idx].activeForm = activeForm }
@@ -373,6 +389,9 @@ final class TodoStore: ObservableObject {
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            if let conversationId, !todos[idx].isPlanCanonical {
+                todos[idx].planConversationId = conversationId
+            }
             todos[idx].updatedAt = .now
             saveTodos()
             return
@@ -390,18 +409,26 @@ final class TodoStore: ObservableObject {
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            if let conversationId, !todos[idx].isPlanCanonical {
+                todos[idx].planConversationId = conversationId
+            }
             todos[idx].updatedAt = .now
             saveTodos()
             return
         }
 
-        if let idx = todos.firstIndex(where: { $0.title.caseInsensitiveCompare(normalizedTitle) == .orderedSame }) {
+        if let idx = todos.firstIndex(where: {
+            isRuntimeInScope($0) && $0.title.caseInsensitiveCompare(normalizedTitle) == .orderedSame
+        }) {
             if let status { todos[idx].status = status }
             if let priority { todos[idx].priority = priority }
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             applyActiveForm(at: idx)
             todos[idx].source = .agent
+            if let conversationId, !todos[idx].isPlanCanonical {
+                todos[idx].planConversationId = conversationId
+            }
             todos[idx].updatedAt = .now
             saveTodos()
             return
@@ -414,6 +441,7 @@ final class TodoStore: ObservableObject {
             source: .agent,
             notes: notes ?? "",
             linkedFiles: linkedFiles,
+            planConversationId: conversationId,
             activeForm: activeForm ?? ""
         )
         todos.append(newTodo)

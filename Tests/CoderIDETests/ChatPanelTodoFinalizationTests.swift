@@ -45,7 +45,8 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         let done = TodoItem(id: UUID(), title: "Done item", status: .done, source: .agent)
 
         let ids = todoIDsToAutoCompleteAfterSubagentBatch(
-            todos: [inProgress, pendingReview, done]
+            todos: [inProgress, pendingReview, done],
+            includePendingReviewTodo: true
         )
 
         XCTAssertTrue(ids.contains(inProgress.id))
@@ -57,5 +58,65 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         let pendingGeneric = TodoItem(id: UUID(), title: "Write docs", status: .pending, source: .agent)
         let ids = todoIDsToAutoCompleteAfterSubagentBatch(todos: [pendingGeneric])
         XCTAssertFalse(ids.contains(pendingGeneric.id))
+    }
+
+    func testSubagentBatchAutoCompletionExcludesPendingReviewWhenNotRequested() {
+        let pendingReview = TodoItem(id: UUID(), title: "Code Review & Test", status: .pending, source: .agent)
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [pendingReview],
+            includePendingReviewTodo: false
+        )
+        XCTAssertFalse(ids.contains(pendingReview.id))
+    }
+
+    func testShouldAutoCompletePendingReviewTodoRequiresReviewerAndTestWriter() {
+        XCTAssertTrue(shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [
+            "roles": "reviewer,testWriter",
+        ]))
+        XCTAssertTrue(shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [
+            "roles": "testwriter,reviewer",
+        ]))
+        XCTAssertFalse(shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [
+            "roles": "reviewer",
+        ]))
+        XCTAssertFalse(shouldAutoCompletePendingReviewTodo(subagentBatchPayload: [
+            "roles": "explorer,coder",
+        ]))
+    }
+
+    func testSubagentBatchAutoCompletionRespectsConversationScope() {
+        let conversationA = UUID()
+        let conversationB = UUID()
+        let inProgressA = TodoItem(
+            id: UUID(),
+            title: "Implement A",
+            status: .inProgress,
+            source: .agent,
+            planConversationId: conversationA
+        )
+        let reviewA = TodoItem(
+            id: UUID(),
+            title: "Code Review & Test",
+            status: .pending,
+            source: .agent,
+            planConversationId: conversationA
+        )
+        let inProgressB = TodoItem(
+            id: UUID(),
+            title: "Implement B",
+            status: .inProgress,
+            source: .agent,
+            planConversationId: conversationB
+        )
+
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [inProgressA, reviewA, inProgressB],
+            conversationId: conversationA,
+            includePendingReviewTodo: true
+        )
+
+        XCTAssertTrue(ids.contains(inProgressA.id))
+        XCTAssertTrue(ids.contains(reviewA.id))
+        XCTAssertFalse(ids.contains(inProgressB.id))
     }
 }

@@ -389,9 +389,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 }
                             }
                             let autoStatus = anySubagentFailed ? "blocked" : "done"
+                            let completedRoles = Set(
+                                calls.compactMap { SubagentRole.fromToolName($0.name)?.rawValue.lowercased() }
+                            )
                             continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                 "status": autoStatus,
-                                "count": "\(calls.count)"
+                                "count": "\(calls.count)",
+                                "roles": completedRoles.sorted().joined(separator: ",")
                             ]))
                             pendingSubagentCalls.removeAll()
                         }
@@ -516,7 +520,12 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
                                 continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                     "status": injectedAnyFailed ? "blocked" : "done",
-                                    "count": "\(injectedCalls.count)"
+                                    "count": "\(injectedCalls.count)",
+                                    "roles": Set(
+                                        injectedCalls.compactMap {
+                                            SubagentRole.fromToolName($0.name)?.rawValue.lowercased()
+                                        }
+                                    ).sorted().joined(separator: ",")
                                 ]))
                             }
                         }

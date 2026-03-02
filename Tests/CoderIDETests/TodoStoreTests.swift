@@ -253,6 +253,65 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(statusB, .pending)
     }
 
+    func testUpsertFromAgentStoresConversationIdForRuntimeTodo() {
+        let store = makeStore()
+        let conversationId = UUID()
+
+        store.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .pending,
+            priority: .high,
+            notes: "Review and run tests",
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let runtimeTodo = store.todos.first { $0.title == "Code Review & Test" }
+        XCTAssertEqual(runtimeTodo?.isPlanCanonical, false)
+        XCTAssertEqual(runtimeTodo?.planConversationId, conversationId)
+    }
+
+    func testUpsertFromAgentRespectsConversationScopeForRuntimeTitleMatch() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        store.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .pending,
+            priority: .high,
+            notes: "A review",
+            linkedFiles: [],
+            conversationId: conversationA
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .blocked,
+            priority: .high,
+            notes: "B blocked",
+            linkedFiles: [],
+            conversationId: conversationB
+        )
+
+        store.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .done,
+            priority: .high,
+            notes: "A completed",
+            linkedFiles: [],
+            conversationId: conversationA
+        )
+
+        let todoA = store.todos.first { $0.planConversationId == conversationA }
+        let todoB = store.todos.first { $0.planConversationId == conversationB }
+        XCTAssertEqual(todoA?.status, .done)
+        XCTAssertEqual(todoB?.status, .blocked)
+    }
+
     func testClearDoesNotFireCanonicalCallback() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])
