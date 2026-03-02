@@ -217,4 +217,27 @@ final class CodeReviewMultiSwarmProviderTests: XCTestCase {
         let state = CodeReviewMultiSwarmProvider.findingsStateDebugLabel(for: text)
         XCTAssertEqual(state, "issues")
     }
+
+    // MARK: - worker ordering
+
+    func testSortedWorkerTaskIDsForDisplay_usesNaturalOrdering() {
+        let ids = ["review-10", "review-2", "review-1"]
+        let sorted = CodeReviewMultiSwarmProvider.sortedWorkerTaskIDsForDisplay(ids)
+        XCTAssertEqual(sorted, ["review-1", "review-2", "review-10"])
+    }
+
+    // MARK: - test failure output detection
+
+    func testOutputSignalsTestFailure_ignoresGenericErrorToken() {
+        let output = "Build completed. Notes: error: keyword appears in docs only."
+        XCTAssertFalse(CodeReviewMultiSwarmProvider.outputSignalsTestFailure(output))
+    }
+
+    func testOutputSignalsTestFailure_detectsJestFailLine() {
+        let output = """
+        FAIL src/review/provider.test.ts
+        Test Suites: 1 failed, 3 passed, 4 total
+        """
+        XCTAssertTrue(CodeReviewMultiSwarmProvider.outputSignalsTestFailure(output))
+    }
 }

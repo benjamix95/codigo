@@ -1295,11 +1295,11 @@ struct ChatPanelView: View {
                     )
                 }
 
-                if shouldShowComposer(for: coderMode) {
-                    composerArea
-                }
                 if shouldShowUsageFooter(for: coderMode) {
                     usageFooterArea
+                }
+                if shouldShowComposer(for: coderMode) {
+                    composerArea
                 }
             }
             if showPlanPanel {
@@ -1374,6 +1374,7 @@ struct ChatPanelView: View {
             planHistoryStore.setSelectedEntry(id: nil)
             // Close side panels that are scoped to the previous conversation.
             showSwarmPanel = false
+            showCodeReviewPanel = false
             selectedSwarmId = nil
             restoreDebugState(for: newId)
             applyPendingDebugEvents(for: newId)

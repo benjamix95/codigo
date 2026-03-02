@@ -836,7 +836,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         }
 
         // Serialize text output: emit collected text events one worker at a time for linear chat
-        let sorted = workerResults.sorted { $0.taskId < $1.taskId }
+        let sorted = workerResults.sorted {
+            sortWorkerTaskIDForDisplay($0.taskId, $1.taskId)
+        }
         for (taskId, events) in sorted {
             await waitWhilePaused()
             if isCancelled() { break }
@@ -1232,6 +1234,45 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
 
+    private static func sortWorkerTaskIDForDisplay(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+
+    /// Testing hook for worker sort order without exposing implementation details.
+    static func sortedWorkerTaskIDsForDisplay(_ ids: [String]) -> [String] {
+        ids.sorted(by: sortWorkerTaskIDForDisplay(_:_:))
+    }
+
+    private static func hasTestFailureSignal(in lowercasedOutput: String) -> Bool {
+        if lowercasedOutput.contains("test failed")
+            || lowercasedOutput.contains("tests failed")
+            || lowercasedOutput.contains("assertion failed")
+            || lowercasedOutput.contains("xctassertion failed")
+            || lowercasedOutput.contains("failures!")
+            || lowercasedOutput.contains("test result: fail")
+        {
+            return true
+        }
+
+        let regexPatterns = [
+            #"(?m)^\s*fail\s+\S+"#,                    // Jest style: FAIL src/file.test.ts
+            #"(?m)^\s*tests:\s+.*\bfailed\b"#,        // Jest summary line
+            #"(?m)^=+.*\b\d+\s+failed\b.*=+$"#,       // pytest summary
+            #"(?m)^\s*test result:\s*failed\b"#,      // cargo test summary
+        ]
+        for pattern in regexPatterns {
+            if lowercasedOutput.range(of: pattern, options: .regularExpression) != nil {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Testing hook for test-output classification.
+    static func outputSignalsTestFailure(_ output: String) -> Bool {
+        hasTestFailureSignal(in: output.lowercased())
+    }
+
     /// Run test suite and optionally retry with debugger.
     /// Passes `executionController` so the test process respects stop/pause signals.
     private static func runTests(
@@ -1265,18 +1306,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                 let fullOutput = output.joined(separator: "\n")
                 let lower = fullOutput.lowercased()
-                // Cross-framework test failure detection:
-                // Swift/XCTest, Jest/npm, pytest, JUnit, cargo, generic
-                let hasTestFailures = lower.contains("test failed")
-                    || lower.contains("tests failed")
-                    || lower.contains("assertion failed")
-                    || lower.contains("xctassertion failed")
-                    || lower.contains("failures!")          // JUnit
-                    || lower.contains("tests:") && lower.contains("failed") // Jest summary
-                    || lower.contains("fail ")              // Jest/npm "FAIL src/..."
-                    || lower.contains("failed!")            // pytest
-                    || lower.contains("error:")             // Generic compiler/test errors
-                    || lower.contains("test result: fail")  // cargo test
+                // Cross-framework failure detection with strict patterns only.
+                // Avoids false positives from generic tokens like "error:".
+                let hasTestFailures = hasTestFailureSignal(in: lower)
                 let passed = (status == 0) && !hasTestFailures
 
                 if passed {

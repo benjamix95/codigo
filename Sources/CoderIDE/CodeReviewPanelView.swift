@@ -801,15 +801,21 @@ func isValidGitRefFormat(_ ref: String) -> Bool {
     return true
 }
 
-func latestReviewWorkerPlanBatch(in activities: [TaskActivity], windowSeconds: TimeInterval = 2.0)
-    -> [TaskActivity]
-{
-    let plans = activities
-        .filter { $0.type == "review-worker-plan" }
-        .sorted { $0.timestamp < $1.timestamp }
-    guard let last = plans.last else { return [] }
-    let cutoff = last.timestamp.addingTimeInterval(-windowSeconds)
-    return plans.filter { $0.timestamp >= cutoff }
+func latestReviewWorkerPlanBatch(in activities: [TaskActivity]) -> [TaskActivity] {
+    guard let lastPlanIndex = activities.lastIndex(where: { $0.type == "review-worker-plan" }) else {
+        return []
+    }
+
+    var firstPlanIndex = lastPlanIndex
+    while firstPlanIndex > activities.startIndex {
+        let previousIndex = activities.index(before: firstPlanIndex)
+        guard activities[previousIndex].type == "review-worker-plan" else {
+            break
+        }
+        firstPlanIndex = previousIndex
+    }
+
+    return Array(activities[firstPlanIndex...lastPlanIndex])
 }
 
 func selectReviewWorkerActivities(from activities: [TaskActivity]) -> [TaskActivity] {

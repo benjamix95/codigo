@@ -17,7 +17,7 @@ struct DebugPanelView: View {
     @State private var expandedRuntimeLogId: String?
     @State private var isFilterExpanded = false
     @State private var hoveredPhase: DebugFlowPhase?
-    @State private var inputIsFocused = false
+    @FocusState private var isChatInputFocused: Bool
     @State private var showPhaseDetail = false
 
     private let topInteractiveInset: CGFloat = 22
@@ -1403,6 +1403,7 @@ struct DebugPanelView: View {
                 TextField("Ask about the bug…", text: $userInput)
                     .textFieldStyle(.plain)
                     .font(.system(size: 11.5))
+                    .focused($isChatInputFocused)
                     .onSubmit { submitInput() }
             }
             .padding(.horizontal, 10)
@@ -1411,7 +1412,7 @@ struct DebugPanelView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .strokeBorder(
-                        inputIsFocused ? accent.opacity(0.3) : Color.clear,
+                        isChatInputFocused ? accent.opacity(0.3) : Color.clear,
                         lineWidth: 1
                     )
             )

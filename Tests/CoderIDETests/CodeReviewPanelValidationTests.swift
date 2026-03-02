@@ -58,16 +58,17 @@ final class CodeReviewPanelValidationTests: XCTestCase {
 
     // MARK: - Review worker activity selection
 
-    func testLatestReviewWorkerPlanBatch_returnsOnlyMostRecentBatch() {
+    func testLatestReviewWorkerPlanBatch_returnsMostRecentContiguousBatch() {
         let base = Date(timeIntervalSinceReferenceDate: 1000)
         let activities: [TaskActivity] = [
             TaskActivity(type: "review-worker-plan", title: "old-1", timestamp: base),
             TaskActivity(type: "review-worker-plan", title: "old-2", timestamp: base.addingTimeInterval(0.5)),
+            TaskActivity(type: "analysis-step", title: "separator", timestamp: base.addingTimeInterval(1.0)),
             TaskActivity(type: "review-worker-plan", title: "new-1", timestamp: base.addingTimeInterval(5.0)),
             TaskActivity(type: "review-worker-plan", title: "new-2", timestamp: base.addingTimeInterval(5.4)),
         ]
 
-        let batch = latestReviewWorkerPlanBatch(in: activities, windowSeconds: 1.0)
+        let batch = latestReviewWorkerPlanBatch(in: activities)
         XCTAssertEqual(batch.count, 2)
         XCTAssertEqual(batch.map(\.title), ["new-1", "new-2"])
     }
@@ -90,6 +91,7 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         let activities: [TaskActivity] = [
             TaskActivity(type: "review-worker-plan", title: "very-old-1", timestamp: base),
             TaskActivity(type: "review-worker-plan", title: "very-old-2", timestamp: base.addingTimeInterval(0.4)),
+            TaskActivity(type: "analysis-step", title: "separator", timestamp: base.addingTimeInterval(1.0)),
             TaskActivity(type: "review-worker-plan", title: "latest-1", timestamp: base.addingTimeInterval(4.0)),
             TaskActivity(type: "review-worker-plan", title: "latest-2", timestamp: base.addingTimeInterval(4.6)),
             TaskActivity(type: "review-fix-round", title: "round-1", timestamp: base.addingTimeInterval(6.0)),
