@@ -649,6 +649,7 @@ struct ShiftTabPlanShortcutTransition: Equatable {
     let nextInputText: String
     let shouldFocusInput: Bool
     let shouldHighlightPlanToggle: Bool
+    let shouldEnablePlanToggle: Bool
     let nextPrimedUntil: Date?
 }
 
@@ -657,37 +658,33 @@ func evaluateShiftTabPlanShortcut(
     primedUntil: Date?,
     currentInputText: String
 ) -> ShiftTabPlanShortcutTransition {
-    if let primedUntil, primedUntil > now {
-        let trimmed = currentInputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return ShiftTabPlanShortcutTransition(
-                nextInputText: "/plan ",
-                shouldFocusInput: true,
-                shouldHighlightPlanToggle: false,
-                nextPrimedUntil: nil
-            )
-        }
-        if trimmed.lowercased().hasPrefix("/plan") {
-            return ShiftTabPlanShortcutTransition(
-                nextInputText: currentInputText,
-                shouldFocusInput: true,
-                shouldHighlightPlanToggle: false,
-                nextPrimedUntil: nil
-            )
-        }
+    _ = now
+    _ = primedUntil
+    let trimmed = currentInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
         return ShiftTabPlanShortcutTransition(
-            nextInputText: "/plan " + trimmed,
+            nextInputText: "/plan ",
             shouldFocusInput: true,
             shouldHighlightPlanToggle: false,
+            shouldEnablePlanToggle: true,
             nextPrimedUntil: nil
         )
     }
-
+    if trimmed.lowercased().hasPrefix("/plan") {
+        return ShiftTabPlanShortcutTransition(
+            nextInputText: currentInputText,
+            shouldFocusInput: true,
+            shouldHighlightPlanToggle: false,
+            shouldEnablePlanToggle: true,
+            nextPrimedUntil: nil
+        )
+    }
     return ShiftTabPlanShortcutTransition(
-        nextInputText: currentInputText,
-        shouldFocusInput: false,
-        shouldHighlightPlanToggle: true,
-        nextPrimedUntil: now.addingTimeInterval(2.5)
+        nextInputText: "/plan " + trimmed,
+        shouldFocusInput: true,
+        shouldHighlightPlanToggle: false,
+        shouldEnablePlanToggle: true,
+        nextPrimedUntil: nil
     )
 }
 
@@ -1029,7 +1026,7 @@ struct ChatPanelView: View {
         "Plan available in the Plan Panel."
     }
     private var shouldShowPlanTodosInChat: Bool {
-        return hasActivePlanContext
+        return true
     }
     private var shouldRoutePlanStreamingToPanel: Bool {
         return hasActivePlanContext
@@ -1636,7 +1633,10 @@ struct ChatPanelView: View {
                 )
             },
             onCustomResponse: { response in
-                executeWithPlanChoice(response, fromPlanConversationId: planPanelConversationId)
+                handleCustomPlanResponseSelection(
+                    response,
+                    fromPlanConversationId: planPanelConversationId
+                )
             },
             onSubmitClarificationAnswers: { answers in
                 submitPlanClarificationAnswers(answers)
@@ -2031,6 +2031,9 @@ struct ChatPanelView: View {
 
         inputText = transition.nextInputText
         planShortcutPrimedUntil = transition.nextPrimedUntil
+        if transition.shouldEnablePlanToggle {
+            planToggleEnabled = true
+        }
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             isPlanTabHovered = transition.shouldHighlightPlanToggle
@@ -2647,7 +2650,6 @@ struct ChatPanelView: View {
                             )
                             if message.role == .assistant {
                                 if shouldShowPlanTodosInChat,
-                                   !suppressPlanArtifacts,
                                    !todoStore.todos.isEmpty,
                                    message.id == latestAssistantMessageId
                                 {
@@ -2780,7 +2782,6 @@ struct ChatPanelView: View {
         }
 
         if shouldShowPlanTodosInChat,
-           !suppressPlanArtifacts,
            !todoStore.todos.isEmpty,
            message.id == latestAssistantMessageId
         {
@@ -5566,6 +5567,43 @@ struct ChatPanelView: View {
             planFlowPhase = .readyToBuild
         }
         // Do NOT auto-execute: wait for user to click "Build" in the plan panel.
+    }
+
+    @MainActor
+    private func handleCustomPlanResponseSelection(
+        _ response: String,
+        fromPlanConversationId explicitPlanConversationId: UUID? = nil
+    ) {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let hasTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(trimmed)
+        let todos = PlanOptionsParser.extractTodosFromOptionText(trimmed)
+        if hasTodoHeader, !todos.isEmpty {
+            executeWithPlanChoice(
+                trimmed,
+                fromPlanConversationId: explicitPlanConversationId
+            )
+            return
+        }
+
+        // A free-form custom response should regenerate a plan, not try to execute
+        // immediately (execution requires a compliant `## Todo` checklist).
+        let baseRequest = planUserRequest.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mergedRequest: String
+        if baseRequest.isEmpty {
+            mergedRequest = trimmed
+        } else {
+            mergedRequest = """
+            \(baseRequest)
+
+            Custom direction:
+            \(trimmed)
+            """
+        }
+        inputText = "/plan \(mergedRequest)"
+        isInputFocused = true
+        sendMessage()
     }
 
     private func executeWithPlanChoice(

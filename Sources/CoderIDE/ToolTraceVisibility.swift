@@ -16,8 +16,6 @@ enum ToolTraceVisibility {
 
     private static let hiddenDisplayTypes: Set<String> = hiddenIncludeTypes.union([
         "policy_ack",
-        "todo_write",
-        "todo_read",
         "agent",
     ])
 

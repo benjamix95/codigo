@@ -175,15 +175,39 @@ struct MermaidWebView: NSViewRepresentable {
                 <pre class="mermaid">\(escapedCode)</pre>
             </div>
             <script type="module">
-                import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
                 const postToHost = (type, payload = '') => {
                     try {
                         window.webkit?.messageHandlers?.mermaidImageBridge?.postMessage({ type, payload });
                     } catch (e) {}
                 };
 
-                mermaid.initialize({
+                const setError = (message) => {
+                    const container = document.getElementById('mermaid-container');
+                    if (container) {
+                        container.innerHTML = `<div class="error">${message}</div>`;
+                    }
+                    postToHost('height', '120');
+                    postToHost('error', message);
+                };
+
+                const loadMermaid = async () => {
+                    const sources = [
+                        'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs',
+                        'https://unpkg.com/mermaid@11/dist/mermaid.esm.min.mjs'
+                    ];
+                    let lastError = null;
+                    for (const source of sources) {
+                        try {
+                            const mod = await import(source);
+                            return mod.default ?? mod;
+                        } catch (error) {
+                            lastError = error;
+                        }
+                    }
+                    throw lastError ?? new Error('Unable to load mermaid runtime');
+                };
+
+                const mermaidConfig = {
                     startOnLoad: true,
                     theme: 'base',
                     themeVariables: {
@@ -267,13 +291,15 @@ struct MermaidWebView: NSViewRepresentable {
                     },
                     securityLevel: 'loose',
                     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif'
-                });
+                };
 
                 const ensureDiagramReady = (attempt = 0) => {
                     const svg = document.querySelector('#mermaid-container svg');
                     if (!svg) {
                         if (attempt < 100) {
                             requestAnimationFrame(() => ensureDiagramReady(attempt + 1));
+                        } else {
+                            setError('Unable to render Mermaid diagram. Check syntax/runtime.');
                         }
                         return;
                     }
@@ -319,36 +345,48 @@ struct MermaidWebView: NSViewRepresentable {
                         return new XMLSerializer().serializeToString(clone);
                     };
 
-                    const exportedSVG = generateExportSVG();
-                    postToHost('rendered', exportedSVG);
+                    try {
+                        const exportedSVG = generateExportSVG();
+                        postToHost('rendered', exportedSVG);
 
-                    // High quality PNG from the export SVG (which includes background)
-                    const scale = 4;
-                    const img = new Image();
-                    const blob = new Blob([exportedSVG], { type: 'image/svg+xml;charset=utf-8' });
-                    const blobURL = URL.createObjectURL(blob);
-                    img.onload = () => {
-                        // Use the image's natural dimensions (from the export SVG viewBox)
-                        const naturalW = img.naturalWidth || img.width;
-                        const naturalH = img.naturalHeight || img.height;
-                        const cw = Math.max(1, Math.ceil(naturalW * scale));
-                        const ch = Math.max(1, Math.ceil(naturalH * scale));
-                        const canvas = document.createElement('canvas');
-                        canvas.width = cw;
-                        canvas.height = ch;
-                        const ctx = canvas.getContext('2d');
-                        if (!ctx) { URL.revokeObjectURL(blobURL); return; }
-                        ctx.imageSmoothingEnabled = true;
-                        ctx.imageSmoothingQuality = 'high';
-                        ctx.drawImage(img, 0, 0, cw, ch);
-                        postToHost('renderedPNG', canvas.toDataURL('image/png'));
-                        URL.revokeObjectURL(blobURL);
-                    };
-                    img.onerror = () => URL.revokeObjectURL(blobURL);
-                    img.src = blobURL;
+                        // High quality PNG from the export SVG (which includes background)
+                        const scale = 4;
+                        const img = new Image();
+                        const blob = new Blob([exportedSVG], { type: 'image/svg+xml;charset=utf-8' });
+                        const blobURL = URL.createObjectURL(blob);
+                        img.onload = () => {
+                            // Use the image's natural dimensions (from the export SVG viewBox)
+                            const naturalW = img.naturalWidth || img.width;
+                            const naturalH = img.naturalHeight || img.height;
+                            const cw = Math.max(1, Math.ceil(naturalW * scale));
+                            const ch = Math.max(1, Math.ceil(naturalH * scale));
+                            const canvas = document.createElement('canvas');
+                            canvas.width = cw;
+                            canvas.height = ch;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) { URL.revokeObjectURL(blobURL); return; }
+                            ctx.imageSmoothingEnabled = true;
+                            ctx.imageSmoothingQuality = 'high';
+                            ctx.drawImage(img, 0, 0, cw, ch);
+                            postToHost('renderedPNG', canvas.toDataURL('image/png'));
+                            URL.revokeObjectURL(blobURL);
+                        };
+                        img.onerror = () => URL.revokeObjectURL(blobURL);
+                        img.src = blobURL;
+                    } catch (error) {
+                        setError('Failed to export Mermaid diagram.');
+                    }
                 };
 
-                requestAnimationFrame(ensureDiagramReady);
+                (async () => {
+                    try {
+                        const mermaid = await loadMermaid();
+                        mermaid.initialize(mermaidConfig);
+                        requestAnimationFrame(ensureDiagramReady);
+                    } catch (error) {
+                        setError('Mermaid runtime unavailable (offline/CDN blocked).');
+                    }
+                })();
             </script>
         </body>
         </html>

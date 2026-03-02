@@ -226,6 +226,9 @@ final class TodoStore: ObservableObject {
         self.storageKey = storageKey
         self.userDefaults = userDefaults
         loadTodos()
+        // Ensure MCP `coderide_todo_read` sees the current in-memory state
+        // immediately on startup, even before the first mutation/save cycle.
+        syncToSharedState()
     }
 
     var visibleTodos: [TodoItem] {

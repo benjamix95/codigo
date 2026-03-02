@@ -93,7 +93,7 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertFalse(isCmdShiftPShortcut(flags: flags, charsIgnoringModifiers: "P"))
     }
 
-    func testEvaluateShiftTabPlanShortcutFirstPressOnlyHighlightsPlan() {
+    func testEvaluateShiftTabPlanShortcutFirstPressImmediatelyPrependsPlanCommand() {
         let now = Date()
         let result = evaluateShiftTabPlanShortcut(
             now: now,
@@ -101,14 +101,14 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             currentInputText: "fix parser"
         )
 
-        XCTAssertEqual(result.nextInputText, "fix parser")
-        XCTAssertFalse(result.shouldFocusInput)
-        XCTAssertTrue(result.shouldHighlightPlanToggle)
-        XCTAssertNotNil(result.nextPrimedUntil)
-        XCTAssertTrue(result.nextPrimedUntil! > now)
+        XCTAssertEqual(result.nextInputText, "/plan fix parser")
+        XCTAssertTrue(result.shouldFocusInput)
+        XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertNil(result.nextPrimedUntil)
     }
 
-    func testEvaluateShiftTabPlanShortcutSecondPressPrependsPlanCommand() {
+    func testEvaluateShiftTabPlanShortcutWithPrimedStateStillPrependsPlanCommand() {
         let now = Date()
         let result = evaluateShiftTabPlanShortcut(
             now: now,
@@ -119,10 +119,11 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertEqual(result.nextInputText, "/plan analyze the refactor")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertTrue(result.shouldEnablePlanToggle)
         XCTAssertNil(result.nextPrimedUntil)
     }
 
-    func testEvaluateShiftTabPlanShortcutSecondPressWithEmptyInputSetsPlanOnly() {
+    func testEvaluateShiftTabPlanShortcutWithEmptyInputSetsPlanOnly() {
         let now = Date()
         let result = evaluateShiftTabPlanShortcut(
             now: now,
@@ -133,10 +134,11 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertEqual(result.nextInputText, "/plan ")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertTrue(result.shouldEnablePlanToggle)
         XCTAssertNil(result.nextPrimedUntil)
     }
 
-    func testEvaluateShiftTabPlanShortcutSecondPressKeepsExistingPlanPrefix() {
+    func testEvaluateShiftTabPlanShortcutKeepsExistingPlanPrefix() {
         let now = Date()
         let result = evaluateShiftTabPlanShortcut(
             now: now,
@@ -147,10 +149,11 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertEqual(result.nextInputText, "/plan roadmap fix")
         XCTAssertTrue(result.shouldFocusInput)
         XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertTrue(result.shouldEnablePlanToggle)
         XCTAssertNil(result.nextPrimedUntil)
     }
 
-    func testEvaluateShiftTabPlanShortcutAfterExpiryHighlightsAgain() {
+    func testEvaluateShiftTabPlanShortcutAfterExpiryStillPrependsPlanCommand() {
         let now = Date()
         let result = evaluateShiftTabPlanShortcut(
             now: now,
@@ -158,10 +161,11 @@ final class PlanShortcutAndCommandTests: XCTestCase {
             currentInputText: "nuovo task"
         )
 
-        XCTAssertEqual(result.nextInputText, "nuovo task")
-        XCTAssertFalse(result.shouldFocusInput)
-        XCTAssertTrue(result.shouldHighlightPlanToggle)
-        XCTAssertNotNil(result.nextPrimedUntil)
+        XCTAssertEqual(result.nextInputText, "/plan nuovo task")
+        XCTAssertTrue(result.shouldFocusInput)
+        XCTAssertFalse(result.shouldHighlightPlanToggle)
+        XCTAssertTrue(result.shouldEnablePlanToggle)
+        XCTAssertNil(result.nextPrimedUntil)
     }
 
     func testEvaluateCmdShiftPPlanShortcutFirstPressEnablesInlinePlanOnly() {

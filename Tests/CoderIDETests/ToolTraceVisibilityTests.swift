@@ -81,7 +81,7 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertFalse(ToolTraceVisibility.shouldInclude(activity: fakeMCP))
     }
 
-    func testTodoWriteIsIncludedButNotDisplayedAndDoesNotRequirePolicyAck() {
+    func testTodoWriteIsIncludedDisplayedAndDoesNotRequirePolicyAck() {
         let activity = TaskActivity(
             type: "todo_write",
             title: "Todo updated",
@@ -95,7 +95,7 @@ final class ToolTraceVisibilityTests: XCTestCase {
 
         XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
         let event = makeEvent(type: "todo_write", payload: activity.payload)
-        XCTAssertFalse(ToolTraceVisibility.shouldDisplay(event: event))
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
         XCTAssertFalse(
             ToolTraceVisibility.requiresPolicyAck(
                 type: "todo_write",

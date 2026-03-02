@@ -557,7 +557,7 @@ struct PlanPanelView: View {
     }
 
     private var isPreBuildPlanState: Bool {
-        if planningState != .idle {
+        if case .awaitingClarification = planningState {
             return true
         }
         switch planFlowPhase {
