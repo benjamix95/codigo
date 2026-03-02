@@ -62,6 +62,30 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertNotNil(codebaseSearch.properties["path"])
     }
 
+    func testDebugCleanSchemaMentionsVariablesType() throws {
+        let debugClean = try XCTUnwrap(ToolSchemaCatalog.entries.first(where: { $0.name == "debug_clean" }))
+        let typeDescription = debugClean.properties["type"]?["description"] ?? ""
+        XCTAssertTrue(typeDescription.contains("variables"))
+    }
+
+    func testNativeRegistryEnumSerializationUsesJSONArrayString() throws {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "enum_tool",
+            description: "Enum test",
+            schema: #"{"type":"object","properties":{"mode":{"type":"string","enum":["fast","safe"]}}}"#,
+            serverId: "enum-server",
+            serverName: "enum"
+        )
+
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+        let registered = try XCTUnwrap(registry.entries.first)
+        XCTAssertEqual(registered.properties["mode"]?["enum"], #"["fast","safe"]"#)
+    }
+
     func testOpenAISchemaIncludesPlanAndSwarmTools() {
         let names: Set<String> = Set(
             ToolSchemaCatalog.openAIFunctionTools.compactMap { item in

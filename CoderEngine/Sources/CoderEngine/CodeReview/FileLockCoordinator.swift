@@ -6,6 +6,8 @@ public actor FileLockCoordinator {
     private var lockedFiles: [String: String] = [:]
     /// FIFO queue for fairness: swarm IDs in order of first lock request
     private var waitQueue: [String] = []
+    /// Pending file sets per waiting swarm (used to keep fairness for overlapping requests only).
+    private var waitingRequests: [String: Set<String>] = [:]
 
     /// Acquires lock on files; blocks until available with a safety timeout.
     /// Accepts an optional cancellation check to exit the wait loop early.
@@ -22,6 +24,7 @@ public actor FileLockCoordinator {
         if !waitQueue.contains(swarmId) {
             waitQueue.append(swarmId)
         }
+        waitingRequests[swarmId] = files
 
         let maxDuration: UInt64 = 300_000_000_000 // 5 minutes in nanoseconds
         let startTime = DispatchTime.now().uptimeNanoseconds
@@ -29,17 +32,19 @@ public actor FileLockCoordinator {
 
         while (DispatchTime.now().uptimeNanoseconds - startTime) < maxDuration {
             if isCancelled?() == true || Task.isCancelled {
-                waitQueue.removeAll { $0 == swarmId }
+                removeWaitingRequest(swarmId)
                 return false
             }
+
             let intersection = files.filter { lockedFiles[$0] != nil && lockedFiles[$0] != swarmId }
-            if intersection.isEmpty {
-                // Only acquire if this swarm is at the front of the queue (fairness)
-                // or no other queued swarm is waiting for these same files
+            let hasConflictingWaiterAhead = hasOverlappingWaiterAhead(of: swarmId, files: files)
+            if intersection.isEmpty && !hasConflictingWaiterAhead {
+                // Allow parallelism for disjoint file sets, but preserve FIFO fairness
+                // for swarms waiting on overlapping files.
                 for f in files {
                     lockedFiles[f] = swarmId
                 }
-                waitQueue.removeAll { $0 == swarmId }
+                removeWaitingRequest(swarmId)
                 return true
             }
 
@@ -50,7 +55,7 @@ public actor FileLockCoordinator {
         }
 
         // Timed out — do NOT force-acquire to avoid overwriting another swarm's lock
-        waitQueue.removeAll { $0 == swarmId }
+        removeWaitingRequest(swarmId)
         return false
     }
 
@@ -65,6 +70,26 @@ public actor FileLockCoordinator {
     /// Use this for cleanup on task cancellation or errors to prevent orphaned locks.
     public func releaseAllLocks(swarmId: String) {
         lockedFiles = lockedFiles.filter { $0.value != swarmId }
+        removeWaitingRequest(swarmId)
+    }
+
+    private func hasOverlappingWaiterAhead(of swarmId: String, files: Set<String>) -> Bool {
+        for queuedSwarmId in waitQueue {
+            if queuedSwarmId == swarmId {
+                return false
+            }
+            guard let queuedFiles = waitingRequests[queuedSwarmId] else {
+                continue
+            }
+            if !queuedFiles.isDisjoint(with: files) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func removeWaitingRequest(_ swarmId: String) {
         waitQueue.removeAll { $0 == swarmId }
+        waitingRequests.removeValue(forKey: swarmId)
     }
 }

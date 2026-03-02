@@ -3,6 +3,7 @@ import Foundation
 /// Pure-function helpers shared between CoderIDEMCPServer and tests.
 /// These have no MCP dependencies — only Foundation and SubagentRole.
 public enum SubagentCLIConfig {
+    public static let constrainedPATH = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
 
     /// Whether a subagent role should run in read-only sandbox mode.
     /// Explorer, reviewer, and securityAuditor only analyze — they never edit files.
@@ -20,6 +21,26 @@ public enum SubagentCLIConfig {
         // Keep subagent execution safely under common MCP tools/call deadlines (120s),
         // otherwise the client can time out before this process reports its own timeout.
         isReadOnly(role) ? 95 : 110
+    }
+
+    /// Preferred CLI backend names by capability.
+    /// - Read-only roles: codex first, then claude.
+    /// - Write roles: codex only (workspace sandbox support required).
+    public static func preferredBackendNames(readOnly: Bool) -> [String] {
+        readOnly ? ["codex", "claude"] : ["codex"]
+    }
+
+    /// Whether the selected CLI backend can satisfy sandbox expectations.
+    public static func supportsSandboxExpectations(cliPath: String, readOnly: Bool) -> Bool {
+        let basename = URL(fileURLWithPath: cliPath).lastPathComponent.lowercased()
+        switch basename {
+        case "codex":
+            return true
+        case "claude":
+            return readOnly
+        default:
+            return false
+        }
     }
 
     /// Build CLI arguments for a given backend (codex, claude, gemini).

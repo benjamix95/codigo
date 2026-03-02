@@ -596,6 +596,14 @@ enum ProviderToolEventMapper {
         ].contains(tool)
     }
 
+    private static func isDebugTool(_ tool: String) -> Bool {
+        [
+            "debug_context", "debug_log", "debug_query", "debug_session",
+            "debug_hypothesize", "debug_mark", "debug_clean", "debug_trace_analyze",
+            "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
+        ].contains(tool)
+    }
+
     private static func isAgentTool(_ tool: String) -> Bool {
         if ["task", "sub_agent", "subagent", "agent", "run_agent"].contains(tool) {
             return true
@@ -748,6 +756,9 @@ enum ProviderToolEventMapper {
 
         if normalizedMCP == "todo_write" || normalizedMCP == "todo_read" {
             return mapTodo(tool: normalizedMCP, payload: payload)
+        }
+        if isDebugTool(normalizedMCP) {
+            return mapDebug(tool: normalizedMCP, payload: payload)
         }
         if normalizedMCP == "plan_step_update" || normalizedMCP == "plan_step" {
             var mapped: [String: String] = [:]

@@ -235,8 +235,15 @@ public actor DebugLogServer {
         if let rid = runId {
             filtered = filtered.filter { $0.runId == rid }
         }
-        if let hid = hypothesisId {
-            filtered = filtered.filter { $0.hypothesisId == hid }
+        if let hid = hypothesisId,
+           !hid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let withHypothesisFilter = QueryResult(
+                entries: filtered,
+                totalCount: filtered.count,
+                errorCount: filtered.filter { $0.severity == "error" }.count,
+                warningCount: filtered.filter { $0.severity == "warning" }.count
+            ).filteredByHypothesisId(hid)
+            filtered = withHypothesisFilter.entries
         }
         return Array(filtered.suffix(limit))
     }
@@ -469,14 +476,16 @@ public actor DebugLogServer {
             _ = FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
         }
 
-        if let handle = try? FileHandle(forWritingTo: logFileURL) {
-            handle.seekToEndOfFile()
-            handle.write(lineData)
-            try? handle.close()
+        do {
+            let handle = try FileHandle(forWritingTo: logFileURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: lineData)
             return
+        } catch {
+            // Fall through to full rewrite to avoid dropping the newly appended entry.
         }
 
-        // Avoid atomic overwrite fallback here: preserve in-memory entries and rewrite safely.
         persistToDisk()
     }
 

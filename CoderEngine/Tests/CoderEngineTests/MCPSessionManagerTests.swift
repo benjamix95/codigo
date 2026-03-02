@@ -2,6 +2,40 @@ import XCTest
 @testable import CoderEngine
 
 final class MCPSessionManagerTests: XCTestCase {
+    func testMCPLogStoreWarnAliasUsesWarningThreshold() async {
+        let store = MCPLogStore(maxEntries: 50)
+        await store.append(MCPLogEntry(
+            timestamp: .now,
+            level: "info",
+            message: "info",
+            serverId: "s1",
+            serverName: "Server 1",
+            logger: nil
+        ))
+        await store.append(MCPLogEntry(
+            timestamp: .now,
+            level: "warning",
+            message: "warning",
+            serverId: "s1",
+            serverName: "Server 1",
+            logger: nil
+        ))
+        await store.append(MCPLogEntry(
+            timestamp: .now,
+            level: "error",
+            message: "error",
+            serverId: "s1",
+            serverName: "Server 1",
+            logger: nil
+        ))
+
+        let filtered = await store.logs(severity: "warn", limit: 10)
+        let levels = Set(filtered.map(\.level))
+
+        XCTAssertEqual(levels, Set(["warning", "error"]))
+        XCTAssertFalse(levels.contains("info"))
+    }
+
     func testRequireUniqueServerMatchReturnsSingleMatch() throws {
         let server = makeServer(
             source: "manual",

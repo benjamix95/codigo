@@ -190,6 +190,25 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testDebugSetPhaseAliasMapsToDebugPhaseUpdate() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "test",
+            type: "debug_set_phase",
+            payload: [
+                "phase": "verifying",
+                "detail": "Running focused checks"
+            ]
+        )
+
+        XCTAssertEqual(envelope.kind, .debugPhaseUpdate)
+        XCTAssertTrue(envelope.events.contains {
+            if case .debugPhaseUpdate(let phase, let detail) = $0 {
+                return phase == .verifying && detail == "Running focused checks"
+            }
+            return false
+        })
+    }
+
     func testDebugUserRequestEmitsTypedEventAndActivity() {
         let events = EventNormalizer.normalize(
             type: "debug_user_request",

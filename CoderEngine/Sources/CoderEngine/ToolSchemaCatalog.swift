@@ -199,7 +199,12 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
                     entry["description"] = desc
                 }
                 if let enumValues = propDict["enum"] as? [String] {
-                    entry["enum"] = enumValues.joined(separator: ", ")
+                    if let encoded = try? JSONSerialization.data(withJSONObject: enumValues),
+                       let text = String(data: encoded, encoding: .utf8) {
+                        entry["enum"] = text
+                    } else {
+                        entry["enum"] = enumValues.joined(separator: ", ")
+                    }
                 }
                 simplified[key] = entry
             } else {
@@ -706,7 +711,7 @@ enum ToolSchemaCatalog {
             description: "Remove debug markers and instrumentation from files. Supports selective cleanup by type, dry-run preview, and hypothesis-scoped removal. Called automatically during 'Mark Fixed' flow, but can be used manually anytime.",
             properties: [
                 "path": ["type": "string", "description": "Clean only this file. If omitted, searches entire workspace."],
-                "type": ["type": "string", "description": "'all' (default), 'markers' (comment-only markers), 'logs' (print statements), 'asserts' (assertions), 'timing' (timing code)"],
+                "type": ["type": "string", "description": "'all' (default), 'markers' (comment-only markers), 'logs' (print statements), 'asserts' (assertions), 'timing' (timing code), 'variables' (variable captures)"],
                 "dry_run": ["type": "string", "description": "If 'true', shows what would be removed without actually removing. Useful for preview."],
                 "hypothesis_id": ["type": "string", "description": "Remove only markers linked to this hypothesis"]
             ],

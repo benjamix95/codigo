@@ -101,4 +101,47 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertEqual(selected.count, 2)
         XCTAssertEqual(selected.map(\.title), ["latest-1", "latest-2"])
     }
+
+    func testSortedReviewWorkerPlanActivitiesForDisplay_usesNaturalWorkerOrdering() {
+        let base = Date(timeIntervalSinceReferenceDate: 4000)
+        let activities: [TaskActivity] = [
+            TaskActivity(type: "review-worker-plan", title: "w10", payload: ["worker_id": "review-10"], timestamp: base.addingTimeInterval(0.2)),
+            TaskActivity(type: "review-worker-plan", title: "w2", payload: ["worker_id": "review-2"], timestamp: base.addingTimeInterval(0.1)),
+            TaskActivity(type: "review-worker-plan", title: "w1", payload: ["worker_id": "review-1"], timestamp: base),
+        ]
+
+        let sorted = sortedReviewWorkerPlanActivitiesForDisplay(activities)
+        XCTAssertEqual(sorted.map(\.title), ["w1", "w2", "w10"])
+    }
+
+    func testScopedTaskActivitiesForConversation_filtersMismatchedConversation() {
+        let convA = UUID()
+        let convB = UUID()
+        let activities: [TaskActivity] = [
+            TaskActivity(type: "review-worker-plan", title: "a", payload: ["conversation_id": convA.uuidString.lowercased()]),
+            TaskActivity(type: "review-worker-plan", title: "b", payload: ["conversation_id": convB.uuidString.lowercased()]),
+            TaskActivity(type: "review-worker-plan", title: "untagged"),
+        ]
+
+        let scoped = scopedTaskActivitiesForConversation(activities, conversationId: convA)
+        XCTAssertEqual(scoped.map(\.title), ["a", "untagged"])
+    }
+
+    func testReviewCardBelongsToConversation_checksRecentEventConversation() {
+        let convA = UUID()
+        let convB = UUID()
+        let cardForB = SwarmLiveCardState(
+            swarmId: "review-2",
+            recentEvents: [
+                TaskActivity(
+                    type: "agent",
+                    title: "worker",
+                    payload: ["conversation_id": convB.uuidString.lowercased()]
+                )
+            ]
+        )
+
+        XCTAssertFalse(reviewCardBelongsToConversation(cardForB, conversationId: convA))
+        XCTAssertTrue(reviewCardBelongsToConversation(cardForB, conversationId: convB))
+    }
 }

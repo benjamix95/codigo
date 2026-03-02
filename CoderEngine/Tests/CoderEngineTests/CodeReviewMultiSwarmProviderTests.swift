@@ -126,6 +126,39 @@ final class CodeReviewMultiSwarmProviderTests: XCTestCase {
         }
     }
 
+    func testParseTasksJSON_normalizesDuplicateWorkerIDs() {
+        let json = """
+        [
+          {"id": "review-0", "description": "Fix A", "files": ["a.swift"], "severity": "warning"},
+          {"id": "review-0", "description": "Fix B", "files": ["b.swift"], "severity": "critical"}
+        ]
+        """
+        let result = CodeReviewMultiSwarmProvider.parseTasksJSON(json, allowedFiles: nil)
+        if case .tasks(let tasks) = result {
+            XCTAssertEqual(tasks.count, 2)
+            XCTAssertEqual(tasks[0].id, "review-0")
+            XCTAssertEqual(tasks[1].id, "review-1")
+            XCTAssertNotEqual(tasks[0].id, tasks[1].id)
+        } else {
+            XCTFail("Expected .tasks")
+        }
+    }
+
+    func testParseTasksJSON_dedupesAndTrimsFilesWithinTask() {
+        let json = """
+        [
+          {"id": "review-0", "description": "Fix A", "files": [" a.swift ", "a.swift", "b.swift", "  "], "severity": "warning"}
+        ]
+        """
+        let result = CodeReviewMultiSwarmProvider.parseTasksJSON(json, allowedFiles: nil)
+        if case .tasks(let tasks) = result {
+            XCTAssertEqual(tasks.count, 1)
+            XCTAssertEqual(tasks[0].files, ["a.swift", "b.swift"])
+        } else {
+            XCTFail("Expected .tasks")
+        }
+    }
+
     // MARK: - extractReviewTasksJSON
 
     func testExtractReviewTasksJSON_fromCodeBlock() {

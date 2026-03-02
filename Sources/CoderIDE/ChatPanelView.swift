@@ -620,6 +620,12 @@ func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {
     }
 }
 
+func shouldAutoOpenSwarmPanelForEvent(eventConversationId: UUID?, selectedConversationId: UUID?) -> Bool {
+    guard let selectedConversationId else { return false }
+    guard let eventConversationId else { return true }
+    return eventConversationId == selectedConversationId
+}
+
 func shouldStartDebugSessionOnAutoActivate(currentPhase: DebugFlowPhase) -> Bool {
     switch currentPhase {
     case .idle, .resolved:
@@ -4365,8 +4371,7 @@ struct ChatPanelView: View {
                 debugStore.startDebugSession(errorContext: payload.detail ?? "")
             }
         case "clear":
-            debugStore.clearLogs()
-            debugStore.clearRuntimeLogs()
+            debugStore.resetSession()
         case "end", "stop":
             if debugStore.phase != .resolved {
                 debugStore.setPhase(.verifying)
@@ -7841,7 +7846,13 @@ struct ChatPanelView: View {
             }
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
-        if t == "coderide_show_swarm_panel", planFlowPhase != .building {
+        if t == "coderide_show_swarm_panel",
+           planFlowPhase != .building,
+           shouldAutoOpenSwarmPanelForEvent(
+               eventConversationId: convId,
+               selectedConversationId: selectedConversationId
+           )
+        {
             showSwarmPanel = true
             if let swarmId = SwarmMetadata.swarmId(from: p) {
                 selectedSwarmId = swarmId
@@ -8094,7 +8105,7 @@ struct ChatPanelView: View {
             return false
         }
         guard let eventConversationId else {
-            return false
+            return true
         }
         return eventConversationId == selectedConversationId
     }
@@ -9082,7 +9093,7 @@ struct ChatPanelView: View {
             let tagged = (activity.payload["conversation_id"] ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-            return tagged.isEmpty || tagged == expected
+            return tagged == expected
         }
     }
 

@@ -426,6 +426,23 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["tool"], "debug_log")
     }
 
+    func testMCPCallCoderideDebugLogMapsToTypedDebugLogEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_server": "coderide",
+                "mcp_tool": "coderide_debug_log",
+                "severity": "warning",
+                "source": "Runtime",
+                "message": "Slow response",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_log")
+        XCTAssertEqual(mapped?.payload["tool"], "debug_log")
+        XCTAssertEqual(mapped?.payload["message"], "Slow response")
+    }
+
     func testDebugSessionMapsToTypedDebugSessionEvent() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "coderide_debug_session",

@@ -598,7 +598,7 @@ enum EventNormalizer {
         if normalized == "mcp_tool_call", !isTrustedMCPPayload(payload) {
             return "command_execution"
         }
-        let normalizedCanonicalType = normalizedToolIdentifier(normalized)
+        let normalizedCanonicalType = remapLegacyDebugTool(normalizedToolIdentifier(normalized))
         if [
             "semantic_search", "read_lints", "debug_context",
             "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
@@ -611,15 +611,16 @@ enum EventNormalizer {
             return "file_change"
         }
         if normalized == "read_batch_completed",
-           let rawToolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           [
-               "semantic_search", "read_lints", "debug_context",
-               "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
-               "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
-               "debug_phase_update", "debug_user_request", "debug_resolved",
-           ].contains(normalizedToolIdentifier(rawToolName))
-        {
-            return normalizedToolIdentifier(rawToolName)
+           let rawToolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            let remappedTool = remapLegacyDebugTool(rawToolName)
+            if [
+                "semantic_search", "read_lints", "debug_context",
+                "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+                "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
+                "debug_phase_update", "debug_user_request", "debug_resolved",
+            ].contains(remappedTool) {
+                return remappedTool
+            }
         }
         if normalized == "web_search",
            let status = payload["status"]?.lowercased() {
@@ -640,6 +641,19 @@ enum EventNormalizer {
             }
         }
         return normalizedCanonicalType
+    }
+
+    private static func remapLegacyDebugTool(_ raw: String) -> String {
+        switch normalizedToolIdentifier(raw) {
+        case "debug_set_phase":
+            return "debug_phase_update"
+        case "debug_request_user":
+            return "debug_user_request"
+        case "debug_resolve":
+            return "debug_resolved"
+        default:
+            return normalizedToolIdentifier(raw)
+        }
     }
 
     private static func normalizedToolIdentifier(_ raw: String) -> String {

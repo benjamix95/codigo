@@ -53,13 +53,21 @@ struct CodeReviewPanelView: View {
         guard coderMode == .codeReviewMultiSwarm, isTaskRunning else {
             return Metrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
         }
+        let activities = scopedTaskActivitiesForConversation(
+            taskActivityStore.activities,
+            conversationId: conversationId
+        )
         let cards = taskActivityStore
             .swarmCardStates()
-            .filter { $0.swarmId.hasPrefix("review-") }
+            .filter {
+                $0.swarmId.hasPrefix("review-")
+                    && reviewCardBelongsToConversation($0, conversationId: conversationId)
+            }
         let active = cards.filter { $0.status == .running }.count
-        let activities = taskActivityStore.activities
 
-        let workerActivities = selectReviewWorkerActivities(from: activities)
+        let workerActivities = sortedReviewWorkerPlanActivitiesForDisplay(
+            selectReviewWorkerActivities(from: activities)
+        )
 
         let workers: [WorkerRow] = workerActivities.compactMap { a in
             guard let wid = a.payload["worker_id"],
@@ -816,6 +824,51 @@ func latestReviewWorkerPlanBatch(in activities: [TaskActivity]) -> [TaskActivity
     }
 
     return Array(activities[firstPlanIndex...lastPlanIndex])
+}
+
+func scopedTaskActivitiesForConversation(
+    _ activities: [TaskActivity],
+    conversationId: UUID?
+) -> [TaskActivity] {
+    guard let conversationId else { return activities }
+    let expected = conversationId.uuidString.lowercased()
+    return activities.filter { activity in
+        let tagged = (activity.payload["conversation_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return tagged.isEmpty || tagged == expected
+    }
+}
+
+func reviewCardBelongsToConversation(
+    _ card: SwarmLiveCardState,
+    conversationId: UUID?
+) -> Bool {
+    guard conversationId != nil else { return true }
+    guard !card.recentEvents.isEmpty else { return false }
+    return !scopedTaskActivitiesForConversation(card.recentEvents, conversationId: conversationId).isEmpty
+}
+
+func sortedReviewWorkerPlanActivitiesForDisplay(_ activities: [TaskActivity]) -> [TaskActivity] {
+    activities.sorted { lhs, rhs in
+        let lhsWorkerID = (lhs.payload["worker_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhsWorkerID = (rhs.payload["worker_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let lhsHasWorker = !lhsWorkerID.isEmpty
+        let rhsHasWorker = !rhsWorkerID.isEmpty
+
+        if lhsHasWorker && rhsHasWorker && lhsWorkerID != rhsWorkerID {
+            return lhsWorkerID.localizedStandardCompare(rhsWorkerID) == .orderedAscending
+        }
+        if lhsHasWorker != rhsHasWorker {
+            return lhsHasWorker
+        }
+        if lhs.timestamp != rhs.timestamp {
+            return lhs.timestamp < rhs.timestamp
+        }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
 }
 
 func selectReviewWorkerActivities(from activities: [TaskActivity]) -> [TaskActivity] {

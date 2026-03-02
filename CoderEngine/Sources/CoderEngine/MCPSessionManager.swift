@@ -181,7 +181,11 @@ public actor MCPLogStore {
 
     private func severityAndAbove(_ severity: String) -> Set<String> {
         let ordered = ["debug", "info", "notice", "warning", "error", "critical", "alert", "emergency"]
-        guard let idx = ordered.firstIndex(of: severity.lowercased()) else {
+        let normalizedInput = severity
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalized = normalizedInput == "warn" ? "warning" : normalizedInput
+        guard let idx = ordered.firstIndex(of: normalized) else {
             return Set(ordered)
         }
         return Set(ordered[idx...])

@@ -2720,6 +2720,190 @@ public actor UnifiedToolRuntime {
         return out
     }
 
+    private func parseDebugDataValue(_ value: Any?) -> [String: String] {
+        guard let value else { return [:] }
+        if let stringValue = value as? String {
+            return parseDebugDataArg(stringValue)
+        }
+        if let dict = value as? [String: String] {
+            return dict
+        }
+        if let dict = value as? [String: Any] {
+            var out: [String: String] = [:]
+            for (key, raw) in dict {
+                out[key] = String(describing: raw)
+            }
+            return out
+        }
+        return [:]
+    }
+
+    private func enrichedDebugDetail(detail: String?, stackTrace: String?, tags: String?) -> String? {
+        var parts: [String] = []
+        if let detail, !detail.isEmpty {
+            parts.append(detail)
+        }
+        if let stackTrace, !stackTrace.isEmpty {
+            parts.append("Stack Trace:\n\(stackTrace)")
+        }
+        if let tags, !tags.isEmpty {
+            parts.append("Tags: \(tags)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+    }
+
+    private func resolveExecutablePath(
+        candidates: [String],
+        commandName: String,
+        cwd: String
+    ) async -> String? {
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        let (output, _, exitCode) = await shellExec(
+            args: ["/usr/bin/which", commandName],
+            cwd: cwd,
+            timeout: 2_000
+        )
+        guard exitCode == 0 else { return nil }
+        let resolved = output
+            .components(separatedBy: "\n")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !resolved.isEmpty, FileManager.default.isExecutableFile(atPath: resolved) else {
+            return nil
+        }
+        return resolved
+    }
+
+    private func resolveRipgrepPath(cwd: String) async -> String? {
+        await resolveExecutablePath(
+            candidates: [
+                "/usr/bin/rg",
+                "/opt/homebrew/bin/rg",
+                "/usr/local/bin/rg",
+            ],
+            commandName: "rg",
+            cwd: cwd
+        )
+    }
+
+    private func discoverFilesContaining(_ needle: String, under rootPath: String) -> [String] {
+        let fm = FileManager.default
+        var matches: [String] = []
+
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: rootPath, isDirectory: &isDirectory) else {
+            return []
+        }
+
+        if !isDirectory.boolValue {
+            if let content = try? String(contentsOfFile: rootPath, encoding: .utf8), content.contains(needle) {
+                return [rootPath]
+            }
+            return []
+        }
+
+        guard let enumerator = fm.enumerator(
+            at: URL(fileURLWithPath: rootPath),
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return []
+        }
+
+        let skippedDirectories: Set<String> = [".git", ".build", "node_modules", "DerivedData"]
+        let maxFileSize = 1_500_000
+
+        for case let fileURL as URL in enumerator {
+            let name = fileURL.lastPathComponent
+            if skippedDirectories.contains(name) {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard let values = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .fileSizeKey]) else {
+                continue
+            }
+            if values.isDirectory == true {
+                continue
+            }
+            guard values.isRegularFile == true else {
+                continue
+            }
+            if let size = values.fileSize, size > maxFileSize {
+                continue
+            }
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8),
+                  content.contains(needle) else {
+                continue
+            }
+            matches.append(fileURL.path)
+        }
+
+        return matches
+    }
+
+    private enum HypothesisLookupResult {
+        case resolved(String)
+        case notFound
+        case ambiguous([String])
+    }
+
+    private func resolveHypothesisLookup(_ rawIdentifier: String) -> HypothesisLookupResult {
+        let normalized = rawIdentifier
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return .notFound }
+
+        if let exact = debugHypotheses.keys.first(where: { $0.lowercased() == normalized }) {
+            return .resolved(exact)
+        }
+
+        let short = String(normalized.prefix(8))
+        let candidates = debugHypotheses.keys.filter { hypothesisID in
+            let normalizedExisting = hypothesisID.lowercased()
+            return normalizedExisting.hasPrefix(normalized)
+                || String(normalizedExisting.prefix(8)) == short
+        }
+
+        if candidates.count == 1, let only = candidates.first {
+            return .resolved(only)
+        }
+        if candidates.count > 1 {
+            let prefixes = Array(Set(candidates.map { String($0.prefix(8)) })).sorted()
+            return .ambiguous(prefixes)
+        }
+        return .notFound
+    }
+
+    private func entryMatchesHypothesis(_ entry: DebugLogServer.LogEntry, filter hypothesisId: String?) -> Bool {
+        let normalizedFilter = (hypothesisId ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalizedFilter.isEmpty else { return true }
+
+        let short = String(normalizedFilter.prefix(8))
+        let entryHypothesis = (entry.hypothesisId ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if !entryHypothesis.isEmpty {
+            if entryHypothesis == normalizedFilter {
+                return true
+            }
+            if String(entryHypothesis.prefix(8)) == short {
+                return true
+            }
+        }
+
+        let detail = (entry.detail ?? "").lowercased()
+        let message = entry.message.lowercased()
+        return detail.contains(normalizedFilter)
+            || message.contains(normalizedFilter)
+            || detail.contains("[h:\(short)]")
+            || message.contains("[h:\(short)]")
+            || message.contains(short)
+    }
+
     private func normalizeHypothesisStatus(_ status: String, fallback: String) -> String {
         switch status.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "proposed", "investigating", "confirmed", "rejected":
@@ -3491,7 +3675,15 @@ public actor UnifiedToolRuntime {
         if files.isEmpty {
             let searchPaths = allWorkspacePaths.isEmpty ? ["."] : allWorkspacePaths
             let rgArgs = ["-rn", "--no-heading", query] + searchPaths
-            let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
+            guard let rgPath = await resolveRipgrepPath(cwd: primaryWorkspace) else {
+                let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+                return ToolResult(
+                    ok: false,
+                    payload: ["detail": "ripgrep executable not found. Install 'rg' or provide indexed references."],
+                    durationMs: ms
+                )
+            }
+            let (output, _, _) = await shellExec(args: [rgPath] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
             for line in output.components(separatedBy: "\n") {
                 let parts = line.components(separatedBy: ":")
                 if parts.count >= 3, let lineNum = Int(parts[1]) {
@@ -3551,7 +3743,15 @@ public actor UnifiedToolRuntime {
         rgArgs.append(pattern)
         rgArgs.append(contentsOf: searchPaths.isEmpty ? ["."] : searchPaths)
 
-        let (output, _, _) = await shellExec(args: ["/usr/bin/rg"] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
+        guard let rgPath = await resolveRipgrepPath(cwd: primaryWorkspace) else {
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(
+                ok: false,
+                payload: ["detail": "ripgrep executable not found. Install 'rg' to use find_and_replace_all."],
+                durationMs: ms
+            )
+        }
+        let (output, _, _) = await shellExec(args: [rgPath] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
         let matchingFiles = output.components(separatedBy: "\n").filter { !$0.isEmpty }
 
         guard !matchingFiles.isEmpty else {
@@ -3686,20 +3886,17 @@ public actor UnifiedToolRuntime {
         let data = call.args["data"]
         let runId = call.args["run_id"] ?? call.args["runId"]
         let hypothesisId = call.args["hypothesis_id"] ?? call.args["hypothesisId"]
+        let normalizedCategory = category?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
 
         guard !message.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "message is required"], durationMs: 0)
         }
 
-        let enrichedDetail: String? = {
-            var parts: [String] = []
-            if let d = detail { parts.append(d) }
-            if let st = stackTrace { parts.append("Stack Trace:\n\(st)") }
-            if let t = tags { parts.append("Tags: \(t)") }
-            return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
-        }()
+        let enrichedDetail = enrichedDebugDetail(detail: detail, stackTrace: stackTrace, tags: tags)
 
-        if let category, category == "runtime" || category == "instrumentation" {
+        if let category = normalizedCategory, category == "runtime" || category == "instrumentation" {
             await debugLogServer.logRuntime(
                 source: source,
                 message: message,
@@ -3716,7 +3913,7 @@ public actor UnifiedToolRuntime {
                 source: source,
                 message: message,
                 detail: enrichedDetail,
-                category: category,
+                category: normalizedCategory,
                 runId: runId,
                 hypothesisId: hypothesisId,
                 data: parseDebugDataArg(data)
@@ -3732,7 +3929,7 @@ public actor UnifiedToolRuntime {
             "source": source,
             "message": message,
             "log_detail": enrichedDetail ?? "",
-            "category": category ?? "",
+            "category": normalizedCategory ?? "",
             "tags": tags ?? "",
             "stack_trace": stackTrace ?? "",
             "data": data ?? "",
@@ -3741,33 +3938,52 @@ public actor UnifiedToolRuntime {
         ], durationMs: ms)
     }
 
-    private func executeDebugLogBatch(batchJSON: String, call: ToolCall, startDate: Date) async -> ToolResult {
+    private func executeDebugLogBatch(batchJSON: String, call _: ToolCall, startDate: Date) async -> ToolResult {
         guard let jsonData = batchJSON.data(using: .utf8),
-              let entries = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: String]] else {
+              let entries = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
             return ToolResult(ok: false, payload: ["detail": "batch must be a JSON array of log entries: [{severity, source, message, ...}]"], durationMs: 0)
         }
 
         var logged = 0
         for entry in entries {
-            let sev = entry["severity"] ?? "info"
-            let src = entry["source"] ?? "agent"
-            let msg = entry["message"] ?? ""
-            let det = entry["detail"]
-            let cat = entry["category"]
-            let runId = entry["run_id"] ?? entry["runId"]
-            let hypothesisId = entry["hypothesis_id"] ?? entry["hypothesisId"]
+            let sev = (entry["severity"] as? String) ?? "info"
+            let src = (entry["source"] as? String) ?? "agent"
+            let msg = (entry["message"] as? String) ?? ""
+            let det = entry["detail"] as? String
+            let cat = (entry["category"] as? String)
+            let tags = entry["tags"] as? String
+            let stackTrace = (entry["stack_trace"] as? String) ?? (entry["stackTrace"] as? String)
+            let runId = (entry["run_id"] as? String) ?? (entry["runId"] as? String)
+            let hypothesisId = (entry["hypothesis_id"] as? String) ?? (entry["hypothesisId"] as? String)
             guard !msg.isEmpty else { continue }
+            let enrichedDetail = enrichedDebugDetail(detail: det, stackTrace: stackTrace, tags: tags)
+            let normalizedCategory = cat?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
 
-            await debugLogServer.log(
-                severity: sev,
-                source: src,
-                message: msg,
-                detail: det,
-                category: cat,
-                runId: runId,
-                hypothesisId: hypothesisId,
-                data: parseDebugDataArg(entry["data"])
-            )
+            if let category = normalizedCategory, category == "runtime" || category == "instrumentation" {
+                await debugLogServer.logRuntime(
+                    source: src,
+                    message: msg,
+                    severity: sev,
+                    detail: enrichedDetail,
+                    category: category,
+                    data: parseDebugDataValue(entry["data"]),
+                    runId: runId,
+                    hypothesisId: hypothesisId
+                )
+            } else {
+                await debugLogServer.log(
+                    severity: sev,
+                    source: src,
+                    message: msg,
+                    detail: enrichedDetail,
+                    category: normalizedCategory,
+                    runId: runId,
+                    hypothesisId: hypothesisId,
+                    data: parseDebugDataValue(entry["data"])
+                )
+            }
             logged += 1
         }
 
@@ -4199,7 +4415,20 @@ public actor UnifiedToolRuntime {
             guard !hypothesisId.isEmpty else {
                 return ToolResult(ok: false, payload: ["detail": "hypothesis_id is required for update"], durationMs: ms)
             }
-            guard var existing = debugHypotheses[hypothesisId] else {
+            let resolvedHypothesisId: String
+            switch resolveHypothesisLookup(hypothesisId) {
+            case .resolved(let id):
+                resolvedHypothesisId = id
+            case .ambiguous(let prefixes):
+                return ToolResult(
+                    ok: false,
+                    payload: ["detail": "Ambiguous hypothesis_id prefix '\(hypothesisId)'. Matches: \(prefixes.joined(separator: ", "))"],
+                    durationMs: ms
+                )
+            case .notFound:
+                return ToolResult(ok: false, payload: ["detail": "Unknown hypothesis_id: \(hypothesisId)"], durationMs: ms)
+            }
+            guard var existing = debugHypotheses[resolvedHypothesisId] else {
                 return ToolResult(ok: false, payload: ["detail": "Unknown hypothesis_id: \(hypothesisId)"], durationMs: ms)
             }
 
@@ -4210,17 +4439,17 @@ public actor UnifiedToolRuntime {
             if !relatedFiles.isEmpty { existing.relatedFiles = relatedFiles }
             if !relatedTests.isEmpty { existing.relatedTests = relatedTests }
             if let evidence { existing.evidence.append(evidence) }
-            debugHypotheses[hypothesisId] = existing
+            debugHypotheses[resolvedHypothesisId] = existing
 
             await debugLogServer.log(
                 severity: "info",
                 source: "hypothesis",
-                message: "Hypothesis \(hypothesisId.prefix(8)) updated to \(nextStatus) [confidence: \(existing.confidence)%]",
+                message: "Hypothesis \(resolvedHypothesisId.prefix(8)) updated to \(nextStatus) [confidence: \(existing.confidence)%]",
                 detail: evidence,
                 category: "debug"
             )
 
-            var output = "Updated hypothesis \(hypothesisId.prefix(8)) -> \(nextStatus)\n"
+            var output = "Updated hypothesis \(resolvedHypothesisId.prefix(8)) -> \(nextStatus)\n"
             output += "  Title: \(existing.title)\n"
             output += "  Confidence: \(existing.confidence)%\n"
             if !existing.rootCauseType.isEmpty { output += "  Root cause type: \(existing.rootCauseType)\n" }
@@ -4232,7 +4461,7 @@ public actor UnifiedToolRuntime {
                 "detail": "Hypothesis updated to \(nextStatus) [\(existing.confidence)%]",
                 "output": output,
                 "action": "update",
-                "hypothesis_id": hypothesisId,
+                "hypothesis_id": resolvedHypothesisId,
                 "hypothesis_title": existing.title,
                 "description": existing.description,
                 "hypothesis_status": nextStatus,
@@ -4361,8 +4590,16 @@ public actor UnifiedToolRuntime {
                 return ToolResult(ok: false, payload: ["detail": error.localizedDescription], durationMs: 0)
             }
         } else {
-            let (output, _, _) = await shellExec(args: ["/usr/bin/rg", "-l", "--no-heading", debugTag, workspace], cwd: workspace, timeout: 15_000)
-            filesToClean = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+            if let rgPath = await resolveRipgrepPath(cwd: workspace) {
+                let (output, _, _) = await shellExec(
+                    args: [rgPath, "-l", "--no-heading", debugTag, workspace],
+                    cwd: workspace,
+                    timeout: 15_000
+                )
+                filesToClean = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+            } else {
+                filesToClean = discoverFilesContaining(debugTag, under: workspace)
+            }
         }
 
         let typePatterns: [String]
@@ -4574,7 +4811,10 @@ public actor UnifiedToolRuntime {
     private func executeDebugInstrument(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let rawPath = call.args["path"] ?? ""
         let lineStr = call.args["line"] ?? ""
-        let instrType = (call.args["type"] ?? "log").lowercased()
+        let requestedType = (call.args["type"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let instrType = requestedType.isEmpty ? "log" : requestedType
         let expression = call.args["expression"] ?? ""
         let condition = call.args["condition"] ?? ""
         let hypothesisId = call.args["hypothesis_id"] ?? ""
@@ -4588,6 +4828,15 @@ public actor UnifiedToolRuntime {
         }
         guard !expression.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "expression is required"], durationMs: 0)
+        }
+        let allowedTypes: Set<String> = ["log", "assert", "timing", "variable", "conditional_break"]
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        guard allowedTypes.contains(instrType) else {
+            return ToolResult(
+                ok: false,
+                payload: ["detail": "Unknown instrumentation type '\(instrType)'. Use: log, assert, timing, variable, conditional_break."],
+                durationMs: ms
+            )
         }
 
         let path: String
@@ -4617,10 +4866,9 @@ public actor UnifiedToolRuntime {
             let cond = condition.isEmpty ? "true" : condition
             generatedCode = "if \(cond) { print(\"\\u{1F6D1} INSTRUMENT BREAK\(labelTag): condition met — \(expression) = \\(\(expression))\") } // \u{1F41B} DEBUG[instrument-conditional]: \(label.isEmpty ? expression : label)\(hypTag)"
         default:
+            // Guard above validates allowed values; this is a defensive fallback.
             generatedCode = "print(\"\\u{1F50D} INSTRUMENT\(labelTag): \\(\(expression))\") // \u{1F41B} DEBUG[instrument-log]: \(label.isEmpty ? expression : label)\(hypTag)"
         }
-
-        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
 
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
@@ -4659,12 +4907,12 @@ public actor UnifiedToolRuntime {
 
     // MARK: - debug_timeline: Chronological event timeline
 
-    private func executeDebugTimeline(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
+    private func executeDebugTimeline(call: ToolCall, context _: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let filterRaw = (call.args["filter"] ?? "all").lowercased()
         let filters = Set(filterRaw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
         let showAll = filters.contains("all")
         let timeRange = call.args["time_range"]
-        let hypothesisId = call.args["hypothesis_id"]
+        let hypothesisId = call.args["hypothesis_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let format = (call.args["format"] ?? "text").lowercased()
 
         let allEntries = await debugLogServer.allEntries()
@@ -4676,7 +4924,7 @@ public actor UnifiedToolRuntime {
         // Collect log events
         if showAll || filters.contains("logs") {
             for entry in allEntries {
-                if let hid = hypothesisId, !(entry.hypothesisId == hid || (entry.detail?.contains(hid) ?? false)) {
+                if !entryMatchesHypothesis(entry, filter: hypothesisId) {
                     continue
                 }
                 let cat = entry.category ?? "log"
@@ -4694,7 +4942,9 @@ public actor UnifiedToolRuntime {
         // Collect hypotheses events
         if showAll || filters.contains("hypotheses") {
             for entry in allEntries where entry.category == "debug" && entry.source == "hypothesis" {
-                if let hid = hypothesisId, !entry.message.contains(hid.prefix(8)) { continue }
+                if !entryMatchesHypothesis(entry, filter: hypothesisId) {
+                    continue
+                }
                 events.append((date: entry.timestamp, type: "hypothesis", text: entry.message))
             }
         }
@@ -4702,20 +4952,8 @@ public actor UnifiedToolRuntime {
         // Collect marker events
         if showAll || filters.contains("markers") {
             for entry in allEntries where entry.source == "debug_mark" || entry.source == "debug_instrument" {
-                if let hid = hypothesisId, !hid.isEmpty {
-                    let short = String(hid.prefix(8))
-                    let detail = (entry.detail ?? "").lowercased()
-                    let message = entry.message.lowercased()
-                    let entryHypothesis = entry.hypothesisId?.lowercased() ?? ""
-                    if entryHypothesis != hid.lowercased()
-                        && String(entryHypothesis.prefix(8)) != short.lowercased()
-                        && !detail.contains(hid.lowercased())
-                        && !message.contains(hid.lowercased())
-                        && !detail.contains("[h:\(short.lowercased())]")
-                        && !message.contains("[h:\(short.lowercased())]")
-                    {
-                        continue
-                    }
+                if !entryMatchesHypothesis(entry, filter: hypothesisId) {
+                    continue
                 }
                 events.append((date: entry.timestamp, type: "marker", text: entry.message))
             }

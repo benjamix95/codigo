@@ -182,8 +182,7 @@ final class DebugFlowToolE2ETests: XCTestCase {
                         debugStore.startDebugSession(errorContext: sessionPayload.detail ?? "")
                     }
                 case "clear":
-                    debugStore.clearLogs()
-                    debugStore.clearRuntimeLogs()
+                    debugStore.resetSession()
                 case "end", "stop":
                     if debugStore.phase != .resolved {
                         debugStore.setPhase(.verifying)

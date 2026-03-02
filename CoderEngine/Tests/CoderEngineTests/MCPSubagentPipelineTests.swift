@@ -99,6 +99,45 @@ final class MCPSubagentPipelineTests: XCTestCase {
         XCTAssertEqual(args, ["do something"])
     }
 
+    // MARK: - Backend policy / sandbox expectations
+
+    func testPreferredBackendNames_readOnlyIncludesCodexThenClaude() {
+        XCTAssertEqual(SubagentCLIConfig.preferredBackendNames(readOnly: true), ["codex", "claude"])
+    }
+
+    func testPreferredBackendNames_writeModeRequiresCodex() {
+        XCTAssertEqual(SubagentCLIConfig.preferredBackendNames(readOnly: false), ["codex"])
+    }
+
+    func testSupportsSandboxExpectations_codexAlwaysTrue() {
+        XCTAssertTrue(SubagentCLIConfig.supportsSandboxExpectations(
+            cliPath: "/usr/local/bin/codex",
+            readOnly: true
+        ))
+        XCTAssertTrue(SubagentCLIConfig.supportsSandboxExpectations(
+            cliPath: "/usr/local/bin/codex",
+            readOnly: false
+        ))
+    }
+
+    func testSupportsSandboxExpectations_claudeOnlyReadOnly() {
+        XCTAssertTrue(SubagentCLIConfig.supportsSandboxExpectations(
+            cliPath: "/usr/local/bin/claude",
+            readOnly: true
+        ))
+        XCTAssertFalse(SubagentCLIConfig.supportsSandboxExpectations(
+            cliPath: "/usr/local/bin/claude",
+            readOnly: false
+        ))
+    }
+
+    func testSupportsSandboxExpectations_geminiRejected() {
+        XCTAssertFalse(SubagentCLIConfig.supportsSandboxExpectations(
+            cliPath: "/usr/local/bin/gemini",
+            readOnly: true
+        ))
+    }
+
     // MARK: - isReadOnly
 
     func testIsReadOnly_explorerIsReadOnly() {

@@ -641,11 +641,19 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         var tasks: [ReviewTask] = []
         var invalidEntries = 0
         var claimedFiles = Set<String>()
+        var usedTaskIDs = Set<String>()
         for (index, dict) in arr.enumerated() {
-            let id = (dict["id"] as? String) ?? "review-\(index)"
-            let description = (dict["description"] as? String) ?? "Fix issues in assigned files"
+            let preferredID = ((dict["id"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let id = normalizedUniqueReviewTaskID(
+                preferred: preferredID,
+                fallbackIndex: index,
+                usedIDs: &usedTaskIDs
+            )
+            let description = ((dict["description"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             let rawFiles = (dict["files"] as? [String]) ?? []
-            let filteredFiles = rawFiles.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let filteredFiles = uniquedNonEmptyFiles(rawFiles)
             guard !filteredFiles.isEmpty else { continue }
             let scopedFiles: [String]
             if let allowedFiles {
@@ -681,6 +689,50 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     ? "All task entries were invalid or outside review scope." : "Unable to parse task array entries." )
         }
         return .tasks(tasks)
+    }
+
+    private static func uniquedNonEmptyFiles(_ rawFiles: [String]) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for raw in rawFiles {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            if seen.insert(trimmed).inserted {
+                out.append(trimmed)
+            }
+        }
+        return out
+    }
+
+    private static func normalizedUniqueReviewTaskID(
+        preferred: String,
+        fallbackIndex: Int,
+        usedIDs: inout Set<String>
+    ) -> String {
+        func claim(_ candidate: String) -> String? {
+            guard !candidate.isEmpty else { return nil }
+            let normalized = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { return nil }
+            guard usedIDs.insert(normalized).inserted else { return nil }
+            return normalized
+        }
+
+        if let preferredClaimed = claim(preferred) {
+            return preferredClaimed
+        }
+
+        if let fallbackClaimed = claim("review-\(fallbackIndex)") {
+            return fallbackClaimed
+        }
+
+        var suffix = 1
+        while true {
+            let candidate = "review-\(fallbackIndex)-\(suffix)"
+            if let claimed = claim(candidate) {
+                return claimed
+            }
+            suffix += 1
+        }
     }
 
     // MARK: - Phase 3: Parallel Fix

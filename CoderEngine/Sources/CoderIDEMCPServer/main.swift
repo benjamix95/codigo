@@ -557,7 +557,7 @@ struct CoderIDETools {
         ),
         Tool(
             name: "coderide_debug_log",
-            description: "Write an entry to the debug log. Use to track observations, errors, and findings during debugging.",
+            description: "Write one or more entries to the debug log. Provide severity/source/message for single-entry mode, or use batch for multi-entry mode.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
@@ -566,11 +566,14 @@ struct CoderIDETools {
                     "message": .object(["type": "string", "description": "Log message"]),
                     "detail": .object(["type": "string", "description": "Optional detail (e.g. stack trace)"]),
                     "category": .object(["type": "string", "description": "Optional category: compiler, runtime, test, network, custom, instrumentation"]),
+                    "tags": .object(["type": "string", "description": "Optional comma-separated tags for filtering"]),
+                    "stack_trace": .object(["type": "string", "description": "Optional stack trace kept as a structured field"]),
                     "data": .object(["type": "string", "description": "Optional key-value data as JSON object (e.g. {\"var\":\"value\"})"]),
                     "run_id": .object(["type": "string", "description": "Optional reproduce run ID to group logs"]),
                     "hypothesis_id": .object(["type": "string", "description": "Optional hypothesis ID this log supports"]),
+                    "batch": .object(["type": "string", "description": "Optional JSON array for batch logging: [{severity,source,message,...}]"]),
                 ]),
-                "required": .array([.string("severity"), .string("source"), .string("message")]),
+                "required": .array([]),
             ]),
             annotations: .init(title: "Debug Log")
         ),
@@ -1244,10 +1247,19 @@ struct CoderIDEMCPServerApp {
         let readOnly = SubagentCLIConfig.isReadOnly(resolvedRole)
         let timeout = SubagentCLIConfig.timeout(for: resolvedRole)
 
-        let cliPath = resolveAvailableCLI()
+        let cliPath = resolveAvailableCLI(readOnly: readOnly)
         guard let cliPath else {
+            let installHint = readOnly
+                ? "Install codex or claude CLI."
+                : "Install codex CLI (required for workspace-write sandbox)."
             return SubagentResult(
-                output: "No CLI backend available for subagent execution. Install codex, claude, or gemini CLI.",
+                output: "No compatible CLI backend available for subagent execution. \(installHint)",
+                isError: true
+            )
+        }
+        guard SubagentCLIConfig.supportsSandboxExpectations(cliPath: cliPath, readOnly: readOnly) else {
+            return SubagentResult(
+                output: "Selected CLI backend does not satisfy sandbox requirements for this subagent role.",
                 isError: true
             )
         }
@@ -1266,6 +1278,7 @@ struct CoderIDEMCPServerApp {
 
         var env = ProcessInfo.processInfo.environment
         env["NO_COLOR"] = "1"
+        env["PATH"] = SubagentCLIConfig.constrainedPATH
         process.environment = env
 
         let stdout = Pipe()
@@ -1333,22 +1346,23 @@ struct CoderIDEMCPServerApp {
         }
     }
 
-    private static func resolveAvailableCLI() -> String? {
-        let candidates = [
-            "/usr/local/bin/codex",
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/claude",
-            "/opt/homebrew/bin/claude",
-            "/usr/local/bin/gemini",
-            "/opt/homebrew/bin/gemini",
+    private static func resolveAvailableCLI(readOnly: Bool) -> String? {
+        let preferredNames = SubagentCLIConfig.preferredBackendNames(readOnly: readOnly)
+        let byNameCandidates: [String: [String]] = [
+            "codex": ["/usr/local/bin/codex", "/opt/homebrew/bin/codex"],
+            "claude": ["/usr/local/bin/claude", "/opt/homebrew/bin/claude"],
         ]
-        for path in candidates {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
+
+        for name in preferredNames {
+            for path in byNameCandidates[name] ?? [] {
+                guard FileManager.default.isExecutableFile(atPath: path) else { continue }
+                if SubagentCLIConfig.supportsSandboxExpectations(cliPath: path, readOnly: readOnly) {
+                    return path
+                }
             }
         }
-        let whichPaths = ["codex", "claude", "gemini"]
-        for name in whichPaths {
+
+        for name in preferredNames {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
             proc.arguments = [name]
@@ -1362,7 +1376,10 @@ struct CoderIDEMCPServerApp {
                     let data = pipe.fileHandleForReading.readDataToEndOfFile()
                     let path = String(data: data, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    if !path.isEmpty { return path }
+                    if !path.isEmpty,
+                       SubagentCLIConfig.supportsSandboxExpectations(cliPath: path, readOnly: readOnly) {
+                        return path
+                    }
                 }
             } catch {
                 continue

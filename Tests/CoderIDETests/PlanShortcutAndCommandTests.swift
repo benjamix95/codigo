@@ -296,6 +296,46 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertFalse(shouldEnableTaskPanelForMode(.mcpServer))
     }
 
+    func testShouldAutoOpenSwarmPanelForEvent_requiresConversationMatch() {
+        let selectedConversationId = UUID()
+        XCTAssertTrue(
+            shouldAutoOpenSwarmPanelForEvent(
+                eventConversationId: selectedConversationId,
+                selectedConversationId: selectedConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldAutoOpenSwarmPanelForEvent(
+                eventConversationId: UUID(),
+                selectedConversationId: selectedConversationId
+            )
+        )
+    }
+
+    func testShouldAutoOpenSwarmPanelForEvent_allowsUntaggedEventForActiveConversation() {
+        XCTAssertTrue(
+            shouldAutoOpenSwarmPanelForEvent(
+                eventConversationId: nil,
+                selectedConversationId: UUID()
+            )
+        )
+    }
+
+    func testShouldAutoOpenSwarmPanelForEvent_blocksWhenNoSelectedConversation() {
+        XCTAssertFalse(
+            shouldAutoOpenSwarmPanelForEvent(
+                eventConversationId: UUID(),
+                selectedConversationId: nil
+            )
+        )
+        XCTAssertFalse(
+            shouldAutoOpenSwarmPanelForEvent(
+                eventConversationId: nil,
+                selectedConversationId: nil
+            )
+        )
+    }
+
     func testResolveDebugFlowPhaseAliasSupportsLegacyPhaseNames() {
         XCTAssertEqual(resolveDebugFlowPhaseAlias("analyzing"), .describing)
         XCTAssertEqual(resolveDebugFlowPhaseAlias("reproduce"), .reproducing)
