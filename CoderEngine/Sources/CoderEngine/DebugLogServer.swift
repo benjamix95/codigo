@@ -72,6 +72,16 @@ public actor DebugLogServer {
             )
         }
 
+        public func filtered(_ predicate: (LogEntry) -> Bool) -> QueryResult {
+            let filtered = entries.filter(predicate)
+            return QueryResult(
+                entries: filtered,
+                totalCount: filtered.count,
+                errorCount: filtered.filter { $0.severity == "error" }.count,
+                warningCount: filtered.filter { $0.severity == "warning" }.count
+            )
+        }
+
         public func filteredByHypothesisId(_ hypothesisId: String) -> QueryResult {
             let normalized = hypothesisId
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -298,7 +308,8 @@ public actor DebugLogServer {
         search: String? = nil,
         sessionId: String? = nil,
         limit: Int = 100,
-        offset: Int = 0
+        offset: Int = 0,
+        after: Date? = nil
     ) -> QueryResult {
         var filtered = entries
 
@@ -322,12 +333,18 @@ public actor DebugLogServer {
                 || ($0.detail?.lowercased().contains(lower) ?? false)
             }
         }
+        if let after {
+            filtered = filtered.filter { $0.timestamp > after }
+        }
 
         let totalCount = filtered.count
         let errorCount = filtered.filter { $0.severity == "error" }.count
         let warningCount = filtered.filter { $0.severity == "warning" }.count
 
-        let sliced = Array(filtered.dropFirst(offset).prefix(limit))
+        let ordered = filtered.sorted { $0.timestamp > $1.timestamp }
+        let normalizedOffset = max(0, offset)
+        let normalizedLimit = max(1, limit)
+        let sliced = Array(ordered.dropFirst(normalizedOffset).prefix(normalizedLimit))
         return QueryResult(entries: sliced, totalCount: totalCount, errorCount: errorCount, warningCount: warningCount)
     }
 

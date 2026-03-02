@@ -2,6 +2,10 @@ import Foundation
 import MCP
 import os
 
+public struct MCPNullValue: Sendable, Hashable {
+    public init() {}
+}
+
 public struct MCPToolDescriptor: Sendable {
     public let name: String
     public let description: String
@@ -1150,6 +1154,8 @@ public actor MCPSessionManager {
     private func toValue(_ obj: Any) -> Value {
         switch obj {
         case is NSNull:
+            return .null
+        case is MCPNullValue:
             return .null
         case let b as Bool:
             return .bool(b)

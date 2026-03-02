@@ -474,7 +474,10 @@ struct DebugPanelView: View {
     private func tabBadgeCount(_ tab: DebugTab) -> Int {
         switch tab {
         case .logs: return debugStore.filteredLogs.count
-        case .runtime: return debugStore.runtimeLogs.count
+        case .runtime:
+            return debugStore.currentRunId == nil
+                ? debugStore.runtimeLogs.count
+                : debugStore.currentRunLogs.count
         case .hypotheses: return debugStore.hypotheses.count
         case .markers: return debugStore.debugMarkers.count + debugStore.instrumentationPoints.count
         }

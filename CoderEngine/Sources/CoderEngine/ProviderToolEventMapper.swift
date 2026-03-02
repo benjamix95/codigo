@@ -1069,7 +1069,9 @@ enum ProviderToolEventMapper {
 
         case "debug_resolve":
             var mapped: [String: String] = [:]
-            if let summary = firstString(in: payload, keys: ["summary"]) { mapped["summary"] = summary }
+            if let summary = firstString(in: payload, keys: ["summary", "detail", "message"]) {
+                mapped["summary"] = summary
+            }
             return ("debug_resolved", mapped)
 
         case "mermaid_render":

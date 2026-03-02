@@ -1126,6 +1126,82 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertTrue(output.contains("Type mismatch"))
     }
 
+    func testDebugQueryReturnsMostRecentEntriesFirst() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (firstLog, firstCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Runtime",
+                "message": "older-entry"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(firstLog, context: firstCtx)
+
+        let (secondLog, secondCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Runtime",
+                "message": "newer-entry"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(secondLog, context: secondCtx)
+
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: [
+                "format": "full",
+                "limit": "1"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(queryCall, context: queryCtx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertTrue(output.contains("newer-entry"))
+        XCTAssertFalse(output.contains("older-entry"))
+    }
+
+    func testDebugQueryTagsFilterMatchesExactTags() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (logCall, logCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Runtime",
+                "message": "Tagged event",
+                "tags": "error"
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logCall, context: logCtx)
+
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: [
+                "format": "summary",
+                "tags": "or"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(queryCall, context: queryCtx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("Total entries: 0"))
+    }
+
     func testDebugLogEmitsDedicatedEventType() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
@@ -1148,6 +1224,32 @@ final class UnifiedToolRuntimeTests: XCTestCase {
             }
             return false
         })
+    }
+
+    func testDebugCleanDryRunPreservesPreviewStatus() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("sample.swift")
+        try """
+        print("hello")
+        // 🐛 DEBUG: trace
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "debug_clean",
+            args: [
+                "path": file.path,
+                "dry_run": "true"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "preview")
+        XCTAssertEqual(completed?["dry_run"], "true")
     }
 
     func testDebugTestCheckReturnsFailureWhenTestsFail() async throws {
@@ -1195,6 +1297,24 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "failed")
         XCTAssertEqual(completed?["overall_status"], "failed")
         XCTAssertEqual(completed?["error_code"], "test_failed")
+    }
+
+    func testDebugTestCheckReturnsValidationForNonSwiftProject() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "debug_test_check",
+            args: ["scope": "all"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertTrue((completed?["detail"] ?? "").contains("Swift Package"))
     }
 
     func testDebugHypothesizeIsIDBasedForProposeAndUpdate() async throws {

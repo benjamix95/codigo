@@ -1024,7 +1024,10 @@ enum EventNormalizer {
         let status = payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedCount = Int(payload["cleaned_markers"] ?? "") ?? 0
         let filesCount = Int(payload["cleaned_files"] ?? "") ?? 0
-        let dryRun = (payload["dry_run"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
+        let dryRunRaw = (payload["dry_run"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let dryRun = ["true", "1", "yes"].contains(dryRunRaw)
         if cleanedCount == 0, filesCount == 0,
            (payload["detail"] ?? "").isEmpty,
            (status ?? "").isEmpty,

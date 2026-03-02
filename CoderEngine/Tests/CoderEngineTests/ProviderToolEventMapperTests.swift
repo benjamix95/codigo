@@ -398,6 +398,18 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["prompt"], "Can you reproduce this?")
     }
 
+    func testDebugResolveUsesDetailFallbackWhenSummaryMissing() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_resolve",
+            payload: [
+                "detail": "Fixed race condition in cache invalidation"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_resolved")
+        XCTAssertEqual(mapped?.payload["summary"], "Fixed race condition in cache invalidation")
+    }
+
     func testDebugLogMapsToTypedDebugLogEvent() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "coderide_debug_log",

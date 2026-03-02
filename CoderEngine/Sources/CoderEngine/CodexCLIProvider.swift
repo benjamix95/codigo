@@ -972,7 +972,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             return (p["kind"] != nil && p["prompt"] != nil) ? [("debug_user_request", p)] : []
 
         case "debug_resolve":
-            if let summary = firstString(in: arguments, keys: ["summary"]) {
+            if let summary = firstString(in: arguments, keys: ["summary", "detail", "message"]) {
                 return [("debug_resolved", ["summary": summary])]
             }
             return []

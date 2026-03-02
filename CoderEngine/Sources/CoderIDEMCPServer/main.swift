@@ -818,9 +818,7 @@ struct CoderIDEMCPServerApp {
             if let arguments = params.arguments {
                 for (key, value) in arguments {
                     stringArgs[key] = valueToString(value)
-                    if let sendableValue = valueToSendable(value) {
-                        richArgs[key] = sendableValue
-                    }
+                    richArgs[key] = valueToSendable(value)
                 }
             }
 
@@ -1390,7 +1388,7 @@ struct CoderIDEMCPServerApp {
         }
     }
 
-    static func valueToSendable(_ value: Value) -> (any Sendable)? {
+    static func valueToSendable(_ value: Value) -> (any Sendable) {
         switch value {
         case .string(let s):
             return s
@@ -1401,15 +1399,13 @@ struct CoderIDEMCPServerApp {
         case .bool(let b):
             return b
         case .null:
-            return nil
+            return MCPNullValue()
         case .array(let items):
-            return items.compactMap { valueToSendable($0) }
+            return items.map { valueToSendable($0) }
         case .object(let dict):
             var mapped: [String: any Sendable] = [:]
             for (key, item) in dict {
-                if let converted = valueToSendable(item) {
-                    mapped[key] = converted
-                }
+                mapped[key] = valueToSendable(item)
             }
             return mapped
         default:

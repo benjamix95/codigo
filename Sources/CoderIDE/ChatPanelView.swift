@@ -955,6 +955,10 @@ struct ChatPanelView: View {
     @State private var policyAckFailedMessages: Set<UUID> = []
     /// Events queued while waiting for policy_ack, keyed by assistant message id.
     @State private var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?)]] = [:]
+    /// Per-conversation debug state snapshots (prevents cross-thread contamination).
+    @State private var debugStateByConversation: [UUID: DebugStore.SessionSnapshot] = [:]
+    /// Debug events received while another conversation is selected.
+    @State private var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
     @State private var autoTodoIdByMessage: [UUID: UUID] = [:]
     @State private var autoTodoCompletedOperationsByMessage: [UUID: Int] = [:]
     @State private var didReceiveExplicitTodoByMessage: Set<UUID> = []
@@ -1254,6 +1258,7 @@ struct ChatPanelView: View {
         .onChange(of: selectedConversationId) { oldId, newId in
             draftSaveTask?.cancel()
             draftSaveTask = nil
+            persistDebugState(for: oldId)
             // Save draft text for the previous conversation.
             if let oldId {
                 let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1279,11 +1284,17 @@ struct ChatPanelView: View {
             // Close side panels that are scoped to the previous conversation.
             showSwarmPanel = false
             selectedSwarmId = nil
-            showDebugPanel = false
-            debugToggleEnabled = false
-            debugStore.resetSession()
-            if coderMode == .debug {
-                selectMode(.agent)
+            restoreDebugState(for: newId)
+            applyPendingDebugEvents(for: newId)
+            if debugStore.phase == .idle {
+                showDebugPanel = false
+                debugToggleEnabled = false
+                if coderMode == .debug {
+                    selectMode(.agent)
+                }
+            } else {
+                debugToggleEnabled = true
+                showDebugPanel = debugStore.phase.isActive
             }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
@@ -3705,45 +3716,65 @@ struct ChatPanelView: View {
                     }
                 }
             case .debugPhaseUpdate(let phase, let detail):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugPhaseUpdate(phase: phase, detail: detail)
-                }
+                routeDebugEvent(
+                    .debugPhaseUpdate(phase: phase, detail: detail),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugUserRequest(let kind, let prompt):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugUserRequest(kind: kind, prompt: prompt)
-                }
+                routeDebugEvent(
+                    .debugUserRequest(kind: kind, prompt: prompt),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugResolved(let summary):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugResolved(summary: summary)
-                }
+                routeDebugEvent(
+                    .debugResolved(summary: summary),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugLog(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugLogPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugLog(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugHypothesize(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugHypothesizePayload(payload)
-                }
+                routeDebugEvent(
+                    .debugHypothesize(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugMark(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugMarkPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugMark(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugInstrument(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugInstrumentPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugInstrument(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugClean(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugCleanPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugClean(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugSession(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugSessionPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugSession(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .debugQuery(let payload):
-                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
-                    handleDebugQueryPayload(payload)
-                }
+                routeDebugEvent(
+                    .debugQuery(payload),
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
             case .activatePlanMode(let reason):
                 handleAutoActivatePlanMode(reason: reason)
             case .activateDebugMode(let reason):
@@ -7790,6 +7821,84 @@ struct ChatPanelView: View {
     }
 
     @MainActor
+    private func routeDebugEvent(
+        _ event: NormalizedEvent,
+        payload: [String: String],
+        eventConversationId: UUID?
+    ) {
+        if shouldHandleDebugStoreEvent(payload: payload, eventConversationId: eventConversationId) {
+            applyDebugEventToActiveStore(event)
+            persistDebugState(for: selectedConversationId)
+            return
+        }
+        guard !SwarmMetadata.isSwarmEvent(payload), let eventConversationId else {
+            return
+        }
+        pendingDebugEventsByConversation[eventConversationId, default: []].append(event)
+    }
+
+    @MainActor
+    private func applyDebugEventToActiveStore(_ event: NormalizedEvent) {
+        switch event {
+        case .debugPhaseUpdate(let phase, let detail):
+            handleDebugPhaseUpdate(phase: phase, detail: detail)
+        case .debugUserRequest(let kind, let prompt):
+            handleDebugUserRequest(kind: kind, prompt: prompt)
+        case .debugResolved(let summary):
+            handleDebugResolved(summary: summary)
+        case .debugLog(let payload):
+            handleDebugLogPayload(payload)
+        case .debugHypothesize(let payload):
+            handleDebugHypothesizePayload(payload)
+        case .debugMark(let payload):
+            handleDebugMarkPayload(payload)
+        case .debugInstrument(let payload):
+            handleDebugInstrumentPayload(payload)
+        case .debugClean(let payload):
+            handleDebugCleanPayload(payload)
+        case .debugSession(let payload):
+            handleDebugSessionPayload(payload)
+        case .debugQuery(let payload):
+            handleDebugQueryPayload(payload)
+        default:
+            break
+        }
+    }
+
+    @MainActor
+    private func persistDebugState(for conversationId: UUID?) {
+        guard let conversationId else { return }
+        debugStateByConversation[conversationId] = debugStore.snapshot()
+    }
+
+    @MainActor
+    private func restoreDebugState(for conversationId: UUID?) {
+        guard let conversationId else {
+            debugStore.resetSession()
+            return
+        }
+        if let snapshot = debugStateByConversation[conversationId] {
+            debugStore.restore(from: snapshot)
+        } else {
+            debugStore.resetSession()
+        }
+    }
+
+    @MainActor
+    private func applyPendingDebugEvents(for conversationId: UUID?) {
+        guard let conversationId,
+              let pending = pendingDebugEventsByConversation.removeValue(forKey: conversationId),
+              !pending.isEmpty
+        else {
+            return
+        }
+        for event in pending {
+            applyDebugEventToActiveStore(event)
+        }
+        persistDebugState(for: conversationId)
+    }
+
+    @MainActor
     private func shouldHandleDebugStoreEvent(payload: [String: String], eventConversationId: UUID?) -> Bool {
         if SwarmMetadata.isSwarmEvent(payload) {
             return false
@@ -7798,7 +7907,7 @@ struct ChatPanelView: View {
             return false
         }
         guard let eventConversationId else {
-            return true
+            return false
         }
         return eventConversationId == selectedConversationId
     }

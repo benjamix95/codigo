@@ -338,7 +338,16 @@ public actor UnifiedToolRuntime {
         completedPayload["tool_call_id"] = call.id
         completedPayload["tool"] = normalizedName
         completedPayload["duration_ms"] = "\(result.durationMs)"
-        completedPayload["status"] = result.ok ? "completed" : "failed"
+        let existingStatus = (completedPayload["status"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if result.ok {
+            if existingStatus.isEmpty {
+                completedPayload["status"] = "completed"
+            }
+        } else {
+            completedPayload["status"] = "failed"
+        }
         if let swarmId = call.swarmId, !swarmId.isEmpty {
             completedPayload["swarm_id"] = swarmId
             completedPayload["group_id"] = "swarm-\(swarmId)"
@@ -3779,14 +3788,21 @@ public actor UnifiedToolRuntime {
         let search = call.args["search"] ?? call.args["query"]
         let tags = call.args["tags"]
         let hypothesisId = call.args["hypothesis_id"]
+        let sessionId = call.args["session_id"] ?? call.args["sessionId"]
         let timeRange = call.args["time_range"]
         let groupBy = call.args["group_by"]
         let requestedLimit = Int(call.args["limit"] ?? "50") ?? 50
         let limit = min(max(requestedLimit, 1), 500)
+        let offset = max(0, Int(call.args["offset"] ?? "0") ?? 0)
         let format = (call.args["format"] ?? "summary").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cutoff: Date? = {
+            guard let timeRange, let minutes = Double(timeRange), minutes > 0 else { return nil }
+            return Date().addingTimeInterval(-minutes * 60)
+        }()
 
         if format == "summary",
            severity == nil, category == nil, source == nil, tags == nil, hypothesisId == nil,
+           sessionId == nil, cutoff == nil, offset == 0,
            (search?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
             let summary = await debugLogServer.sessionSummary()
             let ms = Int(Date().timeIntervalSince(startDate) * 1000)
@@ -3803,27 +3819,29 @@ public actor UnifiedToolRuntime {
             category: category,
             source: source,
             search: search,
-            limit: limit
+            sessionId: sessionId,
+            limit: limit,
+            offset: offset,
+            after: cutoff
         )
 
         // Post-filter by tags
         if let tags, !tags.isEmpty {
-            let tagSet = Set(tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
-            result = result.filteredByDetail { detail in
-                guard let d = detail?.lowercased() else { return false }
-                return tagSet.contains(where: { d.contains($0) })
+            let tagSet = Set(
+                tags
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                    .filter { !$0.isEmpty }
+            )
+            result = result.filtered { entry in
+                let entryTags = Set(extractTags(from: entry).map { $0.lowercased() })
+                return !entryTags.isEmpty && !entryTags.isDisjoint(with: tagSet)
             }
         }
 
         // Post-filter by hypothesis_id
         if let hypothesisId, !hypothesisId.isEmpty {
             result = result.filteredByHypothesisId(hypothesisId)
-        }
-
-        // Post-filter by time_range (minutes)
-        if let timeRange, let minutes = Double(timeRange), minutes > 0 {
-            let cutoff = Date().addingTimeInterval(-minutes * 60)
-            result = result.filteredByTime(after: cutoff)
         }
 
         // Group-by aggregation
@@ -4861,6 +4879,17 @@ public actor UnifiedToolRuntime {
         let hypothesisId = call.args["hypothesis_id"] ?? ""
         let timeoutMs = Int(call.args["timeout_ms"] ?? "60000") ?? 60000
         let workspace = context.workspaceContext.workspacePath.path
+        let packageSwift = (workspace as NSString).appendingPathComponent("Package.swift")
+        if !FileManager.default.fileExists(atPath: packageSwift) {
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(ok: false, payload: [
+                "title": "debug_test_check",
+                "detail": "debug_test_check currently supports Swift Package projects only",
+                "output": "No Package.swift found in workspace. Use language-specific test tooling for non-Swift projects.",
+                "scope": scope,
+                "error_code": "validation"
+            ], durationMs: ms)
+        }
 
         var testArgs: [String] = ["/usr/bin/swift", "test"]
 
@@ -5408,6 +5437,8 @@ public actor UnifiedToolRuntime {
 
     private func executeDebugContext(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let workspace = context.workspaceContext.workspacePath.path
+        let workspacePaths = context.workspaceContext.workspacePaths.map(\.path)
+        let preferredRoot = context.workspaceContext.activeRootPath
         var sections: [String] = []
 
         let scopeRaw = call.args["scope"] ?? "full"
@@ -5478,9 +5509,21 @@ public actor UnifiedToolRuntime {
                     if includeContent {
                         let errorFiles = parseErrorFiles(from: output)
                         for (filePath, lineNum) in errorFiles.prefix(5) {
-                            let fullPath = filePath.hasPrefix("/") ? filePath : workspace + "/" + filePath
-                            let relativePath = fullPath.hasPrefix(workspace + "/")
-                                ? String(fullPath.dropFirst(workspace.count + 1))
+                            guard let fullPath = resolvePath(
+                                filePath,
+                                workspacePaths: workspacePaths,
+                                preferredRoot: preferredRoot,
+                                sandboxMode: context.policy.sandboxMode
+                            ) else {
+                                continue
+                            }
+                            let owningRoot = workspacePaths.first(where: { root in
+                                let normalizedRoot = URL(fileURLWithPath: root).standardizedFileURL.path
+                                let normalizedPath = URL(fileURLWithPath: fullPath).standardizedFileURL.path
+                                return normalizedPath == normalizedRoot || normalizedPath.hasPrefix(normalizedRoot + "/")
+                            }) ?? workspace
+                            let relativePath = fullPath.hasPrefix(owningRoot + "/")
+                                ? String(fullPath.dropFirst(owningRoot.count + 1))
                                 : fullPath
                             let pathDepth = max(1, relativePath.split(separator: "/").count)
                             guard pathDepth <= maxDepth else { continue }

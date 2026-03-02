@@ -31,9 +31,41 @@ struct SubagentChatCardView: View {
             if let live = liveRunningSubtitle() { return live }
             return "Working..."
         }
-        if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
+        if card.status == .completed {
+            if card.warningCount > 0 { return "Done with warnings" }
+            if let summary = card.summary, !summary.isEmpty { return summary }
+            return "Done"
+        }
         if card.status == .failed { return "Failed" }
         return "Idle"
+    }
+
+    private var completedResultPreview: String? {
+        guard card.status == .completed || card.status == .failed else { return nil }
+        let text = card.liveText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return lines.suffix(6).joined(separator: "\n")
+    }
+
+    private var statusIcon: String {
+        switch card.status {
+        case .completed: return card.warningCount > 0 ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
+        case .running: return "circle.dotted"
+        case .idle: return "circle"
+        }
+    }
+
+    private var statusIconColor: Color {
+        switch card.status {
+        case .completed: return card.warningCount > 0 ? DesignSystem.Colors.warning : .green.opacity(0.7)
+        case .failed: return .red.opacity(0.7)
+        case .running: return .secondary.opacity(0.5)
+        case .idle: return .secondary.opacity(0.3)
+        }
     }
 
     private func liveRunningSubtitle() -> String? {
@@ -64,8 +96,12 @@ struct SubagentChatCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack(spacing: 8) {
+                Image(systemName: statusIcon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(statusIconColor)
+                    .frame(width: 18, alignment: .center)
+
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 12.5, weight: .medium))
@@ -114,7 +150,18 @@ struct SubagentChatCardView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
 
-            // Expanded content
+            if !isExpanded, let preview = completedResultPreview {
+                Divider().opacity(0.1).padding(.horizontal, 12)
+                Text(preview)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary.opacity(0.55))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+            }
+
             if isExpanded {
                 Divider().opacity(0.15).padding(.horizontal, 12)
 
@@ -240,6 +287,9 @@ struct SubagentChatCardView: View {
 struct SubagentSnapshotCardView: View {
     let snapshot: SubagentCardSnapshot
 
+    @State private var isExpanded = false
+    @State private var isHovered = false
+
     private var title: String {
         roleDisplayName(from: snapshot.swarmId)
     }
@@ -256,30 +306,110 @@ struct SubagentSnapshotCardView: View {
         }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 12.5, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.7))
-                .lineLimit(1)
-                .truncationMode(.tail)
+    private var statusIcon: String {
+        switch snapshot.status {
+        case .completed:
+            return (snapshot.warningCount ?? 0) > 0 ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
+        case .running: return "circle.dotted"
+        case .idle: return "circle"
+        }
+    }
 
-            Text(subtitle)
-                .font(.system(size: 11.5, weight: .regular))
-                .foregroundStyle(.secondary.opacity(0.6))
-                .lineLimit(1)
-                .truncationMode(.tail)
+    private var statusIconColor: Color {
+        switch snapshot.status {
+        case .completed: return (snapshot.warningCount ?? 0) > 0 ? DesignSystem.Colors.warning : .green.opacity(0.7)
+        case .failed: return .red.opacity(0.7)
+        case .running: return .secondary.opacity(0.5)
+        case .idle: return .secondary.opacity(0.3)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: statusIcon)
+                    .font(.system(size: 14))
+                    .foregroundStyle(statusIconColor)
+                    .frame(width: 18, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.7))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(subtitle)
+                        .font(.system(size: 11.5, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
+                Spacer(minLength: 0)
+
+                if isHovered || isExpanded, snapshot.resultPreview != nil {
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.quaternary)
+                            .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+
+            if let preview = snapshot.resultPreview, !preview.isEmpty {
+                if !isExpanded {
+                    Divider().opacity(0.1).padding(.horizontal, 12)
+                    Text(preview)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.secondary.opacity(0.55))
+                        .lineLimit(3)
+                        .truncationMode(.tail)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                } else {
+                    Divider().opacity(0.15).padding(.horizontal, 12)
+                    ScrollView {
+                        Text(preview)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.primary.opacity(0.7))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
         }
         .frame(maxWidth: 480, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.15))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(
+                    Color.white.opacity(isHovered || isExpanded ? 0.14 : 0.08),
+                    lineWidth: 1
+                )
         )
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
+        }
+        .onTapGesture {
+            guard snapshot.resultPreview != nil else { return }
+            withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+        }
     }
 }

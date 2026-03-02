@@ -18,17 +18,27 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     let summary: String?
     let errorCount: Int
     let warningCount: Int?
+    let resultPreview: String?
 
     init(from card: SwarmLiveCardState) {
         self.swarmId = card.swarmId
-        // Preserve the real status — forcing .running → .completed hides failures.
-        // A card that was still running at snapshot time keeps its actual state.
         self.status = card.status
         self.title = card.currentStepTitle
         self.detail = card.currentDetail
         self.summary = card.summary
         self.errorCount = card.errorCount
         self.warningCount = card.warningCount
+        self.resultPreview = Self.extractPreview(from: card.liveText)
+    }
+
+    private static func extractPreview(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let lines = trimmed.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let lastLines = lines.suffix(8).joined(separator: "\n")
+        return String(lastLines.suffix(500))
     }
 }
 

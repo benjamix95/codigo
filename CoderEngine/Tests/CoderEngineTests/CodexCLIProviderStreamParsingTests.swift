@@ -674,6 +674,32 @@ final class CodexCLIProviderStreamParsingTests: XCTestCase {
         )
     }
 
+    func testParseStreamJSONEventSynthesizesDebugResolvedFromDetailFallback() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-debug-resolve-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_debug_resolve",
+                    "arguments": #"{\"detail\":\"Fixed cache race\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        XCTAssertTrue(rawEvents.map(\.0).contains("debug_resolved"))
+        XCTAssertEqual(
+            rawEvents.first(where: { $0.0 == "debug_resolved" })?.1["summary"],
+            "Fixed cache race"
+        )
+    }
+
     // MARK: - Multi-Turn Intermediate Text → Reasoning
 
     func testMultiTurnMovesIntermediateTextToReasoning() {

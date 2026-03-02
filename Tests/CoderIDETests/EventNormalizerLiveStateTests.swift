@@ -463,6 +463,23 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testDebugCleanDryRunAcceptsNumericAlias() {
+        let events = EventNormalizer.normalize(
+            type: "debug_clean",
+            payload: [
+                "dry_run": "1",
+                "status": "preview"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugClean(let payload) = $0 {
+                return payload.dryRun
+            }
+            return false
+        })
+    }
+
     func testDebugHypothesizeParsesIDBasedPayload() {
         let id = UUID()
         let events = EventNormalizer.normalize(
