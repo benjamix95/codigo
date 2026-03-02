@@ -3133,6 +3133,10 @@ struct ChatPanelView: View {
         flushPendingTaskActivities()
         taskActivityStore.flushPending()
 
+        // Transition any cards still stuck in .running to .completed
+        // so the panel doesn't show stale running indicators.
+        taskActivityStore.finalizeRunningSwarmCards()
+
         let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {

@@ -14,9 +14,6 @@ private func roleDisplayName(from swarmId: String) -> String {
 
 // MARK: - Live Card
 
-/// Minimal inline card for a running or recently completed subagent.
-/// Dark rounded rectangle with title + subtitle, text shimmer on subtitle when running.
-/// Hover reveals Stop button and expand chevron; expand shows recent events.
 struct SubagentChatCardView: View {
     let card: SwarmLiveCardState
     let onOpenInPanel: () -> Void
@@ -26,23 +23,16 @@ struct SubagentChatCardView: View {
     @State private var isExpanded = false
 
     private var title: String {
-        let raw = card.currentStepTitle
-        if raw.isEmpty || raw == "Awaiting events" {
-            return roleDisplayName(from: card.swarmId)
-        }
-        return raw
+        roleDisplayName(from: card.swarmId)
     }
 
     private var subtitle: String {
         if card.status == .running {
-            if let live = liveRunningSubtitle() {
-                return live
-            }
-            return "Planning next moves"
+            if let live = liveRunningSubtitle() { return live }
+            return "Working..."
         }
         if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
         if card.status == .failed { return "Failed" }
-        if card.warningCount > 0 { return "Warnings" }
         return "Idle"
     }
 
@@ -61,35 +51,30 @@ struct SubagentChatCardView: View {
             let text = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
             let lower = text.lowercased()
-            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" {
-                continue
-            }
+            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" { continue }
             if text == title { continue }
             return String(text.prefix(120))
         }
         return nil
     }
 
-    private var visibleEvents: [TaskActivity] {
-        card.recentEvents
-            .filter { TaskActivityStore.isConcreteVisibleEvent($0) }
-            .suffix(15)
-            .map { $0 }
+    private var allEvents: [TaskActivity] {
+        card.recentEvents.suffix(40).map { $0 }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(.primary.opacity(0.7))
                         .lineLimit(1)
                         .truncationMode(.tail)
 
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .regular))
+                        .font(.system(size: 11.5, weight: .regular))
                         .foregroundStyle(.secondary.opacity(0.6))
                         .lineLimit(1)
                         .textShimmer(active: card.status == .running)
@@ -98,41 +83,83 @@ struct SubagentChatCardView: View {
                 Spacer(minLength: 0)
 
                 if isHovered || isExpanded {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         if card.status == .running, let onStop {
-                            Button {
-                                onStop()
-                            } label: {
+                            Button { onStop() } label: {
                                 Text("Stop")
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.system(size: 10.5, weight: .medium))
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.plain)
                         }
 
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
+                        Button {
+                            withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+                        } label: {
+                            VStack(spacing: 0.5) {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 6.5, weight: .bold))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 6.5, weight: .bold))
+                            }
                             .foregroundStyle(.quaternary)
+                            .frame(width: 18, height: 18)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                        }
+                        .buttonStyle(.plain)
                     }
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
 
-            // Expanded events
-            if isExpanded, !visibleEvents.isEmpty {
-                Divider()
-                    .opacity(0.15)
-                    .padding(.horizontal, 12)
+            // Expanded content
+            if isExpanded {
+                Divider().opacity(0.15).padding(.horizontal, 12)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(visibleEvents) { activity in
-                        eventRow(activity)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if !card.liveText.isEmpty {
+                                Text(card.liveText.suffix(4000))
+                                    .font(.system(size: 11, weight: .regular))
+                                    .foregroundStyle(.primary.opacity(0.7))
+                                    .textSelection(.enabled)
+                                    .textShimmer(active: card.status == .running)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                            }
+
+                            if !allEvents.isEmpty {
+                                if !card.liveText.isEmpty {
+                                    Divider().opacity(0.08).padding(.horizontal, 12)
+                                }
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    ForEach(allEvents) { activity in
+                                        eventRow(activity)
+                                    }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                            }
+
+                            Color.clear.frame(height: 1).id("bottom-anchor")
+                        }
+                    }
+                    .frame(maxHeight: 280)
+                    .onChange(of: card.recentEvents.count) { _, _ in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: card.liveText.count) { _, _ in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("bottom-anchor", anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
             }
         }
         .background(
@@ -146,6 +173,7 @@ struct SubagentChatCardView: View {
                     lineWidth: 1
                 )
         )
+        .frame(maxWidth: 480)
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
@@ -159,7 +187,7 @@ struct SubagentChatCardView: View {
 
     @ViewBuilder
     private func eventRow(_ activity: TaskActivity) -> some View {
-        let isLast = activity.id == visibleEvents.last?.id
+        let isLast = activity.id == allEvents.last?.id
         HStack(spacing: 6) {
             Image(systemName: eventIcon(for: activity))
                 .font(.system(size: 9, weight: .semibold))
@@ -200,6 +228,8 @@ struct SubagentChatCardView: View {
         case "read_batch_started", "read_batch_completed": return "doc.on.doc"
         case "todo_write", "todo_read": return "checklist"
         case "agent": return "person.circle.fill"
+        case "subagent_text": return "text.bubble"
+        case "reasoning": return "brain"
         default: return "gearshape.fill"
         }
     }
@@ -207,15 +237,11 @@ struct SubagentChatCardView: View {
 
 // MARK: - Snapshot Card
 
-/// Static card for persisted subagent snapshots shown in chat history after task completes.
-/// Matches the same minimal dark-card design as the live card.
 struct SubagentSnapshotCardView: View {
     let snapshot: SubagentCardSnapshot
 
     private var title: String {
-        let raw = snapshot.title
-        if raw.isEmpty { return roleDisplayName(from: snapshot.swarmId) }
-        return raw
+        roleDisplayName(from: snapshot.swarmId)
     }
 
     private var subtitle: String {
@@ -226,27 +252,27 @@ struct SubagentSnapshotCardView: View {
         switch snapshot.status {
         case .completed: return "Done"
         case .failed: return "Failed"
-        default: return roleDisplayName(from: snapshot.swarmId)
+        default: return "Idle"
         }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.7))
                 .lineLimit(1)
                 .truncationMode(.tail)
 
             Text(subtitle)
-                .font(.system(size: 12, weight: .regular))
+                .font(.system(size: 11.5, weight: .regular))
                 .foregroundStyle(.secondary.opacity(0.6))
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .frame(maxWidth: 480, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.15))

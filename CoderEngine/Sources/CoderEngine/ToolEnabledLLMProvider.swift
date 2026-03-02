@@ -2038,6 +2038,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 switch event {
                 case .textDelta(let delta):
                     if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
+                    if hasLiveCallback, !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        onLiveEvent?(.raw(type: "subagent_text", payload: [
+                            "swarm_id": subagentId,
+                            "group_id": "swarm-\(subagentId)",
+                            "text": String(delta.prefix(2000)),
+                            "_live_emitted": "1"
+                        ]))
+                    }
                 case .raw(let type, var payload):
                     payload["swarm_id"] = subagentId
                     payload["group_id"] = "swarm-\(subagentId)"

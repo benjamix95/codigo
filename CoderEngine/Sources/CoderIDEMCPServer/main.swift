@@ -504,6 +504,30 @@ struct CoderIDETools {
             ]),
             annotations: .init(title: "Subagent: TestWriter", readOnlyHint: false)
         ),
+        Tool(
+            name: "coderide_subagent_docWriter",
+            description: "Spawn a documentation subagent that writes README sections, inline comments, docstrings, and API docs.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "Documentation task to complete"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: DocWriter", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_subagent_securityAuditor",
+            description: "Spawn a security auditor subagent that analyzes code for vulnerabilities, insecure dependencies, and OWASP top 10 issues.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "task": .object(["type": "string", "description": "Security audit scope and focus areas"]),
+                ]),
+                "required": .array([.string("task")]),
+            ]),
+            annotations: .init(title: "Subagent: SecurityAuditor", readOnlyHint: true)
+        ),
 
         // --- Debug Tools ---
         Tool(
@@ -1099,16 +1123,16 @@ struct CoderIDEMCPServerApp {
         task: String,
         workspacePath: String
     ) async -> SubagentResult {
-        let roleConfig = subagentRoleConfig(for: role)
+        guard let resolvedRole = SubagentRole.fromToolName(role) else {
+            return SubagentResult(
+                output: "Unknown subagent role: \(role). Valid roles: \(SubagentRole.allToolNames.joined(separator: ", "))",
+                isError: true
+            )
+        }
 
-        let systemInstructions = """
-            You are a \(roleConfig.displayName) subagent. Your task is:
-            \(task)
-
-            Workspace: \(workspacePath)
-            \(roleConfig.constraints)
-            Be concise. Focus on the task. Return results directly.
-            """
+        let prompt = SubagentPromptBuilder.build(role: resolvedRole, task: task)
+        let readOnly = SubagentCLIConfig.isReadOnly(resolvedRole)
+        let timeout = SubagentCLIConfig.timeout(for: resolvedRole)
 
         let cliPath = resolveAvailableCLI()
         guard let cliPath else {
@@ -1118,11 +1142,11 @@ struct CoderIDEMCPServerApp {
             )
         }
 
-        let args = buildCLIArgs(
+        let args = SubagentCLIConfig.buildCLIArgs(
             cliPath: cliPath,
-            prompt: systemInstructions,
+            prompt: prompt,
             workspacePath: workspacePath,
-            readOnly: roleConfig.readOnly
+            readOnly: readOnly
         )
 
         let process = Process()
@@ -1148,79 +1172,55 @@ struct CoderIDEMCPServerApp {
             )
         }
 
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global().async {
-                process.waitUntilExit()
-                let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-                let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-                let outStr = String(data: outData, encoding: .utf8) ?? ""
-                let errStr = String(data: errData, encoding: .utf8) ?? ""
+        return await withTaskGroup(of: SubagentResult.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        process.waitUntilExit()
+                        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+                        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                        let outStr = String(data: outData, encoding: .utf8) ?? ""
+                        let errStr = String(data: errData, encoding: .utf8) ?? ""
 
-                let exitCode = process.terminationStatus
-                var result = outStr
-                if !errStr.isEmpty && result.isEmpty {
-                    result = errStr
+                        let exitCode = process.terminationStatus
+                        var result = outStr
+                        if !errStr.isEmpty && result.isEmpty {
+                            result = errStr
+                        }
+                        if result.isEmpty {
+                            result = exitCode == 0
+                                ? "Subagent completed successfully."
+                                : "Subagent failed (exit \(exitCode))."
+                        }
+
+                        let truncated = result.count > 100_000
+                            ? String(result.prefix(100_000)) + "\n... [truncated]"
+                            : result
+
+                        continuation.resume(returning: SubagentResult(
+                            output: truncated,
+                            isError: exitCode != 0
+                        ))
+                    }
                 }
-                if result.isEmpty {
-                    result = exitCode == 0 ? "Subagent completed successfully." : "Subagent failed (exit \(exitCode))."
-                }
-
-                let truncated = result.count > 100_000
-                    ? String(result.prefix(100_000)) + "\n... [truncated]"
-                    : result
-
-                continuation.resume(returning: SubagentResult(
-                    output: truncated,
-                    isError: exitCode != 0
-                ))
             }
-        }
-    }
 
-    private struct SubagentRoleConfig {
-        let displayName: String
-        let readOnly: Bool
-        let constraints: String
-    }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                if process.isRunning {
+                    process.terminate()
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    if process.isRunning { process.interrupt() }
+                }
+                return SubagentResult(
+                    output: "Subagent \(resolvedRole.displayName) timed out after \(Int(timeout))s.",
+                    isError: true
+                )
+            }
 
-    private static func subagentRoleConfig(for role: String) -> SubagentRoleConfig {
-        switch role {
-        case "subagent_explorer":
-            return SubagentRoleConfig(
-                displayName: "Explorer",
-                readOnly: true,
-                constraints: "You are READ-ONLY. Use only search and read tools. Do NOT edit files."
-            )
-        case "subagent_reviewer":
-            return SubagentRoleConfig(
-                displayName: "Reviewer",
-                readOnly: true,
-                constraints: "You are a code reviewer. Analyze code quality, potential bugs, and suggest improvements. Do NOT edit files."
-            )
-        case "subagent_coder":
-            return SubagentRoleConfig(
-                displayName: "Coder",
-                readOnly: false,
-                constraints: "You can read and edit files. Focus on implementation."
-            )
-        case "subagent_debugger":
-            return SubagentRoleConfig(
-                displayName: "Debugger",
-                readOnly: false,
-                constraints: "Investigate and fix bugs. You can read, edit, and run commands."
-            )
-        case "subagent_testWriter":
-            return SubagentRoleConfig(
-                displayName: "TestWriter",
-                readOnly: false,
-                constraints: "Write tests for the specified code. You can read and edit files."
-            )
-        default:
-            return SubagentRoleConfig(
-                displayName: "Agent",
-                readOnly: false,
-                constraints: ""
-            )
+            let firstResult = await group.next()!
+            group.cancelAll()
+            return firstResult
         }
     }
 
@@ -1260,37 +1260,6 @@ struct CoderIDEMCPServerApp {
             }
         }
         return nil
-    }
-
-    private static func buildCLIArgs(
-        cliPath: String,
-        prompt: String,
-        workspacePath: String,
-        readOnly: Bool
-    ) -> [String] {
-        let basename = URL(fileURLWithPath: cliPath).lastPathComponent.lowercased()
-
-        switch basename {
-        case "codex":
-            var args = ["-q", "--full-auto", prompt]
-            if readOnly {
-                args.insert(contentsOf: ["--sandbox", "read-only"], at: 0)
-            }
-            return args
-
-        case "claude":
-            var args = ["-p", prompt, "--output-format", "text"]
-            if readOnly {
-                args.append(contentsOf: ["--allowedTools", "Read,Search,Glob,Grep"])
-            }
-            return args
-
-        case "gemini":
-            return ["-p", prompt]
-
-        default:
-            return [prompt]
-        }
     }
 
     static func valueToString(_ value: Value) -> String {

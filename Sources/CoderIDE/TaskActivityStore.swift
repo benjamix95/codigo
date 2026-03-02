@@ -572,6 +572,26 @@ final class TaskActivityStore: ObservableObject {
         swarmEventsReceivedCount += 1
     }
 
+    /// Mark all cards still in `.running` status as `.completed`.
+    /// Called when the parent task ends so the panel doesn't show
+    /// stale running indicators after the stream finishes.
+    func finalizeRunningSwarmCards() {
+        var didChange = false
+        for (key, var card) in swarmCards where card.status == .running {
+            card.status = .completed
+            card.completedAt = Date()
+            card.activeOpsCount = 0
+            card.isCollapsed = true
+            card.hasUnreadSinceCollapse = false
+            swarmCards[key] = card
+            didChange = true
+        }
+        if didChange {
+            markSortedSwarmCardsDirty()
+            swarmEventsReceivedCount += 1
+        }
+    }
+
     func shouldPreserveSwarmCriticalEvent(_ activity: TaskActivity) -> Bool {
         guard SwarmLiveReducer.ownerSwarmId(for: activity, includeOrchestratorFallback: false) != nil
         else {

@@ -52,6 +52,13 @@ enum SwarmLiveReducer {
             card.currentStepTitle = activity.title
         }
 
+        if activity.type == "subagent_text", let text = activity.payload["text"], !text.isEmpty {
+            let remaining = SwarmLiveCardState.liveTextMaxLength - card.liveText.count
+            if remaining > 0 {
+                card.liveText += String(text.prefix(remaining))
+            }
+        }
+
         card.currentDetail = bestDetail(for: activity) ?? card.currentDetail
         if !isDuplicate {
             if activity.isRunning {

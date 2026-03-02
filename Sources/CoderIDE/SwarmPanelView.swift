@@ -102,10 +102,6 @@ struct SwarmPanelView: View {
                !cachedCards.contains(where: { $0.swarmId == sel }) {
                 selectedSwarmId = nil
             }
-            if selectedSwarmId == nil,
-               let firstRunning = cachedCards.first(where: { $0.status == .running }) {
-                selectedSwarmId = firstRunning.swarmId
-            }
         }
         .onChange(of: isTaskRunning) { _, v in if v { isFollowingLive = true } }
         .onChange(of: conversationId) { _, _ in
@@ -323,26 +319,19 @@ struct SwarmPanelView: View {
 
     @ViewBuilder
     private func overviewCard(_ card: SwarmLiveCardState) -> some View {
-        let title: String = {
-            let raw = card.currentStepTitle
-            if raw.isEmpty || raw == "Awaiting events" {
-                return panelRoleDisplayName(from: card.swarmId)
-            }
-            return raw
-        }()
+        let roleName = panelRoleDisplayName(from: card.swarmId)
 
         let subtitle: String = {
             if card.status == .running {
-                return liveSubtitle(for: card) ?? "Planning next moves"
+                return liveSubtitle(for: card) ?? "Working..."
             }
             if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
-            if card.warningCount > 0 { return "Warnings" }
             return "Idle"
         }()
 
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(roleName)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.7))
                 .lineLimit(1)
@@ -377,19 +366,12 @@ struct SwarmPanelView: View {
         let cardAccent = panelStatusAccent(for: card.status)
         let name = panelRoleDisplayName(from: card.swarmId)
 
-        let headerTitle: String = {
-            let raw = card.currentStepTitle
-            if raw.isEmpty || raw == "Awaiting events" { return name }
-            return raw
-        }()
-
         let headerSubtitle: String = {
             if card.status == .running {
-                return liveSubtitle(for: card) ?? "Planning next moves"
+                return liveSubtitle(for: card) ?? "Working..."
             }
             if card.status == .completed { return card.warningCount > 0 ? "Done with warnings" : "Done" }
             if card.status == .failed { return "Failed" }
-            if card.warningCount > 0 { return "Warnings" }
             return "Idle"
         }()
 
@@ -410,7 +392,7 @@ struct SwarmPanelView: View {
                     .buttonStyle(.plain)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(headerTitle)
+                        Text(name)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.primary.opacity(0.7))
                             .lineLimit(2)

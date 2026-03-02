@@ -22,8 +22,12 @@ struct SwarmLiveCardState: Identifiable, Sendable {
     var summary: String?
     var isCollapsed: Bool
     var hasUnreadSinceCollapse: Bool
+    /// Accumulated LLM text output streamed in real-time (capped to prevent unbounded growth).
+    var liveText: String
 
     var id: String { swarmId }
+
+    static let liveTextMaxLength = 12_000
 
     init(
         swarmId: String,
@@ -39,7 +43,8 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         recentEvents: [TaskActivity] = [],
         summary: String? = nil,
         isCollapsed: Bool = false,
-        hasUnreadSinceCollapse: Bool = false
+        hasUnreadSinceCollapse: Bool = false,
+        liveText: String = ""
     ) {
         self.swarmId = swarmId
         self.status = status
@@ -55,5 +60,6 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         self.summary = summary
         self.isCollapsed = isCollapsed
         self.hasUnreadSinceCollapse = hasUnreadSinceCollapse
+        self.liveText = liveText
     }
 }
