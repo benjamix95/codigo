@@ -312,6 +312,56 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(todoB?.status, .blocked)
     }
 
+    func testDisplayTodosForChatScopesCanonicalAndRuntimeByConversation() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        store.upsertCanonicalPlanTodos(["A canonical"], conversationId: conversationA)
+        store.upsertCanonicalPlanTodos(["B canonical"], conversationId: conversationB)
+        store.upsertFromAgent(
+            id: nil,
+            title: "A runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationA
+        )
+        store.upsertFromAgent(
+            id: nil,
+            title: "B runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationB
+        )
+
+        let visibleA = Set(store.displayTodosForChat(for: conversationA).map(\.title))
+        let visibleB = Set(store.displayTodosForChat(for: conversationB).map(\.title))
+
+        XCTAssertEqual(visibleA, Set(["A canonical", "A runtime"]))
+        XCTAssertEqual(visibleB, Set(["B canonical", "B runtime"]))
+    }
+
+    func testDisplayTodosForChatFallsBackToLegacyUnscopedTodos() {
+        let store = makeStore()
+        store.upsertCanonicalPlanTodos(["Legacy canonical"])
+        store.upsertFromAgent(
+            id: nil,
+            title: "Legacy runtime",
+            status: .pending,
+            priority: .medium,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: nil
+        )
+
+        let visible = Set(store.displayTodosForChat(for: UUID()).map(\.title))
+        XCTAssertEqual(visible, Set(["Legacy canonical", "Legacy runtime"]))
+    }
+
     func testClearDoesNotFireCanonicalCallback() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])

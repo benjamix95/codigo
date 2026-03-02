@@ -119,4 +119,96 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         XCTAssertTrue(ids.contains(reviewA.id))
         XCTAssertFalse(ids.contains(inProgressB.id))
     }
+
+    func testSubagentBatchAutoCompletionIgnoresManualInProgressTodos() {
+        let manualInProgress = TodoItem(
+            id: UUID(),
+            title: "Manual checklist",
+            status: .inProgress,
+            source: .manual
+        )
+        let agentInProgress = TodoItem(
+            id: UUID(),
+            title: "Agent task",
+            status: .inProgress,
+            source: .agent
+        )
+
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [manualInProgress, agentInProgress]
+        )
+
+        XCTAssertFalse(ids.contains(manualInProgress.id))
+        XCTAssertTrue(ids.contains(agentInProgress.id))
+    }
+
+    func testTraceEventsContainSuccessfulCodeEditsIgnoresReadBatchEvents() {
+        let readEvent = makeToolTraceEvent(
+            type: "read_batch_completed",
+            payload: [
+                "status": "completed",
+                "path": "/tmp/workspace/Sources/Feature/ReadOnly.swift",
+            ],
+            phase: .editing,
+            isRunning: false
+        )
+
+        XCTAssertFalse(traceEventsContainSuccessfulCodeEdits([readEvent]))
+    }
+
+    func testTouchedFilePathsFromTraceEventsIncludesOnlySuccessfulFileMutations() {
+        let successfulMutation = makeToolTraceEvent(
+            type: "file_change",
+            payload: [
+                "status": "completed",
+                "file_path": "/tmp/workspace/Sources/Feature/Updated.swift",
+            ],
+            phase: .editing,
+            isRunning: false
+        )
+        let readOnlyEvent = makeToolTraceEvent(
+            type: "read_batch_completed",
+            payload: [
+                "status": "completed",
+                "path": "/tmp/workspace/Sources/Feature/ReadOnly.swift",
+            ],
+            phase: .editing,
+            isRunning: false
+        )
+        let failedMutation = makeToolTraceEvent(
+            type: "file_change",
+            payload: [
+                "status": "failed",
+                "path": "/tmp/workspace/Sources/Feature/Failed.swift",
+            ],
+            phase: .editing,
+            isRunning: false
+        )
+
+        let files = touchedFilePathsFromTraceEvents([successfulMutation, readOnlyEvent, failedMutation])
+        XCTAssertEqual(files, ["Sources/Feature/Updated.swift"])
+    }
+
+    private func makeToolTraceEvent(
+        type: String,
+        payload: [String: String],
+        phase: ActivityPhase = .editing,
+        isRunning: Bool = false
+    ) -> ToolTraceEvent {
+        ToolTraceEvent(
+            sequence: 1,
+            timestamp: .now,
+            providerId: "test-provider",
+            conversationId: UUID(),
+            assistantMessageId: UUID(),
+            type: type,
+            title: "Test event",
+            detail: nil,
+            payload: payload,
+            phase: phase,
+            isRunning: isRunning,
+            groupId: nil,
+            rawKind: "generic"
+        )
+    }
 }

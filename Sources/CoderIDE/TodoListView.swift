@@ -191,10 +191,11 @@ struct TodoListView: View {
 
 struct TodoLiveInlineCard: View {
     @ObservedObject var store: TodoStore
+    var conversationId: UUID? = nil
     let onOpenFile: (String) -> Void
 
     private var displayedTodos: [TodoItem] {
-        Array(store.sortedCanonicalFirstTodos().prefix(8))
+        Array(store.displayTodosForChat(for: conversationId).prefix(8))
     }
 
     var body: some View {

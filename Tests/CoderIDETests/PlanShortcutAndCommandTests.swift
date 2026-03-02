@@ -138,6 +138,30 @@ final class PlanShortcutAndCommandTests: XCTestCase {
         XCTAssertTrue(result.shouldEnablePlanToggle)
     }
 
+    func testShouldOpenPlanPanelAfterShiftTabWhenPanelClosed() {
+        XCTAssertTrue(
+            shouldOpenPlanPanelAfterShiftTab(
+                shouldEnablePlanToggle: true,
+                currentShowPlanPanel: false
+            )
+        )
+    }
+
+    func testShouldOpenPlanPanelAfterShiftTabWhenPanelAlreadyOpenOrToggleDisabled() {
+        XCTAssertFalse(
+            shouldOpenPlanPanelAfterShiftTab(
+                shouldEnablePlanToggle: true,
+                currentShowPlanPanel: true
+            )
+        )
+        XCTAssertFalse(
+            shouldOpenPlanPanelAfterShiftTab(
+                shouldEnablePlanToggle: false,
+                currentShowPlanPanel: false
+            )
+        )
+    }
+
     func testEvaluateCmdShiftPPlanShortcutFirstPressEnablesInlinePlanOnly() {
         let result = evaluateCmdShiftPPlanShortcut(
             currentPlanToggleEnabled: false,

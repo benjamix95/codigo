@@ -320,6 +320,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                             let capturedContext = context
                             let capturedSubagentIds = subagentIdByToolCallId
                             var anySubagentFailed = false
+                            var completedRolesInBatch = Set<String>()
 
                             // Stream results as each subagent completes rather than
                             // collecting all results first — this keeps live cards
@@ -353,6 +354,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                             testWriterCompletedAfterLatestMutation = false
                                         }
                                         if let completedRole = Self.completedSubagentRole(from: e) {
+                                            completedRolesInBatch.insert(completedRole.rawValue.lowercased())
                                             if completedRole == .reviewer {
                                                 reviewerCompletedAfterLatestMutation = true
                                             }
@@ -389,13 +391,10 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 }
                             }
                             let autoStatus = anySubagentFailed ? "blocked" : "done"
-                            let completedRoles = Set(
-                                calls.compactMap { SubagentRole.fromToolName($0.name)?.rawValue.lowercased() }
-                            )
                             continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                 "status": autoStatus,
                                 "count": "\(calls.count)",
-                                "roles": completedRoles.sorted().joined(separator: ",")
+                                "roles": completedRolesInBatch.sorted().joined(separator: ",")
                             ]))
                             pendingSubagentCalls.removeAll()
                         }
@@ -454,6 +453,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 let capturedInjectedIds = injectedSubagentIds
 
                                 var injectedAnyFailed = false
+                                var injectedCompletedRoles = Set<String>()
                                 await withTaskGroup(
                                     of: (events: [StreamEvent], marker: CoderIDEMarker).self
                                 ) { group in
@@ -484,6 +484,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                                 testWriterCompletedAfterLatestMutation = false
                                             }
                                             if let completedRole = Self.completedSubagentRole(from: e) {
+                                                injectedCompletedRoles.insert(completedRole.rawValue.lowercased())
                                                 if completedRole == .reviewer {
                                                     reviewerCompletedAfterLatestMutation = true
                                                 }
@@ -521,11 +522,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                 continuation.yield(.raw(type: "subagent_batch_done", payload: [
                                     "status": injectedAnyFailed ? "blocked" : "done",
                                     "count": "\(injectedCalls.count)",
-                                    "roles": Set(
-                                        injectedCalls.compactMap {
-                                            SubagentRole.fromToolName($0.name)?.rawValue.lowercased()
-                                        }
-                                    ).sorted().joined(separator: ",")
+                                    "roles": injectedCompletedRoles.sorted().joined(separator: ",")
                                 ]))
                             }
                         }

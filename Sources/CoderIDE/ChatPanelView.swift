@@ -80,10 +80,11 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
 ) -> [UUID] {
     let normalizedReviewTitle = normalizedTodoTitle(reviewTodoTitle)
     let isInScope = todoConversationScopeFilter(todos: todos, conversationId: conversationId)
-    var ids = Set(todos.filter { isInScope($0) && $0.status == .inProgress }.map(\.id))
+    var ids = Set(todos.filter { isInScope($0) && $0.source == .agent && $0.status == .inProgress }.map(\.id))
     if includePendingReviewTodo,
        let pendingReview = todos.first(where: {
            isInScope($0)
+               && $0.source == .agent
                && $0.status == .pending
                && normalizedTodoTitle($0.title) == normalizedReviewTitle
        })
@@ -119,10 +120,7 @@ func todoConversationScopeFilter(
 }
 
 func traceEventsContainSuccessfulCodeEdits(_ traceEvents: [ToolTraceEvent]) -> Bool {
-    traceEvents.contains { event in
-        guard event.phase == .editing else { return false }
-        return isSuccessfulMutationEventStatus(event.payload["status"], isRunning: event.isRunning)
-    }
+    traceEvents.contains(where: isSuccessfulFileMutationEvent(_:))
 }
 
 func touchedFilePathsFromTraceEvents(
@@ -130,11 +128,18 @@ func touchedFilePathsFromTraceEvents(
     maxCount: Int = 50
 ) -> [String] {
     let files = traceEvents.compactMap { event -> String? in
-        guard event.phase == .editing else { return nil }
-        guard isSuccessfulMutationEventStatus(event.payload["status"], isRunning: event.isRunning) else {
+        guard isSuccessfulFileMutationEvent(event) else {
             return nil
         }
-        let rawPath = (event.payload["file"] ?? event.payload["path"] ?? "")
+        let rawPath = (
+            ToolTraceFileChangeMapper.from(event: event)?.path
+                ?? event.payload["file"]
+                ?? event.payload["path"]
+                ?? event.payload["file_path"]
+                ?? event.payload["relative_path"]
+                ?? event.payload["target_path"]
+                ?? ""
+        )
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawPath.isEmpty else { return nil }
         return normalizeTouchedFilePath(rawPath)
@@ -169,6 +174,11 @@ private func isSuccessfulMutationEventStatus(_ rawStatus: String?, isRunning: Bo
         || normalized == "success"
         || normalized == "ok"
         || normalized == "done"
+}
+
+private func isSuccessfulFileMutationEvent(_ event: ToolTraceEvent) -> Bool {
+    guard ToolTraceFileChangeMapper.isFileChangeEvent(event) else { return false }
+    return isSuccessfulMutationEventStatus(event.payload["status"], isRunning: event.isRunning)
 }
 
 private func normalizeTouchedFilePath(_ rawPath: String) -> String {
@@ -765,6 +775,13 @@ func evaluateShiftTabPlanShortcut(currentInputText: String) -> ShiftTabPlanShort
         shouldHighlightPlanToggle: false,
         shouldEnablePlanToggle: true
     )
+}
+
+func shouldOpenPlanPanelAfterShiftTab(
+    shouldEnablePlanToggle: Bool,
+    currentShowPlanPanel: Bool
+) -> Bool {
+    shouldEnablePlanToggle && !currentShowPlanPanel
 }
 
 struct CmdShiftPPlanShortcutTransition: Equatable {
@@ -2104,6 +2121,12 @@ struct ChatPanelView: View {
         inputText = transition.nextInputText
         if transition.shouldEnablePlanToggle {
             planToggleEnabled = true
+            if shouldOpenPlanPanelAfterShiftTab(
+                shouldEnablePlanToggle: transition.shouldEnablePlanToggle,
+                currentShowPlanPanel: showPlanPanel
+            ) {
+                openPlanPanelForCurrentContext(source: .manualShortcut)
+            }
         }
 
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -2718,11 +2741,12 @@ struct ChatPanelView: View {
                             )
                             if message.role == .assistant {
                                 if shouldShowPlanTodosInChat,
-                                   !todoStore.todos.isEmpty,
+                                   !todoStore.displayTodosForChat(for: conversationId).isEmpty,
                                    message.id == latestAssistantMessageId
                                 {
                                     TodoLiveInlineCard(
                                         store: todoStore,
+                                        conversationId: conversationId,
                                         onOpenFile: { openFilesStore.openFile($0) }
                                     )
                                     .padding(.horizontal, 2)
@@ -2850,11 +2874,12 @@ struct ChatPanelView: View {
         }
 
         if shouldShowPlanTodosInChat,
-           !todoStore.todos.isEmpty,
+           !todoStore.displayTodosForChat(for: conversationId).isEmpty,
            message.id == latestAssistantMessageId
         {
             TodoLiveInlineCard(
                 store: todoStore,
+                conversationId: conversationId,
                 onOpenFile: { openFilesStore.openFile($0) }
             )
             .padding(.horizontal, 2)
@@ -5802,7 +5827,11 @@ struct ChatPanelView: View {
         )
 
         do {
-            try createCheckpointBeforeTurn(conversationId: agentConvId, workspaceContext: ctx)
+            try createCheckpointBeforeTurn(
+                conversationId: agentConvId,
+                workspaceContext: ctx,
+                planConversationIdForSnapshot: planConversationId
+            )
         } catch {
             appendTechnicalErrorMessage(
                 "[Checkpoint error: \(error.localizedDescription)]", in: agentConvId)
@@ -5812,6 +5841,7 @@ struct ChatPanelView: View {
         planningState = .idle
         planFlowPhase = .readyToBuild
         chatStore.choosePlanPath(choice, for: planConversationId)
+        chatStore.setWalkthrough("", for: planConversationId)
 
         todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
         let canonicalTodos = todoStore.canonicalTodos(for: planConversationId)
@@ -5997,6 +6027,8 @@ struct ChatPanelView: View {
                         linkedFiles: reviewLinkedFiles,
                         conversationId: planConvId
                     )
+                } else if let planConvId = activeBuildPlanConversationId {
+                    chatStore.setWalkthrough("", for: planConvId)
                 }
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
@@ -7871,7 +7903,10 @@ struct ChatPanelView: View {
         payload: [String: String],
         conversationId: UUID?
     ) {
-        let targetStatus: TodoStatus = status == "done" ? .done : .blocked
+        let normalizedStatus = status
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let targetStatus: TodoStatus = normalizedStatus == "done" ? .done : .blocked
         let targetIDs = todoIDsToAutoCompleteAfterSubagentBatch(
             todos: todoStore.todos,
             conversationId: conversationId,
@@ -8311,20 +8346,8 @@ struct ChatPanelView: View {
         }
         lines.append("")
 
-        // Files changed (from trace events)
-        let fileChangeTypes: Set<String> = ["file_change", "edit", "write", "create_file", "str_replace", "multi_edit"]
-        let changedFiles = Set(
-            traceEvents
-                .filter { fileChangeTypes.contains($0.type) }
-                .compactMap { $0.payload["file"] ?? $0.payload["path"] ?? $0.title }
-                .map { url in
-                    // Show relative path only
-                    if let range = url.range(of: "Sources/") { return String(url[range.lowerBound...]) }
-                    if let range = url.range(of: "Tests/") { return String(url[range.lowerBound...]) }
-                    if let range = url.range(of: "CoderEngine/") { return String(url[range.lowerBound...]) }
-                    return (url as NSString).lastPathComponent
-                }
-        ).sorted()
+        // Files changed (from successful file-mutation trace events)
+        let changedFiles = touchedFilePathsFromTraceEvents(traceEvents, maxCount: 200)
         if !changedFiles.isEmpty {
             lines.append("### Files Modified (\(changedFiles.count))")
             for file in changedFiles {
@@ -8660,20 +8683,30 @@ struct ChatPanelView: View {
     }
 
     private func createCheckpointBeforeTurn(
-        conversationId: UUID?, workspaceContext: WorkspaceContext
+        conversationId: UUID?,
+        workspaceContext: WorkspaceContext,
+        planConversationIdForSnapshot: UUID? = nil
     ) throws {
         guard let conversationId else { return }
         let pathStrings = workspaceContext.workspacePaths.map(\.path)
         do {
             let states = try checkpointGitStore.captureSnapshots(
                 conversationId: conversationId, workspacePaths: pathStrings)
-            chatStore.createCheckpoint(for: conversationId, gitStates: states)
+            chatStore.createCheckpoint(
+                for: conversationId,
+                gitStates: states,
+                planConversationIdForSnapshot: planConversationIdForSnapshot
+            )
         } catch {
             // Cursor-style fallback: valid chat checkpoint even outside a Git repository.
             if let gitError = error as? ConversationCheckpointGitStore.GitStoreError {
                 switch gitError {
                 case .notGitRepository:
-                    chatStore.createCheckpoint(for: conversationId, gitStates: [])
+                    chatStore.createCheckpoint(
+                        for: conversationId,
+                        gitStates: [],
+                        planConversationIdForSnapshot: planConversationIdForSnapshot
+                    )
                     return
                 default:
                     throw error

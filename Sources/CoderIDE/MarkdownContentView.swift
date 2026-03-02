@@ -646,7 +646,27 @@ struct MarkdownContentView: View {
             // Fenced code block
             if trimmed.hasPrefix("```") {
                 flushParagraph()
-                let lang = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                let fencePayload = String(trimmed.dropFirst(3))
+                let lang = fencePayload.trimmingCharacters(in: .whitespaces)
+
+                // Support inline fenced blocks, e.g. ```mermaid graph TD; A-->B```
+                if let closingRange = fencePayload.range(of: "```") {
+                    let inlinePayload = String(fencePayload[..<closingRange.lowerBound])
+                        .trimmingCharacters(in: .whitespaces)
+                    if inlinePayload.lowercased().hasPrefix("mermaid") {
+                        let code = String(inlinePayload.dropFirst("mermaid".count))
+                            .trimmingCharacters(in: .whitespaces)
+                        blocks.append(.mermaid(code: code))
+                    } else {
+                        let parts = inlinePayload.split(maxSplits: 1, whereSeparator: { $0.isWhitespace })
+                        let inlineLanguage = parts.first.map(String.init) ?? ""
+                        let inlineCode = parts.count > 1 ? String(parts[1]) : ""
+                        blocks.append(.codeBlock(language: inlineLanguage, code: inlineCode))
+                    }
+                    i += 1
+                    continue
+                }
+
                 var codeLines: [String] = []
                 i += 1
                 while i < lines.count {
@@ -749,6 +769,12 @@ struct MarkdownContentView: View {
         if blocks.last == .spacer { blocks.removeLast() }
         return blocks
     }
+
+#if DEBUG
+    func parseBlocksForTests() -> [MarkdownBlock] {
+        parseBlocks()
+    }
+#endif
 
     // MARK: - Table Rendering
 

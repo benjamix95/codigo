@@ -666,6 +666,52 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         XCTAssertTrue(batchRoles.contains("testwriter"))
     }
 
+    func testSubagentBatchDonePayloadExcludesInvalidSubagentRoles() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("subagent-batch-invalid-roles-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let policyFile = workspace.appendingPathComponent("AGENTS.md")
+        try "Policy test".write(to: policyFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-reviewer-invalid-roles",
+                "name": "subagent_reviewer",
+                "args": #"{}"#,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            maxToolRounds: 1,
+            subagentProviderFactory: { TextOnlyProvider() }
+        )
+        let stream = try await provider.send(
+            prompt: "Prova reviewer senza task",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var observedBatchPayloads: [[String: String]] = []
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            guard type == "subagent_batch_done" else { continue }
+            observedBatchPayloads.append(payload)
+        }
+
+        let firstBatchPayload = try XCTUnwrap(observedBatchPayloads.first)
+        let roles = Set(
+            (firstBatchPayload["roles"] ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+        XCTAssertFalse(roles.contains("reviewer"))
+    }
+
     func testFailedReviewerSuggestionDoesNotSatisfyMandatoryFinalReview() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("subagent-reviewer-failed-suggestion-\(UUID().uuidString)", isDirectory: true)

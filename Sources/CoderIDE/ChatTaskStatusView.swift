@@ -286,6 +286,7 @@ struct TaskActivityPanel: View {
             TaskActivityStore.isConcreteVisibleEvent($0)
             && !SwarmMetadata.isSwarmEvent($0.payload)
         }
+        let scopedTodos = todoStore.displayTodosForChat(for: conversationId)
         if chatStore.isTaskActive(for: conversationId) {
             liveModeBanner
         }
@@ -369,16 +370,17 @@ struct TaskActivityPanel: View {
         }
 
         // Todo
-        if showTodoSection, !todoStore.todos.isEmpty {
+        if showTodoSection, !scopedTodos.isEmpty {
             expandableSection(
                 title: "Todo",
-                count: todoStore.todos.count,
+                count: scopedTodos.count,
                 icon: "checklist",
                 color: .secondary,
                 isExpanded: $isTodoExpanded
             ) {
                 TodoLiveInlineCard(
                     store: todoStore,
+                    conversationId: conversationId,
                     onOpenFile: onOpenFile
                 )
             }

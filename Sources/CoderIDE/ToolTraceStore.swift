@@ -117,16 +117,10 @@ final class ToolTraceStore: ObservableObject {
     func append(event: ToolTraceEvent) {
         let key = TraceKey(conversationId: event.conversationId, assistantMessageId: event.assistantMessageId)
         var events = loadIfNeeded(for: key)
-        if let last = events.last,
-           (event.sequence < last.sequence
-            || (event.sequence == last.sequence && event.timestamp < last.timestamp)) {
-            events.append(event)
-            events.sort { lhs, rhs in
-                if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
-                return lhs.timestamp < rhs.timestamp
-            }
-        } else {
-            events.append(event)
+        events.append(event)
+        events.sort { lhs, rhs in
+            if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
+            return lhs.timestamp < rhs.timestamp
         }
         cache[key] = events
         // Encode on main thread (fast), dispatch write to background

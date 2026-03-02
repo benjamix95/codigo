@@ -87,6 +87,56 @@ final class ChatStoreCheckpointTests: XCTestCase {
         XCTAssertEqual(secondCheckpoint?.messageCount, 3)
     }
 
+    func testRewindConversationStateRestoresLinkedPlanConversationSnapshot() throws {
+        let store = ChatStore()
+        let agentConversationId = try conversationID(from: store)
+        let planConversationId = store.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: .plan
+        )
+
+        let initialPlanBoard = PlanBoard(
+            goal: "Initial goal",
+            options: [],
+            chosenPath: nil,
+            steps: [],
+            updatedAt: .now,
+            walkthroughMarkdown: "Initial walkthrough"
+        )
+        store.setPlanBoard(initialPlanBoard, for: planConversationId)
+
+        store.addMessage(ChatMessage(role: .user, content: "start build"), to: agentConversationId)
+        store.createCheckpoint(
+            for: agentConversationId,
+            gitStates: [],
+            planConversationIdForSnapshot: planConversationId
+        )
+        guard let checkpointId = store.previousCheckpoint(conversationId: agentConversationId)?.id else {
+            XCTFail("Checkpoint missing")
+            return
+        }
+
+        store.setPlanBoard(
+            PlanBoard(
+                goal: "Mutated goal",
+                options: [],
+                chosenPath: nil,
+                steps: [],
+                updatedAt: .now,
+                walkthroughMarkdown: "Mutated walkthrough"
+            ),
+            for: planConversationId
+        )
+        store.addMessage(ChatMessage(role: .assistant, content: "build response"), to: agentConversationId)
+
+        let ok = store.rewindConversationState(to: checkpointId, conversationId: agentConversationId)
+        XCTAssertTrue(ok)
+        XCTAssertEqual(store.conversation(for: agentConversationId)?.messages.count, 1)
+        XCTAssertEqual(store.planBoard(for: planConversationId)?.goal, "Initial goal")
+        XCTAssertEqual(store.planBoard(for: planConversationId)?.walkthroughMarkdown, "Initial walkthrough")
+    }
+
     private func clearPersistedState() {
         UserDefaults.standard.removeObject(forKey: convKey)
         UserDefaults.standard.removeObject(forKey: planKey)

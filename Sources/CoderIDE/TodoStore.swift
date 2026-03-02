@@ -245,6 +245,22 @@ final class TodoStore: ObservableObject {
         return sortedCanonicalFirstTodos(legacyUnscoped)
     }
 
+    /// Returns todos suitable for chat/task live cards, scoped to the current conversation.
+    /// Includes canonical and runtime todos with legacy fallback behavior.
+    func displayTodosForChat(for conversationId: UUID?) -> [TodoItem] {
+        guard let conversationId else {
+            return sortedCanonicalFirstTodos()
+        }
+
+        let scopedCanonical = canonicalTodos(for: conversationId)
+        let isRuntimeInScope = runtimeScopeFilter(for: conversationId)
+        let scopedRuntime = todos.filter { isRuntimeInScope($0) }
+
+        let canonicalIds = Set(scopedCanonical.map(\.id))
+        let merged = scopedCanonical + scopedRuntime.filter { !canonicalIds.contains($0.id) }
+        return sortedCanonicalFirstTodos(merged)
+    }
+
     private func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
         guard let conversationId else {
             return { $0.isPlanCanonical }

@@ -300,6 +300,10 @@ struct ConversationCheckpoint: Identifiable, Codable, Equatable {
     let createdAt: Date
     let messageCount: Int
     let planBoardSnapshot: PlanBoard?
+    /// Optional snapshot for a second plan conversation (used by plan-build turns
+    /// where execution happens in agent conversation but plan board lives elsewhere).
+    let linkedPlanConversationId: UUID?
+    let linkedPlanBoardSnapshot: PlanBoard?
     let gitStates: [ConversationCheckpointGitState]
 
     init(
@@ -307,12 +311,16 @@ struct ConversationCheckpoint: Identifiable, Codable, Equatable {
         createdAt: Date = .now,
         messageCount: Int,
         planBoardSnapshot: PlanBoard?,
+        linkedPlanConversationId: UUID? = nil,
+        linkedPlanBoardSnapshot: PlanBoard? = nil,
         gitStates: [ConversationCheckpointGitState]
     ) {
         self.id = id
         self.createdAt = createdAt
         self.messageCount = messageCount
         self.planBoardSnapshot = planBoardSnapshot
+        self.linkedPlanConversationId = linkedPlanConversationId
+        self.linkedPlanBoardSnapshot = linkedPlanBoardSnapshot
         self.gitStates = gitStates
     }
 }
@@ -1628,11 +1636,21 @@ final class ChatStore: ObservableObject {
         return sections.joined(separator: "\n\n")
     }
 
-    func createCheckpoint(for conversationId: UUID?, gitStates: [ConversationCheckpointGitState]) {
+    func createCheckpoint(
+        for conversationId: UUID?,
+        gitStates: [ConversationCheckpointGitState],
+        planConversationIdForSnapshot: UUID? = nil
+    ) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        let linkedPlanConversationId: UUID? = {
+            guard let planConversationIdForSnapshot else { return nil }
+            return planConversationIdForSnapshot == conversations[idx].id ? nil : planConversationIdForSnapshot
+        }()
         let checkpoint = ConversationCheckpoint(
             messageCount: conversations[idx].messages.count,
             planBoardSnapshot: planBoards[conversations[idx].id],
+            linkedPlanConversationId: linkedPlanConversationId,
+            linkedPlanBoardSnapshot: linkedPlanConversationId.flatMap { planBoards[$0] },
             gitStates: gitStates
         )
         conversations[idx].checkpoints.append(checkpoint)
@@ -1667,6 +1685,13 @@ final class ChatStore: ObservableObject {
         } else {
             planBoards.removeValue(forKey: conversations[idx].id)
         }
+        if let linkedConversationId = checkpoint.linkedPlanConversationId {
+            if let linkedSnapshot = checkpoint.linkedPlanBoardSnapshot {
+                planBoards[linkedConversationId] = linkedSnapshot
+            } else {
+                planBoards.removeValue(forKey: linkedConversationId)
+            }
+        }
         conversations[idx].checkpoints = Array(conversations[idx].checkpoints.prefix(cpIdx))
         saveConversations()
         savePlanBoards()
@@ -1692,6 +1717,14 @@ final class ChatStore: ObservableObject {
             planBoards[conversations[idx].id] = snapshot
         } else {
             planBoards.removeValue(forKey: conversations[idx].id)
+        }
+        if let lastCheckpoint = conversations[idx].checkpoints.last,
+           let linkedConversationId = lastCheckpoint.linkedPlanConversationId {
+            if let linkedSnapshot = lastCheckpoint.linkedPlanBoardSnapshot {
+                planBoards[linkedConversationId] = linkedSnapshot
+            } else {
+                planBoards.removeValue(forKey: linkedConversationId)
+            }
         }
         saveConversations()
         savePlanBoards()
