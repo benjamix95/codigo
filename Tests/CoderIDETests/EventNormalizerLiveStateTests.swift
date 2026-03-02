@@ -424,6 +424,45 @@ final class EventNormalizerLiveStateTests: XCTestCase {
         })
     }
 
+    func testDebugMarkParsesFourPartMarkerInfoWithoutLeakingTypeIntoComment() {
+        let events = EventNormalizer.normalize(
+            type: "debug_mark",
+            payload: [
+                "marker_info": "Sources/App.swift|42|added print|log",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugMark(let payload) = $0 {
+                return payload.filePath == "Sources/App.swift"
+                    && payload.lineNumber == 42
+                    && payload.comment == "added print"
+            }
+            return false
+        })
+    }
+
+    func testDebugCleanDryRunEmitsTypedPayload() {
+        let events = EventNormalizer.normalize(
+            type: "debug_clean",
+            payload: [
+                "dry_run": "true",
+                "detail": "Preview only",
+                "status": "preview"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugClean(let payload) = $0 {
+                return payload.dryRun
+                    && payload.status == "preview"
+                    && payload.detail == "Preview only"
+            }
+            return false
+        })
+    }
+
     func testDebugHypothesizeParsesIDBasedPayload() {
         let id = UUID()
         let events = EventNormalizer.normalize(
@@ -441,6 +480,31 @@ final class EventNormalizerLiveStateTests: XCTestCase {
                 return payload.action == "update"
                     && payload.hypothesisId == id
                     && payload.status == .confirmed
+            }
+            return false
+        })
+    }
+
+    func testDebugInstrumentEmitsTypedPayload() {
+        let events = EventNormalizer.normalize(
+            type: "debug_instrument",
+            payload: [
+                "path": "Sources/App.swift",
+                "line": "73",
+                "type": "timing",
+                "expression": "compute()",
+                "hypothesis_id": "abc123",
+                "label": "hot path",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .debugInstrument(let payload) = $0 {
+                return payload.filePath == "Sources/App.swift"
+                    && payload.lineNumber == 73
+                    && payload.type == "timing"
+                    && payload.label == "hot path"
             }
             return false
         })

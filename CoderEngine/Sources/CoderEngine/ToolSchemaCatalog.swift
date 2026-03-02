@@ -665,7 +665,7 @@ enum ToolSchemaCatalog {
             name: "debug_session",
             description: "Manage debug sessions with lifecycle control, snapshots, and export. Use 'start' at the beginning, 'snapshot' to save state for comparison, 'stats' for session metrics, 'export' for a full report, and 'end'/'clear' to finish.",
             properties: [
-                "action": ["type": "string", "description": "start|end|clear|snapshot|export|stats"],
+                "action": ["type": "string", "description": "start|end|stop|clear|snapshot|export|stats"],
                 "label": ["type": "string", "description": "Label for snapshot (used with action=snapshot). Use descriptive names like 'before-fix', 'after-refactor'."]
             ],
             required: ["action"]
@@ -732,7 +732,7 @@ enum ToolSchemaCatalog {
         ),
         ToolSchemaEntry(
             name: "debug_resolve",
-            description: "Resolve the debug session with a comprehensive final summary. Triggers automatic cleanup of debug markers. Include: root cause, fix applied, verification results, and any remaining risks.",
+            description: "Resolve the debug session with a comprehensive final summary after cleanup. Include: root cause, fix applied, verification results, and any remaining risks.",
             properties: [
                 "summary": ["type": "string", "description": "Final summary: root cause, fix applied, tests passed, and any caveats"]
             ],
@@ -1133,7 +1133,7 @@ enum ToolSchemaCatalog {
             properties: [
                 "name": ["type": "string", "description": "Prompt template name"],
                 "server": ["type": "string", "description": "Server identifier. Required if prompt name exists on multiple servers."],
-                "args": ["type": "string", "description": "JSON object of prompt arguments, e.g. {\"language\": \"python\", \"topic\": \"error handling\"}"]
+                "args": ["type": "string", "description": "JSON object of prompt arguments (supports strings, numbers, booleans, arrays, objects), e.g. {\"language\":\"python\",\"retries\":2,\"strict\":true}"]
             ],
             required: ["name"]
         ),

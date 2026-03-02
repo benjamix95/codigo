@@ -156,11 +156,51 @@ final class DebugFlowToolE2ETests: XCTestCase {
                     lineNumber: markerPayload.lineNumber,
                     markerComment: markerPayload.comment
                 ))
+            case .debugInstrument(let instrumentPayload):
+                let type: InstrumentationPoint.InstrumentationType
+                switch instrumentPayload.type {
+                case "assert": type = .assertion
+                case "timing": type = .timing
+                case "variable": type = .variable
+                default: type = .logging
+                }
+                debugStore.addInstrumentation(
+                    filePath: instrumentPayload.filePath,
+                    lineNumber: instrumentPayload.lineNumber,
+                    type: type,
+                    code: instrumentPayload.label ?? instrumentPayload.expression ?? "instrumentation",
+                    hypothesisId: instrumentPayload.hypothesisId
+                )
             case .debugClean(let cleanPayload):
                 let status = (cleanPayload.status ?? "completed").lowercased()
                 let success = status != "failed" && status != "error"
                 debugStore.applyDebugCleanResult(success: success, detail: cleanPayload.detail)
-            case .debugSession, .debugQuery, .activatePlanMode, .activateDebugMode,
+            case .debugSession(let sessionPayload):
+                switch sessionPayload.action {
+                case "start":
+                    if debugStore.phase == .idle || debugStore.phase == .resolved {
+                        debugStore.startDebugSession(errorContext: sessionPayload.detail ?? "")
+                    }
+                case "clear":
+                    debugStore.clearLogs()
+                    debugStore.clearRuntimeLogs()
+                case "end", "stop":
+                    if debugStore.phase != .resolved {
+                        debugStore.setPhase(.verifying)
+                    }
+                default:
+                    break
+                }
+            case .debugQuery(let queryPayload):
+                let detail = queryPayload.detail ?? "Debug query \(queryPayload.format)"
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_query",
+                    message: detail,
+                    detail: queryPayload.output,
+                    category: "debug"
+                )
+            case .activatePlanMode, .activateDebugMode,
                  .instantGrep, .todoWrite, .todoRead, .planStepUpdate, .mermaidRender:
                 break
             }

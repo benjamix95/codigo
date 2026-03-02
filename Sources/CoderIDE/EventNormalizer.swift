@@ -38,11 +38,21 @@ struct DebugMarkToolPayload {
     let originalContent: String?
 }
 
+struct DebugInstrumentToolPayload {
+    let filePath: String
+    let lineNumber: Int
+    let type: String
+    let expression: String?
+    let hypothesisId: String?
+    let label: String?
+}
+
 struct DebugCleanToolPayload {
     let cleanedCount: Int
     let filesCount: Int
     let detail: String?
     let status: String?
+    let dryRun: Bool
 }
 
 struct DebugSessionToolPayload {
@@ -71,6 +81,7 @@ enum NormalizedEvent {
     case debugLog(DebugLogToolPayload)
     case debugHypothesize(DebugHypothesizeToolPayload)
     case debugMark(DebugMarkToolPayload)
+    case debugInstrument(DebugInstrumentToolPayload)
     case debugClean(DebugCleanToolPayload)
     case debugSession(DebugSessionToolPayload)
     case debugQuery(DebugQueryToolPayload)
@@ -116,9 +127,10 @@ enum EventNormalizer {
         payload: [String: String],
         timestamp: Date = .now
     ) -> NormalizedEventEnvelope {
-        let events = normalize(type: type, payload: payload, timestamp: timestamp)
+        let normalizedType = normalizeSpecialType(type, payload: payload)
+        let events = normalize(type: normalizedType, payload: payload, timestamp: timestamp)
         let kind: EventKind
-        switch type {
+        switch normalizedType {
         case "command_execution", "bash": kind = .terminalSession
         case "file_change", "edit",
              "str_replace", "regex_replace", "write", "write_file", "create_file", "delete_file",
@@ -136,7 +148,8 @@ enum EventNormalizer {
         case "debug_phase_update": kind = .debugPhaseUpdate
         case "debug_user_request": kind = .debugUserRequest
         case "debug_resolved": kind = .debugResolved
-        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+             "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check":
             kind = .debugToolUpdate
         case "debug_panel", "debug_panel_update":
             kind = .errorDiagnostic
@@ -321,7 +334,8 @@ enum EventNormalizer {
                 payload: payload,
                 timestamp: timestamp,
                 phase: .executing,
-                isRunning: phase != .resolved
+                isRunning: false,
+                groupId: payload["group_id"] ?? "debug_phase_update"
             )))
             return events
         }
@@ -426,6 +440,23 @@ enum EventNormalizer {
                 type: type,
                 title: payload["title"] ?? defaultTitle(for: type),
                 detail: payload["detail"] ?? payload["marker_info"],
+                payload: payload,
+                timestamp: timestamp,
+                phase: phaseForType(type, payload: payload),
+                isRunning: runningStateForType(type, payload: payload),
+                groupId: payload["group_id"] ?? payload["tool_call_id"]
+            )))
+            return events
+        }
+
+        if type == "debug_instrument" {
+            if let instrumentPayload = parseDebugInstrumentPayload(payload: payload) {
+                events.append(.debugInstrument(instrumentPayload))
+            }
+            events.append(.taskActivity(TaskActivity(
+                type: type,
+                title: payload["title"] ?? defaultTitle(for: type),
+                detail: payload["detail"] ?? payload["expression"],
                 payload: payload,
                 timestamp: timestamp,
                 phase: phaseForType(type, payload: payload),
@@ -571,6 +602,7 @@ enum EventNormalizer {
         if [
             "semantic_search", "read_lints", "debug_context",
             "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+            "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
             "debug_phase_update", "debug_user_request", "debug_resolved",
         ].contains(normalizedCanonicalType) {
             return normalizedCanonicalType
@@ -578,17 +610,18 @@ enum EventNormalizer {
         if fileChangeLikeTypes.contains(normalized) {
             return "file_change"
         }
-        if type == "read_batch_completed",
+        if normalized == "read_batch_completed",
            let rawToolName = payload["tool"]?.trimmingCharacters(in: .whitespacesAndNewlines),
            [
                "semantic_search", "read_lints", "debug_context",
                "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+               "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
                "debug_phase_update", "debug_user_request", "debug_resolved",
            ].contains(normalizedToolIdentifier(rawToolName))
         {
             return normalizedToolIdentifier(rawToolName)
         }
-        if type == "web_search",
+        if normalized == "web_search",
            let status = payload["status"]?.lowercased() {
             switch status {
             case "started": return "web_search_started"
@@ -597,7 +630,7 @@ enum EventNormalizer {
             default: break
             }
         }
-        if type == "web_fetch",
+        if normalized == "web_fetch",
            let status = payload["status"]?.lowercased() {
             switch status {
             case "started": return "web_fetch_started"
@@ -606,7 +639,7 @@ enum EventNormalizer {
             default: break
             }
         }
-        return type
+        return normalizedCanonicalType
     }
 
     private static func normalizedToolIdentifier(_ raw: String) -> String {
@@ -635,9 +668,10 @@ enum EventNormalizer {
         case "semantic_search":
             return .searching
         case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize",
+             "debug_trace_analyze", "debug_timeline", "debug_snapshot", "debug_test_check",
              "debug_phase_update", "debug_user_request", "debug_resolved":
             return .executing
-        case "debug_mark", "debug_clean":
+        case "debug_mark", "debug_clean", "debug_instrument":
             return .editing
         case "file_change", "edit",
              "str_replace", "regex_replace", "write", "create_file", "delete_file",
@@ -684,7 +718,9 @@ enum EventNormalizer {
             return true
         case "web_search_completed", "web_search_failed", "web_fetch_completed", "web_fetch_failed", "read_batch_completed", "process_paused":
             return false
-        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean":
+        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark",
+             "debug_clean", "debug_trace_analyze", "debug_instrument", "debug_timeline",
+             "debug_snapshot", "debug_test_check":
             return status == "started" || status == "running" || status == "in_progress"
         case "debug_phase_update":
             let normalizedPhase = (payload["phase"] ?? "").lowercased()
@@ -740,6 +776,16 @@ enum EventNormalizer {
             return "Debug marker"
         case "debug_clean":
             return "Debug clean"
+        case "debug_trace_analyze":
+            return "Debug trace analysis"
+        case "debug_instrument":
+            return "Debug instrumentation"
+        case "debug_timeline":
+            return "Debug timeline"
+        case "debug_snapshot":
+            return "Debug snapshot"
+        case "debug_test_check":
+            return "Debug test check"
         case "debug_phase_update":
             return "Debug phase update"
         case "debug_user_request":
@@ -956,7 +1002,7 @@ enum EventNormalizer {
         let originalContent = payload["original_content"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let markerInfo = payload["marker_info"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !markerInfo.isEmpty {
-            let parts = markerInfo.split(separator: "|", maxSplits: 2).map(String.init)
+            let parts = markerInfo.split(separator: "|", maxSplits: 3).map(String.init)
             if parts.count >= 2, let lineNumber = Int(parts[1]) {
                 return DebugMarkToolPayload(
                     filePath: parts[0],
@@ -978,16 +1024,33 @@ enum EventNormalizer {
         let status = payload["status"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanedCount = Int(payload["cleaned_markers"] ?? "") ?? 0
         let filesCount = Int(payload["cleaned_files"] ?? "") ?? 0
+        let dryRun = (payload["dry_run"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true"
         if cleanedCount == 0, filesCount == 0,
            (payload["detail"] ?? "").isEmpty,
-           (status ?? "").isEmpty {
+           (status ?? "").isEmpty,
+           !dryRun {
             return nil
         }
         return DebugCleanToolPayload(
             cleanedCount: cleanedCount,
             filesCount: filesCount,
             detail: payload["detail"],
-            status: status
+            status: status,
+            dryRun: dryRun
+        )
+    }
+
+    private static func parseDebugInstrumentPayload(payload: [String: String]) -> DebugInstrumentToolPayload? {
+        let filePath = payload["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let lineNumber = Int(payload["line"] ?? "")
+        guard !filePath.isEmpty, let lineNumber else { return nil }
+        return DebugInstrumentToolPayload(
+            filePath: filePath,
+            lineNumber: lineNumber,
+            type: payload["type"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "log",
+            expression: payload["expression"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            hypothesisId: payload["hypothesis_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            label: payload["label"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
 

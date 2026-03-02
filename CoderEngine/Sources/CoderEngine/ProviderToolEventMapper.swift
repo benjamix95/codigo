@@ -8,6 +8,7 @@ enum ProviderToolEventMapper {
         case semantic
         case search
         case mcp
+        case debug
         case webSearch
         case webFetch
         case skill
@@ -81,6 +82,18 @@ enum ProviderToolEventMapper {
         "task": .agent,
         "todo_write": .todo,
         "todo_read": .todo,
+        "debug_context": .debug,
+        "debug_log": .debug,
+        "debug_query": .debug,
+        "debug_session": .debug,
+        "debug_hypothesize": .debug,
+        "debug_mark": .debug,
+        "debug_clean": .debug,
+        "debug_trace_analyze": .debug,
+        "debug_instrument": .debug,
+        "debug_timeline": .debug,
+        "debug_snapshot": .debug,
+        "debug_test_check": .debug,
         "debug_set_phase": .ideState,
         "debug_request_user": .ideState,
         "debug_resolve": .ideState,
@@ -194,6 +207,8 @@ enum ProviderToolEventMapper {
                 return ideRemap
             }
             return mapMCP(tool: rawToolName, payload: payload)
+        case .debug:
+            return mapDebug(tool: rawToolName, payload: payload)
         case .webSearch:
             return mapWebSearch(tool: rawToolName, payload: payload)
         case .webFetch:
@@ -287,10 +302,13 @@ enum ProviderToolEventMapper {
         "agent", "apply_patch", "attempt_completion", "bash", "codebase_search", "command_execution", "create_file",
         "debug_clean", "debug_context", "debug_hypothesize", "debug_log", "debug_mark",
         "debug_query", "debug_session", "debug_set_phase", "debug_request_user", "debug_resolve",
+        "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
         "delete_file", "diagnostics", "edit", "fetch_file", "file_outline",
         "file_read", "find_and_replace_all", "find_files", "find_references", "find_symbol", "glob",
         "grep", "instant_grep", "list_dir", "list_symbols", "mcp", "mcp_call", "mcp_describe_tool",
         "mcp_health", "mcp_list_servers", "mcp_list_tools", "mcp_reconnect",
+        "mcp_batch", "mcp_read_resource", "mcp_subscribe", "mcp_list_prompts", "mcp_get_prompt", "mcp_logs",
+        "mcp_restart_server",
         "mermaid_render", "multi_edit",
         "multiedit", "notebook_edit", "notebook_read", "notebook_write", "notebookread", "parallel_apply",
         "policy_ack",
@@ -311,6 +329,11 @@ enum ProviderToolEventMapper {
         "debugsetphase": "debug_set_phase",
         "debugrequestuser": "debug_request_user",
         "debugresolve": "debug_resolve",
+        "debugtraceanalyze": "debug_trace_analyze",
+        "debuginstrument": "debug_instrument",
+        "debugtimeline": "debug_timeline",
+        "debugsnapshot": "debug_snapshot",
+        "debugtestcheck": "debug_test_check",
         "exec_command": "bash",
         "execute_command": "bash",
         "fileoutline": "file_outline",
@@ -535,7 +558,9 @@ enum ProviderToolEventMapper {
         }
         let explicitMCPTools: Set<String> = [
             "mcp", "mcp_call", "mcp_list_tools", "mcp_list_servers",
-            "mcp_describe_tool", "mcp_health", "mcp_reconnect"
+            "mcp_describe_tool", "mcp_health", "mcp_reconnect",
+            "mcp_batch", "mcp_read_resource", "mcp_subscribe",
+            "mcp_list_prompts", "mcp_get_prompt", "mcp_logs", "mcp_restart_server"
         ]
         if explicitMCPTools.contains(tool) {
             return true
@@ -1002,6 +1027,30 @@ enum ProviderToolEventMapper {
             mapped["output"] = String(output.prefix(6_000))
         }
         return ("skill_invocation", mapped)
+    }
+
+    private static func mapDebug(tool rawTool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {
+        let normalizedTool = normalizeToolIdentifier(rawTool)
+        var mapped: [String: String] = [
+            "title": payloadTitle(payload, fallback: normalizedTool),
+            "tool": normalizedTool,
+        ]
+        if let detail = firstString(in: payload, keys: ["detail", "message", "summary", "output"]), !detail.isEmpty {
+            mapped["detail"] = detail
+        }
+        if let output = firstString(in: payload, keys: ["output", "result", "content"]), !output.isEmpty {
+            mapped["output"] = String(output.prefix(6_000))
+        }
+        if let status = firstString(in: payload, keys: ["status"]), !status.isEmpty {
+            mapped["status"] = status
+        }
+        for (key, value) in payload {
+            guard mapped[key] == nil else { continue }
+            if let stringValue = stringify(value), !stringValue.isEmpty {
+                mapped[key] = stringValue
+            }
+        }
+        return (normalizedTool, mapped)
     }
 
     private static func mapIDEState(tool: String, payload: [String: Any]) -> (type: String, payload: [String: String]) {

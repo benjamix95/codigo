@@ -538,7 +538,20 @@ struct CoderIDETools {
                 """,
             inputSchema: .object([
                 "type": "object",
-                "properties": .object([:]),
+                "properties": .object([
+                    "scope": .object([
+                        "type": "string",
+                        "description": "What to collect: full (default), git, build, lints, env, tests, crashes. Comma-separated for multiple."
+                    ]),
+                    "include_file_content": .object([
+                        "type": "string",
+                        "description": "If true, include source snippets near lint errors."
+                    ]),
+                    "max_depth": .object([
+                        "type": "string",
+                        "description": "Max relative path depth for included source snippets (default: 3)."
+                    ]),
+                ]),
             ]),
             annotations: .init(title: "Debug Context", readOnlyHint: true)
         ),
@@ -616,6 +629,9 @@ struct CoderIDETools {
                     "line": .object(["type": "string", "description": "Line number to insert at"]),
                     "comment": .object(["type": "string", "description": "Description of what's being debugged"]),
                     "code": .object(["type": "string", "description": "Optional code to insert (e.g. print statement)"]),
+                    "type": .object(["type": "string", "description": "marker|log|assert|timing|variable"]),
+                    "expression": .object(["type": "string", "description": "Expression for generated marker types"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Link marker to a hypothesis"]),
                 ]),
                 "required": .array([.string("path"), .string("line"), .string("comment")]),
             ]),
@@ -628,18 +644,102 @@ struct CoderIDETools {
                 "type": "object",
                 "properties": .object([
                     "path": .object(["type": "string", "description": "Optional file path — cleans all files if omitted"]),
+                    "type": .object(["type": "string", "description": "all|markers|logs|asserts|timing|variables"]),
+                    "dry_run": .object(["type": "string", "description": "If true, previews removals without changing files"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Clean only markers tied to one hypothesis"]),
                 ]),
             ]),
             annotations: .init(title: "Debug Clean")
         ),
+        Tool(
+            name: "coderide_debug_trace_analyze",
+            description: "Analyze stack traces, compiler errors, and crash output into actionable findings.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "error_text": .object(["type": "string", "description": "Raw error or trace text to analyze"]),
+                    "error_type": .object(["type": "string", "description": "Optional hint: compile, runtime, crash, test_failure, assertion"]),
+                    "context": .object(["type": "string", "description": "Optional extra debugging context"]),
+                ]),
+                "required": .array([.string("error_text")]),
+            ]),
+            annotations: .init(title: "Debug Trace Analyze", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_debug_instrument",
+            description: "Insert executable instrumentation code at a location in source.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "path": .object(["type": "string", "description": "File to instrument"]),
+                    "line": .object(["type": "string", "description": "Line number (1-based) to insert after"]),
+                    "type": .object(["type": "string", "description": "log|assert|timing|variable|conditional_break"]),
+                    "expression": .object(["type": "string", "description": "Expression for instrumentation"]),
+                    "condition": .object(["type": "string", "description": "Optional condition / assert message"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Link instrumentation to hypothesis"]),
+                    "label": .object(["type": "string", "description": "Human label shown in debug UI"]),
+                ]),
+                "required": .array([.string("path"), .string("line"), .string("type"), .string("expression")]),
+            ]),
+            annotations: .init(title: "Debug Instrument")
+        ),
+        Tool(
+            name: "coderide_debug_timeline",
+            description: "Build chronological timeline of debug events.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "filter": .object(["type": "string", "description": "all|logs|hypotheses|markers|phases (comma-separated)"]),
+                    "time_range": .object(["type": "string", "description": "Last N minutes"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Filter by hypothesis id"]),
+                    "format": .object(["type": "string", "description": "text (default) or mermaid"]),
+                ]),
+            ]),
+            annotations: .init(title: "Debug Timeline", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_debug_snapshot",
+            description: "Capture and compare debug session snapshots.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "action": .object(["type": "string", "description": "capture|compare|list"]),
+                    "label": .object(["type": "string", "description": "Snapshot label"]),
+                    "compare_with": .object(["type": "string", "description": "Snapshot label to compare against"]),
+                ]),
+                "required": .array([.string("action")]),
+            ]),
+            annotations: .init(title: "Debug Snapshot", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_debug_test_check",
+            description: "Run targeted test verification for a debug fix.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "scope": .object(["type": "string", "description": "all|related|failing|file"]),
+                    "path": .object(["type": "string", "description": "File path used by scope=file/related"]),
+                    "filter": .object(["type": "string", "description": "Optional test filter"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Use files linked to hypothesis"]),
+                    "timeout_ms": .object(["type": "string", "description": "Timeout in milliseconds"]),
+                ]),
+            ]),
+            annotations: .init(title: "Debug Test Check")
+        ),
     ]
 
-    /// Map MCP tool name → UnifiedToolRuntime tool name by stripping the "coderide_" prefix.
+    /// Map MCP tool name → UnifiedToolRuntime tool name.
+    /// Supports both plain names (`coderide_read`) and namespaced references
+    /// (`coderide/coderide_read`) emitted by some MCP clients.
     static func runtimeToolName(from mcpName: String) -> String {
-        if mcpName.hasPrefix("coderide_") {
-            return String(mcpName.dropFirst("coderide_".count))
+        var normalized = mcpName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let slash = normalized.lastIndex(of: "/") {
+            normalized = String(normalized[normalized.index(after: slash)...])
         }
-        return mcpName
+        if normalized.hasPrefix("coderide_") {
+            return String(normalized.dropFirst("coderide_".count))
+        }
+        return normalized
     }
 }
 
@@ -714,9 +814,13 @@ struct CoderIDEMCPServerApp {
 
             // Convert MCP Value args → [String: String] for UnifiedToolRuntime
             var stringArgs: [String: String] = [:]
+            var richArgs: [String: any Sendable] = [:]
             if let arguments = params.arguments {
                 for (key, value) in arguments {
                     stringArgs[key] = valueToString(value)
+                    if let sendableValue = valueToSendable(value) {
+                        richArgs[key] = sendableValue
+                    }
                 }
             }
 
@@ -764,7 +868,8 @@ struct CoderIDEMCPServerApp {
                 args: stringArgs,
                 sourceProvider: "coderide-mcp",
                 swarmId: nil,
-                scope: .agent
+                scope: .agent,
+                richArgs: richArgs.isEmpty ? nil : richArgs
             )
 
             let events = await runtime.execute(call, context: context)
@@ -1209,7 +1314,6 @@ struct CoderIDEMCPServerApp {
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 if process.isRunning {
                     process.terminate()
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
                     if process.isRunning { process.interrupt() }
                 }
                 return SubagentResult(
@@ -1283,6 +1387,33 @@ struct CoderIDEMCPServerApp {
                 return str
             }
             return "\(value)"
+        }
+    }
+
+    static func valueToSendable(_ value: Value) -> (any Sendable)? {
+        switch value {
+        case .string(let s):
+            return s
+        case .int(let i):
+            return i
+        case .double(let d):
+            return d
+        case .bool(let b):
+            return b
+        case .null:
+            return nil
+        case .array(let items):
+            return items.compactMap { valueToSendable($0) }
+        case .object(let dict):
+            var mapped: [String: any Sendable] = [:]
+            for (key, item) in dict {
+                if let converted = valueToSendable(item) {
+                    mapped[key] = converted
+                }
+            }
+            return mapped
+        default:
+            return valueToString(value)
         }
     }
 }

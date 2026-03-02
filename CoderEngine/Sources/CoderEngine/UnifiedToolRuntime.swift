@@ -1218,12 +1218,16 @@ public actor UnifiedToolRuntime {
         let uri = (call.args["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let server = resolveMCPServerArg(from: call.args)
         let action = (call.args["action"] ?? "subscribe").lowercased()
+        let validActions: Set<String> = ["subscribe", "unsubscribe"]
 
         guard !uri.isEmpty else {
             return failure("Missing required 'uri' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
         }
         guard !server.isEmpty else {
             return failure("Missing required 'server' argument", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
+        guard validActions.contains(action) else {
+            return failure("Invalid action '\(action)'. Use subscribe or unsubscribe.", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
         }
 
         do {
@@ -1293,15 +1297,82 @@ public actor UnifiedToolRuntime {
         let server = resolveMCPServerArg(from: call.args)
         let serverId = server.isEmpty ? nil : server
 
-        var promptArgs: [String: String] = [:]
+        var promptArgsRich: [String: Any] = [:]
+        if let richArgs = call.richArgs, !richArgs.isEmpty {
+            if let explicitArgs = richArgs["args"] as? [String: Any] {
+                for (key, value) in explicitArgs {
+                    promptArgsRich[key] = value
+                }
+            } else if let explicitArgs = richArgs["args"] as? [String: any Sendable] {
+                for (key, value) in explicitArgs {
+                    promptArgsRich[key] = value
+                }
+            }
+            for (key, value) in richArgs where !Self.mcpWrapperKeys.contains(key) {
+                promptArgsRich[key] = value
+            }
+        }
+
         if let argsJSON = call.args["args"], !argsJSON.isEmpty,
            let data = argsJSON.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
-            promptArgs = parsed
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            for (key, value) in parsed {
+                if promptArgsRich[key] == nil {
+                    promptArgsRich[key] = value
+                }
+            }
+        }
+
+        for (key, rawValue) in call.args where !Self.mcpWrapperKeys.contains(key) {
+            if promptArgsRich[key] != nil {
+                continue
+            }
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                promptArgsRich[key] = ""
+                continue
+            }
+            if trimmed == "true" {
+                promptArgsRich[key] = true
+                continue
+            }
+            if trimmed == "false" {
+                promptArgsRich[key] = false
+                continue
+            }
+            if let intValue = Int(trimmed) {
+                promptArgsRich[key] = intValue
+                continue
+            }
+            if let doubleValue = Double(trimmed), trimmed.contains(".") {
+                promptArgsRich[key] = doubleValue
+                continue
+            }
+            if let data = trimmed.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) {
+                promptArgsRich[key] = parsed
+                continue
+            }
+            promptArgsRich[key] = trimmed
         }
 
         do {
-            let result = try await mcpSessions.getPrompt(serverId: serverId, name: promptName, arguments: promptArgs, idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds)
+            let result: MCPPromptResult
+            if promptArgsRich.isEmpty {
+                result = try await mcpSessions.getPrompt(
+                    serverId: serverId,
+                    name: promptName,
+                    arguments: [:],
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            } else {
+                result = try await mcpSessions.getPromptRich(
+                    serverId: serverId,
+                    name: promptName,
+                    arguments: promptArgsRich,
+                    idleTTLSeconds: context.policy.mcpSessionIdleTTLSeconds
+                )
+            }
             var output = ""
             if let desc = result.description {
                 output += "Description: \(desc)\n\n"
@@ -1332,6 +1403,10 @@ public actor UnifiedToolRuntime {
         let server = resolveMCPServerArg(from: call.args)
         let serverId = server.isEmpty ? nil : server
         let action = (call.args["action"] ?? "read").lowercased()
+        let validActions: Set<String> = ["read", "set_level", "clear"]
+        guard validActions.contains(action) else {
+            return failure("Invalid action '\(action)'. Use read, set_level, or clear.", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
+        }
 
         switch action {
         case "set_level":
@@ -2369,9 +2444,31 @@ public actor UnifiedToolRuntime {
             if resolveMCPServerArg(from: call.args).isEmpty {
                 throw ToolRuntimeError.validation("'server' is required for subscribe")
             }
+            let action = (call.args["action"] ?? "subscribe")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if !["subscribe", "unsubscribe"].contains(action) {
+                throw ToolRuntimeError.validation("Invalid action '\(action)'. Use subscribe or unsubscribe.")
+            }
+        case "mcp_logs":
+            let action = (call.args["action"] ?? "read")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if !["read", "set_level", "clear"].contains(action) {
+                throw ToolRuntimeError.validation("Invalid action '\(action)'. Use read, set_level, or clear.")
+            }
         case "mcp_get_prompt":
             if (call.args["name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 throw ToolRuntimeError.validation("'name' is required")
+            }
+        case "debug_mark":
+            let path = (call.args["path"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if path.isEmpty {
+                throw ToolRuntimeError.validation("path is required")
+            }
+            let line = Int(call.args["line"] ?? "") ?? 0
+            if line <= 0 {
+                throw ToolRuntimeError.validation("valid line number is required")
             }
         default:
             break
@@ -3605,7 +3702,16 @@ public actor UnifiedToolRuntime {
                 hypothesisId: hypothesisId
             )
         } else {
-            await debugLogServer.log(severity: severity, source: source, message: message, detail: enrichedDetail, category: category)
+            await debugLogServer.log(
+                severity: severity,
+                source: source,
+                message: message,
+                detail: enrichedDetail,
+                category: category,
+                runId: runId,
+                hypothesisId: hypothesisId,
+                data: parseDebugDataArg(data)
+            )
         }
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
@@ -3639,9 +3745,20 @@ public actor UnifiedToolRuntime {
             let msg = entry["message"] ?? ""
             let det = entry["detail"]
             let cat = entry["category"]
+            let runId = entry["run_id"] ?? entry["runId"]
+            let hypothesisId = entry["hypothesis_id"] ?? entry["hypothesisId"]
             guard !msg.isEmpty else { continue }
 
-            await debugLogServer.log(severity: sev, source: src, message: msg, detail: det, category: cat)
+            await debugLogServer.log(
+                severity: sev,
+                source: src,
+                message: msg,
+                detail: det,
+                category: cat,
+                runId: runId,
+                hypothesisId: hypothesisId,
+                data: parseDebugDataArg(entry["data"])
+            )
             logged += 1
         }
 
@@ -3700,9 +3817,7 @@ public actor UnifiedToolRuntime {
 
         // Post-filter by hypothesis_id
         if let hypothesisId, !hypothesisId.isEmpty {
-            result = result.filteredByDetail { detail in
-                detail?.contains(hypothesisId) ?? false
-            }
+            result = result.filteredByHypothesisId(hypothesisId)
         }
 
         // Post-filter by time_range (minutes)
@@ -3789,14 +3904,25 @@ public actor UnifiedToolRuntime {
     private func buildGroupByOutput(result: DebugLogServer.QueryResult, groupBy: String) -> String {
         var groups: [String: Int] = [:]
         for entry in result.entries {
-            let key: String
             switch groupBy.lowercased() {
-            case "severity": key = entry.severity
-            case "source": key = entry.source
-            case "category": key = entry.category ?? "(none)"
-            default: key = entry.severity
+            case "severity":
+                groups[entry.severity, default: 0] += 1
+            case "source":
+                groups[entry.source, default: 0] += 1
+            case "category":
+                groups[entry.category ?? "(none)", default: 0] += 1
+            case "tags":
+                let tags = extractTags(from: entry)
+                if tags.isEmpty {
+                    groups["(none)", default: 0] += 1
+                } else {
+                    for tag in tags {
+                        groups[tag, default: 0] += 1
+                    }
+                }
+            default:
+                groups[entry.severity, default: 0] += 1
             }
-            groups[key, default: 0] += 1
         }
         let sorted = groups.sorted { $0.value > $1.value }
         var lines = ["## Group by: \(groupBy) (\(result.totalCount) total)"]
@@ -3807,8 +3933,28 @@ public actor UnifiedToolRuntime {
         return lines.joined(separator: "\n")
     }
 
+    private func extractTags(from entry: DebugLogServer.LogEntry) -> [String] {
+        let candidates = [entry.detail, entry.message].compactMap { $0 }
+        for text in candidates {
+            for line in text.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.lowercased().hasPrefix("tags:") else { continue }
+                let value = String(trimmed.dropFirst("tags:".count))
+                let tags = value
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                    .filter { !$0.isEmpty }
+                if !tags.isEmpty {
+                    return tags
+                }
+            }
+        }
+        return []
+    }
+
     private var debugSessionSnapshots: [String: [String: String]] = [:]
     private var debugSessionStartTime: Date?
+    private var debugFailingTestFilters: [String] = []
 
     private func executeDebugSession(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
         let action = (call.args["action"] ?? "start").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -4082,7 +4228,6 @@ public actor UnifiedToolRuntime {
         let markerType = (call.args["type"] ?? "marker").lowercased()
         let expression = call.args["expression"] ?? ""
         let hypothesisId = call.args["hypothesis_id"] ?? ""
-        let workspace = context.workspaceContext.workspacePath.path
 
         guard !rawPath.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "path is required"], durationMs: 0)
@@ -4091,7 +4236,14 @@ public actor UnifiedToolRuntime {
             return ToolResult(ok: false, payload: ["detail": "valid line number is required"], durationMs: 0)
         }
 
-        let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+        let path: String
+        do {
+            path = try resolveRequiredPath(rawPath, context: context)
+        } catch let err as ToolRuntimeError {
+            return ToolResult(ok: false, payload: ["detail": err.localizedDescription], durationMs: 0)
+        } catch {
+            return ToolResult(ok: false, payload: ["detail": error.localizedDescription], durationMs: 0)
+        }
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
         let hypTag = hypothesisId.isEmpty ? "" : " [H:\(hypothesisId.prefix(8))]"
 
@@ -4166,8 +4318,13 @@ public actor UnifiedToolRuntime {
 
         let filesToClean: [String]
         if !rawPath.isEmpty {
-            let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
-            filesToClean = [path]
+            do {
+                filesToClean = [try resolveRequiredPath(rawPath, context: context)]
+            } catch let err as ToolRuntimeError {
+                return ToolResult(ok: false, payload: ["detail": err.localizedDescription], durationMs: 0)
+            } catch {
+                return ToolResult(ok: false, payload: ["detail": error.localizedDescription], durationMs: 0)
+            }
         } else {
             let (output, _, _) = await shellExec(args: ["/usr/bin/rg", "-l", "--no-heading", debugTag, workspace], cwd: workspace, timeout: 15_000)
             filesToClean = output.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -4244,7 +4401,7 @@ public actor UnifiedToolRuntime {
             "cleaned_files": "\(filesToClean.count)",
             "type": cleanType,
             "dry_run": isDryRun ? "true" : "false",
-            "status": isSuccess ? "completed" : "failed"
+            "status": isDryRun ? "preview" : (isSuccess ? "completed" : "failed")
         ], durationMs: ms)
     }
 
@@ -4385,7 +4542,6 @@ public actor UnifiedToolRuntime {
         let condition = call.args["condition"] ?? ""
         let hypothesisId = call.args["hypothesis_id"] ?? ""
         let label = call.args["label"] ?? ""
-        let workspace = context.workspaceContext.workspacePath.path
 
         guard !rawPath.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "path is required"], durationMs: 0)
@@ -4397,7 +4553,14 @@ public actor UnifiedToolRuntime {
             return ToolResult(ok: false, payload: ["detail": "expression is required"], durationMs: 0)
         }
 
-        let path = (rawPath as NSString).isAbsolutePath ? rawPath : (workspace as NSString).appendingPathComponent(rawPath)
+        let path: String
+        do {
+            path = try resolveRequiredPath(rawPath, context: context)
+        } catch let err as ToolRuntimeError {
+            return ToolResult(ok: false, payload: ["detail": err.localizedDescription], durationMs: 0)
+        } catch {
+            return ToolResult(ok: false, payload: ["detail": error.localizedDescription], durationMs: 0)
+        }
         let hypTag = hypothesisId.isEmpty ? "" : " [H:\(hypothesisId.prefix(8))]"
         let labelTag = label.isEmpty ? "" : " [\(label)]"
 
@@ -4502,6 +4665,21 @@ public actor UnifiedToolRuntime {
         // Collect marker events
         if showAll || filters.contains("markers") {
             for entry in allEntries where entry.source == "debug_mark" || entry.source == "debug_instrument" {
+                if let hid = hypothesisId, !hid.isEmpty {
+                    let short = String(hid.prefix(8))
+                    let detail = (entry.detail ?? "").lowercased()
+                    let message = entry.message.lowercased()
+                    let entryHypothesis = entry.hypothesisId?.lowercased() ?? ""
+                    if entryHypothesis != hid.lowercased()
+                        && String(entryHypothesis.prefix(8)) != short.lowercased()
+                        && !detail.contains(hid.lowercased())
+                        && !message.contains(hid.lowercased())
+                        && !detail.contains("[h:\(short.lowercased())]")
+                        && !message.contains("[h:\(short.lowercased())]")
+                    {
+                        continue
+                    }
+                }
                 events.append((date: entry.timestamp, type: "marker", text: entry.message))
             }
         }
@@ -4703,6 +4881,23 @@ public actor UnifiedToolRuntime {
                     let fileNames = hyp.relatedFiles.compactMap { ($0 as NSString).lastPathComponent.replacingOccurrences(of: ".swift", with: "") }
                     if let first = fileNames.first { testFilter = first }
                 }
+            case "failing":
+                if let firstFailing = debugFailingTestFilters.first {
+                    testFilter = firstFailing
+                } else {
+                    let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+                    return ToolResult(ok: true, payload: [
+                        "title": "debug_test_check",
+                        "detail": "No previously failing tests to run [failing]",
+                        "output": "No previously failing tests recorded in this runtime session.",
+                        "scope": scope,
+                        "passed": "0",
+                        "failed": "0",
+                        "exit_code": "0",
+                        "overall_status": "skipped",
+                        "filter": ""
+                    ], durationMs: ms)
+                }
             case "all":
                 break
             default:
@@ -4747,6 +4942,19 @@ public actor UnifiedToolRuntime {
         // Check for overall pass/fail from Swift test summary
         let overallPassed = exitCode == 0
 
+        var dedupedFailingFilters: [String] = []
+        var seenFailingFilters: Set<String> = []
+        for failedLine in failedTests {
+            if let parsed = parseSwiftTestFilter(from: failedLine), seenFailingFilters.insert(parsed).inserted {
+                dedupedFailingFilters.append(parsed)
+            }
+        }
+        if overallPassed {
+            debugFailingTestFilters.removeAll()
+        } else if !dedupedFailingFilters.isEmpty {
+            debugFailingTestFilters = dedupedFailingFilters
+        }
+
         await debugLogServer.log(
             severity: overallPassed ? "info" : "error",
             source: "debug_test_check",
@@ -4766,7 +4974,7 @@ public actor UnifiedToolRuntime {
         output += "\n\n### Output (truncated)\n```\n\(String(combined.suffix(2000)))\n```"
 
         let ms = Int(Date().timeIntervalSince(startDate) * 1000)
-        return ToolResult(ok: true, payload: [
+        return ToolResult(ok: overallPassed, payload: [
             "title": "debug_test_check",
             "detail": "\(overallPassed ? "PASSED" : "FAILED"): \(passed) passed, \(failed) failed [\(scope)]",
             "output": output,
@@ -4775,8 +4983,24 @@ public actor UnifiedToolRuntime {
             "failed": "\(failed)",
             "exit_code": "\(exitCode)",
             "overall_status": overallPassed ? "passed" : "failed",
-            "filter": testFilter
+            "filter": testFilter,
+            "error_code": overallPassed ? "" : "test_failed"
         ], durationMs: ms)
+    }
+
+    private func parseSwiftTestFilter(from line: String) -> String? {
+        guard let start = line.range(of: "'"),
+              let end = line.range(of: "'", range: start.upperBound..<line.endIndex)
+        else {
+            return nil
+        }
+        let qualified = String(line[start.upperBound..<end.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !qualified.isEmpty else { return nil }
+        if let bracketStart = qualified.lastIndex(of: "["), let bracketEnd = qualified.lastIndex(of: "]"), bracketStart < bracketEnd {
+            let inside = qualified[qualified.index(after: bracketStart)..<bracketEnd]
+            return String(inside)
+        }
+        return qualified
     }
 
     // MARK: - semantic_search: Search code by meaning using index + heuristic ranking
@@ -5080,7 +5304,7 @@ public actor UnifiedToolRuntime {
                 if !err.isEmpty { lintErrors.append(err) }
             } else {
                 let (out, err, _) = await shellExec(
-                    args: ["/usr/bin/swift", "build", "--skip-link", "2>&1"],
+                    args: ["/usr/bin/swift", "build", "--skip-link"],
                     cwd: workspace, timeout: 60_000
                 )
                 lintOutput = out + "\n" + err
@@ -5119,7 +5343,7 @@ public actor UnifiedToolRuntime {
         if FileManager.default.fileExists(atPath: cargoToml) && toolUsed.isEmpty {
             toolUsed = "cargo"
             let (out, err, _) = await shellExec(
-                args: ["/usr/bin/env", "cargo", "check", "--message-format=short", "2>&1"],
+                args: ["/usr/bin/env", "cargo", "check", "--message-format=short"],
                 cwd: workspace, timeout: 60_000
             )
             lintOutput = out + "\n" + err
@@ -5190,6 +5414,7 @@ public actor UnifiedToolRuntime {
         let scopes = Set(scopeRaw.lowercased().split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
         let isFull = scopes.contains("full")
         let includeContent = call.args["include_file_content"]?.lowercased() == "true"
+        let maxDepth = max(1, min(8, Int(call.args["max_depth"] ?? "3") ?? 3))
 
         // 1. Git status + diff + log
         if isFull || scopes.contains("git") {
@@ -5221,7 +5446,7 @@ public actor UnifiedToolRuntime {
         // 2. Build errors
         if isFull || scopes.contains("build") {
             let (buildOut, buildErr, buildExit) = await shellExec(
-                args: ["/usr/bin/swift", "build", "--skip-update", "2>&1"],
+                args: ["/usr/bin/swift", "build", "--skip-update"],
                 cwd: workspace, timeout: 30_000
             )
             let buildOutput = (buildOut + "\n" + buildErr).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -5254,6 +5479,11 @@ public actor UnifiedToolRuntime {
                         let errorFiles = parseErrorFiles(from: output)
                         for (filePath, lineNum) in errorFiles.prefix(5) {
                             let fullPath = filePath.hasPrefix("/") ? filePath : workspace + "/" + filePath
+                            let relativePath = fullPath.hasPrefix(workspace + "/")
+                                ? String(fullPath.dropFirst(workspace.count + 1))
+                                : fullPath
+                            let pathDepth = max(1, relativePath.split(separator: "/").count)
+                            guard pathDepth <= maxDepth else { continue }
                             if let fileContent = try? String(contentsOfFile: fullPath, encoding: .utf8) {
                                 let allLines = fileContent.components(separatedBy: "\n")
                                 let start = max(0, lineNum - 10)
@@ -5303,11 +5533,11 @@ public actor UnifiedToolRuntime {
 
         // 5. Test listing
         if isFull || scopes.contains("tests") {
-            let (testList, _, testExit) = await shellExec(
-                args: ["/usr/bin/swift", "test", "list", "2>&1"],
+            let (testListOut, testListErr, testExit) = await shellExec(
+                args: ["/usr/bin/swift", "test", "list"],
                 cwd: workspace, timeout: 15_000
             )
-            let trimmed = testList.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = (testListOut + "\n" + testListErr).trimmingCharacters(in: .whitespacesAndNewlines)
             if testExit == 0 && !trimmed.isEmpty {
                 let testLines = trimmed.components(separatedBy: "\n")
                 sections.append("## Tests (\(testLines.count) test cases)\n\(testLines.prefix(30).joined(separator: "\n"))\(testLines.count > 30 ? "\n... +\(testLines.count - 30) more" : "")")

@@ -1279,6 +1279,12 @@ struct ChatPanelView: View {
             // Close side panels that are scoped to the previous conversation.
             showSwarmPanel = false
             selectedSwarmId = nil
+            showDebugPanel = false
+            debugToggleEnabled = false
+            debugStore.resetSession()
+            if coderMode == .debug {
+                selectMode(.agent)
+            }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
             taskActivityStore.clearSwarmCards()
@@ -1649,7 +1655,7 @@ struct ChatPanelView: View {
     private var debugPanelSidebar: some View {
         DebugPanelView(
             debugStore: debugStore,
-            taskActivityStore: taskActivityStore,
+            taskActivities: scopedTaskActivities(for: conversationId),
             todoStore: todoStore,
             onClose: {
                 debugToggleEnabled = false
@@ -1664,6 +1670,8 @@ struct ChatPanelView: View {
                 sendMessage()
             },
             onStop: {
+                lastTaskEndedByManualStop = true
+                interruptTask()
                 debugStore.resetSession()
             },
             onProceed: {
@@ -3697,36 +3705,45 @@ struct ChatPanelView: View {
                     }
                 }
             case .debugPhaseUpdate(let phase, let detail):
-                // Skip debug events from sub-agents to avoid hijacking the main debug session
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugPhaseUpdate(phase: phase, detail: detail)
                 }
             case .debugUserRequest(let kind, let prompt):
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugUserRequest(kind: kind, prompt: prompt)
                 }
             case .debugResolved(let summary):
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugResolved(summary: summary)
                 }
             case .debugLog(let payload):
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugLogPayload(payload)
                 }
             case .debugHypothesize(let payload):
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugHypothesizePayload(payload)
                 }
             case .debugMark(let payload):
-                if !SwarmMetadata.isSwarmEvent(envelope.payload) {
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
                     handleDebugMarkPayload(payload)
                 }
+            case .debugInstrument(let payload):
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
+                    handleDebugInstrumentPayload(payload)
+                }
             case .debugClean(let payload):
-                handleDebugCleanPayload(payload)
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
+                    handleDebugCleanPayload(payload)
+                }
             case .debugSession(let payload):
-                handleDebugSessionPayload(payload)
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
+                    handleDebugSessionPayload(payload)
+                }
             case .debugQuery(let payload):
-                handleDebugQueryPayload(payload)
+                if shouldHandleDebugStoreEvent(payload: envelope.payload, eventConversationId: conversationId) {
+                    handleDebugQueryPayload(payload)
+                }
             case .activatePlanMode(let reason):
                 handleAutoActivatePlanMode(reason: reason)
             case .activateDebugMode(let reason):
@@ -4014,8 +4031,13 @@ struct ChatPanelView: View {
         if coderMode != .debug {
             selectMode(.debug)
         }
+        let previousPhase = debugStore.phase
         debugStore.setPhase(phase)
-        if !debugStore.clarificationQuestions.isEmpty {
+        let shouldClearQuestions = phase == .fixing
+            || phase == .instrumenting
+            || phase == .verifying
+            || phase == .resolved
+        if shouldClearQuestions, previousPhase != phase, !debugStore.clarificationQuestions.isEmpty {
             debugStore.clarificationQuestions = ""
         }
         if let detail, !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -4057,6 +4079,15 @@ struct ChatPanelView: View {
 
     @MainActor
     private func handleDebugResolved(summary: String) {
+        if debugStore.awaitingDebugClean {
+            debugStore.addLog(
+                severity: .warning,
+                source: "debug_resolve",
+                message: "Ignoring debug_resolve while waiting for debug_clean",
+                category: "system"
+            )
+            return
+        }
         let normalizedSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         debugStore.resolveSession(
             summary: normalizedSummary.isEmpty ? "Debug session resolved" : normalizedSummary
@@ -4082,7 +4113,8 @@ struct ChatPanelView: View {
                 location: payload.source,
                 message: payload.message,
                 data: payload.data,
-                hypothesisId: payload.hypothesisId
+                hypothesisId: payload.hypothesisId,
+                runId: payload.runId
             )
         }
     }
@@ -4134,7 +4166,48 @@ struct ChatPanelView: View {
     }
 
     @MainActor
+    private func handleDebugInstrumentPayload(_ payload: DebugInstrumentToolPayload) {
+        let instrumentationType: InstrumentationPoint.InstrumentationType
+        switch payload.type {
+        case "assert":
+            instrumentationType = .assertion
+        case "timing":
+            instrumentationType = .timing
+        case "variable":
+            instrumentationType = .variable
+        default:
+            instrumentationType = .logging
+        }
+        let displayLabel = payload.label?.isEmpty == false
+            ? (payload.label ?? "")
+            : (payload.expression ?? "instrumentation")
+        debugStore.addInstrumentation(
+            filePath: payload.filePath,
+            lineNumber: payload.lineNumber,
+            type: instrumentationType,
+            code: displayLabel,
+            hypothesisId: payload.hypothesisId
+        )
+        if debugStore.phase == .fixing {
+            debugStore.setPhase(.instrumenting)
+        }
+    }
+
+    @MainActor
     private func handleDebugCleanPayload(_ payload: DebugCleanToolPayload) {
+        if payload.dryRun {
+            if let detail = payload.detail, !detail.isEmpty {
+                debugStore.addLog(
+                    severity: .info,
+                    source: "debug_clean",
+                    message: "Dry-run preview received (cleanup not applied)",
+                    detail: detail,
+                    category: "system"
+                )
+            }
+            return
+        }
+
         let normalizedStatus = (payload.status ?? "completed").lowercased()
         let cleanSucceeded = !(normalizedStatus == "failed" || normalizedStatus == "error")
 
@@ -4158,8 +4231,6 @@ struct ChatPanelView: View {
         case "start":
             if shouldStartDebugSessionOnAutoActivate(currentPhase: debugStore.phase) {
                 debugStore.startDebugSession(errorContext: payload.detail ?? "")
-            } else {
-                debugStore.hypotheses.removeAll()
             }
         case "clear":
             debugStore.clearLogs()
@@ -7716,6 +7787,20 @@ struct ChatPanelView: View {
     @MainActor
     private func hasSwarmTraceMetadata(_ payload: [String: String]) -> Bool {
         return SwarmMetadata.isSwarmEvent(payload)
+    }
+
+    @MainActor
+    private func shouldHandleDebugStoreEvent(payload: [String: String], eventConversationId: UUID?) -> Bool {
+        if SwarmMetadata.isSwarmEvent(payload) {
+            return false
+        }
+        guard let selectedConversationId else {
+            return false
+        }
+        guard let eventConversationId else {
+            return true
+        }
+        return eventConversationId == selectedConversationId
     }
 
     @MainActor

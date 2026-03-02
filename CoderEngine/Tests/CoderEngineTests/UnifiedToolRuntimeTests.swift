@@ -1091,6 +1091,41 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertTrue(output.contains("Errors: 1"))
     }
 
+    func testDebugQueryHypothesisFilterUsesStructuredHypothesisField() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let hypothesisId = UUID().uuidString
+        let (logCall, logCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Compiler",
+                "message": "Type mismatch",
+                "category": "compiler",
+                "hypothesis_id": hypothesisId
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logCall, context: logCtx)
+
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: [
+                "format": "full",
+                "hypothesis_id": hypothesisId
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(queryCall, context: queryCtx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("Type mismatch"))
+    }
+
     func testDebugLogEmitsDedicatedEventType() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
@@ -1113,6 +1148,53 @@ final class UnifiedToolRuntimeTests: XCTestCase {
             }
             return false
         })
+    }
+
+    func testDebugTestCheckReturnsFailureWhenTestsFail() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "FailingPkg",
+            targets: [
+                .target(name: "FailingPkg"),
+                .testTarget(name: "FailingPkgTests", dependencies: ["FailingPkg"])
+            ]
+        )
+        """.write(to: tmp.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Sources/FailingPkg"), withIntermediateDirectories: true)
+        try "public struct Greeter { public static func greet() -> String { \"hi\" } }"
+            .write(to: tmp.appendingPathComponent("Sources/FailingPkg/Greeter.swift"), atomically: true, encoding: .utf8)
+
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Tests/FailingPkgTests"), withIntermediateDirectories: true)
+        try """
+        import XCTest
+        @testable import FailingPkg
+
+        final class FailingPkgTests: XCTestCase {
+            func testAlwaysFails() {
+                XCTAssertEqual(Greeter.greet(), "bye")
+            }
+        }
+        """.write(to: tmp.appendingPathComponent("Tests/FailingPkgTests/FailingPkgTests.swift"), atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "debug_test_check",
+            args: ["scope": "all", "timeout_ms": "120000"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["overall_status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "test_failed")
     }
 
     func testDebugHypothesizeIsIDBasedForProposeAndUpdate() async throws {

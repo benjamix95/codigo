@@ -669,6 +669,58 @@ public actor MCPSessionManager {
         return MCPPromptResult(description: result.description, messages: messages, serverId: target.id, serverName: target.name)
     }
 
+    /// Resolve an MCP prompt preserving native argument types.
+    public func getPromptRich(
+        serverId: String? = nil,
+        name: String,
+        arguments: [String: Any] = [:],
+        idleTTLSeconds: Int = 300
+    ) async throws -> MCPPromptResult {
+        await evictIdleSessions(idleTTLSeconds: idleTTLSeconds)
+        let servers = resolveServers()
+        guard !servers.isEmpty else {
+            throw ToolRuntimeError.mcpUnavailable("No MCP server configured")
+        }
+
+        let target: MCPConfigLoader.DetectedServer
+        if let serverId, !serverId.isEmpty {
+            guard let cfg = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
+                throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
+            }
+            target = cfg
+        } else {
+            var matches: [MCPConfigLoader.DetectedServer] = []
+            for cfg in servers {
+                let prompts = try await promptsForServer(cfg)
+                if prompts.contains(where: { $0.name == name }) { matches.append(cfg) }
+            }
+            target = try Self.requireUniqueServerMatch(
+                matches: matches,
+                notFoundMessage: "MCP prompt not found: \(name)",
+                ambiguityLabel: "MCP prompt '\(name)'"
+            )
+        }
+
+        let s = try await session(for: target)
+        let valueArgs: [String: Value]? = arguments.isEmpty ? nil : arguments.reduce(into: [:]) { partialResult, kv in
+            partialResult[kv.key] = toValue(kv.value)
+        }
+        let result = try await s.client.getPrompt(name: name, arguments: valueArgs)
+        var messages: [MCPPromptMessage] = []
+        for msg in result.messages {
+            let content: String
+            switch msg.content {
+            case .text(let text): content = text
+            case .image(let data, let mime): content = "[image \(mime)] \(data.prefix(100))..."
+            case .audio(let data, let mime): content = "[audio \(mime)] \(data.prefix(100))..."
+            default:
+                content = "[resource: \(String(describing: msg.content).prefix(200))]"
+            }
+            messages.append(MCPPromptMessage(role: msg.role.rawValue, content: content))
+        }
+        return MCPPromptResult(description: result.description, messages: messages, serverId: target.id, serverName: target.name)
+    }
+
     private func promptsForServer(_ cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPPromptDescriptor] {
         let s = try await session(for: cfg)
         let result = try await s.client.listPrompts()
@@ -1116,7 +1168,15 @@ public actor MCPSessionManager {
             return .string(s)
         case let arr as [Any]:
             return .array(arr.map { toValue($0) })
+        case let arr as [any Sendable]:
+            return .array(arr.map { toValue($0) })
         case let dict as [String: Any]:
+            var mapped: [String: Value] = [:]
+            for (k, v) in dict {
+                mapped[k] = toValue(v)
+            }
+            return .object(mapped)
+        case let dict as [String: any Sendable]:
             var mapped: [String: Value] = [:]
             for (k, v) in dict {
                 mapped[k] = toValue(v)

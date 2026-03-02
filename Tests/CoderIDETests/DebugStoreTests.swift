@@ -68,5 +68,55 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertTrue(store.debugMarkers.isEmpty)
         XCTAssertTrue(store.instrumentationPoints.isEmpty)
     }
+
+    func testApplyDebugCleanFailureKeepsSessionVerifying() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "boom")
+        store.phase = .verifying
+        _ = store.beginMarkFixed(summary: "Pending cleanup")
+
+        store.applyDebugCleanResult(success: false, detail: "Permission denied")
+
+        XCTAssertFalse(store.awaitingDebugClean)
+        XCTAssertEqual(store.phase, .verifying)
+        XCTAssertNotEqual(store.resolutionSummary, "Pending cleanup")
+    }
+
+    func testInvalidPhaseTransitionIsIgnored() {
+        let store = DebugStore()
+        XCTAssertEqual(store.phase, .idle)
+
+        store.setPhase(.verifying)
+
+        XCTAssertEqual(store.phase, .idle)
+    }
+
+    func testResetSessionRestoresDefaultLogFilters() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "boom")
+        store.severityFilter = [.error]
+        store.categoryFilter = "runtime"
+        store.searchQuery = "needle"
+
+        store.resetSession()
+
+        XCTAssertEqual(store.severityFilter, Set(DebugEntrySeverity.allCases))
+        XCTAssertNil(store.categoryFilter)
+        XCTAssertEqual(store.searchQuery, "")
+    }
+
+    func testRuntimeLogUsesExplicitRunIdWhenProvided() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "boom")
+        store.currentRunId = "current-run"
+
+        store.addRuntimeLog(
+            location: "Sources/App.swift:42",
+            message: "value=1",
+            runId: "incoming-run"
+        )
+
+        XCTAssertEqual(store.runtimeLogs.last?.runId, "incoming-run")
+    }
 }
 

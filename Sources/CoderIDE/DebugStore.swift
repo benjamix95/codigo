@@ -293,8 +293,8 @@ final class DebugStore: ObservableObject {
         }
     }
 
-    var errorCount: Int { logs.filter { $0.severity == .error }.count }
-    var warningCount: Int { logs.filter { $0.severity == .warning }.count }
+    var errorCount: Int { filteredLogs.filter { $0.severity == .error }.count }
+    var warningCount: Int { filteredLogs.filter { $0.severity == .warning }.count }
 
     var activeHypotheses: [DebugHypothesis] {
         hypotheses.filter { $0.status == .proposed || $0.status == .investigating }
@@ -393,12 +393,19 @@ final class DebugStore: ObservableObject {
         }
     }
 
-    func addRuntimeLog(location: String, message: String, data: [String: String] = [:], hypothesisId: String? = nil) {
+    func addRuntimeLog(
+        location: String,
+        message: String,
+        data: [String: String] = [:],
+        hypothesisId: String? = nil,
+        runId: String? = nil
+    ) {
+        let normalizedRunId = runId?.trimmingCharacters(in: .whitespacesAndNewlines)
         addRuntimeLog(RuntimeLogEntry(
             location: location,
             message: message,
             data: data,
-            runId: currentRunId,
+            runId: (normalizedRunId?.isEmpty == false) ? normalizedRunId : currentRunId,
             hypothesisId: hypothesisId
         ))
     }
@@ -470,10 +477,34 @@ final class DebugStore: ObservableObject {
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = Self.defaultDebugFlowDiagram
+        resetLogFilters()
         addLog(severity: .info, source: "debug_session", message: "Debug session started", category: "system")
     }
 
     func setPhase(_ newPhase: DebugFlowPhase) {
+        let currentPhase = phase
+        if currentPhase == newPhase {
+            if newPhase == .reproducing && currentRunId == nil {
+                currentRunId = UUID().uuidString
+            }
+            return
+        }
+
+        if newPhase == .describing, currentPhase == .idle || currentPhase == .resolved {
+            startDebugSession(errorContext: errorSummary)
+            return
+        }
+
+        guard Self.isValidTransition(from: currentPhase, to: newPhase) else {
+            addLog(
+                severity: .warning,
+                source: "debug_set_phase",
+                message: "Ignored invalid phase transition \(currentPhase.rawValue) → \(newPhase.rawValue)",
+                category: "system"
+            )
+            return
+        }
+
         phase = newPhase
         if newPhase == .reproducing && currentRunId == nil {
             currentRunId = UUID().uuidString
@@ -528,6 +559,7 @@ final class DebugStore: ObservableObject {
         currentRunId = nil
         fixLoopIteration = 0
         debugFlowDiagram = ""
+        resetLogFilters()
     }
 
     // MARK: - Debug Markers
@@ -577,6 +609,32 @@ final class DebugStore: ObservableObject {
             category: "system"
         )
         return files
+    }
+
+    private func resetLogFilters() {
+        severityFilter = Set(DebugEntrySeverity.allCases)
+        categoryFilter = nil
+        searchQuery = ""
+    }
+
+    private static func isValidTransition(from: DebugFlowPhase, to: DebugFlowPhase) -> Bool {
+        if from == to { return true }
+        switch from {
+        case .idle:
+            return to == .describing
+        case .describing:
+            return to == .reproducing || to == .fixing || to == .resolved
+        case .reproducing:
+            return to == .fixing || to == .instrumenting || to == .verifying || to == .resolved
+        case .fixing:
+            return to == .instrumenting || to == .verifying || to == .resolved
+        case .instrumenting:
+            return to == .fixing || to == .reproducing || to == .verifying || to == .resolved
+        case .verifying:
+            return to == .fixing || to == .instrumenting || to == .reproducing || to == .resolved
+        case .resolved:
+            return to == .idle || to == .describing
+        }
     }
 
     /// Apply debug_clean result; resolve only when cleanup succeeds.

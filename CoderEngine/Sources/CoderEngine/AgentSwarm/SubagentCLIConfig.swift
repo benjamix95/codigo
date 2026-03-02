@@ -17,7 +17,9 @@ public enum SubagentCLIConfig {
 
     /// Timeout in seconds: read-only roles get a shorter budget.
     public static func timeout(for role: SubagentRole) -> TimeInterval {
-        isReadOnly(role) ? 120 : 300
+        // Keep subagent execution safely under common MCP tools/call deadlines (120s),
+        // otherwise the client can time out before this process reports its own timeout.
+        isReadOnly(role) ? 95 : 110
     }
 
     /// Build CLI arguments for a given backend (codex, claude, gemini).

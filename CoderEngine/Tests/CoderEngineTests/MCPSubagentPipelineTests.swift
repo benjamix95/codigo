@@ -131,17 +131,17 @@ final class MCPSubagentPipelineTests: XCTestCase {
 
     // MARK: - timeout
 
-    func testTimeout_readOnlyRolesGet120s() {
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .explorer), 120)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .reviewer), 120)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .securityAuditor), 120)
+    func testTimeout_readOnlyRolesStayUnderMCPDeadline() {
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .explorer), 95)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .reviewer), 95)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .securityAuditor), 95)
     }
 
-    func testTimeout_writeRolesGet300s() {
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .coder), 300)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .debugger), 300)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .testWriter), 300)
-        XCTAssertEqual(SubagentCLIConfig.timeout(for: .docWriter), 300)
+    func testTimeout_writeRolesStayUnderMCPDeadline() {
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .coder), 110)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .debugger), 110)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .testWriter), 110)
+        XCTAssertEqual(SubagentCLIConfig.timeout(for: .docWriter), 110)
     }
 
     // MARK: - SubagentRole resolution (all 7 roles)

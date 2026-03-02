@@ -204,4 +204,46 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
         XCTAssertEqual(completed?["is_mcp"], "true")
     }
+
+    func testMCPSubscribeRejectsInvalidAction() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "mcp_subscribe",
+            args: [
+                "server": "missing-server",
+                "uri": "resource://missing",
+                "action": "pause"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+    }
+
+    func testMCPLogsRejectsInvalidAction() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "mcp_logs",
+            args: [
+                "action": "tail"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+    }
 }

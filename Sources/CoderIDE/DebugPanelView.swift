@@ -3,7 +3,7 @@ import CoderEngine
 
 struct DebugPanelView: View {
     @ObservedObject var debugStore: DebugStore
-    @ObservedObject var taskActivityStore: TaskActivityStore
+    let taskActivities: [TaskActivity]
     @ObservedObject var todoStore: TodoStore
     let onClose: () -> Void
     let onSubmitQuestion: (String) -> Void
@@ -521,9 +521,9 @@ struct DebugPanelView: View {
                         )
                     }
 
-                    if !taskActivityStore.activities.isEmpty {
+                    if !taskActivities.isEmpty {
                         CompactActivityTraceView(
-                            activities: taskActivityStore.activities,
+                            activities: taskActivities,
                             accentColor: accent,
                             title: "Activity"
                         )
@@ -887,8 +887,12 @@ struct DebugPanelView: View {
     // MARK: - Runtime Logs
 
     private var runtimeLogsContent: some View {
-        Group {
-            if debugStore.runtimeLogs.isEmpty {
+        let runtimeEntries = debugStore.currentRunId == nil
+            ? debugStore.runtimeLogs
+            : debugStore.currentRunLogs
+
+        return Group {
+            if runtimeEntries.isEmpty {
                 emptyState(
                     icon: "waveform.path.ecg",
                     title: "No runtime logs",
@@ -914,7 +918,7 @@ struct DebugPanelView: View {
                         .background(accent.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                     }
 
-                    ForEach(debugStore.runtimeLogs) { entry in
+                    ForEach(runtimeEntries) { entry in
                         runtimeLogRow(entry)
                     }
                 }

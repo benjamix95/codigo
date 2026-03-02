@@ -398,6 +398,52 @@ final class ProviderToolEventMapperTests: XCTestCase {
         XCTAssertEqual(mapped?.payload["prompt"], "Can you reproduce this?")
     }
 
+    func testDebugLogMapsToTypedDebugLogEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_log",
+            payload: [
+                "severity": "info",
+                "source": "Runtime",
+                "message": "Boot complete",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_log")
+        XCTAssertEqual(mapped?.payload["message"], "Boot complete")
+        XCTAssertEqual(mapped?.payload["tool"], "debug_log")
+    }
+
+    func testDebugSessionMapsToTypedDebugSessionEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_session",
+            payload: [
+                "action": "start",
+                "detail": "session opened",
+                "status": "completed"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_session")
+        XCTAssertEqual(mapped?.payload["action"], "start")
+        XCTAssertEqual(mapped?.payload["tool"], "debug_session")
+    }
+
+    func testDebugCleanMapsToTypedDebugCleanEvent() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "coderide_debug_clean",
+            payload: [
+                "dry_run": "true",
+                "detail": "Preview",
+                "status": "preview"
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "debug_clean")
+        XCTAssertEqual(mapped?.payload["dry_run"], "true")
+        XCTAssertEqual(mapped?.payload["status"], "preview")
+    }
+
     func testMCPCallCoderideActivatePlanModeMapsToActivatePlanMode() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "functions.mcp_call",

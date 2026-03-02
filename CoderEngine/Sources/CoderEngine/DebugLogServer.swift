@@ -71,6 +71,44 @@ public actor DebugLogServer {
                 warningCount: filtered.filter { $0.severity == "warning" }.count
             )
         }
+
+        public func filteredByHypothesisId(_ hypothesisId: String) -> QueryResult {
+            let normalized = hypothesisId
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            guard !normalized.isEmpty else { return self }
+            let short = String(normalized.prefix(8))
+
+            let filtered = entries.filter { entry in
+                if let entryHypothesis = entry.hypothesisId?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased(),
+                   !entryHypothesis.isEmpty
+                {
+                    if entryHypothesis == normalized {
+                        return true
+                    }
+                    let entryShort = String(entryHypothesis.prefix(8))
+                    if entryShort == short {
+                        return true
+                    }
+                }
+
+                let detail = (entry.detail ?? "").lowercased()
+                let message = entry.message.lowercased()
+                return detail.contains(normalized)
+                    || message.contains(normalized)
+                    || detail.contains("[h:\(short)]")
+                    || message.contains("[h:\(short)]")
+            }
+
+            return QueryResult(
+                entries: filtered,
+                totalCount: filtered.count,
+                errorCount: filtered.filter { $0.severity == "error" }.count,
+                warningCount: filtered.filter { $0.severity == "warning" }.count
+            )
+        }
     }
 
     // MARK: - State
@@ -127,7 +165,10 @@ public actor DebugLogServer {
         source: String,
         message: String,
         detail: String? = nil,
-        category: String? = nil
+        category: String? = nil,
+        runId: String? = nil,
+        hypothesisId: String? = nil,
+        data: [String: String]? = nil
     ) {
         let entry = LogEntry(
             severity: severity,
@@ -135,7 +176,10 @@ public actor DebugLogServer {
             message: message,
             detail: detail,
             category: category,
-            sessionId: activeSessionId
+            sessionId: activeSessionId,
+            runId: runId,
+            hypothesisId: hypothesisId,
+            data: data
         )
         append(entry)
     }
@@ -416,11 +460,11 @@ public actor DebugLogServer {
                   let entry = try? decoder.decode(LogEntry.self, from: data) else { continue }
             entries.append(entry)
         }
-        let trimmed = entries.count > maxEntries
-        if trimmed {
+        let needsTrim = entries.count > maxEntries
+        if needsTrim {
             entries.removeFirst(entries.count - maxEntries)
         }
-        if trimmed {
+        if needsTrim {
             persistToDisk()
         }
     }
