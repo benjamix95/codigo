@@ -14,13 +14,7 @@ public actor FileWatcher {
     private var isRunning = false
 
     /// Directories to ignore at the event filter level
-    private static let ignoredDirNames: Set<String> = [
-        ".git", "node_modules", ".build", "build", "Build", "DerivedData",
-        "dist", "out", ".output", ".next", ".nuxt", ".cache", ".swiftpm",
-        ".gradle", "__pycache__", ".pytest_cache", ".mypy_cache",
-        "venv", ".venv", "Pods", "Carthage", ".idea", ".vscode",
-        "vendor", "target", "coverage", ".nyc_output", ".terraform",
-    ]
+    private static let ignoredDirNames = ExcludedDirectories.defaultSet
 
     /// Source file extensions worth re-indexing
     private static let watchedExtensions: Set<String> = [

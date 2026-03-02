@@ -25,8 +25,7 @@ public enum WorkspaceScanner {
         ) else {
             return []
         }
-        let defaultExcluded = ["node_modules", ".git", ".build", "build", "DerivedData"]
-        let allExcluded = defaultExcluded + excludedPaths
+        let allExcluded = Array(ExcludedDirectories.defaultSet) + excludedPaths
         let filtered = contents.filter { item in
             !allExcluded.contains(item.lastPathComponent)
         }
@@ -102,8 +101,7 @@ public enum WorkspaceScanner {
 
     /// Elenco ricorsivo di file sorgente nel workspace
     public static func listSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
-        let defaultExcluded = ["node_modules", ".git", ".build", "build", "DerivedData", "dist", "out"]
-        let allExcluded = defaultExcluded + excludedPaths
+        let allExcluded = Array(ExcludedDirectories.defaultSet) + excludedPaths
         var result: [String] = []
         enumerateSourceFiles(
             at: workspacePath,

@@ -76,7 +76,8 @@ public actor SemanticIndex {
     /// This is the main entry point after CodebaseIndex finishes indexing.
     public func buildIndex(
         indexedFiles: [IndexedFile],
-        workspaceRoot: URL
+        workspaceRoot: URL,
+        contentCache: [String: String] = [:]
     ) async {
         Self.logger.info("buildIndex: starting for \(indexedFiles.count) files")
         // Reset state
@@ -92,17 +93,44 @@ public actor SemanticIndex {
             currentSimHash = MerkleTree.simHash(of: root)
         }
 
-        // Phase 2: Chunk all files
-        for indexed in indexedFiles {
-            let content: String
-            do {
-                content = try String(contentsOfFile: indexed.absolutePath, encoding: .utf8)
-            } catch {
-                continue
+        // Phase 2: Chunk all files (parallelized; uses contentCache to avoid re-reading)
+        let chunkBatchSize = 64
+        for batchStart in stride(from: 0, to: indexedFiles.count, by: chunkBatchSize) {
+            let batchEnd = min(batchStart + chunkBatchSize, indexedFiles.count)
+            let batch = indexedFiles[batchStart..<batchEnd]
+
+            let batchResults: [(String, [SemanticChunk])] = await withTaskGroup(
+                of: (String, [SemanticChunk])?.self,
+                returning: [(String, [SemanticChunk])].self
+            ) { group in
+                for indexed in batch {
+                    let cachedContent = contentCache[indexed.absolutePath]
+                    group.addTask {
+                        let content: String
+                        if let cached = cachedContent {
+                            content = cached
+                        } else {
+                            guard let read = try? String(contentsOfFile: indexed.absolutePath, encoding: .utf8) else {
+                                return nil
+                            }
+                            content = read
+                        }
+                        let fileChunks = SemanticChunker.chunk(indexedFile: indexed, fileContent: content)
+                        return (indexed.relativePath, fileChunks)
+                    }
+                }
+                var collected: [(String, [SemanticChunk])] = []
+                for await result in group {
+                    if let pair = result {
+                        collected.append(pair)
+                    }
+                }
+                return collected
             }
 
-            let fileChunks = SemanticChunker.chunk(indexedFile: indexed, fileContent: content)
-            addChunks(fileChunks, forFile: indexed.relativePath)
+            for (relativePath, fileChunks) in batchResults {
+                addChunks(fileChunks, forFile: relativePath)
+            }
         }
 
         // Phase 3: Compute average doc length
