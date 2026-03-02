@@ -121,6 +121,30 @@ Use this checklist to validate end-to-end behavior of plan mode, plan panel, TOD
 - [ ] Tool trace still includes operational events (search/edit/command/todo).
 - [ ] No linter/test regressions.
 
+## 9) Final "Code Review & Test" todo behavior
+
+- [ ] Complete a build/implementation turn that edits files successfully.
+  - Expected:
+    - A high-priority `Code Review & Test` todo is created automatically.
+    - Todo is `pending` (not auto-completed immediately).
+    - Todo notes mention review + tests.
+- [ ] Inspect linked files on the `Code Review & Test` todo.
+  - Expected:
+    - `linkedFiles` are populated from touched file traces for the same conversation.
+    - Paths are normalized (e.g. `Sources/...`, `Tests/...`, `CoderEngine/...`).
+- [ ] Run a subagent batch that does NOT include both reviewer and testWriter (e.g. explorer/coder only).
+  - Expected:
+    - `in_progress` todos can be auto-finalized by batch status.
+    - `Code Review & Test` stays `pending`.
+- [ ] Run a subagent batch that includes BOTH reviewer + testWriter.
+  - Expected:
+    - `Code Review & Test` transitions to `done` when batch status is done.
+    - If batch status is blocked/failed, `Code Review & Test` transitions to `blocked`.
+- [ ] Create same-titled review todo in two conversations and execute subagents in only one conversation.
+  - Expected:
+    - Only the in-scope conversation todo is updated.
+    - No cross-conversation status bleed.
+
 ---
 
 ## Final pass criteria
@@ -132,3 +156,4 @@ Mark QA as passed only if all core scenarios pass:
 - Build + walkthrough
 - TODO chat/panel/MCP visibility
 - Mermaid render (normal + inline + failure mode)
+- Final `Code Review & Test` completion gate (reviewer + testWriter, scoped per conversation)
