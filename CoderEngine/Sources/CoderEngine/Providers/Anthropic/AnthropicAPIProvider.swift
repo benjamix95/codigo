@@ -13,26 +13,38 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
     private let apiKey: String
     private let model: String
     private let maxTokens: Int
+    private let maxRetries: Int
+    private let timeoutSeconds: TimeInterval
+    private let initialRetryDelaySeconds: TimeInterval
+    private let maxRetryDelaySeconds: TimeInterval
 
     public init(
         apiKey: String,
         model: String = "claude-sonnet-4-6",
         maxTokens: Int = 4096,
         id: String = "anthropic-api",
-        displayName: String = "Anthropic"
+        displayName: String = "Anthropic",
+        maxRetries: Int = 3,
+        timeoutSeconds: TimeInterval = 60,
+        initialRetryDelaySeconds: TimeInterval = 0.5,
+        maxRetryDelaySeconds: TimeInterval = 8
     ) {
         self.apiKey = apiKey
         self.model = model
         self.maxTokens = maxTokens
         self.id = id
         self.displayName = displayName
+        self.maxRetries = max(1, maxRetries)
+        self.timeoutSeconds = max(10, timeoutSeconds)
+        self.initialRetryDelaySeconds = max(0.1, initialRetryDelaySeconds)
+        self.maxRetryDelaySeconds = max(self.initialRetryDelaySeconds, maxRetryDelaySeconds)
     }
 
     public func isAuthenticated() -> Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private static func supportsExtendedThinking(_ model: String) -> Bool {
+    static func supportsExtendedThinking(_ model: String) -> Bool {
         let m = model.lowercased()
         return m.contains("opus-4") || m.contains("sonnet-4") || m.contains("haiku-4")
     }
@@ -42,6 +54,11 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
         let apiKey = self.apiKey
         let model = self.model
         let maxTokens = self.maxTokens
+        let maxRetries = self.maxRetries
+        let timeoutSeconds = self.timeoutSeconds
+        let initialRetryDelaySeconds = self.initialRetryDelaySeconds
+        let maxRetryDelaySeconds = self.maxRetryDelaySeconds
+        let session = Self.makeSession(timeoutSeconds: timeoutSeconds)
         let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
         let useOptimizerMode = context.systemPromptOverride != nil
 
@@ -62,9 +79,15 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                     var content: [[String: Any]] = []
                     if let urls = imageURLs, !urls.isEmpty {
                         for imgURL in urls {
-                            if let data = try? Data(contentsOf: imgURL),
-                               let ext = imgURL.pathExtension.lowercased() as String?,
-                               let mediaType = ext == "png" ? "image/png" : (ext == "gif" ? "image/gif" : "image/jpeg") {
+                            if let data = try? Data(contentsOf: imgURL) {
+                                let ext = imgURL.pathExtension.lowercased()
+                                let mediaType: String
+                                switch ext {
+                                case "png":  mediaType = "image/png"
+                                case "gif":  mediaType = "image/gif"
+                                case "webp": mediaType = "image/webp"
+                                default:     mediaType = "image/jpeg"
+                                }
                                 let b64 = data.base64EncodedString()
                                 content.append([
                                     "type": "image",
@@ -94,13 +117,71 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
                         body["thinking"] = ["type": "enabled", "budget_tokens": 10_000]
                     }
                     request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    request.timeoutInterval = timeoutSeconds
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        throw CoderEngineError.apiError("Invalid Anthropic API response")
+                    var currentAttempt = 1
+                    var bytes: URLSession.AsyncBytes?
+                    while currentAttempt <= maxRetries {
+                        do {
+                            let (attemptBytes, response) = try await session.bytes(for: request)
+                            guard let httpResponse = response as? HTTPURLResponse else {
+                                throw CoderEngineError.apiError("Invalid Anthropic API response")
+                            }
+
+                            let statusCode = httpResponse.statusCode
+                            if (200...299).contains(statusCode) {
+                                bytes = attemptBytes
+                                break
+                            }
+
+                            let errorBody = await Self.readErrorBody(from: attemptBytes)
+                            let errorMessage = Self.extractErrorMessage(from: errorBody, statusCode: statusCode)
+                            let retryAfter = Self.retryAfterSeconds(from: httpResponse)
+
+                            if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
+                                let backoffDelay = Self.exponentialBackoffSeconds(
+                                    attempt: currentAttempt,
+                                    initialDelay: initialRetryDelaySeconds,
+                                    maxDelay: maxRetryDelaySeconds
+                                )
+                                let delay = max(retryAfter ?? 0, backoffDelay)
+                                continuation.yield(.raw(type: "provider_retry", payload: [
+                                    "provider": "anthropic",
+                                    "attempt": "\(currentAttempt)",
+                                    "max_attempts": "\(maxRetries)",
+                                    "delay_ms": "\(Int(delay * 1000))",
+                                    "reason": "http_\(statusCode)"
+                                ]))
+                                try await Self.sleep(seconds: delay)
+                                currentAttempt += 1
+                                continue
+                            }
+
+                            throw CoderEngineError.apiError(errorMessage)
+                        } catch {
+                            if currentAttempt < maxRetries, Self.isRetryableTransportError(error) {
+                                let delay = Self.exponentialBackoffSeconds(
+                                    attempt: currentAttempt,
+                                    initialDelay: initialRetryDelaySeconds,
+                                    maxDelay: maxRetryDelaySeconds
+                                )
+                                continuation.yield(.raw(type: "provider_retry", payload: [
+                                    "provider": "anthropic",
+                                    "attempt": "\(currentAttempt)",
+                                    "max_attempts": "\(maxRetries)",
+                                    "delay_ms": "\(Int(delay * 1000))",
+                                    "reason": "transport_error"
+                                ]))
+                                try await Self.sleep(seconds: delay)
+                                currentAttempt += 1
+                                continue
+                            }
+                            throw error
+                        }
                     }
-                    guard (200...299).contains(httpResponse.statusCode) else {
-                        throw CoderEngineError.apiError("Anthropic API HTTP \(httpResponse.statusCode)")
+
+                    guard let bytes else {
+                        throw CoderEngineError.apiError("Failed to connect to Anthropic API after \(maxRetries) attempts")
                     }
 
                     continuation.yield(.started)
@@ -246,6 +327,7 @@ public final class AnthropicAPIProvider: LLMProvider, @unchecked Sendable {
             }
         }
     }
+
 
     private static var toolDefinitions: [[String: Any]] {
         ToolSchemaCatalog.anthropicTools

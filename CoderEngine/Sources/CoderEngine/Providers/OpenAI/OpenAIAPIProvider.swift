@@ -15,6 +15,10 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
     private let reasoningEffort: String?
     private let baseURL: String
     private let extraHeaders: [String: String]
+    private let maxRetries: Int
+    private let timeoutSeconds: TimeInterval
+    private let initialRetryDelaySeconds: TimeInterval
+    private let maxRetryDelaySeconds: TimeInterval
 
     /// Models that support reasoning effort: o1, o3, o4-mini.
     public static func isReasoningModel(_ name: String) -> Bool {
@@ -28,7 +32,11 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         id: String = "openai-api",
         displayName: String = "OpenAI API",
         baseURL: String = "https://api.openai.com/v1/chat/completions",
-        extraHeaders: [String: String] = [:]
+        extraHeaders: [String: String] = [:],
+        maxRetries: Int = 3,
+        timeoutSeconds: TimeInterval = 60,
+        initialRetryDelaySeconds: TimeInterval = 0.5,
+        maxRetryDelaySeconds: TimeInterval = 8
     ) {
         self.apiKey = apiKey
         self.model = model
@@ -37,209 +45,16 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         self.displayName = displayName
         self.baseURL = baseURL
         self.extraHeaders = extraHeaders
+        self.maxRetries = max(1, maxRetries)
+        self.timeoutSeconds = max(10, timeoutSeconds)
+        self.initialRetryDelaySeconds = max(0.1, initialRetryDelaySeconds)
+        self.maxRetryDelaySeconds = max(self.initialRetryDelaySeconds, maxRetryDelaySeconds)
     }
 
     public func isAuthenticated() -> Bool {
         !apiKey.isEmpty
     }
 
-    private static func supportsStreamUsage(baseURL: String) -> Bool {
-        let lower = baseURL.lowercased()
-        return lower.contains("/chat/completions")
-    }
-
-    private static func extractUsage(from json: [String: Any]) -> (Int, Int)? {
-        guard let usage = json["usage"] as? [String: Any] else { return nil }
-        let input = (usage["prompt_tokens"] as? Int) ?? (usage["input_tokens"] as? Int)
-        let output = (usage["completion_tokens"] as? Int) ?? (usage["output_tokens"] as? Int)
-        guard let input, let output else { return nil }
-        return (input, output)
-    }
-
-    /// Check if an error response body indicates tools/function-calling is not supported.
-    private static func isToolUnsupportedError(_ body: String) -> Bool {
-        let lower = body.lowercased()
-        let toolKeywords = [
-            "tool", "function", "tools", "function_call", "tool_choice",
-            "not support", "unsupported", "not available", "does not support",
-            "invalid parameter", "unrecognized request argument",
-            "additional properties are not allowed",
-        ]
-        return toolKeywords.contains(where: { lower.contains($0) })
-    }
-
-    /// Read the full error body from a failed HTTP response.
-    private static func readErrorBody(from bytes: URLSession.AsyncBytes) async -> String {
-        var buffer = [UInt8]()
-        // Read up to 8KB of error body
-        do {
-            for try await byte in bytes {
-                buffer.append(byte)
-                if buffer.count > 8192 { break }
-            }
-        } catch {
-            // Ignore read errors for error body
-        }
-        return String(bytes: buffer, encoding: .utf8) ?? ""
-    }
-
-    /// Extract a human-readable error message from an API error JSON body.
-    private static func extractErrorMessage(from body: String, statusCode: Int) -> String {
-        guard let data = body.data(using: .utf8),
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            let snippet = body.prefix(300)
-            return "HTTP \(statusCode): \(snippet.isEmpty ? "empty response" : String(snippet))"
-        }
-
-        // OpenAI / OpenRouter format: { "error": { "message": "..." } }
-        if let error = json["error"] as? [String: Any],
-            let message = error["message"] as? String
-        {
-            let errorType = (error["type"] as? String) ?? (error["code"] as? String) ?? ""
-            let prefix = errorType.isEmpty ? "" : "[\(errorType)] "
-            return "HTTP \(statusCode): \(prefix)\(message)"
-        }
-
-        // Alternative format: { "message": "..." }
-        if let message = json["message"] as? String {
-            return "HTTP \(statusCode): \(message)"
-        }
-
-        // Fallback
-        return "HTTP \(statusCode): \(String(body.prefix(300)))"
-    }
-
-    private static func shouldTryResponsesWebSocket(baseURL: String, imageURLs: [URL]?) -> Bool {
-        if let imageURLs, !imageURLs.isEmpty { return false }
-        guard let components = URLComponents(string: baseURL),
-              let host = components.host?.lowercased() else {
-            return false
-        }
-        let isOpenAIHost = host == "api.openai.com" || host.hasSuffix(".openai.com")
-        guard isOpenAIHost else { return false }
-        return components.path.lowercased().contains("/chat/completions")
-    }
-
-    private static func responsesWebSocketURL(from baseURL: String) -> URL? {
-        guard var components = URLComponents(string: baseURL) else { return nil }
-        let originalScheme = (components.scheme ?? "").lowercased()
-        if originalScheme == "http" || originalScheme == "https" {
-            components.scheme = originalScheme == "http" ? "ws" : "wss"
-        } else if originalScheme == "ws" || originalScheme == "wss" {
-            // Keep existing ws/wss scheme.
-        } else {
-            components.scheme = "wss"
-        }
-        components.path = "/v1/responses"
-        components.query = nil
-        components.fragment = nil
-        return components.url
-    }
-
-    private static func responseInput(from content: Any) -> [[String: Any]] {
-        if let text = content as? String {
-            return [[
-                "role": "user",
-                "content": [
-                    ["type": "input_text", "text": text]
-                ],
-            ]]
-        }
-
-        guard let parts = content as? [[String: Any]] else {
-            return [[
-                "role": "user",
-                "content": [
-                    ["type": "input_text", "text": String(describing: content)]
-                ],
-            ]]
-        }
-
-        var userContent: [[String: Any]] = []
-        for part in parts {
-            let type = (part["type"] as? String ?? "").lowercased()
-            if type == "text", let text = part["text"] as? String, !text.isEmpty {
-                userContent.append(["type": "input_text", "text": text])
-                continue
-            }
-            if type == "image_url",
-               let imageObject = part["image_url"] as? [String: Any],
-               let url = imageObject["url"] as? String,
-               !url.isEmpty {
-                var imagePayload: [String: Any] = ["type": "input_image", "image_url": url]
-                if let detail = imageObject["detail"] as? String, !detail.isEmpty {
-                    imagePayload["detail"] = detail
-                }
-                userContent.append(imagePayload)
-            }
-        }
-        if userContent.isEmpty {
-            userContent.append(["type": "input_text", "text": ""])
-        }
-        return [[
-            "role": "user",
-            "content": userContent,
-        ]]
-    }
-
-    private static func extractUsageFromResponseEvent(_ json: [String: Any]) -> (Int, Int)? {
-        if let usage = json["usage"] as? [String: Any] {
-            let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int)
-            let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int)
-            if let input, let output {
-                return (input, output)
-            }
-        }
-        if let response = json["response"] as? [String: Any],
-           let usage = response["usage"] as? [String: Any] {
-            let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int)
-            let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int)
-            if let input, let output {
-                return (input, output)
-            }
-        }
-        return nil
-    }
-
-    private static func extractRealtimeErrorMessage(from event: [String: Any]) -> String {
-        if let error = event["error"] as? [String: Any] {
-            if let message = error["message"] as? String, !message.isEmpty {
-                return message
-            }
-            if let code = error["code"] as? String, !code.isEmpty {
-                return code
-            }
-        }
-        if let message = event["message"] as? String, !message.isEmpty {
-            return message
-        }
-        return "Unknown WebSocket error"
-    }
-
-    private static func stringValue(_ value: Any?) -> String? {
-        if let text = value as? String {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        if let intValue = value as? Int {
-            return String(intValue)
-        }
-        if let number = value as? NSNumber {
-            return number.stringValue
-        }
-        return nil
-    }
-
-    private static func responseEventToolCallId(from event: [String: Any]) -> String? {
-        if let itemId = stringValue(event["item_id"]) { return itemId }
-        if let callId = stringValue(event["call_id"]) { return callId }
-        if let id = stringValue(event["id"]) { return id }
-        if let outputIndex = stringValue(event["output_index"]) {
-            return "idx-\(outputIndex)"
-        }
-        return nil
-    }
 
     public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil)
         async throws -> AsyncThrowingStream<StreamEvent, Error>
@@ -250,6 +65,11 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
         let baseURL = self.baseURL
         let extraHeaders = self.extraHeaders
         let reasoningEffort = self.reasoningEffort
+        let maxRetries = self.maxRetries
+        let timeoutSeconds = self.timeoutSeconds
+        let initialRetryDelaySeconds = self.initialRetryDelaySeconds
+        let maxRetryDelaySeconds = self.maxRetryDelaySeconds
+        let session = Self.makeSession(timeoutSeconds: timeoutSeconds)
         let systemPrompt = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
         let useOptimizerMode = context.systemPromptOverride != nil
 
@@ -306,7 +126,7 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                             request.setValue(value, forHTTPHeaderField: key)
                         }
 
-                        let socket = URLSession.shared.webSocketTask(with: request)
+                        let socket = session.webSocketTask(with: request)
                         socket.resume()
                         defer {
                             socket.cancel(with: .normalClosure, reason: nil)
@@ -344,7 +164,10 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                         var accumulatedReasoning = ""
 
                         while true {
-                            let message = try await socket.receive()
+                            let message = try await Self.receiveWebSocketMessage(
+                                socket: socket,
+                                timeoutSeconds: timeoutSeconds
+                            )
                             let payloadText: String
                             switch message {
                             case .string(let text):
@@ -531,47 +354,89 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                             body["reasoning"] = ["effort": effort]
                         }
                         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                        request.timeoutInterval = timeoutSeconds
 
-                        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                        var currentAttempt = 1
+                        var bytes: URLSession.AsyncBytes?
+                        while currentAttempt <= maxRetries {
+                            do {
+                                let (attemptBytes, response) = try await session.bytes(for: request)
 
-                        guard let httpResponse = response as? HTTPURLResponse else {
-                            throw CoderEngineError.apiError("Non-HTTP response from server")
+                                guard let httpResponse = response as? HTTPURLResponse else {
+                                    throw CoderEngineError.apiError("Non-HTTP response from server")
+                                }
+
+                                let statusCode = httpResponse.statusCode
+                                if (200...299).contains(statusCode) {
+                                    bytes = attemptBytes
+                                    break
+                                }
+
+                                let errorBody = await Self.readErrorBody(from: attemptBytes)
+
+                                // If tools were included and the error is about tool incompatibility,
+                                // signal that we should retry without tools.
+                                if includeTools && Self.isToolUnsupportedError(errorBody) {
+                                    return errorBody  // Signal: retry without tools
+                                }
+
+                                // For auth errors, throw immediately (not retriable)
+                                if statusCode == 401 || statusCode == 403 {
+                                    let msg = Self.extractErrorMessage(from: errorBody, statusCode: statusCode)
+                                    throw CoderEngineError.apiError("Authentication failed — \(msg)")
+                                }
+
+                                // For other 4xx errors when tools are included, try without tools
+                                if includeTools && (statusCode == 400 || statusCode == 422) {
+                                    return errorBody  // Signal: retry without tools
+                                }
+
+                                // Retriable HTTP status (429/5xx/timeout family)
+                                if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
+                                    let retryAfter = Self.retryAfterSeconds(from: httpResponse)
+                                    let backoffDelay = Self.exponentialBackoffSeconds(
+                                        attempt: currentAttempt,
+                                        initialDelay: initialRetryDelaySeconds,
+                                        maxDelay: maxRetryDelaySeconds
+                                    )
+                                    let delay = max(retryAfter ?? 0, backoffDelay)
+                                    continuation.yield(.raw(type: "provider_retry", payload: [
+                                        "provider": id,
+                                        "attempt": "\(currentAttempt)",
+                                        "max_attempts": "\(maxRetries)",
+                                        "delay_ms": "\(Int(delay * 1000))",
+                                        "reason": "http_\(statusCode)"
+                                    ]))
+                                    try await Self.sleep(seconds: delay)
+                                    currentAttempt += 1
+                                    continue
+                                }
+
+                                let msg = Self.extractErrorMessage(from: errorBody, statusCode: statusCode)
+                                throw CoderEngineError.apiError(msg)
+                            } catch {
+                                if currentAttempt < maxRetries, Self.isRetryableTransportError(error) {
+                                    let delay = Self.exponentialBackoffSeconds(
+                                        attempt: currentAttempt,
+                                        initialDelay: initialRetryDelaySeconds,
+                                        maxDelay: maxRetryDelaySeconds
+                                    )
+                                    continuation.yield(.raw(type: "provider_retry", payload: [
+                                        "provider": id,
+                                        "attempt": "\(currentAttempt)",
+                                        "max_attempts": "\(maxRetries)",
+                                        "delay_ms": "\(Int(delay * 1000))",
+                                        "reason": "transport_error"
+                                    ]))
+                                    try await Self.sleep(seconds: delay)
+                                    currentAttempt += 1
+                                    continue
+                                }
+                                throw error
+                            }
                         }
-
-                        // Handle non-2xx responses with proper error body reading
-                        guard (200...299).contains(httpResponse.statusCode) else {
-                            let errorBody = await Self.readErrorBody(from: bytes)
-                            let statusCode = httpResponse.statusCode
-
-                            // If tools were included and the error is about tool incompatibility,
-                            // signal that we should retry without tools.
-                            if includeTools && Self.isToolUnsupportedError(errorBody) {
-                                return errorBody  // Signal: retry without tools
-                            }
-
-                            // For auth errors, throw specific error
-                            if statusCode == 401 || statusCode == 403 {
-                                let msg = Self.extractErrorMessage(
-                                    from: errorBody, statusCode: statusCode)
-                                throw CoderEngineError.apiError("Authentication failed — \(msg)")
-                            }
-
-                            // For rate limiting
-                            if statusCode == 429 {
-                                let msg = Self.extractErrorMessage(
-                                    from: errorBody, statusCode: statusCode)
-                                throw CoderEngineError.apiError("Rate limit exceeded — \(msg)")
-                            }
-
-                            // For other 4xx errors when tools are included, also try without tools
-                            // (some providers return 400 or 422 for unsupported parameters)
-                            if includeTools && (statusCode == 400 || statusCode == 422) {
-                                return errorBody  // Signal: retry without tools
-                            }
-
-                            let msg = Self.extractErrorMessage(
-                                from: errorBody, statusCode: statusCode)
-                            throw CoderEngineError.apiError(msg)
+                        guard let bytes else {
+                            throw CoderEngineError.apiError("Failed to connect after \(maxRetries) attempts")
                         }
 
                         // Successfully got a streaming response — consume it
@@ -735,21 +600,45 @@ public final class OpenAIAPIProvider: LLMProvider, @unchecked Sendable {
                     let initialIncludeTools = !useOptimizerMode
                     if Self.shouldTryResponsesWebSocket(baseURL: baseURL, imageURLs: imageURLs) {
                         var webSocketStarted = false
-                        do {
-                            let first = try await attemptResponsesWebSocket(includeTools: initialIncludeTools)
-                            webSocketStarted = first.didStart
-                            if first.retrySignal != nil, initialIncludeTools {
-                                let second = try await attemptResponsesWebSocket(includeTools: false)
-                                webSocketStarted = webSocketStarted || second.didStart
+                        var wsAttempt = 1
+                        while wsAttempt <= maxRetries {
+                            do {
+                                let first = try await attemptResponsesWebSocket(includeTools: initialIncludeTools)
+                                webSocketStarted = first.didStart
+                                if first.retrySignal != nil, initialIncludeTools {
+                                    let second = try await attemptResponsesWebSocket(includeTools: false)
+                                    webSocketStarted = webSocketStarted || second.didStart
+                                }
+                                return
+                            } catch {
+                                // If websocket already started streaming, do not fallback/retry
+                                // to avoid duplicate output; propagate the original error.
+                                if webSocketStarted {
+                                    throw error
+                                }
+
+                                if wsAttempt < maxRetries, Self.isRetryableTransportError(error) {
+                                    let delay = Self.exponentialBackoffSeconds(
+                                        attempt: wsAttempt,
+                                        initialDelay: initialRetryDelaySeconds,
+                                        maxDelay: maxRetryDelaySeconds
+                                    )
+                                    continuation.yield(.raw(type: "provider_retry", payload: [
+                                        "provider": id,
+                                        "attempt": "\(wsAttempt)",
+                                        "max_attempts": "\(maxRetries)",
+                                        "delay_ms": "\(Int(delay * 1000))",
+                                        "reason": "websocket_transport_error"
+                                    ]))
+                                    try await Self.sleep(seconds: delay)
+                                    wsAttempt += 1
+                                    continue
+                                }
+
+                                // Non-retriable websocket failure before stream start:
+                                // silently fallback to SSE below.
+                                break
                             }
-                            return
-                        } catch {
-                            // If websocket already started streaming, do not fallback to avoid
-                            // duplicate output; propagate the original error.
-                            if webSocketStarted {
-                                throw error
-                            }
-                            // Otherwise silently fallback to SSE below.
                         }
                     }
 

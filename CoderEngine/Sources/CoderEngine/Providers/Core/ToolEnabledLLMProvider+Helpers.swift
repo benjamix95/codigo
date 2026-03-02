@@ -1,663 +1,7 @@
 import Foundation
 
-/// Lightweight internal representation of a tool call used by the tool execution loop.
-/// Previously part of CoderIDEMarkerParser; kept here for the native tool_call_suggested path.
-struct CoderIDEMarker {
-    let kind: String
-    let payload: [String: String]
-}
-
-public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
-    public let id: String
-    public let displayName: String
-    public var attachmentCapabilities: ProviderAttachmentCapabilities {
-        base.attachmentCapabilities
-    }
-
-    private let base: any LLMProvider
-    private let runtime: UnifiedToolRuntime
-    private let policy: ToolRuntimePolicy
-    private let executionScope: ExecutionScope
-    private let maxToolRounds: Int
-    private let maxAutonomousContinuationRounds = 4
-
-    /// Optional factory for creating base LLM providers for subagent execution.
-    /// If nil, subagents reuse the same base provider as the parent agent.
-    private let subagentProviderFactory: (@Sendable () -> any LLMProvider)?
-
-    public init(
-        base: any LLMProvider,
-        runtime: UnifiedToolRuntime? = nil,
-        policy: ToolRuntimePolicy = ToolRuntimePolicy(),
-        executionScope: ExecutionScope = .agent,
-        executionController: ExecutionController? = nil,
-        maxToolRounds: Int = 160,
-        subagentProviderFactory: (@Sendable () -> any LLMProvider)? = nil
-    ) {
-        self.base = base
-        self.id = base.id
-        self.displayName = base.displayName
-        self.runtime = runtime ?? UnifiedToolRuntime(executionController: executionController, executionScope: executionScope)
-        self.policy = policy
-        self.executionScope = executionScope
-        self.maxToolRounds = max(1, maxToolRounds)
-        self.subagentProviderFactory = subagentProviderFactory
-    }
-
-    public func isAuthenticated() -> Bool {
-        base.isAuthenticated()
-    }
-
-    public func debugToolRuntimeSnapshot() async -> ToolRuntimeDebugSnapshot {
-        await runtime.debugSnapshot()
-    }
-
-    public func setBrowserBridge(_ bridge: (any BrowserBridge)?) async {
-        await runtime.setBrowserBridge(bridge)
-    }
-
-    public func setTerminalBridge(_ bridge: (any TerminalBridge)?) async {
-        await runtime.setTerminalBridge(bridge)
-    }
-
-    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        // When systemPromptOverride is set (e.g. prompt optimization), pass through to base without
-        // adding taskCompletionStrict or toolProtocolPrompt — the context carries the custom system prompt.
-        if context.systemPromptOverride != nil {
-            return try await base.send(prompt: prompt, context: context, imageURLs: imageURLs)
-        }
-
-        // Keep native MCP tool registry aligned with current server/config state.
-        // Registering is idempotent when the discovered tool set did not change.
-        if policy.enableMCP {
-            let discovered = await runtime.mcpSessions.discoverAllTools(
-                idleTTLSeconds: policy.mcpSessionIdleTTLSeconds
-            )
-            _ = MCPNativeToolRegistry.shared.register(tools: discovered)
-        } else if MCPNativeToolRegistry.shared.hasTools() {
-            MCPNativeToolRegistry.shared.clear()
-        }
-
-        let initialPrompt = """
-        \(SystemPrompts.taskCompletionStrict)
-
-        \(toolProtocolPrompt)
-
-        \(prompt)
-        """
-
-        return AsyncThrowingStream { continuation in
-            let producerTask = Task {
-                do {
-                    var currentPrompt = initialPrompt
-                    var conversationTranscript = ""
-                    var isFirstRound = true
-                    var extraContinuationRounds = 0
-                    var lastToolResultsForFallback: [[String: String]] = []
-                    var emittedVisibleTextAfterToolRound = false
-                    var hasAnyMeaningfulAssistantText = false
-                    let requiredPolicyHash = Self.requiredPolicyHash(from: context)
-                    var didEmitPolicyAck = false
-                    let enforceSubagentFirstRound = executionScope == .agent && subagentProviderFactory != nil
-                    var acceptedSubagentInFirstRound = false
-                    var sawCodeMutationDuringTask = false
-                    var reviewerCompletedAfterLatestMutation = false
-                    var testWriterCompletedAfterLatestMutation = false
-                    var autoInjectedFinalReviewBatchCount = 0
-                    let maxAutoInjectedFinalReviewBatchCount = 4
-
-                    for _ in 0..<maxToolRounds {
-                        try Task.checkCancellation()
-                        let stream = try await base.send(prompt: currentPrompt, context: context, imageURLs: isFirstRound ? imageURLs : nil)
-                        var roundText = ""
-                        var roundToolResults: [[String: String]] = []
-                        // Dedupe only for the current round: subsequent rounds can
-                        // legitimately re-emit the same tool/id.
-                        var emittedMarkerIds = Set<String>()
-                        var toolCallCountByKey: [String: Int] = [:]
-                        var toolCallsThisRound = 0
-                        var sawExecutableSuggestion = false
-                        // Subagent calls are deferred and executed in parallel after the stream ends.
-                        var pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)] = []
-                        // Use array to avoid O(n²) string concatenation
-                        var roundTextParts: [String] = []
-                        var roundTextLength = 0
-
-                        for try await event in stream {
-                            switch event {
-                            case .textDelta(let delta):
-                                let visibleDelta = sanitizeVisibleDelta(delta)
-                                if !visibleDelta.isEmpty, roundTextLength + visibleDelta.count <= 100_000 { roundTextParts.append(visibleDelta); roundTextLength += visibleDelta.count }
-                                if !visibleDelta.isEmpty {
-                                    continuation.yield(.textDelta(visibleDelta))
-                                    if isMeaningfulAssistantCompletion(visibleDelta) {
-                                        emittedVisibleTextAfterToolRound = true
-                                        hasAnyMeaningfulAssistantText = true
-                                    }
-                                }
-                            case .textReplace(let replacement):
-                                roundTextParts = replacement.isEmpty ? [] : [replacement]
-                                roundTextLength = replacement.count
-                                continuation.yield(.textReplace(replacement))
-                            case .started:
-                                if isFirstRound {
-                                    continuation.yield(.started)
-                                }
-                            case .completed:
-                                break
-                            case .error:
-                                continuation.yield(event)
-                            case .raw(let type, let payload):
-                                if type == "policy_ack" {
-                                    if Self.matchesRequiredPolicyHash(
-                                        payload["hash"] ?? payload["policy_hash"],
-                                        requiredHash: requiredPolicyHash
-                                    ) {
-                                        didEmitPolicyAck = true
-                                    }
-                                    continuation.yield(event)
-                                    continue
-                                }
-                                if let hash = requiredPolicyHash,
-                                   shouldEmitSyntheticPolicyAck(
-                                    forRawEventType: type,
-                                    requiredHash: hash,
-                                    didEmitPolicyAck: didEmitPolicyAck
-                                   ) {
-                                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                                    didEmitPolicyAck = true
-                                }
-                                if type == "tool_call_suggested" {
-                                    let isPartial = (payload["is_partial"] ?? "").lowercased() == "true"
-                                    if isPartial { continue }
-                                    let name = inferredToolName(from: payload)
-                                    if name.isEmpty { continue }
-                                    if toolCallsThisRound >= policy.maxToolCallsPerRound {
-                                        continuation.yield(.raw(type: "tool_execution_error", payload: [
-                                            "title": "Tool budget exceeded",
-                                            "detail": "Reached tool limit per round (\(policy.maxToolCallsPerRound))",
-                                            "status": "failed",
-                                            "error_code": "budget_exceeded"
-                                        ]))
-                                        continue
-                                    }
-                                    var args = payload
-                                    let metadataKeys: Set<String> = [
-                                        "id", "name", "tool", "tool_name", "function", "function_name",
-                                        "args", "is_partial", "type", "status", "title", "detail", "output",
-                                    ]
-                                    for key in metadataKeys {
-                                        args.removeValue(forKey: key)
-                                    }
-                                    if let argsJson = payload["args"], let parsed = parseArgsJSON(argsJson) {
-                                        for (key, value) in parsed {
-                                            args[key] = value
-                                        }
-                                    }
-                                    args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
-                                    args["name"] = name
-
-                                    if !policy.allowMutatingTools,
-                                       Self.toolWouldMutate(toolName: name, args: args) {
-                                        continuation.yield(.raw(type: "tool_validation_error", payload: [
-                                            "title": "Read-only phase policy",
-                                            "detail": "Tool '\(name)' is blocked in read-only mode.",
-                                            "status": "failed",
-                                            "error_code": "read_only_violation",
-                                            "tool": name,
-                                        ]))
-                                        continue
-                                    }
-
-                                    let marker = CoderIDEMarker(kind: "tool_call", payload: args)
-                                    let legacyInvokeSwarm = Self.isLegacyInvokeSwarmSuggestion(
-                                        toolName: name,
-                                        payload: args
-                                    )
-
-                                    if enforceSubagentFirstRound,
-                                       isFirstRound,
-                                       !acceptedSubagentInFirstRound,
-                                       !name.hasPrefix("subagent_"),
-                                       !legacyInvokeSwarm,
-                                       !Self.isSubagentFirstRoundExemptTool(name)
-                                    {
-                                        continuation.yield(.raw(type: "tool_validation_error", payload: [
-                                            "title": "Subagent-first policy",
-                                            "detail": "First operational tool round must start with subagent_* delegation before direct tool execution.",
-                                            "status": "failed",
-                                            "error_code": "subagent_first_required",
-                                            "tool": name,
-                                        ]))
-                                        continue
-                                    }
-
-                                    let dedupeId = markerDedupeKey(marker)
-                                    let count = toolCallCountByKey[dedupeId, default: 0]
-                                    if count >= policy.maxRepeatedSameToolPerRound { continue }
-                                    toolCallCountByKey[dedupeId] = count + 1
-                                    emittedMarkerIds.insert(dedupeId)
-                                    toolCallsThisRound += 1
-                                    sawExecutableSuggestion = true
-                                    if isFirstRound, legacyInvokeSwarm {
-                                        acceptedSubagentInFirstRound = true
-                                    }
-                                    if let hash = requiredPolicyHash,
-                                       shouldEmitSyntheticPolicyAck(
-                                        for: marker,
-                                        requiredHash: hash,
-                                        didEmitPolicyAck: didEmitPolicyAck
-                                       ) {
-                                        continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
-                                        didEmitPolicyAck = true
-                                    }
-                                    // Subagent tools are deferred for parallel execution
-                                    // after the current stream round ends.
-                                    if name.hasPrefix("subagent_") {
-                                        if isFirstRound {
-                                            acceptedSubagentInFirstRound = true
-                                        }
-                                        pendingSubagentCalls.append((marker: marker, name: name))
-                                        let toolCallId = marker.payload["id"] ?? UUID().uuidString
-                                        continuation.yield(.raw(type: "agent", payload: [
-                                            "title": SubagentRole.fromToolName(name)?.displayName ?? name,
-                                            "detail": "queued",
-                                            "swarm_id": "queued-\(toolCallId)",
-                                            "tool_call_id": toolCallId,
-                                            "status": "queued"
-                                        ]))
-                                    } else {
-                                        let produced = await events(for: marker, context: context)
-                                        for e in produced {
-                                            if Self.streamEventIndicatesCodeMutation(
-                                                e,
-                                                originatingToolName: name
-                                            ) {
-                                                sawCodeMutationDuringTask = true
-                                                reviewerCompletedAfterLatestMutation = false
-                                                testWriterCompletedAfterLatestMutation = false
-                                            }
-                                            if let completedRole = Self.completedSubagentRole(from: e) {
-                                                if completedRole == .reviewer {
-                                                    reviewerCompletedAfterLatestMutation = true
-                                                }
-                                                if completedRole == .testWriter {
-                                                    testWriterCompletedAfterLatestMutation = true
-                                                }
-                                            }
-                                            if case .raw(let innerType, let innerPayload) = e,
-                                               innerType == "policy_ack",
-                                               Self.matchesRequiredPolicyHash(
-                                                innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                                requiredHash: requiredPolicyHash
-                                               ) {
-                                                didEmitPolicyAck = true
-                                            }
-                                            continuation.yield(e)
-                                        }
-                                        if let summary = summarizeToolResultEvents(produced, marker: marker) {
-                                            roundToolResults.append(summary)
-                                        }
-                                    }
-                                } else {
-                                    continuation.yield(event)
-                                }
-                            }
-                        }
-
-                        // Execute deferred subagent calls in parallel via withTaskGroup.
-                        // Emit "started" events for ALL subagents upfront so live cards
-                        // appear in the chat immediately, then stream results as each
-                        // subagent completes (rather than waiting for all to finish).
-                        if !pendingSubagentCalls.isEmpty {
-                            let calls = pendingSubagentCalls
-
-                            // Pre-generate stable subagent IDs and emit "started" events
-                            // before execution so the UI can show live cards right away.
-                            var subagentIdByToolCallId: [String: String] = [:]
-                            for call in calls {
-                                let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
-                                let role = SubagentRole.fromToolName(call.name)
-                                let subagentId = "\(role?.rawValue ?? call.name)-\(UUID().uuidString.prefix(8))"
-                                subagentIdByToolCallId[toolCallId] = subagentId
-                                continuation.yield(.raw(type: "agent", payload: [
-                                    "title": role?.displayName ?? call.name,
-                                    "detail": "started",
-                                    "swarm_id": subagentId,
-                                    "group_id": "swarm-\(subagentId)",
-                                    "tool_call_id": toolCallId,
-                                    "status": "started"
-                                ]))
-                            }
-
-                            let capturedContext = context
-                            let capturedSubagentIds = subagentIdByToolCallId
-                            var anySubagentFailed = false
-                            var completedRolesInBatch = Set<String>()
-
-                            // Stream results as each subagent completes rather than
-                            // collecting all results first — this keeps live cards
-                            // updated incrementally.
-                            await withTaskGroup(
-                                of: (events: [StreamEvent], marker: CoderIDEMarker).self
-                            ) { group in
-                                for call in calls {
-                                    let m = call.marker
-                                    group.addTask { @Sendable in
-                                        let produced = await self.events(
-                                            for: m,
-                                            context: capturedContext,
-                                            preEmittedSubagentIds: capturedSubagentIds,
-                                            onLiveSubagentEvent: { liveEvent in
-                                                continuation.yield(liveEvent)
-                                            }
-                                        )
-                                        return (events: produced, marker: m)
-                                    }
-                                }
-                                for await result in group {
-                                    let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
-                                    for e in result.events {
-                                        if Self.streamEventIndicatesCodeMutation(
-                                            e,
-                                            originatingToolName: subagentToolName
-                                        ) {
-                                            sawCodeMutationDuringTask = true
-                                            reviewerCompletedAfterLatestMutation = false
-                                            testWriterCompletedAfterLatestMutation = false
-                                        }
-                                        if let completedRole = Self.completedSubagentRole(from: e) {
-                                            completedRolesInBatch.insert(completedRole.rawValue.lowercased())
-                                            if completedRole == .reviewer {
-                                                reviewerCompletedAfterLatestMutation = true
-                                            }
-                                            if completedRole == .testWriter {
-                                                testWriterCompletedAfterLatestMutation = true
-                                            }
-                                        }
-                                        if case .raw(let innerType, let innerPayload) = e,
-                                           innerType == "policy_ack",
-                                           Self.matchesRequiredPolicyHash(
-                                            innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                            requiredHash: requiredPolicyHash
-                                           ) {
-                                            didEmitPolicyAck = true
-                                        }
-                                        if case .raw(let t, let p) = e,
-                                           t == "tool_result",
-                                           p["status"] == "failed" {
-                                            anySubagentFailed = true
-                                        }
-                                        // Events already streamed live via onLiveSubagentEvent
-                                        // are not re-yielded to avoid duplicates.
-                                        let alreadyEmitted: Bool = {
-                                            if case .raw(_, let p) = e { return p["_live_emitted"] == "1" }
-                                            return false
-                                        }()
-                                        if !alreadyEmitted {
-                                            continuation.yield(e)
-                                        }
-                                    }
-                                    if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
-                                        roundToolResults.append(summary)
-                                    }
-                                }
-                            }
-                            let autoStatus = anySubagentFailed ? "blocked" : "done"
-                            continuation.yield(.raw(type: "subagent_batch_done", payload: [
-                                "status": autoStatus,
-                                "count": "\(calls.count)",
-                                "roles": completedRolesInBatch.sorted().joined(separator: ",")
-                            ]))
-                            pendingSubagentCalls.removeAll()
-                        }
-
-                        let mandatoryReviewSatisfied =
-                            reviewerCompletedAfterLatestMutation && testWriterCompletedAfterLatestMutation
-                        if subagentProviderFactory != nil,
-                           sawCodeMutationDuringTask,
-                           !mandatoryReviewSatisfied,
-                           autoInjectedFinalReviewBatchCount < maxAutoInjectedFinalReviewBatchCount
-                        {
-                            autoInjectedFinalReviewBatchCount += 1
-                            var injectedCalls: [(marker: CoderIDEMarker, name: String)] = []
-                            if !reviewerCompletedAfterLatestMutation {
-                                injectedCalls.append((
-                                    marker: CoderIDEMarker(kind: "tool_call", payload: [
-                                        "id": "auto-reviewer-\(UUID().uuidString)",
-                                        "name": SubagentRole.reviewer.toolName,
-                                        "task": "Review all code changes completed in this task. Report bugs, regressions, and risks with concrete findings.",
-                                    ]),
-                                    name: SubagentRole.reviewer.toolName
-                                ))
-                            }
-                            if !testWriterCompletedAfterLatestMutation {
-                                injectedCalls.append((
-                                    marker: CoderIDEMarker(kind: "tool_call", payload: [
-                                        "id": "auto-testwriter-\(UUID().uuidString)",
-                                        "name": SubagentRole.testWriter.toolName,
-                                        "task": "Write and run focused regression tests for all code changes completed in this task. Report failures and coverage gaps.",
-                                    ]),
-                                    name: SubagentRole.testWriter.toolName
-                                ))
-                            }
-
-                            if !injectedCalls.isEmpty {
-                                sawExecutableSuggestion = true
-
-                                // Pre-emit "started" events for injected subagents
-                                var injectedSubagentIds: [String: String] = [:]
-                                for call in injectedCalls {
-                                    let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
-                                    let role = SubagentRole.fromToolName(call.name)
-                                    let subagentId = "\(role?.rawValue ?? call.name)-\(UUID().uuidString.prefix(8))"
-                                    injectedSubagentIds[toolCallId] = subagentId
-                                    continuation.yield(.raw(type: "agent", payload: [
-                                        "title": role?.displayName ?? call.name,
-                                        "detail": "started",
-                                        "swarm_id": subagentId,
-                                        "group_id": "swarm-\(subagentId)",
-                                        "tool_call_id": toolCallId,
-                                        "status": "started"
-                                    ]))
-                                }
-
-                                let capturedContext = context
-                                let capturedInjectedIds = injectedSubagentIds
-
-                                var injectedAnyFailed = false
-                                var injectedCompletedRoles = Set<String>()
-                                await withTaskGroup(
-                                    of: (events: [StreamEvent], marker: CoderIDEMarker).self
-                                ) { group in
-                                    for call in injectedCalls {
-                                        let marker = call.marker
-                                        group.addTask { @Sendable in
-                                            let produced = await self.events(
-                                                for: marker,
-                                                context: capturedContext,
-                                                preEmittedSubagentIds: capturedInjectedIds,
-                                                onLiveSubagentEvent: { liveEvent in
-                                                    continuation.yield(liveEvent)
-                                                }
-                                            )
-                                            return (events: produced, marker: marker)
-                                        }
-                                    }
-
-                                    for await result in group {
-                                        let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
-                                        for e in result.events {
-                                            if Self.streamEventIndicatesCodeMutation(
-                                                e,
-                                                originatingToolName: subagentToolName
-                                            ) {
-                                                sawCodeMutationDuringTask = true
-                                                reviewerCompletedAfterLatestMutation = false
-                                                testWriterCompletedAfterLatestMutation = false
-                                            }
-                                            if let completedRole = Self.completedSubagentRole(from: e) {
-                                                injectedCompletedRoles.insert(completedRole.rawValue.lowercased())
-                                                if completedRole == .reviewer {
-                                                    reviewerCompletedAfterLatestMutation = true
-                                                }
-                                                if completedRole == .testWriter {
-                                                    testWriterCompletedAfterLatestMutation = true
-                                                }
-                                            }
-                                            if case .raw(let innerType, let innerPayload) = e,
-                                               innerType == "policy_ack",
-                                               Self.matchesRequiredPolicyHash(
-                                                innerPayload["hash"] ?? innerPayload["policy_hash"],
-                                                requiredHash: requiredPolicyHash
-                                               ) {
-                                                didEmitPolicyAck = true
-                                            }
-                                            if case .raw(let t, let p) = e,
-                                               t == "tool_result",
-                                               p["status"] == "failed" {
-                                                injectedAnyFailed = true
-                                            }
-                                            let alreadyEmitted: Bool = {
-                                                if case .raw(_, let p) = e { return p["_live_emitted"] == "1" }
-                                                return false
-                                            }()
-                                            if !alreadyEmitted {
-                                                continuation.yield(e)
-                                            }
-                                        }
-                                        if let summary = summarizeToolResultEvents(result.events, marker: result.marker) {
-                                            roundToolResults.append(summary)
-                                        }
-                                    }
-                                }
-
-                                continuation.yield(.raw(type: "subagent_batch_done", payload: [
-                                    "status": injectedAnyFailed ? "blocked" : "done",
-                                    "count": "\(injectedCalls.count)",
-                                    "roles": injectedCompletedRoles.sorted().joined(separator: ",")
-                                ]))
-                            }
-                        }
-
-                        roundText = roundTextParts.joined()
-                        conversationTranscript += "\n[assistant]\n\(roundText)\n"
-                        // Cap transcript to avoid exponential prompt growth
-                        if conversationTranscript.count > 48_000 {
-                            conversationTranscript = String(conversationTranscript.suffix(40_000))
-                        }
-                        if !roundToolResults.isEmpty {
-                            lastToolResultsForFallback = roundToolResults
-                            emittedVisibleTextAfterToolRound = false
-                        }
-                        var shouldContinue = !roundToolResults.isEmpty || sawExecutableSuggestion
-                        if !shouldContinue,
-                           shouldForceAutonomousContinuation(
-                            roundText,
-                            roundIndex: extraContinuationRounds
-                           ),
-                           extraContinuationRounds < maxAutonomousContinuationRounds {
-                            shouldContinue = true
-                            extraContinuationRounds += 1
-                        }
-                        guard shouldContinue else { break }
-                        currentPrompt = buildFollowUpPrompt(
-                            originalPrompt: prompt,
-                            transcript: conversationTranscript,
-                            toolResults: roundToolResults
-                        )
-                        isFirstRound = false
-                    }
-
-                    if !lastToolResultsForFallback.isEmpty && !emittedVisibleTextAfterToolRound {
-                        let forcedPrompt = buildForcedFinalizationPrompt(
-                            originalPrompt: prompt,
-                            transcript: conversationTranscript,
-                            toolResults: lastToolResultsForFallback
-                        )
-                        do {
-                            let forcedStream = try await base.send(
-                                prompt: forcedPrompt,
-                                context: context,
-                                imageURLs: nil
-                            )
-                            var forcedTextParts: [String] = []
-                            var forcedTextLength = 0
-                            for try await forcedEvent in forcedStream {
-                                switch forcedEvent {
-                                case .textDelta(let delta):
-                                    let visible = sanitizeVisibleDelta(delta)
-                                    if !visible.isEmpty {
-                                        continuation.yield(.textDelta(visible))
-                                        if forcedTextLength + visible.count <= 50_000 { forcedTextParts.append(visible); forcedTextLength += visible.count }
-                                    }
-                                default:
-                                    break
-                                }
-                            }
-                            if !isMeaningfulAssistantCompletion(forcedTextParts.joined()) {
-                                continuation.yield(.raw(type: "tool_execution_error", payload: [
-                                    "title": "Missing final outcome",
-                                    "detail": "Provider finished without final summary after tool execution",
-                                    "status": "failed",
-                                    "error_code": "missing_final_outcome"
-                                ]))
-                                let fallback = buildToolFallbackSummary(lastToolResultsForFallback)
-                                if !fallback.isEmpty {
-                                    continuation.yield(.textDelta(fallback))
-                                }
-                            } else {
-                                hasAnyMeaningfulAssistantText = true
-                            }
-                        } catch {
-                            continuation.yield(.raw(type: "tool_execution_error", payload: [
-                                "title": "Finalization failed",
-                                "detail": error.localizedDescription,
-                                "status": "failed",
-                                "error_code": "missing_final_outcome"
-                            ]))
-                            let fallback = buildToolFallbackSummary(lastToolResultsForFallback)
-                            if !fallback.isEmpty {
-                                continuation.yield(.textDelta(fallback))
-                            }
-                            continuation.finish(throwing: error)
-                            return
-                        }
-                    }
-                    if !hasAnyMeaningfulAssistantText && !lastToolResultsForFallback.isEmpty {
-                        continuation.yield(.raw(type: "tool_execution_error", payload: [
-                            "title": "Missing final output",
-                            "detail": "No meaningful final content produced",
-                            "status": "failed",
-                            "error_code": "missing_final_outcome"
-                        ]))
-                    }
-                    if subagentProviderFactory != nil,
-                       sawCodeMutationDuringTask,
-                       !(reviewerCompletedAfterLatestMutation && testWriterCompletedAfterLatestMutation)
-                    {
-                        continuation.yield(.raw(type: "tool_validation_error", payload: [
-                            "title": "Mandatory review incomplete",
-                            "detail": "Code mutations were detected, but reviewer/testWriter coverage for the latest changes is incomplete.",
-                            "status": "failed",
-                            "error_code": "mandatory_review_incomplete"
-                        ]))
-                    }
-
-                    continuation.yield(.completed)
-                    continuation.finish()
-                } catch {
-                    continuation.yield(.error(error.localizedDescription))
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                producerTask.cancel()
-            }
-        }
-    }
-
-    private func summarizeToolResultEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
+extension ToolEnabledLLMProvider {
+    func summarizeToolResultEvents(_ events: [StreamEvent], marker: CoderIDEMarker) -> [String: String]? {
         var summary: [String: String] = [
             "id": marker.payload["id"] ?? UUID().uuidString,
             "name": marker.payload["name"] ?? ""
@@ -685,7 +29,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return foundCompletion ? summary : nil
     }
 
-    private func buildFollowUpPrompt(originalPrompt: String, transcript: String, toolResults: [[String: String]]) -> String {
+    func buildFollowUpPrompt(originalPrompt: String, transcript: String, toolResults: [[String: String]]) -> String {
         let resultsSection: String
         if toolResults.isEmpty {
             resultsSection = """
@@ -736,7 +80,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         """
     }
 
-    private func parseArgsJSON(_ raw: String) -> [String: String]? {
+    func parseArgsJSON(_ raw: String) -> [String: String]? {
         guard let data = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data),
               let dict = obj as? [String: Any] else {
@@ -766,7 +110,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return out
     }
 
-    private func markerDedupeKey(_ marker: CoderIDEMarker) -> String {
+    func markerDedupeKey(_ marker: CoderIDEMarker) -> String {
         if marker.kind == "tool_call", let id = marker.payload["id"], !id.isEmpty {
             return "\(marker.kind)|id=\(id)"
         }
@@ -778,7 +122,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return "\(marker.kind)|\(stablePayload)"
     }
 
-    private func shouldEmitSyntheticPolicyAck(
+    func shouldEmitSyntheticPolicyAck(
         for marker: CoderIDEMarker,
         requiredHash: String,
         didEmitPolicyAck: Bool
@@ -788,7 +132,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return !requiredHash.isEmpty
     }
 
-    private func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
+    func markerRequiresPolicyAck(_ marker: CoderIDEMarker) -> Bool {
         switch marker.kind {
         case "policy_ack", "todo_read", "todo_write", "plan_step":
             return false
@@ -808,7 +152,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private func shouldEmitSyntheticPolicyAck(
+    func shouldEmitSyntheticPolicyAck(
         forRawEventType type: String,
         requiredHash: String,
         didEmitPolicyAck: Bool
@@ -817,7 +161,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return rawEventRequiresPolicyAck(type)
     }
 
-    private func rawEventRequiresPolicyAck(_ type: String) -> Bool {
+    func rawEventRequiresPolicyAck(_ type: String) -> Bool {
         switch type {
         case "policy_ack", "turn_started", "turn_completed", "usage", "reasoning",
             "todo_read", "todo_write", "plan_step_update", "context_compacted",
@@ -831,7 +175,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func isSubagentFirstRoundExemptTool(_ toolName: String) -> Bool {
+    static func isSubagentFirstRoundExemptTool(_ toolName: String) -> Bool {
         switch toolName {
         case "todo_read", "todo_write", "plan_step_update", "mermaid_render",
              "policy_ack", "activate_plan_mode", "activate_debug_mode",
@@ -842,7 +186,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func isLegacyInvokeSwarmSuggestion(
+    static func isLegacyInvokeSwarmSuggestion(
         toolName: String,
         payload: [String: String]
     ) -> Bool {
@@ -859,13 +203,13 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return targetTool == "invoke_swarm"
     }
 
-    private static func isSuccessfulStatus(_ raw: String?) -> Bool {
+    static func isSuccessfulStatus(_ raw: String?) -> Bool {
         let status = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if status.isEmpty { return true }
         return status == "completed" || status == "ok" || status == "success" || status == "done"
     }
 
-    private static func isCodeMutationTool(_ rawTool: String) -> Bool {
+    static func isCodeMutationTool(_ rawTool: String) -> Bool {
         let tool = ProviderToolEventMapper.normalizeToolIdentifier(rawTool)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -887,7 +231,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             || tool == "undo_edit"
     }
 
-    private static func streamEventIndicatesCodeMutation(
+    static func streamEventIndicatesCodeMutation(
         _ event: StreamEvent,
         originatingToolName: String
     ) -> Bool {
@@ -910,7 +254,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return false
     }
 
-    private static func completedSubagentRole(from event: StreamEvent) -> SubagentRole? {
+    static func completedSubagentRole(from event: StreamEvent) -> SubagentRole? {
         guard case .raw(let type, let payload) = event else { return nil }
         guard type == "tool_result" else { return nil }
         guard isSuccessfulStatus(payload["status"]) else { return nil }
@@ -918,7 +262,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return SubagentRole.fromToolName(tool)
     }
 
-    private static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
+    static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
         let prompt = context.contextPrompt()
         guard !prompt.isEmpty else { return nil }
         // Extract the last policy_ack hash from the context prompt.
@@ -933,7 +277,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return hash.isEmpty ? nil : hash
     }
 
-    private static func matchesRequiredPolicyHash(
+    static func matchesRequiredPolicyHash(
         _ receivedHash: String?,
         requiredHash: String?
     ) -> Bool {
@@ -948,7 +292,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     /// event was already emitted by the caller (parallel batch execution).
     /// `onLiveSubagentEvent` is called for intermediate subagent events during execution,
     /// enabling real-time card updates before the subagent fully completes.
-    private func events(
+    func events(
         for marker: CoderIDEMarker,
         context: WorkspaceContext,
         preEmittedSubagentIds: [String: String]? = nil,
@@ -1042,7 +386,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return await runtime.execute(call, context: ToolExecutionContext(workspaceContext: context, policy: policy, executionScope: executionScope))
     }
 
-    private func executeLegacyInvokeSwarmIfNeeded(
+    func executeLegacyInvokeSwarmIfNeeded(
         marker: CoderIDEMarker,
         toolName: String,
         context: WorkspaceContext
@@ -1111,7 +455,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         )
     }
 
-    private static func resolveLegacyInvokeSwarmRole(
+    static func resolveLegacyInvokeSwarmRole(
         payload: [String: String],
         task: String
     ) -> SubagentRole {
@@ -1155,7 +499,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return .explorer
     }
 
-    private func enforcedMCPEditEventsIfNeeded(
+    func enforcedMCPEditEventsIfNeeded(
         marker: CoderIDEMarker,
         toolName: String,
         context: WorkspaceContext
@@ -1225,7 +569,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return produced
     }
 
-    private func shouldEmitMCPEditRequiredAfterRerouteFailure(events: [StreamEvent]) -> Bool {
+    func shouldEmitMCPEditRequiredAfterRerouteFailure(events: [StreamEvent]) -> Bool {
         for event in events {
             guard case .raw(let type, let payload) = event else { continue }
             if type == "mcp_tool_call", payload["status"] == "completed" {
@@ -1243,7 +587,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return false
     }
 
-    private func mcpEditRequiredErrorEvent(
+    func mcpEditRequiredErrorEvent(
         originalTool: String,
         detail: String,
         reroutedTool: String?
@@ -1338,7 +682,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private func inferredToolName(from payload: [String: String]) -> String {
+    func inferredToolName(from payload: [String: String]) -> String {
         let knownTools = knownExecutableToolNames()
         let explicitCandidates = [
             payload["name"],
@@ -1397,7 +741,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return ""
     }
 
-    private func knownExecutableToolNames() -> Set<String> {
+    func knownExecutableToolNames() -> Set<String> {
         var names = Set<String>()
         for entry in ToolSchemaCatalog.entries {
             let normalized = ProviderToolEventMapper.normalizeToolIdentifier(entry.name)
@@ -1408,7 +752,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return names
     }
 
-    private static func isQualifiedMCPToolReference(_ value: String) -> Bool {
+    static func isQualifiedMCPToolReference(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
@@ -1416,14 +760,14 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return parts.allSatisfy(Self.isValidMCPIdentifier)
     }
 
-    private static func isValidMCPIdentifier(_ value: String) -> Bool {
+    static func isValidMCPIdentifier(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let pattern = #"^[A-Za-z0-9_.:-]{1,128}$"#
         return trimmed.range(of: pattern, options: .regularExpression) != nil
     }
 
-    private func shouldForceAutonomousContinuation(_ text: String, roundIndex: Int) -> Bool {
+    func shouldForceAutonomousContinuation(_ text: String, roundIndex: Int) -> Bool {
         if roundIndex >= maxAutonomousContinuationRounds { return false }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -1470,7 +814,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "[assistant]",
     ]
 
-    private func sanitizeVisibleDelta(_ delta: String) -> String {
+    func sanitizeVisibleDelta(_ delta: String) -> String {
         if delta.isEmpty { return "" }
         let lower = delta.lowercased()
         for snippet in Self.blockedDeltaSnippets where lower.contains(snippet.lowercased()) {
@@ -1479,7 +823,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return delta
     }
 
-    private func buildToolFallbackSummary(_ results: [[String: String]]) -> String {
+    func buildToolFallbackSummary(_ results: [[String: String]]) -> String {
         let lines = results.prefix(8).map { item in
             let name = item["name"] ?? "tool"
             let status = item["status"] ?? "unknown"
@@ -1499,7 +843,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         """
     }
 
-    private func buildForcedFinalizationPrompt(
+    func buildForcedFinalizationPrompt(
         originalPrompt: String,
         transcript: String,
         toolResults: [[String: String]]
@@ -1528,7 +872,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         """
     }
 
-    private func isMeaningfulAssistantCompletion(_ text: String) -> Bool {
+    func isMeaningfulAssistantCompletion(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count < 24 { return false }
         let lower = trimmed.lowercased()
@@ -1588,7 +932,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return lines.joined(separator: "\n")
     }
 
-    private var toolProtocolPrompt: String {
+    var toolProtocolPrompt: String {
         """
         # Tool Protocol
 
@@ -1856,7 +1200,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
 
     /// Maps a tool name to the event type used for its "started" trace event.
     /// These types must pass ToolTraceVisibility and have isRunning == true.
-    private static func toolStartEventType(for toolName: String) -> String {
+    static func toolStartEventType(for toolName: String) -> String {
         switch toolName {
         case "bash":
             return "command_execution"
@@ -1877,11 +1221,11 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func toolWouldMutate(toolName: String, args: [String: String]) -> Bool {
+    static func toolWouldMutate(toolName: String, args: [String: String]) -> Bool {
         !isReadOnlyTool(toolName: toolName, args: args)
     }
 
-    private static func isReadOnlyTool(toolName: String, args: [String: String]) -> Bool {
+    static func isReadOnlyTool(toolName: String, args: [String: String]) -> Bool {
         let normalized = ProviderToolEventMapper.normalizeToolIdentifier(toolName)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -1923,7 +1267,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return false
     }
 
-    private static func isLikelyReadOnlyNativeMCPTool(_ toolName: String) -> Bool {
+    static func isLikelyReadOnlyNativeMCPTool(_ toolName: String) -> Bool {
         let normalized = toolName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -1946,7 +1290,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     }
 
     /// Builds a payload for the real-time "started" event emitted before tool execution.
-    private static func toolStartPayload(for toolName: String, args: [String: String]) -> [String: String] {
+    static func toolStartPayload(for toolName: String, args: [String: String]) -> [String: String] {
         var payload: [String: String] = [
             "tool": toolName,
             "name": toolName,
@@ -1978,7 +1322,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         return payload
     }
 
-    private static func toolStartTitle(for toolName: String, args: [String: String]) -> String {
+    static func toolStartTitle(for toolName: String, args: [String: String]) -> String {
         let pathComponent = { (key: String) -> String in
             ((args[key] ?? "") as NSString).lastPathComponent
         }
@@ -2039,7 +1383,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     /// by the caller and will not be duplicated here.
     /// `onLiveEvent` is called for every intermediate event during execution, enabling
     /// real-time streaming of subagent activity to the UI (card subtitle updates, etc.).
-    private func executeSubagentTool(
+    func executeSubagentTool(
         toolName: String,
         marker: CoderIDEMarker,
         context: WorkspaceContext,
@@ -2215,7 +1559,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     // MARK: - Skill Execution
 
     /// Execute the skill tool by spawning a subagent with the skill's SKILL.md instructions.
-    private func executeSkillTool(marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
+    func executeSkillTool(marker: CoderIDEMarker, context: WorkspaceContext) async -> [StreamEvent] {
         let skillName = marker.payload["skill"] ?? marker.payload["name"] ?? marker.payload["skill_name"] ?? ""
         let task = marker.payload["task"] ?? marker.payload["prompt"] ?? marker.payload["args"] ?? ""
         let toolCallId = marker.payload["id"] ?? UUID().uuidString

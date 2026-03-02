@@ -186,7 +186,7 @@ extension UnifiedToolRuntime {
             return []
         }
 
-        let skippedDirectories: Set<String> = [".git", ".build", "node_modules", "DerivedData"]
+        let skippedDirectories = ExcludedDirectories.defaultSet
         let maxFileSize = 1_500_000
 
         for case let fileURL as URL in enumerator {

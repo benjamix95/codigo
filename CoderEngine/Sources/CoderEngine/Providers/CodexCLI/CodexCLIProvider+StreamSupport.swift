@@ -1,204 +1,6 @@
 import Foundation
 
-/// Codex sandbox mode: read-only, workspace-write, danger-full-access
-public enum CodexSandboxMode: String, CaseIterable, Sendable {
-    case readOnly = "read-only"
-    case workspaceWrite = "workspace-write"
-    case dangerFullAccess = "danger-full-access"
-}
-
-/// Markers the model can emit to activate the Task Activity Panel
-public enum CoderIDEMarkers {
-    public static let showTaskPanel = "[CODERIDE:show_task_panel]"
-    public static let showSwarmPanel = "[CODERIDE:show_swarm_panel]"
-    @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")
-    public static let invokeSwarmPrefix = "[CODERIDE:invoke_swarm:"
-    @available(*, deprecated, message: "invoke_swarm replaced by inline subagent_* tools")
-    public static let invokeSwarmSuffix = "]"
-    public static let todoWritePrefix = "[CODERIDE:todo_write|"
-    public static let todoRead = "[CODERIDE:todo_read]"
-    public static let instantGrepPrefix = "[CODERIDE:instant_grep|"
-    public static let planStepPrefix = "[CODERIDE:plan_step|"
-    public static let readBatchPrefix = "[CODERIDE:read_batch|"
-    public static let webSearchPrefix = "[CODERIDE:web_search|"
-}
-
-/// Provider that uses Codex CLI (`codex exec`)
-public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
-    public let id = "codex-cli"
-    public let displayName = "Codex CLI"
-    public let attachmentCapabilities = ProviderAttachmentCapabilities(
-        nativeImage: true,
-        nativeDocument: false,
-        nativeFile: false
-    )
-    
-    private let codexPath: String
-    private let sandboxMode: CodexSandboxMode
-    private let modelOverride: String?
-    private let modelReasoningEffort: String?
-    private let modelProviderOverride: String?
-    private let preferOpenAIResponsesWireAPI: Bool
-    private let yoloMode: Bool
-    private let askForApproval: String
-    private let executionController: ExecutionController?
-    private let executionScope: ExecutionScope
-    private let environmentOverride: [String: String]?
-
-    public init(
-        codexPath: String? = nil,
-        sandboxMode: CodexSandboxMode = .workspaceWrite,
-        modelOverride: String? = nil,
-        modelReasoningEffort: String? = nil,
-        modelProviderOverride: String? = nil,
-        preferOpenAIResponsesWireAPI: Bool = false,
-        yoloMode: Bool = false,
-        askForApproval: String? = nil,
-        executionController: ExecutionController? = nil,
-        executionScope: ExecutionScope = .agent,
-        environmentOverride: [String: String]? = nil
-    ) {
-        if let candidate = codexPath?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !candidate.isEmpty,
-           FileManager.default.isExecutableFile(atPath: candidate) {
-            self.codexPath = candidate
-        } else {
-            self.codexPath = PathFinder.find(executable: "codex") ?? "/usr/local/bin/codex"
-        }
-        self.sandboxMode = sandboxMode
-        self.modelOverride = modelOverride?.isEmpty == true ? nil : modelOverride
-        self.modelReasoningEffort = modelReasoningEffort?.isEmpty == true ? nil : modelReasoningEffort
-        self.modelProviderOverride = modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            ? modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
-            : nil
-        self.preferOpenAIResponsesWireAPI = preferOpenAIResponsesWireAPI
-        self.yoloMode = yoloMode
-        self.askForApproval = Self.normalizeAskForApproval(askForApproval)
-        self.executionController = executionController
-        self.executionScope = executionScope
-        self.environmentOverride = environmentOverride
-    }
-
-    public static func normalizeAskForApproval(_ raw: String?) -> String {
-        let allowed = Set(["never", "on-request", "untrusted"])
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return "never"
-        }
-
-        while value.hasPrefix("-") {
-            value.removeFirst()
-        }
-
-        if value == "ask-for-approval" {
-            return "never"
-        }
-        return allowed.contains(value) ? value : "never"
-    }
-    
-    public func isAuthenticated() -> Bool {
-        if CodexDetector.hasAuthFile() { return true }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: codexPath)
-        process.arguments = ["login", "status"]
-        process.standardOutput = nil
-        process.standardError = nil
-        var env = CodexDetector.shellEnvironment()
-        if let override = environmentOverride {
-            env.merge(override) { _, new in new }
-        }
-        process.environment = env
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
-    }
-    
-    public func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]? = nil) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let systemBlock = context.systemPromptOverride ?? SystemPrompts.taskCompletionStrict
-        let fullPrompt = systemBlock + "\n\n" + prompt + context.contextPrompt()
-        let path = codexPath
-        let workspacePath = context.workspacePath
-        
-        return AsyncThrowingStream { continuation in
-            let producerTask = Task {
-                var parserState = CodexStreamParserState(workspacePath: workspacePath.path)
-                do {
-                    let execPath = path
-                    guard FileManager.default.fileExists(atPath: execPath) else {
-                        continuation.yield(.error("Codex CLI not found at \(execPath). Install with: brew install codex"))
-                        continuation.finish(throwing: CoderEngineError.cliNotFound("codex"))
-                        return
-                    }
-                    
-                    let args = Self.buildExecArguments(
-                        fullPrompt: fullPrompt,
-                        imageURLs: imageURLs,
-                        sandboxMode: sandboxMode,
-                        yoloMode: yoloMode,
-                        askForApproval: askForApproval,
-                        workspacePath: workspacePath.path,
-                        modelOverride: modelOverride,
-                        modelReasoningEffort: modelReasoningEffort,
-                        modelProviderOverride: modelProviderOverride,
-                        preferOpenAIResponsesWireAPI: preferOpenAIResponsesWireAPI
-                    )
-                    
-                    var env = CodexDetector.shellEnvironment()
-                    if let override = environmentOverride {
-                        env.merge(override) { _, new in new }
-                    }
-                    Self.repairCodexConfigIfNeeded(environment: env)
-                    let invocation = Self.streamInvocation(
-                        executable: execPath,
-                        arguments: args
-                    )
-                    let stream = try await ProcessRunner.run(
-                        executable: invocation.executable,
-                        arguments: invocation.arguments,
-                        workingDirectory: workspacePath,
-                        environment: env,
-                        executionController: executionController,
-                        scope: executionScope
-                    )
-                    
-                    continuation.yield(.started)
-                    for try await rawLine in stream {
-                        try Task.checkCancellation()
-                        let payloads = Self.parseStreamJSONPayloads(from: rawLine, state: &parserState)
-                        guard !payloads.isEmpty else { continue }
-                        for json in payloads {
-                            for event in Self.parseStreamJSONEvent(json, state: &parserState) {
-                                continuation.yield(event)
-                            }
-                        }
-                    }
-                    for event in Self.finalizeStreamJSONState(state: &parserState) {
-                        continuation.yield(event)
-                    }
-                    continuation.yield(.completed)
-                    continuation.finish()
-                } catch is CancellationError {
-                    for event in Self.finalizeStreamJSONState(state: &parserState) {
-                        continuation.yield(event)
-                    }
-                    continuation.finish(throwing: CancellationError())
-                } catch {
-                    for event in Self.finalizeStreamJSONState(state: &parserState) {
-                        continuation.yield(event)
-                    }
-                    continuation.yield(.error(error.localizedDescription))
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                producerTask.cancel()
-            }
-        }
-    }
-
+extension CodexCLIProvider {
     static func streamInvocation(
         executable: String,
         arguments: [String]
@@ -286,13 +88,13 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return provider == "openai"
     }
 
-    private static func escapedTomlString(_ raw: String) -> String {
+    static func escapedTomlString(_ raw: String) -> String {
         raw
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    private static func repairCodexConfigIfNeeded(environment: [String: String]) {
+    static func repairCodexConfigIfNeeded(environment: [String: String]) {
         let codexHome = resolvedCodexHome(from: environment)
         let configPath = (codexHome as NSString).appendingPathComponent("config.toml")
         guard FileManager.default.fileExists(atPath: configPath),
@@ -304,7 +106,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         try? fixed.write(toFile: configPath, atomically: true, encoding: .utf8)
     }
 
-    private static func resolvedCodexHome(from environment: [String: String]) -> String {
+    static func resolvedCodexHome(from environment: [String: String]) -> String {
         let raw = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !raw.isEmpty {
             return raw
@@ -312,7 +114,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return "\(NSHomeDirectory())/.codex"
     }
 
-    private static func repairedCodexConfigContentIfNeeded(_ content: String) -> String {
+    static func repairedCodexConfigContentIfNeeded(_ content: String) -> String {
         let lines = content.components(separatedBy: .newlines)
         guard !lines.isEmpty else { return content }
 
@@ -386,7 +188,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return extracted.compactMap { decodeJSONDictionary($0) }
     }
 
-    private static func cleanedJSONCandidateLine(_ raw: String) -> String {
+    static func cleanedJSONCandidateLine(_ raw: String) -> String {
         let scalars = raw.unicodeScalars.filter { scalar in
             // Keep tab and printable characters; remove control chars (\0, \b, ^D, etc).
             scalar.value == 0x09 || scalar.value >= 0x20
@@ -395,7 +197,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func decodeJSONDictionary(_ line: String) -> [String: Any]? {
+    static func decodeJSONDictionary(_ line: String) -> [String: Any]? {
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
@@ -403,7 +205,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return json
     }
 
-    private static func extractJSONObjectStrings(from line: String) -> [String] {
+    static func extractJSONObjectStrings(from line: String) -> [String] {
         var results: [String] = []
         var depth = 0
         var inString = false
@@ -454,7 +256,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return results
     }
 
-    private static func extractJSONObjectStringsAndRemainder(from text: String) -> ([String], String) {
+    static func extractJSONObjectStringsAndRemainder(from text: String) -> ([String], String) {
         var results: [String] = []
         var depth = 0
         var inString = false
@@ -689,7 +491,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return events
     }
 
-    private static func processAgentMessageChunk(
+    static func processAgentMessageChunk(
         _ text: String,
         isDelta: Bool,
         state: inout CodexStreamParserState
@@ -728,7 +530,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return events
     }
 
-    private static func finalizeAssistantTurnIfNeeded(
+    static func finalizeAssistantTurnIfNeeded(
         state: inout CodexStreamParserState
     ) -> [StreamEvent] {
         guard !state.turn.lastValidAgentMessage.isEmpty else { return [] }
@@ -746,7 +548,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return events
     }
 
-    private static func emitMarkerEvents(
+    static func emitMarkerEvents(
         from text: String,
         state: inout CodexStreamParserState,
         events: inout [StreamEvent]
@@ -756,7 +558,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         // it will be removed in the cleanup phase.
     }
 
-    private static func appendRawEvent(
+    static func appendRawEvent(
         type: String,
         payload: [String: String],
         state: inout CodexStreamParserState,
@@ -796,7 +598,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return "\(type)|\(canonicalPayload)"
     }
 
-    private static func payloadFingerprint(_ payload: [String: String], excluding ignored: Set<String>) -> String {
+    static func payloadFingerprint(_ payload: [String: String], excluding ignored: Set<String>) -> String {
         let entries = payload.keys.sorted().compactMap { key -> String? in
             guard !ignored.contains(key) else { return nil }
             let value = String((payload[key] ?? "").prefix(256))
@@ -1031,7 +833,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func decodedJSONObject(from value: Any?) -> [String: Any]? {
+    static func decodedJSONObject(from value: Any?) -> [String: Any]? {
         if let dict = value as? [String: Any] {
             return dict
         }
@@ -1041,7 +843,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return decodeJSONObjectString(raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private static func decodeJSONObjectString(_ raw: String) -> [String: Any]? {
+    static func decodeJSONObjectString(_ raw: String) -> [String: Any]? {
         let candidates: [String] = [
             raw,
             raw.replacingOccurrences(of: "\\\"", with: "\""),
@@ -1231,7 +1033,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return (type, payload)
     }
 
-    private static func mapToolLikeRawEvent(
+    static func mapToolLikeRawEvent(
         type: String,
         eventType: String,
         item: [String: Any]
@@ -1306,7 +1108,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return (mapped.type, payload)
     }
 
-    private static func applySubagentSwarmMetadataFromMCP(
+    static func applySubagentSwarmMetadataFromMCP(
         to payload: inout [String: String],
         item: [String: Any]
     ) {
@@ -1343,7 +1145,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func applyGitHeadFallbackIfNeeded(
+    static func applyGitHeadFallbackIfNeeded(
         payload: inout [String: String],
         workspacePath: String?
     ) {
@@ -1369,7 +1171,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         payload["diff_source"] = "git_head_fallback"
     }
 
-    private static func shouldUseGitHeadFallback(payload: [String: String]) -> Bool {
+    static func shouldUseGitHeadFallback(payload: [String: String]) -> Bool {
         let hasExplicitCounters = ["linesAdded", "linesRemoved", "additions", "deletions"]
             .contains { key in
                 let raw = (payload[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1383,7 +1185,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return !hasExplicitCounters && !hasDiffPreview
     }
 
-    private static func gitHeadFallback(path: String, workspacePath: String?) -> (added: Int, removed: Int, diffPreview: String?)? {
+    static func gitHeadFallback(path: String, workspacePath: String?) -> (added: Int, removed: Int, diffPreview: String?)? {
         let workspace = (workspacePath ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !workspace.isEmpty else { return nil }
 
@@ -1417,7 +1219,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return (added: added, removed: removed, diffPreview: preview)
     }
 
-    private static func gitPathSpec(path: String, gitRoot: String) -> String? {
+    static func gitPathSpec(path: String, gitRoot: String) -> String? {
         let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty else { return nil }
 
@@ -1438,7 +1240,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return trimmedPath
     }
 
-    private static func parseNumstatLine(_ raw: String) -> (added: Int, removed: Int)? {
+    static func parseNumstatLine(_ raw: String) -> (added: Int, removed: Int)? {
         guard let first = raw.split(separator: "\n").first else { return nil }
         let parts = first.split(separator: "\t")
         guard parts.count >= 2 else { return nil }
@@ -1447,7 +1249,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return (added: max(0, added), removed: max(0, removed))
     }
 
-    private static func diffLineCounts(from diff: String) -> (added: Int, removed: Int)? {
+    static func diffLineCounts(from diff: String) -> (added: Int, removed: Int)? {
         let trimmed = diff.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         var added = 0
@@ -1469,7 +1271,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return (added: max(0, added), removed: max(0, removed))
     }
 
-    private static func runProcess(executable: String, arguments: [String]) throws -> String {
+    static func runProcess(executable: String, arguments: [String]) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -1491,7 +1293,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return out
     }
 
-    private static func isToolLikeRawEvent(
+    static func isToolLikeRawEvent(
         type: String,
         eventType: String,
         item: [String: Any]
@@ -1585,11 +1387,11 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return firstString(in: item, keys: toolSignalKeys) != nil
     }
 
-    private static func normalizedEventType(_ raw: String) -> String {
+    static func normalizedEventType(_ raw: String) -> String {
         raw.replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
     }
 
-    private static func firstString(in input: [String: Any], keys: [String]) -> String? {
+    static func firstString(in input: [String: Any], keys: [String]) -> String? {
         for key in keys {
             if let value = input[key] {
                 if let stringValue = stringify(value), !stringValue.isEmpty {
@@ -1612,7 +1414,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func firstInt(in input: [String: Any], keys: [String]) -> Int? {
+    static func firstInt(in input: [String: Any], keys: [String]) -> Int? {
         for key in keys {
             guard let value = input[key] else { continue }
             if let intValue = intValue(from: value) {
@@ -1634,7 +1436,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func intValue(from value: Any) -> Int? {
+    static func intValue(from value: Any) -> Int? {
         if let intValue = value as? Int {
             return intValue
         }
@@ -1648,7 +1450,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func stringify(_ value: Any) -> String? {
+    static func stringify(_ value: Any) -> String? {
         if let s = value as? String { return s }
         if let n = value as? NSNumber { return n.stringValue }
         if let arr = value as? [String] { return arr.joined(separator: "\n") }
@@ -1668,7 +1470,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return nil
     }
 
-    private static func containsCompactionSignal(json: [String: Any]) -> Bool {
+    static func containsCompactionSignal(json: [String: Any]) -> Bool {
         if let item = json["item"] as? [String: Any],
            let itemType = item["type"] as? String,
            itemType.lowercased().contains("compaction") {
@@ -1682,7 +1484,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return payload.contains("compaction")
     }
 
-    private static func scrubTechnicalTextChunk(_ input: String, carry: inout String) -> String {
+    static func scrubTechnicalTextChunk(_ input: String, carry: inout String) -> String {
         var out = carry + input
         carry = ""
 
@@ -1728,7 +1530,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return out
     }
     
-    private static func titleForType(_ type: String, item: [String: Any]) -> String {
+    static func titleForType(_ type: String, item: [String: Any]) -> String {
         switch type {
         case "file_change":
             var payload: [String: String] = [:]
@@ -1759,7 +1561,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
     
-    private static func detailForType(_ type: String, item: [String: Any]) -> String {
+    static func detailForType(_ type: String, item: [String: Any]) -> String {
         switch type {
         case "file_change":
             return firstString(
@@ -1779,7 +1581,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func fileChangeTitle(from payload: [String: String]) -> String {
+    static func fileChangeTitle(from payload: [String: String]) -> String {
         let path = (payload["path"] ?? payload["file"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let basename = path.isEmpty ? "file" : (path as NSString).lastPathComponent
@@ -1811,7 +1613,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         return "\(label) \(basename)"
     }
 
-    private static func mcpEventTitle(from item: [String: Any]) -> String {
+    static func mcpEventTitle(from item: [String: Any]) -> String {
         let rawTool = firstString(in: item, keys: ["tool", "name"]) ?? ""
         let tool = rawTool.lowercased()
         let server = (firstString(in: item, keys: ["mcp_server", "server_id", "server"]) ?? "")
@@ -1843,7 +1645,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         }
     }
 
-    private static func mcpEventDetail(from item: [String: Any]) -> String {
+    static func mcpEventDetail(from item: [String: Any]) -> String {
         let detail = firstString(in: item, keys: ["detail", "query", "arguments"]) ?? ""
         if !detail.isEmpty {
             return detail
