@@ -61,8 +61,6 @@ struct ContentView: View {
                 let detailWidth = geo.size.width
                 let maxChatW = max(300, detailWidth * 0.45)
                 let clampedChatW = min(CGFloat(chatPanelWidth), maxChatW)
-                let maxGitW = max(280, detailWidth - 340)
-                let clampedGitW = min(CGFloat(gitPanelWidth), maxGitW)
 
                 HStack(spacing: 0) {
                     let chatIsLeft = chatPanelPosition == "left"
@@ -159,29 +157,6 @@ struct ContentView: View {
                                 .frame(width: clampedChatW)
                         }
 
-                        // Git Panel
-                        if gitPanelStore.isOpen && detailWidth >= 900 {
-                            PanelResizeHandle(
-                                panelWidth: Binding(
-                                    get: { clampedGitW },
-                                    set: { gitPanelWidth = Double($0) }
-                                ),
-                                minWidth: 280,
-                                maxWidth: maxGitW,
-                                leadingEdge: true
-                            )
-                            GitPanelView(
-                                store: gitPanelStore,
-                                effectiveContext: effectiveContext(
-                                    for: selectedConversationId,
-                                    chatStore: chatStore,
-                                    projectContextStore: projectContextStore
-                                ),
-                                onOpenFile: { openFilesStore.openFile($0) }
-                            )
-                            .environmentObject(providerRegistry)
-                            .frame(width: clampedGitW)
-                        }
                     } else if coderMode == .browser {
                         // --- BROWSER MODE LAYOUT ---
                         // Chat on the left, browser panel on the right

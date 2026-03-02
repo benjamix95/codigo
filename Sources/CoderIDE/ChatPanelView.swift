@@ -959,6 +959,7 @@ struct ChatPanelView: View {
     @AppStorage("debug_panel_width") private var debugPanelWidthStorage: Double = 340
     @AppStorage("swarm_panel_width") private var swarmPanelWidthStorage: Double = 360
     @AppStorage("code_review_panel_width") private var codeReviewPanelWidthStorage: Double = 380
+    @AppStorage("git_panel_width") private var gitPanelWidthStorage: Double = 380
     @AppStorage("auto_resize_side_panels") private var autoResizeSidePanels = false
     @State private var planToggleEnabled = false
     @State private var debugToggleEnabled = false
@@ -1312,11 +1313,11 @@ struct ChatPanelView: View {
                     )
                 }
 
-                if shouldShowUsageFooter(for: coderMode) {
-                    usageFooterArea
-                }
                 if shouldShowComposer(for: coderMode) {
                     composerArea
+                }
+                if shouldShowUsageFooter(for: coderMode) {
+                    usageFooterArea
                 }
             }
             if showPlanPanel {
@@ -1347,11 +1348,25 @@ struct ChatPanelView: View {
                 )
                 codeReviewPanelSidebar
             }
+            if gitPanelStore.isOpen {
+                PanelResizeHandle(
+                    panelWidth: Binding(get: { CGFloat(gitPanelWidthStorage) }, set: { gitPanelWidthStorage = Double($0) }),
+                    minWidth: 280, maxWidth: 500, leadingEdge: true
+                )
+                GitPanelView(
+                    store: gitPanelStore,
+                    effectiveContext: effectiveContext,
+                    onOpenFile: { openFilesStore.openFile($0) }
+                )
+                .environmentObject(providerRegistry)
+                .frame(width: CGFloat(gitPanelWidthStorage))
+            }
         }
         .animation(.none, value: showPlanPanel)
         .animation(.none, value: showDebugPanel)
         .animation(.none, value: showSwarmPanel)
         .animation(.none, value: showCodeReviewPanel)
+        .animation(.none, value: gitPanelStore.isOpen)
     }
 
     private func applyProviderSelectionModifiers<Content: View>(to content: Content) -> some View {
