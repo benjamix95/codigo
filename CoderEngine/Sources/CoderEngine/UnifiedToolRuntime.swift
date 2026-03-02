@@ -3984,6 +3984,7 @@ public actor UnifiedToolRuntime {
             let sessionId = await debugLogServer.startSession()
             debugHypotheses.removeAll()
             debugSessionSnapshots.removeAll()
+            debugFailingTestFilters.removeAll()
             debugSessionStartTime = Date()
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
@@ -3994,12 +3995,20 @@ public actor UnifiedToolRuntime {
             ], durationMs: ms)
 
         case "end", "stop":
-            await debugLogServer.endSession()
-            let summary = await debugLogServer.sessionSummary()
+            let detail: String
+            let summary: String
+            if let activeSessionId = await debugLogServer.currentSessionId() {
+                summary = await debugLogServer.sessionSummary(sessionId: activeSessionId)
+                await debugLogServer.endSession()
+                detail = "Debug session ended"
+            } else {
+                summary = "No active debug session."
+                detail = "No active debug session"
+            }
             debugSessionStartTime = nil
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
-                "detail": "Debug session ended",
+                "detail": detail,
                 "output": summary,
                 "action": action
             ], durationMs: ms)
@@ -4008,6 +4017,8 @@ public actor UnifiedToolRuntime {
             await debugLogServer.clearSession()
             debugHypotheses.removeAll()
             debugSessionSnapshots.removeAll()
+            debugFailingTestFilters.removeAll()
+            debugSessionStartTime = nil
             return ToolResult(ok: true, payload: [
                 "title": "debug_session",
                 "detail": "Session logs cleared",
@@ -4110,7 +4121,7 @@ public actor UnifiedToolRuntime {
             ], durationMs: ms)
 
         default:
-            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, clear, snapshot, export, or stats."], durationMs: ms)
+            return ToolResult(ok: false, payload: ["detail": "Unknown action: \(action). Use start, end, stop, clear, snapshot, export, or stats."], durationMs: ms)
         }
     }
 
@@ -4328,6 +4339,12 @@ public actor UnifiedToolRuntime {
         let cleanType = (call.args["type"] ?? "all").lowercased()
         let isDryRun = call.args["dry_run"]?.lowercased() == "true"
         let hypothesisId = call.args["hypothesis_id"] ?? ""
+        let normalizedHypothesisPrefix = String(
+            hypothesisId
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .prefix(8)
+        )
         let workspace = context.workspaceContext.workspacePath.path
         let debugTag = "\u{1F41B} DEBUG"
         var cleanedCount = 0
@@ -4351,10 +4368,10 @@ public actor UnifiedToolRuntime {
         let typePatterns: [String]
         switch cleanType {
         case "markers": typePatterns = ["DEBUG[marker]"]
-        case "logs": typePatterns = ["DEBUG[log]"]
-        case "asserts": typePatterns = ["DEBUG[assert]"]
-        case "timing": typePatterns = ["DEBUG[timing]"]
-        case "variables": typePatterns = ["DEBUG[variable]"]
+        case "logs": typePatterns = ["DEBUG[log]", "DEBUG[instrument-log]"]
+        case "asserts": typePatterns = ["DEBUG[assert]", "DEBUG[instrument-assert]", "DEBUG[instrument-conditional]"]
+        case "timing": typePatterns = ["DEBUG[timing]", "DEBUG[instrument-timing]"]
+        case "variables": typePatterns = ["DEBUG[variable]", "DEBUG[instrument-variable]"]
         default: typePatterns = [debugTag]
         }
 
@@ -4365,8 +4382,10 @@ public actor UnifiedToolRuntime {
                 let fileName = (filePath as NSString).lastPathComponent
 
                 let filtered = lines.enumerated().compactMap { (idx, line) -> String? in
-                    let shouldRemove = typePatterns.contains(where: { line.contains($0) })
-                    let matchesHypothesis = hypothesisId.isEmpty || line.contains("[H:\(hypothesisId.prefix(8))]")
+                    let normalizedLine = line.lowercased()
+                    let shouldRemove = typePatterns.contains(where: { normalizedLine.contains($0.lowercased()) })
+                    let matchesHypothesis = normalizedHypothesisPrefix.isEmpty
+                        || normalizedLine.contains("[h:\(normalizedHypothesisPrefix)]")
 
                     if shouldRemove && matchesHypothesis {
                         cleanedCount += 1

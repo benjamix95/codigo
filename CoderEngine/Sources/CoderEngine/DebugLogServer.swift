@@ -127,6 +127,7 @@ public actor DebugLogServer {
     private let logFileURL: URL
     private let maxEntries: Int
     private var activeSessionId: String?
+    private var hasLoadedFromDisk = false
 
     // MARK: - Init
 
@@ -141,6 +142,7 @@ public actor DebugLogServer {
     // MARK: - Session Management
 
     public func startSession() -> String {
+        ensureLoadedFromDiskIfNeeded()
         let sessionId = UUID().uuidString
         activeSessionId = sessionId
         let entry = LogEntry(
@@ -155,6 +157,7 @@ public actor DebugLogServer {
     }
 
     public func endSession() {
+        ensureLoadedFromDiskIfNeeded()
         if let sid = activeSessionId {
             let entry = LogEntry(
                 severity: "info",
@@ -180,6 +183,7 @@ public actor DebugLogServer {
         hypothesisId: String? = nil,
         data: [String: String]? = nil
     ) {
+        ensureLoadedFromDiskIfNeeded()
         let entry = LogEntry(
             severity: severity,
             source: source,
@@ -205,6 +209,7 @@ public actor DebugLogServer {
         runId: String? = nil,
         hypothesisId: String? = nil
     ) {
+        ensureLoadedFromDiskIfNeeded()
         let entry = LogEntry(
             severity: severity,
             source: source,
@@ -225,6 +230,7 @@ public actor DebugLogServer {
         hypothesisId: String? = nil,
         limit: Int = 100
     ) -> [LogEntry] {
+        ensureLoadedFromDiskIfNeeded()
         var filtered = entries.filter { $0.category == "instrumentation" || $0.category == "runtime" }
         if let rid = runId {
             filtered = filtered.filter { $0.runId == rid }
@@ -236,6 +242,7 @@ public actor DebugLogServer {
     }
 
     public func logBuildOutput(_ output: String, source: String = "build") {
+        ensureLoadedFromDiskIfNeeded()
         // Parse structured diagnostics from build output
         let lines = output.components(separatedBy: "\n")
         for line in lines {
@@ -264,6 +271,7 @@ public actor DebugLogServer {
     }
 
     public func logTestOutput(_ output: String, source: String = "test") {
+        ensureLoadedFromDiskIfNeeded()
         let lines = output.components(separatedBy: "\n")
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -289,6 +297,7 @@ public actor DebugLogServer {
     }
 
     public func logRuntimeError(_ error: String, source: String, stackTrace: String? = nil) {
+        ensureLoadedFromDiskIfNeeded()
         append(LogEntry(
             severity: "error",
             source: source,
@@ -311,6 +320,7 @@ public actor DebugLogServer {
         offset: Int = 0,
         after: Date? = nil
     ) -> QueryResult {
+        ensureLoadedFromDiskIfNeeded()
         var filtered = entries
 
         if let sev = severity {
@@ -349,8 +359,10 @@ public actor DebugLogServer {
     }
 
     /// Get a summary of current session errors and warnings
-    public func sessionSummary() -> String {
-        let sessionEntries = activeSessionId.map { sid in
+    public func sessionSummary(sessionId: String? = nil) -> String {
+        ensureLoadedFromDiskIfNeeded()
+        let targetSessionId = sessionId ?? activeSessionId
+        let sessionEntries = targetSessionId.map { sid in
             entries.filter { $0.sessionId == sid }
         } ?? entries
 
@@ -387,6 +399,7 @@ public actor DebugLogServer {
 
     /// Get recent entries as formatted text for LLM context
     public func recentFormatted(limit: Int = 50) -> String {
+        ensureLoadedFromDiskIfNeeded()
         let recent = entries.suffix(limit)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withTime, .withColonSeparatorInTime]
@@ -400,6 +413,7 @@ public actor DebugLogServer {
 
     /// All entries in the current session
     public func allEntries() -> [LogEntry] {
+        ensureLoadedFromDiskIfNeeded()
         if let sid = activeSessionId {
             return entries.filter { $0.sessionId == sid }
         }
@@ -408,17 +422,20 @@ public actor DebugLogServer {
 
     /// Current active session ID
     public func currentSessionId() -> String? {
+        ensureLoadedFromDiskIfNeeded()
         return activeSessionId
     }
 
     // MARK: - Clear
 
     public func clear() {
+        ensureLoadedFromDiskIfNeeded()
         entries.removeAll()
         persistToDisk()
     }
 
     public func clearSession() {
+        ensureLoadedFromDiskIfNeeded()
         if let sid = activeSessionId {
             entries.removeAll { $0.sessionId == sid }
         }
@@ -437,13 +454,7 @@ public actor DebugLogServer {
         }
         if let data = try? JSONEncoder().encode(entry),
            let line = String(data: data, encoding: .utf8) {
-            if let handle = try? FileHandle(forWritingTo: logFileURL) {
-                handle.seekToEndOfFile()
-                handle.write((line + "\n").data(using: .utf8) ?? Data())
-                handle.closeFile()
-            } else {
-                try? (line + "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
-            }
+            appendLineToDisk(line)
         }
         appendsSinceLastSizeCheck += 1
         if appendsSinceLastSizeCheck >= 200 {
@@ -452,11 +463,60 @@ public actor DebugLogServer {
         }
     }
 
-    private func rotateFileIfNeeded() {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: logFileURL.path),
-              let fileSize = attrs[.size] as? UInt64,
-              fileSize > Self.maxFileSize else { return }
+    private func appendLineToDisk(_ line: String) {
+        let lineData = (line + "\n").data(using: .utf8) ?? Data()
+        if !FileManager.default.fileExists(atPath: logFileURL.path) {
+            _ = FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+        }
+
+        if let handle = try? FileHandle(forWritingTo: logFileURL) {
+            handle.seekToEndOfFile()
+            handle.write(lineData)
+            try? handle.close()
+            return
+        }
+
+        // Avoid atomic overwrite fallback here: preserve in-memory entries and rewrite safely.
         persistToDisk()
+    }
+
+    private func rotateFileIfNeeded() {
+        guard currentLogFileSize() > Self.maxFileSize else { return }
+        persistToDisk()
+        guard currentLogFileSize() > Self.maxFileSize else { return }
+        trimEntriesToFitFileSize(Self.maxFileSize)
+        persistToDisk()
+    }
+
+    private func currentLogFileSize() -> UInt64 {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: logFileURL.path),
+              let fileSize = attrs[.size] as? UInt64 else {
+            return 0
+        }
+        return fileSize
+    }
+
+    private func trimEntriesToFitFileSize(_ maxBytes: UInt64) {
+        guard !entries.isEmpty else { return }
+        let maxBytesInt = Int(min(maxBytes, UInt64(Int.max)))
+        var kept: [LogEntry] = []
+        var usedBytes = 0
+
+        for entry in entries.reversed() {
+            guard let encoded = try? JSONEncoder().encode(entry) else { continue }
+            let lineBytes = encoded.count + 1 // newline
+            if !kept.isEmpty, usedBytes + lineBytes > maxBytesInt {
+                break
+            }
+            if kept.isEmpty, lineBytes > maxBytesInt {
+                kept.append(entry)
+                break
+            }
+            kept.append(entry)
+            usedBytes += lineBytes
+        }
+
+        entries = kept.reversed()
     }
 
     private func persistToDisk() {
@@ -467,8 +527,15 @@ public actor DebugLogServer {
         try? lines.joined(separator: "\n").write(to: logFileURL, atomically: true, encoding: .utf8)
     }
 
+    private func ensureLoadedFromDiskIfNeeded() {
+        guard !hasLoadedFromDisk else { return }
+        loadFromDisk()
+    }
+
     /// Load entries from disk on startup
     public func loadFromDisk() {
+        hasLoadedFromDisk = true
+        entries.removeAll(keepingCapacity: true)
         guard let content = try? String(contentsOf: logFileURL, encoding: .utf8) else { return }
         let decoder = JSONDecoder()
         let lines = content.components(separatedBy: "\n")
@@ -481,7 +548,8 @@ public actor DebugLogServer {
         if needsTrim {
             entries.removeFirst(entries.count - maxEntries)
         }
-        if needsTrim {
+        if needsTrim || currentLogFileSize() > Self.maxFileSize {
+            trimEntriesToFitFileSize(Self.maxFileSize)
             persistToDisk()
         }
     }

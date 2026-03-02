@@ -584,19 +584,26 @@ struct CoderIDETools {
                     "category": .object(["type": "string", "description": "Filter by category"]),
                     "source": .object(["type": "string", "description": "Filter by source"]),
                     "search": .object(["type": "string", "description": "Text search in log messages"]),
+                    "tags": .object(["type": "string", "description": "Comma-separated tags (matches any)"]),
+                    "hypothesis_id": .object(["type": "string", "description": "Filter logs linked to one hypothesis"]),
+                    "time_range": .object(["type": "string", "description": "Show logs from last N minutes"]),
+                    "session_id": .object(["type": "string", "description": "Filter to one debug session ID"]),
+                    "group_by": .object(["type": "string", "description": "Aggregate by severity|source|category|tags"]),
                     "format": .object(["type": "string", "description": "Output format: summary or full (default: summary)"]),
                     "limit": .object(["type": "string", "description": "Max results (default: 100)"]),
+                    "offset": .object(["type": "string", "description": "Pagination offset"]),
                 ]),
             ]),
             annotations: .init(title: "Debug Query", readOnlyHint: true)
         ),
         Tool(
             name: "coderide_debug_session",
-            description: "Manage debug sessions. Start a new session, end the current one, or clear all sessions.",
+            description: "Manage debug sessions and lifecycle snapshots. Supports start/end/stop/clear as well as snapshot/export/stats.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "action": .object(["type": "string", "description": "Session action: start, end, clear"]),
+                    "action": .object(["type": "string", "description": "Session action: start, end, stop, clear, snapshot, export, stats"]),
+                    "label": .object(["type": "string", "description": "Optional snapshot label (used with action=snapshot)"]),
                 ]),
                 "required": .array([.string("action")]),
             ]),

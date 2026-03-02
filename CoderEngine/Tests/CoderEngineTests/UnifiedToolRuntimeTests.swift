@@ -1061,6 +1061,7 @@ final class UnifiedToolRuntimeTests: XCTestCase {
 
     func testDebugQuerySummaryWithFiltersReturnsFilteredSummary() async throws {
         let runtime = UnifiedToolRuntime()
+        await runtime.debugLogServer.clear()
         let tmp = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: tmp) }
 
@@ -1252,6 +1253,107 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertEqual(completed?["dry_run"], "true")
     }
 
+    func testDebugCleanTypedLogsRemovesInstrumentLogMarkers() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let file = tmp.appendingPathComponent("sample.swift")
+        try """
+        let value = 1
+        print(value) // 🐛 DEBUG[instrument-log]: value
+        assert(value > 0) // 🐛 DEBUG[instrument-assert]: value positive
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "debug_clean",
+            args: [
+                "path": file.path,
+                "type": "logs",
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        let content = try String(contentsOfFile: file.path, encoding: .utf8)
+        XCTAssertFalse(content.contains("DEBUG[instrument-log]"))
+        XCTAssertTrue(content.contains("DEBUG[instrument-assert]"))
+    }
+
+    func testDebugSessionEndSummaryUsesCurrentSessionOnly() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (startA, startCtxA) = makeCall(name: "debug_session", args: ["action": "start"], workspace: tmp)
+        _ = await runtime.execute(startA, context: startCtxA)
+
+        let (logA, logCtxA) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "error",
+                "source": "SessionA",
+                "message": "session-a-error",
+            ],
+            workspace: tmp
+        )
+        _ = await runtime.execute(logA, context: logCtxA)
+
+        let (endA, endCtxA) = makeCall(name: "debug_session", args: ["action": "end"], workspace: tmp)
+        _ = await runtime.execute(endA, context: endCtxA)
+
+        let (startB, startCtxB) = makeCall(name: "debug_session", args: ["action": "start"], workspace: tmp)
+        _ = await runtime.execute(startB, context: startCtxB)
+
+        let (endB, endCtxB) = makeCall(name: "debug_session", args: ["action": "end"], workspace: tmp)
+        let endBEvents = await runtime.execute(endB, context: endCtxB)
+        let endBPayload = extractLastPayload(endBEvents)
+        let output = endBPayload?["output"] ?? ""
+
+        XCTAssertEqual(endBPayload?["status"], "completed")
+        XCTAssertTrue(output.contains("Errors: 0"))
+        XCTAssertFalse(output.contains("session-a-error"))
+    }
+
+    func testDebugLogServerLoadsFromDiskForNewRuntimeInstance() async throws {
+        let runtimeA = UnifiedToolRuntime()
+        await runtimeA.debugLogServer.clear()
+
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let uniqueMessage = "persist-\(UUID().uuidString)"
+        let (logCall, logCtx) = makeCall(
+            name: "debug_log",
+            args: [
+                "severity": "info",
+                "source": "Persistence",
+                "message": uniqueMessage,
+            ],
+            workspace: tmp
+        )
+        _ = await runtimeA.execute(logCall, context: logCtx)
+
+        let runtimeB = UnifiedToolRuntime()
+        let (queryCall, queryCtx) = makeCall(
+            name: "debug_query",
+            args: [
+                "format": "full",
+                "search": uniqueMessage,
+            ],
+            workspace: tmp
+        )
+        let queryEvents = await runtimeB.execute(queryCall, context: queryCtx)
+        let queryPayload = extractLastPayload(queryEvents)
+
+        XCTAssertEqual(queryPayload?["status"], "completed")
+        XCTAssertTrue((queryPayload?["output"] ?? "").contains(uniqueMessage))
+        await runtimeA.debugLogServer.clear()
+        await runtimeB.debugLogServer.clear()
+    }
+
     func testDebugTestCheckReturnsFailureWhenTestsFail() async throws {
         let runtime = UnifiedToolRuntime()
         let tmp = try makeTmpWorkspace()
@@ -1297,6 +1399,75 @@ final class UnifiedToolRuntimeTests: XCTestCase {
         XCTAssertEqual(completed?["status"], "failed")
         XCTAssertEqual(completed?["overall_status"], "failed")
         XCTAssertEqual(completed?["error_code"], "test_failed")
+    }
+
+    func testDebugSessionStartClearsFailingTestScopeCache() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "FailingPkg",
+            targets: [
+                .target(name: "FailingPkg"),
+                .testTarget(name: "FailingPkgTests", dependencies: ["FailingPkg"])
+            ]
+        )
+        """.write(to: tmp.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Sources/FailingPkg"), withIntermediateDirectories: true)
+        try "public struct Greeter { public static func greet() -> String { \"hi\" } }"
+            .write(to: tmp.appendingPathComponent("Sources/FailingPkg/Greeter.swift"), atomically: true, encoding: .utf8)
+
+        try FileManager.default.createDirectory(at: tmp.appendingPathComponent("Tests/FailingPkgTests"), withIntermediateDirectories: true)
+        try """
+        import XCTest
+        @testable import FailingPkg
+
+        final class FailingPkgTests: XCTestCase {
+            func testAlwaysFails() {
+                XCTAssertEqual(Greeter.greet(), "bye")
+            }
+        }
+        """.write(to: tmp.appendingPathComponent("Tests/FailingPkgTests/FailingPkgTests.swift"), atomically: true, encoding: .utf8)
+
+        let (runAll, runAllCtx) = makeCall(
+            name: "debug_test_check",
+            args: ["scope": "all", "timeout_ms": "120000"],
+            workspace: tmp
+        )
+        _ = await runtime.execute(runAll, context: runAllCtx)
+
+        let (failingBeforeReset, failingBeforeResetCtx) = makeCall(
+            name: "debug_test_check",
+            args: ["scope": "failing", "timeout_ms": "120000"],
+            workspace: tmp
+        )
+        let beforeResetEvents = await runtime.execute(failingBeforeReset, context: failingBeforeResetCtx)
+        let beforeResetPayload = extractLastPayload(beforeResetEvents)
+        XCTAssertNotEqual(beforeResetPayload?["overall_status"], "skipped")
+
+        let (startSession, startSessionCtx) = makeCall(
+            name: "debug_session",
+            args: ["action": "start"],
+            workspace: tmp
+        )
+        _ = await runtime.execute(startSession, context: startSessionCtx)
+
+        let (failingAfterReset, failingAfterResetCtx) = makeCall(
+            name: "debug_test_check",
+            args: ["scope": "failing", "timeout_ms": "120000"],
+            workspace: tmp
+        )
+        let afterResetEvents = await runtime.execute(failingAfterReset, context: failingAfterResetCtx)
+        let afterResetPayload = extractLastPayload(afterResetEvents)
+
+        XCTAssertEqual(afterResetPayload?["status"], "completed")
+        XCTAssertEqual(afterResetPayload?["overall_status"], "skipped")
     }
 
     func testDebugTestCheckReturnsValidationForNonSwiftProject() async throws {
