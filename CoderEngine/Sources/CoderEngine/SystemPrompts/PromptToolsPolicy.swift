@@ -13,7 +13,7 @@ enum PromptToolsPolicy {
       • Read files → Read, read_range (NOT `cat` via Bash)
       • Edit files → str_replace, Edit (NOT `sed` via Bash)
       • Web research → WebSearch, web_search, WebFetch, web_fetch (NOT `curl` via Bash)
-      • MCP tools → mcp_call, mcp_list_tools (use them when available)
+      • MCP tools → call native MCP tools directly by function name; use mcp_call only as fallback
       • Subagents → subagent_* tools (MANDATORY for concurrent work — call 2–5 in the SAME round, each runs on a different backend: Codex, Claude, Gemini, OpenAI, Anthropic, etc.)
       • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
@@ -50,7 +50,7 @@ enum PromptToolsPolicy {
       • `mcp_list_resources` / `mcp_read_resource` — Access contextual data exposed by MCP servers (files, database schemas, API specs, application state). Use `mcp_list_resources` to discover, then `mcp_read_resource` with the URI to read content.
       • `mcp_subscribe` — Watch an MCP resource for changes. The system receives notifications when subscribed resources update.
       • `mcp_list_prompts` / `mcp_get_prompt` — Use prompt templates from MCP servers. Prompts are pre-built message templates with arguments, useful for standardized interactions. Discover with `mcp_list_prompts`, then resolve with `mcp_get_prompt`.
-      • `mcp_logs` — Read structured logs from MCP servers. Filter by severity (debug/info/warning/error/critical). Use action='set_level' to change server log verbosity, action='clear' to reset the buffer.
+      • `mcp_logs` — Read structured logs from MCP servers. Filter by severity (debug/info/warning/error/critical). Use action='set_level' to store desired verbosity locally, action='clear' to reset the buffer.
       • `mcp_health` — Now returns detailed metrics: uptime, call counts, latency (avg/p95), capabilities, error history. Use for diagnostics and monitoring.
       • `mcp_restart_server` — Full server process restart (kill + reconnect). More aggressive than `mcp_reconnect`. Use when a server is unresponsive or in a bad state.
     - Debug tools: comprehensive flow for systematic debugging. Follow this sequence:

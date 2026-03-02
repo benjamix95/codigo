@@ -33,8 +33,14 @@ public enum WorkspaceScanner {
         return filtered.prefix(maxFiles).map { $0.lastPathComponent }
     }
 
-    /// Estensioni file sorgente per code review
-    private static let sourceExtensions = ["swift", "ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "kt", "rb", "php", "c", "cpp", "h", "hpp", "m", "mm"]
+    /// Source file extensions considered by code review flows.
+    public static let sourceExtensions: Set<String> = [
+        "swift", "ts", "tsx", "js", "jsx", "py", "go", "rs",
+        "java", "kt", "kts", "rb", "php", "c", "cpp", "h", "hpp", "m", "mm",
+        "cs", "scala", "dart", "lua", "sh", "bash", "zsh",
+        "sql", "graphql", "gql", "proto", "r", "ex", "exs",
+        "zig", "nim", "v", "svelte", "vue", "elm",
+    ]
 
     /// Elenco file sorgente non committati (git status --porcelain: modified, added, untracked)
     public static func listUncommittedSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
@@ -54,37 +60,36 @@ public enum WorkspaceScanner {
         guard process.terminationStatus == 0 else { return [] }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else { return [] }
-        var result: [String] = []
-        var seen = Set<String>()
-        for line in output.components(separatedBy: .newlines) {
-            guard line.count >= 3 else { continue }
-            let chars = Array(line)
-            let x = chars[0]
-            let y = chars[1]
-            let status = String([x, y])
-            let startIndex = line.index(line.startIndex, offsetBy: 3)
-            var path = String(line[startIndex...])
-            if path.contains(" -> ") {
-                path = String(path.components(separatedBy: " -> ").last ?? path)
-            }
-            if path.hasPrefix("\"") && path.hasSuffix("\"") {
-                path = unquoteGitPath(path)
-            }
-            path = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !path.isEmpty else { continue }
-            let relevant = x == "M" || x == "A" || x == "R" || x == "C" || y == "M" || y == "A" || status == "??"
-            let deleted = x == "D" || y == "D"
-            guard !deleted else { continue }
-            guard relevant else { continue }
-            let ext = (path as NSString).pathExtension.lowercased()
-            guard sourceExtensions.contains(ext) else { continue }
-            let fullPath = workspacePath.appendingPathComponent(path).path
-            if isExcluded(path: fullPath, basePath: workspacePath, excludedPaths: excludedPaths) { continue }
-            if seen.insert(path).inserted {
-                result.append(path)
-            }
+        return collectSourceFilesFromGitStatusOutput(
+            output: output,
+            workspacePath: workspacePath,
+            excludedPaths: excludedPaths
+        )
+    }
+
+    /// Elenco file sorgente staged (`git diff --cached`).
+    public static func listStagedSourceFiles(workspacePath: URL, excludedPaths: [String] = []) -> [String] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["diff", "--name-only", "--cached", "--diff-filter=ACMR", "--"]
+        process.currentDirectoryURL = workspacePath
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = nil
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
         }
-        return result.sorted()
+        guard process.terminationStatus == 0 else { return [] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else { return [] }
+        return listSourceFilesFromGitDiffOutput(
+            output: output,
+            workspacePath: workspacePath,
+            excludedPaths: excludedPaths
+        )
     }
 
     private static func unquoteGitPath(_ raw: String) -> String {
@@ -148,5 +153,70 @@ public enum WorkspaceScanner {
                 result.append(relPath)
             }
         }
+    }
+
+    private static func listSourceFilesFromGitDiffOutput(
+        output: String,
+        workspacePath: URL,
+        excludedPaths: [String]
+    ) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        for rawLine in output.components(separatedBy: .newlines) {
+            var path = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !path.isEmpty else { continue }
+            if path.hasPrefix("\""), path.hasSuffix("\"") {
+                path = unquoteGitPath(path)
+            }
+            let ext = (path as NSString).pathExtension.lowercased()
+            guard sourceExtensions.contains(ext) else { continue }
+            let fullPath = workspacePath.appendingPathComponent(path).path
+            if isExcluded(path: fullPath, basePath: workspacePath, excludedPaths: excludedPaths) {
+                continue
+            }
+            if seen.insert(path).inserted {
+                result.append(path)
+            }
+        }
+        return result.sorted()
+    }
+
+    private static func collectSourceFilesFromGitStatusOutput(
+        output: String,
+        workspacePath: URL,
+        excludedPaths: [String]
+    ) -> [String] {
+        var result: [String] = []
+        var seen = Set<String>()
+        for line in output.components(separatedBy: .newlines) {
+            guard line.count >= 3 else { continue }
+            let chars = Array(line)
+            let x = chars[0]
+            let y = chars[1]
+            let status = String([x, y])
+            let startIndex = line.index(line.startIndex, offsetBy: 3)
+            var path = String(line[startIndex...])
+            if path.contains(" -> ") {
+                path = String(path.components(separatedBy: " -> ").last ?? path)
+            }
+            if path.hasPrefix("\""), path.hasSuffix("\"") {
+                path = unquoteGitPath(path)
+            }
+            path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !path.isEmpty else { continue }
+            let relevant = x == "M" || x == "A" || x == "R" || x == "C" || y == "M" || y == "A" || status == "??"
+            let deleted = x == "D" || y == "D"
+            guard !deleted, relevant else { continue }
+            let ext = (path as NSString).pathExtension.lowercased()
+            guard sourceExtensions.contains(ext) else { continue }
+            let fullPath = workspacePath.appendingPathComponent(path).path
+            if isExcluded(path: fullPath, basePath: workspacePath, excludedPaths: excludedPaths) {
+                continue
+            }
+            if seen.insert(path).inserted {
+                result.append(path)
+            }
+        }
+        return result.sorted()
     }
 }

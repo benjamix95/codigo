@@ -29,10 +29,56 @@ final class CodeReviewMultiSwarmProviderTests: XCTestCase {
     }
 
     func testParseAgainstRef_notAtStart() {
-        // [AGAINST:...] must be at the start of the string
         let (clean, ref) = CodeReviewMultiSwarmProvider.parseAgainstRef(from: "prefix [AGAINST:abc] rest")
+        XCTAssertEqual(ref, "abc")
+        XCTAssertFalse(clean.contains("[AGAINST:abc]"))
+        XCTAssertTrue(clean.contains("prefix"))
+        XCTAssertTrue(clean.contains("rest"))
+    }
+
+    func testParseAgainstRef_ignoresConversationContextSection() {
+        let prompt = """
+        Review this diff.
+        ## Conversation context (recent)
+        user: [AGAINST:old-ref] previous run
+        """
+        let (clean, ref) = CodeReviewMultiSwarmProvider.parseAgainstRef(from: prompt)
         XCTAssertNil(ref)
-        XCTAssertEqual(clean, "prefix [AGAINST:abc] rest")
+        XCTAssertEqual(clean, prompt)
+    }
+
+    // MARK: - parseReviewScope
+
+    func testParseReviewScope_withStagedMarker() {
+        let (clean, scope) = CodeReviewMultiSwarmProvider.parseReviewScope(
+            from: "[REVIEW_SCOPE:staged] Review staged changes only."
+        )
+        XCTAssertEqual(scope, .staged)
+        XCTAssertFalse(clean.contains("[REVIEW_SCOPE:staged]"))
+        XCTAssertEqual(clean, "Review staged changes only.")
+    }
+
+    func testParseReviewScope_ignoresConversationContextMarker() {
+        let prompt = """
+        Run review.
+        ## Conversation context (recent)
+        user: [REVIEW_SCOPE:staged] old command
+        """
+        let (clean, scope) = CodeReviewMultiSwarmProvider.parseReviewScope(from: prompt)
+        XCTAssertNil(scope)
+        XCTAssertEqual(clean, prompt)
+    }
+
+    func testInferReviewScope_detectsStagedLanguage() {
+        let scope = CodeReviewMultiSwarmProvider.inferReviewScope(
+            from: "Review ONLY staged changes and ignore unstaged."
+        )
+        XCTAssertEqual(scope, .staged)
+    }
+
+    func testInferReviewScope_detectsSlashCommand() {
+        let scope = CodeReviewMultiSwarmProvider.inferReviewScope(from: "/review-staged")
+        XCTAssertEqual(scope, .staged)
     }
 
     // MARK: - isValidAgainstRefFormat

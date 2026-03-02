@@ -1033,6 +1033,17 @@ struct ChatPanelView: View {
     @State private var streamingReasoningBlocks: [ReasoningBlock] = []
     @State private var streamingSegments: [MessageSegment] = []
     @State private var streamingSegmentTurnIndex: Int = 0
+    @State private var reasoningMessageIdByConversationAndGroup: [UUID: [String: UUID]] = [:]
+    /// Last reasoning line from Codex (shown as streaming detail text only, never in thinking box)
+    @State private var codexLastReasoningLine: String?
+    /// Keep chat rendering linear (one assistant response bubble per turn)
+    /// and avoid segmented interleaving that causes jittery layout updates.
+    private let sequentialStreamingLayoutEnabled = false
+    private let separateCodexThinkingMessagesEnabled = false
+    /// When true, Codex CLI turns are split into separate assistant messages
+    /// so the chat reads linearly. Reasoning events are suppressed from the
+    /// thinking box and shown only as streaming status text.
+    private let codexLinearChatEnabled = true
     /// Pending streaming content waiting to be flushed to ChatStore.
     @State private var pendingStreamContent: String?
     @State private var pendingStreamConversationId: UUID?
@@ -2296,6 +2307,18 @@ struct ChatPanelView: View {
             modeTabButton("Agent", icon: "brain", mode: .agent, color: DesignSystem.Colors.agentColor)
             modeTabButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
             modeTabButton("Browser", icon: "globe", mode: .browser, color: DesignSystem.Colors.browserColor)
+            if coderMode == .codeReviewMultiSwarm {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("Review")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(DesignSystem.Colors.reviewColor)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(DesignSystem.Colors.reviewColor.opacity(0.12), in: Capsule())
+            }
         }
     }
 
@@ -2364,7 +2387,7 @@ struct ChatPanelView: View {
         .onChange(of: chatStore.activeTaskConversationIds) { oldSet, newSet in
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
-        .onChange(of: taskActivityStore.activities.count) { _, _ in
+        .onChange(of: scopedTaskActivityCount) { _, _ in
             handleTaskActivitiesChange(proxy: proxy)
         }
         .simultaneousGesture(
@@ -2479,7 +2502,7 @@ struct ChatPanelView: View {
 
     private func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
         guard isFollowingLive else { return }
-        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.016)
+        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.04)
     }
 
     private func handleMessagesCountChange(proxy: ScrollViewProxy) {
@@ -2490,7 +2513,7 @@ struct ChatPanelView: View {
     private func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
         guard isLoadingForCurrentConversation, isFollowingLive else { return }
         if let target = liveScrollTarget() {
-            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.02)
+            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.05)
         }
     }
 
@@ -2534,8 +2557,8 @@ struct ChatPanelView: View {
     private func handleTaskActivitiesChange(proxy: ScrollViewProxy) {
         if isLoadingForCurrentConversation {
             if isFollowingLive {
-                if let target = liveScrollTarget() {
-                    scheduleAutoScroll(proxy: proxy, target: target)
+                if let target = liveScrollTarget() ?? latestMessageScrollTarget() {
+                    scheduleAutoScroll(proxy: proxy, target: target, delay: 0.08)
                 }
             } else {
                 newEventsWhileDetached += 1
@@ -2709,7 +2732,10 @@ struct ChatPanelView: View {
                         && lastMsg?.role == .assistant
                         && (lastMsg?.isStreaming ?? false)
                         && isLoadingForCurrentConversation
-                    let useSequentialLayout = isLiveReasoningTarget && !streamingSegments.isEmpty
+                    let useSequentialLayout =
+                        sequentialStreamingLayoutEnabled
+                        && isLiveReasoningTarget
+                        && !streamingSegments.isEmpty
                     VStack(alignment: .leading, spacing: 10) {
                         if useSequentialLayout {
                             sequentialSegmentedContent(
@@ -3097,6 +3123,10 @@ struct ChatPanelView: View {
         ).count
     }
 
+    private var scopedTaskActivityCount: Int {
+        scopedTaskActivities(for: conversationId).count
+    }
+
     @ViewBuilder
     private func subagentCardsSection(message: ChatMessage, isLatestAssistant: Bool) -> some View {
         let liveCards: [SwarmLiveCardState] = (isLatestAssistant && isLoadingForCurrentConversation)
@@ -3175,13 +3205,12 @@ struct ChatPanelView: View {
     ) {
         let now = Date()
         let sinceLastScroll = now.timeIntervalSince(lastAutoScrollAt)
-        if lastAutoScrollTarget == target, sinceLastScroll < 0.04 {
+        if lastAutoScrollTarget == target, sinceLastScroll < 0.10 {
             return
         }
         lastAutoScrollTarget = target
         lastAutoScrollAt = now
         autoScrollWorkItem?.cancel()
-        let effectiveDelay = sinceLastScroll < 0.1 ? min(delay, 0.03) : delay
         let work = DispatchWorkItem {
             if animated {
                 withAnimation(.easeOut(duration: 0.14)) {
@@ -3192,7 +3221,7 @@ struct ChatPanelView: View {
             }
         }
         autoScrollWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + effectiveDelay, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private func interruptTask() {
@@ -3277,7 +3306,7 @@ struct ChatPanelView: View {
             didCancelTask = cancelRunTask(for: agentId)
         }
         if !didCancelTask {
-            let scope = executionScopeForCurrentMode()
+            let scope = executionScopeForActiveTask()
             executionController.terminate(scope: scope)
         }
         applyFlowCoordinatorState(for: targetConversationId) { $0.interrupt() }
@@ -3333,10 +3362,16 @@ struct ChatPanelView: View {
         }
     }
 
+    private func executionScopeForActiveTask() -> ExecutionScope {
+        executionController.activeScope ?? executionScopeForCurrentMode()
+    }
+
     private func pauseOrResumeActiveTask() {
-        let scope = executionScopeForCurrentMode()
-        if executionController.runState == .paused {
+        let scope = executionScopeForActiveTask()
+        let previousRunState = executionController.runState
+        if previousRunState == .paused {
             executionController.resume(scope: scope)
+            guard executionController.runState == .running else { return }
             taskActivityStore.markResumed()
             taskActivityStore.addActivity(
                 TaskActivity(
@@ -3352,6 +3387,7 @@ struct ChatPanelView: View {
         }
 
         executionController.pause(scope: scope)
+        guard executionController.runState == .paused else { return }
         taskActivityStore.markPaused()
         taskActivityStore.addActivity(
             TaskActivity(
@@ -3671,7 +3707,17 @@ struct ChatPanelView: View {
         conversationId: UUID,
         assistantMessageId: UUID
     ) {
+        guard sequentialStreamingLayoutEnabled else { return }
         guard conversationId == self.conversationId else { return }
+        // Ensure the incoming event belongs to the active streaming assistant turn.
+        guard let activeAssistantMessageId = chatStore.conversation(for: conversationId)?
+            .messages
+            .last(where: { $0.role == .assistant })?
+            .id,
+            activeAssistantMessageId == assistantMessageId
+        else {
+            return
+        }
         let segId = "tools-\(streamingSegmentTurnIndex)"
         if let idx = streamingSegments.firstIndex(where: { $0.id == segId }) {
             if case .toolTrace(var existing) = streamingSegments[idx].kind {
@@ -4778,66 +4824,14 @@ struct ChatPanelView: View {
 
     private var composerQuickCommandPresets: [ChatComposerView.QuickCommandPreset] {
         guard coderMode == .codeReviewMultiSwarm else { return [] }
-        let defaults: [ChatComposerView.QuickCommandPreset] = [
-            .init(
-                id: "review-uncommitted",
-                slash: "/review-uncommitted",
-                label: "Full uncommitted audit",
-                prompt:
-                    """
-                    Run ultra-deep code review on all uncommitted changes (staged, unstaged, untracked).
-                    Required output:
-                    1) prioritized findings (P0-P3),
-                    2) impacted areas file-by-file,
-                    3) regression risks,
-                    4) final verdict on patch correctness.
-                    """
-            ),
-            .init(
-                id: "review-staged",
-                slash: "/review-staged",
-                label: "Staged diff only",
-                prompt:
-                    """
-                    Review ONLY staged changes.
-                    Ignore unstaged and untracked.
-                    Return severe and actionable findings with priority/confidence.
-                    """
-            ),
-            .init(
-                id: "review-autofix",
-                slash: "/review-autofix",
-                label: "Review + auto fix",
-                prompt:
-                    """
-                    Deep review uncommitted changes and directly fix all confirmed bugs.
-                    After fixes, run relevant build/tests and report the technical changelog.
-                    """
-            ),
-            .init(
-                id: "review-autofix-commit",
-                slash: "/review-autofix-commit",
-                label: "Review + fix + commit",
-                prompt:
-                    """
-                    Run full review on staged/unstaged/untracked, apply necessary fixes and create final atomic commit.
-                    Requirements: no superfluous changes, green build/tests, specific commit message.
-                    """
-            ),
-            .init(
-                id: "review-focus-ui",
-                slash: "/review-focus-ui",
-                label: "Focus UI flows",
-                prompt:
-                    """
-                    Focus on review realtime flows:
-                    - visible step-by-step stream,
-                    - live updated read/tool/terminal cards,
-                    - consistent todos without layout glitches.
-                    Fix any issues found and validate with tests/build.
-                    """
-            ),
-        ]
+        let defaults = CodeReviewQuickCommands.defaults.map { cmd in
+            ChatComposerView.QuickCommandPreset(
+                id: cmd.id,
+                slash: cmd.slash,
+                label: cmd.label,
+                prompt: cmd.prompt
+            )
+        }
         return defaults + customCodeReviewQuickPresets
     }
 
@@ -7302,10 +7296,10 @@ struct ChatPanelView: View {
             // Common cause: API key missing for the selected backend.
             let analysisBackend = cfg.codeReviewAnalysisBackend
             let executionBackend = cfg.codeReviewExecutionBackend
-            let msg = "[Code Review] Failed to create multi-swarm provider (analysis: \(analysisBackend), execution: \(executionBackend)). Check your API keys in Settings. Falling back to standard agent."
+            let msg = "[Code Review] Failed to create multi-swarm provider (analysis: \(analysisBackend), execution: \(executionBackend)). Check your API keys in Settings."
             print("[CodeReview] WARNING: \(msg)")
             appendTechnicalErrorMessage(msg, in: conversationId)
-            return selectedProvider
+            return nil
         }
         if multiCLIAccountEnabled,
             let selectedProviderId = providerRegistry.selectedProviderId,
@@ -7525,7 +7519,7 @@ struct ChatPanelView: View {
                     5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
                     6. During execution, update status only for real todos: in_progress before work, done after completion.
                     7. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
-                    8. If MCP is available and external/domain capabilities are needed, verify MCP availability first with `mcp_list_servers`, then `mcp_list_tools`, and run calls with `mcp_call`.
+                    8. If MCP is available and external/domain capabilities are needed, call native MCP tools directly by name. Use `mcp_call` only as a fallback for tools not registered natively.
                     9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
                     10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
                     11. If subagent tools are available, the FIRST operational tool round must start with at least one `subagent_*` call. For independent workstreams, call 2-5 subagents in the same round.
@@ -7775,6 +7769,112 @@ struct ChatPanelView: View {
 
     // MARK: - Handle Raw Stream Events
 
+    private func isCodexProvider(_ providerId: String) -> Bool {
+        let normalized = providerId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return false }
+        return normalized.contains("codex")
+    }
+
+    private func shouldSplitThinkingMessages(providerId: String) -> Bool {
+        guard separateCodexThinkingMessagesEnabled else { return false }
+        return isCodexProvider(providerId)
+    }
+
+    private func shouldUseLinearChat(providerId: String) -> Bool {
+        guard codexLinearChatEnabled else { return false }
+        return isCodexProvider(providerId)
+    }
+
+    @MainActor
+    private func resetReasoningMessageState(for conversationId: UUID?) {
+        guard let conversationId else { return }
+        reasoningMessageIdByConversationAndGroup.removeValue(forKey: conversationId)
+    }
+
+    @MainActor
+    private func upsertSeparateThinkingMessage(
+        output: String,
+        groupId: String,
+        conversationId: UUID?
+    ) {
+        guard let conversationId else { return }
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOutput.isEmpty else { return }
+
+        var groupMap = reasoningMessageIdByConversationAndGroup[conversationId] ?? [:]
+        if let messageId = groupMap[groupId] {
+            let existingContent = chatStore.conversation(for: conversationId)?
+                .messages
+                .first(where: { $0.id == messageId })?
+                .content
+            let mergedContent = Self.mergeReasoningText(existing: existingContent, incoming: trimmedOutput)
+            chatStore.updateAssistantMessage(
+                messageId: messageId,
+                content: mergedContent,
+                in: conversationId,
+                persistImmediately: false
+            )
+            if conversationId == self.conversationId {
+                streamContentVersion &+= 1
+            }
+            return
+        }
+
+        let messageId = UUID()
+        groupMap[groupId] = messageId
+        reasoningMessageIdByConversationAndGroup[conversationId] = groupMap
+
+        let thinkingMessage = ChatMessage(
+            id: messageId,
+            role: .assistant,
+            content: trimmedOutput,
+            isStreaming: false
+        )
+        if let streamingAssistantId = chatStore.conversation(for: conversationId)?
+            .messages
+            .last(where: { $0.role == .assistant && $0.isStreaming })?
+            .id
+        {
+            chatStore.insertMessage(
+                thinkingMessage,
+                before: streamingAssistantId,
+                in: conversationId
+            )
+        } else {
+            chatStore.addMessage(thinkingMessage, to: conversationId)
+        }
+        if conversationId == self.conversationId {
+            streamContentVersion &+= 1
+        }
+    }
+
+    @MainActor
+    private func splitStreamingMessageForNewTurn(conversationId: UUID?, providerId: String) {
+        guard let conversationId else { return }
+        flushStreamingContent()
+
+        guard let conv = chatStore.conversation(for: conversationId),
+              let currentMsg = conv.messages.last(where: { $0.role == .assistant && $0.isStreaming })
+        else { return }
+
+        let trimmedContent = currentMsg.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else { return }
+
+        chatStore.setLastAssistantStreaming(false, in: conversationId)
+
+        let newId = UUID()
+        chatStore.addMessage(
+            ChatMessage(id: newId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        startToolTraceTurn(conversationId: conversationId, assistantMessageId: newId, providerId: providerId)
+        codexLastReasoningLine = nil
+
+        if conversationId == self.conversationId {
+            streamContentVersion &+= 1
+        }
+    }
+
     private func handleRawStreamEvent(
         type t: String, payload p: [String: String], providerId pid: String,
         conversationId convId: UUID?
@@ -7818,31 +7918,63 @@ struct ChatPanelView: View {
         }
         if t == "turn_started" {
             streamingSegmentTurnIndex += 1
+            resetReasoningMessageState(for: convId)
+            if shouldUseLinearChat(providerId: pid) {
+                splitStreamingMessageForNewTurn(conversationId: convId, providerId: pid)
+            }
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
-            let groupId = p["group_id"] ?? "reasoning-stream"
-            if streamingReasoningConversationId != convId {
-                streamingReasoningBlocks = []
-                streamingSegments = []
-                streamingSegmentTurnIndex = 0
-            }
-            if let idx = streamingReasoningBlocks.firstIndex(where: { $0.id == groupId }) {
-                streamingReasoningBlocks[idx].text = Self.mergeReasoningText(
-                    existing: streamingReasoningBlocks[idx].text,
-                    incoming: output
+            if shouldUseLinearChat(providerId: pid) {
+                // For Codex linear chat, reasoning is shown only as streaming
+                // status/detail text, never as an inline thinking box.
+                if convId == self.conversationId {
+                    codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            } else if shouldSplitThinkingMessages(providerId: pid) {
+                let groupId = p["group_id"] ?? "reasoning-stream"
+                upsertSeparateThinkingMessage(
+                    output: output,
+                    groupId: groupId,
+                    conversationId: convId
                 )
+                if convId == self.conversationId {
+                    streamingReasoningText = nil
+                    streamingReasoningConversationId = nil
+                    streamingReasoningBlocks = []
+                    streamingSegments.removeAll { segment in
+                        if case .reasoning = segment.kind {
+                            return true
+                        }
+                        return false
+                    }
+                }
             } else {
-                streamingReasoningBlocks.append(ReasoningBlock(id: groupId, text: output))
-            }
-            streamingReasoningText = streamingReasoningBlocks.map(\.text).joined(separator: "\n\n")
-            streamingReasoningConversationId = convId
+                let groupId = p["group_id"] ?? "reasoning-stream"
+                if streamingReasoningConversationId != convId {
+                    streamingReasoningBlocks = []
+                    streamingSegments = []
+                    streamingSegmentTurnIndex = 0
+                }
+                if let idx = streamingReasoningBlocks.firstIndex(where: { $0.id == groupId }) {
+                    streamingReasoningBlocks[idx].text = Self.mergeReasoningText(
+                        existing: streamingReasoningBlocks[idx].text,
+                        incoming: output
+                    )
+                } else {
+                    streamingReasoningBlocks.append(ReasoningBlock(id: groupId, text: output))
+                }
+                streamingReasoningText = streamingReasoningBlocks.map(\.text).joined(separator: "\n\n")
+                streamingReasoningConversationId = convId
 
-            let segId = "reasoning-\(streamingSegmentTurnIndex)"
-            let currentBlockText = streamingReasoningBlocks.last(where: { $0.id == groupId })?.text ?? output
-            if let segIdx = streamingSegments.firstIndex(where: { $0.id == segId }) {
-                streamingSegments[segIdx].kind = .reasoning(currentBlockText)
-            } else {
-                streamingSegments.append(MessageSegment(id: segId, kind: .reasoning(currentBlockText)))
+                if sequentialStreamingLayoutEnabled {
+                    let segId = "reasoning-\(streamingSegmentTurnIndex)"
+                    let currentBlockText = streamingReasoningBlocks.last(where: { $0.id == groupId })?.text ?? output
+                    if let segIdx = streamingSegments.firstIndex(where: { $0.id == segId }) {
+                        streamingSegments[segIdx].kind = .reasoning(currentBlockText)
+                    } else {
+                        streamingSegments.append(MessageSegment(id: segId, kind: .reasoning(currentBlockText)))
+                    }
+                }
             }
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
@@ -8181,7 +8313,7 @@ struct ChatPanelView: View {
     private func stopTaskForPolicyViolation(conversationId: UUID?) {
         let didCancelTask = cancelRunTask(for: conversationId)
         if !didCancelTask {
-            let scope = executionScopeForCurrentMode()
+            let scope = executionScopeForActiveTask()
             executionController.terminate(scope: scope)
         }
         applyFlowCoordinatorState(for: conversationId) { $0.interrupt() }
@@ -8262,15 +8394,27 @@ struct ChatPanelView: View {
 
     private func clearStreamingReasoning(for conversationId: UUID?) {
         flushStreamingContent()
-        guard let id = conversationId, streamingReasoningConversationId == id else { return }
-        if let reasoning = streamingReasoningText, !reasoning.isEmpty {
+        guard let id = conversationId else { return }
+        let hadInlineReasoning = streamingReasoningConversationId == id
+        let hasSeparateThinkingMessages =
+            !(reasoningMessageIdByConversationAndGroup[id]?.isEmpty ?? true)
+        if hadInlineReasoning,
+           !hasSeparateThinkingMessages,
+           let reasoning = streamingReasoningText,
+           !reasoning.isEmpty
+        {
             chatStore.saveReasoningToLastAssistant(reasoning: reasoning, in: id)
         }
-        streamingReasoningText = nil
-        streamingReasoningConversationId = nil
-        streamingReasoningBlocks = []
-        streamingSegments = []
-        streamingSegmentTurnIndex = 0
+        resetReasoningMessageState(for: id)
+        codexLastReasoningLine = nil
+        chatStore.removeTrailingEmptyAssistantMessages(in: id)
+        if hadInlineReasoning || hasSeparateThinkingMessages {
+            streamingReasoningText = nil
+            streamingReasoningConversationId = nil
+            streamingReasoningBlocks = []
+            streamingSegments = []
+            streamingSegmentTurnIndex = 0
+        }
     }
 
     private func clearPlanStreamingState() {
@@ -8509,6 +8653,7 @@ struct ChatPanelView: View {
     }
 
     private func updateStreamingTextSegment(_ content: String) {
+        guard sequentialStreamingLayoutEnabled else { return }
         let segId = "text-\(streamingSegmentTurnIndex)"
         if content.isEmpty {
             streamingSegments.removeAll { $0.id == segId }
@@ -9074,6 +9219,9 @@ struct ChatPanelView: View {
         }
         if let fromContent = ChatStore.extractLastOperationalThinkingLine(from: message.content) {
             return fromContent
+        }
+        if let codexLine = codexLastReasoningLine, !codexLine.isEmpty, convId == self.conversationId {
+            return codexLine.count > 80 ? String(codexLine.prefix(77)) + "..." : codexLine
         }
         if convId == streamingReasoningConversationId, let reasoning = streamingReasoningText, !reasoning.isEmpty {
             let lastLine = reasoning.split(separator: "\n", omittingEmptySubsequences: false)

@@ -54,6 +54,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         case inconclusive(reason: String)
     }
 
+    enum ReviewFileScope: String, Sendable {
+        case uncommitted
+        case staged
+    }
+
     private enum ReviewPipelineError: Error, LocalizedError {
         case analysisTransportFailed(String)
         case analysisReturnedNoData
@@ -139,14 +144,16 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         }
                     }
 
-                    // Parse optional against-commit ref from prompt prefix: [AGAINST:ref]
-                    let (cleanPrompt, againstRef) = Self.parseAgainstRef(from: prompt)
+                    // Parse optional review scope markers from user prompt.
+                    let (promptWithoutScopeMarker, explicitScope) = Self.parseReviewScope(from: prompt)
+                    let (cleanPrompt, againstRef) = Self.parseAgainstRef(from: promptWithoutScopeMarker)
                     let workspacePath = context.workspacePath
 
                     // ── Resolve files to review ────────────────────────────────
                     continuation.yield(.started)
 
                     let filesToReview: [String]
+                    let resolvedScope = explicitScope ?? Self.inferReviewScope(from: cleanPrompt) ?? .uncommitted
                     if let ref = againstRef {
                         guard Self.isValidAgainstRefFormat(ref) else {
                             continuation.yield(.textDelta("Invalid AGAINST ref `\(ref)`. Use values like `HEAD~1`, `abc123`, or `main..feature`.\n"))
@@ -164,9 +171,15 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             return
                         }
                     } else {
-                        filesToReview = Self.resolveFiles(context: context)
+                        filesToReview = Self.resolveFiles(context: context, scope: resolvedScope)
                         if filesToReview.isEmpty {
-                            continuation.yield(.textDelta("No uncommitted source files found. Nothing to review.\n"))
+                            let message: String = switch resolvedScope {
+                            case .staged:
+                                "No staged source files found. Nothing to review.\n"
+                            case .uncommitted:
+                                "No uncommitted source files found. Nothing to review.\n"
+                            }
+                            continuation.yield(.textDelta(message))
                             continuation.yield(.completed)
                             continuation.finish()
                             return
@@ -202,13 +215,23 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                     )
 
                     let tasks: [ReviewTask]
+                    var extractionInconclusiveReason: String?
                     switch taskExtraction {
-                    case .noFixes, .noPayload:
+                    case .noFixes:
+                        tasks = []
+                    case .noPayload(let reason):
+                        continuation.yield(.textDelta(
+                            "\n**Review task extraction inconclusive:** \(reason)\n"
+                        ))
+                        extractionInconclusiveReason = reason
                         tasks = []
                     case .tasks(let parsedTasks):
                         tasks = parsedTasks
                     case .invalidJSON(let reason):
-                        continuation.yield(.textDelta("\n**Warning:** Could not parse task JSON: \(reason). Treating as analysis-only.\n"))
+                        continuation.yield(.textDelta(
+                            "\n**Review task extraction inconclusive:** Could not parse task JSON: \(reason)\n"
+                        ))
+                        extractionInconclusiveReason = reason
                         tasks = []
                     }
 
@@ -219,6 +242,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                             "description": task.description,
                             "severity": task.severity,
                             "fileCount": "\(task.files.count)",
+                            "files_raw": task.files.joined(separator: "\n"),
                             "files": task.files.prefix(5).joined(separator: ", ")
                                 + (task.files.count > 5 ? " (+\(task.files.count - 5) more)" : "")
                         ]))
@@ -234,6 +258,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
                     // ── No actionable tasks -> run tests only ────────────────────
                     if tasks.isEmpty {
+                        if let extractionInconclusiveReason {
+                            continuation.yield(.textDelta(
+                                "\n**Review complete (inconclusive).** Structured fix tasks were not produced: \(extractionInconclusiveReason)\n"
+                            ))
+                            continuation.yield(.completed)
+                            continuation.finish()
+                            return
+                        }
                         continuation.yield(.textDelta("\n**No actionable fix tasks.** Running tests...\n"))
                         let testResult = await Self.runTests(
                             context: context,
@@ -1003,26 +1035,77 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
 
     // MARK: - Helpers
 
-    /// Resolve files to review from context
-    static func resolveFiles(context: WorkspaceContext) -> [String] {
-        WorkspaceScanner.listUncommittedSourceFiles(
-            workspacePath: context.workspacePath,
-            excludedPaths: context.excludedPaths
-        )
+    /// Resolve files to review from context.
+    static func resolveFiles(context: WorkspaceContext, scope: ReviewFileScope = .uncommitted) -> [String] {
+        switch scope {
+        case .uncommitted:
+            return WorkspaceScanner.listUncommittedSourceFiles(
+                workspacePath: context.workspacePath,
+                excludedPaths: context.excludedPaths
+            )
+        case .staged:
+            return WorkspaceScanner.listStagedSourceFiles(
+                workspacePath: context.workspacePath,
+                excludedPaths: context.excludedPaths
+            )
+        }
     }
 
-    /// Parse [AGAINST:ref] prefix from prompt
-    static func parseAgainstRef(from prompt: String) -> (cleanPrompt: String, ref: String?) {
-        let pattern = #"^\[AGAINST:([^\]]+)\]\s*"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: prompt, range: NSRange(prompt.startIndex..., in: prompt)),
-              let refRange = Range(match.range(at: 1), in: prompt)
+    /// Parse optional [REVIEW_SCOPE:...] marker from prompt.
+    static func parseReviewScope(from prompt: String) -> (cleanPrompt: String, scope: ReviewFileScope?) {
+        let searchableLimit = prompt.range(of: "## Conversation context (recent)")?.lowerBound ?? prompt.endIndex
+        let searchable = String(prompt[..<searchableLimit])
+        let pattern = #"\[REVIEW_SCOPE:(staged|uncommitted)\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(
+                in: searchable,
+                range: NSRange(searchable.startIndex..., in: searchable)
+              ),
+              let scopeRange = Range(match.range(at: 1), in: searchable),
+              let fullRange = Range(match.range(at: 0), in: searchable)
         else {
             return (prompt, nil)
         }
-        let ref = String(prompt[refRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanRange = Range(match.range, in: prompt)!
-        let clean = String(prompt[cleanRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let marker = String(searchable[scopeRange]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let resolvedScope = ReviewFileScope(rawValue: marker)
+        var cleanPrefix = searchable
+        cleanPrefix.removeSubrange(fullRange)
+        let suffix = String(prompt[searchableLimit...])
+        let cleanPrompt = (cleanPrefix + suffix).trimmingCharacters(in: .whitespacesAndNewlines)
+        return (cleanPrompt.isEmpty ? "Review all changes" : cleanPrompt, resolvedScope)
+    }
+
+    static func inferReviewScope(from prompt: String) -> ReviewFileScope? {
+        let lower = prompt.lowercased()
+        if lower.contains("[review_scope:staged]") || lower.contains("/review-staged")
+            || lower.contains("review only staged changes")
+            || lower.contains("staged diff only")
+        {
+            return .staged
+        }
+        if lower.contains("[review_scope:uncommitted]") || lower.contains("/review-uncommitted") {
+            return .uncommitted
+        }
+        return nil
+    }
+
+    /// Parse [AGAINST:ref] marker from prompt.
+    static func parseAgainstRef(from prompt: String) -> (cleanPrompt: String, ref: String?) {
+        let searchableLimit = prompt.range(of: "## Conversation context (recent)")?.lowerBound ?? prompt.endIndex
+        let searchable = String(prompt[..<searchableLimit])
+        let pattern = #"\[AGAINST:([^\]]+)\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: searchable, range: NSRange(searchable.startIndex..., in: searchable)),
+              let refRange = Range(match.range(at: 1), in: searchable),
+              let markerRange = Range(match.range(at: 0), in: searchable)
+        else {
+            return (prompt, nil)
+        }
+        let ref = String(searchable[refRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        var cleanPrefix = searchable
+        cleanPrefix.removeSubrange(markerRange)
+        let suffix = String(prompt[searchableLimit...])
+        let clean = (cleanPrefix + suffix).trimmingCharacters(in: .whitespacesAndNewlines)
         return (clean.isEmpty ? "Review all changes" : clean, ref)
     }
 
@@ -1107,20 +1190,13 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         guard let output = String(data: data, encoding: .utf8) else {
             return ([], "Failed to decode git diff output as UTF-8.")
         }
-        let sourceExtensions = Set([
-            "swift", "ts", "tsx", "js", "jsx", "py", "go", "rs",
-            "java", "kt", "kts", "rb", "php", "c", "cpp", "h", "hpp", "m", "mm",
-            "cs", "scala", "dart", "lua", "sh", "bash", "zsh",
-            "sql", "graphql", "gql", "proto", "r", "ex", "exs",
-            "zig", "nim", "v", "svelte", "vue", "elm"
-        ])
         let files = output
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .filter { path in
                 let ext = (path as NSString).pathExtension.lowercased()
-                return sourceExtensions.contains(ext)
+                return WorkspaceScanner.sourceExtensions.contains(ext)
             }
         return (files, nil)
     }

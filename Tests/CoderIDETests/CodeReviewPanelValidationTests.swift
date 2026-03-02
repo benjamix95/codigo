@@ -124,7 +124,7 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         ]
 
         let scoped = scopedTaskActivitiesForConversation(activities, conversationId: convA)
-        XCTAssertEqual(scoped.map(\.title), ["a", "untagged"])
+        XCTAssertEqual(scoped.map(\.title), ["a"])
     }
 
     func testReviewCardBelongsToConversation_checksRecentEventConversation() {

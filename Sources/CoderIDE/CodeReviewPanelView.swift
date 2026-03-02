@@ -38,9 +38,14 @@ struct CodeReviewPanelView: View {
 
     // MARK: - Metrics
 
-    private typealias WorkerRow = (
-        id: String, description: String, severity: String, fileCount: String, files: String
-    )
+    private struct WorkerRow: Identifiable {
+        let id: String
+        let description: String
+        let severity: String
+        let fileCount: Int
+        let files: [String]
+        let filesSummary: String
+    }
 
     private struct Metrics {
         let cards: [SwarmLiveCardState]
@@ -50,7 +55,7 @@ struct CodeReviewPanelView: View {
     }
 
     private func metrics() -> Metrics {
-        guard coderMode == .codeReviewMultiSwarm, isTaskRunning else {
+        guard coderMode == .codeReviewMultiSwarm else {
             return Metrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
         }
         let activities = scopedTaskActivitiesForConversation(
@@ -73,12 +78,24 @@ struct CodeReviewPanelView: View {
             guard let wid = a.payload["worker_id"],
                   let desc = a.payload["description"],
                   let sev = a.payload["severity"],
-                  let fc = a.payload["fileCount"],
-                  let files = a.payload["files"] else { return nil }
-            return (wid, desc, sev, fc, files)
+                  let fcRaw = a.payload["fileCount"] else { return nil }
+            let fileCount = Int(fcRaw) ?? 0
+            let summary = a.payload["files"] ?? ""
+            let rawFiles = (a.payload["files_raw"] ?? "")
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return WorkerRow(
+                id: wid,
+                description: desc,
+                severity: sev,
+                fileCount: fileCount,
+                files: rawFiles,
+                filesSummary: summary
+            )
         }
 
-        let round: (String, String)? = if isTaskRunning && coderMode == .codeReviewMultiSwarm {
+        let round: (String, String)? = if coderMode == .codeReviewMultiSwarm {
             activities.reversed().compactMap { a -> (String, String)? in
                 guard a.type == "review-fix-round",
                       let r = a.payload["round"],
@@ -213,11 +230,11 @@ struct CodeReviewPanelView: View {
                 againstCommitCard
                 slashCommandsCard
 
-                if coderMode == .codeReviewMultiSwarm && !m.workers.isEmpty {
+                if !m.workers.isEmpty {
                     workersCard(m.workers)
                 }
 
-                if coderMode == .codeReviewMultiSwarm && !m.cards.isEmpty {
+                if !m.cards.isEmpty {
                     liveStatusCard(m.cards)
                 }
             }
@@ -271,6 +288,7 @@ struct CodeReviewPanelView: View {
                 }
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .disabled(isTaskRunning)
                 Spacer()
                 if autofixEnabled {
                     Text("max \(codeReviewMaxRounds) rounds")
@@ -393,7 +411,7 @@ struct CodeReviewPanelView: View {
                                 .foregroundStyle(accent)
                             Spacer(minLength: 4)
                             severityBadge(w.severity)
-                            Text("\(w.fileCount) files")
+                        Text("\(w.fileCount) files")
                                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                                 .foregroundStyle(.quaternary)
                         }
@@ -401,10 +419,31 @@ struct CodeReviewPanelView: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.primary.opacity(0.85))
                             .lineLimit(2)
-                        Text(w.files)
-                            .font(.system(size: 9.5, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                        if !w.files.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 4) {
+                                    ForEach(Array(w.files.enumerated()), id: \.offset) { _, path in
+                                        Button {
+                                            onOpenFile(path)
+                                        } label: {
+                                            Text((path as NSString).lastPathComponent)
+                                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                                .foregroundStyle(accent)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(accent.opacity(0.12), in: Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .help(path)
+                                    }
+                                }
+                            }
+                        } else if !w.filesSummary.isEmpty {
+                            Text(w.filesSummary)
+                                .font(.system(size: 9.5, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
                     }
                     .padding(.leading, 8)
                     .padding(.vertical, 5)
@@ -523,11 +562,18 @@ struct CodeReviewPanelView: View {
     }
 
     private func reviewCardName(_ swarmId: String) -> String {
-        let id = swarmId
-        if let dash = id.range(of: "-", options: .backwards),
-           id[dash.upperBound...].count <= 10,
-           id[dash.upperBound...].allSatisfy({ $0.isHexDigit || $0.isLetter }) {
-            return String(id[..<dash.lowerBound]).capitalized
+        let id = swarmId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.lowercased().hasPrefix("review-") {
+            let suffix = String(id.dropFirst("review-".count))
+            if !suffix.isEmpty, suffix.allSatisfy(\.isNumber) {
+                return "Review \(suffix)"
+            }
+        }
+        if let dash = id.range(of: "-", options: .backwards) {
+            let suffix = id[dash.upperBound...]
+            if suffix.count >= 8, suffix.allSatisfy({ $0.isHexDigit }) {
+                return String(id[..<dash.lowerBound]).capitalized
+            }
         }
         return id.capitalized
     }
@@ -537,6 +583,11 @@ struct CodeReviewPanelView: View {
     private var configTab: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 10) {
+                if isTaskRunning {
+                    Text("Configuration changes apply to the next review run.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
                 configCard(title: "Max Workers", icon: "person.3.fill") {
                     HStack {
                         Text("Concurrent workers")
@@ -615,6 +666,8 @@ struct CodeReviewPanelView: View {
                 }
             }
             .padding(12)
+            .disabled(isTaskRunning)
+            .opacity(isTaskRunning ? 0.78 : 1)
         }
     }
 
@@ -721,19 +774,11 @@ struct CodeReviewPanelView: View {
     private func runAgainstCommitReview() {
         let ref = againstCommitRef.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ref.isEmpty else { return }
-
-        let suffix = autofixEnabled
-            ? "\nAfter analysis, apply all confirmed fixes. Run build/tests and iterate up to \(codeReviewMaxRounds) rounds until clean."
-            : "\nAnalysis only — report findings with priority/confidence, do NOT apply fixes."
-
-        let prompt = """
-            [AGAINST:\(ref)] Run deep code review on changes from \(ref) to HEAD.
-            Scope: all modified, added, and renamed files in that range.
-            Required output:
-            1) prioritized findings (P0-P3) with file:line references,
-            2) regression risks,
-            3) final verdict on patch correctness.\(suffix)
-            """
+        let prompt = CodeReviewQuickCommands.againstPrompt(
+            ref: ref,
+            autofixEnabled: autofixEnabled,
+            maxRounds: codeReviewMaxRounds
+        )
 
         if coderMode != .codeReviewMultiSwarm {
             onSelectMode(.codeReviewMultiSwarm)
@@ -755,38 +800,9 @@ struct CodeReviewPanelView: View {
     }
 
     private var slashCommands: [SlashCommand] {
-        [
-            SlashCommand(
-                id: "review-uncommitted",
-                slash: "/review-uncommitted",
-                label: "Full uncommitted audit",
-                prompt: "Run ultra-deep code review on all uncommitted changes (staged, unstaged, untracked). Required output: 1) prioritized findings (P0-P3), 2) impacted areas file-by-file, 3) regression risks, 4) final verdict on patch correctness."
-            ),
-            SlashCommand(
-                id: "review-staged",
-                slash: "/review-staged",
-                label: "Staged diff only",
-                prompt: "Review ONLY staged changes. Ignore unstaged and untracked. Return severe and actionable findings with priority/confidence."
-            ),
-            SlashCommand(
-                id: "review-autofix",
-                slash: "/review-autofix",
-                label: "Review + auto fix",
-                prompt: "Deep review uncommitted changes and directly fix all confirmed bugs. After fixes, run relevant build/tests and report the technical changelog."
-            ),
-            SlashCommand(
-                id: "review-autofix-commit",
-                slash: "/review-autofix-commit",
-                label: "Review + fix + commit",
-                prompt: "Run full review on staged/unstaged/untracked, apply necessary fixes and create final atomic commit. Requirements: no superfluous changes, green build/tests, specific commit message."
-            ),
-            SlashCommand(
-                id: "review-focus-ui",
-                slash: "/review-focus-ui",
-                label: "Focus UI flows",
-                prompt: "Focus on review realtime flows: visible step-by-step stream, live updated read/tool/terminal cards, consistent todos without layout glitches. Fix any issues found and validate with tests/build."
-            ),
-        ]
+        CodeReviewQuickCommands.defaults.map {
+            SlashCommand(id: $0.id, slash: $0.slash, label: $0.label, prompt: $0.prompt)
+        }
     }
 
     // MARK: - Helpers
@@ -836,7 +852,7 @@ func scopedTaskActivitiesForConversation(
         let tagged = (activity.payload["conversation_id"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return tagged.isEmpty || tagged == expected
+        return tagged == expected
     }
 }
 

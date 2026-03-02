@@ -196,6 +196,19 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                                     }
                                     args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
                                     args["name"] = name
+
+                                    if !policy.allowMutatingTools,
+                                       Self.toolWouldMutate(toolName: name, args: args) {
+                                        continuation.yield(.raw(type: "tool_validation_error", payload: [
+                                            "title": "Read-only phase policy",
+                                            "detail": "Tool '\(name)' is blocked in read-only mode.",
+                                            "status": "failed",
+                                            "error_code": "read_only_violation",
+                                            "tool": name,
+                                        ]))
+                                        continue
+                                    }
+
                                     let marker = CoderIDEMarker(kind: "tool_call", payload: args)
                                     let legacyInvokeSwarm = Self.isLegacyInvokeSwarmSuggestion(
                                         toolName: name,
@@ -1256,11 +1269,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     }
 
     static let mcpEditLikeTools: Set<String> = [
-        "edit", "write", "str_replace", "regex_replace",
-        "apply_patch", "create_file", "delete_file",
-        "parallel_apply", "find_and_replace_all",
-        "rename_symbol", "undo_edit", "multi_edit",
-        "multiedit",
+        "edit", "write", "str_replace", "regex_replace", "create_file",
     ]
 
     static func rerouteEditToolToMCP(toolName: String, args: [String: String]) -> MCPEditReroute? {
@@ -1835,6 +1844,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         "index_status", "read_range", "list_dir", "git_diff", "read_json",
         "workspace_stats", "tail_log", "list_processes", "search_symbols",
         "mcp_list_tools", "mcp_describe_tool", "mcp_list_servers", "mcp_health",
+        "mcp_list_resources", "mcp_read_resource", "mcp_list_prompts", "mcp_get_prompt",
         "debug_query", "semantic_search", "related_files", "git_log_search",
         "read_lints", "debug_context",
         "batch_read", "diff_files", "git_status", "git_show", "code_context",
@@ -1865,6 +1875,74 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
         default:
             return "read_batch_started"
         }
+    }
+
+    private static func toolWouldMutate(toolName: String, args: [String: String]) -> Bool {
+        !isReadOnlyTool(toolName: toolName, args: args)
+    }
+
+    private static func isReadOnlyTool(toolName: String, args: [String: String]) -> Bool {
+        let normalized = ProviderToolEventMapper.normalizeToolIdentifier(toolName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return false }
+
+        if readOnlyToolNames.contains(normalized) {
+            return true
+        }
+
+        if normalized == "mcp_logs" {
+            let action = (args["action"] ?? "read")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return action == "read"
+        }
+
+        if normalized == "mcp_call" {
+            let targetTool = ProviderToolEventMapper.normalizeToolIdentifier(
+                args["tool"] ?? args["mcp_tool"] ?? args["tool_name"] ?? ""
+            )
+            if targetTool.isEmpty || targetTool == normalized {
+                return false
+            }
+            return isReadOnlyTool(toolName: targetTool, args: args)
+        }
+
+        if normalized.hasPrefix("mcp_") {
+            return false
+        }
+
+        if let role = SubagentRole.fromToolName(normalized) {
+            return !role.canEditFiles
+        }
+
+        if MCPNativeToolRegistry.shared.routing[normalized] != nil {
+            return isLikelyReadOnlyNativeMCPTool(normalized)
+        }
+
+        return false
+    }
+
+    private static func isLikelyReadOnlyNativeMCPTool(_ toolName: String) -> Bool {
+        let normalized = toolName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return false }
+
+        let mutatingSignals = [
+            "write", "edit", "create", "delete", "remove", "replace", "rename",
+            "apply", "patch", "run", "build", "test", "push", "commit", "restart",
+            "set_", "clear", "terminate", "kill", "pause", "resume",
+        ]
+        if mutatingSignals.contains(where: { normalized.contains($0) }) {
+            return false
+        }
+
+        let readSignals = [
+            "read", "list", "get", "describe", "search", "find", "grep", "glob",
+            "outline", "status", "health", "query", "stats", "context",
+        ]
+        return readSignals.contains(where: { normalized.contains($0) })
     }
 
     /// Builds a payload for the real-time "started" event emitted before tool execution.
@@ -2029,6 +2107,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
                 maxBashOutputBytes: policy.maxBashOutputBytes,
                 maxReadBytesPerFile: policy.maxReadBytesPerFile,
                 allowDangerousShellPatterns: false,
+                allowMutatingTools: false,
                 enableMCP: policy.enableMCP,
                 enforceMCPEditOnly: policy.enforceMCPEditOnly,
                 mcpPerCallTimeoutMs: policy.mcpPerCallTimeoutMs,

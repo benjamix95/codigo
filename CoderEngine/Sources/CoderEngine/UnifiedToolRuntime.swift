@@ -77,6 +77,7 @@ public struct ToolRuntimePolicy: Sendable {
     public let maxBashOutputBytes: Int
     public let maxReadBytesPerFile: Int
     public let allowDangerousShellPatterns: Bool
+    public let allowMutatingTools: Bool
     public let enableMCP: Bool
     public let enforceMCPEditOnly: Bool
     public let mcpPerCallTimeoutMs: Int
@@ -91,6 +92,7 @@ public struct ToolRuntimePolicy: Sendable {
         maxBashOutputBytes: Int = 128_000,
         maxReadBytesPerFile: Int = 256_000,
         allowDangerousShellPatterns: Bool = false,
+        allowMutatingTools: Bool = true,
         enableMCP: Bool = true,
         enforceMCPEditOnly: Bool = true,
         mcpPerCallTimeoutMs: Int = 30_000,
@@ -104,6 +106,7 @@ public struct ToolRuntimePolicy: Sendable {
         self.maxBashOutputBytes = max(1_024, maxBashOutputBytes)
         self.maxReadBytesPerFile = max(1_024, maxReadBytesPerFile)
         self.allowDangerousShellPatterns = allowDangerousShellPatterns
+        self.allowMutatingTools = allowMutatingTools
         self.enableMCP = enableMCP
         self.enforceMCPEditOnly = enforceMCPEditOnly
         self.mcpPerCallTimeoutMs = max(1_000, mcpPerCallTimeoutMs)
@@ -1080,9 +1083,6 @@ public actor UnifiedToolRuntime {
                 "is_mcp": "true"
             ], startDate: startDate)
         } catch let err as ToolRuntimeError {
-            if err.errorCode == "mcp_unavailable" {
-                return failure("Unsupported tool: \(toolName)", errorCode: "validation", startDate: startDate, payload: ["is_mcp": "true"])
-            }
             return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
@@ -1429,7 +1429,7 @@ public actor UnifiedToolRuntime {
                     "title": "MCP log level set",
                     "tool": "mcp_logs",
                     "server_id": sid,
-                    "detail": "Log level set to \(level)",
+                    "detail": "Stored locally as \(level) (server passthrough unavailable in current SDK).",
                     "is_mcp": "true"
                 ], startDate: startDate)
             } catch let err as ToolRuntimeError {

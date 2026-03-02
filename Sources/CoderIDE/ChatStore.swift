@@ -899,11 +899,20 @@ final class ChatStore: ObservableObject {
     /// Tracks the last time we persisted during a streaming session (to coalesce saves).
     private var lastStreamingSaveAt: Date = .distantPast
 
+    private func targetAssistantMessageIndex(conversationIndex: Int) -> Int? {
+        if let streamingIdx = conversations[conversationIndex].messages.lastIndex(where: {
+            $0.role == .assistant && $0.isStreaming
+        }) {
+            return streamingIdx
+        }
+        return conversations[conversationIndex].messages.lastIndex(where: { $0.role == .assistant })
+    }
+
     /// - Parameter persistImmediately: if false, skips saveConversations but still
     ///   triggers a safety save every ~3 seconds to prevent data loss during long streams.
     func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        guard let lastIdx = targetAssistantMessageIndex(conversationIndex: idx) else { return }
         let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
         conversations[idx].messages[lastIdx].content = resolvedContent
         if persistImmediately {
@@ -914,6 +923,57 @@ final class ChatStore: ObservableObject {
                 lastStreamingSaveAt = now
                 saveConversations()
             }
+        }
+    }
+
+    func updateAssistantMessage(
+        messageId: UUID,
+        content: String,
+        in conversationId: UUID?,
+        persistImmediately: Bool = true
+    ) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        guard let messageIdx = conversations[idx].messages.firstIndex(where: {
+            $0.id == messageId && $0.role == .assistant
+        }) else { return }
+        let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
+        conversations[idx].messages[messageIdx].content = resolvedContent
+        if persistImmediately {
+            saveConversations()
+        } else {
+            let now = Date()
+            if now.timeIntervalSince(lastStreamingSaveAt) >= 3.0 {
+                lastStreamingSaveAt = now
+                saveConversations()
+            }
+        }
+    }
+
+    func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        if message.role == .assistant, message.isStreaming {
+            clearStaleAssistantStreaming(conversationId: conversationId)
+        }
+        if let anchorIdx = conversations[idx].messages.firstIndex(where: { $0.id == messageId }) {
+            conversations[idx].messages.insert(message, at: anchorIdx)
+        } else {
+            conversations[idx].messages.append(message)
+        }
+        if conversations[idx].title == "New conversation", case .user = message.role {
+            conversations[idx].title = String(message.content.prefix(40))
+            if message.content.count > 40 { conversations[idx].title += "…" }
+        }
+        saveConversations()
+    }
+
+    func removeTrailingEmptyAssistantMessages(in conversationId: UUID?) {
+        guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+        while let last = conversations[idx].messages.last,
+              last.role == .assistant,
+              last.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !last.isStreaming
+        {
+            conversations[idx].messages.removeLast()
         }
     }
 
@@ -1178,7 +1238,7 @@ final class ChatStore: ObservableObject {
 
     func setLastAssistantStreaming(_ streaming: Bool, in conversationId: UUID?) {
         guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
-        guard let lastIdx = conversations[idx].messages.lastIndex(where: { $0.role == .assistant }) else { return }
+        guard let lastIdx = targetAssistantMessageIndex(conversationIndex: idx) else { return }
         var conv = conversations[idx]
         var msgs = conv.messages
         var msg = msgs[lastIdx]
