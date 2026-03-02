@@ -921,6 +921,7 @@ struct ChatPanelView: View {
     @State private var ignoreNextConversationChangeReset = false
     @State private var skipNextLoadingCompletedHandling = false
     @StateObject private var flowCoordinator = ConversationFlowCoordinator()
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     @State private var pendingTaskActivities: [TaskActivity] = []
     @State private var pendingInstantGreps: [InstantGrepResult] = []
     @State private var taskFlushTask: Task<Void, Never>?
@@ -1155,6 +1156,8 @@ struct ChatPanelView: View {
                     .frame(height: topInteractiveInset)
                     .allowsHitTesting(false)
                 chatHeader
+
+                ConnectionStatusBanner(monitor: networkMonitor)
 
                 if coderMode == .agent
                     && (!swarmProgressStore.steps.isEmpty
@@ -2635,10 +2638,6 @@ struct ChatPanelView: View {
                                     )
                                     .padding(.horizontal, 2)
                                 }
-                                subagentCardsSection(
-                                    message: message,
-                                    isLatestAssistant: message.id == latestAssistantMessageId
-                                )
                                 let traceEvents = toolTraceStore.events(
                                     conversationId: conversationId,
                                     assistantMessageId: message.id
@@ -2772,11 +2771,6 @@ struct ChatPanelView: View {
             )
             .padding(.horizontal, 2)
         }
-
-        subagentCardsSection(
-            message: message,
-            isLatestAssistant: message.id == latestAssistantMessageId
-        )
     }
 
     @ViewBuilder
@@ -8349,12 +8343,37 @@ struct ChatPanelView: View {
     }
 
     private func userFacingStreamError(_ error: Error) -> String {
+        if isNetworkError(error) && !networkMonitor.isPathSatisfied {
+            return "[Connection lost] The network connection was interrupted. Reconnecting…"
+        }
         let detail = String(describing: error)
         let normalized = normalizeTechnicalErrorMessage(detail)
         if normalized == detail.trimmingCharacters(in: .whitespacesAndNewlines) {
             return "[Error] \(error.localizedDescription)"
         }
         return normalized
+    }
+
+    private func isNetworkError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        let networkCodes: Set<Int> = [
+            NSURLErrorNotConnectedToInternet,
+            NSURLErrorNetworkConnectionLost,
+            NSURLErrorTimedOut,
+            NSURLErrorCannotFindHost,
+            NSURLErrorCannotConnectToHost,
+            NSURLErrorDNSLookupFailed,
+            NSURLErrorInternationalRoamingOff,
+            NSURLErrorDataNotAllowed,
+        ]
+        if nsError.domain == NSURLErrorDomain && networkCodes.contains(nsError.code) {
+            return true
+        }
+        let desc = String(describing: error).lowercased()
+        return desc.contains("network connection was lost")
+            || desc.contains("not connected to the internet")
+            || desc.contains("the internet connection appears to be offline")
+            || desc.contains("a data connection is not currently allowed")
     }
 
     private func isInterruptedStreamError(_ error: Error) -> Bool {
