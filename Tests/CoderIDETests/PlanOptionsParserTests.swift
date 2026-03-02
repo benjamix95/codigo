@@ -346,6 +346,17 @@ final class PlanOptionsParserTests: XCTestCase {
         XCTAssertTrue(blocks[0].contains("graph TD"))
     }
 
+    func testExtractMermaidBlocksForDisplaySupportsInlineMermaidFence() {
+        let input = """
+        ## Diagram
+        ```mermaid graph TD; A-->B```
+        """
+
+        let blocks = PlanOptionsParser.extractMermaidBlocksForDisplay(input)
+        XCTAssertEqual(blocks.count, 1)
+        XCTAssertTrue(blocks[0].contains("graph TD"))
+    }
+
     func testExtractTodosSkipsCodeFences() {
         let input = """
         ## Todo

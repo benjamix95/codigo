@@ -192,8 +192,14 @@ public enum MCPSharedState {
         let linkedFiles = Array(Set(linkedFilesRaw.map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }.filter { !$0.isEmpty })).sorted()
+        let planConversationId: String? = {
+            let raw = (raw["planConversationId"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let raw, !raw.isEmpty, UUID(uuidString: raw) != nil else { return nil }
+            return raw
+        }()
 
-        return [
+        var canonical: [String: Any] = [
             "id": effectiveID,
             "title": title,
             "status": normalizeStatus(raw["status"] as? String),
@@ -206,6 +212,10 @@ public enum MCPSharedState {
             "linkedFiles": linkedFiles,
             "isPlanCanonical": (raw["isPlanCanonical"] as? Bool) ?? false,
         ]
+        if let planConversationId {
+            canonical["planConversationId"] = planConversationId
+        }
+        return canonical
     }
 
     private static func mergeTodoFields(from incoming: [String: Any], into target: inout [String: Any]) {
@@ -215,6 +225,10 @@ public enum MCPSharedState {
         if let activeForm = incoming["activeForm"] as? String { target["activeForm"] = activeForm }
         if let files = incoming["linkedFiles"] as? [String] { target["linkedFiles"] = files }
         if let source = incoming["source"] as? String, !source.isEmpty { target["source"] = source }
+        if let planConversationId = incoming["planConversationId"] as? String,
+           UUID(uuidString: planConversationId) != nil {
+            target["planConversationId"] = planConversationId
+        }
         if let createdAt = incoming["createdAt"] as? String, !createdAt.isEmpty {
             target["createdAt"] = normalizeTimestamp(createdAt) ?? createdAt
         } else if target["createdAt"] == nil {

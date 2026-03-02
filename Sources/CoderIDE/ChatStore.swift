@@ -1223,9 +1223,17 @@ final class ChatStore: ObservableObject {
     }
 
     func choosePlanPath(_ chosenPath: String, for conversationId: UUID?) {
-        guard let conversationId, var board = planBoards[conversationId] else { return }
-        board.chosenPath = chosenPath
+        guard let conversationId else { return }
         let optionTodos = PlanOptionsParser.extractTodosFromOptionText(chosenPath)
+        var board = planBoards[conversationId] ?? PlanBoard(
+            goal: "Operational plan in progress",
+            options: [],
+            chosenPath: nil,
+            steps: PlanBoard.buildSteps(fromTodoTitles: optionTodos),
+            updatedAt: .now,
+            walkthroughMarkdown: nil
+        )
+        board.chosenPath = chosenPath
         board.steps = PlanBoard.buildSteps(fromTodoTitles: optionTodos)
         board.updatedAt = .now
         planBoards[conversationId] = board
@@ -1447,7 +1455,15 @@ final class ChatStore: ObservableObject {
     }
 
     func setWalkthrough(_ markdown: String, for conversationId: UUID?) {
-        guard let conversationId, var board = planBoards[conversationId] else { return }
+        guard let conversationId else { return }
+        var board = planBoards[conversationId] ?? PlanBoard(
+            goal: "Operational plan in progress",
+            options: [],
+            chosenPath: nil,
+            steps: [],
+            updatedAt: .now,
+            walkthroughMarkdown: nil
+        )
         board.walkthroughMarkdown = markdown
         board.updatedAt = .now
         planBoards[conversationId] = board

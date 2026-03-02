@@ -8,9 +8,15 @@ import UniformTypeIdentifiers
 enum MermaidExtractor {
     // Compiled once, reused on every call
     private static let extractRegex: NSRegularExpression? =
-        try? NSRegularExpression(pattern: "```mermaid\\s*\\n([\\s\\S]*?)```", options: .caseInsensitive)
+        try? NSRegularExpression(
+            pattern: "```mermaid\\b\\s*(?:\\r?\\n)?([\\s\\S]*?)```",
+            options: .caseInsensitive
+        )
     private static let stripRegex: NSRegularExpression? =
-        try? NSRegularExpression(pattern: "```mermaid\\s*\\n[\\s\\S]*?```", options: .caseInsensitive)
+        try? NSRegularExpression(
+            pattern: "```mermaid\\b\\s*(?:\\r?\\n)?[\\s\\S]*?```",
+            options: .caseInsensitive
+        )
 
     static func extractFirstMermaidBlock(from markdown: String) -> String? {
         guard let regex = extractRegex else { return nil }

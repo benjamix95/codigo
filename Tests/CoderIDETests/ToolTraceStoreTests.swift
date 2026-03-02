@@ -104,6 +104,79 @@ final class ToolTraceStoreTests: XCTestCase {
         ))
     }
 
+    func testAllEventsAreChronologicallySortedAcrossTurns() {
+        let secondAssistantMessageId = UUID()
+        let store = ToolTraceStore()
+
+        store.startTurn(
+            conversationId: testConversationId,
+            assistantMessageId: testAssistantMessageId,
+            providerId: "codex-cli"
+        )
+        store.append(event: ToolTraceEvent(
+            sequence: 2,
+            timestamp: Date(timeIntervalSince1970: 200),
+            providerId: "codex-cli",
+            conversationId: testConversationId,
+            assistantMessageId: testAssistantMessageId,
+            type: "edit",
+            title: "Second in first turn",
+            detail: nil,
+            payload: [:],
+            phase: .editing,
+            isRunning: false,
+            groupId: nil,
+            rawKind: "tool"
+        ))
+
+        store.startTurn(
+            conversationId: testConversationId,
+            assistantMessageId: secondAssistantMessageId,
+            providerId: "codex-cli"
+        )
+        store.append(event: ToolTraceEvent(
+            sequence: 1,
+            timestamp: Date(timeIntervalSince1970: 150),
+            providerId: "codex-cli",
+            conversationId: testConversationId,
+            assistantMessageId: secondAssistantMessageId,
+            type: "search",
+            title: "First in second turn",
+            detail: nil,
+            payload: [:],
+            phase: .searching,
+            isRunning: false,
+            groupId: nil,
+            rawKind: "tool"
+        ))
+
+        store.append(event: ToolTraceEvent(
+            sequence: 1,
+            timestamp: Date(timeIntervalSince1970: 100),
+            providerId: "codex-cli",
+            conversationId: testConversationId,
+            assistantMessageId: testAssistantMessageId,
+            type: "read_batch_completed",
+            title: "First in first turn",
+            detail: nil,
+            payload: [:],
+            phase: .thinking,
+            isRunning: false,
+            groupId: nil,
+            rawKind: "tool"
+        ))
+
+        let timestamps = store.allEvents(conversationId: testConversationId).map(\.timestamp)
+        XCTAssertEqual(
+            timestamps,
+            [
+                Date(timeIntervalSince1970: 100),
+                Date(timeIntervalSince1970: 150),
+                Date(timeIntervalSince1970: 200),
+            ]
+        )
+    }
+
     private func cleanup(conversationId: UUID, assistantMessageId _: UUID) {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")

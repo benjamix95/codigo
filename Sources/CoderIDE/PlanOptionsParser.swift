@@ -865,7 +865,7 @@ private static let optionHeaderPattern =
         } else {
             // Fallback: keep original text but remove mermaid fences to avoid duplication.
             let withoutMermaid = trimmed.replacingOccurrences(
-                of: #"(?is)```mermaid\s+.*?```"#,
+                of: #"(?is)```mermaid\b\s*.*?```"#,
                 with: "",
                 options: .regularExpression
             )

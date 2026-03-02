@@ -650,24 +650,16 @@ struct ShiftTabPlanShortcutTransition: Equatable {
     let shouldFocusInput: Bool
     let shouldHighlightPlanToggle: Bool
     let shouldEnablePlanToggle: Bool
-    let nextPrimedUntil: Date?
 }
 
-func evaluateShiftTabPlanShortcut(
-    now: Date,
-    primedUntil: Date?,
-    currentInputText: String
-) -> ShiftTabPlanShortcutTransition {
-    _ = now
-    _ = primedUntil
+func evaluateShiftTabPlanShortcut(currentInputText: String) -> ShiftTabPlanShortcutTransition {
     let trimmed = currentInputText.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
         return ShiftTabPlanShortcutTransition(
             nextInputText: "/plan ",
             shouldFocusInput: true,
             shouldHighlightPlanToggle: false,
-            shouldEnablePlanToggle: true,
-            nextPrimedUntil: nil
+            shouldEnablePlanToggle: true
         )
     }
     if trimmed.lowercased().hasPrefix("/plan") {
@@ -675,16 +667,14 @@ func evaluateShiftTabPlanShortcut(
             nextInputText: currentInputText,
             shouldFocusInput: true,
             shouldHighlightPlanToggle: false,
-            shouldEnablePlanToggle: true,
-            nextPrimedUntil: nil
+            shouldEnablePlanToggle: true
         )
     }
     return ShiftTabPlanShortcutTransition(
         nextInputText: "/plan " + trimmed,
         shouldFocusInput: true,
         shouldHighlightPlanToggle: false,
-        shouldEnablePlanToggle: true,
-        nextPrimedUntil: nil
+        shouldEnablePlanToggle: true
     )
 }
 
@@ -889,7 +879,6 @@ struct ChatPanelView: View {
     @State private var isRewinding = false
     @State private var isPlanSummaryCollapsed = false
     @State private var isPlanTabHovered = false
-    @State private var planShortcutPrimedUntil: Date?
     @State private var isPlanShortcutCycling = false
     @State private var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
     @State private var hasJustCompletedTask = false
@@ -1273,7 +1262,6 @@ struct ChatPanelView: View {
             } else {
                 userModeOverrideUntilConversationChange = false
             }
-            planShortcutPrimedUntil = nil
             // Allow the previous thread to keep running in the background —
             // don't nil out activeBuildPlanConversationId here so the
             // build completion handler can still finalize successfully.
@@ -1324,12 +1312,14 @@ struct ChatPanelView: View {
     private func wireTodoPlanBidirectionalSync() {
         // Guard: don't re-register if callback already set (onAppear fires multiple times).
         guard todoStore.onCanonicalTodoStatusChange == nil else { return }
-        todoStore.onCanonicalTodoStatusChange = { [weak chatStore] _, _ in
+        todoStore.onCanonicalTodoStatusChange = { [weak chatStore] _, _, canonicalConversationId in
             guard let chatStore else { return }
             let planConvId = activeBuildPlanConversationId
+                ?? canonicalConversationId
                 ?? chatStore.preferredPlanConversationIdForCanonicalSync()
-            let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
-            if let activeId = planConvId, !canonicalTodos.isEmpty {
+            if let activeId = planConvId {
+                let canonicalTodos = todoStore.canonicalTodos(for: activeId)
+                guard !canonicalTodos.isEmpty else { return }
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
             }
         }
@@ -1980,7 +1970,6 @@ struct ChatPanelView: View {
         if source == .automaticFlow || !preserveHistorySelection {
             planHistoryStore.setSelectedEntry(id: nil)
         }
-        planShortcutPrimedUntil = nil
         showPlanPanel = true
     }
 
@@ -2009,7 +1998,6 @@ struct ChatPanelView: View {
                     openPlanPanelForCurrentContext(source: .manualShortcut)
                 } else {
                     showPlanPanel = false
-                    planShortcutPrimedUntil = nil
                     if requestedPlanToggleOff && canDeactivatePlanToggle {
                         planningState = .idle
                         planFlowPhase = .idle
@@ -2022,15 +2010,9 @@ struct ChatPanelView: View {
         }
 
     private func handleShiftTabPlanShortcut() {
-        let now = Date()
-        let transition = evaluateShiftTabPlanShortcut(
-            now: now,
-            primedUntil: planShortcutPrimedUntil,
-            currentInputText: inputText
-        )
+        let transition = evaluateShiftTabPlanShortcut(currentInputText: inputText)
 
         inputText = transition.nextInputText
-        planShortcutPrimedUntil = transition.nextPrimedUntil
         if transition.shouldEnablePlanToggle {
             planToggleEnabled = true
         }
@@ -2039,12 +2021,9 @@ struct ChatPanelView: View {
             isPlanTabHovered = transition.shouldHighlightPlanToggle
         }
 
-        if transition.shouldHighlightPlanToggle, let scheduledUntil = transition.nextPrimedUntil {
+        if transition.shouldHighlightPlanToggle {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in
-                // Do not clear if a newer shortcut cycle has already updated the timer.
-                if planShortcutPrimedUntil == scheduledUntil {
-                    isPlanTabHovered = false
-                }
+                isPlanTabHovered = false
             }
         }
 
@@ -3637,6 +3616,7 @@ struct ChatPanelView: View {
                     activeBuildPlanConversationId: activeBuildPlanConversationId,
                     activeBuildAgentConversationId: activeBuildAgentConversationId
                 ) {
+                    let sourcePlanId = activeBuildPlanConversationId ?? conversationId
                     let updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: todo.id,
                         title: todo.title,
@@ -3644,11 +3624,12 @@ struct ChatPanelView: View {
                         priority: todo.priority,
                         notes: todo.notes,
                         activeForm: todo.activeForm,
-                        linkedFiles: todo.files
+                        linkedFiles: todo.files,
+                        conversationId: sourcePlanId
                     )
                     if updated {
-                        let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
-                        if let sourcePlanId = activeBuildPlanConversationId {
+                        if let sourcePlanId {
+                            let canonicalTodos = todoStore.canonicalTodos(for: sourcePlanId)
                             chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
                         }
                     }
@@ -3660,7 +3641,8 @@ struct ChatPanelView: View {
                         priority: todo.priority,
                         notes: todo.notes,
                         activeForm: todo.activeForm,
-                        linkedFiles: todo.files
+                        linkedFiles: todo.files,
+                        conversationId: conversationId
                     )
                 }
                 recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
@@ -3689,6 +3671,7 @@ struct ChatPanelView: View {
                         }
                     }()
                     let stepActiveForm: String? = status == .running ? title : nil
+                    let targetCanonicalConversationId = activeBuildPlanConversationId ?? targetId
                     let updated = todoStore.upsertCanonicalOnlyFromAgent(
                         id: nil,
                         title: title,
@@ -3696,7 +3679,8 @@ struct ChatPanelView: View {
                         priority: nil,
                         notes: nil,
                         activeForm: stepActiveForm,
-                        linkedFiles: []
+                        linkedFiles: [],
+                        conversationId: targetCanonicalConversationId
                     )
                     if !updated,
                        !isPlanBuildContext(
@@ -3712,7 +3696,8 @@ struct ChatPanelView: View {
                             priority: nil,
                             notes: nil,
                             activeForm: stepActiveForm,
-                            linkedFiles: []
+                            linkedFiles: [],
+                            conversationId: conversationId
                         )
                     }
                 }
@@ -5601,6 +5586,9 @@ struct ChatPanelView: View {
             \(trimmed)
             """
         }
+        planningState = .idle
+        planFlowPhase = .idle
+        clearPlanStreamingState()
         inputText = "/plan \(mergedRequest)"
         isInputFocused = true
         sendMessage()
@@ -5736,8 +5724,8 @@ struct ChatPanelView: View {
         planFlowPhase = .readyToBuild
         chatStore.choosePlanPath(choice, for: planConversationId)
 
-        todoStore.upsertCanonicalPlanTodos(planTodos)
-        let canonicalTodos = todoStore.todos.filter { $0.isPlanCanonical }
+        todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
+        let canonicalTodos = todoStore.canonicalTodos(for: planConversationId)
         chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
 
         if let selected = planHistoryStore.selectedEntryId {
@@ -5876,10 +5864,19 @@ struct ChatPanelView: View {
                 )
                 suppressedEmptyBuildAssistantMessageIds.remove(planBuildAssistantMessageId)
                 if traceOutcome == .success, let planConvId = activeBuildPlanConversationId {
-                    let canonicalTodos = todoStore.todos.filter(\.isPlanCanonical)
-                    let agentMessages = chatStore.conversation(for: agentConvId)?
-                        .messages.filter { $0.role == .assistant } ?? []
-                    let traceEventsForWalkthrough = toolTraceStore.allEvents(conversationId: agentConvId)
+                    let canonicalTodos = todoStore.canonicalTodos(for: planConvId)
+                    let agentMessages: [ChatMessage] = {
+                        guard let conversation = chatStore.conversation(for: agentConvId),
+                              let buildStartIndex = conversation.messages.firstIndex(where: { $0.id == planBuildAssistantMessageId }) else {
+                            return []
+                        }
+                        return conversation.messages[buildStartIndex...]
+                            .filter { $0.role == .assistant }
+                    }()
+                    let traceEventsForWalkthrough = toolTraceStore.events(
+                        conversationId: agentConvId,
+                        assistantMessageId: planBuildAssistantMessageId
+                    )
                     let walkthroughMd = buildWalkthroughMarkdown(
                         canonicalTodos: canonicalTodos,
                         planBoard: chatStore.planBoard(for: planConvId),
@@ -5907,7 +5904,8 @@ struct ChatPanelView: View {
                         priority: .high,
                         notes: "Review changes and run tests",
                         activeForm: "Reviewing code and running tests",
-                        linkedFiles: []
+                        linkedFiles: [],
+                        conversationId: planConvId
                     )
                 }
                 activeBuildPlanConversationId = nil
@@ -8185,11 +8183,15 @@ struct ChatPanelView: View {
         // Steps with status
         let doneCount = canonicalTodos.filter { $0.status == .done }.count
         lines.append("### Steps (\(doneCount)/\(canonicalTodos.count) completed)")
-        for todo in canonicalTodos {
-            let icon = todo.status == .done ? "x" : " "
-            lines.append("- [\(icon)] \(todo.title)")
-            if !todo.linkedFiles.isEmpty {
-                lines.append("  Files: \(todo.linkedFiles.joined(separator: ", "))")
+        if canonicalTodos.isEmpty {
+            lines.append("- No canonical steps recorded for this build.")
+        } else {
+            for todo in canonicalTodos {
+                let icon = todo.status == .done ? "x" : " "
+                lines.append("- [\(icon)] \(todo.title)")
+                if !todo.linkedFiles.isEmpty {
+                    lines.append("  Files: \(todo.linkedFiles.joined(separator: ", "))")
+                }
             }
         }
         lines.append("")
@@ -8513,7 +8515,8 @@ struct ChatPanelView: View {
                         priority: .high,
                         notes: "Review changes and run tests",
                         activeForm: "Reviewing code and running tests",
-                        linkedFiles: []
+                        linkedFiles: [],
+                        conversationId: streamConversationId
                     )
                 }
             }

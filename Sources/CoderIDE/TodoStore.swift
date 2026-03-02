@@ -82,6 +82,8 @@ struct TodoItem: Identifiable, Codable {
     var notes: String
     var linkedFiles: [String]
     var isPlanCanonical: Bool
+    /// Conversation that owns this canonical plan todo.
+    var planConversationId: UUID?
     /// Present-tense label shown during execution (e.g. "Fixing bug").
     var activeForm: String
 
@@ -96,6 +98,7 @@ struct TodoItem: Identifiable, Codable {
         notes: String = "",
         linkedFiles: [String] = [],
         isPlanCanonical: Bool = false,
+        planConversationId: UUID? = nil,
         activeForm: String = ""
     ) {
         self.id = id
@@ -108,11 +111,12 @@ struct TodoItem: Identifiable, Codable {
         self.notes = notes
         self.linkedFiles = linkedFiles
         self.isPlanCanonical = isPlanCanonical
+        self.planConversationId = planConversationId
         self.activeForm = activeForm
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, activeForm
+        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planConversationId, activeForm
     }
 
     init(from decoder: Decoder) throws {
@@ -134,6 +138,14 @@ struct TodoItem: Identifiable, Codable {
         linkedFiles = (try? container.decode([String].self, forKey: .linkedFiles)) ?? []
         updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
         isPlanCanonical = (try? container.decode(Bool.self, forKey: .isPlanCanonical)) ?? false
+        if let parsedConversationId = try? container.decode(UUID.self, forKey: .planConversationId) {
+            planConversationId = parsedConversationId
+        } else if let legacyConversationId = try? container.decode(String.self, forKey: .planConversationId),
+                  let parsed = UUID(uuidString: legacyConversationId.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            planConversationId = parsed
+        } else {
+            planConversationId = nil
+        }
         activeForm = (try? container.decode(String.self, forKey: .activeForm)) ?? ""
     }
 
@@ -149,6 +161,7 @@ struct TodoItem: Identifiable, Codable {
         try container.encode(notes, forKey: .notes)
         try container.encode(linkedFiles, forKey: .linkedFiles)
         try container.encode(isPlanCanonical, forKey: .isPlanCanonical)
+        try container.encodeIfPresent(planConversationId, forKey: .planConversationId)
         try container.encode(activeForm, forKey: .activeForm)
     }
 }
@@ -169,7 +182,7 @@ final class TodoStore: ObservableObject {
     private let userDefaults: UserDefaults
 
     /// Callback invoked when a canonical todo's status changes, enabling plan board sync.
-    var onCanonicalTodoStatusChange: ((String, TodoStatus) -> Void)?
+    var onCanonicalTodoStatusChange: ((String, TodoStatus, UUID?) -> Void)?
 
     private func canonicalKey(for title: String) -> String {
         title
@@ -217,6 +230,33 @@ final class TodoStore: ObservableObject {
 
     func sortedCanonicalFirstTodos(_ items: [TodoItem]? = nil) -> [TodoItem] {
         (items ?? todos).sorted(by: sortCanonicalFirst(_:_:))
+    }
+
+    func canonicalTodos(for conversationId: UUID?) -> [TodoItem] {
+        let canonical = todos.filter(\.isPlanCanonical)
+        guard let conversationId else {
+            return sortedCanonicalFirstTodos(canonical)
+        }
+        let scoped = canonical.filter { $0.planConversationId == conversationId }
+        if !scoped.isEmpty {
+            return sortedCanonicalFirstTodos(scoped)
+        }
+        let legacyUnscoped = canonical.filter { $0.planConversationId == nil }
+        return sortedCanonicalFirstTodos(legacyUnscoped)
+    }
+
+    private func canonicalScopeFilter(for conversationId: UUID?) -> (TodoItem) -> Bool {
+        guard let conversationId else {
+            return { $0.isPlanCanonical }
+        }
+        let hasScoped = todos.contains { $0.isPlanCanonical && $0.planConversationId == conversationId }
+        return { item in
+            guard item.isPlanCanonical else { return false }
+            if let scopedConversation = item.planConversationId {
+                return scopedConversation == conversationId
+            }
+            return !hasScoped
+        }
     }
 
     init(
@@ -282,7 +322,7 @@ final class TodoStore: ObservableObject {
     /// can serve them via `coderide_todo_read`.
     private func syncToSharedState() {
         let items: [[String: Any]] = todos.map { todo in
-            [
+            var record: [String: Any] = [
                 "id": todo.id.uuidString,
                 "title": todo.title,
                 "status": todo.status.rawValue,
@@ -293,6 +333,10 @@ final class TodoStore: ObservableObject {
                 "activeForm": todo.activeForm,
                 "linkedFiles": todo.linkedFiles,
             ]
+            if let planConversationId = todo.planConversationId {
+                record["planConversationId"] = planConversationId.uuidString
+            }
+            return record
         }
         MCPSharedState.writeTodos(items)
     }
@@ -311,7 +355,8 @@ final class TodoStore: ObservableObject {
         priority: TodoPriority?,
         notes: String?,
         activeForm: String? = nil,
-        linkedFiles: [String]
+        linkedFiles: [String],
+        conversationId: UUID? = nil
     ) {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return }
@@ -333,7 +378,10 @@ final class TodoStore: ObservableObject {
             return
         }
 
-        if let matchedCanonicalId = bindRuntimeTodoToCanonicalIfMatch(title: normalizedTitle),
+        if let matchedCanonicalId = bindRuntimeTodoToCanonicalIfMatch(
+            title: normalizedTitle,
+            conversationId: conversationId
+        ),
             let idx = todos.firstIndex(where: { $0.id == matchedCanonicalId })
         {
             if let status { todos[idx].status = status }
@@ -380,10 +428,12 @@ final class TodoStore: ObservableObject {
         priority: TodoPriority?,
         notes: String?,
         activeForm: String? = nil,
-        linkedFiles: [String]
+        linkedFiles: [String],
+        conversationId: UUID? = nil
     ) -> Bool {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedTitle.isEmpty else { return false }
+        let isInScope = canonicalScopeFilter(for: conversationId)
 
         func applyUpdate(at idx: Int) {
             todos[idx].title = normalizedTitle
@@ -392,24 +442,30 @@ final class TodoStore: ObservableObject {
             if let notes, !notes.isEmpty { todos[idx].notes = notes }
             if !linkedFiles.isEmpty { todos[idx].linkedFiles = linkedFiles }
             if let activeForm, !activeForm.isEmpty { todos[idx].activeForm = activeForm }
+            if let conversationId {
+                todos[idx].planConversationId = conversationId
+            }
             todos[idx].source = .agent
             todos[idx].updatedAt = .now
             saveTodos()
         }
 
-        if let id, let idx = todos.firstIndex(where: { $0.id == id && $0.isPlanCanonical }) {
+        if let id, let idx = todos.firstIndex(where: { $0.id == id && isInScope($0) }) {
             applyUpdate(at: idx)
             return true
         }
 
-        if let matchedCanonicalId = bindRuntimeTodoToCanonicalIfMatch(title: normalizedTitle),
-           let idx = todos.firstIndex(where: { $0.id == matchedCanonicalId && $0.isPlanCanonical }) {
+        if let matchedCanonicalId = bindRuntimeTodoToCanonicalIfMatch(
+            title: normalizedTitle,
+            conversationId: conversationId
+        ),
+           let idx = todos.firstIndex(where: { $0.id == matchedCanonicalId && isInScope($0) }) {
             applyUpdate(at: idx)
             return true
         }
 
         if let idx = todos.firstIndex(where: {
-            $0.isPlanCanonical && $0.title.caseInsensitiveCompare(normalizedTitle) == .orderedSame
+            isInScope($0) && $0.title.caseInsensitiveCompare(normalizedTitle) == .orderedSame
         }) {
             applyUpdate(at: idx)
             return true
@@ -419,23 +475,24 @@ final class TodoStore: ObservableObject {
     }
 
     @discardableResult
-    func bindRuntimeTodoToCanonicalIfMatch(title: String) -> UUID? {
+    func bindRuntimeTodoToCanonicalIfMatch(title: String, conversationId: UUID? = nil) -> UUID? {
         let key = canonicalKey(for: title)
         guard !key.isEmpty else { return nil }
-        if let exact = todos.first(where: { $0.isPlanCanonical && canonicalKey(for: $0.title) == key }) {
+        let inScope = canonicalScopeFilter(for: conversationId)
+        if let exact = todos.first(where: { inScope($0) && canonicalKey(for: $0.title) == key }) {
             return exact.id
         }
         // Fallback fuzzy match only for sufficiently long canonical keys
         // to reduce accidental collisions with short or generic titles.
         guard key.count >= 12 else { return nil }
         return todos.first(where: {
-            guard $0.isPlanCanonical else { return false }
+            guard inScope($0) else { return false }
             let canonical = canonicalKey(for: $0.title)
             return isLikelyCanonicalMatch(titleKey: key, canonicalKey: canonical)
         })?.id
     }
 
-    func upsertCanonicalPlanTodos(_ titles: [String]) {
+    func upsertCanonicalPlanTodos(_ titles: [String], conversationId: UUID? = nil) {
         // Deduplicate by canonical key, keeping first occurrence.
         var seenKeys = Set<String>()
         let cleaned: [String] = titles.compactMap { raw in
@@ -447,16 +504,21 @@ final class TodoStore: ObservableObject {
         }
         guard !cleaned.isEmpty else { return }
         let desiredKeys = seenKeys
+        let isInScope = canonicalScopeFilter(for: conversationId)
 
-        for idx in todos.indices where todos[idx].isPlanCanonical {
+        for idx in todos.indices where isInScope(todos[idx]) {
             let existingKey = canonicalKey(for: todos[idx].title)
-            if !desiredKeys.contains(existingKey), todos[idx].status != .done {
+            if !desiredKeys.contains(existingKey) {
                 let oldStatus = todos[idx].status
                 todos[idx].status = .blocked
                 todos[idx].notes = "Removed from current plan"
                 todos[idx].updatedAt = .now
                 if oldStatus != .blocked {
-                    onCanonicalTodoStatusChange?(todos[idx].title, .blocked)
+                    onCanonicalTodoStatusChange?(
+                        todos[idx].title,
+                        .blocked,
+                        todos[idx].planConversationId
+                    )
                 }
             }
         }
@@ -464,10 +526,11 @@ final class TodoStore: ObservableObject {
         for title in cleaned {
             let key = canonicalKey(for: title)
             if let idx = todos.firstIndex(where: {
-                $0.isPlanCanonical && canonicalKey(for: $0.title) == key
+                isInScope($0) && canonicalKey(for: $0.title) == key
             }) {
                 todos[idx].title = title
                 todos[idx].isPlanCanonical = true
+                todos[idx].planConversationId = conversationId
                 todos[idx].source = .agent
                 if todos[idx].status == .blocked {
                     todos[idx].status = .pending
@@ -482,7 +545,8 @@ final class TodoStore: ObservableObject {
                         source: .agent,
                         notes: "",
                         linkedFiles: [],
-                        isPlanCanonical: true
+                        isPlanCanonical: true,
+                        planConversationId: conversationId
                     )
                 )
             }
@@ -492,7 +556,7 @@ final class TodoStore: ObservableObject {
 
     func remove(id: UUID) {
         if let todo = todos.first(where: { $0.id == id }), todo.isPlanCanonical {
-            onCanonicalTodoStatusChange?(todo.title, .blocked)
+            onCanonicalTodoStatusChange?(todo.title, .blocked, todo.planConversationId)
         }
         todos.removeAll { $0.id == id }
         saveTodos()
@@ -508,7 +572,7 @@ final class TodoStore: ObservableObject {
         todos[idx].updatedAt = .now
         saveTodos()
         if todos[idx].isPlanCanonical, status != oldStatus {
-            onCanonicalTodoStatusChange?(todos[idx].title, status)
+            onCanonicalTodoStatusChange?(todos[idx].title, status, todos[idx].planConversationId)
         }
     }
 

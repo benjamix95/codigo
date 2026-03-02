@@ -245,7 +245,7 @@ struct PlanPanelView: View {
 
                     if shouldShowPlanDetailsSection {
                         // 5) Mermaid diagrams (all blocks)
-                        ForEach(Array(snapshot.mermaidBlocks.enumerated()), id: \.element) { _, block in
+                        ForEach(Array(snapshot.mermaidBlocks.enumerated()), id: \.offset) { _, block in
                             MermaidDiagramView(
                                 mermaidCode: block,
                                 accentColor: planColor
@@ -1090,8 +1090,7 @@ struct PlanPanelView: View {
     // MARK: - Todos Section
 
     private var canonicalPlanTodos: [TodoItem] {
-        let canonical = todoStore.todos.filter { $0.isPlanCanonical }
-        return todoStore.sortedCanonicalFirstTodos(canonical)
+        todoStore.canonicalTodos(for: conversationId)
     }
 
     private func todosSection(canonicalTodos: [TodoItem]) -> some View {
@@ -1149,7 +1148,7 @@ struct PlanPanelView: View {
                             let newStatus: TodoStatus = todo.status == .done ? .pending : .done
                             todoStore.setStatus(id: todo.id, status: newStatus)
                             if let conversationId {
-                                let canonical = todoStore.todos.filter(\.isPlanCanonical)
+                                let canonical = todoStore.canonicalTodos(for: conversationId)
                                 chatStore.syncPlanStepsFromCanonicalTodos(canonical, in: conversationId)
                             }
                         } label: {

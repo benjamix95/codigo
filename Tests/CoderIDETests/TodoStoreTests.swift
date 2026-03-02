@@ -213,12 +213,52 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first?.title, "Canonical task")
     }
 
+    func testCanonicalTodosAreScopedPerConversation() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        store.upsertCanonicalPlanTodos(["Task A1", "Task A2"], conversationId: conversationA)
+        store.upsertCanonicalPlanTodos(["Task B1"], conversationId: conversationB)
+
+        let scopedA = store.canonicalTodos(for: conversationA).map(\.title)
+        let scopedB = store.canonicalTodos(for: conversationB).map(\.title)
+
+        XCTAssertEqual(Set(scopedA), Set(["Task A1", "Task A2"]))
+        XCTAssertEqual(Set(scopedB), Set(["Task B1"]))
+    }
+
+    func testUpsertCanonicalOnlyFromAgentRespectsConversationScope() {
+        let store = makeStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        store.upsertCanonicalPlanTodos(["Scope task"], conversationId: conversationA)
+        store.upsertCanonicalPlanTodos(["Scope task"], conversationId: conversationB)
+
+        let updatedInA = store.upsertCanonicalOnlyFromAgent(
+            id: nil,
+            title: "Scope task",
+            status: .inProgress,
+            priority: .high,
+            notes: "A running",
+            linkedFiles: [],
+            conversationId: conversationA
+        )
+
+        XCTAssertTrue(updatedInA)
+        let statusA = store.canonicalTodos(for: conversationA).first?.status
+        let statusB = store.canonicalTodos(for: conversationB).first?.status
+        XCTAssertEqual(statusA, .inProgress)
+        XCTAssertEqual(statusB, .pending)
+    }
+
     func testClearDoesNotFireCanonicalCallback() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Step A", "Step B"])
 
         var callbackFired = false
-        store.onCanonicalTodoStatusChange = { _, _ in
+        store.onCanonicalTodoStatusChange = { _, _, _ in
             callbackFired = true
         }
 
@@ -234,7 +274,7 @@ final class TodoStoreTests: XCTestCase {
         store.add(title: "Agent task", source: .agent)
 
         var callbackFired = false
-        store.onCanonicalTodoStatusChange = { _, _ in
+        store.onCanonicalTodoStatusChange = { _, _, _ in
             callbackFired = true
         }
 
