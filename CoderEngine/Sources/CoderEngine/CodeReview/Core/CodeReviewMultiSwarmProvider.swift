@@ -831,6 +831,16 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         return (task.id, [.textDelta("\n**Worker \(task.id) skipped:** could not acquire file locks.\n")])
                     }
 
+                    // Safety net: guarantee lock cleanup on ANY exit path (including
+                    // future code changes that might introduce throws outside the
+                    // do/catch below). releaseAllLocks is idempotent, so the double
+                    // call with the normal-path cleanup below is harmless.
+                    defer {
+                        Task { [taskId = task.id] in
+                            await fileLockCoordinator.releaseAllLocks(swarmId: taskId)
+                        }
+                    }
+
                     var collected: [StreamEvent] = []
                     var workerDidError = false
 
@@ -894,8 +904,9 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         collected.append(.textDelta("\n**Worker \(task.id) error:** \(error.localizedDescription)\n"))
                     }
 
-                    // Release locks synchronously within the task group (not fire-and-forget)
-                    await fileLockCoordinator.releaseLock(files: taskFiles, swarmId: task.id)
+                    // Release locks synchronously within the task group (not fire-and-forget).
+                    // Uses releaseAllLocks for thorough cleanup (also clears wait queue).
+                    await fileLockCoordinator.releaseAllLocks(swarmId: task.id)
 
                     // Emit correct lifecycle event: failed if worker errored, completed otherwise
                     let finalDetail = workerDidError ? "failed" : "completed"
