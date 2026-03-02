@@ -67,14 +67,15 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return try await base.send(prompt: prompt, context: context, imageURLs: imageURLs)
         }
 
-        // Eagerly discover and register MCP tools as native function tools on first request.
-        if policy.enableMCP && !MCPNativeToolRegistry.shared.hasTools() {
+        // Keep native MCP tool registry aligned with current server/config state.
+        // Registering is idempotent when the discovered tool set did not change.
+        if policy.enableMCP {
             let discovered = await runtime.mcpSessions.discoverAllTools(
                 idleTTLSeconds: policy.mcpSessionIdleTTLSeconds
             )
-            if !discovered.isEmpty {
-                MCPNativeToolRegistry.shared.register(tools: discovered)
-            }
+            _ = MCPNativeToolRegistry.shared.register(tools: discovered)
+        } else if MCPNativeToolRegistry.shared.hasTools() {
+            MCPNativeToolRegistry.shared.clear()
         }
 
         let initialPrompt = """
@@ -1323,36 +1324,7 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
     }
 
     private func inferredToolName(from payload: [String: String]) -> String {
-        let supportedTools: Set<String> = [
-            "read", "glob", "grep", "edit", "write", "bash", "mcp", "web_search", "web_fetch",
-            "str_replace", "create_file", "delete_file", "apply_patch",
-            "read_range", "list_dir", "git_diff", "search_symbols", "run_tests", "build_project",
-            "list_processes", "read_json", "write_json", "workspace_stats", "dependency_audit",
-            "tail_log", "mcp_call", "mcp_list_tools", "mcp_describe_tool", "mcp_health",
-            "mcp_list_servers", "mcp_reconnect",
-            "todo_write", "todo_read", "plan_step_update", "mermaid_render", "policy_ack",
-            "activate_plan_mode", "activate_debug_mode", "show_task_panel", "invoke_swarm", "show_swarm_panel",
-            "debug_set_phase", "debug_request_user", "debug_resolve",
-            // Codebase index tools
-            "codebase_search", "find_symbol", "list_symbols", "find_references",
-            "project_structure", "file_outline", "find_files", "codebase_stats",
-            "dependency_graph", "list_types", "list_tests", "index_status", "reindex",
-            // New Cursor-style tools
-            "parallel_apply", "regex_replace", "attempt_completion", "diagnostics",
-            // Advanced tools
-            "rename_symbol", "find_and_replace_all", "undo_edit", "run_single_test",
-            // Debug tools
-            "debug_log", "debug_query", "debug_session", "debug_hypothesize",
-            "debug_mark", "debug_clean",
-            // Cursor-style semantic tools
-            "semantic_search", "read_lints", "debug_context",
-            // Subagent and skill tools
-            "skill",
-            "subagent_explorer", "subagent_coder", "subagent_debugger", "subagent_reviewer",
-            "subagent_testwriter", "subagent_docwriter", "subagent_securityauditor",
-            // Legacy alias kept for backward compatibility
-            "subagent_tester"
-        ]
+        let knownTools = knownExecutableToolNames()
         let explicitCandidates = [
             payload["name"],
             payload["tool"],
@@ -1360,20 +1332,35 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             payload["function"],
             payload["function_name"],
         ]
+        var sawExplicitCandidate = false
         for candidate in explicitCandidates {
             let rawName = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !rawName.isEmpty else { continue }
+            sawExplicitCandidate = true
             let name = ProviderToolEventMapper.normalizeToolIdentifier(rawName)
             if name == "debug_panel" {
                 // Legacy hard-cut: never execute, always route to validation error.
                 return name
             }
+            if name == "invoke_swarm" {
+                // Legacy swarm entrypoint is adapted to subagent_* execution later.
+                return name
+            }
+            if Self.isQualifiedMCPToolReference(name) {
+                return name
+            }
             if name.hasPrefix("subagent_"), SubagentRole.fromToolName(name) != nil {
                 return name
             }
-            if supportedTools.contains(name) {
+            if knownTools.contains(name) {
                 return name
             }
+        }
+
+        // If the model explicitly named an unknown tool, avoid heuristic fallback
+        // to unrelated operations (for example read/write).
+        if sawExplicitCandidate {
+            return ""
         }
 
         if let command = payload["command"], !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1393,6 +1380,32 @@ public final class ToolEnabledLLMProvider: LLMProvider, @unchecked Sendable {
             return "read"
         }
         return ""
+    }
+
+    private func knownExecutableToolNames() -> Set<String> {
+        var names = Set<String>()
+        for entry in ToolSchemaCatalog.entries {
+            let normalized = ProviderToolEventMapper.normalizeToolIdentifier(entry.name)
+            if !normalized.isEmpty {
+                names.insert(normalized)
+            }
+        }
+        return names
+    }
+
+    private static func isQualifiedMCPToolReference(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2 else { return false }
+        return parts.allSatisfy(Self.isValidMCPIdentifier)
+    }
+
+    private static func isValidMCPIdentifier(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let pattern = #"^[A-Za-z0-9_.:-]{1,128}$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
     }
 
     private func shouldForceAutonomousContinuation(_ text: String, roundIndex: Int) -> Bool {

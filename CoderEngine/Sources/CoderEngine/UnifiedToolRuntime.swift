@@ -1167,6 +1167,8 @@ public actor UnifiedToolRuntime {
                 "detail": "\(resources.count) resources, \(templates.count) templates",
                 "is_mcp": "true"
             ], startDate: startDate)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1202,6 +1204,8 @@ public actor UnifiedToolRuntime {
                 "detail": content.mimeType ?? "unknown type",
                 "is_mcp": "true"
             ], startDate: startDate)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1242,6 +1246,8 @@ public actor UnifiedToolRuntime {
                     "is_mcp": "true"
                 ], startDate: startDate)
             }
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1269,6 +1275,8 @@ public actor UnifiedToolRuntime {
                 "detail": "\(prompts.count) prompts discovered",
                 "is_mcp": "true"
             ], startDate: startDate)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1310,6 +1318,8 @@ public actor UnifiedToolRuntime {
                 "detail": "\(result.messages.count) messages",
                 "is_mcp": "true"
             ], startDate: startDate)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }
@@ -1338,6 +1348,8 @@ public actor UnifiedToolRuntime {
                     "detail": "Log level set to \(level)",
                     "is_mcp": "true"
                 ], startDate: startDate)
+            } catch let err as ToolRuntimeError {
+                return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
             } catch {
                 return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
             }
@@ -1398,6 +1410,8 @@ public actor UnifiedToolRuntime {
                 "detail": "Server fully restarted and reconnected",
                 "is_mcp": "true"
             ], startDate: startDate)
+        } catch let err as ToolRuntimeError {
+            return failure(err.localizedDescription, errorCode: err.errorCode, startDate: startDate, payload: ["is_mcp": "true"])
         } catch {
             return failure(error.localizedDescription, errorCode: "transport", startDate: startDate, payload: ["is_mcp": "true"])
         }

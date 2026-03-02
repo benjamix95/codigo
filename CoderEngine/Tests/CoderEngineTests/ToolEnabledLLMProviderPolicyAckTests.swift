@@ -252,6 +252,82 @@ final class ToolEnabledLLMProviderPolicyAckTests: XCTestCase {
         XCTAssertLessThan(ackIndex, commandIndex)
     }
 
+    func testExplicitUnknownToolDoesNotFallbackToReadHeuristic() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("explicit-unknown-no-fallback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let sourceFile = workspace.appendingPathComponent("Sample.swift")
+        try "let value = 1\n".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-unknown-1",
+                "name": "totally_unknown_tool",
+                "path": sourceFile.path, // would previously trigger read fallback
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
+        let stream = try await provider.send(
+            prompt: "Do something",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawReadExecution = false
+        for try await event in stream {
+            if case .raw(let type, _) = event,
+               type == "read_batch_started" || type == "read_batch_completed" {
+                sawReadExecution = true
+            }
+        }
+
+        XCTAssertFalse(sawReadExecution)
+    }
+
+    func testDynamicCatalogRecognizesMCPBatchSuggestion() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dynamic-catalog-mcp-batch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-mcp-batch-1",
+                "name": "mcp_batch",
+                "calls": "[]",
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(base: base, maxToolRounds: 1)
+        let stream = try await provider.send(
+            prompt: "Run mcp batch",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var sawMCPStart = false
+        var sawMCPFailure = false
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "mcp_tool_call" {
+                sawMCPStart = true
+            }
+            if type == "tool_execution_error",
+               payload["tool"] == "mcp_batch",
+               payload["status"] == "failed" {
+                sawMCPFailure = true
+            }
+        }
+
+        XCTAssertTrue(sawMCPStart)
+        XCTAssertTrue(sawMCPFailure)
+    }
+
     func testMCPEditRerouteMapsWriteToCoderideWrite() {
         let reroute = ToolEnabledLLMProvider.rerouteEditToolToMCP(
             toolName: "write",

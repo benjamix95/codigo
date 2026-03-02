@@ -101,4 +101,64 @@ final class ToolSchemaCatalogTests: XCTestCase {
         XCTAssertTrue(names.contains("subagent_testWriter"))
         XCTAssertTrue(names.contains("subagent_securityAuditor"))
     }
+
+    func testNativeRegistryResolvesNameCollisionsDeterministically() {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let schema = #"{"type":"object","properties":{}}"#
+        let descriptorA = MCPToolDescriptor(
+            name: "very_long_tool_name_for_collision_checks_and_stability",
+            description: "A",
+            schema: schema,
+            serverId: "srv-a",
+            serverName: "shared-server-name"
+        )
+        let descriptorB = MCPToolDescriptor(
+            name: "very_long_tool_name_for_collision_checks_and_stability",
+            description: "B",
+            schema: schema,
+            serverId: "srv-b",
+            serverName: "shared-server-name"
+        )
+
+        let changedFirst = registry.register(tools: [descriptorB, descriptorA])
+        XCTAssertTrue(changedFirst)
+        let firstNames = registry.entries.map(\.name)
+        XCTAssertEqual(firstNames.count, 2)
+        XCTAssertEqual(Set(firstNames).count, 2, "Registry should avoid function-name collisions")
+
+        let firstSnapshot = registry.routing
+            .map { "\($0.key)=\($0.value.serverId)/\($0.value.toolName)" }
+            .sorted()
+
+        let changedSecond = registry.register(tools: [descriptorA, descriptorB])
+        XCTAssertFalse(changedSecond, "Same discovered toolset should not trigger a rebuild")
+
+        let secondSnapshot = registry.routing
+            .map { "\($0.key)=\($0.value.serverId)/\($0.value.toolName)" }
+            .sorted()
+        XCTAssertEqual(firstSnapshot, secondSnapshot)
+    }
+
+    func testNativeRegistryRegisterEmptyClearsEntries() {
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        defer { registry.clear() }
+
+        let descriptor = MCPToolDescriptor(
+            name: "sample_tool",
+            description: "sample",
+            schema: #"{"type":"object","properties":{}}"#,
+            serverId: "srv-1",
+            serverName: "srv"
+        )
+
+        XCTAssertTrue(registry.register(tools: [descriptor]))
+        XCTAssertTrue(registry.hasTools())
+
+        XCTAssertTrue(registry.register(tools: []))
+        XCTAssertFalse(registry.hasTools())
+    }
 }

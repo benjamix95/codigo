@@ -16,6 +16,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
     private var _entries: [ToolSchemaEntry] = []
     private var _routing: [String: (serverId: String, toolName: String)] = [:]
     private var _rawSchemas: [String: [String: Any]] = [:]
+    private var _sourceFingerprint = ""
 
     var entries: [ToolSchemaEntry] {
         lock.lock()
@@ -42,27 +43,56 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         return !_entries.isEmpty
     }
 
-    /// Register MCP tools as native function tools.
-    /// Creates normalized function names and routing entries.
-    func register(tools: [MCPToolDescriptor]) {
+    func clear() {
         lock.lock()
         defer { lock.unlock() }
+        _entries.removeAll()
+        _routing.removeAll()
+        _rawSchemas.removeAll()
+        _sourceFingerprint = ""
+    }
+
+    /// Register MCP tools as native function tools.
+    /// Creates normalized function names and routing entries.
+    @discardableResult
+    func register(tools: [MCPToolDescriptor]) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let fingerprint = Self.descriptorFingerprint(for: tools)
+        if fingerprint == _sourceFingerprint {
+            return false
+        }
 
         _entries.removeAll()
         _routing.removeAll()
         _rawSchemas.removeAll()
+        _sourceFingerprint = fingerprint
 
         var nameCount: [String: Int] = [:]
         for tool in tools {
             nameCount[tool.name, default: 0] += 1
         }
 
-        for tool in tools {
+        let sortedTools = tools.sorted { lhs, rhs in
+            if lhs.serverId != rhs.serverId { return lhs.serverId < rhs.serverId }
+            if lhs.name != rhs.name { return lhs.name < rhs.name }
+            return lhs.schema < rhs.schema
+        }
+        var usedFunctionNames = Set<String>()
+
+        for tool in sortedTools {
             let needsPrefix = nameCount[tool.name, default: 0] > 1
-            let functionName = Self.normalizeFunctionName(
+            let baseFunctionName = Self.normalizeFunctionName(
                 serverName: tool.serverName,
                 toolName: tool.name,
                 needsPrefix: needsPrefix
+            )
+            let functionName = Self.resolveUniqueFunctionName(
+                base: baseFunctionName,
+                serverId: tool.serverId,
+                toolName: tool.name,
+                usedNames: &usedFunctionNames
             )
 
             let simplifiedProps = Self.extractSimplifiedProperties(from: tool)
@@ -80,6 +110,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
                 _rawSchemas[functionName] = schemaDict
             }
         }
+        return true
     }
 
     /// Normalize server/tool names into a valid OpenAI function name.
@@ -96,6 +127,55 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
         let raw = needsPrefix ? "\(normalizedServer)_\(normalizedTool)" : normalizedTool
         let clamped = String(raw.prefix(64))
         return clamped.isEmpty ? "mcp_tool" : clamped
+    }
+
+    private static func resolveUniqueFunctionName(
+        base: String,
+        serverId: String,
+        toolName: String,
+        usedNames: inout Set<String>
+    ) -> String {
+        let normalizedBase = base.isEmpty ? "mcp_tool" : String(base.prefix(64))
+        if usedNames.insert(normalizedBase).inserted {
+            return normalizedBase
+        }
+
+        let stableSuffix = deterministicSuffix(seed: "\(serverId)|\(toolName)|\(normalizedBase)")
+        var attempt = 0
+        while true {
+            let suffix = attempt == 0 ? stableSuffix : "\(stableSuffix)\(attempt)"
+            let maxBaseLength = max(1, 64 - suffix.count - 1)
+            let truncatedBase = String(normalizedBase.prefix(maxBaseLength))
+            let candidate = "\(truncatedBase)_\(suffix)"
+            if usedNames.insert(candidate).inserted {
+                return candidate
+            }
+            attempt += 1
+        }
+    }
+
+    private static func deterministicSuffix(seed: String) -> String {
+        var hash: UInt64 = 1469598103934665603
+        for byte in seed.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1099511628211
+        }
+        let base36 = String(hash, radix: 36)
+        let suffix = String(base36.suffix(8))
+        return suffix.isEmpty ? "0" : suffix
+    }
+
+    private static func descriptorFingerprint(for tools: [MCPToolDescriptor]) -> String {
+        let lines = tools
+            .sorted { lhs, rhs in
+                if lhs.serverId != rhs.serverId { return lhs.serverId < rhs.serverId }
+                if lhs.name != rhs.name { return lhs.name < rhs.name }
+                return lhs.schema < rhs.schema
+            }
+            .map { descriptor in
+                "\(descriptor.serverId)|\(descriptor.serverName)|\(descriptor.name)|\(descriptor.description)|\(descriptor.schema)"
+            }
+        return lines.joined(separator: "\n")
     }
 
     /// Extract simplified properties from an MCP tool descriptor.

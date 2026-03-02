@@ -264,6 +264,7 @@ public actor MCPSessionManager {
     private static let logger = Logger(subsystem: "com.codigo.CoderEngine", category: "MCPSessionManager")
     private var sessions: [String: MCPServerSession] = [:]
     private let retryPolicy: MCPRetryPolicy
+    private let serverResolver: () -> [MCPConfigLoader.DetectedServer]
     /// TTL for cached tool lists before re-fetching (seconds).
     private let toolCacheTTL: TimeInterval = 300
 
@@ -271,8 +272,14 @@ public actor MCPSessionManager {
     public let callMetrics = MCPCallMetricsTracker()
     private var resourceSubscriptions: [String: Set<String>] = [:]
 
-    public init(retryPolicy: MCPRetryPolicy = .default) {
+    public init(
+        retryPolicy: MCPRetryPolicy = .default,
+        serverResolver: (() -> [MCPConfigLoader.DetectedServer])? = nil
+    ) {
         self.retryPolicy = retryPolicy
+        self.serverResolver = serverResolver ?? {
+            MCPSessionManager.defaultResolveServers()
+        }
     }
 
     /// Eagerly discover all tools from all configured MCP servers.
@@ -493,10 +500,11 @@ public actor MCPSessionManager {
                     matches.append(cfg)
                 }
             }
-            guard let first = matches.first else {
-                throw ToolRuntimeError.mcpUnavailable("MCP resource not found: \(uri)")
-            }
-            target = first
+            target = try Self.requireUniqueServerMatch(
+                matches: matches,
+                notFoundMessage: "MCP resource not found: \(uri)",
+                ambiguityLabel: "MCP resource '\(uri)'"
+            )
         }
 
         let s = try await session(for: target)
@@ -636,10 +644,11 @@ public actor MCPSessionManager {
                 let prompts = try await promptsForServer(cfg)
                 if prompts.contains(where: { $0.name == name }) { matches.append(cfg) }
             }
-            guard let first = matches.first else {
-                throw ToolRuntimeError.mcpUnavailable("MCP prompt not found: \(name)")
-            }
-            target = first
+            target = try Self.requireUniqueServerMatch(
+                matches: matches,
+                notFoundMessage: "MCP prompt not found: \(name)",
+                ambiguityLabel: "MCP prompt '\(name)'"
+            )
         }
 
         let s = try await session(for: target)
@@ -849,6 +858,7 @@ public actor MCPSessionManager {
             partialResult[kv.key] = toValue(kv.value)
         }
 
+        let callStartedAt = Date()
         var finalResult: (content: [Tool.Content], isError: Bool?)?
         var attempt = 0
         while true {
@@ -885,14 +895,18 @@ public actor MCPSessionManager {
             }
         }
         guard let result = finalResult else {
+            await callMetrics.record(serverId: target.id, latencyMs: 0, success: false, error: "No result received")
             throw ToolRuntimeError.transport("MCP call interrupted — no result received")
         }
+        let latencyMs = max(1, Int(Date().timeIntervalSince(callStartedAt) * 1000))
+        let isErr = result.isError ?? false
+        await callMetrics.record(serverId: target.id, latencyMs: latencyMs, success: !isErr, error: isErr ? "isError=true" : nil)
         let text = flattenContent(result.content)
         return (
             serverId: target.id,
             serverName: target.name,
             content: text,
-            isError: result.isError ?? false
+            isError: isErr
         )
     }
 
@@ -906,7 +920,7 @@ public actor MCPSessionManager {
         sessions.removeAll()
     }
 
-    private func resolveServers() -> [MCPConfigLoader.DetectedServer] {
+    private static func defaultResolveServers() -> [MCPConfigLoader.DetectedServer] {
         let disabledIds = MCPConfigLoader.loadDisabledServerIDs()
         var detected = MCPConfigLoader.loadDetectedServers()
             .filter { server in
@@ -934,7 +948,12 @@ public actor MCPSessionManager {
                 )
             }
         detected.append(contentsOf: manual)
-        return detected.filter { !$0.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return detected
+    }
+
+    private func resolveServers() -> [MCPConfigLoader.DetectedServer] {
+        serverResolver()
+            .filter { !$0.command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private func session(for cfg: MCPConfigLoader.DetectedServer) async throws -> MCPServerSession {
@@ -1216,6 +1235,22 @@ public actor MCPSessionManager {
             }
             sessions.removeValue(forKey: id)
         }
+    }
+
+    static func requireUniqueServerMatch(
+        matches: [MCPConfigLoader.DetectedServer],
+        notFoundMessage: String,
+        ambiguityLabel: String
+    ) throws -> MCPConfigLoader.DetectedServer {
+        guard let first = matches.first else {
+            throw ToolRuntimeError.mcpUnavailable(notFoundMessage)
+        }
+        if matches.count > 1 {
+            let names = matches.map(\.name).joined(separator: ", ")
+            throw ToolRuntimeError.validation(
+                "Ambiguous \(ambiguityLabel) found on multiple servers. Specify serverId, one of: \(names)")
+        }
+        return first
     }
 
     private func evictIdleSessions(idleTTLSeconds: Int) async {

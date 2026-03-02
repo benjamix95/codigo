@@ -162,4 +162,46 @@ final class UnifiedToolRuntimeMCPConsistencyTests: XCTestCase {
         XCTAssertEqual(completed?["error_code"], "validation")
         XCTAssertNil(completed?["is_mcp"])
     }
+
+    func testMCPReadResourcePreservesMCPUnavailableErrorCode() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "mcp_read_resource",
+            args: [
+                "server": "missing-server",
+                "uri": "resource://missing"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+    }
+
+    func testMCPGetPromptPreservesMCPUnavailableErrorCode() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "mcp_get_prompt",
+            args: [
+                "server": "missing-server",
+                "name": "missing_prompt"
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "mcp_unavailable")
+        XCTAssertEqual(completed?["is_mcp"], "true")
+    }
 }
