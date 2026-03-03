@@ -128,11 +128,11 @@ extension PlanPanelView {
 
     func downloadPlan(_ entry: PlanHistoryEntry) {
         let content = resolvedPreviewContent(for: entry)
-        let baseName = entry.title.isEmpty ? "PLAN" : entry.title
-        let safeName = baseName
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "_")
-        savePlanToFile(content: content, suggestedName: "\(safeName).md")
+        let conversationTitle = chatStore.conversation(for: conversationId)?.title
+        let suggestedName = makePlanFileName(
+            preferredPlanTitle: entry.title,
+            fallbackConversationTitle: conversationTitle
+        )
+        savePlanToFile(content: content, suggestedName: suggestedName)
     }
 }

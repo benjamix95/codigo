@@ -104,6 +104,33 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
         )
     }
 
+    func testMakePlanFileNamePrefersPlanTitleOverConversationTitle() {
+        let fileName = makePlanFileName(
+            preferredPlanTitle: "Implementare Sync Offline v2",
+            fallbackConversationTitle: "Chat Generica"
+        )
+
+        XCTAssertEqual(fileName, "implementare_sync_offline_v2.plan.md")
+    }
+
+    func testMakePlanFileNameFallsBackToConversationTitleWhenPlanTitleMissing() {
+        let fileName = makePlanFileName(
+            preferredPlanTitle: "   ",
+            fallbackConversationTitle: "Refactor Auth Flow"
+        )
+
+        XCTAssertEqual(fileName, "refactor_auth_flow.plan.md")
+    }
+
+    func testMakePlanFileNameFallsBackToDefaultWhenTitlesMissing() {
+        let fileName = makePlanFileName(
+            preferredPlanTitle: nil,
+            fallbackConversationTitle: "  "
+        )
+
+        XCTAssertEqual(fileName, "plan.plan.md")
+    }
+
     func testPlanRenderSnapshotCacheKeyChangesWhenMiddleContentChanges() {
         let prefix = String(repeating: "A", count: 220)
         let suffix = String(repeating: "Z", count: 220)

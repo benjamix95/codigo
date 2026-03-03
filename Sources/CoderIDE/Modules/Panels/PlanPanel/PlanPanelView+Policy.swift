@@ -95,6 +95,32 @@ func stablePlanSnapshotContentHash(_ content: String) -> UInt64 {
     return hash
 }
 
+func makePlanFileName(
+    preferredPlanTitle: String?,
+    fallbackConversationTitle: String?
+) -> String {
+    let resolvedTitle = normalizedPlanFileTitleCandidate(preferredPlanTitle)
+        ?? normalizedPlanFileTitleCandidate(fallbackConversationTitle)
+        ?? "plan"
+    let slug = resolvedTitle
+        .lowercased()
+        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+        .filter { !$0.isEmpty }
+        .joined(separator: "_")
+        .prefix(40)
+    let finalSlug = slug.isEmpty ? "plan" : String(slug)
+    return "\(finalSlug).plan.md"
+}
+
+private func normalizedPlanFileTitleCandidate(_ raw: String?) -> String? {
+    guard let raw else { return nil }
+    let normalized = raw
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    guard !normalized.isEmpty else { return nil }
+    return normalized
+}
+
 func makePlanRenderSnapshotCacheKey(content: String, canonicalTodos: [TodoItem]) -> String {
     let todosFingerprint = canonicalTodos
         .sorted { $0.id.uuidString < $1.id.uuidString }

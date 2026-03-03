@@ -50,16 +50,16 @@ extension PlanPanelView {
     }
 
     var planFileName: String {
-        guard let conv = chatStore.conversation(for: conversationId) else {
-            return "plan.md"
-        }
-        let slug = conv.title
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "_")
-            .prefix(30)
-        return "\(slug).plan.md"
+        let selectedHistoryTitle = selectedHistoryEntryForConversation()?.title
+        let boardGoal = chatStore.planBoard(for: conversationId)?
+            .goal
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let preferredPlanTitle = normalizedPlanText(selectedHistoryTitle ?? boardGoal ?? "")
+        let conversationTitle = chatStore.conversation(for: conversationId)?.title
+        return makePlanFileName(
+            preferredPlanTitle: preferredPlanTitle.isEmpty ? nil : preferredPlanTitle,
+            fallbackConversationTitle: conversationTitle
+        )
     }
 
     // MARK: - Provider Picker
