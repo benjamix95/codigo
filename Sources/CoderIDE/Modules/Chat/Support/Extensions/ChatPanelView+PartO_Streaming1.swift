@@ -1,0 +1,473 @@
+import AppKit
+import CoderEngine
+import SwiftUI
+import UniformTypeIdentifiers
+
+extension ChatPanelView {
+    internal func buildPrompt(userText: String, shouldRunPlanInline: Bool) -> String {
+        var prompt =
+            userText.isEmpty
+            ? "[The user attached an image. Analyze it and respond.]" : userText
+
+        // Plan mode: response to clarification questions → include context to proceed
+        if shouldUseClarificationPrompt(
+            coderMode: coderMode,
+            planningState: planningState,
+            shouldRunPlanInline: shouldRunPlanInline
+        ),
+            case .awaitingClarification(let questions) = planningState
+        {
+            prompt = """
+            The user has answered your clarification questions.
+
+            User's answers:
+            \(userText.isEmpty ? "[No text provided]" : userText)
+
+            The original questions were:
+            \(questions)
+
+            Next steps:
+            1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
+            2. If you are blocked by a hard missing decision, output ONE additional ## Questions section (same A/B/C/D format).
+            3. Otherwise proceed directly to generate ONE definitive plan with ## Plan: Title and ## Todo sections.
+            CRITICAL: prefer proceeding to plan generation; follow-up questions are exceptional.
+            """
+        }
+
+        if coderMode == .ide {
+            prompt =
+                "Reply with text only. Do not modify files or run commands.\n\n" + prompt
+        }
+        if coderMode == .mcpServer { prompt = "[MCP Server] " + prompt }
+        if coderMode == .debug || showDebugPanel {
+            let debugModeContract = """
+            [DEBUG MODE ACTIVE]
+            Use MCP-first typed debug panel controls only:
+            - `debug_set_phase` with phase in: describing, reproducing, fixing, instrumenting, verifying, resolved.
+            - `debug_request_user` with kind question|reproduce and a concrete prompt.
+            - `debug_resolve` with final summary.
+            Legacy `debug_panel` is invalid and must not be used.
+            Keep debug artifacts tracked through `debug_mark`, `debug_log`, `debug_query`, `debug_hypothesize`, `debug_clean`.
+            """
+            prompt = debugModeContract + "\n\n" + prompt
+        }
+        let isPlanningDiscoveryFlow =
+            (coderMode == .plan || shouldRunPlanInline)
+            && planFlowPhase != .building
+
+        if isPlanningDiscoveryFlow {
+            let planningInstructions = """
+            **MANDATORY Planning Workflow — Follow these phases in EXACT order:**
+
+            ## PHASE 1: CODEBASE ANALYSIS (ALWAYS REQUIRED)
+            Before producing ANY output, you MUST:
+            - Use Read, Glob, and Grep to explore at least 3-5 relevant files
+            - Understand the project structure, dependencies, and constraints
+            - DO NOT skip this phase. DO NOT produce questions or options without reading files first.
+
+            ## PHASE 2: CLARIFICATION QUESTIONS (ONLY IF BLOCKED)
+            After analysis, ask clarifications ONLY when there is a blocking ambiguity that prevents a concrete plan.
+            - Output ONLY a section with this EXACT format:
+
+            ## Questions
+            1. Question text?
+            A) Option A text
+            B) Option B text
+            C) Option C text (optional)
+            D) Other (specify)
+
+            Rules: 1-3 questions max, each with 2-4 options A) B) C) D), mutually exclusive.
+            Include "Other (specify)" ONLY for genuinely open-ended questions.
+            Mark the best option with "(Recommended)" suffix, e.g.: A) Use SwiftUI (Recommended)
+            For questions where multiple answers can be selected, add "(select all that apply)" to the question.
+            DO NOT output anything else besides the ## Questions section.
+            NEVER include ## Plan or ## Todo in a response with ## Questions.
+            If the request is implementable with reasonable assumptions, skip questions.
+
+            ## PHASE 3: DEFINITIVE PLAN (ONLY after Phases 1+2 resolved)
+            Generate ONE definitive implementation plan (the best approach):
+            ## Plan: Title
+            Description, rationale, trade-offs.
+            ## Todo
+            - [ ] Step 1
+            - [ ] Step 2
+
+            ## MERMAID DIAGRAMS (ALWAYS include when applicable)
+            When analyzing problems or creating plans, ALWAYS include a mermaid diagram to visualize:
+            - Architecture and component relationships
+            - Data flows and event pipelines
+            - Implementation step dependencies
+            Use a ```mermaid code block in your response. The IDE will render it as an interactive diagram.
+
+            CRITICAL: NEVER combine ## Questions and ## Plan in the same response.
+            Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
+            """
+            prompt = planningInstructions + "\n\n" + prompt
+        } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
+                let baseInstructions = """
+                    **Todo Workflow (use only when truly needed):**
+                    1. Start with analysis (read/search) first. Do NOT create todos before understanding the task.
+                    2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
+                    3. If the task is genuinely multi-step, create ONE coherent todo list after analysis with only concrete, executable steps.
+                    3b. For multi-step execution, emit the first \(CoderIDEMarkers.todoWritePrefix) update BEFORE the first command/edit/tool action.
+                    4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update").
+                    5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
+                    6. During execution, update status only for real todos: in_progress before work, done after completion.
+                    7. Emit \(CoderIDEMarkers.todoRead) only for resume/reconciliation when needed, never as a default first action.
+                    8. If MCP is available and external/domain capabilities are needed, call native MCP tools directly by name. Use `mcp_call` only as a fallback for tools not registered natively.
+                    9. When MCP is used, explicitly report which MCP servers and MCP tools were used.
+                    10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
+                    11. If subagent tools are available, the FIRST operational tool round must start with at least one `subagent_*` call. For independent workstreams, call 2-5 subagents in the same round.
+                    12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
+                    13. When the first subagent starts, emit \(CoderIDEMarkers.showSwarmPanel) so the swarm panel/card lane is visible.
+                    To update plan steps use marker:
+                    \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
+                    For code searches with rg, you can emit markers with results:
+                    \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:line]
+                    Read files in parallel batches (max 8 per batch) when broad context is needed. To track the batch you can emit:
+                    \(CoderIDEMarkers.readBatchPrefix)count=8|files=FileA.swift,FileB.swift|group_id=batch-1]
+                    For concurrent web searches (max 4 queries in parallel), emit status markers:
+                    \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
+                    """
+                prompt = baseInstructions + "\n" + prompt
+                if !todoStore.todos.isEmpty {
+                    let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
+                        .map { t -> String in
+                            let check = t.status == .done ? "x" : " "
+                            let trimmedNotes = t.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let notesSuffix = trimmedNotes.isEmpty ? "" : " — \(trimmedNotes)"
+                            let linkedPreview = t.linkedFiles.prefix(8)
+                            let linkedFilesSuffix: String
+                            if linkedPreview.isEmpty {
+                                linkedFilesSuffix = ""
+                            } else {
+                                let joined = linkedPreview.joined(separator: ", ")
+                                let overflow = t.linkedFiles.count > linkedPreview.count ? ", ..." : ""
+                                linkedFilesSuffix = " [files: \(joined)\(overflow)]"
+                            }
+                            return "- [\(check)] \(t.title) (\(t.status.rawValue))\(notesSuffix)\(linkedFilesSuffix)"
+                        }
+                        .joined(separator: "\n")
+                    prompt += "\n\n## Current todos\n\(todoSection)"
+                }
+            }
+
+        let convoContext = recentConversationContextForPrompt()
+        if !convoContext.isEmpty {
+            prompt += "\n\n## Conversation context (recent)\n\(convoContext)\nUse this context to answer follow-ups consistently."
+        }
+        return prompt
+    }
+
+    internal func recentConversationContextForPrompt(maxMessages: Int = 30, maxCharsPerMessage: Int = 2500) -> String {
+        chatStore.buildPromptContext(
+            conversationId: conversationId,
+            maxMessages: maxMessages,
+            maxCharsPerMessage: maxCharsPerMessage,
+            includeMemorySummary: true
+        )
+    }
+
+    // MARK: - Phase-Specific Plan Prompts
+
+    internal func buildPhase1AnalysisPrompt(userRequest: String) -> String {
+        """
+        **Phase: Codebase Analysis (ANALYSIS ONLY)**
+
+        You are analyzing a codebase to prepare a plan. Your ONLY task is to explore and understand the codebase.
+
+        User request: \(userRequest)
+
+        Instructions:
+        1. Use Read, Glob, and Grep to explore files relevant to this request.
+        2. Identify key files, dependencies, current architecture, and constraints.
+        3. Report your findings as structured analysis text.
+        4. Do NOT propose solutions, options, or clarification questions.
+            5. Do NOT generate ## Todo sections or ## Plan headers.
+        6. Focus on WHAT EXISTS, not what should change.
+        7. Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
+        8. Include a ```mermaid diagram showing the architecture, component relationships, or data flow relevant to this request.
+
+        Output format: A structured analysis report of your findings.
+        """
+    }
+
+    internal func buildPostClarificationAnalysisPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String
+    ) -> String {
+        """
+        **Phase: Post-clarification Analysis**
+
+        The user answered your clarification questions. Based on the answers, perform ADDITIONAL codebase analysis.
+
+        User request: \(userRequest)
+
+        Previous codebase analysis:
+        \(analysisContext)
+
+        User clarification answers:
+        \(clarificationAnswers)
+
+        Instructions:
+        1. Use Read, Glob, and Grep to explore specific files relevant based on the user's answers.
+        2. Deep-dive into the areas indicated by the user's choices.
+        3. Ask follow-up questions ONLY if there is a hard blocker. Otherwise continue without questions.
+        4. If blocked, generate at most ONE additional question set using the format:
+
+        ## Questions
+        1. Question?
+        A) Option A
+        B) Option B
+        C) Other (specify)
+
+        5. If you have sufficient information, provide an analysis report without questions.
+        6. Do NOT generate ## Plan, ## Todo or plan proposals in this phase.
+        7. Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
+        """
+    }
+
+    internal func buildPhase2QuestionPrompt(userRequest: String, analysisContext: String) -> String {
+        """
+        **Phase: Clarification Questions**
+
+        Based on the codebase analysis below, determine if you need clarifications from the user.
+
+        User request: \(userRequest)
+
+        Codebase analysis:
+        \(analysisContext)
+
+        Instructions:
+        - If you can proceed with reasonable assumptions, respond ONLY with: NO_QUESTIONS_NEEDED
+        - Ask questions ONLY when blocked by missing requirements or conflicting constraints.
+        - If blocked, generate 1-3 structured questions in this EXACT format:
+
+        ## Questions
+        1. Question text?
+        A) First concrete option
+        B) Second concrete option
+        C) Third option (optional, only if useful)
+        D) Other (specify)
+
+        2. Second question?
+        A) First option
+        B) Second option
+
+        STRICT rules for questions:
+        - Minimum 1, maximum 3 questions
+        - Each question MUST have 2-4 options labeled A) B) C) D)
+        - Options must be mutually exclusive and concrete (not vague)
+        - Include "D) Other (specify)" ONLY for genuinely open-ended questions
+        - The header MUST be exactly "## Questions" (no localized alternatives)
+        - Do NOT include ## Plan, ## Todo or plan proposals
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        - The format must be EXACTLY as above: number + text + options A) B) C) on separate lines
+        """
+    }
+
+    internal func buildPhase3GenerationPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String
+    ) -> String {
+        var prompt = """
+        **Phase: Plan Generation**
+
+        Generate ONE definitive implementation plan based on the analysis and context below.
+
+        User request: \(userRequest)
+
+        Codebase analysis:
+        \(analysisContext)
+        """
+
+        if !clarificationAnswers.isEmpty {
+            prompt += """
+
+            User clarification answers:
+            \(clarificationAnswers)
+            """
+        }
+
+        prompt += """
+
+        Instructions:
+        - Generate ONE definitive implementation plan using this EXACT format:
+
+        ## Plan: Title
+        Description of the approach, rationale, trade-offs, and key implementation notes.
+
+        ## Todo
+        - [ ] Step 1
+        - [ ] Step 2
+        - [ ] Step 3
+
+        - Include a ```mermaid diagram showing the implementation plan dependencies and flow.
+
+        Rules:
+        - The plan MUST include the exact header `## Todo`.
+        - Under `## Todo`, include 3-8 checklist items using `- [ ] ...`.
+        - Do NOT use alternative headers like "Tasks", "Steps", or "Checklist".
+        - Steps must be concrete and directly implementable.
+        - Do NOT ask questions or request clarifications
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        """
+
+        return prompt
+    }
+
+    internal func buildPhase3TodoComplianceRepairPrompt(
+        userRequest: String,
+        analysisContext: String,
+        clarificationAnswers: String,
+        invalidPlanOutput: String
+    ) -> String {
+        let clippedInvalidOutput = String(invalidPlanOutput.prefix(8_000))
+        var prompt = """
+        **Phase: Plan Format Repair**
+
+        Your previous output is INVALID because the plan is missing the required `## Todo` section.
+        Rewrite the plan from scratch.
+
+        User request: \(userRequest)
+
+        Codebase analysis:
+        \(analysisContext)
+        """
+
+        if !clarificationAnswers.isEmpty {
+            prompt += """
+
+            User clarification answers:
+            \(clarificationAnswers)
+            """
+        }
+
+        prompt += """
+
+        Invalid previous output (for reference):
+        \(clippedInvalidOutput)
+
+        Hard constraints (MANDATORY):
+        - Output ONE plan using a `## Plan: Title` header.
+        - The plan MUST contain the exact header `## Todo`
+        - Under `## Todo`, include 3-8 checklist items using `- [ ]`
+        - Do NOT use alternative headers like Tasks/Steps/Checklist
+        - Output only the final markdown plan (no commentary)
+        - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        """
+
+        return prompt
+    }
+
+    // MARK: - Handle Raw Stream Events
+
+    internal func isCodexProvider(_ providerId: String) -> Bool {
+        let normalized = providerId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return false }
+        return normalized.contains("codex")
+    }
+
+    internal func shouldSplitThinkingMessages(providerId: String) -> Bool {
+        guard separateCodexThinkingMessagesEnabled else { return false }
+        return isCodexProvider(providerId)
+    }
+
+    internal func shouldUseLinearChat(providerId: String) -> Bool {
+        guard codexLinearChatEnabled else { return false }
+        return isCodexProvider(providerId)
+    }
+
+    @MainActor
+    internal func resetReasoningMessageState(for conversationId: UUID?) {
+        guard let conversationId else { return }
+        reasoningMessageIdByConversationAndGroup.removeValue(forKey: conversationId)
+    }
+
+    @MainActor
+    internal func upsertSeparateThinkingMessage(
+        output: String,
+        groupId: String,
+        conversationId: UUID?
+    ) {
+        guard let conversationId else { return }
+        let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedOutput.isEmpty else { return }
+
+        var groupMap = reasoningMessageIdByConversationAndGroup[conversationId] ?? [:]
+        if let messageId = groupMap[groupId] {
+            let existingContent = chatStore.conversation(for: conversationId)?
+                .messages
+                .first(where: { $0.id == messageId })?
+                .content
+            let mergedContent = Self.mergeReasoningText(existing: existingContent, incoming: trimmedOutput)
+            chatStore.updateAssistantMessage(
+                messageId: messageId,
+                content: mergedContent,
+                in: conversationId,
+                persistImmediately: false
+            )
+            if conversationId == self.conversationId {
+                streamContentVersion &+= 1
+            }
+            return
+        }
+
+        let messageId = UUID()
+        groupMap[groupId] = messageId
+        reasoningMessageIdByConversationAndGroup[conversationId] = groupMap
+
+        let thinkingMessage = ChatMessage(
+            id: messageId,
+            role: .assistant,
+            content: trimmedOutput,
+            isStreaming: false
+        )
+        if let streamingAssistantId = chatStore.conversation(for: conversationId)?
+            .messages
+            .last(where: { $0.role == .assistant && $0.isStreaming })?
+            .id
+        {
+            chatStore.insertMessage(
+                thinkingMessage,
+                before: streamingAssistantId,
+                in: conversationId
+            )
+        } else {
+            chatStore.addMessage(thinkingMessage, to: conversationId)
+        }
+        if conversationId == self.conversationId {
+            streamContentVersion &+= 1
+        }
+    }
+
+    @MainActor
+    internal func splitStreamingMessageForNewTurn(conversationId: UUID?, providerId: String) {
+        guard let conversationId else { return }
+        flushStreamingContent()
+
+        guard let conv = chatStore.conversation(for: conversationId),
+              let currentMsg = conv.messages.last(where: { $0.role == .assistant && $0.isStreaming })
+        else { return }
+
+        let trimmedContent = currentMsg.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else { return }
+
+        chatStore.setLastAssistantStreaming(false, in: conversationId)
+
+        let newId = UUID()
+        chatStore.addMessage(
+            ChatMessage(id: newId, role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+        startToolTraceTurn(conversationId: conversationId, assistantMessageId: newId, providerId: providerId)
+        codexLastReasoningLine = nil
+
+        if conversationId == self.conversationId {
+            streamContentVersion &+= 1
+        }
+    }
+
+}

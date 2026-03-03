@@ -1,0 +1,231 @@
+import AppKit
+import CoderEngine
+import SwiftUI
+import UniformTypeIdentifiers
+
+extension ChatPanelView {
+    internal var providerNotReadyMessage: String {
+        guard let id = providerRegistry.selectedProviderId else {
+            return "No provider selected. Go to Settings to configure."
+        }
+        switch id {
+        case "openai-api": return "OpenAI API Key missing. Configure it in Settings."
+        case "anthropic-api": return "Anthropic API Key missing. Configure it in Settings."
+        case "google-api": return "Google Gemini API Key missing. Configure it in Settings."
+        case "codex-cli":
+            return "Codex CLI not connected. Configure it in Settings → Codex CLI."
+        case "claude-cli":
+            return "Claude Code not found. Configure it in Settings → Claude Code."
+        case "gemini-cli":
+            return "Gemini CLI not found/not authenticated. Configure it in Settings."
+        case "openrouter-api": return "OpenRouter API Key missing. Configure it in Settings."
+        case "minimax-api": return "MiniMax API Key missing. Configure it in Settings."
+        default:
+            return "Provider \"\(id)\" not authenticated. Go to Settings to configure."
+        }
+    }
+
+
+    internal var inputHint: String {
+        switch coderMode {
+        case .agent: return "Agent can modify files and run commands"
+        case .codeReviewMultiSwarm:
+            return
+                "Code Review: analysis → dynamic worker tasks → parallel fix → test → re-review loop"
+        case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
+        case .plan: return "Plan with options + custom response"
+        case .ide: return "IDE mode: API chat + manual editing in the editor"
+        case .browser: return "Browser mode: agent can navigate, test, and capture screenshots"
+        case .mcpServer: return "Send to configured MCP server"
+        }
+    }
+
+    internal var composerQuickCommandPresets: [ChatComposerView.QuickCommandPreset] {
+        guard coderMode == .codeReviewMultiSwarm else { return [] }
+        let defaults = CodeReviewQuickCommands.defaults.map { cmd in
+            ChatComposerView.QuickCommandPreset(
+                id: cmd.id,
+                slash: cmd.slash,
+                label: cmd.label,
+                prompt: cmd.prompt
+            )
+        }
+        return defaults + customCodeReviewQuickPresets
+    }
+
+    internal var customCodeReviewQuickPresets: [ChatComposerView.QuickCommandPreset] {
+        struct CustomPreset: Decodable {
+            let slash: String
+            let label: String
+            let prompt: String
+        }
+        let raw = codeReviewQuickCommandsCustomJSON.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard !raw.isEmpty, let data = raw.data(using: .utf8) else { return [] }
+        guard let decoded = try? JSONDecoder().decode([CustomPreset].self, from: data) else {
+            return []
+        }
+        return decoded.enumerated().compactMap { idx, item in
+            let slash = item.slash.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = item.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = item.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard slash.hasPrefix("/"), !label.isEmpty, !prompt.isEmpty else { return nil }
+            return .init(
+                id: "review-custom-\(idx)-\(slash)",
+                slash: slash,
+                label: label,
+                prompt: prompt
+            )
+        }
+    }
+
+    internal var effectiveSandbox: String {
+        codexSandbox.isEmpty
+            ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
+    }
+
+    internal func selectMode(_ mode: CoderMode) {
+        userModeOverrideUntilConversationChange = true
+        // One thread per context: conversation does not change on tab switch.
+        // selectedConversationId stays, only coderMode and provider are updated.
+        let currentConv = chatStore.conversation(for: selectedConversationId)
+        switch mode {
+        case .ide:
+            if let preferred = currentConv?.preferredProviderId,
+                ProviderSupport.isIDEProvider(id: preferred),
+                providerRegistry.provider(for: preferred) != nil
+            {
+                providerRegistry.selectedProviderId = preferred
+            } else {
+                providerRegistry.selectedProviderId = ProviderSupport.preferredIDEProvider(
+                    in: providerRegistry)
+            }
+        case .agent:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                ProviderSupport.isAgentCompatibleProvider(id: current)
+            {
+                // Keep current provider if already valid for Agent
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+        case .codeReviewMultiSwarm:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+        case .debug:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+            debugToggleEnabled = true
+            showDebugPanel = true
+        case .plan:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+                // keep current real provider
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+            // Only reset plan state when no active flow is in progress
+            switch planFlowPhase {
+            case .analyzing, .questioning, .generating, .building, .proposalReady, .readyToBuild:
+                break
+            default:
+                planningState = .idle
+                planFlowPhase = .idle
+            }
+            planToggleEnabled = true
+        case .browser:
+            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
+                providerRegistry.selectedProviderId = id
+            } else if let current = providerRegistry.selectedProviderId,
+                      ProviderSupport.isAgentCompatibleProvider(id: current) {
+            } else {
+                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
+            }
+            showBrowserPanel = true
+        case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
+        }
+        coderMode = mode
+        // When switching away from plan mode, only preserve plan state for
+        // actively in-flight phases (questioning/generating) so switching back
+        // doesn't lose work. Reset all other phases to avoid orphaned state
+        // since planToggleEnabled is disabled below.
+        if mode != .plan {
+            switch planFlowPhase {
+            case .analyzing, .questioning, .generating, .building:
+                break
+            case .idle:
+                break
+            case .proposalReady, .readyToBuild:
+                planFlowPhase = .idle
+                planningState = .idle
+                clearPlanStreamingState()
+            }
+            planToggleEnabled = false
+        }
+        if mode != .debug && !debugStore.phase.isActive {
+            debugToggleEnabled = false
+            showDebugPanel = false
+        }
+        if mode != .browser {
+            showBrowserPanel = false
+        }
+        chatStore.updateConversationMode(conversationId: selectedConversationId, mode: mode)
+    }
+
+    internal func modeColor(for m: CoderMode) -> Color {
+        switch m {
+        case .agent: return DesignSystem.Colors.agentColor
+        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewColor
+        case .debug: return DesignSystem.Colors.debugColor
+        case .plan: return DesignSystem.Colors.planColor
+        case .ide: return DesignSystem.Colors.ideColor
+        case .browser: return DesignSystem.Colors.browserColor
+        case .mcpServer: return DesignSystem.Colors.mcpColor
+        }
+    }
+    internal func modeIcon(for m: CoderMode) -> String {
+        switch m {
+        case .agent: return "brain"
+        case .codeReviewMultiSwarm: return "doc.text.magnifyingglass"
+        case .debug: return "ladybug.fill"
+        case .plan: return "list.bullet.rectangle"
+        case .ide: return "sparkles"
+        case .browser: return "globe"
+        case .mcpServer: return "server.rack"
+        }
+    }
+    internal func modeGradient(for m: CoderMode) -> LinearGradient {
+        switch m {
+        case .agent: return DesignSystem.Colors.agentGradient
+        case .codeReviewMultiSwarm: return DesignSystem.Colors.reviewGradient
+        case .debug: return DesignSystem.Colors.debugGradient
+        case .plan: return DesignSystem.Colors.planGradient
+        case .ide: return DesignSystem.Colors.ideGradient
+        case .browser: return DesignSystem.Colors.browserGradient
+        case .mcpServer: return DesignSystem.Colors.mcpGradient
+        }
+    }
+
+    // MARK: - Provider Sync
+
+}
