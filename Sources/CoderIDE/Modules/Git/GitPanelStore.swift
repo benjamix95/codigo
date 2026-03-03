@@ -6,14 +6,14 @@ final class GitPanelStore: ObservableObject {
     // MARK: - Published State
     @Published var isOpen = false
 
-    @Published private(set) var gitRoot: String?
-    @Published private(set) var currentBranch = "-"
-    @Published private(set) var branches: [GitBranch] = []
-    @Published private(set) var status: GitStatusSummary?
-    @Published private(set) var changedFiles: [GitChangedFile] = []
-    @Published private(set) var commitLog: [GitLogEntry] = []
-    @Published private(set) var isRefreshing = false
-    @Published private(set) var isBusy = false
+    @Published var gitRoot: String?
+    @Published var currentBranch = "-"
+    @Published var branches: [GitBranch] = []
+    @Published var status: GitStatusSummary?
+    @Published var changedFiles: [GitChangedFile] = []
+    @Published var commitLog: [GitLogEntry] = []
+    @Published var isRefreshing = false
+    @Published var isBusy = false
     @Published var error: String?
     @Published var successMessage: String?
 
@@ -28,21 +28,21 @@ final class GitPanelStore: ObservableObject {
     @Published var branchSearch = ""
 
     // Extended state
-    @Published private(set) var stashEntries: [GitStashEntry] = []
-    @Published private(set) var remoteBranches: [GitBranch] = []
-    @Published private(set) var aheadCount: Int = 0
-    @Published private(set) var behindCount: Int = 0
+    @Published var stashEntries: [GitStashEntry] = []
+    @Published var remoteBranches: [GitBranch] = []
+    @Published var aheadCount: Int = 0
+    @Published var behindCount: Int = 0
     @Published var showDeleteBranchConfirm = false
     @Published var branchToDelete: String?
     @Published var stashMessage = ""
 
     let gitService = GitService()
-    private let commitMessageGenerator = GitCommitMessageGenerator()
-    private let refreshQueue = DispatchQueue(label: "com.codigo.git-panel.refresh", qos: .utility)
-    private var pendingRefreshWorkItem: DispatchWorkItem?
+    let commitMessageGenerator = GitCommitMessageGenerator()
+    let refreshQueue = DispatchQueue(label: "com.codigo.git-panel.refresh", qos: .utility)
+    var pendingRefreshWorkItem: DispatchWorkItem?
 
     // Monotonic counter used to discard stale refresh results.
-    private var refreshGeneration: Int = 0
+    var refreshGeneration: Int = 0
 
     // MARK: - Derived State
     var stagedFiles: [GitChangedFile] { changedFiles.filter(\.isStaged) }

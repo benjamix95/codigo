@@ -1,22 +1,22 @@
 import Foundation
 
 extension GitService {
-    private func isGhInstalled() -> Bool {
+    func isGhInstalled() -> Bool {
         (try? runCommand(executable: "/usr/bin/env", args: ["which", "gh"], cwd: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ?? false
     }
 
-    private func isGhAuthenticated(gitRoot: String) -> Bool {
+    func isGhAuthenticated(gitRoot: String) -> Bool {
         (try? runCommand(executable: "/usr/bin/env", args: ["gh", "auth", "status"], cwd: gitRoot)) != nil
     }
 
     @discardableResult
-    private func runGit(_ args: [String], gitRoot: String) throws -> String {
+    func runGit(_ args: [String], gitRoot: String) throws -> String {
         try runCommand(executable: gitPath, args: args, cwd: gitRoot)
     }
 
     @discardableResult
-    private func runCommand(executable: String, args: [String], cwd: String?) throws -> String {
+    func runCommand(executable: String, args: [String], cwd: String?) throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
         p.arguments = args

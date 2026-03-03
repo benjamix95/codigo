@@ -3,7 +3,7 @@ import SwiftUI
 extension BrowserPanelView {
     // MARK: - Console Drawer
 
-    private func consoleDrawer(store: BrowserSessionStore) -> some View {
+    func consoleDrawer(store: BrowserSessionStore) -> some View {
         VStack(spacing: 0) {
             consoleToolbar(store: store)
             Divider().opacity(0.15)

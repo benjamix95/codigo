@@ -1,0 +1,54 @@
+import SwiftUI
+import CoderEngine
+
+struct CodeReviewPanelView: View {
+    @ObservedObject var chatStore: ChatStore
+    @ObservedObject var taskActivityStore: TaskActivityStore
+    @ObservedObject var swarmProgressStore: SwarmProgressStore
+    @ObservedObject var todoStore: TodoStore
+
+    let conversationId: UUID?
+    let isTaskRunning: Bool
+    let coderMode: CoderMode
+
+    @Binding var codeReviewPartitions: Int
+    @Binding var codeReviewAnalysisOnly: Bool
+    @Binding var codeReviewMaxRounds: Int
+    @Binding var codeReviewAnalysisBackend: String
+    @Binding var codeReviewExecutionBackend: String
+
+    let onClose: () -> Void
+    let onOpenFile: (String) -> Void
+    let onRunSlashCommand: (String) -> Void
+    let onSelectMode: (CoderMode) -> Void
+
+    @State var againstCommitRef = ""
+    @State var selectedTab: CodeReviewTab = .commands
+
+    var autofixEnabled: Bool { !codeReviewAnalysisOnly }
+    func setAutofixEnabled(_ v: Bool) { codeReviewAnalysisOnly = !v }
+
+    let topInteractiveInset: CGFloat = 22
+    let accent = DesignSystem.Colors.reviewColor
+
+    var body: some View {
+        let m = metrics()
+        VStack(spacing: 0) {
+            Color.clear.frame(height: topInteractiveInset).allowsHitTesting(false)
+            topBar(m)
+            Divider().opacity(0.3)
+            tabSelector
+            Divider().opacity(0.2)
+            mainContent(m)
+            Divider().opacity(0.2)
+            bottomBar
+        }
+        .background(DesignSystem.Colors.chatPanelSolidBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+    }
+}
