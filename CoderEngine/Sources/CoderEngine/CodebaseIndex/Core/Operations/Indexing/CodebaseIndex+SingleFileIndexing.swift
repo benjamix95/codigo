@@ -25,6 +25,13 @@ extension CodebaseIndex {
         // Remove old entry
         removeIndexedFile(canonicalRelativePath)
 
+        // If file disappears between watcher event and read, clear stale semantic entries.
+        guard FileManager.default.fileExists(atPath: absolutePath) else {
+            allFileNodes.removeValue(forKey: canonicalRelativePath)
+            await semanticIndex.removeFile(canonicalRelativePath)
+            return
+        }
+
         if let attrs = try? FileManager.default.attributesOfItem(atPath: absolutePath) {
             let ext = (absolutePath as NSString).pathExtension.lowercased()
             let size = attrs[.size] as? UInt64 ?? 0
@@ -41,6 +48,21 @@ extension CodebaseIndex {
                 modifiedAt: modDate
             )
             allFileNodes[canonicalRelativePath] = node
+
+            let isIndexableSource =
+                !ext.isEmpty
+                && Self.indexableExtensions.contains(ext)
+                && size <= Self.maxFileSize
+                && !isFileExcluded(canonicalRelativePath)
+                && !isGitignored(canonicalRelativePath, isDirectory: false)
+            guard isIndexableSource else {
+                await semanticIndex.removeFile(canonicalRelativePath)
+                return
+            }
+        } else {
+            allFileNodes.removeValue(forKey: canonicalRelativePath)
+            await semanticIndex.removeFile(canonicalRelativePath)
+            return
         }
 
         // Re-index
@@ -51,6 +73,9 @@ extension CodebaseIndex {
             addIndexedFile(indexed)
             // Update semantic index for this file.
             await semanticIndex.updateFile(indexed)
+        } else {
+            allFileNodes.removeValue(forKey: canonicalRelativePath)
+            await semanticIndex.removeFile(canonicalRelativePath)
         }
     }
 
@@ -90,6 +115,10 @@ extension CodebaseIndex {
         contentHashes.removeAll()
         currentWorkspacePaths.removeAll()
         excludedPaths.removeAll()
+        excludedFilePatterns.removeAll()
+        gitignoreRules.removeAll()
+        respectGitignore = true
+        _indexingProgress = nil
         queuedRealtimeChanges.removeAll()
         isWorkspaceRebuildInProgress = false
         totalFilesScanned = 0

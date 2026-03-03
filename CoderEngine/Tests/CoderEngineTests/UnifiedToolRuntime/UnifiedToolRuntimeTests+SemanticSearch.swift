@@ -136,6 +136,35 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue(output.contains("DirB/Beta.swift"), "Expected hit from DirB")
     }
 
+    func testSemanticSearchSupportsJSONArrayTargetDirectories() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let dirA = tmp.appendingPathComponent("DirA", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try "func jsonScopeToken() { print(\"array target dirs\") }".write(
+            to: dirA.appendingPathComponent("ArrayScope.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: [
+                "query": "json scope token",
+                "target_directories": #"["DirA"]"#,
+                "limit": "5",
+            ],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("DirA/ArrayScope.swift"))
+    }
+
     func testSemanticSearchReindexesWhenWorkspacePathsChange() async throws {
         let root = try makeTmpWorkspace()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -262,5 +291,72 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(completed?["status"], "completed")
         XCTAssertTrue((completed?["detail"] ?? "").contains("grep fallback"))
         XCTAssertTrue(output.contains("FallbackAuth.swift"), "Fallback output should include matching file: \(output)")
+    }
+
+    func testSemanticSearchRejectsTargetDirectoryOutsideWorkspace() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "auth", "target_directories": "/tmp"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+    }
+
+    func testSemanticSearchRejectsTargetDirectoryTraversalOutsideWorkspace() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "auth", "target_directories": "../"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+    }
+
+    func testSemanticSearchTargetDirectoryFiltersSymbolHits() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let dirA = tmp.appendingPathComponent("DirA", isDirectory: true)
+        let dirB = tmp.appendingPathComponent("DirB", isDirectory: true)
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+
+        try "func AuthTargetSymbol() { print(\"A\") }".write(
+            to: dirA.appendingPathComponent("AuthA.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "func AuthTargetSymbol() { print(\"B\") }".write(
+            to: dirB.appendingPathComponent("AuthB.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "AuthTargetSymbol", "target_directories": "DirA", "limit": "10"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("DirA/AuthA.swift"), "Expected scoped hit in DirA: \(output)")
+        XCTAssertFalse(output.contains("DirB/AuthB.swift"), "Scoped semantic search should exclude DirB hits: \(output)")
     }
 }

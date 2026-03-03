@@ -4,15 +4,17 @@ extension EventNormalizer {
     static func parseInstantGrep(payload: [String: String], timestamp: Date) -> InstantGrepResult? {
         guard let query = payload["query"], !query.isEmpty else { return nil }
         let scope = payload["pathScope"] ?? payload["scope"] ?? "."
+        let reportedMatchesCount = Int(payload["matchesCount"] ?? "") ?? 0
         let durationMs = Int(payload["duration_ms"] ?? "")
         let preview = payload["previewLines"] ?? ""
         let parsedMatches = parseMatchLines(from: preview)
+        let normalizedCount = parsedMatches.isEmpty ? max(0, reportedMatchesCount) : parsedMatches.count
 
         return InstantGrepResult(
             query: query,
             scope: scope,
-            // Mantiene coerenza tra numero mostrato e match effettivamente disponibili.
-            matchesCount: parsedMatches.count,
+            // Se preview è disponibile, il conteggio rispecchia i match parse-ati; altrimenti usa il valore riportato.
+            matchesCount: normalizedCount,
             durationMs: durationMs,
             matches: parsedMatches,
             createdAt: timestamp
@@ -21,19 +23,17 @@ extension EventNormalizer {
 
     static func parseInstantGrepFromCommand(payload: [String: String], timestamp: Date) -> InstantGrepResult? {
         guard let command = payload["command"] else { return nil }
-        let lowered = command.lowercased()
-        let hasRG = lowered.hasPrefix("rg ") || lowered.contains(" rg ")
-        let hasGrep = lowered.hasPrefix("grep ") || lowered.contains(" grep ")
-        guard hasRG || hasGrep else { return nil }
-
-        let query = parseSearchQueryFromCommand(command) ?? "(query)"
+        guard let parsedQuery = parseSearchQueryFromCommand(command) else { return nil }
         let scope = payload["cwd"] ?? "."
-        let output = payload["output"] ?? ""
+        let output = [payload["output"], payload["stderr"]]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
         let matches = parseMatchLines(from: output)
         guard !matches.isEmpty else { return nil }
 
         return InstantGrepResult(
-            query: query,
+            query: parsedQuery,
             scope: scope,
             matchesCount: matches.count,
             durationMs: nil,
@@ -49,6 +49,9 @@ extension EventNormalizer {
             || lower.contains("sed -n")
             || lower.contains("head ")
             || lower.contains("tail ")
+            || lower.contains("less ")
+            || lower.contains("more ")
+            || lower.contains("awk ")
         else { return nil }
 
         guard let path = extractReadPath(from: command), !path.isEmpty else { return nil }
@@ -74,32 +77,48 @@ extension EventNormalizer {
         )
     }
 
-    static func parseMatchLines(from output: String) -> [InstantGrepMatch] {
-        let lines = output.split(separator: "\n").map(String.init)
+    static func parseMatchLines(from output: String, fallbackFile: String? = nil) -> [InstantGrepMatch] {
+        let sanitizedOutput = output.replacingOccurrences(of: "\0", with: "\n")
+        let lines = sanitizedOutput.split(separator: "\n").map(String.init)
+        let fileLineRegex = try? NSRegularExpression(pattern: #"^(.*?):\s*([1-9][0-9]*):(.*)$"#)
+        let lineOnlyRegex = try? NSRegularExpression(pattern: #"^\s*([1-9][0-9]*):(.*)$"#)
         var matches: [InstantGrepMatch] = []
+        var currentHeadingFile: String?
 
         for line in lines.prefix(200) {
-            // Salta i marcatori di file binari da grep/rg e righe con byte NUL
-            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            // Salta i marcatori di file binari da grep/rg
+            let trimmedLine = line.trimmingCharacters(in: .whitespacesAndNewlines)
             let loweredLine = trimmedLine.lowercased()
             if loweredLine.hasPrefix("binary file")
                 || loweredLine.contains("binary file matches")
-                || trimmedLine.contains("\0")
             {
                 continue
             }
+            if trimmedLine.isEmpty { continue }
 
-            let parts = line.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
-            guard parts.count == 3 else { continue }
-            let file = String(parts[0])
-            // Salta percorsi file vuoti
-            guard !file.isEmpty else { continue }
-            // Il numero di riga deve essere positivo (> 0)
-            guard let number = Int(parts[1]), number > 0 else { continue }
-            let rawPreview = String(parts[2]).trimmingCharacters(in: .whitespaces)
-            // Tronca l'anteprima a 500 caratteri per evitare consumo eccessivo di memoria
-            let preview = rawPreview.count > 500 ? String(rawPreview.prefix(500)) : rawPreview
-            matches.append(InstantGrepMatch(file: file, line: number, preview: preview))
+            if let parsed = parseFileLineMatch(
+                line: line,
+                regex: fileLineRegex,
+                fallbackFile: fallbackFile,
+                currentHeadingFile: currentHeadingFile
+            ) {
+                matches.append(parsed)
+                continue
+            }
+
+            if let parsed = parseLineOnlyMatch(
+                line: line,
+                regex: lineOnlyRegex,
+                fallbackFile: fallbackFile,
+                currentHeadingFile: currentHeadingFile
+            ) {
+                matches.append(parsed)
+                continue
+            }
+
+            if !trimmedLine.contains(":") {
+                currentHeadingFile = trimmedLine
+            }
         }
         return matches
     }
@@ -111,9 +130,13 @@ extension EventNormalizer {
         guard !args.isEmpty else { return nil }
 
         // Ricerca case-insensitive del comando: supporta rg/grep in qualunque casing.
+        if let nested = parseWrappedShellCommand(args: args) {
+            return parseSearchQueryFromCommand(nested)
+        }
+
         guard let cmdIndex = args.firstIndex(where: {
-            $0.caseInsensitiveCompare("rg") == .orderedSame
-                || $0.caseInsensitiveCompare("grep") == .orderedSame
+            let normalized = normalizeCommandToken($0)
+            return normalized == "rg" || normalized == "grep"
         }) else {
             return nil
         }
@@ -121,6 +144,7 @@ extension EventNormalizer {
         let valueTakingFlags: Set<String> = [
             "-g", "--glob", "-t", "--type", "-m", "--max-count",
             "-A", "-B", "-C", "-f", "--file", "-j", "--threads",
+            "--include", "--exclude", "--exclude-dir", "--ignore-file",
         ]
         let queryFlags: Set<String> = ["-e", "--regexp"]
 
@@ -180,27 +204,49 @@ extension EventNormalizer {
         var current = ""
         var inSingleQuote = false
         var inDoubleQuote = false
-        var escaping = false
+        let chars = Array(input)
+        var index = 0
 
-        for char in input {
-            if escaping {
-                current.append(char)
-                escaping = false
-                continue
-            }
-
-            if char == "\\" && !inSingleQuote {
-                escaping = true
-                continue
-            }
+        while index < chars.count {
+            let char = chars[index]
 
             if char == "'" && !inDoubleQuote {
                 inSingleQuote.toggle()
+                index += 1
                 continue
             }
 
             if char == "\"" && !inSingleQuote {
                 inDoubleQuote.toggle()
+                index += 1
+                continue
+            }
+
+            if char == "\\" && !inSingleQuote {
+                let nextIndex = index + 1
+                if nextIndex >= chars.count {
+                    current.append(char)
+                    break
+                }
+                let next = chars[nextIndex]
+                if inDoubleQuote {
+                    if next == "\"" || next == "\\" || next == "$" || next == "`" {
+                        current.append(next)
+                        index += 2
+                        continue
+                    }
+                    // Dentro doppi apici mantieni i backslash non speciali (es: \b regex).
+                    current.append(char)
+                    index += 1
+                    continue
+                }
+                if next.isWhitespace || next == "\"" || next == "'" || next == "\\" {
+                    current.append(next)
+                    index += 2
+                    continue
+                }
+                current.append(char)
+                index += 1
                 continue
             }
 
@@ -209,10 +255,12 @@ extension EventNormalizer {
                     args.append(current)
                     current.removeAll(keepingCapacity: true)
                 }
+                index += 1
                 continue
             }
 
             current.append(char)
+            index += 1
         }
 
         if !current.isEmpty {
@@ -221,30 +269,118 @@ extension EventNormalizer {
         return args
     }
 
-    static func extractReadPath(from command: String) -> String? {
-        let patterns = [
-            #"(?:^|\s)(?:cat|head|tail)\s+(?:-[^\s]+\s+)*(?:['"]?([^'" \t\n]+)['"]?)"#,
-            #"(?:^|\s)sed\s+-n\s+['"][^'\"]+['"]\s+['"]?([^'" \t\n]+)['"]?"#,
-        ]
-
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
-            let ns = command as NSString
-            let range = NSRange(location: 0, length: ns.length)
-
-            if let match = regex.firstMatch(in: command, options: [], range: range),
-               match.numberOfRanges > 1
-            {
-                let valueRange = match.range(at: 1)
-                if valueRange.location != NSNotFound {
-                    let value = ns.substring(with: valueRange)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !value.isEmpty {
-                        return value
-                    }
-                }
-            }
+    private static func parseFileLineMatch(
+        line: String,
+        regex: NSRegularExpression?,
+        fallbackFile: String?,
+        currentHeadingFile: String?
+    ) -> InstantGrepMatch? {
+        guard let regex else { return nil }
+        let ns = line as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = regex.firstMatch(in: line, options: [], range: range), match.numberOfRanges == 4 else {
+            return nil
         }
-        return nil
+
+        var file = ns.substring(with: match.range(at: 1))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if file.isEmpty {
+            file = (currentHeadingFile ?? fallbackFile ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !file.isEmpty else { return nil }
+        guard let number = Int(ns.substring(with: match.range(at: 2))), number > 0 else { return nil }
+        let rawPreview = ns.substring(with: match.range(at: 3))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let preview = rawPreview.count > 500 ? String(rawPreview.prefix(500)) : rawPreview
+        return InstantGrepMatch(file: file, line: number, preview: preview)
+    }
+
+    private static func parseLineOnlyMatch(
+        line: String,
+        regex: NSRegularExpression?,
+        fallbackFile: String?,
+        currentHeadingFile: String?
+    ) -> InstantGrepMatch? {
+        guard let regex else { return nil }
+        let ns = line as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        guard let match = regex.firstMatch(in: line, options: [], range: range), match.numberOfRanges == 3 else {
+            return nil
+        }
+
+        let file = (currentHeadingFile ?? fallbackFile ?? "<stdin>")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !file.isEmpty else { return nil }
+        guard let number = Int(ns.substring(with: match.range(at: 1))), number > 0 else { return nil }
+        let rawPreview = ns.substring(with: match.range(at: 2))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let preview = rawPreview.count > 500 ? String(rawPreview.prefix(500)) : rawPreview
+        return InstantGrepMatch(file: file, line: number, preview: preview)
+    }
+
+    private static func parseWrappedShellCommand(args: [String]) -> String? {
+        guard let first = args.first else { return nil }
+        let command = normalizeCommandToken(first)
+        guard command == "bash" || command == "sh" || command == "zsh" else { return nil }
+        guard let cIndex = args.firstIndex(where: { $0 == "-c" || $0 == "-lc" }) else { return nil }
+        let valueIndex = cIndex + 1
+        guard valueIndex < args.count else { return nil }
+        return args[valueIndex]
+    }
+
+    private static func normalizeCommandToken(_ token: String) -> String {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        return (trimmed as NSString).lastPathComponent.lowercased()
+    }
+
+    static func extractReadPath(from command: String) -> String? {
+        let args = tokenizeShellArguments(command)
+        guard !args.isEmpty else { return nil }
+        guard let cmdIndex = args.firstIndex(where: {
+            let normalized = normalizeCommandToken($0)
+            return ["cat", "head", "tail", "sed", "less", "more", "awk"].contains(normalized)
+        }) else {
+            return nil
+        }
+        let normalizedCommand = normalizeCommandToken(args[cmdIndex])
+
+        let flagsWithValue: Set<String> = ["-n", "-c", "-e", "-f", "--lines", "--bytes"]
+        var candidates: [String] = []
+        var expectValueForFlag = false
+
+        var index = cmdIndex + 1
+        while index < args.count {
+            let token = args[index]
+            if expectValueForFlag {
+                expectValueForFlag = false
+                index += 1
+                continue
+            }
+            if token == "--" {
+                index += 1
+                continue
+            }
+            if token.hasPrefix("<<") {
+                break
+            }
+            if flagsWithValue.contains(token.lowercased()) {
+                expectValueForFlag = true
+                index += 1
+                continue
+            }
+            if token.hasPrefix("-") {
+                index += 1
+                continue
+            }
+            candidates.append(token)
+            index += 1
+        }
+
+        if normalizedCommand == "awk" || normalizedCommand == "sed" {
+            if candidates.count >= 2 { return candidates[1] }
+            return nil
+        }
+        return candidates.first
     }
 }

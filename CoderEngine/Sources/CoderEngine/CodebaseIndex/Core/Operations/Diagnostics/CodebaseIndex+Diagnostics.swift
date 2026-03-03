@@ -46,9 +46,12 @@ extension CodebaseIndex {
         } else {
             progress = nil
         }
+        let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
+            if node.kind == .file { count += 1 }
+        }
         return IndexStatusInfo(
             status: _status,
-            totalFiles: allFileNodes.count,
+            totalFiles: totalFilesCount,
             totalSourceFiles: indexedFiles.count,
             totalSymbols: totalSymbolsExtracted,
             lastIndexedAt: lastFullIndexAt,
@@ -78,9 +81,12 @@ extension CodebaseIndex {
 
     /// Index summary in text format (for LLM context)
     public func summaryText() -> String {
+        let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
+            if node.kind == .file { count += 1 }
+        }
         let info = IndexStatusInfo(
             status: _status,
-            totalFiles: allFileNodes.count,
+            totalFiles: totalFilesCount,
             totalSourceFiles: indexedFiles.count,
             totalSymbols: totalSymbolsExtracted,
             lastIndexedAt: lastFullIndexAt,

@@ -127,6 +127,74 @@ extension SemanticIndexTests {
         XCTAssertEqual(statusAfter.totalFiles, 0)
     }
 
+    func testLoadFromDiskPreservesAllChunksPerFileForRemoval() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("semantic-persist-chunks-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let content = """
+        struct MultiChunkProbe {
+            func firstSection() {
+                let a = 1
+                let b = 2
+                let c = a + b
+                print(c)
+            }
+
+            func secondSection() {
+                let x = "alpha"
+                let y = "beta"
+                let z = x + y
+                print(z)
+            }
+        }
+        """
+        let fileURL = tmpDir.appendingPathComponent("MultiChunkProbe.swift")
+        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let indexed = IndexedFile(
+            relativePath: "MultiChunkProbe.swift",
+            absolutePath: fileURL.path,
+            language: .swift,
+            symbols: [
+                IndexedSymbol(name: "firstSection", kind: .method, filePath: "MultiChunkProbe.swift", line: 2, endLine: 7, containerName: "MultiChunkProbe", language: .swift),
+                IndexedSymbol(name: "secondSection", kind: .method, filePath: "MultiChunkProbe.swift", line: 9, endLine: 14, containerName: "MultiChunkProbe", language: .swift),
+            ],
+            imports: [],
+            lineCount: content.components(separatedBy: "\n").count,
+            size: UInt64(content.utf8.count)
+        )
+
+        let persistPath = tmpDir.appendingPathComponent("semantic.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: [indexed], workspaceRoot: tmpDir)
+
+        let loaded = SemanticIndex(persistencePath: persistPath)
+        await loaded.loadFromDisk()
+        await loaded.removeFile("MultiChunkProbe.swift")
+
+        let status = await loaded.status()
+        let results = await loaded.search(query: "firstSection secondSection")
+        XCTAssertEqual(status.totalFiles, 0)
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testPersistWritesDeterministicChunkOrder() async throws {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let persistPath = tmpDir.appendingPathComponent("deterministic.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+        let firstSnapshot = try String(contentsOf: persistPath, encoding: .utf8)
+
+        await index.buildIndex(indexedFiles: files.reversed(), workspaceRoot: tmpDir)
+        let secondSnapshot = try String(contentsOf: persistPath, encoding: .utf8)
+
+        XCTAssertEqual(firstSnapshot, secondSnapshot)
+    }
+
     // MARK: - Target Directories Filter
 
     func testSearchWithTargetDirectories() async {

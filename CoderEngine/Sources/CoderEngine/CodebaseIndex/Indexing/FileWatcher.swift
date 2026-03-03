@@ -17,11 +17,7 @@ public actor FileWatcher {
     private static let ignoredDirNames = ExcludedDirectories.defaultSet
 
     /// Source file extensions worth re-indexing
-    private static let watchedExtensions: Set<String> = [
-        "swift", "py", "js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx",
-        "go", "rs", "java", "kt", "kts", "rb", "php", "cs", "c", "cpp", "h", "hpp",
-        "m", "mm", "dart", "ex", "exs", "lua", "r", "scala", "hs", "zig",
-    ]
+    private static let watchedExtensions: Set<String> = CodebaseIndex.indexableExtensions
 
     /// Debounce interval in seconds
     private static let debounceInterval: TimeInterval = 0.5
@@ -63,7 +59,12 @@ public actor FileWatcher {
 
         stream = eventStream
         FSEventStreamSetDispatchQueue(eventStream, DispatchQueue(label: "com.codigo.filewatcher", qos: .utility))
-        FSEventStreamStart(eventStream)
+        if !FSEventStreamStart(eventStream) {
+            FSEventStreamInvalidate(eventStream)
+            FSEventStreamRelease(eventStream)
+            stream = nil
+            isRunning = false
+        }
     }
 
     public func stop() {
@@ -89,6 +90,7 @@ public actor FileWatcher {
     }
 
     private func enqueueChanges(_ paths: [String]) {
+        guard isRunning else { return }
         let filtered = paths.filter { shouldWatch($0) }
         guard !filtered.isEmpty else { return }
 
@@ -149,6 +151,7 @@ public actor FileWatcher {
         // Skip ignored directories
         let components = path.components(separatedBy: "/")
         for component in components {
+            if component.hasPrefix(".") { return false }
             if Self.ignoredDirNames.contains(component) { return false }
         }
 

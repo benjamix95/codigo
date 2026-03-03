@@ -120,6 +120,7 @@ extension CodebaseIndex {
 
         for symbol in indexed.symbols {
             let key = symbol.name.lowercased()
+            var insertedInFile = false
 
             var existingByName = symbolsByName[key, default: []]
             if !existingByName.contains(where: { $0.id == symbol.id }) {
@@ -130,6 +131,7 @@ extension CodebaseIndex {
             var existingByFile = symbolsByFile[indexed.relativePath, default: []]
             if !existingByFile.contains(where: { $0.id == symbol.id }) {
                 existingByFile.append(symbol)
+                insertedInFile = true
             }
             symbolsByFile[indexed.relativePath] = existingByFile
 
@@ -139,7 +141,9 @@ extension CodebaseIndex {
             }
             symbolsByKind[symbol.kind] = existingByKind
 
-            totalSymbolsExtracted += 1
+            if insertedInFile {
+                totalSymbolsExtracted += 1
+            }
         }
     }
 
@@ -187,8 +191,9 @@ extension CodebaseIndex {
         reverseImportGraph.removeAll()
 
         for (relativePath, indexed) in indexedFiles {
-            importGraph[relativePath] = indexed.imports
-            for imp in indexed.imports {
+            let uniqueImports = Array(Set(indexed.imports)).sorted()
+            importGraph[relativePath] = uniqueImports
+            for imp in uniqueImports {
                 reverseImportGraph[imp, default: []].append(relativePath)
             }
         }

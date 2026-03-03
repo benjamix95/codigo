@@ -18,9 +18,15 @@ extension SemanticIndex {
     func persist() async {
         guard let path = persistencePath else { return }
         let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
 
         var lines: [String] = []
-        for chunk in chunks.values {
+        let orderedChunks = chunks.values.sorted { lhs, rhs in
+            if lhs.filePath != rhs.filePath { return lhs.filePath < rhs.filePath }
+            if lhs.startLine != rhs.startLine { return lhs.startLine < rhs.startLine }
+            return lhs.id < rhs.id
+        }
+        for chunk in orderedChunks {
             if let data = try? encoder.encode(chunk),
                let line = String(data: data, encoding: .utf8) {
                 lines.append(line)
@@ -99,8 +105,13 @@ extension SemanticIndex {
         }
 
         clear()
-        for chunk in loadedChunks {
-            addChunks([chunk], forFile: chunk.filePath)
+        let groupedByFile = Dictionary(grouping: loadedChunks, by: \.filePath)
+        for (relativePath, fileChunks) in groupedByFile {
+            let ordered = fileChunks.sorted { lhs, rhs in
+                if lhs.startLine != rhs.startLine { return lhs.startLine < rhs.startLine }
+                return lhs.id < rhs.id
+            }
+            addChunks(ordered, forFile: relativePath)
         }
         recalcAvgDocLength()
         currentSimHash = metadata.simHash

@@ -51,10 +51,10 @@ extension TaskActivityStore {
     func addInstantGrep(_ result: InstantGrepResult) {
         // Deduplicate by normalized query + scope (case/space-insensitive).
         let normalizedQuery = result.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedScope = result.scope.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedScope = normalizedInstantGrepScope(result.scope)
         instantGreps.removeAll { existing in
             existing.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedQuery
-                && existing.scope.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedScope
+                && normalizedInstantGrepScope(existing.scope) == normalizedScope
         }
         instantGreps.insert(result, at: 0)
         if instantGreps.count > 20 {
@@ -177,6 +177,15 @@ extension TaskActivityStore {
             || detail.contains("completed")
             || detail.contains("failed")
             || detail.contains("error")
+    }
+
+    private func normalizedInstantGrepScope(_ scope: String) -> String {
+        scope
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: ",")
     }
 
     func clear() {

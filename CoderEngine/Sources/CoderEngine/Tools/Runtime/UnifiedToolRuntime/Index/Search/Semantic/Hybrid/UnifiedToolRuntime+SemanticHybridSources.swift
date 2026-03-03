@@ -55,6 +55,17 @@ extension UnifiedToolRuntime {
             candidates.append(contentsOf: tokenMatches)
         }
 
+        let allowedScopePrefixes = buildAllowedScopePrefixes(
+            searchPaths: request.searchPaths,
+            workspacePaths: request.workspacePaths
+        )
+        if !allowedScopePrefixes.isEmpty {
+            candidates = candidates.filter { symbol in
+                isRelativePath(symbol.filePath, withinAnyPrefix: allowedScopePrefixes)
+                    || isAbsolutePath(symbol.filePath, withinAnySearchPath: request.searchPaths)
+            }
+        }
+
         var seen = Set<String>()
         var deduped: [IndexedSymbol] = []
         for symbol in candidates where seen.insert(symbol.id).inserted {
@@ -109,12 +120,18 @@ extension UnifiedToolRuntime {
         guard !patterns.isEmpty else { return [] }
 
         var hits: [HybridSourceHit] = []
+        var seenKeys = Set<String>()
         for pattern in patterns.prefix(5) {
             for searchPath in request.searchPaths {
+                guard FileManager.default.fileExists(atPath: searchPath) else { continue }
+                let workspace = workspaceRootForSearchPath(
+                    searchPath,
+                    workspacePaths: request.workspacePaths
+                ) ?? searchPath
                 let output = await runSemanticTextSearch(
                     pattern: pattern,
                     searchPath: searchPath,
-                    workspace: searchPath
+                    workspace: workspace
                 )
                 guard !output.isEmpty else { continue }
                 for line in output.components(separatedBy: "\n") where !line.isEmpty {
@@ -129,9 +146,11 @@ extension UnifiedToolRuntime {
                         workspacePaths: request.workspacePaths
                     )
                     let confidence = grepConfidence(snippet: snippet, queryTokens: request.queryTokens)
+                    let key = buildHitKey(filePath: relative, lineStart: lineNum)
+                    guard seenKeys.insert(key).inserted else { continue }
                     hits.append(
                         HybridSourceHit(
-                            key: buildHitKey(filePath: relative, lineStart: lineNum),
+                            key: key,
                             source: .grepFallback,
                             rank: hits.count + 1,
                             sourceScore: confidence,
@@ -142,6 +161,9 @@ extension UnifiedToolRuntime {
                             scope: "",
                             snippet: snippet
                         ))
+                    if hits.count >= max(40, request.numResults * 4) {
+                        return hits
+                    }
                 }
             }
         }
@@ -159,8 +181,13 @@ extension UnifiedToolRuntime {
             patterns.append(pascal)
             patterns.append(queryTokens.joined(separator: "_"))
         }
-        patterns.append(contentsOf: queryTokens.filter { $0.count >= 3 })
-        return patterns
+        patterns.append(contentsOf: queryTokens.filter { $0.count >= 2 })
+        var deduped: [String] = []
+        var seen = Set<String>()
+        for pattern in patterns where seen.insert(pattern).inserted {
+            deduped.append(pattern)
+        }
+        return deduped
     }
 
     func grepConfidence(snippet: String, queryTokens: [String]) -> Double {
@@ -199,5 +226,54 @@ extension UnifiedToolRuntime {
 
     func buildHitKey(filePath: String, lineStart: Int) -> String {
         "\(filePath):\(max(1, lineStart))"
+    }
+
+    private func buildAllowedScopePrefixes(searchPaths: [String], workspacePaths: [String]) -> [String] {
+        guard !searchPaths.isEmpty else { return [] }
+        var prefixes: [String] = []
+        var seen = Set<String>()
+        for path in searchPaths {
+            let relative = relativePathForDisplay(
+                absolutePath: path,
+                workspacePaths: workspacePaths
+            )
+            if seen.insert(relative).inserted {
+                prefixes.append(relative)
+            }
+        }
+        return prefixes
+    }
+
+    private func isRelativePath(_ filePath: String, withinAnyPrefix prefixes: [String]) -> Bool {
+        let normalized = (filePath as NSString).standardizingPath
+        for prefix in prefixes {
+            if normalized == prefix { return true }
+            if normalized.hasPrefix(prefix + "/") { return true }
+        }
+        return false
+    }
+
+    private func isAbsolutePath(_ filePath: String, withinAnySearchPath searchPaths: [String]) -> Bool {
+        guard (filePath as NSString).isAbsolutePath else { return false }
+        let normalized = URL(fileURLWithPath: filePath).standardizedFileURL.path
+        for scope in searchPaths {
+            let scopeNorm = URL(fileURLWithPath: scope).standardizedFileURL.path
+            if normalized == scopeNorm { return true }
+            let prefix = scopeNorm.hasSuffix("/") ? scopeNorm : scopeNorm + "/"
+            if normalized.hasPrefix(prefix) { return true }
+        }
+        return false
+    }
+
+    private func workspaceRootForSearchPath(_ searchPath: String, workspacePaths: [String]) -> String? {
+        let normalized = URL(fileURLWithPath: searchPath).standardizedFileURL.path
+        let sortedRoots = workspacePaths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+            .sorted { $0.count > $1.count }
+        for root in sortedRoots {
+            if normalized == root { return root }
+            let prefix = root.hasSuffix("/") ? root : root + "/"
+            if normalized.hasPrefix(prefix) { return root }
+        }
+        return nil
     }
 }

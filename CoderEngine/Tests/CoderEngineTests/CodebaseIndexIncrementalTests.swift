@@ -109,4 +109,136 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         let symbolResults = await index.findSymbols(query: "QueuedRealtime")
         XCTAssertFalse(symbolResults.isEmpty, "Queued realtime update should be flushed after rebuild")
     }
+
+    func testIndexSingleFileWithDisappearedFileRemovesStaleSemanticChunk() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let file = workspace.appendingPathComponent("Transient.swift")
+        try "struct TransientType { func ping() {} }\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace])
+
+        try FileManager.default.removeItem(at: file)
+        await index.indexSingleFile(absolutePath: file.path, relativePath: "Transient.swift")
+
+        let semanticResults = await index.semanticIndex.search(
+            query: "TransientType ping",
+            targetDirectories: [],
+            numResults: 10
+        )
+        XCTAssertTrue(semanticResults.isEmpty)
+    }
+
+    func testIncrementalUpdateRespectsExcludedPaths() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let ignoredDir = workspace.appendingPathComponent("Ignored", isDirectory: true)
+        try FileManager.default.createDirectory(at: ignoredDir, withIntermediateDirectories: true)
+
+        let ignoredFile = ignoredDir.appendingPathComponent("Hidden.swift")
+        let keptFile = workspace.appendingPathComponent("Visible.swift")
+        try "struct HiddenType {}\n".write(to: ignoredFile, atomically: true, encoding: .utf8)
+        try "struct VisibleType {}\n".write(to: keptFile, atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace], excludedPaths: ["Ignored"])
+        try "struct HiddenType { let v = 2 }\n".write(to: ignoredFile, atomically: true, encoding: .utf8)
+        _ = await index.incrementalUpdate()
+
+        let hiddenSymbols = await index.findSymbols(query: "HiddenType")
+        let visibleSymbols = await index.findSymbols(query: "VisibleType")
+        XCTAssertTrue(hiddenSymbols.isEmpty, "Excluded path should remain excluded during incremental update")
+        XCTAssertFalse(visibleSymbols.isEmpty)
+    }
+
+    func testDuplicateSymbolIDsDoNotInflateCounters() async {
+        let index = CodebaseIndex()
+        let duplicate = IndexedSymbol(name: "Dup", kind: .class, filePath: "Dup.swift", line: 1, endLine: 1, language: .swift)
+        let indexed = IndexedFile(
+            relativePath: "Dup.swift",
+            absolutePath: "/tmp/Dup.swift",
+            language: .swift,
+            symbols: [duplicate, duplicate],
+            imports: [],
+            lineCount: 1,
+            size: 10
+        )
+
+        await index.addIndexedFile(indexed)
+        let status = await index.status()
+        XCTAssertEqual(status.totalSymbols, 1)
+    }
+
+    func testIndexSingleFileNonIndexableExtensionDoesNotCreateSymbolOrSemanticEntries() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let txtFile = workspace.appendingPathComponent("Notes.txt")
+        try "TransientType".write(to: txtFile, atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace])
+        await index.indexSingleFile(absolutePath: txtFile.path, relativePath: "Notes.txt")
+
+        let symbols = await index.findSymbols(query: "TransientType")
+        let semantic = await index.semanticIndex.search(query: "TransientType", targetDirectories: [], numResults: 10)
+        XCTAssertTrue(symbols.isEmpty)
+        XCTAssertTrue(semantic.isEmpty)
+    }
+
+    func testIncrementalUpdateUsesContentHashWhenMTimeIsUnchanged() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let file = workspace.appendingPathComponent("HashProbe.swift")
+        try """
+        final class HashProbe {
+            func oldVersion() {
+                print("old")
+            }
+        }
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let originalModDate = (try FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate] as? Date) ?? Date()
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [workspace])
+        let oldBeforeUpdate = await index.findSymbols(query: "oldVersion")
+        XCTAssertFalse(oldBeforeUpdate.isEmpty)
+
+        try """
+        final class HashProbe {
+            func newVersion() {
+                print("new")
+            }
+        }
+        """.write(to: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: originalModDate], ofItemAtPath: file.path)
+
+        _ = await index.incrementalUpdate()
+
+        let newSymbols = await index.findSymbols(query: "newVersion")
+        let oldSymbols = await index.findSymbols(query: "oldVersion")
+        XCTAssertFalse(newSymbols.isEmpty, "Hash change should trigger incremental reindex even with unchanged mtime")
+        XCTAssertTrue(oldSymbols.isEmpty, "Old symbol should be removed after reindex")
+    }
+
+    func testStatusAndResultTotalFilesCountOnlyFiles() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let nested = workspace.appendingPathComponent("Nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try "struct A {}\n".write(to: workspace.appendingPathComponent("A.swift"), atomically: true, encoding: .utf8)
+        try "struct B {}\n".write(to: nested.appendingPathComponent("B.swift"), atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        let result = await index.indexWorkspace(paths: [workspace])
+        let status = await index.status()
+
+        XCTAssertEqual(result.totalFiles, 2)
+        XCTAssertEqual(status.totalFiles, 2)
+    }
 }

@@ -148,9 +148,12 @@ extension CodebaseIndex {
         _status = .ready
 
         Self.logger.info("indexWorkspace: completed — \(self.totalSymbolsExtracted) symbols, \(self.totalFilesScanned) files, \(durationMs)ms")
+        let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
+            if node.kind == .file { count += 1 }
+        }
 
         return IndexResult(
-            totalFiles: allFileNodes.count,
+            totalFiles: totalFilesCount,
             totalSourceFiles: filesToIndex.count,
             totalSymbols: totalSymbolsExtracted,
             totalDirectories: fileTrees.values.reduce(0) { acc, tree in
@@ -172,6 +175,7 @@ extension CodebaseIndex {
         var updatedCount = 0
         var removedCount = 0
         var changedFiles: [IndexedFile] = []
+        var failedReindexPaths: Set<String> = []
 
         // Rebuild file trees from disk to avoid stale file nodes.
         fileTrees.removeAll()
@@ -183,36 +187,48 @@ extension CodebaseIndex {
         }
 
         let sourceNodes = allFileNodes.filter { _, node in
-            node.isSourceFile && node.size <= Self.maxFileSize
+            node.isSourceFile
+                && node.size <= Self.maxFileSize
+                && !isFileExcluded(node.relativePath)
+                && !isGitignored(node.relativePath, isDirectory: false)
         }
 
         let currentSourcePaths = Set(sourceNodes.keys)
         let indexedPaths = Set(indexedFiles.keys)
         let removedPaths = indexedPaths.subtracting(currentSourcePaths)
+        let totalToProcess = sourceNodes.count + removedPaths.count
+        var processed = 0
+        _indexingProgress = (current: 0, total: totalToProcess)
         for relativePath in removedPaths {
             removeIndexedFile(relativePath)
             removedCount += 1
+            processed += 1
+            _indexingProgress = (current: processed, total: totalToProcess)
         }
 
         for (relativePath, node) in sourceNodes {
             guard node.isSourceFile, node.size <= Self.maxFileSize else { continue }
 
-            // Check if file was modified
-            guard let attrs = try? FileManager.default.attributesOfItem(atPath: node.absolutePath),
-                let modDate = attrs[.modificationDate] as? Date
-            else { continue }
-
             let existingFile = indexedFiles[relativePath]
-            if let existing = existingFile, existing.indexedAt >= modDate {
-                continue  // File not modified since last index
-            }
+            let attrs = try? FileManager.default.attributesOfItem(atPath: node.absolutePath)
+            let modDate = attrs?[.modificationDate] as? Date
 
+            var hashComputed = false
             // Check content hash
             if let data = FileManager.default.contents(atPath: node.absolutePath) {
+                hashComputed = true
                 let hash = SymbolExtractor.fnv1aHash(data)
                 if let existingHash = contentHashes[node.absolutePath], existingHash == hash {
+                    processed += 1
+                    _indexingProgress = (current: processed, total: totalToProcess)
                     continue  // Content unchanged
                 }
+            }
+            // Fallback check if hash cannot be computed: skip only when timestamp confirms no changes.
+            if !hashComputed, let existing = existingFile, let modDate, existing.indexedAt >= modDate {
+                processed += 1
+                _indexingProgress = (current: processed, total: totalToProcess)
+                continue
             }
 
             // Re-index this file
@@ -226,7 +242,11 @@ extension CodebaseIndex {
                 addIndexedFile(indexed)
                 updatedCount += 1
                 changedFiles.append(indexed)
+            } else {
+                failedReindexPaths.insert(relativePath)
             }
+            processed += 1
+            _indexingProgress = (current: processed, total: totalToProcess)
         }
 
         // Re-build import graph
@@ -243,6 +263,9 @@ extension CodebaseIndex {
             for relativePath in removedPaths {
                 await semanticIndex.removeFile(relativePath)
             }
+            for relativePath in failedReindexPaths {
+                await semanticIndex.removeFile(relativePath)
+            }
         } else if !changedFiles.isEmpty || removedCount > 0 {
             await semanticIndex.clear()
         }
@@ -252,12 +275,16 @@ extension CodebaseIndex {
 
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
+        _indexingProgress = nil
         _status = .ready
 
         Self.logger.info("incrementalUpdate: completed — \(updatedCount) updated, \(removedCount) removed, \(durationMs)ms")
+        let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
+            if node.kind == .file { count += 1 }
+        }
 
         return IndexResult(
-            totalFiles: allFileNodes.count,
+            totalFiles: totalFilesCount,
             totalSourceFiles: indexedFiles.count,
             totalSymbols: totalSymbolsExtracted,
             totalDirectories: fileTrees.values.reduce(0) { acc, tree in

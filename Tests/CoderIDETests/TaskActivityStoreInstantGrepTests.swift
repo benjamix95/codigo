@@ -20,6 +20,15 @@ final class TaskActivityStoreInstantGrepTests: XCTestCase {
         XCTAssertEqual(store.instantGreps.count, 2)
     }
 
+    func testAddInstantGrepDeduplicatesEquivalentMultiScopes() {
+        let store = TaskActivityStore()
+        store.addInstantGrep(makeResult(query: "auth flow", scope: "Sources, Tests", count: 1))
+        store.addInstantGrep(makeResult(query: "auth flow", scope: "tests,sources", count: 4))
+
+        XCTAssertEqual(store.instantGreps.count, 1)
+        XCTAssertEqual(store.instantGreps.first?.matchesCount, 4)
+    }
+
     private func makeResult(query: String, scope: String, count: Int = 1) -> InstantGrepResult {
         InstantGrepResult(
             query: query,
