@@ -71,6 +71,9 @@ public struct SubagentPromptBuilder {
             - Check for style consistency with the existing codebase
             - Identify performance issues or unnecessary complexity
             - Report findings clearly — do NOT auto-fix. List issues with file paths and line numbers.
+            - Prioritize concrete, actionable findings over general suggestions
+            - End your response with a JSON summary block in this exact shape:
+              {"issues_found": <int>, "critical": <int>, "warnings": <int>, "suggestions": <int>}
             - If everything looks good, say "No issues found."
             """
         case .testWriter:
@@ -79,8 +82,12 @@ public struct SubagentPromptBuilder {
             - Swift: use XCTest, create files in Tests/<Target>Tests/ with naming *Tests.swift
             - Node: use Jest or Vitest, file *.test.ts or __tests__/*.ts
             - Python: use pytest, file test_*.py
+            - ALWAYS read existing test files first to follow current naming and style conventions
+            - Auto-detect the active test framework from existing files/configuration before writing tests
             Include unit tests, smoke tests, and integration tests where appropriate.
-            Cover main cases and edge cases.
+            Cover main cases and edge cases, including error/nil paths and boundary values.
+            - After writing tests, run the relevant test command(s) and ensure they compile and pass
+            - If tests fail, fix and re-run until green or report a clear blocker with failing output
             """
         case .docWriter:
             return """
@@ -102,7 +109,7 @@ public struct SubagentPromptBuilder {
     }
 
     private static func subagentPolicy(for role: SubagentRole) -> String {
-        if role == .explorer {
+        if role == .explorer || role == .reviewer || role == .securityAuditor {
             return """
 
 

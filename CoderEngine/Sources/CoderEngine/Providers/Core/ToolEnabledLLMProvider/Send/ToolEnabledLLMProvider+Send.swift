@@ -71,6 +71,7 @@ extension ToolEnabledLLMProvider {
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
         var testWriterCompletedAfterLatestMutation = false
+        var mutatedPathsSinceLatestMutation: Set<String> = []
         var autoInjectedFinalReviewBatchCount = 0
         let maxAutoInjectedFinalReviewBatchCount = 4
 
@@ -109,11 +110,11 @@ extension ToolEnabledLLMProvider {
                 sawCodeMutationDuringTask = true
                 reviewerCompletedAfterLatestMutation = roundResult.reviewerCompletedAfterLatestMutation
                 testWriterCompletedAfterLatestMutation = roundResult.testWriterCompletedAfterLatestMutation
+                mutatedPathsSinceLatestMutation.formUnion(roundResult.mutatedPaths)
             } else {
                 reviewerCompletedAfterLatestMutation = reviewerCompletedAfterLatestMutation || roundResult.reviewerCompletedAfterLatestMutation
                 testWriterCompletedAfterLatestMutation = testWriterCompletedAfterLatestMutation || roundResult.testWriterCompletedAfterLatestMutation
             }
-            sawCodeMutationDuringTask = sawCodeMutationDuringTask || roundResult.sawCodeMutationDuringTask
 
             if !roundResult.pendingSubagentCalls.isEmpty {
                 let subagentBatch = await executeSubagentCallBatch(
@@ -128,6 +129,7 @@ extension ToolEnabledLLMProvider {
                     sawCodeMutationDuringTask = true
                     reviewerCompletedAfterLatestMutation = subagentBatch.reviewerCompletedAfterLatestMutation
                     testWriterCompletedAfterLatestMutation = subagentBatch.testWriterCompletedAfterLatestMutation
+                    mutatedPathsSinceLatestMutation.formUnion(subagentBatch.mutatedPaths)
                 } else {
                     reviewerCompletedAfterLatestMutation = reviewerCompletedAfterLatestMutation || subagentBatch.reviewerCompletedAfterLatestMutation
                     testWriterCompletedAfterLatestMutation = testWriterCompletedAfterLatestMutation || subagentBatch.testWriterCompletedAfterLatestMutation
@@ -145,7 +147,8 @@ extension ToolEnabledLLMProvider {
                 autoInjectedFinalReviewBatchCount += 1
                 let injectedCalls = buildAutoInjectedReviewCalls(
                     sawReviewerComplete: reviewerCompletedAfterLatestMutation,
-                    sawTestWriterComplete: testWriterCompletedAfterLatestMutation
+                    sawTestWriterComplete: testWriterCompletedAfterLatestMutation,
+                    modifiedPaths: mutatedPathsSinceLatestMutation
                 )
                 if !injectedCalls.isEmpty {
                     let injectedBatch = await executeSubagentCallBatch(
@@ -159,6 +162,7 @@ extension ToolEnabledLLMProvider {
                         sawCodeMutationDuringTask = true
                         reviewerCompletedAfterLatestMutation = injectedBatch.reviewerCompletedAfterLatestMutation
                         testWriterCompletedAfterLatestMutation = injectedBatch.testWriterCompletedAfterLatestMutation
+                        mutatedPathsSinceLatestMutation.formUnion(injectedBatch.mutatedPaths)
                     } else {
                         reviewerCompletedAfterLatestMutation = reviewerCompletedAfterLatestMutation || injectedBatch.reviewerCompletedAfterLatestMutation
                         testWriterCompletedAfterLatestMutation = testWriterCompletedAfterLatestMutation || injectedBatch.testWriterCompletedAfterLatestMutation
@@ -166,6 +170,12 @@ extension ToolEnabledLLMProvider {
                     didEmitPolicyAck = didEmitPolicyAck || injectedBatch.didEmitPolicyAck
                     roundToolResults.append(contentsOf: injectedBatch.roundToolResults)
                 }
+            }
+
+            let mandatoryReviewSatisfiedAfterRound =
+                reviewerCompletedAfterLatestMutation && testWriterCompletedAfterLatestMutation
+            if mandatoryReviewSatisfiedAfterRound {
+                mutatedPathsSinceLatestMutation.removeAll()
             }
 
             conversationTranscript += "\n[assistant]\n\(roundText)\n"
