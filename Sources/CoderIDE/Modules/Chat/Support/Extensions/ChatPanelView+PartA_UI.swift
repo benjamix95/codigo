@@ -187,25 +187,6 @@ extension ChatPanelView {
         }
     }
 
-    /// Wire bidirectional sync: when a canonical todo status changes manually,
-    /// propagate the change to the corresponding PlanStep in the plan board.
-    /// Idempotent — safe to call multiple times (e.g. from onAppear).
-    internal func wireTodoPlanBidirectionalSync() {
-        // Guard: don't re-register if callback already set (onAppear fires multiple times).
-        guard todoStore.onCanonicalTodoStatusChange == nil else { return }
-        todoStore.onCanonicalTodoStatusChange = { [weak chatStore] _, _, canonicalConversationId in
-            guard let chatStore else { return }
-            let planConvId = activeBuildPlanConversationId
-                ?? canonicalConversationId
-                ?? chatStore.preferredPlanConversationIdForCanonicalSync()
-            if let activeId = planConvId {
-                let canonicalTodos = todoStore.canonicalTodos(for: activeId)
-                guard !canonicalTodos.isEmpty else { return }
-                chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: activeId)
-            }
-        }
-    }
-
     internal func adjustWindowForPanelToggle(isOpening: Bool, width: CGFloat) {
         guard autoResizeSidePanels else { return }
         let delta = isOpening ? (width + 12) : -(width + 12)
@@ -411,73 +392,6 @@ extension ChatPanelView {
             .onChange(of: codeReviewMaxRounds) { _, _ in syncCodeReviewRuntimeConfig() }
             .onChange(of: codeReviewAnalysisBackend) { _, _ in syncCodeReviewRuntimeConfig() }
             .onChange(of: codeReviewExecutionBackend) { _, _ in syncCodeReviewRuntimeConfig() }
-    }
-
-    internal func applyNotificationAndImporterModifiers<Content: View>(to content: Content) -> some View {
-        content
-        .sheet(isPresented: $showSwarmHelp) { AgentSwarmHelpView() }
-        .fileImporter(
-            isPresented: $isSelectingImage,
-            allowedContentTypes: [.item], allowsMultipleSelection: true
-        ) { result in
-            handleAttachmentSelection(result: result)
-        }
-        .onAppear {
-            installPasteMonitor()
-        }
-        .onDisappear {
-            composerAutoFocusTask?.cancel()
-            composerAutoFocusTask = nil
-            toolRuntimeSyncTask?.cancel()
-            toolRuntimeSyncTask = nil
-            taskFlushTask?.cancel()
-            taskFlushTask = nil
-            streamThrottleTask?.cancel()
-            streamThrottleTask = nil
-            planStreamThrottleTask?.cancel()
-            planStreamThrottleTask = nil
-            autoScrollWorkItem?.cancel()
-            composerTimerAutoHideTask?.cancel()
-            composerTimerAutoHideTask = nil
-            voiceInputController.cancel()
-            flushPendingTaskActivities()
-            removePasteMonitor()
-            for (_, task) in activeRunTaskByConversation {
-                task.cancel()
-            }
-            activeRunTaskByConversation.removeAll()
-            activeRunTokenByConversation.removeAll()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: Self.attachmentPastedNotification)) {
-            notification in
-            if let attachments = notification.userInfo?["attachments"] as? [ComposerAttachment] {
-                appendComposerAttachments(attachments)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: Self.threadSearchAskAINotification)) {
-            notification in
-            guard let prompt = notification.userInfo?["prompt"] as? String else { return }
-            if selectedConversationId == nil {
-                selectedConversationId = chatStore.createConversation(
-                    contextId: nil, contextFolderPath: nil, mode: coderMode)
-            }
-            inputText = prompt
-            sendMessage()
-        }
-    }
-
-    @MainActor
-    internal func requestInitialComposerFocusIfNeeded() {
-        guard !didAutoFocusComposerOnLaunch else { return }
-        guard selectedConversationId != nil else { return }
-        didAutoFocusComposerOnLaunch = true
-        composerAutoFocusTask?.cancel()
-        composerAutoFocusTask = Task { @MainActor in
-            // Delay slightly to ensure the window/composer NSView is mounted.
-            try? await Task.sleep(nanoseconds: 120_000_000)
-            guard !Task.isCancelled else { return }
-            isInputFocused = true
-        }
     }
 
 }
