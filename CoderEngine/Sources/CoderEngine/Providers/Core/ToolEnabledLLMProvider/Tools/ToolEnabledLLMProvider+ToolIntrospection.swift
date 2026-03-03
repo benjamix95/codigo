@@ -61,7 +61,7 @@ extension ToolEnabledLLMProvider {
         return ""
     }
 
-    func knownExecutableToolNames() -> Set<String> {
+    private static let _cachedKnownToolNames: Set<String> = {
         var names = Set<String>()
         for entry in ToolSchemaCatalog.entries {
             let normalized = ProviderToolEventMapper.normalizeToolIdentifier(entry.name)
@@ -70,6 +70,10 @@ extension ToolEnabledLLMProvider {
             }
         }
         return names
+    }()
+
+    func knownExecutableToolNames() -> Set<String> {
+        Self._cachedKnownToolNames
     }
 
     static func isQualifiedMCPToolReference(_ value: String) -> Bool {
@@ -120,7 +124,8 @@ extension ToolEnabledLLMProvider {
         return false
     }
 
-    private static let blockedDeltaSnippets: [String] = [
+    /// Shared blocked snippets used both for delta sanitization and meaningful-completion checks.
+    private static let blockedProtocolSnippets: [String] = [
         "Initial user prompt:",
         "Original user prompt:",
         "Partial transcript:",
@@ -132,12 +137,13 @@ extension ToolEnabledLLMProvider {
         "When finished: you MUST provide",
         "(No tools used in the previous round.)",
         "[assistant]",
+        "coderide:tool_call",
     ]
 
     func sanitizeVisibleDelta(_ delta: String) -> String {
         if delta.isEmpty { return "" }
         let lower = delta.lowercased()
-        for snippet in Self.blockedDeltaSnippets where lower.contains(snippet.lowercased()) {
+        for snippet in Self.blockedProtocolSnippets where lower.contains(snippet.lowercased()) {
             return ""
         }
         return delta
@@ -196,17 +202,7 @@ extension ToolEnabledLLMProvider {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.count < 24 { return false }
         let lower = trimmed.lowercased()
-        let blocked = [
-            "tool results just executed",
-            "tool results from previous round",
-            "initial user prompt",
-            "original user prompt:",
-            "partial transcript",
-            "conversation transcript:",
-            "codieride:tool_call",
-            "[assistant]",
-        ]
-        for snippet in blocked where lower.contains(snippet) {
+        for snippet in Self.blockedProtocolSnippets where lower.contains(snippet.lowercased()) {
             return false
         }
         return true

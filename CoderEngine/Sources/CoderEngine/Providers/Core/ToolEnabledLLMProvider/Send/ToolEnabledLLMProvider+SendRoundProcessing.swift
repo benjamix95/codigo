@@ -36,6 +36,7 @@ extension ToolEnabledLLMProvider {
         var testWriterCompletedAfterLatestMutation = false
         var mutatedPaths: Set<String> = []
         var didEmitMeaningfulText = false
+        var visibleTextLength = 0
         var didEmitPolicyAck = didEmitPolicyAck
         var localAcceptedSubagentInFirstRound = acceptedSubagentInFirstRound
         var pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)] = []
@@ -50,7 +51,11 @@ extension ToolEnabledLLMProvider {
                 }
                 if !visibleDelta.isEmpty {
                     continuation.yield(.textDelta(visibleDelta))
-                    if isMeaningfulAssistantCompletion(visibleDelta) {
+                    // Track accumulated visible text length instead of checking
+                    // per-delta, since individual deltas are small token fragments
+                    // that would almost always fail the >= 24 char threshold.
+                    visibleTextLength += visibleDelta.count
+                    if visibleTextLength >= 24 {
                         didEmitMeaningfulText = true
                     }
                 }
@@ -166,9 +171,17 @@ extension ToolEnabledLLMProvider {
 
                 let dedupeId = markerDedupeKey(marker)
                 let count = toolCallCountByKey[dedupeId, default: 0]
-                if count >= policy.maxRepeatedSameToolPerRound { continue }
+                if count >= policy.maxRepeatedSameToolPerRound {
+                    continuation.yield(.raw(type: "tool_execution_error", payload: [
+                        "title": "Repeated tool call dropped",
+                        "detail": "Tool '\(name)' exceeded per-round repetition limit (\(policy.maxRepeatedSameToolPerRound)). Try a different approach.",
+                        "status": "failed",
+                        "error_code": "repeated_tool_limit",
+                        "tool": name,
+                    ]))
+                    continue
+                }
                 toolCallCountByKey[dedupeId] = count + 1
-                toolCallsThisRound += 1
                 sawExecutableSuggestion = true
 
                 if isFirstRound, legacyInvokeSwarm {
@@ -198,6 +211,7 @@ extension ToolEnabledLLMProvider {
                         "status": "queued"
                     ]))
                 } else {
+                    toolCallsThisRound += 1
                     let produced = await events(for: marker, context: context)
                     for e in produced {
                         if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {

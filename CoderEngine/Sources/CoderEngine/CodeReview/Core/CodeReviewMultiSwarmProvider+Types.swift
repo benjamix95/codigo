@@ -46,17 +46,17 @@ extension CodeReviewMultiSwarmProvider {
         }
     }
 
-    enum ExtractedReviewTasks {
+    enum ExtractedReviewTasks: Sendable {
         case jsonTasks([ReviewTask])
         case invalidJSON(reason: String)
     }
 
-    enum ParsedTasksResult {
+    enum ParsedTasksResult: Sendable {
         case tasks([ReviewTask])
         case invalidJSON(reason: String)
     }
 
-    struct ReReviewOutcome {
+    struct ReReviewOutcome: Sendable {
         let text: String
         let findings: ReviewFindingsState
     }

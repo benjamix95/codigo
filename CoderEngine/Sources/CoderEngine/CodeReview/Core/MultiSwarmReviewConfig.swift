@@ -1,4 +1,5 @@
 import Foundation
+import os.log
 
 /// Enabled phases for multi-swarm review
 public enum ReviewPhase: String, Sendable {
@@ -29,15 +30,17 @@ public struct MultiSwarmReviewConfig: Sendable {
         let clampedWorkers = min(12, max(1, maxWorkers))
         let clampedRounds = min(10, max(1, maxReviewRounds))
         if clampedWorkers != maxWorkers {
-            print("[MultiSwarmReviewConfig] maxWorkers clamped from \(maxWorkers) to \(clampedWorkers)")
+            Logger(subsystem: "com.codigo.codeReview", category: "config")
+                .info("maxWorkers clamped from \(maxWorkers) to \(clampedWorkers)")
         }
         if clampedRounds != maxReviewRounds {
-            print("[MultiSwarmReviewConfig] maxReviewRounds clamped from \(maxReviewRounds) to \(clampedRounds)")
+            Logger(subsystem: "com.codigo.codeReview", category: "config")
+                .info("maxReviewRounds clamped from \(maxReviewRounds) to \(clampedRounds)")
         }
         self.maxWorkers = clampedWorkers
         self.enabledPhases = enabledPhases
         self.maxReviewRounds = clampedRounds
-        self.analysisBackend = analysisBackend
-        self.executionBackend = executionBackend
+        self.analysisBackend = analysisBackend.isEmpty ? "codex" : analysisBackend
+        self.executionBackend = executionBackend.isEmpty ? "codex" : executionBackend
     }
 }

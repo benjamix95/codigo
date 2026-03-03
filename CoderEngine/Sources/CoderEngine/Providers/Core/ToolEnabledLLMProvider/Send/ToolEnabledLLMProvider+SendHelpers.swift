@@ -8,6 +8,7 @@ extension ToolEnabledLLMProvider {
         let testWriterCompletedAfterLatestMutation: Bool
         let mutatedPaths: Set<String>
         let didEmitPolicyAck: Bool
+        let anyFailed: Bool
     }
 
     internal func executeSubagentCallBatch(
@@ -24,14 +25,15 @@ extension ToolEnabledLLMProvider {
                 reviewerCompletedAfterLatestMutation: false,
                 testWriterCompletedAfterLatestMutation: false,
                 mutatedPaths: [],
-                didEmitPolicyAck: false
+                didEmitPolicyAck: false,
+                anyFailed: false
             )
         }
 
         var roundToolResults: [[String: String]] = []
-        var sawCodeMutationDuringTask = false
-        var reviewerCompletedAfterLatestMutation = false
-        var testWriterCompletedAfterLatestMutation = false
+        var batchHadMutation = false
+        var batchHadReviewerCompletion = false
+        var batchHadTestWriterCompletion = false
         var mutatedPaths: Set<String> = []
         var didEmitPolicyAck = false
         var anyFailed = false
@@ -42,7 +44,9 @@ extension ToolEnabledLLMProvider {
             for call in calls {
                 let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
                 let role = SubagentRole.fromToolName(call.name)
-                let subagentId = "\(role?.rawValue ?? call.name)-\(UUID().uuidString.prefix(8))"
+                // Use "queued-<toolCallId>" as swarm_id to correlate with the
+                // "queued" event emitted in SendRoundProcessing, avoiding orphaned UI entries.
+                let subagentId = "queued-\(toolCallId)"
                 subagentIdByCallId[toolCallId] = subagentId
                 continuation.yield(.raw(type: "agent", payload: [
                     "title": role?.displayName ?? call.name,
@@ -77,9 +81,7 @@ extension ToolEnabledLLMProvider {
                 let subagentToolName = result.marker.payload["name"] ?? result.marker.payload["tool"] ?? ""
                 for e in result.events {
                     if Self.streamEventIndicatesCodeMutation(e, originatingToolName: subagentToolName) {
-                        sawCodeMutationDuringTask = true
-                        reviewerCompletedAfterLatestMutation = false
-                        testWriterCompletedAfterLatestMutation = false
+                        batchHadMutation = true
                         if let path = Self.mutatedFilePath(from: e, originatingToolName: subagentToolName) {
                             mutatedPaths.insert(path)
                         }
@@ -87,10 +89,10 @@ extension ToolEnabledLLMProvider {
                     if let completedRole = Self.completedSubagentRole(from: e) {
                         completedRolesInBatch.insert(completedRole.rawValue.lowercased())
                         if completedRole == .reviewer {
-                            reviewerCompletedAfterLatestMutation = true
+                            batchHadReviewerCompletion = true
                         }
                         if completedRole == .testWriter {
-                            testWriterCompletedAfterLatestMutation = true
+                            batchHadTestWriterCompletion = true
                         }
                     }
                     if case .raw(let innerType, let innerPayload) = e,
@@ -125,13 +127,27 @@ extension ToolEnabledLLMProvider {
             "roles": completedRolesInBatch.sorted().joined(separator: ",")
         ]))
 
+        // Resolve batch states: if mutations happened in a parallel batch,
+        // reviewer/testWriter completions from the SAME batch are stale
+        // (they reviewed pre-mutation code since they ran concurrently).
+        let resolvedReviewerCompleted: Bool
+        let resolvedTestWriterCompleted: Bool
+        if batchHadMutation {
+            resolvedReviewerCompleted = false
+            resolvedTestWriterCompleted = false
+        } else {
+            resolvedReviewerCompleted = batchHadReviewerCompletion
+            resolvedTestWriterCompleted = batchHadTestWriterCompletion
+        }
+
         return SubagentBatchResult(
             roundToolResults: roundToolResults,
-            sawCodeMutationDuringTask: sawCodeMutationDuringTask,
-            reviewerCompletedAfterLatestMutation: reviewerCompletedAfterLatestMutation,
-            testWriterCompletedAfterLatestMutation: testWriterCompletedAfterLatestMutation,
+            sawCodeMutationDuringTask: batchHadMutation,
+            reviewerCompletedAfterLatestMutation: resolvedReviewerCompleted,
+            testWriterCompletedAfterLatestMutation: resolvedTestWriterCompleted,
             mutatedPaths: mutatedPaths,
-            didEmitPolicyAck: didEmitPolicyAck
+            didEmitPolicyAck: didEmitPolicyAck,
+            anyFailed: anyFailed
         )
     }
 
@@ -197,7 +213,9 @@ extension ToolEnabledLLMProvider {
             if !fallback.isEmpty {
                 continuation.yield(.textDelta(fallback))
             }
-            throw error
+            // Return false instead of re-throwing to let the caller continue
+            // with post-finalization checks (mandatory review warnings, etc.)
+            return false
         }
     }
 

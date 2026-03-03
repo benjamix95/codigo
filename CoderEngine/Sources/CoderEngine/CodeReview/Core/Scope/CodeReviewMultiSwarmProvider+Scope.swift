@@ -93,7 +93,7 @@ extension CodeReviewMultiSwarmProvider {
 
     /// Get files changed since a commit ref using git diff.
     /// Returns `(files, error)` — error is non-nil if git failed.
-    static func gitDiffFiles(ref: String, workspacePath: URL) -> (files: [String], error: String?) {
+    static func gitDiffFiles(ref: String, workspacePath: URL, excludedPaths: [String] = []) -> (files: [String], error: String?) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["diff", "--name-only", "--diff-filter=ACMR", ref, "--"]
@@ -102,6 +102,18 @@ extension CodeReviewMultiSwarmProvider {
         let errPipe = Pipe()
         process.standardOutput = pipe
         process.standardError = errPipe
+
+        // Read both stdout and stderr asynchronously to avoid pipe deadlock.
+        // Synchronous readDataToEndOfFile on one pipe while the other fills can deadlock.
+        var outData = Data()
+        let outLock = NSLock()
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            outLock.lock()
+            outData.append(chunk)
+            outLock.unlock()
+        }
 
         var errData = Data()
         let errLock = NSLock()
@@ -116,29 +128,49 @@ extension CodeReviewMultiSwarmProvider {
         do {
             try process.run()
         } catch {
+            pipe.fileHandleForReading.readabilityHandler = nil
             errPipe.fileHandleForReading.readabilityHandler = nil
             return ([], "Failed to run git diff: \(error.localizedDescription)")
         }
 
         let gitTimeoutSeconds: TimeInterval = 30
+        var didTimeout = false
         let timeoutItem = DispatchWorkItem {
             guard process.isRunning else { return }
+            didTimeout = true
             process.terminate()
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + gitTimeoutSeconds, execute: timeoutItem)
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         timeoutItem.cancel()
+
+        // Detach handlers first, then drain remaining buffered data synchronously
+        // to avoid race between in-flight handler callbacks and final data read.
+        pipe.fileHandleForReading.readabilityHandler = nil
         errPipe.fileHandleForReading.readabilityHandler = nil
+        let remainingOut = pipe.fileHandleForReading.readDataToEndOfFile()
+        let remainingErr = errPipe.fileHandleForReading.readDataToEndOfFile()
+
+        outLock.lock()
+        if !remainingOut.isEmpty { outData.append(remainingOut) }
+        let data = outData
+        outLock.unlock()
+        errLock.lock()
+        if !remainingErr.isEmpty { errData.append(remainingErr) }
+        errLock.unlock()
 
         guard process.terminationStatus == 0 else {
-            if process.terminationReason == .uncaughtSignal {
-                return ([], "git diff timed out after \(Int(gitTimeoutSeconds))s for ref '\(ref)'")
-            }
+            let wasTimedOut = didTimeout
             errLock.lock()
             let capturedErrData = errData
             errLock.unlock()
+            if wasTimedOut {
+                let errMsg = String(data: capturedErrData, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let detail = errMsg.isEmpty ? "" : " (\(errMsg))"
+                return ([], "git diff terminated by signal for ref '\(ref)'\(detail) (timeout was \(Int(gitTimeoutSeconds))s)")
+            }
             let errMsg = String(data: capturedErrData, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown error"
             return ([], "git diff failed for ref '\(ref)': \(errMsg)")
@@ -147,13 +179,18 @@ extension CodeReviewMultiSwarmProvider {
             return ([], "Failed to decode git diff output as UTF-8.")
         }
 
+        // Normalize excluded paths to always end with "/" for directory-aware matching.
+        // This prevents "src/test" from matching "src/testing/MyFile.swift".
+        let excludedPrefixes = excludedPaths.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         let files = output
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .filter { path in
                 let ext = (path as NSString).pathExtension.lowercased()
-                return WorkspaceScanner.sourceExtensions.contains(ext)
+                guard WorkspaceScanner.sourceExtensions.contains(ext) else { return false }
+                // Exclude paths matching excludedPaths directory prefixes
+                return !excludedPrefixes.contains(where: { path.hasPrefix($0) || path == String($0.dropLast()) })
             }
         return (files, nil)
     }

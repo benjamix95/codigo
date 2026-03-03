@@ -1,5 +1,9 @@
 import Foundation
 
+private struct SubagentTimeoutError: LocalizedError {
+    var errorDescription: String? { "Subagent execution timed out after 5 minutes" }
+}
+
 private actor SubagentExecutionLimiter {
     static let shared = SubagentExecutionLimiter(maxConcurrent: 4)
 
@@ -181,35 +185,50 @@ extension ToolEnabledLLMProvider {
                 lastLiveEmitAt = now
             }
 
-            let stream = try await subagentProvider.send(
-                prompt: prompt, context: context, imageURLs: nil
-            )
-            for try await event in stream {
-                switch event {
-                case .textDelta(let delta):
-                    if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
-                    if hasLiveCallback, !delta.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
-                        liveTextBuffer += delta
-                        if liveTextBuffer.count > 2400 {
-                            liveTextBuffer = String(liveTextBuffer.suffix(2400))
+            // Wrap both stream creation AND iteration inside the task group
+            // so the 5-minute timeout covers the full subagent execution,
+            // not just the instant stream-creation call.
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    let stream = try await subagentProvider.send(
+                        prompt: prompt, context: context, imageURLs: nil
+                    )
+                    for try await event in stream {
+                        try Task.checkCancellation()
+                        switch event {
+                        case .textDelta(let delta):
+                            if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
+                            if hasLiveCallback, !delta.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+                                liveTextBuffer += delta
+                                if liveTextBuffer.count > 2400 {
+                                    liveTextBuffer = String(liveTextBuffer.suffix(2400))
+                                }
+                                emitBufferedLiveTextIfNeeded()
+                            }
+                        case .raw(let type, var payload):
+                            emitBufferedLiveTextIfNeeded(force: true)
+                            payload["swarm_id"] = subagentId
+                            payload["group_id"] = "swarm-\(subagentId)"
+                            if hasLiveCallback {
+                                payload["_live_emitted"] = "1"
+                            }
+                            let enriched = StreamEvent.raw(type: type, payload: payload)
+                            events.append(enriched)
+                            onLiveEvent?(enriched)
+                        default:
+                            break
                         }
-                        emitBufferedLiveTextIfNeeded()
                     }
-                case .raw(let type, var payload):
                     emitBufferedLiveTextIfNeeded(force: true)
-                    payload["swarm_id"] = subagentId
-                    payload["group_id"] = "swarm-\(subagentId)"
-                    if hasLiveCallback {
-                        payload["_live_emitted"] = "1"
-                    }
-                    let enriched = StreamEvent.raw(type: type, payload: payload)
-                    events.append(enriched)
-                    onLiveEvent?(enriched)
-                default:
-                    break
                 }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutes
+                    throw SubagentTimeoutError()
+                }
+                // First task to finish (or throw) wins; cancel the other.
+                try await group.next()
+                group.cancelAll()
             }
-            emitBufferedLiveTextIfNeeded(force: true)
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
             let output = String(fullTextParts.joined().prefix(Self.subagentOutputLimit(for: role)))

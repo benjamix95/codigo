@@ -158,6 +158,10 @@ extension ToolEnabledLLMProvider {
                         continuation: continuation,
                         emitStartedEvents: true
                     )
+                    if injectedBatch.anyFailed {
+                        // Stop retrying — subagent failures are likely deterministic
+                        autoInjectedFinalReviewBatchCount = maxAutoInjectedFinalReviewBatchCount
+                    }
                     if injectedBatch.sawCodeMutationDuringTask {
                         sawCodeMutationDuringTask = true
                         reviewerCompletedAfterLatestMutation = injectedBatch.reviewerCompletedAfterLatestMutation

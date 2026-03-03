@@ -120,7 +120,7 @@ extension CodeReviewMultiSwarmProvider {
     ) -> ExtractedReviewTasks? {
         let allowedSet = allowedFiles.map(Set.init)
 
-        let codeBlockPattern = #"```json\s*\n(\[[\s\S]*?\])\s*\n```"#
+        let codeBlockPattern = #"```json\s*\n(\[[\s\S]*\])\s*\n```"#
         if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             var lastInvalidReason: String?
@@ -139,6 +139,8 @@ extension CodeReviewMultiSwarmProvider {
             }
         }
 
+        // Use lazy matching ([\s\S]*?) so the regex stops at the first valid }\s*]
+        // rather than greedily spanning across multiple JSON blocks in the text.
         let bareArrayPattern = #"\[\s*\{[\s\S]*?\}\s*\]"#
         if let regex = try? NSRegularExpression(pattern: bareArrayPattern, options: []) {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
@@ -183,7 +185,10 @@ extension CodeReviewMultiSwarmProvider {
 
             let scopedFiles: [String]
             if let allowedFiles {
-                scopedFiles = filteredFiles.filter { allowedFiles.contains($0) && !claimedFiles.contains($0) }
+                // Normalize paths: strip leading "./" for consistent matching
+                let normalizedAllowed = Set(allowedFiles.map { $0.hasPrefix("./") ? String($0.dropFirst(2)) : $0 })
+                scopedFiles = filteredFiles.map { $0.hasPrefix("./") ? String($0.dropFirst(2)) : $0 }
+                    .filter { normalizedAllowed.contains($0) && !claimedFiles.contains($0) }
             } else {
                 scopedFiles = filteredFiles.filter { !claimedFiles.contains($0) }
             }
@@ -252,10 +257,15 @@ extension CodeReviewMultiSwarmProvider {
         }
 
         var suffix = 1
-        while true {
+        while suffix <= 1000 {
             let candidate = "review-\(fallbackIndex)-\(suffix)"
             if let claimed = claim(candidate) { return claimed }
             suffix += 1
         }
+        // Safety fallback: use UUID to guarantee uniqueness
+        let uuid = UUID().uuidString.prefix(8)
+        let fallback = "review-\(fallbackIndex)-\(uuid)"
+        usedIDs.insert(fallback)
+        return fallback
     }
 }

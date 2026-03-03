@@ -91,7 +91,7 @@ extension ToolEnabledLLMProvider {
 
         // Subagent tools — execute inline during the agent's streaming loop.
         if toolName.hasPrefix("subagent_") {
-            let toolCallId = marker.payload["id"] ?? ""
+            let toolCallId = marker.payload["id"].flatMap({ $0.isEmpty ? nil : $0 }) ?? UUID().uuidString
             let preAssignedId = preEmittedSubagentIds?[toolCallId]
             return await executeSubagentTool(
                 toolName: toolName,
@@ -141,8 +141,8 @@ extension ToolEnabledLLMProvider {
             return [.raw(type: "tool_validation_error", payload: [
                 "id": marker.payload["id"] ?? UUID().uuidString,
                 "name": toolName,
-                "title": "invoke_swarm non supportato",
-                "detail": "invoke_swarm è legacy; usa subagent_* (subagent_explorer/coder/reviewer/...).",
+                "title": "invoke_swarm not supported",
+                "detail": "invoke_swarm is legacy; use subagent_* (subagent_explorer/coder/reviewer/...).",
                 "status": "failed",
                 "error_code": "legacy_invoke_swarm_disabled",
             ])]
@@ -167,7 +167,7 @@ extension ToolEnabledLLMProvider {
                 "id": marker.payload["id"] ?? UUID().uuidString,
                 "name": toolName,
                 "title": "Missing task",
-                "detail": "invoke_swarm richiede un task non vuoto; usa subagent_* con task.",
+                "detail": "invoke_swarm requires a non-empty task; use subagent_* with a task argument.",
                 "status": "failed",
                 "error_code": "missing_argument",
             ])]

@@ -34,7 +34,8 @@ extension ToolEnabledLLMProvider {
 
     static func isSuccessfulStatus(_ raw: String?) -> Bool {
         let status = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if status.isEmpty { return true }
+        // Empty/nil status is ambiguous — treat as non-success to avoid masking failures
+        if status.isEmpty { return false }
         return status == "completed" || status == "ok" || status == "success" || status == "done"
     }
 
@@ -47,17 +48,21 @@ extension ToolEnabledLLMProvider {
            let role = SubagentRole.fromToolName(tool) {
             return role == .coder || role == .debugger
         }
-        if tool == "create_file" || tool == "delete_file" || tool == "apply_patch" {
-            return true
+        let knownMutatingTools: Set<String> = [
+            "create_file", "delete_file", "apply_patch",
+            "str_replace", "edit", "multi_edit", "regex_replace",
+            "write", "parallel_apply", "find_and_replace_all",
+            "rename_symbol", "undo_edit", "apply_diff",
+            "coderide_str_replace", "coderide_write", "coderide_create_file",
+            "coderide_regex_replace",
+        ]
+        if knownMutatingTools.contains(tool) { return true }
+        // MCP edit tools: match only known mutation prefixes, not broad substrings
+        if tool.hasPrefix("mcp_") {
+            let mcpSuffix = String(tool.dropFirst(4))
+            return knownMutatingTools.contains(mcpSuffix)
         }
-        return tool.contains("edit")
-            || tool.contains("write")
-            || tool.contains("replace")
-            || tool == "parallel_apply"
-            || tool == "multi_edit"
-            || tool == "find_and_replace_all"
-            || tool == "rename_symbol"
-            || tool == "undo_edit"
+        return false
     }
 
     static func streamEventIndicatesCodeMutation(
@@ -109,14 +114,18 @@ extension ToolEnabledLLMProvider {
         guard case .raw(let type, let payload) = event else { return nil }
         guard type == "tool_result" else { return nil }
         guard isSuccessfulStatus(payload["status"]) else { return nil }
-        let tool = payload["name"] ?? payload["tool"] ?? ""
+        // Normalize to strip "coderide_" prefix and handle casing, matching
+        // the same normalization used by isCodeMutationTool.
+        let tool = ProviderToolEventMapper.normalizeToolIdentifier(
+            payload["name"] ?? payload["tool"] ?? ""
+        )
         return SubagentRole.fromToolName(tool)
     }
 
     static func requiredPolicyHash(from context: WorkspaceContext) -> String? {
         let prompt = context.contextPrompt()
         guard !prompt.isEmpty else { return nil }
-        let pattern = #"\bpolicy_ack\b[^]]*\bhash=([^\s|\]\n]+)"#
+        let pattern = #"\bpolicy_ack\b[^\]]*\bhash=([^\s|\]\n]+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
         let nsPrompt = prompt as NSString
         let matches = regex.matches(in: prompt, range: NSRange(location: 0, length: nsPrompt.length))

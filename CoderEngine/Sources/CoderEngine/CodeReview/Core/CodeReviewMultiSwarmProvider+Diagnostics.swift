@@ -21,12 +21,23 @@ extension CodeReviewMultiSwarmProvider {
             "no fix required",
             "no fixes required",
             "no critical issues",
+            "no critical bugs",
+            "no critical problems",
+            "no critical findings",
             "no security vulnerabilities",
             "no security issues",
+            "no security risks",
+            "no security concerns",
             "no race conditions",
+            "no race condition issues",
             "no memory leaks",
             "no regressions",
             "no regression risks",
+            "no crashes",
+            "no deadlocks",
+            "no injection vulnerabilities",
+            "no data loss risks",
+            "no infinite loops",
             "code is clean",
             "code looks good",
             "looks good overall",
@@ -38,10 +49,20 @@ extension CodeReviewMultiSwarmProvider {
             "lgtm",
             "everything looks good",
             "no actionable issues",
-            "no remaining issues"
+            "no remaining issues",
+            "error handling is properly implemented",
+            "error handling looks correct",
+            "error handling is correct",
+            "error handling is adequate",
+            "error handling is good",
+            "no error handling issues"
         ]
         let hasCleanIndicator = noIssuesIndicators.contains(where: { lower.contains($0) })
-        let issueScanText = noIssuesIndicators.reduce(lower) { partial, phrase in
+        // Sort indicators by length (longest first) so that longer phrases like
+        // "no race condition issues" are stripped before shorter ones like "no race conditions",
+        // preventing partial matches that leave issue-indicating fragments behind.
+        let sortedIndicators = noIssuesIndicators.sorted { $0.count > $1.count }
+        let issueScanText = sortedIndicators.reduce(lower) { partial, phrase in
             partial.replacingOccurrences(of: phrase, with: " ")
         }
 
@@ -53,7 +74,8 @@ extension CodeReviewMultiSwarmProvider {
             "cannot evaluate",
             "unclear"
         ]
-        let hasInconclusiveIndicator = inconclusiveIndicators.contains(where: { lower.contains($0) })
+        // Use word-boundary matching to avoid false positives (e.g. "nuclear" matching "unclear")
+        let hasInconclusiveIndicator = inconclusiveIndicators.contains(where: { containsWord(lower, word: $0) })
 
         let strictIssueIndicators = [
             "critical",
@@ -75,7 +97,17 @@ extension CodeReviewMultiSwarmProvider {
             "null dereference",
             "segmentation fault",
             "thread-safety",
-            "use-after-free"
+            "use-after-free",
+            "buffer overflow",
+            "integer overflow",
+            "integer underflow",
+            "path traversal",
+            "cross-site scripting",
+            "xss",
+            "denial of service",
+            "type confusion",
+            "uninitialized variable",
+            "uninitialized memory"
         ]
         let hasStrictIssueIndicator = strictIssueIndicators.contains(where: { issueScanText.contains($0) })
 
@@ -161,7 +193,7 @@ extension CodeReviewMultiSwarmProvider {
             if isCancelled() { return .failed }
             await waitWhilePaused()
 
-            continuation.yield(.textDelta("Running tests\(attempt > 0 ? " (retry \(attempt + 1))" : "")...\n"))
+            continuation.yield(.textDelta("Running tests\(attempt > 0 ? " (retry \(attempt))" : "")...\n"))
 
             do {
                 let (output, status) = try await ProcessRunner.runCollecting(

@@ -41,7 +41,7 @@ extension CodeReviewMultiSwarmProvider {
                 continuation.finish()
                 return
             }
-            let (diffFiles, diffError) = Self.gitDiffFiles(ref: ref, workspacePath: workspacePath)
+            let (diffFiles, diffError) = Self.gitDiffFiles(ref: ref, workspacePath: workspacePath, excludedPaths: context.excludedPaths)
             filesToReview = diffFiles
             if filesToReview.isEmpty {
                 let reason = diffError ?? "No changed files found"

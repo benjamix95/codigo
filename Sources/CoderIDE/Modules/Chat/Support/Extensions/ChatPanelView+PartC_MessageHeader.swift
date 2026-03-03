@@ -174,7 +174,7 @@ extension ChatPanelView {
         ScrollViewReader { proxy in
             messagesAreaScrollView(using: proxy)
         }
-        .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 120, maxHeight: .infinity)
         .background(
             GeometryReader { g in
                 let gw = g.size.width, gh = g.size.height

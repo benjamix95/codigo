@@ -58,8 +58,7 @@ extension ChatPanelView {
                 .id("plan-board")
             }
             // Invisible anchor at the very bottom – scrollTo targets this
-            // instead of a message id so that LazyVStack doesn't thrash
-            // height estimates for off-screen items.
+            // instead of a message id for stable scroll positioning.
             Color.clear
                 .frame(height: 1)
                 .id(chatScrollBottomAnchorId)

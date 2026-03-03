@@ -2,12 +2,19 @@ import Foundation
 
 /// Coordinates exclusive file access between parallel swarms.
 /// Uses exponential backoff with jitter to reduce contention and starvation.
+/// Locks have a 10-minute lease — stale locks from crashed workers are auto-evicted.
 public actor FileLockCoordinator {
     private var lockedFiles: [String: String] = [:]
+    /// Timestamps tracking when each file was locked (for lease expiration).
+    private var lockTimestamps: [String: UInt64] = [:]
+    /// Maximum lock lease duration in nanoseconds (10 minutes).
+    private let maxLockLeaseNs: UInt64 = 600_000_000_000
     /// FIFO queue for fairness: swarm IDs in order of first lock request
     private var waitQueue: [String] = []
     /// Pending file sets per waiting swarm (used to keep fairness for overlapping requests only).
     private var waitingRequests: [String: Set<String>] = [:]
+    /// Timestamps for when each waiter entered the queue (for stale waiter eviction).
+    private var waiterTimestamps: [String: UInt64] = [:]
 
     /// Acquires lock on files; blocks until available with a safety timeout.
     /// Accepts an optional cancellation check to exit the wait loop early.
@@ -23,6 +30,7 @@ public actor FileLockCoordinator {
         // Register in the wait queue for fairness
         if !waitQueue.contains(swarmId) {
             waitQueue.append(swarmId)
+            waiterTimestamps[swarmId] = DispatchTime.now().uptimeNanoseconds
         }
         waitingRequests[swarmId] = files
 
@@ -36,13 +44,18 @@ public actor FileLockCoordinator {
                 return false
             }
 
+            // Evict stale locks from crashed/timed-out workers
+            evictStaleLocks()
+
             let intersection = files.filter { lockedFiles[$0] != nil && lockedFiles[$0] != swarmId }
             let hasConflictingWaiterAhead = hasOverlappingWaiterAhead(of: swarmId, files: files)
             if intersection.isEmpty && !hasConflictingWaiterAhead {
                 // Allow parallelism for disjoint file sets, but preserve FIFO fairness
                 // for swarms waiting on overlapping files.
+                let now = DispatchTime.now().uptimeNanoseconds
                 for f in files {
                     lockedFiles[f] = swarmId
+                    lockTimestamps[f] = now
                 }
                 removeWaitingRequest(swarmId)
                 return true
@@ -63,13 +76,16 @@ public actor FileLockCoordinator {
     public func releaseLock(files: Set<String>, swarmId: String) async {
         for f in files where lockedFiles[f] == swarmId {
             lockedFiles.removeValue(forKey: f)
+            lockTimestamps.removeValue(forKey: f)
         }
     }
 
     /// Releases ALL locks held by the specified swarm and removes it from the wait queue.
     /// Use this for cleanup on task cancellation or errors to prevent orphaned locks.
     public func releaseAllLocks(swarmId: String) {
+        let removedFiles = lockedFiles.filter { $0.value == swarmId }.map(\.key)
         lockedFiles = lockedFiles.filter { $0.value != swarmId }
+        for f in removedFiles { lockTimestamps.removeValue(forKey: f) }
         removeWaitingRequest(swarmId)
     }
 
@@ -88,8 +104,28 @@ public actor FileLockCoordinator {
         return false
     }
 
+    /// Evicts locks whose lease has expired (crashed/timed-out workers).
+    /// Also cleans up stale waitQueue entries for swarms that have been waiting
+    /// longer than the lease duration (phantom waiters from cancelled tasks).
+    private func evictStaleLocks() {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let staleFiles = lockTimestamps.filter { now - $0.value > maxLockLeaseNs }.map(\.key)
+        for f in staleFiles {
+            lockedFiles.removeValue(forKey: f)
+            lockTimestamps.removeValue(forKey: f)
+        }
+        // Evict phantom waiters: swarms that have been in the wait queue longer
+        // than the lease duration. This handles tasks cancelled externally without
+        // calling releaseAllLocks, leaving ghost entries blocking fairness.
+        let staleWaiters = waiterTimestamps.filter { now - $0.value > maxLockLeaseNs }.map(\.key)
+        for swarmId in staleWaiters {
+            removeWaitingRequest(swarmId)
+        }
+    }
+
     private func removeWaitingRequest(_ swarmId: String) {
         waitQueue.removeAll { $0 == swarmId }
         waitingRequests.removeValue(forKey: swarmId)
+        waiterTimestamps.removeValue(forKey: swarmId)
     }
 }

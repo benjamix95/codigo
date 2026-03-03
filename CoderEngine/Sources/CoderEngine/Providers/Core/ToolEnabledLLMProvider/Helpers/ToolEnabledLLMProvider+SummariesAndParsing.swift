@@ -7,13 +7,16 @@ extension ToolEnabledLLMProvider {
             "name": marker.payload["name"] ?? ""
         ]
         var foundCompletion = false
+        var sawFailure = false
         for event in events {
             guard case .raw(let type, let payload) = event else { continue }
             if type == "tool_execution_error" || payload["status"] == "failed" {
                 summary["status"] = "failed"
                 summary["detail"] = payload["detail"] ?? payload["stderr"] ?? "tool failed"
                 foundCompletion = true
-            } else if payload["status"] == "completed" || payload["status"] == "success" {
+                sawFailure = true
+            } else if !sawFailure, (payload["status"] == "completed" || payload["status"] == "success") {
+                // Only accept success if no failure was seen (failure-wins precedence)
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
                 let name = (summary["name"] ?? "").lowercased()
@@ -111,9 +114,8 @@ extension ToolEnabledLLMProvider {
     }
 
     func markerDedupeKey(_ marker: CoderIDEMarker) -> String {
-        if marker.kind == "tool_call", let id = marker.payload["id"], !id.isEmpty {
-            return "\(marker.kind)|id=\(id)"
-        }
+        // Use content-based key (excluding unique "id") so that repeated
+        // calls with the same tool name + arguments are correctly deduplicated.
         let stablePayload = marker.payload
             .filter { $0.key.lowercased() != "id" }
             .map { key, value in "\(key)=\(value)" }

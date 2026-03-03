@@ -20,6 +20,7 @@ extension ChatPanelView {
             return "Gemini CLI not found/not authenticated. Configure it in Settings."
         case "openrouter-api": return "OpenRouter API Key missing. Configure it in Settings."
         case "minimax-api": return "MiniMax API Key missing. Configure it in Settings."
+        case "grok-api": return "Grok API Key missing. Configure it in Settings."
         default:
             return "Provider \"\(id)\" not authenticated. Go to Settings to configure."
         }
@@ -147,9 +148,8 @@ extension ChatPanelView {
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building, .proposalReady, .readyToBuild:
                 break
-            default:
+            case .idle:
                 planningState = .idle
-                planFlowPhase = .idle
             }
             planToggleEnabled = true
         case .browser:

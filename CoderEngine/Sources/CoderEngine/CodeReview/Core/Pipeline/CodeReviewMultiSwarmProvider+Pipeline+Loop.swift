@@ -175,18 +175,14 @@ extension CodeReviewMultiSwarmProvider {
                 ))
                 finalReviewState = .inconclusive(reason: reason)
                 break reviewLoop
-            case .noPayload:
-                continuation.yield(.textDelta("\n**Re-review payload missing.** Unable to safely continue without validated tasks.\n"))
-                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
-                continuation.yield(.completed)
-                continuation.finish()
-                return
+            case .noPayload(let reason):
+                continuation.yield(.textDelta("\n**Re-review payload missing: \(reason).** Unable to safely continue without validated tasks.\n"))
+                finalReviewState = .inconclusive(reason: reason)
+                break reviewLoop
             case .invalidJSON(let reason):
                 continuation.yield(.textDelta("\n**Re-review payload invalid: \(reason)** Stopping for safety.\n"))
-                continuation.yield(.textDelta("\n---\n**Review complete (inconclusive).**\n"))
-                continuation.yield(.completed)
-                continuation.finish()
-                return
+                finalReviewState = .inconclusive(reason: "Re-review payload invalid: \(reason)")
+                break reviewLoop
             }
 
             continuation.yield(.textDelta(
