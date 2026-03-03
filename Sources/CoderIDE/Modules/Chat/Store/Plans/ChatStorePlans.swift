@@ -1,0 +1,258 @@
+import Foundation
+import CoderEngine
+
+extension ChatStore {
+func setPlanBoard(_ board: PlanBoard, for conversationId: UUID?) {
+    guard let conversationId else { return }
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+
+func choosePlanPath(_ chosenPath: String, for conversationId: UUID?) {
+    guard let conversationId else { return }
+    let optionTodos = PlanOptionsParser.extractTodosFromOptionText(chosenPath)
+    var board = planBoards[conversationId] ?? PlanBoard(
+        goal: "Operational plan in progress",
+        options: [],
+        chosenPath: nil,
+        steps: PlanBoard.buildSteps(fromTodoTitles: optionTodos),
+        updatedAt: .now,
+        walkthroughMarkdown: nil
+    )
+    board.chosenPath = chosenPath
+    board.steps = PlanBoard.buildSteps(fromTodoTitles: optionTodos)
+    board.updatedAt = .now
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+
+func planBoard(for conversationId: UUID?) -> PlanBoard? {
+    guard let conversationId else { return nil }
+    return planBoards[conversationId]
+}
+
+func attachPlanEntry(
+    toMessageId messageId: UUID,
+    conversationId: UUID?,
+    entry: PlanHistoryEntry
+) {
+    guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
+    guard let midx = conversations[cidx].messages.firstIndex(where: { $0.id == messageId }) else { return }
+    conversations[cidx].messages[midx].planAttachment = PlanAttachment(
+        historyEntryId: entry.id,
+        layoutVersion: 1,
+        showExpand: true,
+        snapshotTitle: entry.title
+    )
+    saveConversations()
+}
+
+@discardableResult
+func attachPlanEntryToLastAssistant(
+    conversationId: UUID?,
+    entry: PlanHistoryEntry
+) -> UUID? {
+    guard let cidx = conversations.firstIndex(where: { $0.id == conversationId }) else { return nil }
+    guard let midx = conversations[cidx].messages.lastIndex(where: { $0.role == .assistant }) else {
+        return nil
+    }
+    let msgId = conversations[cidx].messages[midx].id
+    conversations[cidx].messages[midx].planAttachment = PlanAttachment(
+        historyEntryId: entry.id,
+        layoutVersion: 1,
+        showExpand: true,
+        snapshotTitle: entry.title
+    )
+    saveConversations()
+    return msgId
+}
+
+func backfillPlanAttachmentsIfNeeded(historyStore: PlanHistoryStore) {
+    var changed = false
+    for cidx in conversations.indices {
+        let conv = conversations[cidx]
+        for midx in conversations[cidx].messages.indices {
+            var msg = conversations[cidx].messages[midx]
+            guard msg.role == .assistant else { continue }
+            if msg.planAttachment != nil { continue }
+            let opts = PlanOptionsParser.parseStrict(from: msg.content)
+            guard !opts.isEmpty else { continue }
+            let normalizedHash = normalizedPlanContentHash(msg.content)
+            let summary = PlanOptionsParser.extractDisplaySummary(from: msg.content)
+            let existing = historyStore.findEntry(
+                conversationId: conv.id,
+                sourceMessageId: msg.id
+            )
+            let existingByHash = historyStore.entries.first(where: { entry in
+                guard entry.conversationId == conv.id else { return false }
+                guard entry.sourceMessageId == msg.id else { return false }
+                return normalizedPlanContentHash(entry.markdown) == normalizedHash
+            })
+            let entry: PlanHistoryEntry
+            if let existingByHash {
+                entry = existingByHash
+            } else if let existing {
+                entry = existing
+            } else {
+                entry = historyStore.createEntry(
+                    conversationId: conv.id,
+                    contextId: conv.contextId,
+                    contextFolderPath: conv.contextFolderPath,
+                    title: summary.title,
+                    markdown: msg.content,
+                    options: opts,
+                    chosenPath: nil,
+                    tags: [],
+                    sourceMessageId: msg.id
+                )
+            }
+            msg.planAttachment = PlanAttachment(
+                historyEntryId: entry.id,
+                layoutVersion: 1,
+                showExpand: true,
+                snapshotTitle: entry.title
+            )
+            conversations[cidx].messages[midx] = msg
+            changed = true
+        }
+    }
+    if changed {
+        saveConversations()
+    }
+}
+
+/// Returns a deterministic hash for plan content deduplication.
+/// Swift's `String.hashValue` is randomized per process, so it cannot be
+/// used for cross-session comparison. We use a simple djb2 hash instead.
+private func normalizedPlanContentHash(_ raw: String) -> Int {
+    let normalized = raw
+        .components(separatedBy: .newlines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n")
+        .lowercased()
+    var hash: UInt64 = 5381
+    for byte in normalized.utf8 {
+        hash = ((hash &<< 5) &+ hash) &+ UInt64(byte)
+    }
+    return Int(bitPattern: UInt(hash))
+}
+
+func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversationId: UUID?) {
+    guard let conversationId, var board = planBoards[conversationId] else { return }
+    guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
+    board.steps[index].status = status
+    board.updatedAt = .now
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+
+func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUID?) {
+    guard let conversationId else { return }
+    var board = planBoards[conversationId] ?? PlanBoard(
+        goal: "Operational plan in progress",
+        options: [],
+        chosenPath: nil,
+        steps: [],
+        updatedAt: .now,
+        walkthroughMarkdown: nil
+    )
+
+    let canonicalTodos = todos
+        .filter(\.isPlanCanonical)
+        .sorted(by: { $0.createdAt < $1.createdAt })
+
+    // Don't replace steps with a placeholder when todos are empty —
+    // this preserves existing step data during transient clear operations.
+    guard !canonicalTodos.isEmpty else { return }
+
+    // Merge into existing steps: update status for matched titles,
+    // preserve existing step IDs and metadata (targetFile, description).
+    var updatedSteps = board.steps
+    for todo in canonicalTodos {
+        let todoStatus: PlanStepStatus = {
+            switch todo.status {
+            case .pending: return .pending
+            case .inProgress: return .running
+            case .done: return .done
+            case .blocked: return .failed
+            }
+        }()
+        if let idx = updatedSteps.firstIndex(where: {
+            $0.title.caseInsensitiveCompare(todo.title) == .orderedSame
+        }) {
+            updatedSteps[idx].status = todoStatus
+        } else {
+            updatedSteps.append(PlanStep(
+                id: String(updatedSteps.count + 1),
+                title: todo.title,
+                description: todo.title,
+                targetFile: nil,
+                status: todoStatus
+            ))
+        }
+    }
+
+    board.steps = updatedSteps
+    board.updatedAt = .now
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+
+func upsertPlanStep(
+    stepId: String,
+    status: PlanStepStatus,
+    title: String? = nil,
+    in conversationId: UUID?
+) {
+    guard let conversationId else { return }
+    var board = planBoards[conversationId] ?? PlanBoard(
+        goal: "Operational plan in progress",
+        options: [],
+        chosenPath: nil,
+        steps: [],
+        updatedAt: .now,
+        walkthroughMarkdown: nil
+    )
+
+    if let index = board.steps.firstIndex(where: { $0.id == stepId }) {
+        board.steps[index].status = status
+        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            board.steps[index].title = title
+            board.steps[index].description = title
+        }
+    } else {
+        let cleanTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = (cleanTitle?.isEmpty == false) ? cleanTitle! : "Step \(stepId)"
+        board.steps.append(
+            PlanStep(
+                id: stepId,
+                title: resolvedTitle,
+                description: resolvedTitle,
+                targetFile: nil,
+                status: status
+            )
+        )
+    }
+
+    board.updatedAt = .now
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+
+func setWalkthrough(_ markdown: String, for conversationId: UUID?) {
+    guard let conversationId else { return }
+    var board = planBoards[conversationId] ?? PlanBoard(
+        goal: "Operational plan in progress",
+        options: [],
+        chosenPath: nil,
+        steps: [],
+        updatedAt: .now,
+        walkthroughMarkdown: nil
+    )
+    board.walkthroughMarkdown = markdown
+    board.updatedAt = .now
+    planBoards[conversationId] = board
+    savePlanBoards()
+}
+}
