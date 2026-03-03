@@ -3,7 +3,12 @@ import Foundation
 // MARK: - SemanticIndex Persistence
 
 extension SemanticIndex {
+    private static let currentPersistenceVersion: Int = 2
+    private static let currentPersistenceSchema: String = "semantic_index_jsonl_v2"
+
     private struct PersistenceMetadata: Codable {
+        let version: Int
+        let schema: String
         let simHash: UInt64
         let totalChunks: Int
         let totalFiles: Int
@@ -33,6 +38,8 @@ extension SemanticIndex {
         let metaPath = path.deletingLastPathComponent()
             .appendingPathComponent("semantic.meta.json")
         let meta = PersistenceMetadata(
+            version: Self.currentPersistenceVersion,
+            schema: Self.currentPersistenceSchema,
             simHash: currentSimHash,
             totalChunks: chunks.count,
             totalFiles: fileToChunks.count
@@ -53,6 +60,28 @@ extension SemanticIndex {
         }
 
         let decoder = JSONDecoder()
+
+        // Verify schema/version BEFORE loading chunks to avoid stale or incompatible data.
+        let metaPath = path.deletingLastPathComponent().appendingPathComponent("semantic.meta.json")
+        guard let metaData = try? Data(contentsOf: metaPath),
+              let metadata = try? decoder.decode(PersistenceMetadata.self, from: metaData) else {
+            Self.logger.notice("loadFromDisk: missing or invalid semantic metadata — forcing rebuild")
+            clear()
+            return
+        }
+
+        guard metadata.version == Self.currentPersistenceVersion else {
+            Self.logger.notice("loadFromDisk: version mismatch (found \(metadata.version), expected \(Self.currentPersistenceVersion)) — forcing rebuild")
+            clear()
+            return
+        }
+
+        guard metadata.schema == Self.currentPersistenceSchema else {
+            Self.logger.notice("loadFromDisk: schema mismatch (found \(metadata.schema), expected \(Self.currentPersistenceSchema)) — forcing rebuild")
+            clear()
+            return
+        }
+
         let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
 
         var loadedChunks: [SemanticChunk] = []
@@ -63,17 +92,18 @@ extension SemanticIndex {
             }
         }
 
+        guard loadedChunks.count == metadata.totalChunks else {
+            Self.logger.notice("loadFromDisk: chunk count mismatch (loaded \(loadedChunks.count), metadata \(metadata.totalChunks)) — forcing rebuild")
+            clear()
+            return
+        }
+
         clear()
         for chunk in loadedChunks {
             addChunks([chunk], forFile: chunk.filePath)
         }
         recalcAvgDocLength()
-
-        let metaPath = path.deletingLastPathComponent().appendingPathComponent("semantic.meta.json")
-        if let metaData = try? Data(contentsOf: metaPath),
-           let meta = try? decoder.decode(PersistenceMetadata.self, from: metaData) {
-            currentSimHash = meta.simHash
-            Self.logger.info("loadFromDisk: restored \(loadedChunks.count) chunks, simHash=\(meta.simHash)")
-        }
+        currentSimHash = metadata.simHash
+        Self.logger.info("loadFromDisk: restored \(loadedChunks.count) chunks, simHash=\(metadata.simHash)")
     }
 }

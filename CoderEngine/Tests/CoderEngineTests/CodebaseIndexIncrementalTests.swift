@@ -69,4 +69,44 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         )
         XCTAssertTrue(semanticResults.isEmpty)
     }
+
+    func testRealtimeUpdateQueuedDuringWorkspaceRebuildIsAppliedAfterCompletion() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        for i in 0..<220 {
+            try "struct Seed\(i) { let value = \(i) }\n".write(
+                to: workspace.appendingPathComponent("Seed\(i).swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let queuedFile = workspace.appendingPathComponent("QueuedRealtime.swift")
+        try "final class QueuedRealtime { func ping() {} }\n".write(
+            to: queuedFile,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let index = CodebaseIndex()
+        let indexingTask = Task { await index.indexWorkspace(paths: [workspace]) }
+
+        var sawIndexing = false
+        for _ in 0..<50 {
+            let status = await index.status()
+            if status.status == .indexing {
+                sawIndexing = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(sawIndexing, "Expected workspace rebuild to enter indexing state")
+
+        await index.indexSingleFile(absolutePath: queuedFile.path, relativePath: "QueuedRealtime.swift")
+        _ = await indexingTask.value
+
+        let symbolResults = await index.findSymbols(query: "QueuedRealtime")
+        XCTAssertFalse(symbolResults.isEmpty, "Queued realtime update should be flushed after rebuild")
+    }
 }

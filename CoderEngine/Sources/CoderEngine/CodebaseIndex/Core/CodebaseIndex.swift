@@ -63,6 +63,23 @@ public actor CodebaseIndex {
     /// Indexing progress (non-nil only while indexing)
     var _indexingProgress: (current: Int, total: Int)?
 
+    enum RealtimeChangeKind: Sendable {
+        case upsert
+        case remove
+    }
+
+    struct RealtimeQueuedChange: Sendable {
+        let absolutePath: String
+        let relativePath: String
+        let kind: RealtimeChangeKind
+    }
+
+    /// True while `indexWorkspace`/`incrementalUpdate` is rebuilding core maps.
+    var isWorkspaceRebuildInProgress = false
+
+    /// File watcher events received during rebuild; flushed when rebuild completes.
+    var queuedRealtimeChanges: [String: RealtimeQueuedChange] = [:]
+
     /// Semantic search index (BM25 + AST chunking + Merkle tree)
     public let semanticIndex = SemanticIndex()
 

@@ -120,9 +120,25 @@ extension CodebaseIndex {
 
         for symbol in indexed.symbols {
             let key = symbol.name.lowercased()
-            symbolsByName[key, default: []].append(symbol)
-            symbolsByFile[indexed.relativePath, default: []].append(symbol)
-            symbolsByKind[symbol.kind, default: []].append(symbol)
+
+            var existingByName = symbolsByName[key, default: []]
+            if !existingByName.contains(where: { $0.id == symbol.id }) {
+                existingByName.append(symbol)
+            }
+            symbolsByName[key] = existingByName
+
+            var existingByFile = symbolsByFile[indexed.relativePath, default: []]
+            if !existingByFile.contains(where: { $0.id == symbol.id }) {
+                existingByFile.append(symbol)
+            }
+            symbolsByFile[indexed.relativePath] = existingByFile
+
+            var existingByKind = symbolsByKind[symbol.kind, default: []]
+            if !existingByKind.contains(where: { $0.id == symbol.id }) {
+                existingByKind.append(symbol)
+            }
+            symbolsByKind[symbol.kind] = existingByKind
+
             totalSymbolsExtracted += 1
         }
     }
@@ -130,8 +146,26 @@ extension CodebaseIndex {
     func removeIndexedFile(_ relativePath: String) {
         guard let existing = indexedFiles[relativePath] else { return }
 
-        // Remove symbols
+        // Collect all symbols to remove from both the IndexedFile and symbolsByFile
+        // to handle any inconsistencies between the two sources
+        var symbolIdsToRemove = Set<String>()
+        var allSymbols: [IndexedSymbol] = []
+
         for symbol in existing.symbols {
+            if symbolIdsToRemove.insert(symbol.id).inserted {
+                allSymbols.append(symbol)
+            }
+        }
+        if let fileSymbols = symbolsByFile[relativePath] {
+            for symbol in fileSymbols {
+                if symbolIdsToRemove.insert(symbol.id).inserted {
+                    allSymbols.append(symbol)
+                }
+            }
+        }
+
+        // Remove symbols from symbolsByName and symbolsByKind
+        for symbol in allSymbols {
             let key = symbol.name.lowercased()
             symbolsByName[key]?.removeAll { $0.id == symbol.id }
             if symbolsByName[key]?.isEmpty == true {
@@ -141,7 +175,7 @@ extension CodebaseIndex {
             if symbolsByKind[symbol.kind]?.isEmpty == true {
                 symbolsByKind.removeValue(forKey: symbol.kind)
             }
-            totalSymbolsExtracted -= 1
+            if totalSymbolsExtracted > 0 { totalSymbolsExtracted -= 1 }
         }
         symbolsByFile.removeValue(forKey: relativePath)
         contentHashes.removeValue(forKey: existing.absolutePath)

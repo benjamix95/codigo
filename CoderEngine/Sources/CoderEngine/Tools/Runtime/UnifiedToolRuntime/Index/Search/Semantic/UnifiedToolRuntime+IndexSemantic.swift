@@ -50,7 +50,7 @@ extension UnifiedToolRuntime {
                 "count": "0",
             ], startDate: startDate)
         }
-        let minConfidence = min(max(Double(call.args["min_confidence"] ?? "0.28") ?? 0.28, 0.0), 1.0)
+        let minConfidence = min(max(Double(call.args["min_confidence"] ?? "0.45") ?? 0.45, 0.0), 1.0)
 
         if let index = codebaseIndex {
             await ensureSemanticIndexReadyIfNeeded(index: index, context: context)

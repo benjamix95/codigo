@@ -49,6 +49,13 @@ extension TaskActivityStore {
     }
 
     func addInstantGrep(_ result: InstantGrepResult) {
+        // Deduplicate by normalized query + scope (case/space-insensitive).
+        let normalizedQuery = result.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedScope = result.scope.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        instantGreps.removeAll { existing in
+            existing.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedQuery
+                && existing.scope.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedScope
+        }
         instantGreps.insert(result, at: 0)
         if instantGreps.count > 20 {
             instantGreps = Array(instantGreps.prefix(20))

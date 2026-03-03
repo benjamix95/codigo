@@ -100,6 +100,33 @@ extension SemanticIndexTests {
         XCTAssertFalse(results.isEmpty)
     }
 
+    func testLoadFromDiskRejectsInvalidSchemaMetadata() async throws {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let persistPath = tmpDir.appendingPathComponent("index.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        let metaPath = tmpDir.appendingPathComponent("semantic.meta.json")
+        let invalidMeta = """
+        {
+          "version": 2,
+          "schema": "broken_schema",
+          "simHash": 123,
+          "totalChunks": 999,
+          "totalFiles": 1
+        }
+        """
+        try invalidMeta.write(to: metaPath, atomically: true, encoding: .utf8)
+
+        let loaded = SemanticIndex(persistencePath: persistPath)
+        await loaded.loadFromDisk()
+        let statusAfter = await loaded.status()
+        XCTAssertEqual(statusAfter.totalChunks, 0)
+        XCTAssertEqual(statusAfter.totalFiles, 0)
+    }
+
     // MARK: - Target Directories Filter
 
     func testSearchWithTargetDirectories() async {

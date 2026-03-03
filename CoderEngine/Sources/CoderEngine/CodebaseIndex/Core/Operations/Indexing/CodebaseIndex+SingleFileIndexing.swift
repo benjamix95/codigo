@@ -3,7 +3,25 @@ import Foundation
 extension CodebaseIndex {
     public func indexSingleFile(absolutePath: String, relativePath: String) async {
         let canonicalRelativePath = canonicalRelativePath(for: absolutePath) ?? relativePath
+        if isWorkspaceRebuildInProgress {
+            queueRealtimeChange(kind: .upsert, absolutePath: absolutePath, relativePath: canonicalRelativePath)
+            return
+        }
+        await applyRealtimeFileUpsert(absolutePath: absolutePath, canonicalRelativePath: canonicalRelativePath)
+    }
 
+    /// Remove a single file from the index (for real-time delete/rename updates).
+    public func removeSingleFile(absolutePath: String, relativePath: String? = nil) async {
+        let canonicalRelativePath = relativePath ?? canonicalRelativePath(for: absolutePath)
+        guard let canonicalRelativePath else { return }
+        if isWorkspaceRebuildInProgress {
+            queueRealtimeChange(kind: .remove, absolutePath: absolutePath, relativePath: canonicalRelativePath)
+            return
+        }
+        await applyRealtimeFileRemoval(absolutePath: absolutePath, canonicalRelativePath: canonicalRelativePath)
+    }
+
+    func applyRealtimeFileUpsert(absolutePath: String, canonicalRelativePath: String) async {
         // Remove old entry
         removeIndexedFile(canonicalRelativePath)
 
@@ -36,11 +54,7 @@ extension CodebaseIndex {
         }
     }
 
-    /// Remove a single file from the index (for real-time delete/rename updates).
-    public func removeSingleFile(absolutePath: String, relativePath: String? = nil) async {
-        let canonicalRelativePath = relativePath ?? canonicalRelativePath(for: absolutePath)
-        guard let canonicalRelativePath else { return }
-
+    func applyRealtimeFileRemoval(absolutePath: String, canonicalRelativePath: String) async {
         removeIndexedFile(canonicalRelativePath)
         allFileNodes.removeValue(forKey: canonicalRelativePath)
         await semanticIndex.removeFile(canonicalRelativePath)
@@ -76,6 +90,8 @@ extension CodebaseIndex {
         contentHashes.removeAll()
         currentWorkspacePaths.removeAll()
         excludedPaths.removeAll()
+        queuedRealtimeChanges.removeAll()
+        isWorkspaceRebuildInProgress = false
         totalFilesScanned = 0
         totalSymbolsExtracted = 0
         indexDurationMs = 0

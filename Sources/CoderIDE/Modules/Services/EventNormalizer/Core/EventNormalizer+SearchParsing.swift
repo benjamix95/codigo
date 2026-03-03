@@ -4,7 +4,6 @@ extension EventNormalizer {
     static func parseInstantGrep(payload: [String: String], timestamp: Date) -> InstantGrepResult? {
         guard let query = payload["query"], !query.isEmpty else { return nil }
         let scope = payload["pathScope"] ?? payload["scope"] ?? "."
-        let matchesCount = Int(payload["matchesCount"] ?? "") ?? 0
         let durationMs = Int(payload["duration_ms"] ?? "")
         let preview = payload["previewLines"] ?? ""
         let parsedMatches = parseMatchLines(from: preview)
@@ -12,7 +11,8 @@ extension EventNormalizer {
         return InstantGrepResult(
             query: query,
             scope: scope,
-            matchesCount: max(matchesCount, parsedMatches.count),
+            // Mantiene coerenza tra numero mostrato e match effettivamente disponibili.
+            matchesCount: parsedMatches.count,
             durationMs: durationMs,
             matches: parsedMatches,
             createdAt: timestamp
@@ -79,62 +79,146 @@ extension EventNormalizer {
         var matches: [InstantGrepMatch] = []
 
         for line in lines.prefix(200) {
+            // Salta i marcatori di file binari da grep/rg e righe con byte NUL
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            let loweredLine = trimmedLine.lowercased()
+            if loweredLine.hasPrefix("binary file")
+                || loweredLine.contains("binary file matches")
+                || trimmedLine.contains("\0")
+            {
+                continue
+            }
+
             let parts = line.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
             guard parts.count == 3 else { continue }
             let file = String(parts[0])
-            guard let number = Int(parts[1]) else { continue }
-            let preview = String(parts[2]).trimmingCharacters(in: .whitespaces)
+            // Salta percorsi file vuoti
+            guard !file.isEmpty else { continue }
+            // Il numero di riga deve essere positivo (> 0)
+            guard let number = Int(parts[1]), number > 0 else { continue }
+            let rawPreview = String(parts[2]).trimmingCharacters(in: .whitespaces)
+            // Tronca l'anteprima a 500 caratteri per evitare consumo eccessivo di memoria
+            let preview = rawPreview.count > 500 ? String(rawPreview.prefix(500)) : rawPreview
             matches.append(InstantGrepMatch(file: file, line: number, preview: preview))
         }
         return matches
     }
 
     static func parseSearchQueryFromCommand(_ command: String) -> String? {
-        // Handle quoted multi-word patterns like: rg "hello world" Sources/
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        let args = tokenizeShellArguments(trimmed)
+        guard !args.isEmpty else { return nil }
 
-        // Find the rg/grep command position
-        guard let cmdRange = trimmed.range(of: #"(?:^|\s)(?:rg|grep)(?:\s|$)"#, options: .regularExpression) else {
+        // Ricerca case-insensitive del comando: supporta rg/grep in qualunque casing.
+        guard let cmdIndex = args.firstIndex(where: {
+            $0.caseInsensitiveCompare("rg") == .orderedSame
+                || $0.caseInsensitiveCompare("grep") == .orderedSame
+        }) else {
             return nil
         }
-        let afterCmd = String(trimmed[cmdRange.upperBound...]).trimmingCharacters(in: .whitespaces)
 
-        // Skip flags, then extract the first non-flag argument (possibly quoted)
-        var remaining = afterCmd[afterCmd.startIndex...]
-        while !remaining.isEmpty {
-            remaining = remaining.drop(while: \.isWhitespace)
-            guard !remaining.isEmpty else { break }
+        let valueTakingFlags: Set<String> = [
+            "-g", "--glob", "-t", "--type", "-m", "--max-count",
+            "-A", "-B", "-C", "-f", "--file", "-j", "--threads",
+        ]
+        let queryFlags: Set<String> = ["-e", "--regexp"]
 
-            if remaining.hasPrefix("-") {
-                // Skip flag and its value if it's a known value-taking flag
-                let flag = remaining.prefix(while: { !$0.isWhitespace })
-                remaining = remaining.dropFirst(flag.count).drop(while: \.isWhitespace)
-                // Flags like -t, -g, --type, --glob take a value argument
-                let flagStr = String(flag)
-                let valueTakingFlags = ["-t", "-g", "--type", "--glob", "--max-count", "-m", "-C", "-A", "-B", "--threads", "-j"]
-                if valueTakingFlags.contains(where: { flagStr == $0 || flagStr.hasPrefix($0 + "=") }) && !flagStr.contains("=") {
-                    let val = remaining.prefix(while: { !$0.isWhitespace })
-                    remaining = remaining.dropFirst(val.count)
+        var index = cmdIndex + 1
+        while index < args.count {
+            let token = args[index]
+
+            if token == "--" {
+                index += 1
+                break
+            }
+
+            if token.hasPrefix("-") {
+                if let eqIndex = token.firstIndex(of: "=") {
+                    let flag = String(token[..<eqIndex]).lowercased()
+                    let value = String(token[token.index(after: eqIndex)...])
+                    if queryFlags.contains(flag) {
+                        return value.isEmpty ? nil : value
+                    }
+                    index += 1
+                    continue
+                }
+
+                let normalized = token.lowercased()
+                if normalized.hasPrefix("-e"), normalized != "-e" {
+                    let attached = String(token.dropFirst(2))
+                    if !attached.isEmpty { return attached }
+                }
+
+                if queryFlags.contains(normalized) {
+                    let valueIndex = index + 1
+                    guard valueIndex < args.count else { return nil }
+                    return args[valueIndex]
+                }
+
+                if valueTakingFlags.contains(normalized) {
+                    index += 2
+                    continue
+                }
+
+                index += 1
+                continue
+            }
+
+            // Primo argomento non-flag: query pattern standard di rg/grep.
+            return token
+        }
+
+        if index < args.count {
+            return args[index]
+        }
+        return nil
+    }
+
+    private static func tokenizeShellArguments(_ input: String) -> [String] {
+        var args: [String] = []
+        var current = ""
+        var inSingleQuote = false
+        var inDoubleQuote = false
+        var escaping = false
+
+        for char in input {
+            if escaping {
+                current.append(char)
+                escaping = false
+                continue
+            }
+
+            if char == "\\" && !inSingleQuote {
+                escaping = true
+                continue
+            }
+
+            if char == "'" && !inDoubleQuote {
+                inSingleQuote.toggle()
+                continue
+            }
+
+            if char == "\"" && !inSingleQuote {
+                inDoubleQuote.toggle()
+                continue
+            }
+
+            if char.isWhitespace && !inSingleQuote && !inDoubleQuote {
+                if !current.isEmpty {
+                    args.append(current)
+                    current.removeAll(keepingCapacity: true)
                 }
                 continue
             }
 
-            // Found the pattern argument — handle quoted strings
-            if remaining.hasPrefix("\"") || remaining.hasPrefix("'") {
-                let quote = remaining.first!
-                remaining = remaining.dropFirst()
-                if let endIdx = remaining.firstIndex(of: quote) {
-                    return String(remaining[remaining.startIndex..<endIdx])
-                }
-                return String(remaining) // Unterminated quote, return what we have
-            }
-
-            // Unquoted argument
-            let arg = remaining.prefix(while: { !$0.isWhitespace })
-            return String(arg)
+            current.append(char)
         }
-        return nil
+
+        if !current.isEmpty {
+            args.append(current)
+        }
+        return args
     }
 
     static func extractReadPath(from command: String) -> String? {

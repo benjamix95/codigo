@@ -13,6 +13,8 @@ extension CodebaseIndex {
     ) async -> IndexResult {
         let startTime = Date()
         _status = .indexing
+        isWorkspaceRebuildInProgress = true
+        queuedRealtimeChanges.removeAll(keepingCapacity: true)
         Self.logger.info("indexWorkspace: starting full index for \(paths.map(\.path).joined(separator: ", "), privacy: .public)")
 
         self.currentWorkspacePaths = paths
@@ -137,6 +139,8 @@ extension CodebaseIndex {
             }
         }
 
+        isWorkspaceRebuildInProgress = false
+        await flushQueuedRealtimeChanges()
         _indexingProgress = nil
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
@@ -161,6 +165,8 @@ extension CodebaseIndex {
     public func incrementalUpdate() async -> IndexResult {
         let startTime = Date()
         _status = .indexing
+        isWorkspaceRebuildInProgress = true
+        queuedRealtimeChanges.removeAll(keepingCapacity: true)
         Self.logger.info("incrementalUpdate: starting")
 
         var updatedCount = 0
@@ -240,6 +246,9 @@ extension CodebaseIndex {
         } else if !changedFiles.isEmpty || removedCount > 0 {
             await semanticIndex.clear()
         }
+
+        isWorkspaceRebuildInProgress = false
+        await flushQueuedRealtimeChanges()
 
         let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
         indexDurationMs = durationMs
