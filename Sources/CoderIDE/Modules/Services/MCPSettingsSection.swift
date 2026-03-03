@@ -6,6 +6,8 @@ struct MCPSettingsSection: View {
     @State private var detectedServers: [MCPConfigLoader.DetectedServer] = []
     @State private var showAddForm = false
     @State private var editingServer: MCPServerConfig?
+    @State private var restartingServerIds: Set<String> = []
+    @State private var restartErrors: [String: String] = [:]
     @AppStorage("mcp_disabled_ids") private var disabledIdsJson: String = "[]"
 
     private var disabledIds: Set<String> {
@@ -35,13 +37,17 @@ struct MCPSettingsSection: View {
                     .textCase(.uppercase)
 
                 ForEach(detectedServers) { server in
+                    let serverId = server.id
                     MCPRowView(
                         name: server.name,
                         command: server.command,
                         source: server.source,
                         isEnabled: isDetectedEnabled(server),
                         isDetected: true,
+                        isRestarting: restartingServerIds.contains(serverId),
+                        restartError: restartErrors[serverId],
                         onToggle: { toggleDetected(server) },
+                        onRestart: isDetectedEnabled(server) ? { restartServer(serverId) } : nil,
                         onEdit: nil
                     )
                 }
@@ -61,13 +67,17 @@ struct MCPSettingsSection: View {
                     .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
             } else {
                 ForEach(manualServers) { server in
+                    let serverId = runtimeServerID(for: server)
                     MCPRowView(
                         name: server.name,
                         command: server.command,
                         source: "Manual",
                         isEnabled: server.enabled,
                         isDetected: false,
+                        isRestarting: restartingServerIds.contains(serverId),
+                        restartError: restartErrors[serverId],
                         onToggle: nil,
+                        onRestart: server.enabled ? { restartServer(serverId) } : nil,
                         onEdit: { editingServer = server }
                     )
                     .contextMenu {
@@ -144,6 +154,29 @@ struct MCPSettingsSection: View {
         manualServers.removeAll { $0.id == server.id }
         try? MCPConfigLoader.saveManualServers(manualServers)
     }
+
+    private func runtimeServerID(for server: MCPServerConfig) -> String {
+        "manual-\(server.id.uuidString.lowercased())"
+    }
+
+    private func restartServer(_ serverId: String) {
+        guard !restartingServerIds.contains(serverId) else { return }
+        restartingServerIds.insert(serverId)
+        restartErrors.removeValue(forKey: serverId)
+
+        Task {
+            do {
+                try await MCPServerControlService.restart(serverId: serverId)
+            } catch {
+                await MainActor.run {
+                    restartErrors[serverId] = error.localizedDescription
+                }
+            }
+            _ = await MainActor.run {
+                restartingServerIds.remove(serverId)
+            }
+        }
+    }
 }
 
 private struct MCPRowView: View {
@@ -152,7 +185,10 @@ private struct MCPRowView: View {
     let source: String
     let isEnabled: Bool
     let isDetected: Bool
+    let isRestarting: Bool
+    let restartError: String?
     let onToggle: (() -> Void)?
+    let onRestart: (() -> Void)?
     let onEdit: (() -> Void)?
 
     var body: some View {
@@ -168,92 +204,44 @@ private struct MCPRowView: View {
                     .lineLimit(1)
             }
             Spacer()
-            if isDetected, let toggle = onToggle {
-                Toggle("", isOn: Binding(get: { isEnabled }, set: { _ in toggle() }))
-                    .labelsHidden()
-            } else if !isDetected, let edit = onEdit {
-                Button(action: edit) {
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(Color.accentColor)
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack(spacing: 8) {
+                    if let restart = onRestart {
+                        Button(action: restart) {
+                            if isRestarting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Label("Riavvia", systemImage: "arrow.clockwise")
+                                    .font(.caption)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isRestarting || !isEnabled)
+                    }
+
+                    if isDetected, let toggle = onToggle {
+                        Toggle("", isOn: Binding(get: { isEnabled }, set: { _ in toggle() }))
+                            .labelsHidden()
+                    } else if !isDetected, let edit = onEdit {
+                        Button(action: edit) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
+
+                if let restartError, !restartError.isEmpty {
+                    Text("Riavvio fallito")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .help(restartError)
+                }
             }
         }
         .padding(10)
         .background(Color(nsColor: .controlBackgroundColor).opacity(isEnabled ? 1 : 0.5), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-struct MCPEditFormView: View {
-    let server: MCPServerConfig
-    let onSave: (MCPServerConfig) -> Void
-    let onCancel: () -> Void
-
-    @State private var name = ""
-    @State private var command = ""
-    @State private var argsText = ""
-    @State private var envText = ""
-    @State private var enabled = true
-
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                Image(systemName: "server.rack")
-                    .font(.title3)
-                    .foregroundStyle(Color.accentColor)
-                Text("Configure MCP server")
-                    .font(.title3)
-                Spacer()
-            }
-
-            Form {
-                TextField("Name", text: $name)
-                TextField("Command (e.g. npx, /usr/bin/codex)", text: $command)
-                    .font(.body.monospaced())
-                TextField("Args (comma-separated)", text: $argsText)
-                    .font(.body.monospaced())
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Env (key=value, one per line)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextEditor(text: $envText)
-                        .font(.body.monospaced())
-                        .frame(height: 80)
-                }
-
-                Toggle("Enabled", isOn: $enabled)
-            }
-            .formStyle(.grouped)
-
-            HStack(spacing: 12) {
-                Button("Cancel", role: .cancel, action: onCancel)
-                Button("Save") {
-                    let args = argsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-                    var env: [String: String] = [:]
-                    for line in envText.components(separatedBy: .newlines) {
-                        let parts = line.split(separator: "=", maxSplits: 1).map(String.init)
-                        if parts.count == 2 {
-                            env[parts[0].trimmingCharacters(in: .whitespaces)] = parts[1].trimmingCharacters(in: .whitespaces)
-                        }
-                    }
-                    var s = server
-                    s.name = name; s.command = command; s.args = args; s.env = env; s.enabled = enabled
-                    onSave(s)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(name.isEmpty || command.isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 450, height: 480)
-        .onAppear {
-            name = server.name
-            command = server.command
-            argsText = server.args.joined(separator: ", ")
-            envText = server.env.map { "\($0.key)=\($0.value)" }.joined(separator: "\n")
-            enabled = server.enabled
-        }
     }
 }
