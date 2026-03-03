@@ -173,8 +173,28 @@ extension ChatPanelView {
             chatStore.setPlanBoard(board, for: conversationId)
             let currentConv = chatStore.conversation(for: conversationId)
             let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
+            // Build a rich chat recap with title + todos (synced with panel)
+            let todoList = compliantOptions.first.map {
+                PlanOptionsParser.extractTodosFromOptionText($0.fullText)
+            } ?? []
+            let todoMarkdown = todoList.enumerated().map { idx, t in
+                "  \(idx + 1). \(t)"
+            }.joined(separator: "\n")
+            let recap: String
+            if todoMarkdown.isEmpty {
+                recap = "Plan ready: **\(parsedSummary.title)**\n\nOpen the Plan Panel to review and build."
+            } else {
+                recap = """
+                Plan ready: **\(parsedSummary.title)**
+
+                Steps:
+                \(todoMarkdown)
+
+                Open the Plan Panel to review and build.
+                """
+            }
             chatStore.updateLastAssistantMessage(
-                content: "Plan ready in Plan Panel: \(parsedSummary.title)",
+                content: recap,
                 in: conversationId,
                 persistImmediately: true
             )

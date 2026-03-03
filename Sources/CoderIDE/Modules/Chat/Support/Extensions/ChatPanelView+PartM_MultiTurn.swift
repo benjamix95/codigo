@@ -9,8 +9,65 @@ extension ChatPanelView {
         ctx: WorkspaceContext,
         attachmentsToSend: [LLMAttachment]?,
         conversationId: UUID,
-        shouldRunPlanInline: Bool
+        shouldRunPlanInline: Bool,
+        skipScreening: Bool = false
     ) async throws {
+        // ========================
+        // PHASE 0: Screening (shown in chat)
+        // ========================
+        if !skipScreening {
+            let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: planUserRequest)
+            let screeningResult = try await flowCoordinator.runStream(
+                provider: provider,
+                prompt: screeningPrompt,
+                context: ctx,
+                attachments: attachmentsToSend,
+                onText: { [self] content in
+                    applyStreamingUpdate(content: content, conversationId: conversationId)
+                },
+                onRaw: { [self] t, p, pid in
+                    handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+                },
+                onError: { [self] content in
+                    Task { @MainActor in
+                        chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+                    }
+                },
+                onSignal: nil
+            )
+
+            let screeningText = screeningResult.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Finalize screening in chat and open plan panel
+            await MainActor.run {
+                guard self.conversationId == conversationId else { return }
+                chatStore.updateLastAssistantMessage(
+                    content: screeningText,
+                    in: conversationId,
+                    persistImmediately: true
+                )
+                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                // Open the plan panel AFTER screening, BEFORE deep analysis
+                if !showPlanPanel {
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
+                }
+            }
+        } else {
+            // Screening was already done (auto-detect case) — just open the panel
+            await MainActor.run {
+                guard self.conversationId == conversationId else { return }
+                if !showPlanPanel {
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
+                }
+            }
+        }
+
         // ========================
         // PHASE 1: Codebase Analysis
         // ========================
@@ -68,12 +125,7 @@ extension ChatPanelView {
                 ChatMessage(id: UUID(), role: .assistant, content: transitionMessage),
                 to: conversationId
             )
-            if shouldAutoOpenPlanPanel(trigger: .flowStarted), !showPlanPanel {
-                openPlanPanelForCurrentContext(
-                    preserveHistorySelection: false,
-                    source: .automaticFlow
-                )
-            }
+            // Panel is already opened in Phase 0 — no need to open here
         }
 
         if !shouldRequestClarifications {
@@ -209,4 +261,43 @@ extension ChatPanelView {
         )
     }
 
+    // MARK: - Silent Plan Screening (Auto-Detect)
+
+    /// Runs a lightweight LLM call to assess whether the user's request needs a structured plan.
+    /// Uses provider.send() directly to avoid polluting conversation history.
+    /// Returns `true` if a plan is recommended.
+    internal func runSilentPlanScreening(
+        provider: any LLMProvider,
+        ctx: WorkspaceContext,
+        userRequest: String
+    ) async throws -> Bool {
+        let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: String(userRequest.prefix(16_000)))
+        let screeningCtx = WorkspaceContext(
+            workspacePaths: ctx.workspacePaths,
+            isNamedWorkspace: ctx.isNamedWorkspace,
+            workspaceName: ctx.workspaceName,
+            excludedPaths: ctx.excludedPaths,
+            includedPaths: ctx.includedPaths,
+            openFiles: [],
+            activeSelection: nil,
+            activeFilePath: nil,
+            activeRootPath: ctx.activeRootPath,
+            skipContextEnrichment: true,
+            systemPromptOverride: "You are a request screener. Assess if the request needs a structured plan. Be concise."
+        )
+        let stream = try await provider.send(prompt: screeningPrompt, context: screeningCtx, imageURLs: nil)
+        var parts: [String] = []
+        for try await event in stream {
+            switch event {
+            case .textDelta(let delta):
+                parts.append(delta)
+            case .textReplace(let replacement):
+                parts = replacement.isEmpty ? [] : [replacement]
+            case .error, .started, .completed, .raw:
+                break
+            }
+        }
+        let result = parts.joined().trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.contains("PLAN_NEEDED")
+    }
 }

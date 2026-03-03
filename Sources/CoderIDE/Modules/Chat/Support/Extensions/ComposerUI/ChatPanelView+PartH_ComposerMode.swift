@@ -180,7 +180,18 @@ extension ChatPanelView {
                 planningState = .idle
                 clearPlanStreamingState()
             }
-            planToggleEnabled = false
+            // Keep toggle ON if an active plan session exists (e.g. during build phase)
+            let hasActivePlanSession: Bool = {
+                switch planFlowPhase {
+                case .analyzing, .questioning, .generating, .building, .readyToBuild:
+                    return true
+                case .idle, .proposalReady:
+                    return false
+                }
+            }()
+            if !hasActivePlanSession && activeBuildPlanConversationId == nil {
+                planToggleEnabled = false
+            }
         }
         if mode != .debug && !debugStore.phase.isActive {
             debugToggleEnabled = false

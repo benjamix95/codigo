@@ -211,7 +211,7 @@ extension ChatPanelView {
                 }
                 if isShowing && showPlanPanel {
                     showPlanPanel = false
-                    planToggleEnabled = false
+                    // Do NOT disable planToggleEnabled — user may return to plan later
                 }
                 if isShowing && coderMode != .debug {
                     selectMode(.debug)
@@ -249,7 +249,8 @@ extension ChatPanelView {
                           shouldDisablePlanToggleWhenPanelCloses(
                             phase: planFlowPhase,
                             planningState: planningState,
-                            coderMode: coderMode
+                            coderMode: coderMode,
+                            hasActiveBuildSession: activeBuildPlanConversationId != nil
                           )
                 {
                     planToggleEnabled = false

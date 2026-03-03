@@ -34,6 +34,11 @@ extension PlanHistoryStore {
         return dir.appendingPathComponent("planHistory.json")
     }
 
+    static func solocodePlanDirectory(for workspacePath: String) -> URL {
+        URL(fileURLWithPath: workspacePath)
+            .appendingPathComponent(".solocode/plan", isDirectory: true)
+    }
+
     func trimEntriesInMemory() -> Bool {
         let maxEntries = configuredMaxEntries
         let maxMarkdownLength = configuredMaxMarkdownLength

@@ -86,10 +86,12 @@ func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
 func shouldDisablePlanToggleWhenPanelCloses(
     phase: PlanFlowPhase,
     planningState: PlanningState,
-    coderMode: CoderMode
+    coderMode: CoderMode,
+    hasActiveBuildSession: Bool = false
 ) -> Bool {
     guard coderMode != .plan else { return false }
     guard planningState == .idle else { return false }
+    if hasActiveBuildSession { return false }
     return shouldAllowPlanToggleDeactivation(phase: phase)
 }
 

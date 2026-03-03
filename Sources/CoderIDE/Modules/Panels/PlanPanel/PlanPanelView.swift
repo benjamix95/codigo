@@ -18,6 +18,8 @@ struct PlanPanelView: View {
     let planFlowPhase: PlanFlowPhase
     /// Live streaming content from multi-turn plan flow (displayed during analyzing/questioning/generating phases).
     let planStreamingContent: String
+    /// Whether the clarification questions phase was visited during this plan flow.
+    let questionsWereVisited: Bool
     let showHistorySection: Bool
     let workspaceSource: PlanPanelPresentationSource
     let onClose: () -> Void
@@ -78,7 +80,7 @@ struct PlanPanelView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // 1) Progress (analyzing/questioning/generating)
                     if planFlowPhase == .analyzing || planFlowPhase == .questioning || planFlowPhase == .generating {
-                        PlanPhaseProgressView(phase: planFlowPhase)
+                        PlanPhaseProgressView(phase: planFlowPhase, questionsWereVisited: questionsWereVisited)
                     }
 
                     // 2) Clarification questions (only when truly waiting)

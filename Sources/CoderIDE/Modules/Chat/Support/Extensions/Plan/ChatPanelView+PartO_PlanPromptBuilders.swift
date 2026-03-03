@@ -6,6 +6,25 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     // MARK: - Phase-Specific Plan Prompts
 
+    internal func buildPhase0ScreeningPrompt(userRequest: String) -> String {
+        """
+        **Phase: Request Screening**
+
+        Quickly assess whether this request needs a structured implementation plan.
+
+        User request: \(userRequest)
+
+        Instructions:
+        1. Do NOT explore files or read code yet.
+        2. Assess the request complexity in 2-3 sentences.
+        3. End your response with exactly one of:
+           - PLAN_NEEDED — if the request involves multiple files, architectural decisions, or non-trivial implementation
+           - NO_PLAN_NEEDED — if it's a simple fix, single-file change, or straightforward task
+
+        Be concise. This is a quick assessment, not a full analysis.
+        """
+    }
+
     internal func buildPhase1AnalysisPrompt(userRequest: String) -> String {
         """
         **Phase: Codebase Analysis (ANALYSIS ONLY)**

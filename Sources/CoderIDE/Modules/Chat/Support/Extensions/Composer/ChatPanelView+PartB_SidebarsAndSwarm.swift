@@ -15,6 +15,7 @@ extension ChatPanelView {
             planningState: planningState,
             planFlowPhase: planFlowPhase,
             planStreamingContent: planStreamingContent,
+            questionsWereVisited: planClarificationCycles > 0,
             showHistorySection: shouldShowPlanPanelHistory(source: planPanelPresentationSource),
             workspaceSource: planPanelPresentationSource,
             onClose: {

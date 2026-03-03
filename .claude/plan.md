@@ -1,136 +1,343 @@
-# Piano: Subagent Card in Chat + Trace Filtering + Swarm Panel Performance
+# Plan: Fix Plan Flow — Screening, Toggle Persistence, .solocode/plan saving
 
-## Riepilogo richiesta
+## Flusso desiderato (confermato)
 
-L'utente vuole:
-1. **Subagent card in chat** — Quando l'agente invoca subagent, card espandibili appaiono **in chat** (non nel trace activity). Card stile Cursor: titolo, status in tempo reale, espandibile per vedere operato.
-2. **Filtrare operazioni subagent dal trace activity** — Le attività dei subagent NON devono apparire nella "Live activity" trace. Solo le operazioni dell'agente principale.
-3. **Pulsante per aprire nel swarm panel** — Click su card in chat → apre direttamente quel subagent nel swarm panel.
-4. **Fix performance swarm panel** — Lagga tantissimo quando si apre.
+```
+TOGGLE ON:
+  1. SCREENING (chat) → quick pre-analysis nella chat (agente sa che vuoi plan)
+  2. APRE PLAN PANEL → dopo screening
+  3. ANALISI PROFONDA (panel) → deep codebase exploration nel panel
+  4. DOMANDE (panel) → clarification questions nel panel
+  5. PLAN PRONTO (panel) → proposta con titolo auto-generato
+  6. BUILD → esecuzione
+  7. TODOS → sincronizzati in panel E chat
+
+TOGGLE OFF:
+  1. SCREENING (chat) → quick pre-analysis nella chat
+  2. Se serve plan → AUTO-ATTIVA toggle, poi stessa cosa sopra
+  3. Se non serve plan → risposta normale
+
+TOGGLE PERSISTENCE:
+  - Una volta attivato (manualmente o auto) → RIMANE ON per tutta la sessione
+  - Non si disattiva durante il build (che switcha a mode .agent)
+  - Non si disattiva se si aprono altri panel
+```
+
+## Plan saving:
+- Ogni plan salvato come `{titolo-auto}.md` in `.solocode/plan/`
+- Il titolo viene dal contenuto del plan (come Cursor)
+- Il breadcrumb nel panel mostra il nome del file `.md`
+- La history carica da qui
+- History visibile SOLO quando l'utente apre manualmente il panel
 
 ---
 
-## Fase 1: Filtrare operazioni subagent dal Trace Activity
+## Implementazione Step-by-Step
 
-**File**: `LiveActivityTimelineView.swift`, `ChatTaskStatusView.swift`
+### Step 1: Toggle persistence — NON disattivare durante build/switch mode
 
-**Cosa fare**: Le attività con `swarm_id` o `group_id` con prefisso `swarm-` non devono apparire nella "Live activity" del trace.
+**File: `ChatPanelView+PartH_ComposerMode.swift`** (linea 172-184)
 
-**Modifica in `ChatTaskStatusView.swift`** (linea ~282):
+**Attuale:**
 ```swift
-// PRIMA:
-let concreteActivities = taskActivityStore.activities.filter {
-    TaskActivityStore.isConcreteVisibleEvent($0)
-}
-
-// DOPO:
-let concreteActivities = taskActivityStore.activities.filter {
-    TaskActivityStore.isConcreteVisibleEvent($0)
-    && !SwarmMetadata.isSwarmEvent($0.payload)
+if mode != .plan {
+    switch planFlowPhase {
+    case .analyzing, .questioning, .generating, .building:
+        break
+    case .idle:
+        break
+    case .proposalReady, .readyToBuild:
+        planFlowPhase = .idle
+        planningState = .idle
+        clearPlanStreamingState()
+    }
+    planToggleEnabled = false  // ← BUG: disattiva sempre
 }
 ```
 
-Stessa logica per terminals, web search e grep sections — filtrare con `!SwarmMetadata.isSwarmEvent(payload)`.
-
-Anche nel `TaskControlBar` (linea 51-52): `lastConcreteVisibleActivity` deve escludere eventi swarm per mostrare solo l'ultima operazione dell'agente principale nella barra timer.
-
-**File da modificare**: `TaskActivityStore.swift` — aggiungere metodo `lastConcreteNonSwarmActivity()`.
-
----
-
-## Fase 2: Subagent Card Inline in Chat
-
-**Pattern di riferimento**: `PlanChatCardView` — card inline nel messaggio assistant in `chatMessageCell()` (ChatPanelView.swift:2074-2107).
-
-**Nuovo componente**: `SubagentChatCardView.swift`
-
-Card compatta con:
-- **Header**: icona (person.2.fill), swarmId come titolo, badge status (running/completed/failed)
-- **Subtitle**: `currentStepTitle` — aggiornato in tempo reale
-- **Espandibile**: click per mostrare le ultime 6 operazioni (come `expandedCardEvents` in SwarmPanelView)
-- **Footer**: pulsante "Open in Panel" per aprire nel swarm panel
-
-**Data flow**: La card legge dallo `SwarmLiveCardState` che è già calcolato in `TaskActivityStore.swarmCards`.
-
-**Dove inserire nella chat**: In `chatMessageCell()` (ChatPanelView.swift), dopo il `MessageRow`, prima del trace. Per ogni assistant message che è in streaming (l'ultimo), mostrare le card dei subagent attivi/completati.
-
+**Fix:**
 ```swift
-// Dopo TodoLiveInlineCard e prima del trace
-if message.id == latestAssistantMessageId {
-    let cards = taskActivityStore.swarmCardStates()
-    if !cards.isEmpty {
-        ForEach(cards) { card in
-            SubagentChatCardView(
-                card: card,
-                onOpenInPanel: {
-                    selectedSwarmId = card.swarmId
-                    showSwarmPanel = true
-                }
-            )
-        }
+if mode != .plan {
+    switch planFlowPhase {
+    case .analyzing, .questioning, .generating, .building:
+        break
+    case .idle:
+        break
+    case .proposalReady, .readyToBuild:
+        planFlowPhase = .idle
+        planningState = .idle
+        clearPlanStreamingState()
+    }
+    // Keep toggle ON if an active plan session exists
+    let hasActivePlanSession = [.analyzing, .questioning, .generating, .building, .readyToBuild]
+        .contains(planFlowPhase) || activeBuildPlanConversationId != nil
+    if !hasActivePlanSession {
+        planToggleEnabled = false
     }
 }
 ```
 
+**File: `ChatPanelView+PartA_UI.swift`** (linea 212-215)
+
+**Attuale:**
+```swift
+if isShowing && showPlanPanel {
+    showPlanPanel = false
+    planToggleEnabled = false  // ← BUG: disattiva quando debug panel si apre
+}
+```
+
+**Fix:**
+```swift
+if isShowing && showPlanPanel {
+    showPlanPanel = false
+    // Do NOT disable planToggleEnabled — user may return to plan later
+}
+```
+
+**File: `ChatPanelSupport+PlanFlow.swift`** — `shouldDisablePlanToggleWhenPanelCloses`
+
+**Attuale:**
+```swift
+func shouldDisablePlanToggleWhenPanelCloses(
+    phase: PlanFlowPhase,
+    planningState: PlanningState,
+    coderMode: CoderMode
+) -> Bool {
+    guard coderMode != .plan else { return false }
+    guard planningState == .idle else { return false }
+    return shouldAllowPlanToggleDeactivation(phase: phase)
+}
+```
+
+**Fix:** Aggiungere parametro `activeBuildPlanConversationId`:
+```swift
+func shouldDisablePlanToggleWhenPanelCloses(
+    phase: PlanFlowPhase,
+    planningState: PlanningState,
+    coderMode: CoderMode,
+    hasActiveBuildSession: Bool
+) -> Bool {
+    guard coderMode != .plan else { return false }
+    guard planningState == .idle else { return false }
+    if hasActiveBuildSession { return false }
+    return shouldAllowPlanToggleDeactivation(phase: phase)
+}
+```
+
 ---
 
-## Fase 3: Fix Performance Swarm Panel
+### Step 2: Screening phase — Phase 0 prima dell'analisi
 
-**Cause del lag identificate**:
+**File: `ChatPanelView+PartO_PlanPromptBuilders.swift`** — aggiungere nuovo prompt
 
-1. **`liveSignature` computed property** (SwarmPanelView.swift:38-42) — ricomputa una stringa da TUTTE le card ad ogni render. `onChange(of: liveSignature)` confronta stringhe grandi ogni volta che cambia qualsiasi attività. Viene chiamato sia nel body (linea 80) che in `overviewList` (linea 265).
+```swift
+internal func buildPhase0ScreeningPrompt(userRequest: String) -> String {
+    """
+    **Phase: Request Screening**
 
-2. **`sortedCards` computed property** (linea 30-31) — chiama `swarmCardStates()` che crea copie dell'intero dizionario, poi `sorted()` riordina. Ricalcolato ad ogni render del body e di ogni sotto-view che lo referenzia.
+    Quickly assess whether this request needs a structured implementation plan.
 
-3. **`recentOverviewActivities`** (linea 44-45) — `concreteRecentActivities(limit: 12)` filtra e copia array ad ogni render.
+    User request: \(userRequest)
 
-4. **`overviewCard` non usa LazyVStack** — ForEach con card dentro `LazyVStack` va bene, ma il contenuto dei card (eventi espansi) viene renderizzato tutto.
+    Instructions:
+    1. Do NOT explore files or read code yet.
+    2. Assess the request complexity in 2-3 sentences.
+    3. End your response with exactly one of:
+       - PLAN_NEEDED — if the request involves multiple files, architectural decisions, or non-trivial implementation
+       - NO_PLAN_NEEDED — if it's a simple fix, single-file change, or straightforward task
 
-5. **Non-lazy `ForEach` nel detailView** (linea 552) — `ForEach(events)` con potenzialmente 80 eventi tutti renderizzati senza lazy.
+    Be concise. This is a quick assessment, not a full analysis.
+    """
+}
+```
 
-**Fix**:
+**File: `ChatPanelView+PartM_MultiTurn.swift`** — aggiungere Phase 0
 
-A. **Cachare `sortedCards`**: Usare `@State` o memo con invalidation basata su `swarmEventsReceivedCount` invece di ricomputare ad ogni render.
+Prima dell'attuale Phase 1, aggiungere:
 
-B. **Semplificare `liveSignature`**: Sostituire con `onChange(of: taskActivityStore.swarmEventsReceivedCount)` — è un Int, confronto O(1).
+```swift
+// ========================
+// PHASE 0: Screening (shown in chat)
+// ========================
+// Don't set planFlowPhase yet — screening happens BEFORE entering plan mode
+let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: planUserRequest)
+let screeningResult = try await flowCoordinator.runStream(
+    provider: provider,
+    prompt: screeningPrompt,
+    context: ctx,
+    attachments: attachmentsToSend,
+    onText: { content in
+        applyStreamingUpdate(content: content, conversationId: conversationId)
+    },
+    onRaw: { t, p, pid in
+        handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
+    },
+    onError: { content in
+        Task { @MainActor in
+            chatStore.updateLastAssistantMessage(content: content, in: conversationId)
+        }
+    },
+    onSignal: nil
+)
 
-C. **Lazy nel detailView**: Wrappare ForEach eventi in `LazyVStack`.
+let screeningText = screeningResult.trimmingCharacters(in: .whitespacesAndNewlines)
+let planNeeded = screeningText.contains("PLAN_NEEDED")
 
-D. **Ridurre re-render**: Estrarre overview card in componente separato con `@ObservedObject` isolato, così non tutti i card si re-renderizzano quando uno cambia.
+// If toggle was already ON, always proceed with plan
+// If toggle OFF and screening says plan needed → auto-activate
+if !planToggleEnabled && planNeeded {
+    await MainActor.run {
+        planToggleEnabled = true
+    }
+}
+
+// If no plan needed and toggle wasn't ON, just finish the chat message
+if !planToggleEnabled && !planNeeded {
+    chatStore.setLastAssistantStreaming(false, in: conversationId)
+    clearStreamingReasoning(for: conversationId)
+    return  // Exit multi-turn flow, response already in chat
+}
+
+// NOW open the plan panel (after screening, before deep analysis)
+await MainActor.run {
+    chatStore.updateLastAssistantMessage(
+        content: screeningText,
+        in: conversationId,
+        persistImmediately: true
+    )
+    chatStore.setLastAssistantStreaming(false, in: conversationId)
+    if !showPlanPanel {
+        openPlanPanelForCurrentContext(
+            preserveHistorySelection: false,
+            source: .automaticFlow
+        )
+    }
+}
+
+// Continue to Phase 1 (analysis) — now in the panel...
+```
+
+**File: `ChatPanelView+PartL_PromptOptimization.swift`** (linee 133-138)
+
+**Rimuovere** l'apertura anticipata del panel:
+```swift
+// RIMUOVERE QUESTO BLOCCO:
+if shouldAutoOpenPlanPanel(trigger: .flowStarted), !showPlanPanel {
+    openPlanPanelForCurrentContext(
+        preserveHistorySelection: false,
+        source: .automaticFlow
+    )
+}
+```
+
+**File: `ChatPanelView+PartM_MultiTurn.swift`** (linee 71-77)
+
+**Rimuovere** anche la seconda apertura anticipata in Phase 1.
 
 ---
 
-## Fase 4: Rinominare "Swarm" → "Subagent" nel panel
+### Step 3: Salvare i plan in `.solocode/plan/`
 
-**File**: `SwarmPanelView.swift`
-- Linea 101: `"Swarm"` → `"Subagent"`
-- Linea 227: `"No swarm activity"` → `"No subagent activity"`
-- Linea 230: `"Swarm agents will appear here"` → `"Subagents will appear here"`
-- Linea 317: `"Swarm Activity"` → `"Subagent Activity"`
-- Linea 515: `"All Swarms"` → `"All Subagents"`
+**File: `PlanHistoryStore+Mutations.swift`** — `createEntry()` scrive anche il `.md`
+
+Dopo `entries.append(entry)` e `save()`, aggiungere:
+```swift
+// Also write .md file to .solocode/plan/
+if let folderPath = contextFolderPath {
+    let planDir = URL(fileURLWithPath: folderPath)
+        .appendingPathComponent(".solocode/plan", isDirectory: true)
+    try? FileManager.default.createDirectory(at: planDir, withIntermediateDirectories: true)
+    let safeName = sanitizeTitle(title)
+        .lowercased()
+        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+        .filter { !$0.isEmpty }
+        .joined(separator: "_")
+    let fileName = safeName.isEmpty ? "plan" : String(safeName.prefix(30))
+    let fileURL = planDir.appendingPathComponent("\(fileName).md")
+    try? safeMarkdown.write(to: fileURL, atomically: true, encoding: .utf8)
+}
+```
+
+**File: `PlanHistoryStore+Configuration.swift`** — aggiungere costante per directory
+
+```swift
+static func solocodePlanDirectory(for workspacePath: String) -> URL {
+    URL(fileURLWithPath: workspacePath)
+        .appendingPathComponent(".solocode/plan", isDirectory: true)
+}
+```
 
 ---
 
-## File da creare
+### Step 4: Todos sincronizzati in chat E panel
 
-| File | Descrizione |
-|------|-------------|
-| `Sources/CoderIDE/SubagentChatCardView.swift` | Card inline in chat per subagent |
+**File: `ChatPanelView+PartM_Phase3.swift`** (linee 176-179)
 
-## File da modificare
+**Attuale:**
+```swift
+chatStore.updateLastAssistantMessage(
+    content: "Plan ready in Plan Panel: \(parsedSummary.title)",
+    ...
+)
+```
 
-| File | Modifica |
-|------|----------|
-| `ChatTaskStatusView.swift` | Filtrare eventi swarm dal trace |
-| `ChatPanelView.swift` | Inserire SubagentChatCardView nella chat |
-| `SwarmPanelView.swift` | Fix performance + rename labels |
-| `TaskActivityStore.swift` | Aggiungere `lastConcreteNonSwarmActivity()` |
-| `ChatTaskStatusView.swift` (TaskControlBar) | Usare attività non-swarm nella barra timer |
+**Fix:** Messaggio più ricco con todos:
+```swift
+let todoList = compliantOptions.first.map {
+    PlanOptionsParser.extractTodosFromOptionText($0.fullText)
+} ?? []
+let todoMarkdown = todoList.enumerated().map { idx, t in
+    "  \(idx + 1). \(t)"
+}.joined(separator: "\n")
+let recap = """
+Plan ready: **\(parsedSummary.title)**
+
+Steps:
+\(todoMarkdown)
+
+Open the Plan Panel to review and build.
+"""
+chatStore.updateLastAssistantMessage(
+    content: recap,
+    in: conversationId,
+    persistImmediately: true
+)
+```
+
+---
+
+### Step 5: Questions skipped indicator nel PlanPhaseProgressView
+
+**File: `PlanPanelView+Actions.swift`** (linee 60-64)
+
+Aggiungere tracking per sapere se le questions sono state visitate.
+Usare un flag `questionsWereVisited` e mostrare stato diverso:
+- Se visitato → checkmark (come adesso)
+- Se saltato → cerchio barrato o "Skipped"
+
+---
+
+## File da modificare (riepilogo)
+
+| # | File | Modifica |
+|---|------|----------|
+| 1 | `ChatPanelView+PartH_ComposerMode.swift` | Toggle persistence durante mode switch |
+| 2 | `ChatPanelView+PartA_UI.swift` | Non disattivare toggle quando debug panel apre |
+| 3 | `ChatPanelSupport+PlanFlow.swift` | Guard build session in `shouldDisablePlanToggleWhenPanelCloses` |
+| 4 | `ChatPanelView+PartO_PlanPromptBuilders.swift` | Nuovo `buildPhase0ScreeningPrompt()` |
+| 5 | `ChatPanelView+PartM_MultiTurn.swift` | Aggiungere Phase 0 screening, rimuovere early open |
+| 6 | `ChatPanelView+PartL_PromptOptimization.swift` | Rimuovere early panel open |
+| 7 | `PlanHistoryStore+Mutations.swift` | Scrivere `.md` in `.solocode/plan/` |
+| 8 | `PlanHistoryStore+Configuration.swift` | Helper per path `.solocode/plan/` |
+| 9 | `ChatPanelView+PartM_Phase3.swift` | Recap ricco con todos nella chat |
+| 10 | `PlanPanelView+Actions.swift` | Questions skipped indicator |
 
 ## Ordine di esecuzione
 
-1. Fase 1 — Filtrare subagent dal trace (rapido, impatto immediato)
-2. Fase 2 — Creare SubagentChatCardView e inserire in chat
-3. Fase 3 — Fix performance swarm panel
-4. Fase 4 — Rename labels
-5. Build + verify
+1. **Step 1** — Toggle persistence (3 file, fix critico)
+2. **Step 2** — Screening phase + rimuovere early open (3 file, core)
+3. **Step 3** — `.solocode/plan/` saving (2 file)
+4. **Step 4** — Todos in chat (1 file)
+5. **Step 5** — Questions skipped indicator (1 file)
+6. Build & verify

@@ -31,6 +31,8 @@ struct PlanBuildButtonStyle: ButtonStyle {
 /// Horizontal 3-step phase progress indicator for the multi-turn plan flow.
 struct PlanPhaseProgressView: View {
 let phase: PlanFlowPhase
+/// Whether the clarification questions phase was visited during this plan flow.
+var questionsWereVisited: Bool = true
 
 private let planColor = DesignSystem.Colors.planColor
 
@@ -38,6 +40,8 @@ private struct PhaseStep {
     let label: String
     let isActive: Bool
     let isCompleted: Bool
+    /// When true, this step was skipped (not visited). Shows a different indicator.
+    var isSkipped: Bool = false
 }
 
 private var steps: [PhaseStep] {
@@ -55,17 +59,15 @@ private var steps: [PhaseStep] {
             PhaseStep(label: "Plan", isActive: false, isCompleted: false),
         ]
     case .generating:
-        // Questions step shows as completed only if the phase was visited;
-        // otherwise it's skipped (shown as completed to avoid confusion).
         return [
             PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
-            PhaseStep(label: "Questions", isActive: false, isCompleted: true),
+            PhaseStep(label: questionsWereVisited ? "Questions" : "Skipped", isActive: false, isCompleted: questionsWereVisited, isSkipped: !questionsWereVisited),
             PhaseStep(label: "Plan", isActive: true, isCompleted: false),
         ]
     default:
         return [
             PhaseStep(label: "Analysis", isActive: false, isCompleted: true),
-            PhaseStep(label: "Questions", isActive: false, isCompleted: true),
+            PhaseStep(label: questionsWereVisited ? "Questions" : "Skipped", isActive: false, isCompleted: questionsWereVisited, isSkipped: !questionsWereVisited),
             PhaseStep(label: "Plan", isActive: false, isCompleted: true),
         ]
     }
@@ -78,13 +80,19 @@ var body: some View {
                 Rectangle()
                     .fill(step.isCompleted || step.isActive
                               ? planColor.opacity(0.6)
-                              : Color.secondary.opacity(0.2))
+                              : step.isSkipped
+                                  ? Color.secondary.opacity(0.15)
+                                  : Color.secondary.opacity(0.2))
                     .frame(height: 2)
                     .frame(maxWidth: 24)
             }
 
             HStack(spacing: 4) {
-                if step.isCompleted {
+                if step.isSkipped {
+                    Image(systemName: "minus.circle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.secondary.opacity(0.5))
+                } else if step.isCompleted {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(planColor)
@@ -100,7 +108,7 @@ var body: some View {
 
                 Text(step.label)
                     .font(.system(size: 11, weight: step.isActive ? .semibold : .regular))
-                    .foregroundStyle(step.isActive ? planColor : .secondary)
+                    .foregroundStyle(step.isActive ? planColor : step.isSkipped ? Color.secondary.opacity(0.5) : .secondary)
             }
         }
     }

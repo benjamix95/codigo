@@ -35,6 +35,21 @@ extension PlanHistoryStore {
         _ = trimEntriesInMemory()
         selectedEntryId = entry.id
         save()
+
+        // Also write .md file to .solocode/plan/
+        if let folderPath = contextFolderPath {
+            let planDir = PlanHistoryStore.solocodePlanDirectory(for: folderPath)
+            try? FileManager.default.createDirectory(at: planDir, withIntermediateDirectories: true)
+            let safeName = sanitizeTitle(safeTitle)
+                .lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+                .joined(separator: "_")
+            let fileName = safeName.isEmpty ? "plan" : String(safeName.prefix(30))
+            let fileURL = planDir.appendingPathComponent("\(fileName).md")
+            try? safeMarkdown.write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+
         return entry
     }
 
