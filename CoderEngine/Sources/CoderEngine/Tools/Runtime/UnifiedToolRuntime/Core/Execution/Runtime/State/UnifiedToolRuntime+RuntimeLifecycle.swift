@@ -43,19 +43,54 @@ extension UnifiedToolRuntime {
         cwd: String,
         timeout: Int = 30_000
     ) async -> (String, String, Int32) {
+        actor TimeoutFlag {
+            private(set) var didTimeout = false
+            func markTimedOut() { didTimeout = true }
+        }
+
         guard !args.isEmpty else { return ("", "argument list is empty", 1) }
         let executable = args[0]
         let arguments = Array(args.dropFirst())
+        let timeoutMs = max(1, timeout)
+        let controller = self.executionController ?? ExecutionController()
+        let scope = self.executionScope
+        let timeoutFlag = TimeoutFlag()
         do {
-            let result = try await ProcessRunner.runCollecting(
-                executable: executable,
-                arguments: arguments,
-                workingDirectory: URL(fileURLWithPath: cwd),
-                executionController: executionController,
-                scope: executionScope
-            )
+            let result = try await withThrowingTaskGroup(
+                of: (output: [String], terminationStatus: Int32).self
+            ) { group in
+                group.addTask {
+                    try await ProcessRunner.runCollecting(
+                        executable: executable,
+                        arguments: arguments,
+                        workingDirectory: URL(fileURLWithPath: cwd),
+                        executionController: controller,
+                        scope: scope
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
+                    await timeoutFlag.markTimedOut()
+                    controller.terminate(scope: scope)
+                    throw ToolRuntimeError.timeout(tool: executable, ms: timeoutMs)
+                }
+                guard let first = try await group.next() else {
+                    throw ToolRuntimeError.transport("No response from process")
+                }
+                group.cancelAll()
+                return first
+            }
             let stdout = result.output.joined(separator: "\n")
             return (stdout, "", result.terminationStatus)
+        } catch let error as ToolRuntimeError {
+            let exitCode: Int32 = error.errorCode == "timeout" ? 124 : 1
+            return ("", error.localizedDescription, exitCode)
+        } catch is CancellationError {
+            if await timeoutFlag.didTimeout {
+                let timeoutError = ToolRuntimeError.timeout(tool: executable, ms: timeoutMs)
+                return ("", timeoutError.localizedDescription, 124)
+            }
+            return ("", CancellationError().localizedDescription, 1)
         } catch {
             return ("", error.localizedDescription, 1)
         }
