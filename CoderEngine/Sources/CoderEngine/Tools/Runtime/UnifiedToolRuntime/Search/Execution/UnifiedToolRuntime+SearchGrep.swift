@@ -219,40 +219,4 @@ extension UnifiedToolRuntime {
         ], durationMs: durationMs)
     }
 
-    func executeGlob(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let pattern = call.args["pattern"] ?? "*"
-        let scopePath = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "."
-
-        // Try index-powered file finder first for fuzzy name matching
-        if let indexTools, !pattern.contains("*") {
-            let indexEvents = await indexTools.execute(
-                toolName: "find_files",
-                args: ["query": pattern],
-                callId: call.id,
-                workspacePaths: preferredWorkspacePaths(for: context),
-                excludedPaths: excludedPaths
-            )
-            let indexResult = toolResultFromIndexEvents(indexEvents, startDate: startDate)
-            if indexResult.ok,
-               let output = indexResult.payload["output"],
-               !output.isEmpty,
-               !output.contains("No files found") {
-                var payload = indexResult.payload
-                payload["title"] = "Glob \(pattern) (index)"
-                return ToolResult(ok: true, payload: payload, durationMs: indexResult.durationMs)
-            }
-        }
-
-        // Fallback to ripgrep file search
-        let cmd = "rg --files -g '\(shellEscaped(pattern))' '\(shellEscaped(scopePath))' 2>/dev/null | head -n 500"
-        return await runBash(
-            command: cmd,
-            cwd: context.workspaceContext.workspacePath,
-            startDate: startDate,
-            title: "Glob \(pattern)",
-            timeoutMs: context.policy.timeoutMs,
-            maxOutputBytes: context.policy.maxBashOutputBytes,
-            policy: context.policy
-        )
-    }
 }

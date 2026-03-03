@@ -17,6 +17,19 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.payload["pathScope"], "Sources/CoderIDE")
     }
 
+    func testGlobInfersMatchesCountFromOutputLinesWhenMissingCountField() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "glob",
+            payload: [
+                "query": "**/Sources/**/*Subagent*",
+                "output": "/tmp/a.swift\n/tmp/b.swift\n",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "instant_grep")
+        XCTAssertEqual(mapped?.payload["matchesCount"], "2")
+    }
+
     func testReadRangeMapsToReadBatchCompleted() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "read_range",

@@ -95,6 +95,33 @@ extension UnifiedToolRuntimeTests {
         XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
     }
 
+    func testGlobPathScopeAliasProducesCountAndPreview() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let nested = tmp.appendingPathComponent("Sources/Feature", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try "struct Smoke {}\n".write(
+            to: nested.appendingPathComponent("SubagentSmoke.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "glob",
+            args: ["pattern": "**/Sources/**/*Subagent*", "pathScope": "."],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertEqual(completed?["pathScope"], tmp.path)
+        XCTAssertGreaterThan(Int(completed?["count"] ?? "0") ?? 0, 0)
+        XCTAssertFalse((completed?["previewLines"] ?? "").isEmpty)
+    }
+
     func testIndexToolsAcceptLegacyAliases() async throws {
         let index = CodebaseIndex()
         let tmp = try makeTmpWorkspace()

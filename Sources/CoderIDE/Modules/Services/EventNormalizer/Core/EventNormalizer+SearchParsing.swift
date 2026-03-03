@@ -4,7 +4,7 @@ extension EventNormalizer {
     static func parseInstantGrep(payload: [String: String], timestamp: Date) -> InstantGrepResult? {
         guard let query = payload["query"], !query.isEmpty else { return nil }
         let scope = payload["pathScope"] ?? payload["scope"] ?? "."
-        let reportedMatchesCount = Int(payload["matchesCount"] ?? "") ?? 0
+        let reportedMatchesCount = Int(payload["matchesCount"] ?? payload["count"] ?? "") ?? 0
         let durationMs = Int(payload["duration_ms"] ?? "")
         let preview = payload["previewLines"] ?? ""
         let parsedMatches = parseMatchLines(from: preview)

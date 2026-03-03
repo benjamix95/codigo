@@ -65,6 +65,19 @@ final class EventNormalizerSearchParsingTests: XCTestCase {
         XCTAssertEqual(result?.matchesCount, 17)
     }
 
+    func testParseInstantGrepUsesCountFallbackWhenMatchesCountIsMissing() {
+        let payload: [String: String] = [
+            "query": "subagent",
+            "pathScope": "Sources",
+            "count": "3",
+            "previewLines": "",
+        ]
+
+        let result = EventNormalizer.parseInstantGrep(payload: payload, timestamp: Date())
+        XCTAssertEqual(result?.matches.count, 0)
+        XCTAssertEqual(result?.matchesCount, 3)
+    }
+
     func testNormalizeInstantGrepTracksMatchesCountDriftMetrics() {
         let payload: [String: String] = [
             "query": "auth",

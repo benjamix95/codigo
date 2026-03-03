@@ -100,6 +100,15 @@ extension ProviderToolEventMapper {
         if let matches = firstInt(in: payload, keys: ["matchesCount", "match_count", "count"]), matches >= 0 {
             mapped["matchesCount"] = "\(matches)"
         }
+        if mapped["matchesCount"] == nil,
+           normalized == "glob",
+           let output = mapped["output"], !output.isEmpty {
+            let files = output
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            mapped["matchesCount"] = "\(files.count)"
+        }
         if normalized == "grep" || normalized == "rg" || normalized == "instant_grep" || !query.isEmpty {
             if mapped["query"] == nil {
                 mapped["query"] = "(query)"
