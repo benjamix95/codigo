@@ -6,14 +6,6 @@ extension OpenAIAPIProvider {
         return lower.contains("/chat/completions")
     }
 
-    static func extractUsage(from json: [String: Any]) -> (Int, Int)? {
-        guard let usage = json["usage"] as? [String: Any] else { return nil }
-        let input = (usage["prompt_tokens"] as? Int) ?? (usage["input_tokens"] as? Int)
-        let output = (usage["completion_tokens"] as? Int) ?? (usage["output_tokens"] as? Int)
-        guard let input, let output else { return nil }
-        return (input, output)
-    }
-
     /// Check if an error response body indicates tools/function-calling is not supported.
     static func isToolUnsupportedError(_ body: String) -> Bool {
         let lower = body.lowercased()
@@ -29,14 +21,13 @@ extension OpenAIAPIProvider {
     /// Read the full error body from a failed HTTP response.
     static func readErrorBody(from bytes: URLSession.AsyncBytes) async -> String {
         var buffer = [UInt8]()
-        // Read up to 8KB of error body
         do {
             for try await byte in bytes {
                 buffer.append(byte)
                 if buffer.count > 8192 { break }
             }
         } catch {
-            // Ignore read errors for error body
+            // Ignore read errors for error body.
         }
         return String(bytes: buffer, encoding: .utf8) ?? ""
     }
@@ -58,6 +49,7 @@ extension OpenAIAPIProvider {
         if let seconds = TimeInterval(raw), seconds > 0 {
             return seconds
         }
+
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -71,26 +63,10 @@ extension OpenAIAPIProvider {
 
     static func isRetryableTransportError(_ error: Error) -> Bool {
         if let urlError = error as? URLError {
-            switch urlError.code {
-            case .timedOut,
-                 .cannotFindHost,
-                 .cannotConnectToHost,
-                 .dnsLookupFailed,
-                 .networkConnectionLost,
-                 .notConnectedToInternet,
-                 .resourceUnavailable,
-                 .internationalRoamingOff,
-                 .callIsActive,
-                 .dataNotAllowed:
-                return true
-            default:
-                return false
-            }
+            return isRetryableTransportCode(urlError.code)
         }
         let nsError = error as NSError
-        if nsError.domain != NSURLErrorDomain {
-            return false
-        }
+        if nsError.domain != NSURLErrorDomain { return false }
         return isRetryableTransportCode(URLError.Code(rawValue: nsError.code))
     }
 
@@ -131,14 +107,13 @@ extension OpenAIAPIProvider {
         try Task.checkCancellation()
     }
 
+    /// Extract a human-readable stream event from WebSocket.
     static func receiveWebSocketMessage(
         socket: URLSessionWebSocketTask,
         timeoutSeconds: TimeInterval
     ) async throws -> URLSessionWebSocketTask.Message {
         try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
-            group.addTask {
-                try await socket.receive()
-            }
+            group.addTask { try await socket.receive() }
             group.addTask {
                 try await sleep(seconds: timeoutSeconds)
                 throw URLError(.timedOut)
@@ -149,33 +124,6 @@ extension OpenAIAPIProvider {
             group.cancelAll()
             return first
         }
-    }
-
-    /// Extract a human-readable error message from an API error JSON body.
-    static func extractErrorMessage(from body: String, statusCode: Int) -> String {
-        guard let data = body.data(using: .utf8),
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            let snippet = body.prefix(300)
-            return "HTTP \(statusCode): \(snippet.isEmpty ? "empty response" : String(snippet))"
-        }
-
-        // OpenAI / OpenRouter format: { "error": { "message": "..." } }
-        if let error = json["error"] as? [String: Any],
-            let message = error["message"] as? String
-        {
-            let errorType = (error["type"] as? String) ?? (error["code"] as? String) ?? ""
-            let prefix = errorType.isEmpty ? "" : "[\(errorType)] "
-            return "HTTP \(statusCode): \(prefix)\(message)"
-        }
-
-        // Alternative format: { "message": "..." }
-        if let message = json["message"] as? String {
-            return "HTTP \(statusCode): \(message)"
-        }
-
-        // Fallback
-        return "HTTP \(statusCode): \(String(body.prefix(300)))"
     }
 
     static func shouldTryResponsesWebSocket(baseURL: String, imageURLs: [URL]?) -> Bool {
@@ -234,7 +182,8 @@ extension OpenAIAPIProvider {
             if type == "image_url",
                let imageObject = part["image_url"] as? [String: Any],
                let url = imageObject["url"] as? String,
-               !url.isEmpty {
+               !url.isEmpty
+            {
                 var imagePayload: [String: Any] = ["type": "input_image", "image_url": url]
                 if let detail = imageObject["detail"] as? String, !detail.isEmpty {
                     imagePayload["detail"] = detail
@@ -242,6 +191,7 @@ extension OpenAIAPIProvider {
                 userContent.append(imagePayload)
             }
         }
+
         if userContent.isEmpty {
             userContent.append(["type": "input_text", "text": ""])
         }
@@ -250,63 +200,4 @@ extension OpenAIAPIProvider {
             "content": userContent,
         ]]
     }
-
-    static func extractUsageFromResponseEvent(_ json: [String: Any]) -> (Int, Int)? {
-        if let usage = json["usage"] as? [String: Any] {
-            let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int)
-            let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int)
-            if let input, let output {
-                return (input, output)
-            }
-        }
-        if let response = json["response"] as? [String: Any],
-           let usage = response["usage"] as? [String: Any] {
-            let input = (usage["input_tokens"] as? Int) ?? (usage["prompt_tokens"] as? Int)
-            let output = (usage["output_tokens"] as? Int) ?? (usage["completion_tokens"] as? Int)
-            if let input, let output {
-                return (input, output)
-            }
-        }
-        return nil
-    }
-
-    static func extractRealtimeErrorMessage(from event: [String: Any]) -> String {
-        if let error = event["error"] as? [String: Any] {
-            if let message = error["message"] as? String, !message.isEmpty {
-                return message
-            }
-            if let code = error["code"] as? String, !code.isEmpty {
-                return code
-            }
-        }
-        if let message = event["message"] as? String, !message.isEmpty {
-            return message
-        }
-        return "Unknown WebSocket error"
-    }
-
-    static func stringValue(_ value: Any?) -> String? {
-        if let text = value as? String {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        if let intValue = value as? Int {
-            return String(intValue)
-        }
-        if let number = value as? NSNumber {
-            return number.stringValue
-        }
-        return nil
-    }
-
-    static func responseEventToolCallId(from event: [String: Any]) -> String? {
-        if let itemId = stringValue(event["item_id"]) { return itemId }
-        if let callId = stringValue(event["call_id"]) { return callId }
-        if let id = stringValue(event["id"]) { return id }
-        if let outputIndex = stringValue(event["output_index"]) {
-            return "idx-\(outputIndex)"
-        }
-        return nil
-    }
-
 }

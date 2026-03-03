@@ -1,0 +1,244 @@
+import Foundation
+
+extension ToolEnabledLLMProvider {
+    internal struct ToolRoundResult {
+        let roundText: String
+        let roundToolResults: [[String: String]]
+        let pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)]
+        let sawExecutableSuggestion: Bool
+        let didEmitMeaningfulText: Bool
+        let sawCodeMutationDuringTask: Bool
+        let reviewerCompletedAfterLatestMutation: Bool
+        let testWriterCompletedAfterLatestMutation: Bool
+        let acceptedSubagentInFirstRound: Bool
+        let didEmitPolicyAck: Bool
+    }
+
+    internal func processToolRoundStream(
+        stream: AsyncThrowingStream<StreamEvent, Error>,
+        context: WorkspaceContext,
+        isFirstRound: Bool,
+        requiredPolicyHash: String?,
+        enforceSubagentFirstRound: Bool,
+        acceptedSubagentInFirstRound: Bool,
+        didEmitPolicyAck: Bool,
+        continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
+    ) async throws -> ToolRoundResult {
+        var roundTextParts: [String] = []
+        var roundTextLength = 0
+        var roundToolResults: [[String: String]] = []
+        var toolCallCountByKey: [String: Int] = [:]
+        var toolCallsThisRound = 0
+        var sawExecutableSuggestion = false
+        var sawCodeMutationDuringTask = false
+        var reviewerCompletedAfterLatestMutation = false
+        var testWriterCompletedAfterLatestMutation = false
+        var didEmitMeaningfulText = false
+        var didEmitPolicyAck = didEmitPolicyAck
+        var localAcceptedSubagentInFirstRound = acceptedSubagentInFirstRound
+        var pendingSubagentCalls: [(marker: CoderIDEMarker, name: String)] = []
+
+        for try await event in stream {
+            switch event {
+            case .textDelta(let delta):
+                let visibleDelta = sanitizeVisibleDelta(delta)
+                if !visibleDelta.isEmpty, roundTextLength + visibleDelta.count <= 100_000 {
+                    roundTextParts.append(visibleDelta)
+                    roundTextLength += visibleDelta.count
+                }
+                if !visibleDelta.isEmpty {
+                    continuation.yield(.textDelta(visibleDelta))
+                    if isMeaningfulAssistantCompletion(visibleDelta) {
+                        didEmitMeaningfulText = true
+                    }
+                }
+
+            case .textReplace(let replacement):
+                roundTextParts = replacement.isEmpty ? [] : [replacement]
+                roundTextLength = replacement.count
+                continuation.yield(.textReplace(replacement))
+
+            case .started:
+                if isFirstRound {
+                    continuation.yield(.started)
+                }
+
+            case .completed:
+                break
+
+            case .error:
+                continuation.yield(event)
+
+            case .raw(let type, let payload):
+                if type == "policy_ack" {
+                    if Self.matchesRequiredPolicyHash(
+                        payload["hash"] ?? payload["policy_hash"],
+                        requiredHash: requiredPolicyHash
+                    ) {
+                        didEmitPolicyAck = true
+                    }
+                    continuation.yield(event)
+                    continue
+                }
+
+                if let hash = requiredPolicyHash,
+                   shouldEmitSyntheticPolicyAck(
+                    forRawEventType: type,
+                    requiredHash: hash,
+                    didEmitPolicyAck: didEmitPolicyAck
+                   ) {
+                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
+                    didEmitPolicyAck = true
+                }
+
+                guard type == "tool_call_suggested" else {
+                    continuation.yield(event)
+                    continue
+                }
+
+                let isPartial = (payload["is_partial"] ?? "").lowercased() == "true"
+                if isPartial { continue }
+                let name = inferredToolName(from: payload)
+                if name.isEmpty { continue }
+
+                if toolCallsThisRound >= policy.maxToolCallsPerRound {
+                    continuation.yield(.raw(type: "tool_execution_error", payload: [
+                        "title": "Tool budget exceeded",
+                        "detail": "Reached tool limit per round (\(policy.maxToolCallsPerRound))",
+                        "status": "failed",
+                        "error_code": "budget_exceeded"
+                    ]))
+                    continue
+                }
+
+                var args = payload
+                let metadataKeys: Set<String> = [
+                    "id", "name", "tool", "tool_name", "function", "function_name",
+                    "args", "is_partial", "type", "status", "title", "detail", "output",
+                ]
+                for key in metadataKeys {
+                    args.removeValue(forKey: key)
+                }
+                if let argsJson = payload["args"], let parsed = parseArgsJSON(argsJson) {
+                    for (key, value) in parsed {
+                        args[key] = value
+                    }
+                }
+                args["id"] = payload["id"] ?? args["id"] ?? UUID().uuidString
+                args["name"] = name
+
+                if !policy.allowMutatingTools,
+                   Self.toolWouldMutate(toolName: name, args: args) {
+                    continuation.yield(.raw(type: "tool_validation_error", payload: [
+                        "title": "Read-only phase policy",
+                        "detail": "Tool '\(name)' is blocked in read-only mode.",
+                        "status": "failed",
+                        "error_code": "read_only_violation",
+                        "tool": name,
+                    ]))
+                    continue
+                }
+
+                let marker = CoderIDEMarker(kind: "tool_call", payload: args)
+                let legacyInvokeSwarm = Self.isLegacyInvokeSwarmSuggestion(
+                    toolName: name,
+                    payload: args
+                )
+
+                if enforceSubagentFirstRound,
+                   isFirstRound,
+                   !localAcceptedSubagentInFirstRound,
+                   !name.hasPrefix("subagent_"),
+                   !legacyInvokeSwarm,
+                   !Self.isSubagentFirstRoundExemptTool(name)
+                {
+                    continuation.yield(.raw(type: "tool_validation_error", payload: [
+                        "title": "Subagent-first policy",
+                        "detail": "First operational tool round must start with subagent_* delegation before direct tool execution.",
+                        "status": "failed",
+                        "error_code": "subagent_first_required",
+                        "tool": name,
+                    ]))
+                    continue
+                }
+
+                let dedupeId = markerDedupeKey(marker)
+                let count = toolCallCountByKey[dedupeId, default: 0]
+                if count >= policy.maxRepeatedSameToolPerRound { continue }
+                toolCallCountByKey[dedupeId] = count + 1
+                toolCallsThisRound += 1
+                sawExecutableSuggestion = true
+
+                if isFirstRound, legacyInvokeSwarm {
+                    localAcceptedSubagentInFirstRound = true
+                }
+                if let hash = requiredPolicyHash,
+                   shouldEmitSyntheticPolicyAck(
+                    for: marker,
+                    requiredHash: hash,
+                    didEmitPolicyAck: didEmitPolicyAck
+                   ) {
+                    continuation.yield(.raw(type: "policy_ack", payload: ["hash": hash]))
+                    didEmitPolicyAck = true
+                }
+
+                if name.hasPrefix("subagent_") {
+                    if isFirstRound {
+                        localAcceptedSubagentInFirstRound = true
+                    }
+                    pendingSubagentCalls.append((marker: marker, name: name))
+                    let toolCallId = marker.payload["id"] ?? UUID().uuidString
+                    continuation.yield(.raw(type: "agent", payload: [
+                        "title": SubagentRole.fromToolName(name)?.displayName ?? name,
+                        "detail": "queued",
+                        "swarm_id": "queued-\(toolCallId)",
+                        "tool_call_id": toolCallId,
+                        "status": "queued"
+                    ]))
+                } else {
+                    let produced = await events(for: marker, context: context)
+                    for e in produced {
+                        if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {
+                            sawCodeMutationDuringTask = true
+                            reviewerCompletedAfterLatestMutation = false
+                            testWriterCompletedAfterLatestMutation = false
+                        }
+                        if let completedRole = Self.completedSubagentRole(from: e) {
+                            if completedRole == .reviewer {
+                                reviewerCompletedAfterLatestMutation = true
+                            }
+                            if completedRole == .testWriter {
+                                testWriterCompletedAfterLatestMutation = true
+                            }
+                        }
+                        if case .raw(let innerType, let innerPayload) = e,
+                           innerType == "policy_ack",
+                           Self.matchesRequiredPolicyHash(
+                            innerPayload["hash"] ?? innerPayload["policy_hash"],
+                            requiredHash: requiredPolicyHash
+                           ) {
+                            didEmitPolicyAck = true
+                        }
+                        continuation.yield(e)
+                    }
+                    if let summary = summarizeToolResultEvents(produced, marker: marker) {
+                        roundToolResults.append(summary)
+                    }
+                }
+            }
+        }
+
+        return ToolRoundResult(
+            roundText: roundTextParts.joined(),
+            roundToolResults: roundToolResults,
+            pendingSubagentCalls: pendingSubagentCalls,
+            sawExecutableSuggestion: sawExecutableSuggestion,
+            didEmitMeaningfulText: didEmitMeaningfulText,
+            sawCodeMutationDuringTask: sawCodeMutationDuringTask,
+            reviewerCompletedAfterLatestMutation: reviewerCompletedAfterLatestMutation,
+            testWriterCompletedAfterLatestMutation: testWriterCompletedAfterLatestMutation,
+            acceptedSubagentInFirstRound: localAcceptedSubagentInFirstRound,
+            didEmitPolicyAck: didEmitPolicyAck
+        )
+    }
+}
