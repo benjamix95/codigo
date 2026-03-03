@@ -32,13 +32,12 @@ struct SwarmProgressView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    Image(systemName: "person.2.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.swarmColor)
+                    swarmAntIcon
                     Text("SUBAGENT")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
+                        .textShimmer(active: isTaskRunning)
                 }
 
                 Spacer(minLength: 8)
@@ -46,7 +45,8 @@ struct SwarmProgressView: View {
                 metricPill(
                     icon: "bolt.fill",
                     text: activeAgentsLabel,
-                    tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary
+                    tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                    isLive: isTaskRunning
                 )
                 metricPill(icon: "checklist", text: stepCountLabel, tint: .secondary)
 
@@ -86,6 +86,14 @@ struct SwarmProgressView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 1)
         }
+        .overlay {
+            if isTaskRunning {
+                ActivityShimmerTrail()
+                    .opacity(0.18)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(DesignSystem.Colors.border.opacity(0.45))
@@ -94,13 +102,37 @@ struct SwarmProgressView: View {
         }
     }
 
-    private func metricPill(icon: String, text: String, tint: Color) -> some View {
+    private var swarmAntIcon: some View {
+        ZStack {
+            Circle()
+                .fill(DesignSystem.Colors.swarmColor.opacity(0.18))
+                .frame(width: 18, height: 18)
+            Circle()
+                .strokeBorder(DesignSystem.Colors.swarmColor.opacity(0.35), lineWidth: 0.8)
+                .frame(width: 18, height: 18)
+            Image(systemName: "ant.fill")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            DesignSystem.Colors.swarmColor,
+                            DesignSystem.Colors.info.opacity(0.95),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
+    }
+
+    private func metricPill(icon: String, text: String, tint: Color, isLive: Bool = false) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 8.5, weight: .semibold))
             Text(text)
                 .font(.system(size: 9, weight: .semibold))
                 .lineLimit(1)
+                .textShimmer(active: isLive)
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 7)
