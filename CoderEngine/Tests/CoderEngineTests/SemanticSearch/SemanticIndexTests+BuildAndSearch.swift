@@ -105,6 +105,109 @@ extension SemanticIndexTests {
         }
     }
 
+    func testSearchNaturalLanguageRanksAuthHandlerBeforeGenericHandler() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("semantic-nl-auth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let authContent = """
+        final class AuthenticationCoordinator {
+            func handleAuthenticationRequest(token: String) -> Bool {
+                authorizeUser(token)
+            }
+
+            private func authorizeUser(_ token: String) -> Bool { !token.isEmpty }
+        }
+        """
+        let genericContent = """
+        struct GenericRequestHandler {
+            func handleRequest(_ payload: String) -> Bool {
+                !payload.isEmpty
+            }
+        }
+        """
+
+        let authPath = tmpDir.appendingPathComponent("AuthenticationCoordinator.swift")
+        let genericPath = tmpDir.appendingPathComponent("GenericRequestHandler.swift")
+        try authContent.write(to: authPath, atomically: true, encoding: .utf8)
+        try genericContent.write(to: genericPath, atomically: true, encoding: .utf8)
+
+        let files = [
+            IndexedFile(
+                relativePath: "AuthenticationCoordinator.swift",
+                absolutePath: authPath.path,
+                language: .swift,
+                symbols: [
+                    IndexedSymbol(name: "AuthenticationCoordinator", kind: .class, filePath: "AuthenticationCoordinator.swift", line: 1, endLine: 7, language: .swift),
+                    IndexedSymbol(name: "handleAuthenticationRequest", kind: .method, filePath: "AuthenticationCoordinator.swift", line: 2, endLine: 4, containerName: "AuthenticationCoordinator", language: .swift),
+                    IndexedSymbol(name: "authorizeUser", kind: .method, filePath: "AuthenticationCoordinator.swift", line: 6, endLine: 6, containerName: "AuthenticationCoordinator", language: .swift),
+                ],
+                imports: [],
+                lineCount: 7,
+                size: UInt64(authContent.utf8.count)
+            ),
+            IndexedFile(
+                relativePath: "GenericRequestHandler.swift",
+                absolutePath: genericPath.path,
+                language: .swift,
+                symbols: [
+                    IndexedSymbol(name: "GenericRequestHandler", kind: .struct, filePath: "GenericRequestHandler.swift", line: 1, endLine: 5, language: .swift),
+                    IndexedSymbol(name: "handleRequest", kind: .method, filePath: "GenericRequestHandler.swift", line: 2, endLine: 4, containerName: "GenericRequestHandler", language: .swift),
+                ],
+                imports: [],
+                lineCount: 5,
+                size: UInt64(genericContent.utf8.count)
+            ),
+        ]
+
+        let index = SemanticIndex()
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        let results = await index.search(query: "where is auth handled", numResults: 5)
+        XCTAssertFalse(results.isEmpty)
+        XCTAssertEqual(results.first?.chunk.filePath, "AuthenticationCoordinator.swift")
+    }
+
+    func testSearchSynonymsAuthAuthenticationAuthorizeHitSameAuthArea() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("semantic-auth-synonyms-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let authContent = """
+        enum AuthGateway {
+            static func authenticateUser() -> Bool { true }
+        }
+        """
+        let authPath = tmpDir.appendingPathComponent("AuthGateway.swift")
+        try authContent.write(to: authPath, atomically: true, encoding: .utf8)
+
+        let files = [
+            IndexedFile(
+                relativePath: "AuthGateway.swift",
+                absolutePath: authPath.path,
+                language: .swift,
+                symbols: [
+                    IndexedSymbol(name: "AuthGateway", kind: .enum, filePath: "AuthGateway.swift", line: 1, endLine: 3, language: .swift),
+                    IndexedSymbol(name: "authenticateUser", kind: .method, filePath: "AuthGateway.swift", line: 2, endLine: 2, containerName: "AuthGateway", language: .swift),
+                ],
+                imports: [],
+                lineCount: 3,
+                size: UInt64(authContent.utf8.count)
+            ),
+        ]
+
+        let index = SemanticIndex()
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        for query in ["auth flow", "authentication flow", "authorize flow"] {
+            let results = await index.search(query: query, numResults: 3)
+            XCTAssertFalse(results.isEmpty, "Query '\(query)' should produce results")
+            XCTAssertEqual(results.first?.chunk.filePath, "AuthGateway.swift", "Query '\(query)' should rank auth file first")
+        }
+    }
+
     // MARK: - SearchResult Display
 
     func testSearchResultDisplayLine() {

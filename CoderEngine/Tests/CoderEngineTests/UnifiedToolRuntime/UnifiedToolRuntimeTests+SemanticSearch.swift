@@ -176,4 +176,91 @@ extension UnifiedToolRuntimeTests {
             "Expected semantic search output to be refreshed for workspace-b"
         )
     }
+
+    func testSemanticSearchNaturalLanguageRanksAuthBeforeGenericHandler() async throws {
+        let index = CodebaseIndex()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        final class AuthenticationService {
+            func handleAuthentication(_ token: String) -> Bool {
+                authorizeUser(token)
+            }
+            private func authorizeUser(_ token: String) -> Bool { !token.isEmpty }
+        }
+        """.write(to: tmp.appendingPathComponent("AuthenticationService.swift"), atomically: true, encoding: .utf8)
+
+        try """
+        struct GenericHandler {
+            func handle(_ input: String) -> Bool { !input.isEmpty }
+        }
+        """.write(to: tmp.appendingPathComponent("GenericHandler.swift"), atomically: true, encoding: .utf8)
+
+        let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "where is auth handled", "limit": "5"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(output.contains("1.") && output.contains("AuthenticationService.swift"), "Auth file should be ranked first: \(output)")
+    }
+
+    func testSemanticSearchSynonymQueriesMatchAuthAreaInRuntime() async throws {
+        let index = CodebaseIndex()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        struct AccessControl {
+            static func authenticationCheck() -> Bool { true }
+        }
+        """.write(to: tmp.appendingPathComponent("AccessControl.swift"), atomically: true, encoding: .utf8)
+
+        let runtime = UnifiedToolRuntime(index: index, workspacePaths: [tmp])
+
+        for query in ["auth", "authentication", "authorize"] {
+            let (call, ctx) = makeCall(
+                name: "semantic_search",
+                args: ["query": query],
+                workspace: tmp
+            )
+            let events = await runtime.execute(call, context: ctx)
+            let completed = extractLastPayload(events)
+            let output = completed?["output"] ?? ""
+
+            XCTAssertEqual(completed?["status"], "completed")
+            XCTAssertTrue(output.contains("AccessControl.swift"), "Expected auth hit for query '\(query)': \(output)")
+        }
+    }
+
+    func testSemanticSearchFallbackUsesGrepWhenIndexUnavailable() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try """
+        func authorizeRequest() -> Bool {
+            true
+        }
+        """.write(to: tmp.appendingPathComponent("FallbackAuth.swift"), atomically: true, encoding: .utf8)
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "authorize request", "limit": "3"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let output = completed?["output"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue((completed?["detail"] ?? "").contains("grep fallback"))
+        XCTAssertTrue(output.contains("FallbackAuth.swift"), "Fallback output should include matching file: \(output)")
+    }
 }

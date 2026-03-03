@@ -192,6 +192,8 @@ extension SemanticIndex {
     private static let synonymMap: [String: [String]] = [
         "auth": ["authentication", "login", "signin", "credential"],
         "authentication": ["auth", "login", "signin"],
+        "authorize": ["auth", "authentication", "permission"],
+        "authorization": ["auth", "authorize", "permission"],
         "login": ["auth", "signin", "authenticate"],
         "save": ["persist", "store", "write", "serialize"],
         "persist": ["save", "store", "write"],
