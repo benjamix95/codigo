@@ -3,7 +3,7 @@ import SwiftUI
 extension SwarmPanelView {
     // MARK: - Detail View
 
-    private func detailView(for card: SwarmLiveCardState) -> some View {
+    func detailView(for card: SwarmLiveCardState) -> some View {
         let cardAccent = panelStatusAccent(for: card.status)
         let name = panelRoleDisplayName(from: card.swarmId)
 
@@ -128,7 +128,7 @@ extension SwarmPanelView {
     // MARK: - Detail Event Row
 
     @ViewBuilder
-    private func detailEventRow(_ activity: TaskActivity, accent: Color) -> some View {
+    func detailEventRow(_ activity: TaskActivity, accent: Color) -> some View {
         let isExp = expandedEventIds.contains(activity.id)
 
         VStack(alignment: .leading, spacing: 3) {
@@ -196,4 +196,3 @@ extension SwarmPanelView {
         .padding(.horizontal, 2)
     }
 }
-

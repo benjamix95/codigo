@@ -175,5 +175,4 @@ struct UsageMenuBarView: View {
 
 extension Notification.Name {
     static let coderOpenSettingsFromMenuBar = Notification.Name("CoderIDE.OpenSettingsFromMenuBar")
-    static let providersDidRegister = Notification.Name("CoderIDE.ProvidersDidRegister")
 }

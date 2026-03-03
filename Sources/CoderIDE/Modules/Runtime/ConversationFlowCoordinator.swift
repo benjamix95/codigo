@@ -1,37 +1,6 @@
 import Foundation
 import CoderEngine
 
-/// Sendable wrapper for AsyncSequence iterator, used to avoid capturing `var` in concurrent closures.
-private final class IteratorHolder<Stream: AsyncSequence>: @unchecked Sendable {
-    private var iterator: Stream.AsyncIterator
-
-    init(_ stream: Stream) {
-        self.iterator = stream.makeAsyncIterator()
-    }
-
-    func next() async throws -> Stream.AsyncIterator.Element? {
-        try await iterator.next()
-    }
-}
-
-private enum StreamWatchdogError: LocalizedError {
-    case noEvents(timeout: Int)
-    case stalled(timeout: Int)
-
-    var errorDescription: String? {
-        switch self {
-        case .noEvents(let timeout):
-            return "No events received from provider within \(timeout)s."
-        case .stalled(let timeout):
-            return "Stream stalled: no updates for \(timeout)s."
-        }
-    }
-}
-
-private enum StreamIterationState: Error {
-    case ended
-}
-
 final class ConversationFlowCoordinator: ObservableObject {
     private let initialEventTimeoutOverride: Int?
     private let activityTimeoutOverride: Int?
@@ -108,23 +77,6 @@ final class ConversationFlowCoordinator: ObservableObject {
         await MainActor.run {
             state = newState
         }
-    }
-
-    private func isCancellationError(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
-        if Task.isCancelled { return true }
-
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError {
-            return true
-        }
-
-        let message = String(describing: error).lowercased()
-        return message.contains("cancellation")
-            || message.contains("canceled")
-            || message.contains("cancelled")
-            || message.contains("interrupted")
-            || message.contains("interruption")
     }
 
     func runStream(
@@ -264,39 +216,5 @@ final class ConversationFlowCoordinator: ObservableObject {
         }
         await setState(.completed)
         return fullParts.joined()
-    }
-
-    private func nextEvent(
-        withinSeconds timeout: Int,
-        isInitialPoll: Bool,
-        operation: @escaping @Sendable () async throws -> StreamEvent?
-    ) async throws -> StreamEvent? {
-        try await withThrowingTaskGroup(of: StreamEvent.self) { group in
-            group.addTask {
-                guard let value = try await operation() else { throw StreamIterationState.ended }
-                return value
-            }
-            group.addTask {
-                let safeTimeout = max(1, timeout)
-                try await Task.sleep(nanoseconds: UInt64(safeTimeout) * 1_000_000_000)
-                throw isInitialPoll
-                    ? StreamWatchdogError.noEvents(timeout: timeout)
-                    : StreamWatchdogError.stalled(timeout: timeout)
-            }
-            do {
-                guard let value = try await group.next() else {
-                    throw StreamWatchdogError.stalled(timeout: timeout)
-                }
-                group.cancelAll()
-                return value
-            } catch StreamIterationState.ended {
-                group.cancelAll()
-                return nil
-            }
-        }
-    }
-
-    private func logStreamDiagnostic(_ message: String) {
-        NSLog("[StreamDiag] %@", message)
     }
 }

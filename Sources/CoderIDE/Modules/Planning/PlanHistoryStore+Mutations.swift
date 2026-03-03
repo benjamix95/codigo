@@ -1,0 +1,104 @@
+import Foundation
+
+extension PlanHistoryStore {
+    @discardableResult
+    func createEntry(
+        conversationId: UUID,
+        contextId: UUID?,
+        contextFolderPath: String?,
+        title: String,
+        markdown: String,
+        options: [PlanOption],
+        chosenPath: String?,
+        tags: [String],
+        sourceMessageId: UUID?
+    ) -> PlanHistoryEntry {
+        let sanitizedMarkdown = String(markdown.prefix(configuredMaxMarkdownLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let cappedOptions = Array(options.prefix(maxPlanOptionsPersisted))
+        let safeTitle = sanitizeTitle(title)
+        let safeMarkdown = sanitizedMarkdown.isEmpty
+            ? "Plan unavailable (empty content)."
+            : sanitizedMarkdown
+        let entry = PlanHistoryEntry(
+            conversationId: conversationId,
+            contextId: contextId,
+            contextFolderPath: contextFolderPath,
+            title: safeTitle,
+            markdown: safeMarkdown,
+            options: cappedOptions,
+            chosenPath: chosenPath,
+            tags: tags,
+            sourceMessageId: sourceMessageId
+        )
+        entries.append(entry)
+        _ = trimEntriesInMemory()
+        selectedEntryId = entry.id
+        save()
+        return entry
+    }
+
+    @discardableResult
+    func duplicateEntry(id: UUID) -> PlanHistoryEntry? {
+        guard var copy = findEntry(id: id) else { return nil }
+        copy.id = UUID()
+        copy.createdAt = .now
+        copy.updatedAt = .now
+        copy.sourceMessageId = nil
+        entries.append(copy)
+        _ = trimEntriesInMemory()
+        selectedEntryId = copy.id
+        save()
+        return copy
+    }
+
+    func deleteEntry(id: UUID) {
+        entries.removeAll { $0.id == id }
+        if selectedEntryId == id { selectedEntryId = nil }
+        save()
+    }
+
+    /// Deletes all planning entries for the specified context (or all if nil).
+    /// Uses OR matching: an entry is removed if it matches by contextId OR by
+    /// contextFolderPath, so entries created before one of the fields was
+    /// populated are not missed.
+    func deleteAllForContext(contextId: UUID?, contextFolderPath: String?) {
+        if contextId == nil && contextFolderPath == nil {
+            entries.removeAll()
+            selectedEntryId = nil
+        } else {
+            entries.removeAll { entry in
+                let matchesContext = contextId != nil && entry.contextId == contextId
+                let matchesFolder = contextFolderPath != nil && entry.contextFolderPath == contextFolderPath
+                return matchesContext || matchesFolder
+            }
+            if let sid = selectedEntryId,
+               !entries.contains(where: { $0.id == sid }) {
+                selectedEntryId = nil
+            }
+        }
+        save()
+    }
+
+    func markRebuilt(id: UUID) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[idx].rebuildCount += 1
+        entries[idx].lastBuildAt = .now
+        entries[idx].updatedAt = .now
+        save()
+    }
+
+    func updateChosenPath(id: UUID, chosenPath: String?) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[idx].chosenPath = chosenPath
+        entries[idx].updatedAt = .now
+        save()
+    }
+
+    func updateSourceMessageId(id: UUID, sourceMessageId: UUID?) {
+        guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[idx].sourceMessageId = sourceMessageId
+        entries[idx].updatedAt = .now
+        save()
+    }
+}

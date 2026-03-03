@@ -2,14 +2,14 @@ import CoderEngine
 import Foundation
 
 extension ProviderFactory {
-    private static let allSubagentBackendIds: [String] = [
+    static let allSubagentBackendIds: [String] = [
         "codex-cli", "claude-cli", "gemini-cli",
         "openai-api", "anthropic-api", "google-api",
         "openrouter-api", "minimax-api", "grok-api"
     ]
 
     /// Maps a selected real provider id to the corresponding swarm backend id.
-    private static func swarmBackendIdForAgentProvider(_ providerId: String?) -> String? {
+    static func swarmBackendIdForAgentProvider(_ providerId: String?) -> String? {
         switch normalizedBackendId(providerId ?? "") {
         case "codex-cli", "codex":
             return "codex"
@@ -34,7 +34,7 @@ extension ProviderFactory {
         }
     }
 
-    private static func resolveSwarmBackendId(
+    static func resolveSwarmBackendId(
         configuredBackendId: String,
         agentProviderId: String?
     ) -> String {

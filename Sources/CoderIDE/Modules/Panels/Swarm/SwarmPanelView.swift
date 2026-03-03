@@ -16,27 +16,27 @@ struct SwarmPanelView: View {
     let onOpenFile: (String) -> Void
     let onSyncSwarmProvider: () -> Void
 
-    @State private var expandedCardIds: Set<String> = []
-    @State private var expandedEventIds: Set<UUID> = []
-    @State private var isFollowingLive = true
-    @State private var isOrchestratorPopoverPresented = false
-    @State private var isWorkerPopoverPresented = false
+    @State var expandedCardIds: Set<String> = []
+    @State var expandedEventIds: Set<UUID> = []
+    @State var isFollowingLive = true
+    @State var isOrchestratorPopoverPresented = false
+    @State var isWorkerPopoverPresented = false
 
-    private let topInteractiveInset: CGFloat = 22
-    private let accent = DesignSystem.Colors.swarmColor
+    let topInteractiveInset: CGFloat = 22
+    let accent = DesignSystem.Colors.swarmColor
 
-    private struct ProviderOption: Identifiable {
+    struct ProviderOption: Identifiable {
         let id: String
         let label: String
     }
 
-    @State private var cachedCards: [SwarmLiveCardState] = []
-    private var sortedCards: [SwarmLiveCardState] { cachedCards }
-    private var runningCount: Int { cachedCards.filter { $0.status == .running }.count }
-    private var failedCount: Int { cachedCards.filter { $0.status == .failed }.count }
-    private var warningCount: Int { cachedCards.reduce(0) { $0 + max(0, $1.warningCount) } }
-    private var completedCount: Int { cachedCards.filter { $0.status == .completed }.count }
-    private var liveChangeCount: Int { taskActivityStore.swarmEventsReceivedCount }
+    @State var cachedCards: [SwarmLiveCardState] = []
+    var sortedCards: [SwarmLiveCardState] { cachedCards }
+    var runningCount: Int { cachedCards.filter { $0.status == .running }.count }
+    var failedCount: Int { cachedCards.filter { $0.status == .failed }.count }
+    var warningCount: Int { cachedCards.reduce(0) { $0 + max(0, $1.warningCount) } }
+    var completedCount: Int { cachedCards.filter { $0.status == .completed }.count }
+    var liveChangeCount: Int { taskActivityStore.swarmEventsReceivedCount }
 
     // MARK: - Body
 
@@ -93,4 +93,3 @@ struct SwarmPanelView: View {
         cachedCards = taskActivityStore.swarmCardStates()
     }
 }
-

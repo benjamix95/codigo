@@ -56,7 +56,7 @@ enum MermaidExtractor {
     }
 }
 
-private extension String {
+extension String {
     var htmlEscapedForMermaid: String {
         replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")

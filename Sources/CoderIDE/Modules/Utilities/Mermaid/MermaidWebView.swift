@@ -57,9 +57,9 @@ struct MermaidWebView: NSViewRepresentable {
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var lastRenderedCode: String?
         var lastRenderedDarkMode: Bool?
-        private let onImageRendered: ((String) -> Void)?
-        private let onImageRenderedPNG: ((Data) -> Void)?
-        private let onHeightChanged: ((CGFloat) -> Void)?
+        let onImageRendered: ((String) -> Void)?
+        let onImageRenderedPNG: ((Data) -> Void)?
+        let onHeightChanged: ((CGFloat) -> Void)?
 
         init(
             onImageRendered: ((String) -> Void)?,
