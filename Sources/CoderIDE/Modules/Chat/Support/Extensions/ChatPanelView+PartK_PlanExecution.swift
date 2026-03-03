@@ -136,7 +136,6 @@ extension ChatPanelView {
         planningState = .idle
         planFlowPhase = .readyToBuild
         chatStore.choosePlanPath(choice, for: planConversationId)
-        chatStore.setWalkthrough("", for: planConversationId)
 
         todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
         let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
@@ -324,8 +323,6 @@ extension ChatPanelView {
                         linkedFiles: reviewLinkedFiles,
                         conversationId: planConvId
                     )
-                } else if let planConvId = activeBuildPlanConversationId {
-                    chatStore.setWalkthrough("", for: planConvId)
                 }
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil

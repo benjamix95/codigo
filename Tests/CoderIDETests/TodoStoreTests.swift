@@ -122,9 +122,34 @@ final class TodoStoreTests: XCTestCase {
         let prepared = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
 
         XCTAssertEqual(prepared.map(\.title), ["First", "Second", "Third"])
+        XCTAssertEqual(prepared.map(\.status), [.done, .inProgress, .pending])
+        XCTAssertEqual(prepared.first?.activeForm, "")
+        XCTAssertEqual(prepared.dropFirst().first?.activeForm, "Second")
+    }
+
+    func testPrepareCanonicalPlanTodosForBuildFreshStartMarksFirstInProgress() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["First", "Second", "Third"], conversationId: conversationId)
+
+        let prepared = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
+
         XCTAssertEqual(prepared.map(\.status), [.inProgress, .pending, .pending])
         XCTAssertEqual(prepared.first?.activeForm, "First")
         XCTAssertTrue(prepared.dropFirst().allSatisfy { $0.activeForm.isEmpty })
+    }
+
+    func testPrepareCanonicalPlanTodosForBuildWhenAllDoneRestartsFromBeginning() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["First", "Second", "Third"], conversationId: conversationId)
+        for todo in store.canonicalTodos(for: conversationId) {
+            store.setStatus(id: todo.id, status: .done)
+        }
+
+        let prepared = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
+
+        XCTAssertEqual(prepared.map(\.status), [.inProgress, .pending, .pending])
     }
 
     func testClearAgentTodosPreservesCanonicalPlanTodos() {

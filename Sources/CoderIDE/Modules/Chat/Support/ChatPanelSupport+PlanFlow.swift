@@ -36,10 +36,17 @@ func shouldAllowStartingPlanBuild(
 
 func shouldClearPlanCanonicalTodosOnNewTurn(
     phase: PlanFlowPhase,
-    hasActivePlanBuildTask: Bool
+    hasActivePlanBuildTask: Bool,
+    hasResumablePlanState: Bool = false
 ) -> Bool {
     if hasActivePlanBuildTask { return false }
-    return phase != .building
+    if hasResumablePlanState { return false }
+    switch phase {
+    case .building, .proposalReady, .readyToBuild:
+        return false
+    case .idle, .analyzing, .questioning, .generating:
+        return true
+    }
 }
 
 func isPlanBuildContext(

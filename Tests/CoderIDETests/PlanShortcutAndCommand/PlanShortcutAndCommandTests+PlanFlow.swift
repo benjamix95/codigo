@@ -57,19 +57,36 @@ extension PlanShortcutAndCommandTests {
         XCTAssertTrue(
             shouldClearPlanCanonicalTodosOnNewTurn(
                 phase: .idle,
-                hasActivePlanBuildTask: false
+                hasActivePlanBuildTask: false,
+                hasResumablePlanState: false
             )
         )
         XCTAssertFalse(
             shouldClearPlanCanonicalTodosOnNewTurn(
                 phase: .building,
-                hasActivePlanBuildTask: false
+                hasActivePlanBuildTask: false,
+                hasResumablePlanState: false
             )
         )
         XCTAssertFalse(
             shouldClearPlanCanonicalTodosOnNewTurn(
                 phase: .idle,
-                hasActivePlanBuildTask: true
+                hasActivePlanBuildTask: true,
+                hasResumablePlanState: false
+            )
+        )
+        XCTAssertFalse(
+            shouldClearPlanCanonicalTodosOnNewTurn(
+                phase: .idle,
+                hasActivePlanBuildTask: false,
+                hasResumablePlanState: true
+            )
+        )
+        XCTAssertFalse(
+            shouldClearPlanCanonicalTodosOnNewTurn(
+                phase: .readyToBuild,
+                hasActivePlanBuildTask: false,
+                hasResumablePlanState: false
             )
         )
     }

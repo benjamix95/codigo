@@ -241,9 +241,29 @@ extension ChatPanelView {
         // During an active plan build, keep canonical todos so the build's todo
         // tracking isn't wiped by a concurrent user message.
         let hasActivePlanBuildTask = activeBuildAgentConversationId.map { chatStore.isTaskActive(for: $0) } ?? false
+        let hasResumablePlanState: Bool = {
+            let scopedCanonicalTodos = todoStore.canonicalTodos(for: targetConversationId)
+            guard !scopedCanonicalTodos.isEmpty else { return false }
+            let hasBuildChoiceForConversation: Bool = {
+                guard let chosen = chatStore.planBoard(for: targetConversationId)?
+                    .chosenPath?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !chosen.isEmpty else {
+                    return false
+                }
+                return PlanOptionsParser.hasRequiredTodoHeader(chosen)
+                    && !PlanOptionsParser.extractTodosFromOptionText(chosen).isEmpty
+            }()
+            guard hasBuildChoiceForConversation else { return false }
+
+            let doneCount = scopedCanonicalTodos.filter { $0.status == .done }.count
+            let hasInProgress = scopedCanonicalTodos.contains { $0.status == .inProgress }
+            return hasInProgress || (doneCount > 0 && doneCount < scopedCanonicalTodos.count)
+        }()
         let shouldClearPlanCanonicalTodos = shouldClearPlanCanonicalTodosOnNewTurn(
             phase: planFlowPhase,
-            hasActivePlanBuildTask: hasActivePlanBuildTask
+            hasActivePlanBuildTask: hasActivePlanBuildTask,
+            hasResumablePlanState: hasResumablePlanState
         )
         todoStore.clearAgentTodos(includePlanCanonical: shouldClearPlanCanonicalTodos)
         scheduleFallbackTurnStartEvent(

@@ -1,18 +1,57 @@
 import Foundation
 
 extension TodoStore {
-    /// Resets canonical plan todos for a fresh execution pass:
-    /// first todo -> in_progress, remaining todos -> pending.
+    enum PlanBuildPreparationStrategy {
+        case resumeIfPossible
+        case restartFromBeginning
+    }
+
+    /// Prepares canonical plan todos for build start.
+    /// - `resumeIfPossible`: keeps completed todos and resumes from first incomplete step.
+    /// - `restartFromBeginning`: sets first todo to in_progress and resets all others to pending.
     @discardableResult
-    func prepareCanonicalPlanTodosForBuild(conversationId: UUID?) -> [TodoItem] {
+    func prepareCanonicalPlanTodosForBuild(
+        conversationId: UUID?,
+        strategy: PlanBuildPreparationStrategy = .resumeIfPossible
+    ) -> [TodoItem] {
         let isInScope = canonicalScopeFilter(for: conversationId)
         let orderedTodoIds = sortedCanonicalFirstTodos(todos.filter { isInScope($0) }).map(\.id)
         guard !orderedTodoIds.isEmpty else { return [] }
 
+        let doneCount = orderedTodoIds.compactMap { id in
+            todos.first(where: { $0.id == id })?.status
+        }.filter { $0 == .done }.count
+        let hasInProgress = orderedTodoIds.contains { id in
+            todos.first(where: { $0.id == id })?.status == .inProgress
+        }
+        let shouldResume = strategy == .resumeIfPossible
+            && (hasInProgress || (doneCount > 0 && doneCount < orderedTodoIds.count))
+
+        let resumeAnchorId: UUID? = {
+            guard shouldResume else { return nil }
+            if let active = orderedTodoIds.first(where: { id in
+                todos.first(where: { $0.id == id })?.status == .inProgress
+            }) {
+                return active
+            }
+            return orderedTodoIds.first(where: { id in
+                guard let status = todos.first(where: { $0.id == id })?.status else { return false }
+                return status != .done
+            })
+        }()
+
         var didMutate = false
         for (order, id) in orderedTodoIds.enumerated() {
             guard let idx = todos.firstIndex(where: { $0.id == id }) else { continue }
-            let targetStatus: TodoStatus = (order == 0) ? .inProgress : .pending
+            let currentStatus = todos[idx].status
+            let targetStatus: TodoStatus = {
+                if shouldResume, let resumeAnchorId {
+                    if id == resumeAnchorId { return .inProgress }
+                    if currentStatus == .done { return .done }
+                    return .pending
+                }
+                return (order == 0) ? .inProgress : .pending
+            }()
             let previousStatus = todos[idx].status
             var itemMutated = false
 
@@ -31,7 +70,7 @@ extension TodoStore {
                 itemMutated = true
             }
 
-            if order == 0 {
+            if targetStatus == .inProgress {
                 let normalizedActive = todos[idx].activeForm.trimmingCharacters(in: .whitespacesAndNewlines)
                 if normalizedActive.isEmpty {
                     todos[idx].activeForm = todos[idx].title
