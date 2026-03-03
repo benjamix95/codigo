@@ -134,10 +134,13 @@ extension CodeReviewMultiSwarmProvider {
         }
 
         let gitTimeoutSeconds: TimeInterval = 30
+        let didTimeoutLock = NSLock()
         var didTimeout = false
         let timeoutItem = DispatchWorkItem {
             guard process.isRunning else { return }
+            didTimeoutLock.lock()
             didTimeout = true
+            didTimeoutLock.unlock()
             process.terminate()
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + gitTimeoutSeconds, execute: timeoutItem)
@@ -161,7 +164,9 @@ extension CodeReviewMultiSwarmProvider {
         errLock.unlock()
 
         guard process.terminationStatus == 0 else {
+            didTimeoutLock.lock()
             let wasTimedOut = didTimeout
+            didTimeoutLock.unlock()
             errLock.lock()
             let capturedErrData = errData
             errLock.unlock()

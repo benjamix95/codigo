@@ -157,7 +157,7 @@ extension ToolEnabledLLMProvider {
         transcript: String,
         toolResults: [[String: String]],
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
-    ) async throws -> Bool {
+    ) async -> Bool {
         let forcedPrompt = buildForcedFinalizationPrompt(
             originalPrompt: prompt,
             transcript: transcript,

@@ -85,6 +85,7 @@ extension UsageFooterView {
                 self.contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
             }
         }
+        contextEstimateWorkItem?.cancel()
         contextEstimateWorkItem = estimateWorkItem
         Self.contextEstimateQueue.async(execute: estimateWorkItem)
     }

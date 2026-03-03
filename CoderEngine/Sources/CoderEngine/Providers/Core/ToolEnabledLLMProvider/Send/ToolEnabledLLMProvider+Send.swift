@@ -213,7 +213,7 @@ extension ToolEnabledLLMProvider {
         }
 
         if !lastToolResultsForFallback.isEmpty && !emittedVisibleTextAfterToolRound {
-            let meaningfulAfterForced = try await emitForcedFinalization(
+            let meaningfulAfterForced = await emitForcedFinalization(
                 prompt: prompt,
                 context: context,
                 transcript: conversationTranscript,

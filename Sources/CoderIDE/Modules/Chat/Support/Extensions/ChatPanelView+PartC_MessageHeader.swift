@@ -170,42 +170,10 @@ extension ChatPanelView {
 
     // MARK: - Messages Area
     internal var messagesArea: some View {
-        // #region agent log
         ScrollViewReader { proxy in
             messagesAreaScrollView(using: proxy)
         }
-        .frame(maxWidth: .infinity, minHeight: 120, maxHeight: .infinity)
-        .background(
-            GeometryReader { g in
-                let gw = g.size.width, gh = g.size.height
-                if gw < 50 || gh < 50 {
-                    let _ = DebugSessionLog.log(
-                        location: "ChatPanelView:messagesArea",
-                        message: "messagesArea geometry SUSPICIOUS",
-                        data: ["width": Double(gw), "height": Double(gh), "msgCount": chatStore.conversation(for: conversationId)?.messages.count ?? 0],
-                        hypothesisId: "B"
-                    )
-                }
-                return Color.clear
-            }
-        )
-        .onAppear {
-            DebugSessionLog.log(
-                location: "ChatPanelView:messagesArea",
-                message: "messagesArea onAppear",
-                data: ["msgCount": chatStore.conversation(for: conversationId)?.messages.count ?? 0],
-                hypothesisId: "B"
-            )
-        }
-        .onDisappear {
-            DebugSessionLog.log(
-                location: "ChatPanelView:messagesArea",
-                message: "messagesArea onDisappear",
-                data: ["msgCount": chatStore.conversation(for: conversationId)?.messages.count ?? 0],
-                hypothesisId: "B"
-            )
-        }
-        // #endregion
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

@@ -24,6 +24,12 @@ struct FontPreferences {
     ]
 
     private static var didRegisterBundledFonts = false
+    private static let postScriptMissingSentinel = "__missing__"
+    private static let postScriptCache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 256
+        return cache
+    }()
 
     static func registerBundledFonts() {
         guard !didRegisterBundledFonts else { return }
@@ -135,15 +141,31 @@ struct FontPreferences {
     }
 
     private static func postScriptName(forFamily family: String) -> String? {
-        guard let members = NSFontManager.shared.availableMembers(ofFontFamily: family) else { return nil }
+        let key = family as NSString
+        if let cached = postScriptCache.object(forKey: key) {
+            let value = cached as String
+            return value == postScriptMissingSentinel ? nil : value
+        }
+
+        guard let members = NSFontManager.shared.availableMembers(ofFontFamily: family) else {
+            postScriptCache.setObject(postScriptMissingSentinel as NSString, forKey: key)
+            return nil
+        }
+
         for member in members {
             guard let postScript = member.first as? String, !postScript.isEmpty else { continue }
             let lower = postScript.lowercased()
             if lower.contains("regular") || lower.contains("roman") || lower.contains("book") {
+                postScriptCache.setObject(postScript as NSString, forKey: key)
                 return postScript
             }
         }
-        return members.first?.first as? String
+        if let fallback = members.first?.first as? String {
+            postScriptCache.setObject(fallback as NSString, forKey: key)
+            return fallback
+        }
+        postScriptCache.setObject(postScriptMissingSentinel as NSString, forKey: key)
+        return nil
     }
 }
 

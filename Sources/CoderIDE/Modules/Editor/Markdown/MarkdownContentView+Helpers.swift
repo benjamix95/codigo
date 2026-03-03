@@ -35,6 +35,23 @@ extension MarkdownContentView {
         fontWeight: Font.Weight,
         color: Color?
     ) -> AttributedString {
+        let key = MarkdownInlineAttributedCache.key(
+            text: text,
+            contextID: context?.id,
+            activeFolderPath: context?.activeFolderPath,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            codeFontFamily: uiCodeFontFamily,
+            codeFontSize: codeFontSize,
+            colorSignature: String(describing: color),
+            accentSignature: String(describing: accentColor),
+            inlineCodeBackgroundSignature: String(describing: inlineCodeBackground),
+            inlineCodeColorSignature: String(describing: inlineCodeColor)
+        )
+        if let cached = MarkdownInlineAttributedCache.get(key) {
+            return cached
+        }
+
         var result: AttributedString
         if let markdown = try? AttributedString(
             markdown: text,
@@ -74,6 +91,7 @@ extension MarkdownContentView {
             color: NSColor(accentColor),
             resolver: { resolvePath($0) }
         )
+        MarkdownInlineAttributedCache.set(result, for: key)
         return result
     }
 
