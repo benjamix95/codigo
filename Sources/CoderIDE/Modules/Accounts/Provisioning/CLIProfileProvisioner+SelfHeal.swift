@@ -5,6 +5,12 @@ extension CLIProfileProvisioner {
     /// - Restores bundled `coderide-mcp-server` when missing.
     /// - Repairs Codex/Claude/Gemini managed profile configs to point to a valid MCP command.
     static func selfHealManagedProfiles() {
+        // Test/debug overrides are intended for isolated profile provisioning calls.
+        // Never fan out a global rewrite to all managed profiles with an override value.
+        let overridePath = ProcessInfo.processInfo.environment[mcpServerPathOverrideEnv]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard overridePath.isEmpty else { return }
+
         _ = ensureBundledMCPServerBinaryIfNeeded()
         selfHealCodexProfiles()
         selfHealClaudeProfiles()
