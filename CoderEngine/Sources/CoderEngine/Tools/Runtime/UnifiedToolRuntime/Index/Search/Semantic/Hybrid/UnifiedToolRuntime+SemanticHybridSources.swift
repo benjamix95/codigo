@@ -1,17 +1,21 @@
 import Foundation
 
 extension UnifiedToolRuntime {
+    private var grepFallbackCacheMaxEntries: Int { 24 }
+    private var grepFallbackCacheTTLSeconds: TimeInterval { 45 }
+
     func collectHybridSearchHits(
         request: HybridSearchRequest,
         index: CodebaseIndex?
-    ) async -> [HybridSourceHit] {
+    ) async -> ([HybridSourceHit], String?) {
         var hits: [HybridSourceHit] = []
         if let index {
             hits.append(contentsOf: await collectSemanticIndexHits(request: request, index: index))
             hits.append(contentsOf: await collectSymbolIndexHits(request: request, index: index))
         }
-        hits.append(contentsOf: await collectGrepFallbackHits(request: request))
-        return hits
+        let (grepHits, grepSkipReason) = await collectGrepFallbackHits(request: request)
+        hits.append(contentsOf: grepHits)
+        return (hits, grepSkipReason)
     }
 
     func collectSemanticIndexHits(
@@ -115,14 +119,31 @@ extension UnifiedToolRuntime {
 
     func collectGrepFallbackHits(
         request: HybridSearchRequest
-    ) async -> [HybridSourceHit] {
+    ) async -> ([HybridSourceHit], String?) {
+        if request.strictScope && request.targetDirectories.isEmpty {
+            return ([], "strict_scope_no_target_directories")
+        }
+        if request.queryTokens.count <= 1 && request.searchPaths.count > 8 {
+            return ([], "circuit_breaker_wide_scope_short_query")
+        }
+
         let patterns = buildGrepPatterns(queryTokens: request.queryTokens)
-        guard !patterns.isEmpty else { return [] }
+        guard !patterns.isEmpty else { return ([], nil) }
+
+        let cacheKey = grepFallbackCacheKey(for: request, patterns: patterns)
+        if let cached = cachedGrepFallbackHits(forKey: cacheKey, now: .now) {
+            return (cached, nil)
+        }
 
         var hits: [HybridSourceHit] = []
         var seenKeys = Set<String>()
+        let constrainedSearchPaths = Array(request.searchPaths.prefix(20))
+        let grepTimeoutMs = grepTimeoutMs(
+            searchPathCount: constrainedSearchPaths.count,
+            tokenCount: request.queryTokens.count
+        )
         for pattern in patterns.prefix(5) {
-            for searchPath in request.searchPaths {
+            for searchPath in constrainedSearchPaths {
                 guard FileManager.default.fileExists(atPath: searchPath) else { continue }
                 let workspace = workspaceRootForSearchPath(
                     searchPath,
@@ -131,7 +152,8 @@ extension UnifiedToolRuntime {
                 let output = await runSemanticTextSearch(
                     pattern: pattern,
                     searchPath: searchPath,
-                    workspace: workspace
+                    workspace: workspace,
+                    timeoutMs: grepTimeoutMs
                 )
                 guard !output.isEmpty else { continue }
                 for line in output.components(separatedBy: "\n") where !line.isEmpty {
@@ -162,12 +184,14 @@ extension UnifiedToolRuntime {
                             snippet: snippet
                         ))
                     if hits.count >= max(40, request.numResults * 4) {
-                        return hits
+                        putGrepFallbackCache(hits, forKey: cacheKey, now: .now)
+                        return (hits, nil)
                     }
                 }
             }
         }
-        return hits
+        putGrepFallbackCache(hits, forKey: cacheKey, now: .now)
+        return (hits, nil)
     }
 
     func buildGrepPatterns(queryTokens: [String]) -> [String] {
@@ -192,15 +216,35 @@ extension UnifiedToolRuntime {
 
     func grepConfidence(snippet: String, queryTokens: [String]) -> Double {
         let text = snippet.lowercased()
-        var score = 0.2
-        for token in queryTokens where text.contains(token) { score += 0.15 }
+        guard !queryTokens.isEmpty else { return 0.1 }
+        let uniqueTokens = Array(Set(queryTokens))
+        let matchedTokens = uniqueTokens.filter { text.contains($0) }
+        let matchRatio = Double(matchedTokens.count) / Double(max(1, uniqueTokens.count))
+        var score = 0.1 + (matchRatio * 0.55)
+
+        if uniqueTokens.count >= 2 {
+            let phrase = uniqueTokens.joined(separator: " ")
+            if text.contains(phrase) {
+                score += 0.18
+            }
+        }
+
         if text.contains("func ") || text.contains("class ") || text.contains("struct ")
             || text.contains("protocol ") || text.contains("enum ")
             || text.contains("def ") || text.contains("function ")
         {
             score += 0.2
         }
-        return min(1.0, score)
+
+        // Penalize overlong snippets that usually come from noisy minified or log lines.
+        let length = text.count
+        if length > 220 {
+            score -= min(0.20, Double(length - 220) / 2_000.0)
+        } else if length < 120 {
+            score += 0.05
+        }
+
+        return max(0.05, min(1.0, score))
     }
 
     func firstMeaningfulSnippet(from content: String) -> String {
@@ -275,5 +319,43 @@ extension UnifiedToolRuntime {
             if normalized.hasPrefix(prefix) { return root }
         }
         return nil
+    }
+
+    private func grepTimeoutMs(searchPathCount: Int, tokenCount: Int) -> Int {
+        let boundedPaths = min(max(searchPathCount, 1), 20)
+        let boundedTokens = min(max(tokenCount, 1), 12)
+        let base = 3_500
+        let pathFactor = boundedPaths * 450
+        let tokenFactor = boundedTokens * 220
+        return min(15_000, base + pathFactor + tokenFactor)
+    }
+
+    private func grepFallbackCacheKey(for request: HybridSearchRequest, patterns: [String]) -> String {
+        let scope = request.searchPaths.sorted().joined(separator: "|")
+        let normalizedPatterns = patterns.sorted().joined(separator: "|")
+        return "\(request.query.lowercased())::\(scope)::\(normalizedPatterns)::strict=\(request.strictScope)"
+    }
+
+    private func cachedGrepFallbackHits(forKey key: String, now: Date) -> [HybridSourceHit]? {
+        guard let cached = grepFallbackCache[key] else { return nil }
+        if now.timeIntervalSince(cached.createdAt) > grepFallbackCacheTTLSeconds {
+            grepFallbackCache.removeValue(forKey: key)
+            grepFallbackCacheOrder.removeAll { $0 == key }
+            return nil
+        }
+        grepFallbackCacheOrder.removeAll { $0 == key }
+        grepFallbackCacheOrder.append(key)
+        return cached.hits
+    }
+
+    private func putGrepFallbackCache(_ hits: [HybridSourceHit], forKey key: String, now: Date) {
+        guard !hits.isEmpty else { return }
+        grepFallbackCache[key] = (hits: hits, createdAt: now)
+        grepFallbackCacheOrder.removeAll { $0 == key }
+        grepFallbackCacheOrder.append(key)
+        while grepFallbackCacheOrder.count > grepFallbackCacheMaxEntries {
+            let evicted = grepFallbackCacheOrder.removeFirst()
+            grepFallbackCache.removeValue(forKey: evicted)
+        }
     }
 }

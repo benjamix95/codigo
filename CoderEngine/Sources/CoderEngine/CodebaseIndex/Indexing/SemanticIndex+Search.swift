@@ -83,8 +83,11 @@ extension SemanticIndex {
             }
 
             let dirPath = (chunk.filePath as NSString).deletingLastPathComponent.lowercased()
+            var directoryWordHits = 0
             for word in queryWordsLower where word.count >= 3 && dirPath.contains(word) {
-                bonus += 0.8
+                directoryWordHits += 1
+                bonus += 0.25
+                if directoryWordHits >= 3 { break }
             }
 
             switch chunk.kind {
@@ -100,7 +103,17 @@ extension SemanticIndex {
 
             let contentLower = chunk.content.lowercased()
             if contentLower.contains("///") || contentLower.contains("/**") || contentLower.contains("# ") {
-                bonus += 0.3
+                let codeLineCount = chunk.content
+                    .components(separatedBy: .newlines)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                    .filter { line in
+                        !(line.hasPrefix("//") || line.hasPrefix("/*") || line.hasPrefix("*") || line.hasPrefix("#"))
+                    }
+                    .count
+                if codeLineCount > 0 {
+                    bonus += 0.25
+                }
             }
 
             scores[chunkId] = (scores[chunkId] ?? 0) + bonus
@@ -167,10 +180,25 @@ extension SemanticIndex {
         }
 
         let filtered = tokens.filter { !Self.stopWords.contains($0) }
-        var expanded = filtered
+        var expanded: [String] = []
+        var seen = Set<String>()
+        for token in filtered where seen.insert(token).inserted {
+            expanded.append(token)
+        }
+
         for token in filtered where expanded.count < 3000 {
             if let syns = Self.synonymMap[token] {
-                expanded.append(contentsOf: syns.prefix(2))
+                for synonym in syns.prefix(2) where expanded.count < 3000 {
+                    let normalized = synonym.lowercased()
+                    if normalized == token { continue }
+                    if Self.stopWords.contains(normalized) { continue }
+                    if let reverse = Self.synonymMap[normalized], reverse.contains(token), seen.contains(normalized) {
+                        continue
+                    }
+                    if seen.insert(normalized).inserted {
+                        expanded.append(normalized)
+                    }
+                }
             }
         }
 

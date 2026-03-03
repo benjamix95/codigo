@@ -209,6 +209,8 @@ extension UnifiedToolRuntime {
             // Cursor-style semantic tools
             case "semantic_search":
                 return await executeSemanticSearch(call: call, context: context, startDate: startDate)
+            case "search_health_check":
+                return await executeSearchHealthCheck(call: call, context: context, startDate: startDate)
             case "read_lints":
                 return await executeReadLints(call: call, context: context, startDate: startDate)
             case "debug_context":

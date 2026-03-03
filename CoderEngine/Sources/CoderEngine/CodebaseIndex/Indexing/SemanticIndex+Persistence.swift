@@ -3,8 +3,8 @@ import Foundation
 // MARK: - SemanticIndex Persistence
 
 extension SemanticIndex {
-    private static let currentPersistenceVersion: Int = 2
-    private static let currentPersistenceSchema: String = "semantic_index_jsonl_v2"
+    private static let currentPersistenceVersion: Int = 3
+    private static let currentPersistenceSchema: String = "semantic_index_jsonl_v3"
 
     private struct PersistenceMetadata: Codable {
         let version: Int
@@ -12,6 +12,9 @@ extension SemanticIndex {
         let simHash: UInt64
         let totalChunks: Int
         let totalFiles: Int
+        let tokenizerFingerprint: String
+        let stopWordsFingerprint: String
+        let synonymsFingerprint: String
     }
 
     /// Save index state as JSONL plus metadata.
@@ -48,7 +51,10 @@ extension SemanticIndex {
             schema: Self.currentPersistenceSchema,
             simHash: currentSimHash,
             totalChunks: chunks.count,
-            totalFiles: fileToChunks.count
+            totalFiles: fileToChunks.count,
+            tokenizerFingerprint: Self.tokenizerFingerprint,
+            stopWordsFingerprint: Self.stopWordsFingerprint,
+            synonymsFingerprint: Self.synonymsFingerprint
         )
         do {
             let metaData = try JSONEncoder().encode(meta)
@@ -87,6 +93,13 @@ extension SemanticIndex {
             clear()
             return
         }
+        guard metadata.tokenizerFingerprint == Self.tokenizerFingerprint,
+              metadata.stopWordsFingerprint == Self.stopWordsFingerprint,
+              metadata.synonymsFingerprint == Self.synonymsFingerprint else {
+            Self.logger.notice("loadFromDisk: tokenizer fingerprint mismatch — forcing rebuild")
+            clear()
+            return
+        }
 
         let lines = content.components(separatedBy: "\n").filter { !$0.isEmpty }
 
@@ -116,5 +129,30 @@ extension SemanticIndex {
         recalcAvgDocLength()
         currentSimHash = metadata.simHash
         Self.logger.info("loadFromDisk: restored \(loadedChunks.count) chunks, simHash=\(metadata.simHash)")
+    }
+
+    private static var tokenizerFingerprint: String {
+        "porter_v1"
+    }
+
+    private static var stopWordsFingerprint: String {
+        fingerprintHex(for: stopWords.sorted().joined(separator: "|"))
+    }
+
+    private static var synonymsFingerprint: String {
+        let flattened = synonymMap
+            .map { key, values in
+                "\(key):\(values.joined(separator: ","))"
+            }
+            .sorted()
+            .joined(separator: "|")
+        return fingerprintHex(for: flattened)
+    }
+
+    private static func fingerprintHex(for value: String) -> String {
+        let hash = value.utf8.reduce(UInt64(1469598103934665603)) { partial, byte in
+            (partial ^ UInt64(byte)) &* 1099511628211
+        }
+        return String(hash, radix: 16)
     }
 }

@@ -241,4 +241,64 @@ final class CodebaseIndexIncrementalTests: XCTestCase {
         XCTAssertEqual(result.totalFiles, 2)
         XCTAssertEqual(status.totalFiles, 2)
     }
+
+    func testIndexWorkspaceMultiRootLoadsGitignorePerRoot() async throws {
+        let rootParent = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: rootParent) }
+
+        let rootA = rootParent.appendingPathComponent("RootA", isDirectory: true)
+        let rootB = rootParent.appendingPathComponent("RootB", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: rootB, withIntermediateDirectories: true)
+
+        try "IgnoredA.swift\n".write(
+            to: rootA.appendingPathComponent(".gitignore"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "IgnoredB.swift\n".write(
+            to: rootB.appendingPathComponent(".gitignore"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try "struct VisibleA {}\n".write(to: rootA.appendingPathComponent("VisibleA.swift"), atomically: true, encoding: .utf8)
+        try "struct HiddenA {}\n".write(to: rootA.appendingPathComponent("IgnoredA.swift"), atomically: true, encoding: .utf8)
+        try "struct VisibleB {}\n".write(to: rootB.appendingPathComponent("VisibleB.swift"), atomically: true, encoding: .utf8)
+        try "struct HiddenB {}\n".write(to: rootB.appendingPathComponent("IgnoredB.swift"), atomically: true, encoding: .utf8)
+
+        let index = CodebaseIndex()
+        _ = await index.indexWorkspace(paths: [rootA, rootB], respectGitignore: true)
+
+        let visibleA = await index.findSymbols(query: "VisibleA")
+        let visibleB = await index.findSymbols(query: "VisibleB")
+        let hiddenA = await index.findSymbols(query: "HiddenA")
+        let hiddenB = await index.findSymbols(query: "HiddenB")
+
+        XCTAssertFalse(visibleA.isEmpty)
+        XCTAssertFalse(visibleB.isEmpty)
+        XCTAssertTrue(hiddenA.isEmpty)
+        XCTAssertTrue(hiddenB.isEmpty)
+    }
+
+    func testCancelledIndexWorkspaceDoesNotLeaveStatusStuckOnIndexing() async throws {
+        let workspace = try makeWorkspace()
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        for i in 0..<300 {
+            try "struct CancelProbe\(i) { let value = \(i) }\n".write(
+                to: workspace.appendingPathComponent("CancelProbe\(i).swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let index = CodebaseIndex()
+        let task = Task { await index.indexWorkspace(paths: [workspace]) }
+        task.cancel()
+        _ = await task.value
+
+        let status = await index.status()
+        XCTAssertNotEqual(status.status, .indexing)
+    }
 }

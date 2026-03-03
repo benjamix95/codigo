@@ -3,6 +3,8 @@ import Foundation
 // MARK: - SemanticIndex Build and Update
 
 extension SemanticIndex {
+    private static let merkleRebuildThreshold = 32
+
     // MARK: - Full Index Build
 
     /// Build the semantic index from a set of `IndexedFile`.
@@ -19,6 +21,7 @@ extension SemanticIndex {
         termFrequencies.removeAll()
         docLengths.removeAll()
         fileToChunks.removeAll()
+        deferredMerkleTouchedFiles = 0
 
         merkleRoot = MerkleTree.build(root: workspaceRoot)
         if let root = merkleRoot {
@@ -27,6 +30,10 @@ extension SemanticIndex {
 
         let chunkBatchSize = 64
         for batchStart in stride(from: 0, to: indexedFiles.count, by: chunkBatchSize) {
+            if Task.isCancelled {
+                Self.logger.notice("buildIndex: cancelled at batchStart=\(batchStart)")
+                break
+            }
             let batchEnd = min(batchStart + chunkBatchSize, indexedFiles.count)
             let batch = indexedFiles[batchStart..<batchEnd]
 
@@ -37,11 +44,12 @@ extension SemanticIndex {
                 for indexed in batch {
                     let cachedContent = contentCache[indexed.absolutePath]
                     group.addTask {
+                        if Task.isCancelled { return nil }
                         let content: String
                         if let cached = cachedContent {
                             content = cached
                         } else {
-                            guard let read = try? String(contentsOfFile: indexed.absolutePath, encoding: .utf8) else {
+                            guard let read = SemanticIndex.readTextFile(at: indexed.absolutePath) else {
                                 return nil
                             }
                             content = read
@@ -80,20 +88,32 @@ extension SemanticIndex {
         changedFiles: [IndexedFile],
         workspaceRoot: URL
     ) async {
-        let newMerkle = MerkleTree.build(root: workspaceRoot)
+        let shouldRebuildMerkle = shouldRebuildMerkleTree(forChangedFiles: changedFiles)
+        if shouldRebuildMerkle {
+            let newMerkle = MerkleTree.build(root: workspaceRoot)
 
-        if let oldRoot = merkleRoot, let newRoot = newMerkle {
-            let changes = MerkleTree.diff(old: oldRoot, new: newRoot)
-            merkleRoot = newRoot
-            currentSimHash = MerkleTree.simHash(of: newRoot)
+            if let oldRoot = merkleRoot, let newRoot = newMerkle {
+                let changes = MerkleTree.diff(old: oldRoot, new: newRoot)
+                merkleRoot = newRoot
+                currentSimHash = MerkleTree.simHash(of: newRoot)
 
-            for removedPath in changes.removed {
-                removeChunksForFile(removedPath)
+                for removedPath in changes.removed {
+                    removeChunksForFile(removedPath)
+                }
+            } else {
+                merkleRoot = newMerkle
+                if let root = newMerkle {
+                    currentSimHash = MerkleTree.simHash(of: root)
+                }
             }
+            deferredMerkleTouchedFiles = 0
         } else {
-            merkleRoot = newMerkle
-            if let root = newMerkle {
-                currentSimHash = MerkleTree.simHash(of: root)
+            deferredMerkleTouchedFiles += changedFiles.count
+            for indexed in changedFiles {
+                currentSimHash = mixSimHash(
+                    currentSimHash,
+                    token: "\(indexed.relativePath)#\(indexed.contentHash)"
+                )
             }
         }
 
@@ -101,9 +121,9 @@ extension SemanticIndex {
             removeChunksForFile(indexed.relativePath)
 
             let content: String
-            do {
-                content = try String(contentsOfFile: indexed.absolutePath, encoding: .utf8)
-            } catch {
+            if let read = SemanticIndex.readTextFile(at: indexed.absolutePath) {
+                content = read
+            } else {
                 continue
             }
 
@@ -126,7 +146,7 @@ extension SemanticIndex {
 
         // Read file content off the actor's executor to prevent blocking
         let content: String? = await Task.detached(priority: .utility) {
-            try? String(contentsOfFile: indexed.absolutePath, encoding: .utf8)
+            SemanticIndex.readTextFile(at: indexed.absolutePath)
         }.value
 
         guard let content else { return }
@@ -157,5 +177,41 @@ extension SemanticIndex {
         merkleRoot = nil
         currentSimHash = 0
         fileToChunks.removeAll()
+        deferredMerkleTouchedFiles = 0
+    }
+
+    private func shouldRebuildMerkleTree(forChangedFiles changedFiles: [IndexedFile]) -> Bool {
+        if merkleRoot == nil { return true }
+        if changedFiles.count >= Self.merkleRebuildThreshold { return true }
+        return deferredMerkleTouchedFiles + changedFiles.count >= Self.merkleRebuildThreshold
+    }
+
+    nonisolated static func readTextFile(at path: String) -> String? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: [.mappedIfSafe]) else {
+            return nil
+        }
+
+        let encodings: [String.Encoding] = [
+            .utf8,
+            .utf16,
+            .utf16LittleEndian,
+            .utf16BigEndian,
+            .utf32,
+            .isoLatin1,
+            .windowsCP1252,
+        ]
+        for encoding in encodings {
+            if let text = String(data: data, encoding: encoding) {
+                return text
+            }
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func mixSimHash(_ seed: UInt64, token: String) -> UInt64 {
+        let tokenHash = token.utf8.reduce(UInt64(1469598103934665603)) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1099511628211
+        }
+        return seed &* 1099511628211 ^ tokenHash
     }
 }

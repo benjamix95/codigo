@@ -12,10 +12,22 @@ extension CodebaseIndex {
         respectGitignore: Bool = true
     ) async -> IndexResult {
         let startTime = Date()
+        var completedSuccessfully = false
+
         _status = .indexing
         isWorkspaceRebuildInProgress = true
         queuedRealtimeChanges.removeAll(keepingCapacity: true)
         Self.logger.info("indexWorkspace: starting full index for \(paths.map(\.path).joined(separator: ", "), privacy: .public)")
+        defer {
+            if !completedSuccessfully {
+                _indexingProgress = nil
+                isWorkspaceRebuildInProgress = false
+                queuedRealtimeChanges.removeAll(keepingCapacity: true)
+                if _status == .indexing {
+                    _status = Task.isCancelled ? .idle : .error
+                }
+            }
+        }
 
         self.currentWorkspacePaths = paths
         self.excludedPaths = excludedPaths
@@ -23,10 +35,15 @@ extension CodebaseIndex {
         self.respectGitignore = respectGitignore
 
         // Load .gitignore rules if enabled
-        if respectGitignore, let firstRoot = paths.first {
-            loadGitignoreRules(for: firstRoot)
+        if respectGitignore {
+            gitignoreRules.removeAll()
+            gitignoreRulesByRoot.removeAll()
+            for root in paths {
+                loadGitignoreRules(for: root)
+            }
         } else {
             gitignoreRules = []
+            gitignoreRulesByRoot = [:]
         }
 
         // Reset state
@@ -63,8 +80,8 @@ extension CodebaseIndex {
             && !isGitignored($0.relativePath, isDirectory: false)
         }
         let filesToIndex = Array(sourceFiles.prefix(Self.maxFiles))
-        let totalToIndex = filesToIndex.count
-        _indexingProgress = (current: 0, total: totalToIndex)
+        let indexingProgressTotal = max(1, filesToIndex.count + 1) // + semantic phase
+        _indexingProgress = (current: 0, total: indexingProgressTotal)
 
         // Parallelize symbol extraction: SymbolExtractor.indexFileWithContent is a
         // pure static function (file read + regex), safe to run concurrently.
@@ -72,6 +89,9 @@ extension CodebaseIndex {
         var contentCache: [String: String] = [:]
         let batchSize = 64
         for batchStart in stride(from: 0, to: filesToIndex.count, by: batchSize) {
+            if Task.isCancelled {
+                return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000))
+            }
             let batchEnd = min(batchStart + batchSize, filesToIndex.count)
             let batch = filesToIndex[batchStart..<batchEnd]
 
@@ -103,7 +123,7 @@ extension CodebaseIndex {
                 contentCache[indexed.absolutePath] = content
                 totalFilesScanned += 1
             }
-            _indexingProgress = (current: batchEnd, total: totalToIndex)
+            _indexingProgress = (current: batchEnd, total: indexingProgressTotal)
         }
 
         // 3. Build import graph
@@ -114,6 +134,7 @@ extension CodebaseIndex {
         let cacheDir = Self.cacheDirectory(for: paths)
         let semanticCachePath = cacheDir.appendingPathComponent("semantic.jsonl")
         await semanticIndex.setPersistencePath(semanticCachePath)
+        _indexingProgress = (current: max(0, indexingProgressTotal - 1), total: indexingProgressTotal)
 
         let allIndexed = Array(indexedFiles.values)
         if let firstRoot = paths.first {
@@ -138,6 +159,7 @@ extension CodebaseIndex {
                 await semanticIndex.buildIndex(indexedFiles: allIndexed, workspaceRoot: firstRoot, contentCache: contentCache)
             }
         }
+        _indexingProgress = (current: indexingProgressTotal, total: indexingProgressTotal)
 
         isWorkspaceRebuildInProgress = false
         await flushQueuedRealtimeChanges()
@@ -146,6 +168,7 @@ extension CodebaseIndex {
         indexDurationMs = durationMs
         lastFullIndexAt = Date()
         _status = .ready
+        completedSuccessfully = true
 
         Self.logger.info("indexWorkspace: completed — \(self.totalSymbolsExtracted) symbols, \(self.totalFilesScanned) files, \(durationMs)ms")
         let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
@@ -167,15 +190,38 @@ extension CodebaseIndex {
     /// Incremental indexing: re-indexes only modified files
     public func incrementalUpdate() async -> IndexResult {
         let startTime = Date()
+        var completedSuccessfully = false
+
         _status = .indexing
         isWorkspaceRebuildInProgress = true
         queuedRealtimeChanges.removeAll(keepingCapacity: true)
         Self.logger.info("incrementalUpdate: starting")
+        defer {
+            if !completedSuccessfully {
+                _indexingProgress = nil
+                isWorkspaceRebuildInProgress = false
+                queuedRealtimeChanges.removeAll(keepingCapacity: true)
+                if _status == .indexing {
+                    _status = Task.isCancelled ? .idle : .error
+                }
+            }
+        }
 
         var updatedCount = 0
         var removedCount = 0
         var changedFiles: [IndexedFile] = []
         var failedReindexPaths: Set<String> = []
+
+        if respectGitignore {
+            gitignoreRules.removeAll()
+            gitignoreRulesByRoot.removeAll()
+            for root in currentWorkspacePaths {
+                loadGitignoreRules(for: root)
+            }
+        } else {
+            gitignoreRules = []
+            gitignoreRulesByRoot = [:]
+        }
 
         // Rebuild file trees from disk to avoid stale file nodes.
         fileTrees.removeAll()
@@ -196,10 +242,13 @@ extension CodebaseIndex {
         let currentSourcePaths = Set(sourceNodes.keys)
         let indexedPaths = Set(indexedFiles.keys)
         let removedPaths = indexedPaths.subtracting(currentSourcePaths)
-        let totalToProcess = sourceNodes.count + removedPaths.count
+        let totalToProcess = max(1, sourceNodes.count + removedPaths.count + 1) // + semantic phase
         var processed = 0
         _indexingProgress = (current: 0, total: totalToProcess)
         for relativePath in removedPaths {
+            if Task.isCancelled {
+                return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000), updatedFiles: updatedCount + removedCount)
+            }
             removeIndexedFile(relativePath)
             removedCount += 1
             processed += 1
@@ -207,6 +256,9 @@ extension CodebaseIndex {
         }
 
         for (relativePath, node) in sourceNodes {
+            if Task.isCancelled {
+                return makeCurrentIndexResult(durationMs: Int(Date().timeIntervalSince(startTime) * 1000), updatedFiles: updatedCount + removedCount)
+            }
             guard node.isSourceFile, node.size <= Self.maxFileSize else { continue }
 
             let existingFile = indexedFiles[relativePath]
@@ -251,6 +303,7 @@ extension CodebaseIndex {
 
         // Re-build import graph
         buildImportGraph()
+        _indexingProgress = (current: max(0, totalToProcess - 1), total: totalToProcess)
 
         // Update semantic index incrementally (not a full rebuild)
         if let firstRoot = currentWorkspacePaths.first {
@@ -269,6 +322,7 @@ extension CodebaseIndex {
         } else if !changedFiles.isEmpty || removedCount > 0 {
             await semanticIndex.clear()
         }
+        _indexingProgress = (current: totalToProcess, total: totalToProcess)
 
         isWorkspaceRebuildInProgress = false
         await flushQueuedRealtimeChanges()
@@ -277,6 +331,7 @@ extension CodebaseIndex {
         indexDurationMs = durationMs
         _indexingProgress = nil
         _status = .ready
+        completedSuccessfully = true
 
         Self.logger.info("incrementalUpdate: completed — \(updatedCount) updated, \(removedCount) removed, \(durationMs)ms")
         let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
@@ -293,6 +348,23 @@ extension CodebaseIndex {
             durationMs: durationMs,
             languages: languageBreakdown(),
             updatedFiles: updatedCount + removedCount
+        )
+    }
+
+    private func makeCurrentIndexResult(durationMs: Int, updatedFiles: Int = 0) -> IndexResult {
+        let totalFilesCount = allFileNodes.values.reduce(into: 0) { count, node in
+            if node.kind == .file { count += 1 }
+        }
+        return IndexResult(
+            totalFiles: totalFilesCount,
+            totalSourceFiles: indexedFiles.count,
+            totalSymbols: totalSymbolsExtracted,
+            totalDirectories: fileTrees.values.reduce(0) { acc, tree in
+                acc + countDirectories(tree)
+            },
+            durationMs: durationMs,
+            languages: languageBreakdown(),
+            updatedFiles: updatedFiles
         )
     }
 

@@ -43,6 +43,8 @@ extension UnifiedToolRuntime {
         let parsedMinConfidence = Double(call.args["min_confidence"] ?? "0.45") ?? 0.45
         let finiteMinConfidence = parsedMinConfidence.isFinite ? parsedMinConfidence : 0.45
         let minConfidence = min(max(finiteMinConfidence, 0.0), 1.0)
+        let showScoring = parseBooleanArgument(call.args["show_scoring"])
+        let strictScope = parseBooleanArgument(call.args["strict_scope"])
 
         if let index = codebaseIndex {
             await ensureSemanticIndexReadyIfNeeded(index: index, context: context)
@@ -54,10 +56,13 @@ extension UnifiedToolRuntime {
             numResults: numResults,
             minConfidence: minConfidence,
             workspacePaths: allWorkspacePaths,
-            searchPaths: scopeResolution.searchPaths
+            searchPaths: scopeResolution.searchPaths,
+            showScoring: showScoring,
+            strictScope: strictScope
         )
-        let hits = await collectHybridSearchHits(request: request, index: codebaseIndex)
-        let (top, diagnostics) = fuseHybridSearchResults(hits: hits, request: request)
+        let (hits, grepSkipReason) = await collectHybridSearchHits(request: request, index: codebaseIndex)
+        let (top, diagnostics) = fuseHybridSearchResults(hits: hits, request: request, grepFallbackSkippedReason: grepSkipReason)
+        let telemetry = updateSemanticSourceTelemetry(with: diagnostics)
         guard !top.isEmpty else {
             return success([
                 "title": "semantic_search",
@@ -65,13 +70,13 @@ extension UnifiedToolRuntime {
                 "detail": "No results found",
                 "output": "No matches found for: \(query)",
                 "count": "0",
-                "diagnostics": renderHybridDiagnostics(diagnostics),
+                "diagnostics": renderHybridDiagnostics(diagnostics) + "\ntelemetry: " + telemetry,
             ], startDate: startDate)
         }
-        let output = renderHybridSearchOutput(top)
+        let output = renderHybridSearchOutput(top, showScoring: showScoring)
         let sourceKinds = diagnostics.sourceUsedInTop
             .filter { $0.value > 0 }
-            .map { "\(displayName(for: $0.key))=\($0.value)" }
+            .map { "\(detailLabel(for: $0.key))=\($0.value)" }
             .sorted()
             .joined(separator: ", ")
         let usedOnlyGrepFallback =
@@ -93,7 +98,7 @@ extension UnifiedToolRuntime {
             "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
             "count": "\(top.count)",
             "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ","),
-            "diagnostics": renderHybridDiagnostics(diagnostics),
+            "diagnostics": renderHybridDiagnostics(diagnostics) + "\ntelemetry: " + telemetry,
         ], startDate: startDate)
     }
 
@@ -105,6 +110,17 @@ extension UnifiedToolRuntime {
             return "symbol_index"
         case .grepFallback:
             return "grep_fallback"
+        }
+    }
+
+    private func detailLabel(for source: HybridSearchSource) -> String {
+        switch source {
+        case .semanticIndex:
+            return "semantic index"
+        case .symbolIndex:
+            return "symbol index"
+        case .grepFallback:
+            return "text fallback"
         }
     }
 
@@ -158,7 +174,12 @@ extension UnifiedToolRuntime {
         return normalizeWorkspacePaths(values)
     }
 
-    func runSemanticTextSearch(pattern: String, searchPath: String, workspace: String) async -> String {
+    func runSemanticTextSearch(
+        pattern: String,
+        searchPath: String,
+        workspace: String,
+        timeoutMs: Int = 10_000
+    ) async -> String {
         let command = """
         if command -v rg >/dev/null 2>&1; then
           rg --no-heading -n --max-count=10 -i '\(shellEscaped(pattern))' '\(shellEscaped(searchPath))' --glob '!.build' --glob '!node_modules' --glob '!.git' 2>/dev/null
@@ -169,7 +190,7 @@ extension UnifiedToolRuntime {
         let (output, _, _) = await shellExec(
             args: ["/bin/sh", "-lc", command],
             cwd: workspace,
-            timeout: 10_000
+            timeout: timeoutMs
         )
         return output
     }
@@ -298,5 +319,30 @@ extension UnifiedToolRuntime {
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    private func parseBooleanArgument(_ raw: String?) -> Bool {
+        guard let raw else { return false }
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func updateSemanticSourceTelemetry(with diagnostics: HybridSearchDiagnostics) -> String {
+        for (source, count) in diagnostics.sourceUsedInTop where count > 0 {
+            semanticSourceUsageCounters[source, default: 0] += count
+        }
+        let total = semanticSourceUsageCounters.values.reduce(0, +)
+        guard total > 0 else { return "n/a" }
+        return HybridSearchSource.allCases
+            .map { source -> String in
+                let count = semanticSourceUsageCounters[source, default: 0]
+                let ratio = (Double(count) / Double(total)) * 100.0
+                return "\(source.rawValue)=\(String(format: "%.1f", ratio))%"
+            }
+            .joined(separator: ", ")
     }
 }

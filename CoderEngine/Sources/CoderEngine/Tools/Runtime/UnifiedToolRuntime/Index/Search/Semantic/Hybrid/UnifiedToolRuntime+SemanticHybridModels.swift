@@ -15,6 +15,8 @@ extension UnifiedToolRuntime {
         let minConfidence: Double
         let workspacePaths: [String]
         let searchPaths: [String]
+        let showScoring: Bool
+        let strictScope: Bool
     }
 
     struct HybridSourceHit: Sendable {
@@ -48,13 +50,15 @@ extension UnifiedToolRuntime {
         let minConfidence: Double
         let droppedByConfidence: Int
         let dedupedCount: Int
+        let grepFallbackSkippedReason: String?
 
         var summaryLine: String {
             let sourceStats = HybridSearchSource.allCases.map { source in
                 let hits = sourceHits[source, default: 0]
                 return "\(source.rawValue)=\(hits)"
             }.joined(separator: ", ")
-            return "hybrid: \(sourceStats); dedup=\(dedupedCount); filtered=\(droppedByConfidence); min_conf=\(String(format: "%.2f", minConfidence))"
+            let skipped = grepFallbackSkippedReason.map { "; grep=\($0)" } ?? ""
+            return "hybrid: \(sourceStats); dedup=\(dedupedCount); filtered=\(droppedByConfidence); min_conf=\(String(format: "%.2f", minConfidence))\(skipped)"
         }
     }
 }

@@ -27,27 +27,27 @@
 - [x] B23 `EventNormalizer+SearchParsing.swift` tokenizer shell gestisce escaping regex/backslash senza perdere token
 - [x] B24 `EventNormalizer+SearchParsing.swift` supporto output null-separated (`--null/-z`) + test regressivo parser
 - [x] B25 `TaskActivityStore+Buffering.swift` dedup instantgrep ora normalizza scope multipli (`a,b` == `b,a`)
-- [ ] B26 `TaskActivityStore+Buffering.swift` assenza TTL specifico per card instantgrep stale
+- [x] B26 `TaskActivityStore+Buffering.swift` aggiunto TTL specifico per card instantgrep stale + retention configurabile
 - [x] B27 `UnifiedToolRuntime+IndexSemantic.swift` fallback tokenizzazione per query tecniche non alfanumeriche (`C++`, `C#`, ecc.)
 - [x] B28 `UnifiedToolRuntime+IndexSemantic.swift` `searchPaths` canonicalizzati e deduplicati
 - [x] B29 `UnifiedToolRuntime+IndexSemantic.swift` `min_confidence` validato su input non-finite (`NaN`)
-- [ ] B30 `UnifiedToolRuntime+SemanticHybridFusion.swift` tie-break potrebbe penalizzare match semantic ad alta qualità ma rank tardivo
+- [x] B30 `UnifiedToolRuntime+SemanticHybridFusion.swift` tie-break migliorato per favorire confidence/semantic contribution in parità
 - [x] B31 `UnifiedToolRuntime+SemanticHybridSources.swift` pattern grep deduplicati
-- [ ] B32 `UnifiedToolRuntime+SemanticHybridSources.swift` `grepConfidence` poco discriminante su snippet lunghi
-- [ ] B33 `UnifiedToolRuntime+IndexSemantic.swift` output detail usa raw source keys poco UX-friendly
-- [ ] B34 `SemanticIndex+Search.swift` bonus su doc comment può favorire chunk comment-only rispetto a implementazioni
-- [ ] B35 `SemanticIndex+Search.swift` punteggio filename può sovrapesare directory noise in monorepo grandi
-- [ ] B36 `SemanticIndex+Build.swift` fallback `String(contentsOfFile:)` non gestisce encoding non UTF-8
-- [ ] B37 `SemanticIndex+Build.swift` `incrementalUpdate` usa rebuild Merkle completo anche con pochi file cambiati
+- [x] B32 `UnifiedToolRuntime+SemanticHybridSources.swift` `grepConfidence` reso più discriminante (coverage+phrase+length penalty)
+- [x] B33 `UnifiedToolRuntime+IndexSemantic.swift` output detail usa etichette UX-friendly (`semantic index`, `symbol index`, `text fallback`)
+- [x] B34 `SemanticIndex+Search.swift` bonus doc comment applicato solo con linee di codice reali (evita favorire comment-only)
+- [x] B35 `SemanticIndex+Search.swift` peso directory match ridotto e cappato (meno rumore monorepo)
+- [x] B36 `SemanticIndex+Build.swift` fallback lettura file con encoding multipli non UTF-8
+- [x] B37 `SemanticIndex+Build.swift` `incrementalUpdate` evita rebuild Merkle completo su micro-batch (threshold)
 - [x] B38 `SemanticIndex+Persistence.swift` persist JSONL deterministico per ordine chunk
-- [ ] B39 `SemanticIndex+Persistence.swift` metadata non include fingerprint di config tokenizer/synonyms
-- [ ] B40 `SemanticIndex+Lexicon.swift` synonym expansion non evita loop semantici per query rumorose
-- [ ] B41 `CodebaseIndex+WorkspaceIndexing.swift` `.gitignore` caricato solo dal primo root in multi-root
-- [ ] B42 `CodebaseIndex+WorkspaceIndexing.swift` progress incrementale non esposto durante `incrementalUpdate`
-- [ ] B43 `CodebaseIndex+WorkspaceIndexing.swift` nessun reset difensivo status in caso di abort durante index
-- [ ] B44 `CodebaseIndex+RealtimeQueue.swift` queue sostituisce eventi su stessa path senza mantenere timestamp causale
-- [ ] B45 `FileWatcher.swift` debounce globale per tutte le path può ritardare update su file hot
-- [ ] B46 `FileWatcher.swift` mancano metriche sulle path droppate dal filtro estensione
+- [x] B39 `SemanticIndex+Persistence.swift` metadata include fingerprint tokenizer/stopWords/synonyms
+- [x] B40 `SemanticIndex+Lexicon.swift` synonym expansion deduplicata con guard anti-ciclo rumoroso
+- [x] B41 `CodebaseIndex+WorkspaceIndexing.swift` `.gitignore` caricato per-root in multi-root
+- [x] B42 `CodebaseIndex+WorkspaceIndexing.swift` progress incrementale include anche fase semantic update
+- [x] B43 `CodebaseIndex+WorkspaceIndexing.swift` reset difensivo status/state su abort/cancellation
+- [x] B44 `CodebaseIndex+RealtimeQueue.swift` queue con sequenza causale + timestamp enqueue + flush ordinato
+- [x] B45 `FileWatcher.swift` debounce per-path (non globale)
+- [x] B46 `FileWatcher.swift` metriche su path droppate per hidden/dir/ext
 - [x] B47 `CodebaseIndex+IndexHelpers.swift` `buildImportGraph` deduplica import ripetuti
 - [x] B48 `CodebaseIndex+SingleFileIndexing.swift` `indexSingleFile` verifica `maxFileSize` nel realtime upsert
 - [x] B49 `CodebaseIndex+SingleFileIndexing.swift` `indexSingleFile` applica filtro estensione indexable
@@ -74,29 +74,29 @@
 
 ## Miglioramenti (20+)
 
-- [ ] I01 aggiungere benchmark sintetico `semantic_search` su workspace 10k file
-- [ ] I02 introdurre telemetry counters per ratio semantic/symbol/grep source usage
-- [ ] I03 aggiungere `semantic_search` explain mode (`show_scoring=true`)
-- [ ] I04 serializzare in metadata versione `synonymMap`/`stopWords`
-- [ ] I05 cache LRU per risultati grep fallback per query ripetute
+- [x] I01 aggiungere benchmark sintetico `semantic_search` su workspace 10k file (gated via env `RUN_SEMANTIC_BENCHMARK=1`)
+- [x] I02 introdurre telemetry counters per ratio semantic/symbol/grep source usage
+- [x] I03 aggiungere `semantic_search` explain mode (`show_scoring=true`)
+- [x] I04 serializzare in metadata fingerprint `synonymMap`/`stopWords`
+- [x] I05 cache LRU per risultati grep fallback per query ripetute
 - [x] I06 supportare `target_directories` come array JSON oltre CSV
 - [x] I07 validare percorsi target contro workspace consentiti con errore/feedback esplicito
-- [ ] I08 supportare opzione `semantic_search` strict-scope (no grep outside scope)
-- [ ] I09 aggiungere test proprietà (property-based) per parser grep output
-- [ ] I10 aggiungere fuzz test su `parseSearchQueryFromCommand`
+- [x] I08 supportare opzione `semantic_search` strict-scope (no grep outside scope)
+- [x] I09 aggiungere test proprietà (property-based) per parser grep output
+- [x] I10 aggiungere fuzz test su `parseSearchQueryFromCommand`
 - [ ] I11 aggiungere snapshot test UI per cards instantgrep deduplicate
-- [ ] I12 introdurre cap configurabile per `instantGreps` nel TaskActivityStore
+- [x] I12 introdurre cap configurabile per `instantGreps` nel TaskActivityStore
 - [ ] I13 introdurre `IndexingTransaction` con rollback status/state centralizzato
-- [ ] I14 aggiungere circuit breaker su fallback grep in repository enormi
-- [ ] I15 aggiungere timeout dinamico grep in base a dimensione workspace
-- [ ] I16 aggiungere cancellazione cooperativa in `buildIndex` batch loop
-- [ ] I17 aggiungere metriche di drift tra `matchesCount` provider e parsed preview
-- [ ] I18 normalizzare output detail semantic in etichette localizzabili
+- [x] I14 aggiungere circuit breaker su fallback grep in repository enormi
+- [x] I15 aggiungere timeout dinamico grep in base a dimensione/scope workspace
+- [x] I16 aggiungere cancellazione cooperativa in `buildIndex` batch loop
+- [x] I17 aggiungere metriche di drift tra `matchesCount` provider e parsed preview
+- [x] I18 normalizzare output detail semantic in etichette localizzabili
 - [ ] I19 ridurre I/O sync su `incrementalUpdate` con pipeline chunked async
-- [ ] I20 estendere integration tests multi-root con `.gitignore` per-root
+- [x] I20 estendere integration tests multi-root con `.gitignore` per-root
 - [x] I21 aggiungere test regressione su reorder deterministico `persist` semantic JSONL
-- [ ] I22 aggiungere logging strutturato per queue flush realtime (batch size, duration)
-- [ ] I23 introdurre health check command per pipeline search end-to-end
+- [x] I22 aggiungere logging strutturato per queue flush realtime (batch size, duration, queue age)
+- [x] I23 introdurre health check command per pipeline search end-to-end
 
 ## Note operative
 

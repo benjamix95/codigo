@@ -359,4 +359,72 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue(output.contains("DirA/AuthA.swift"), "Expected scoped hit in DirA: \(output)")
         XCTAssertFalse(output.contains("DirB/AuthB.swift"), "Scoped semantic search should exclude DirB hits: \(output)")
     }
+
+    func testSemanticSearchShowScoringIncludesSourceBreakdown() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try "func ScoreProbeAuth() { print(\"score probe\") }".write(
+            to: tmp.appendingPathComponent("ScoreProbe.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "score probe auth", "show_scoring": "true", "limit": "3"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue((completed?["output"] ?? "").contains("sources:"))
+    }
+
+    func testSemanticSearchStrictScopeDisablesBroadGrepFallback() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        try "func StrictScopeNeedle() { print(\"strict\") }".write(
+            to: tmp.appendingPathComponent("StrictScope.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let (call, ctx) = makeCall(
+            name: "semantic_search",
+            args: ["query": "StrictScopeNeedle", "strict_scope": "true", "limit": "5"],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        let diagnostics = completed?["diagnostics"] ?? ""
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertTrue(
+            diagnostics.contains("grep=strict_scope_no_target_directories"),
+            "Expected strict_scope diagnostics, got: \(diagnostics)"
+        )
+    }
+
+    func testSearchHealthCheckReturnsSearchPipelineSummary() async throws {
+        let runtime = UnifiedToolRuntime()
+        let tmp = try makeTmpWorkspace()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let (call, ctx) = makeCall(
+            name: "search_health_check",
+            args: [:],
+            workspace: tmp
+        )
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+
+        XCTAssertEqual(completed?["status"], "completed")
+        XCTAssertEqual(completed?["tool"], "search_health_check")
+        XCTAssertTrue((completed?["output"] ?? "").contains("search_health_check"))
+    }
 }

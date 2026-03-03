@@ -78,9 +78,13 @@ extension CodebaseIndex {
 
     /// Parse .gitignore from the workspace root
     func loadGitignoreRules(for rootURL: URL) {
-        gitignoreRules = []
+        let rootName = rootURL.lastPathComponent
+        var parsedRules: [(pattern: String, isNegation: Bool, isDirectoryOnly: Bool)] = []
         let gitignorePath = rootURL.appendingPathComponent(".gitignore").path
-        guard let content = try? String(contentsOfFile: gitignorePath, encoding: .utf8) else { return }
+        guard let content = try? String(contentsOfFile: gitignorePath, encoding: .utf8) else {
+            gitignoreRulesByRoot[rootName] = []
+            return
+        }
 
         for line in content.components(separatedBy: .newlines) {
             var rule = line.trimmingCharacters(in: .whitespaces)
@@ -92,35 +96,57 @@ extension CodebaseIndex {
             let isDirectoryOnly = rule.hasSuffix("/")
             if isDirectoryOnly { rule = String(rule.dropLast()) }
 
-            gitignoreRules.append((pattern: rule, isNegation: isNegation, isDirectoryOnly: isDirectoryOnly))
+            parsedRules.append((pattern: rule, isNegation: isNegation, isDirectoryOnly: isDirectoryOnly))
         }
-        Self.logger.debug("loadGitignoreRules: loaded \(self.gitignoreRules.count) rules")
+        gitignoreRulesByRoot[rootName] = parsedRules
+        if currentWorkspacePaths.count <= 1 {
+            gitignoreRules = parsedRules
+        }
+        Self.logger.debug("loadGitignoreRules: loaded \(parsedRules.count) rules for root \(rootName, privacy: .public)")
     }
 
     /// Check if a relative path is gitignored (last matching rule wins, like git)
     func isGitignored(_ relativePath: String, isDirectory: Bool) -> Bool {
-        guard respectGitignore, !gitignoreRules.isEmpty, !relativePath.isEmpty else { return false }
+        guard respectGitignore, !relativePath.isEmpty else { return false }
 
+        if !gitignoreRulesByRoot.isEmpty {
+            let components = relativePath.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+            guard let rootComponent = components.first else { return false }
+            let rootName = String(rootComponent)
+            let pathWithinRoot = components.count > 1 ? String(components[1]) : ""
+            let rules = gitignoreRulesByRoot[rootName] ?? []
+            if rules.isEmpty { return false }
+            return evaluateGitignoreRules(
+                rules,
+                relativePath: pathWithinRoot,
+                isDirectory: isDirectory
+            )
+        }
+
+        guard !gitignoreRules.isEmpty else { return false }
+        return evaluateGitignoreRules(gitignoreRules, relativePath: relativePath, isDirectory: isDirectory)
+    }
+
+    private func evaluateGitignoreRules(
+        _ rules: [(pattern: String, isNegation: Bool, isDirectoryOnly: Bool)],
+        relativePath: String,
+        isDirectory: Bool
+    ) -> Bool {
+        guard !relativePath.isEmpty else { return false }
         var ignored = false
-        for rule in gitignoreRules {
-            // Directory-only rules don't apply to files
+        for rule in rules {
             if rule.isDirectoryOnly && !isDirectory { continue }
 
             let matches: Bool
             if rule.pattern.contains("*") || rule.pattern.contains("?") {
                 matches = matchGlob(pattern: rule.pattern.lowercased(), path: relativePath.lowercased())
             } else if rule.pattern.contains("/") {
-                // Path-based rule: match as prefix
                 matches = relativePath == rule.pattern || relativePath.hasPrefix(rule.pattern + "/")
             } else {
-                // Name-based rule: match any path component
                 let name = (relativePath as NSString).lastPathComponent
                 matches = name == rule.pattern || relativePath.hasSuffix("/\(rule.pattern)")
             }
-
-            if matches {
-                ignored = !rule.isNegation
-            }
+            if matches { ignored = !rule.isNegation }
         }
         return ignored
     }

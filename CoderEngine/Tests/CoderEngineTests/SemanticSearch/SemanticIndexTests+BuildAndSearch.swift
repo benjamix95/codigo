@@ -282,4 +282,9 @@ extension SemanticIndexTests {
         XCTAssertTrue(tokens.contains("de"))
         XCTAssertTrue(tokens.contains("fg"))
     }
+
+    func testTokenizeSynonymExpansionDeduplicatesNoisyCycles() {
+        let tokens = SemanticIndex.tokenizeStatic("auth authentication login auth")
+        XCTAssertEqual(tokens.count, Set(tokens).count, "Token expansion should deduplicate noisy synonym cycles")
+    }
 }

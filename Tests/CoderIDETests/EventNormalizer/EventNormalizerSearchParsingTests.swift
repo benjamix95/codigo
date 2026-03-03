@@ -65,6 +65,28 @@ final class EventNormalizerSearchParsingTests: XCTestCase {
         XCTAssertEqual(result?.matchesCount, 17)
     }
 
+    func testNormalizeInstantGrepTracksMatchesCountDriftMetrics() {
+        let payload: [String: String] = [
+            "query": "auth",
+            "pathScope": "Sources",
+            "matchesCount": "5",
+            "previewLines": """
+            Sources/A.swift:10:auth one
+            Sources/B.swift:20:auth two
+            """,
+        ]
+
+        let events = EventNormalizer.normalize(type: "instant_grep", payload: payload, timestamp: Date())
+        let activity = events.compactMap { event -> TaskActivity? in
+            if case .taskActivity(let item) = event { return item }
+            return nil
+        }.first
+
+        XCTAssertEqual(activity?.payload["matches_count_reported"], "5")
+        XCTAssertEqual(activity?.payload["matches_count_parsed_preview"], "2")
+        XCTAssertEqual(activity?.payload["matches_count_drift"], "3")
+    }
+
     func testParseInstantGrepFromCommandSupportsEnvPrefixedRg() {
         let payload: [String: String] = [
             "command": "NO_COLOR=1 RG -n --glob='*.swift' \"policy\" Sources",
@@ -144,5 +166,50 @@ final class EventNormalizerSearchParsingTests: XCTestCase {
     func testExtractReadPathSupportsQuotedPathsWithSpaces() {
         let command = #"cat "Sources/My File.swift""#
         XCTAssertEqual(EventNormalizer.extractReadPath(from: command), "Sources/My File.swift")
+    }
+
+    func testParseMatchLinesPropertyBasedGeneratedRows() {
+        var seed: UInt64 = 0xC0DEC0DE
+        func nextInt(_ upper: Int) -> Int {
+            seed = seed &* 6364136223846793005 &+ 1
+            return Int(seed % UInt64(max(1, upper)))
+        }
+
+        for idx in 0..<120 {
+            let lineNumber = nextInt(900) + 1
+            let preview = "token\(idx)_\(nextInt(10_000))"
+            let line = "Sources/Generated\(idx).swift:\(lineNumber):\(preview)"
+            let parsed = EventNormalizer.parseMatchLines(from: line)
+
+            XCTAssertEqual(parsed.count, 1)
+            XCTAssertEqual(parsed[0].file, "Sources/Generated\(idx).swift")
+            XCTAssertEqual(parsed[0].line, lineNumber)
+            XCTAssertTrue(parsed[0].preview.contains("token\(idx)_"))
+        }
+    }
+
+    func testParseSearchQueryFromCommandFuzzDoesNotCrash() {
+        var seed: UInt64 = 0xA11CE123
+        let alphabet = Array("abcdefghijklmnopqrstuvwxyz-_./*")
+        func nextInt(_ upper: Int) -> Int {
+            seed = seed &* 2862933555777941757 &+ 3037000493
+            return Int(seed % UInt64(max(1, upper)))
+        }
+        func randomToken(length: Int) -> String {
+            var token = ""
+            for _ in 0..<max(1, length) {
+                token.append(alphabet[nextInt(alphabet.count)])
+            }
+            return token
+        }
+
+        let prefixes = ["rg", "grep", "NO_COLOR=1 rg", "bash -lc 'rg"]
+        for _ in 0..<300 {
+            let prefix = prefixes[nextInt(prefixes.count)]
+            let tokenA = randomToken(length: nextInt(8) + 2)
+            let tokenB = randomToken(length: nextInt(8) + 2)
+            let command = "\(prefix) --include \(tokenA).swift -e \(tokenB) Sources"
+            _ = EventNormalizer.parseSearchQueryFromCommand(command)
+        }
     }
 }

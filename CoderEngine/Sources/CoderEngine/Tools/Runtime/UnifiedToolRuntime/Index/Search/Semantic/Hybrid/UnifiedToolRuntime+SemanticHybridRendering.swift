@@ -1,7 +1,7 @@
 import Foundation
 
 extension UnifiedToolRuntime {
-    func renderHybridSearchOutput(_ results: [HybridScoredResult]) -> String {
+    func renderHybridSearchOutput(_ results: [HybridScoredResult], showScoring: Bool) -> String {
         var output = ""
         for (idx, result) in results.enumerated() {
             let lineRange: String = {
@@ -14,6 +14,10 @@ extension UnifiedToolRuntime {
             if !result.snippet.isEmpty {
                 let trimmed = result.snippet.count > 120 ? String(result.snippet.prefix(120)) + "…" : result.snippet
                 output += "   \(trimmed)\n"
+            }
+            if showScoring {
+                let breakdown = formatScoringBreakdown(result.sourceBreakdown)
+                output += "   sources: \(breakdown)\n"
             }
         }
         return output
@@ -29,5 +33,17 @@ extension UnifiedToolRuntime {
             .joined(separator: ", ")
         lines.append("top_sources: \(usage)")
         return lines.joined(separator: "\n")
+    }
+
+    private func formatScoringBreakdown(_ breakdown: [HybridSearchSource: Double]) -> String {
+        let segments = breakdown
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value > rhs.value }
+                return lhs.key.rawValue < rhs.key.rawValue
+            }
+            .map { source, value in
+                "\(source.rawValue)=\(String(format: "%.3f", value))"
+            }
+        return segments.isEmpty ? "n/a" : segments.joined(separator: ", ")
     }
 }

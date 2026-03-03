@@ -117,9 +117,17 @@ extension ToolSchemaCatalog {
                 "path": ["type": "string", "description": "Compatibility alias for target_directories"],
                 "num_results": ["type": "string", "description": "Maximum results (1-50)"],
                 "limit": ["type": "string", "description": "Alias for num_results"],
-                "min_confidence": ["type": "string", "description": "Minimum confidence filter (0.0-1.0, default 0.45)"]
+                "min_confidence": ["type": "string", "description": "Minimum confidence filter (0.0-1.0, default 0.45)"],
+                "show_scoring": ["type": "string", "description": "When true, include per-result scoring sources in output"],
+                "strict_scope": ["type": "string", "description": "When true, disable broad grep fallback unless explicit target_directories are provided"]
             ],
             required: ["query"]
+        ),
+        ToolSchemaEntry(
+            name: "search_health_check",
+            description: "Run an end-to-end health check for semantic/symbol/grep search pipelines",
+            properties: [:],
+            required: []
         ),
         ToolSchemaEntry(
             name: "parallel_apply",

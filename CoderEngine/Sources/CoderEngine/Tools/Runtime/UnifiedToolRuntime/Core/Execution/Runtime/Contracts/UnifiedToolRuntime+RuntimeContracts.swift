@@ -220,6 +220,13 @@ public actor UnifiedToolRuntime {
     /// Per-tool-name call count in the current round (reset between rounds).
     var toolCallCountByName: [String: Int] = [:]
 
+    /// Semantic search telemetry (cumulative source usage in top results).
+    var semanticSourceUsageCounters: [HybridSearchSource: Int] = [:]
+
+    /// Small LRU cache for grep fallback hits on repeated semantic queries.
+    var grepFallbackCache: [String: (hits: [HybridSourceHit], createdAt: Date)] = [:]
+    var grepFallbackCacheOrder: [String] = []
+
     /// Terminal bridge for IDE terminal integration
     weak var terminalBridge: (any TerminalBridge)?
     /// Browser bridge for integrated browser control

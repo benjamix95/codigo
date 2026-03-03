@@ -23,6 +23,7 @@ public actor SemanticIndex {
     var currentSimHash: UInt64 = 0
     var fileToChunks: [String: [String]] = [:]
     var persistencePath: URL?
+    var deferredMerkleTouchedFiles: Int = 0
 
     // MARK: - Init
     public init(persistencePath: URL? = nil) {

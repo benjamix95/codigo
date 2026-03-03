@@ -117,9 +117,11 @@ extension CodebaseIndex {
         excludedPaths.removeAll()
         excludedFilePatterns.removeAll()
         gitignoreRules.removeAll()
+        gitignoreRulesByRoot.removeAll()
         respectGitignore = true
         _indexingProgress = nil
         queuedRealtimeChanges.removeAll()
+        realtimeQueueSequence = 0
         isWorkspaceRebuildInProgress = false
         totalFilesScanned = 0
         totalSymbolsExtracted = 0

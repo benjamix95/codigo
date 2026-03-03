@@ -49,6 +49,8 @@ extension TaskActivityStore {
     }
 
     func addInstantGrep(_ result: InstantGrepResult) {
+        pruneExpiredInstantGreps(referenceDate: result.createdAt)
+
         // Deduplicate by normalized query + scope (case/space-insensitive).
         let normalizedQuery = result.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedScope = normalizedInstantGrepScope(result.scope)
@@ -57,8 +59,21 @@ extension TaskActivityStore {
                 && normalizedInstantGrepScope(existing.scope) == normalizedScope
         }
         instantGreps.insert(result, at: 0)
-        if instantGreps.count > 20 {
-            instantGreps = Array(instantGreps.prefix(20))
+        if instantGreps.count > instantGrepsHardCap {
+            instantGreps = Array(instantGreps.prefix(instantGrepsHardCap))
+        }
+    }
+
+    func configureInstantGrepRetention(maxItems: Int? = nil, ttlSeconds: TimeInterval? = nil) {
+        if let maxItems {
+            instantGrepsHardCap = max(1, maxItems)
+        }
+        if let ttlSeconds {
+            instantGrepTTLSeconds = max(10, ttlSeconds)
+        }
+        pruneExpiredInstantGreps(referenceDate: Date())
+        if instantGreps.count > instantGrepsHardCap {
+            instantGreps = Array(instantGreps.prefix(instantGrepsHardCap))
         }
     }
 
@@ -186,6 +201,11 @@ extension TaskActivityStore {
             .filter { !$0.isEmpty }
             .sorted()
             .joined(separator: ",")
+    }
+
+    private func pruneExpiredInstantGreps(referenceDate: Date) {
+        let cutoff = referenceDate.addingTimeInterval(-instantGrepTTLSeconds)
+        instantGreps.removeAll { $0.createdAt < cutoff }
     }
 
     func clear() {

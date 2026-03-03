@@ -1,5 +1,12 @@
 import Foundation
 
+public struct FileWatcherMetrics: Sendable {
+    public let acceptedPaths: Int
+    public let droppedHiddenPaths: Int
+    public let droppedIgnoredDirectories: Int
+    public let droppedByExtension: Int
+}
+
 /// FSEvents-based file watcher for real-time codebase index updates.
 /// Monitors workspace directories and triggers incremental re-indexing
 /// when source files are modified, created, or deleted.
@@ -9,9 +16,13 @@ public actor FileWatcher {
     private let workspacePaths: [URL]
 
     private var stream: FSEventStreamRef?
-    private var debounceTask: Task<Void, Never>?
-    private var pendingPaths: Set<String> = []
+    private var debounceTasksByPath: [String: Task<Void, Never>] = [:]
     private var isRunning = false
+
+    private var acceptedPathsCount = 0
+    private var droppedHiddenPathsCount = 0
+    private var droppedIgnoredDirectoriesCount = 0
+    private var droppedByExtensionCount = 0
 
     /// Directories to ignore at the event filter level
     private static let ignoredDirNames = ExcludedDirectories.defaultSet
@@ -69,8 +80,7 @@ public actor FileWatcher {
 
     public func stop() {
         guard isRunning else { return }
-        debounceTask?.cancel()
-        debounceTask = nil
+        cancelAllDebounceTasks()
 
         if let eventStream = stream {
             FSEventStreamStop(eventStream)
@@ -79,7 +89,30 @@ public actor FileWatcher {
             stream = nil
         }
         isRunning = false
-        pendingPaths.removeAll()
+    }
+
+    public func metrics() -> FileWatcherMetrics {
+        FileWatcherMetrics(
+            acceptedPaths: acceptedPathsCount,
+            droppedHiddenPaths: droppedHiddenPathsCount,
+            droppedIgnoredDirectories: droppedIgnoredDirectoriesCount,
+            droppedByExtension: droppedByExtensionCount
+        )
+    }
+
+    func ingestPathsForTesting(_ paths: [String]) {
+        for path in paths {
+            switch watchDecision(for: path) {
+            case .watch:
+                acceptedPathsCount += 1
+            case .dropHidden:
+                droppedHiddenPathsCount += 1
+            case .dropIgnoredDirectory:
+                droppedIgnoredDirectoriesCount += 1
+            case .dropByExtension:
+                droppedByExtensionCount += 1
+            }
+        }
     }
 
     // MARK: - Event Handling
@@ -89,39 +122,45 @@ public actor FileWatcher {
         Task { await self.enqueueChanges(paths) }
     }
 
-    private func enqueueChanges(_ paths: [String]) {
+    func enqueueChanges(_ paths: [String]) {
         guard isRunning else { return }
-        let filtered = paths.filter { shouldWatch($0) }
-        guard !filtered.isEmpty else { return }
-
-        pendingPaths.formUnion(filtered)
-
-        // Debounce: cancel previous task, start new one
-        debounceTask?.cancel()
-        debounceTask = Task {
-            try? await Task.sleep(nanoseconds: UInt64(Self.debounceInterval * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            await flushPending()
+        for path in paths {
+            switch watchDecision(for: path) {
+            case .watch:
+                acceptedPathsCount += 1
+                scheduleDebouncedPath(path)
+            case .dropHidden:
+                droppedHiddenPathsCount += 1
+            case .dropIgnoredDirectory:
+                droppedIgnoredDirectoriesCount += 1
+            case .dropByExtension:
+                droppedByExtensionCount += 1
+            }
         }
     }
 
-    private func flushPending() async {
-        let paths = pendingPaths
-        pendingPaths.removeAll()
+    private func scheduleDebouncedPath(_ absolutePath: String) {
+        debounceTasksByPath[absolutePath]?.cancel()
+        debounceTasksByPath[absolutePath] = Task {
+            try? await Task.sleep(nanoseconds: UInt64(Self.debounceInterval * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await flushPath(absolutePath)
+        }
+    }
 
-        for absolutePath in paths {
-            let relPath =
-                await index.canonicalRelativePath(for: absolutePath)
-                ?? computeInternalRelativePath(for: absolutePath)
-            guard let relPath else { continue }
+    private func flushPath(_ absolutePath: String) async {
+        debounceTasksByPath[absolutePath] = nil
+        guard isRunning else { return }
 
-            if FileManager.default.fileExists(atPath: absolutePath) {
-                // File created or modified — re-index it
-                await index.indexSingleFile(absolutePath: absolutePath, relativePath: relPath)
-            } else {
-                // File removed or renamed — remove stale index entries immediately.
-                await index.removeSingleFile(absolutePath: absolutePath, relativePath: relPath)
-            }
+        let relPath =
+            await index.canonicalRelativePath(for: absolutePath)
+            ?? computeInternalRelativePath(for: absolutePath)
+        guard let relPath else { return }
+
+        if FileManager.default.fileExists(atPath: absolutePath) {
+            await index.indexSingleFile(absolutePath: absolutePath, relativePath: relPath)
+        } else {
+            await index.removeSingleFile(absolutePath: absolutePath, relativePath: relPath)
         }
     }
 
@@ -141,23 +180,43 @@ public actor FileWatcher {
         return nil
     }
 
+    private func cancelAllDebounceTasks() {
+        for task in debounceTasksByPath.values {
+            task.cancel()
+        }
+        debounceTasksByPath.removeAll(keepingCapacity: true)
+    }
+
     // MARK: - Filtering
 
-    private func shouldWatch(_ path: String) -> Bool {
-        // Skip hidden files
-        let filename = (path as NSString).lastPathComponent
-        if filename.hasPrefix(".") { return false }
+    private enum WatchDecision {
+        case watch
+        case dropHidden
+        case dropIgnoredDirectory
+        case dropByExtension
+    }
 
-        // Skip ignored directories
-        let components = path.components(separatedBy: "/")
-        for component in components {
-            if component.hasPrefix(".") { return false }
-            if Self.ignoredDirNames.contains(component) { return false }
+    private func watchDecision(for path: String) -> WatchDecision {
+        let filename = (path as NSString).lastPathComponent
+        if filename.hasPrefix(".") {
+            return .dropHidden
         }
 
-        // Only watch source file extensions
+        let components = path.components(separatedBy: "/")
+        for component in components {
+            if component.hasPrefix(".") {
+                return .dropHidden
+            }
+            if Self.ignoredDirNames.contains(component) {
+                return .dropIgnoredDirectory
+            }
+        }
+
         let ext = (path as NSString).pathExtension.lowercased()
-        return Self.watchedExtensions.contains(ext)
+        if !Self.watchedExtensions.contains(ext) {
+            return .dropByExtension
+        }
+        return .watch
     }
 }
 

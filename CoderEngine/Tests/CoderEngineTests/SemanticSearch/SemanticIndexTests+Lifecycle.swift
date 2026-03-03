@@ -195,6 +195,56 @@ extension SemanticIndexTests {
         XCTAssertEqual(firstSnapshot, secondSnapshot)
     }
 
+    func testLoadFromDiskRejectsTokenizerFingerprintMismatch() async throws {
+        let (files, tmpDir) = makeTestIndexedFiles()
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let persistPath = tmpDir.appendingPathComponent("fingerprint.jsonl")
+        let index = SemanticIndex(persistencePath: persistPath)
+        await index.buildIndex(indexedFiles: files, workspaceRoot: tmpDir)
+
+        let metaPath = tmpDir.appendingPathComponent("semantic.meta.json")
+        var meta = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: metaPath), options: []) as? [String: Any]
+        )
+        meta["synonymsFingerprint"] = "deadbeef"
+        let tamperedData = try JSONSerialization.data(withJSONObject: meta, options: [.sortedKeys])
+        try tamperedData.write(to: metaPath, options: .atomic)
+
+        let loaded = SemanticIndex(persistencePath: persistPath)
+        await loaded.loadFromDisk()
+
+        let status = await loaded.status()
+        XCTAssertEqual(status.totalChunks, 0)
+        XCTAssertEqual(status.totalFiles, 0)
+    }
+
+    func testBuildIndexReadsNonUTF8ContentWithFallbackEncoding() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("semantic-encoding-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let fileURL = tmpDir.appendingPathComponent("Latin1.swift")
+        let latin1Data = Data([0x54, 0x6F, 0x6B, 0x65, 0x6E, 0x4C, 0x61, 0x74, 0x69, 0x6E, 0x31, 0x20, 0x3D, 0x20, 0xE9])
+        try latin1Data.write(to: fileURL, options: .atomic)
+
+        let indexed = IndexedFile(
+            relativePath: "Latin1.swift",
+            absolutePath: fileURL.path,
+            language: .swift,
+            symbols: [],
+            imports: [],
+            lineCount: 1,
+            size: UInt64(latin1Data.count)
+        )
+        let index = SemanticIndex()
+        await index.buildIndex(indexedFiles: [indexed], workspaceRoot: tmpDir)
+
+        let results = await index.search(query: "TokenLatin1", numResults: 5)
+        XCTAssertFalse(results.isEmpty)
+    }
+
     // MARK: - Target Directories Filter
 
     func testSearchWithTargetDirectories() async {

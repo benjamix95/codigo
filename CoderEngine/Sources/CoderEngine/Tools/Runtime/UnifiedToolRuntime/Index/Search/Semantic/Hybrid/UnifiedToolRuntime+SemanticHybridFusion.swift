@@ -3,7 +3,8 @@ import Foundation
 extension UnifiedToolRuntime {
     func fuseHybridSearchResults(
         hits: [HybridSourceHit],
-        request: HybridSearchRequest
+        request: HybridSearchRequest,
+        grepFallbackSkippedReason: String?
     ) -> ([HybridScoredResult], HybridSearchDiagnostics) {
         let weights: [HybridSearchSource: Double] = [
             .semanticIndex: 1.0,
@@ -23,6 +24,7 @@ extension UnifiedToolRuntime {
             var weightSum: Double
             var firstSeenOrder: Int
             var sourceBreakdown: [HybridSearchSource: Double]
+            var semanticContribution: Double
         }
 
         var sourceHits: [HybridSearchSource: Int] = [:]
@@ -34,14 +36,19 @@ extension UnifiedToolRuntime {
             sourceHits[hit.source, default: 0] += 1
             let weight = weights[hit.source, default: 0.2]
             let rrfScore = weight / (rrfK + Double(hit.rank))
-            let contribution = rrfScore * max(0.05, hit.sourceConfidence)
+            let confidence = max(0.05, hit.sourceConfidence)
+            let contribution = rrfScore * confidence
+            let qualityNudge = (hit.source == .semanticIndex ? 0.008 : 0.004) * confidence
 
             if var current = accumulators[hit.key] {
                 dedupedCount += 1
-                current.fusedScore += contribution
+                current.fusedScore += contribution + qualityNudge
                 current.weightedConfidenceSum += weight * hit.sourceConfidence
                 current.weightSum += weight
                 current.sourceBreakdown[hit.source, default: 0] += contribution
+                if hit.source == .semanticIndex {
+                    current.semanticContribution += contribution
+                }
                 if current.scope.isEmpty && !hit.scope.isEmpty { current.scope = hit.scope }
                 if current.snippet.isEmpty && !hit.snippet.isEmpty { current.snippet = hit.snippet }
                 current.lineEnd = max(current.lineEnd, hit.lineEnd)
@@ -53,11 +60,12 @@ extension UnifiedToolRuntime {
                     lineEnd: hit.lineEnd,
                     scope: hit.scope,
                     snippet: hit.snippet,
-                    fusedScore: contribution,
+                    fusedScore: contribution + qualityNudge,
                     weightedConfidenceSum: weight * hit.sourceConfidence,
                     weightSum: weight,
                     firstSeenOrder: order,
-                    sourceBreakdown: [hit.source: contribution]
+                    sourceBreakdown: [hit.source: contribution],
+                    semanticContribution: hit.source == .semanticIndex ? contribution : 0
                 )
                 order += 1
             }
@@ -85,6 +93,12 @@ extension UnifiedToolRuntime {
         .compactMap { $0 }
         .sorted { lhs, rhs in
             if lhs.fusedScore != rhs.fusedScore { return lhs.fusedScore > rhs.fusedScore }
+            if abs(lhs.fusedScore - rhs.fusedScore) < 0.0005 {
+                if lhs.confidence != rhs.confidence { return lhs.confidence > rhs.confidence }
+                let lhsSemantic = accumulators[lhs.key]?.semanticContribution ?? 0
+                let rhsSemantic = accumulators[rhs.key]?.semanticContribution ?? 0
+                if lhsSemantic != rhsSemantic { return lhsSemantic > rhsSemantic }
+            }
             let lhsOrder = accumulators[lhs.key]?.firstSeenOrder ?? .max
             let rhsOrder = accumulators[rhs.key]?.firstSeenOrder ?? .max
             if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
@@ -105,7 +119,8 @@ extension UnifiedToolRuntime {
             sourceUsedInTop: sourceUsedInTop,
             minConfidence: request.minConfidence,
             droppedByConfidence: droppedByConfidence,
-            dedupedCount: dedupedCount
+            dedupedCount: dedupedCount,
+            grepFallbackSkippedReason: grepFallbackSkippedReason
         )
         return (top, diagnostics)
     }

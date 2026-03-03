@@ -17,6 +17,8 @@ final class TaskActivityStore: ObservableObject {
     let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit
     let activitiesHardCap = 500
+    var instantGrepsHardCap = 20
+    var instantGrepTTLSeconds: TimeInterval = 12 * 60
 
     var pendingActivities: [TaskActivity] = []
     var flushTask: Task<Void, Never>?

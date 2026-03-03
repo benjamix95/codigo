@@ -54,6 +54,9 @@ public actor CodebaseIndex {
     /// Parsed .gitignore rules: (pattern, isNegation, isDirectoryOnly)
     var gitignoreRules: [(pattern: String, isNegation: Bool, isDirectoryOnly: Bool)] = []
 
+    /// Parsed .gitignore rules per workspace root name (for multi-root workspaces).
+    var gitignoreRulesByRoot: [String: [(pattern: String, isNegation: Bool, isDirectoryOnly: Bool)]] = [:]
+
     /// Whether to respect .gitignore
     var respectGitignore: Bool = true
 
@@ -72,6 +75,8 @@ public actor CodebaseIndex {
         let absolutePath: String
         let relativePath: String
         let kind: RealtimeChangeKind
+        let enqueuedAt: Date
+        let sequence: UInt64
     }
 
     /// True while `indexWorkspace`/`incrementalUpdate` is rebuilding core maps.
@@ -79,6 +84,7 @@ public actor CodebaseIndex {
 
     /// File watcher events received during rebuild; flushed when rebuild completes.
     var queuedRealtimeChanges: [String: RealtimeQueuedChange] = [:]
+    var realtimeQueueSequence: UInt64 = 0
 
     /// Semantic search index (BM25 + AST chunking + Merkle tree)
     public let semanticIndex = SemanticIndex()
