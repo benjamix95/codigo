@@ -92,7 +92,8 @@ extension MessageRow {
                     textAlignment: .leading,
                     isStreaming: false,
                     aggressiveSanitization: false,
-                    fillWidth: false
+                    fillWidth: false,
+                    normalizeDisplayLayout: false
                 )
                 .padding(.horizontal, 18)
                 .padding(.vertical, 13)

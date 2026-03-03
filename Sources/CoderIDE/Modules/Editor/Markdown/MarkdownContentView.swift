@@ -9,13 +9,16 @@ private enum MarkdownDisplayContentCache {
         return c
     }()
 
-    static func key(content: String, isStreaming: Bool, aggressive: Bool) -> NSString {
+    static func key(content: String, isStreaming: Bool, aggressive: Bool, normalizeLayout: Bool) -> NSString {
         var hasher = Hasher()
         hasher.combine(content)
         hasher.combine(isStreaming)
         hasher.combine(aggressive)
+        hasher.combine(normalizeLayout)
         let digest = hasher.finalize()
-        return "\(isStreaming ? 1 : 0)|\(aggressive ? 1 : 0)|\(content.count)|\(digest)" as NSString
+        return
+            "\(isStreaming ? 1 : 0)|\(aggressive ? 1 : 0)|\(normalizeLayout ? 1 : 0)|\(content.count)|\(digest)"
+            as NSString
     }
 }
 
@@ -27,6 +30,7 @@ struct MarkdownContentView: View {
     var isStreaming: Bool = false
     var aggressiveSanitization: Bool? = nil
     var fillWidth: Bool = true
+    var normalizeDisplayLayout: Bool = true
 
     var shouldUseAggressiveSanitization: Bool {
         aggressiveSanitization ?? true
@@ -36,7 +40,8 @@ struct MarkdownContentView: View {
         let key = MarkdownDisplayContentCache.key(
             content: content,
             isStreaming: isStreaming,
-            aggressive: shouldUseAggressiveSanitization
+            aggressive: shouldUseAggressiveSanitization,
+            normalizeLayout: normalizeDisplayLayout
         )
         if let cached = MarkdownDisplayContentCache.cache.object(forKey: key) {
             return cached as String
@@ -46,9 +51,11 @@ struct MarkdownContentView: View {
         let computed: String
         if isStreaming {
             computed = stripped.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
-        } else {
+        } else if normalizeDisplayLayout {
             computed = Self.normalizeAssistantDisplayLayout(stripped)
-            .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+                .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        } else {
+            computed = stripped.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
         }
         MarkdownDisplayContentCache.cache.setObject(
             computed as NSString,

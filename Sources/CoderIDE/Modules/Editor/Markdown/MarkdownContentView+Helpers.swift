@@ -6,19 +6,18 @@ extension MarkdownContentView {
 
     /// File link regex compiled once and reused.
     static let fileLinkRegex: NSRegularExpression? = {
-        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
+        let pattern =
+            #"((?:~?/|/|\./|\.\./)?[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:swift|m|mm|h|hpp|c|cpp|cc|ts|tsx|js|jsx|py|json|md|markdown|html|css|scss|yaml|yml|xml|plist|strings|kt|kts|java|go|rs|rb|php|sh|zsh|bash|toml|ini|sql)(?::\d+(?::\d+)?)?)\b"#
         return try? NSRegularExpression(pattern: pattern)
     }()
 
     func resolvePath(_ ref: String) -> String {
         let raw = ref.trimmingCharacters(in: .whitespaces)
-        let t: String = {
-            let parts = raw.split(separator: ":")
-            if parts.count >= 2, Int(parts.last ?? "") != nil {
-                return parts.dropLast().joined(separator: ":")
-            }
-            return raw
-        }()
+        let t = raw.replacingOccurrences(
+            of: #":\d+(?::\d+)?$"#,
+            with: "",
+            options: .regularExpression
+        )
         if (t as NSString).isAbsolutePath { return t }
         if let context {
             switch ContextPathResolver.resolve(reference: t, context: context) {
@@ -70,19 +69,34 @@ extension MarkdownContentView {
         }
 
         // File links (regex compiled once as static)
-        guard let regex = Self.fileLinkRegex else { return result }
-        let nsText = text as NSString
-        let fullRange = NSRange(location: 0, length: nsText.length)
-        for match in regex.matches(in: text, range: fullRange) {
-            let fileRef = nsText.substring(with: match.range)
-            guard let strRange = Range(match.range, in: text) else { continue }
-            guard let lower = AttributedString.Index(strRange.lowerBound, within: result),
-                  let upper = AttributedString.Index(strRange.upperBound, within: result) else { continue }
-            result[lower..<upper].foregroundColor = NSColor(accentColor)
-            result[lower..<upper].underlineStyle = .single
-            result[lower..<upper].link = URL(fileURLWithPath: resolvePath(fileRef))
-        }
+        Self.applyFileReferenceLinks(
+            in: &result,
+            color: NSColor(accentColor),
+            resolver: { resolvePath($0) }
+        )
         return result
+    }
+
+    static func applyFileReferenceLinks(
+        in attributed: inout AttributedString,
+        color: NSColor,
+        resolver: (String) -> String
+    ) {
+        guard let regex = Self.fileLinkRegex else { return }
+        let renderedText = String(attributed.characters)
+        let nsRenderedText = renderedText as NSString
+        let fullRange = NSRange(location: 0, length: nsRenderedText.length)
+        for match in regex.matches(in: renderedText, range: fullRange) {
+            let fileRef = nsRenderedText.substring(with: match.range)
+            guard let stringRange = Range(match.range, in: renderedText) else { continue }
+            guard let lower = AttributedString.Index(stringRange.lowerBound, within: attributed),
+                  let upper = AttributedString.Index(stringRange.upperBound, within: attributed) else {
+                continue
+            }
+            attributed[lower..<upper].foregroundColor = color
+            attributed[lower..<upper].underlineStyle = .single
+            attributed[lower..<upper].link = URL(fileURLWithPath: resolver(fileRef))
+        }
     }
 
     // MARK: - Assistant display layout normalization

@@ -39,6 +39,7 @@ extension ChatPanelView {
     }
 
     internal func installPasteMonitor() {
+        guard pasteMonitor == nil else { return }
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if shouldHandlePlanKeyboardShortcut(isInputFocused: isInputFocused) && isCmdShiftP(event) {
                 cyclePlanShortcutState()

@@ -51,6 +51,17 @@ extension ChatPanelView {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(height: 32)
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        chatHeaderWidth = proxy.size.width
+                    }
+                    .onChange(of: proxy.size.width) { _, newWidth in
+                        chatHeaderWidth = newWidth
+                    }
+            }
+        )
     }
 
     @ViewBuilder
@@ -79,7 +90,11 @@ extension ChatPanelView {
     }
 
     internal func shouldShowConversationTitle(headerWidth: CGFloat) -> Bool {
-        false
+        guard headerWidth >= 760 else { return false }
+        let title = chatStore.conversation(for: conversationId)?
+            .title
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !title.isEmpty && title != "New conversation"
     }
 
     internal var rewindButton: some View {
@@ -225,184 +240,6 @@ extension ChatPanelView {
         .onChange(of: scopedTaskActivityCount) { _, _ in
             guard isLoadingForCurrentConversation else { return }
             handleTaskActivitiesChange(proxy: proxy)
-        }
-        .simultaneousGesture(
-            // Keep this low so trackpad/mouse-wheel scrolling detaches live-follow
-            // quickly and prevents forced jumps back to the latest trace event.
-            DragGesture(minimumDistance: 2).onChanged { _ in
-                if isLoadingForCurrentConversation {
-                    isFollowingLive = false
-                }
-            },
-            including: isLoadingForCurrentConversation ? .gesture : .subviews
-        )
-    }
-
-    @ViewBuilder
-    internal var messagesAreaEmptyStateOverlay: some View {
-        if messagesAreaIsEmpty && !isLoadingForCurrentConversation {
-            VStack(spacing: 20) {
-                if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
-                   let icon = NSImage(contentsOf: url) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .cornerRadius(13)
-                        .saturation(0)
-                        .opacity(0.3)
-                }
-                VStack(spacing: 6) {
-                    Text("codigo")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary.opacity(0.45))
-                    Text("Ask anything, build anything")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .offset(y: -40)
-            .allowsHitTesting(false)
-        }
-    }
-
-    internal var messagesAreaIsEmpty: Bool {
-        guard let conv = chatStore.conversation(for: conversationId) else { return true }
-        return conv.messages.isEmpty
-    }
-
-    @ViewBuilder
-    internal func messagesAreaFloatingScrollButtons(using proxy: ScrollViewProxy) -> some View {
-        VStack(spacing: 8) {
-            if !messagesAreaIsEmpty && (!isFollowingLive || isLoadingForCurrentConversation) {
-                Button {
-                    isFollowingLive = false
-                    scheduleAutoScroll(
-                        proxy: proxy,
-                        target: chatScrollTopAnchorId,
-                        animated: true,
-                        delay: 0
-                    )
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Torna su")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(
-                        DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-
-            if !isFollowingLive && isLoadingForCurrentConversation {
-                Button {
-                    isFollowingLive = true
-                    newEventsWhileDetached = 0
-                    if let target = liveScrollTarget() {
-                        scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                    }
-                    taskActivityStore.markLiveEventsSeen()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text("Back to live")
-                            .font(.system(size: 11, weight: .semibold))
-                        if newEventsWhileDetached > 0 {
-                            Text("\(newEventsWhileDetached)")
-                                .font(.system(size: 10, weight: .bold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.white.opacity(0.22), in: Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(
-                        DesignSystem.Colors.backgroundSecondary.opacity(0.9), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.trailing, 14)
-        .padding(.bottom, 10)
-    }
-
-    internal func handleStreamContentVersionChange(proxy: ScrollViewProxy) {
-        guard isFollowingLive else { return }
-        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, delay: 0.04)
-    }
-
-    internal func handleMessagesCountChange(proxy: ScrollViewProxy) {
-        guard isFollowingLive else { return }
-        scheduleAutoScroll(proxy: proxy, target: chatScrollBottomAnchorId, animated: true, delay: 0.05)
-    }
-
-    internal func handleLiveTraceEventsChange(proxy: ScrollViewProxy) {
-        guard isLoadingForCurrentConversation, isFollowingLive else { return }
-        if let target = liveScrollTarget() {
-            scheduleAutoScroll(proxy: proxy, target: target, delay: 0.05)
-        }
-    }
-
-    internal func handlePlanningStateChange(_ newState: PlanningState, proxy: ScrollViewProxy) {
-        if case .awaitingChoice = newState {
-            if let target = latestMessageScrollTarget() {
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-            }
-        } else if case .awaitingClarification = newState {
-            if let target = latestMessageScrollTarget() {
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-            }
-        }
-    }
-
-    internal func handleActiveTaskConversationChange(
-        oldSet: Set<UUID>,
-        newSet: Set<UUID>,
-        proxy: ScrollViewProxy
-    ) {
-        guard let cid = conversationId else { return }
-        let isActive = newSet.contains(cid)
-        let wasActive = oldSet.contains(cid)
-        if !wasActive && isActive {
-            isFollowingLive = true
-            newEventsWhileDetached = 0
-            if let target = liveScrollTarget() {
-                scheduleAutoScroll(proxy: proxy, target: target, delay: 0)
-            }
-        } else if wasActive && !isActive {
-            cancelFallbackTurnStartEvent()
-            isFollowingLive = true
-            newEventsWhileDetached = 0
-            if let target = latestMessageScrollTarget() {
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0)
-                scheduleAutoScroll(proxy: proxy, target: target, animated: true, delay: 0.16)
-            }
-        }
-    }
-
-    internal func handleTaskActivitiesChange(proxy: ScrollViewProxy) {
-        if isLoadingForCurrentConversation {
-            if isFollowingLive {
-                if let target = liveScrollTarget() ?? latestMessageScrollTarget() {
-                    scheduleAutoScroll(proxy: proxy, target: target, delay: 0.08)
-                }
-            } else {
-                newEventsWhileDetached += 1
-            }
-        }
-    }
-
-    @ViewBuilder
-    internal var chatMessagesAreaContent: some View {
-        if let conv = chatStore.conversation(for: conversationId) {
-            messagesStack(for: conv)
         }
     }
 }

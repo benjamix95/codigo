@@ -49,21 +49,11 @@ struct ClickableMessageContent: View {
             result = AttributedString(displayContent)
         }
         applyMarkdownVisualStyling(to: &result)
-        let pattern = #"([a-zA-Z0-9_][a-zA-Z0-9_/.-]*\.(swift|ts|tsx|js|jsx|py|json|md|html|css|yaml|yml|xml|plist|strings)(?::\d+)?)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return result }
-        let nsContent = displayContent as NSString
-        let fullRange = NSRange(location: 0, length: nsContent.length)
-        for match in regex.matches(in: displayContent, range: fullRange) {
-            let fileRef = nsContent.substring(with: match.range)
-            guard let strRange = Range(match.range, in: displayContent) else { continue }
-            guard let lower = AttributedString.Index(strRange.lowerBound, within: result),
-                  let upper = AttributedString.Index(strRange.upperBound, within: result) else {
-                continue
-            }
-            result[lower..<upper].foregroundColor = NSColor.controlAccentColor
-            result[lower..<upper].underlineStyle = .single
-            result[lower..<upper].link = URL(fileURLWithPath: resolvePath(fileRef))
-        }
+        MarkdownContentView.applyFileReferenceLinks(
+            in: &result,
+            color: NSColor.controlAccentColor,
+            resolver: { resolvePath($0) }
+        )
         return result
     }
 
@@ -83,13 +73,11 @@ struct ClickableMessageContent: View {
 
     private func resolvePath(_ ref: String) -> String {
         let raw = ref.trimmingCharacters(in: .whitespaces)
-        let t: String = {
-            let parts = raw.split(separator: ":")
-            if parts.count >= 2, Int(parts.last ?? "") != nil {
-                return parts.dropLast().joined(separator: ":")
-            }
-            return raw
-        }()
+        let t = raw.replacingOccurrences(
+            of: #":\d+(?::\d+)?$"#,
+            with: "",
+            options: .regularExpression
+        )
         if (t as NSString).isAbsolutePath { return t }
         if let context {
             switch ContextPathResolver.resolve(reference: t, context: context) {

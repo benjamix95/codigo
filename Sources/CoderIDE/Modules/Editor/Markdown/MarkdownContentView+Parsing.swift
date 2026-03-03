@@ -44,10 +44,10 @@ extension MarkdownContentView {
                 let nextIdx = i + 1
                 if nextIdx < lines.count {
                     let nextTrimmed = lines[nextIdx].trimmingCharacters(in: .whitespaces)
-                    let isSeparator = nextTrimmed.hasPrefix("|") && nextTrimmed.contains("-")
+                    let headers = parsePipeRow(trimmed)
+                    let isSeparator = isPipeTableSeparator(nextTrimmed, expectedColumnCount: headers.count)
                     if isSeparator {
                         flushParagraph()
-                        let headers = parsePipeRow(trimmed)
                         i += 2
                         var tableRows: [[String]] = []
                         while i < lines.count {
@@ -200,5 +200,18 @@ extension MarkdownContentView {
         if text.hasSuffix("|") { text = String(text.dropLast()) }
         return text.split(separator: "|", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    func isPipeTableSeparator(_ line: String, expectedColumnCount: Int) -> Bool {
+        guard line.hasPrefix("|"), line.hasSuffix("|") else { return false }
+        let cells = parsePipeRow(line)
+        guard !cells.isEmpty, cells.count == expectedColumnCount else { return false }
+        return cells.allSatisfy(isPipeSeparatorCell)
+    }
+
+    func isPipeSeparatorCell(_ rawCell: String) -> Bool {
+        let cell = rawCell.trimmingCharacters(in: .whitespaces)
+        guard !cell.isEmpty else { return false }
+        return cell.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil
     }
 }

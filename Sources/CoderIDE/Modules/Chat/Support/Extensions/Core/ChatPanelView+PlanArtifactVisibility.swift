@@ -65,14 +65,7 @@ extension ChatPanelView {
     ) -> Bool {
         guard message.role == .assistant else { return false }
         guard hasActivePlanContext(for: conversationId) else { return false }
-        guard looksLikePlanPayload(message.content) else {
-            let hasMermaidBlock = message.content.range(
-                of: #"(?im)^\s*```mermaid\b"#,
-                options: .regularExpression
-            ) != nil
-            return hasMermaidBlock
-        }
-        return true
+        return looksLikePlanPayload(message.content)
     }
 
     func chatDisplayMessage(

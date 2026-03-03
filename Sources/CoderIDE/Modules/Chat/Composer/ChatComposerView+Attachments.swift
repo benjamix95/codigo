@@ -147,8 +147,9 @@ extension ChatComposerView {
 
     internal var sendButton: some View {
         let awaitingChoice = if case .awaitingChoice = planningState { true } else { false }
+        let hasText = !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let canSend =
-            (!inputText.isEmpty || !attachedAttachments.isEmpty)
+            (hasText || !attachedAttachments.isEmpty)
             && !isLoading
             && !awaitingChoice
             && isProviderReady

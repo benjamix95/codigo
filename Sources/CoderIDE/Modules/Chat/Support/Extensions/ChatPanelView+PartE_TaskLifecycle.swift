@@ -136,10 +136,7 @@ extension ChatPanelView {
             events: traceEvents,
             workspaceHints: traceWorkspaceHints(for: effectiveContext),
             onOpenFile: { openFilesStore.openFile($0) },
-            onInteractionStart: {
-                guard isLoadingForCurrentConversation else { return }
-                isFollowingLive = false
-            }
+            onInteractionStart: {}
         )
     }
 

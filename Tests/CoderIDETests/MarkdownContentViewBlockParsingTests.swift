@@ -35,4 +35,23 @@ final class MarkdownContentViewBlockParsingTests: XCTestCase {
         }
         XCTAssertTrue(hasInlineCode)
     }
+
+    func testPipeRowsWithoutValidSeparatorDoNotParseAsTable() {
+        let view = MarkdownContentView(
+            content: """
+            | Name | Value |
+            | release-note | v1 |
+            | app | codigo |
+            """,
+            context: nil,
+            onFileClicked: { _ in }
+        )
+
+        let blocks = view.parseBlocksForTests()
+        let hasTable = blocks.contains { block in
+            if case .table = block { return true }
+            return false
+        }
+        XCTAssertFalse(hasTable)
+    }
 }

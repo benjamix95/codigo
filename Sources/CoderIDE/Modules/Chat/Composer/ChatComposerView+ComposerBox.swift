@@ -106,6 +106,9 @@ extension ChatComposerView {
             if frozenTimerText != nil {
                 runtimeTimerLabel
             }
+            if showPlanRequestIndicator {
+                planRequestBadge
+            }
             optimizePromptButton
             microphoneButton
             sendButton
@@ -208,5 +211,15 @@ extension ChatComposerView {
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(color.opacity(0.14), in: Capsule())
+    }
+
+    internal var planRequestBadge: some View {
+        Text("PLAN")
+            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+            .foregroundStyle(activeModeColor.opacity(0.95))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(activeModeColor.opacity(0.16), in: Capsule())
+            .accessibilityLabel("Plan request attiva")
     }
 }
