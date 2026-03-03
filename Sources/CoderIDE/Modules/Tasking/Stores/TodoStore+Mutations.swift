@@ -209,13 +209,14 @@ extension TodoStore {
             }
         }
 
-        for title in cleaned {
+        for (index, title) in cleaned.enumerated() {
             let key = canonicalKey(for: title)
             if let idx = todos.firstIndex(where: {
                 isInScope($0) && canonicalKey(for: $0.title) == key
             }) {
                 todos[idx].title = title
                 todos[idx].isPlanCanonical = true
+                todos[idx].planOrder = index
                 todos[idx].planConversationId = conversationId
                 todos[idx].source = .agent
                 if todos[idx].status == .blocked {
@@ -232,6 +233,7 @@ extension TodoStore {
                         notes: "",
                         linkedFiles: [],
                         isPlanCanonical: true,
+                        planOrder: index,
                         planConversationId: conversationId
                     )
                 )

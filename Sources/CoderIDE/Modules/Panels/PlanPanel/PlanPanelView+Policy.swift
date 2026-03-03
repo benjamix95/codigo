@@ -20,9 +20,9 @@ func isPlanBuildEnabled(
 
 func shouldAllowIdleRebuildFromMainBuildAction(
     phase: PlanFlowPhase,
-    isPlanFullyBuilt: Bool
+    hasBuildChoice: Bool
 ) -> Bool {
-    phase == .idle && isPlanFullyBuilt
+    phase == .idle && hasBuildChoice
 }
 
 func planBuildDisabledReason(

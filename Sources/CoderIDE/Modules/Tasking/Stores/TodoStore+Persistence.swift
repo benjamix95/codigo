@@ -39,6 +39,9 @@ extension TodoStore {
             if let planConversationId = todo.planConversationId {
                 record["planConversationId"] = planConversationId.uuidString
             }
+            if let planOrder = todo.planOrder {
+                record["planOrder"] = planOrder
+            }
             return record
         }
         MCPSharedState.writeTodos(items)

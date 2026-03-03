@@ -81,6 +81,8 @@ struct TodoItem: Identifiable, Codable {
     var notes: String
     var linkedFiles: [String]
     var isPlanCanonical: Bool
+    /// Stable order for canonical plan todos (0-based). Nil for non-plan todos.
+    var planOrder: Int?
     /// Conversation that owns this canonical plan todo.
     var planConversationId: UUID?
     /// Present-tense label shown during execution (e.g. "Fixing bug").
@@ -97,6 +99,7 @@ struct TodoItem: Identifiable, Codable {
         notes: String = "",
         linkedFiles: [String] = [],
         isPlanCanonical: Bool = false,
+        planOrder: Int? = nil,
         planConversationId: UUID? = nil,
         activeForm: String = ""
     ) {
@@ -110,12 +113,13 @@ struct TodoItem: Identifiable, Codable {
         self.notes = notes
         self.linkedFiles = linkedFiles
         self.isPlanCanonical = isPlanCanonical
+        self.planOrder = planOrder
         self.planConversationId = planConversationId
         self.activeForm = activeForm
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planConversationId, activeForm
+        case id, title, completed, status, priority, source, createdAt, updatedAt, notes, linkedFiles, isPlanCanonical, planOrder, planConversationId, activeForm
     }
 
     init(from decoder: Decoder) throws {
@@ -137,6 +141,14 @@ struct TodoItem: Identifiable, Codable {
         linkedFiles = (try? container.decode([String].self, forKey: .linkedFiles)) ?? []
         updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
         isPlanCanonical = (try? container.decode(Bool.self, forKey: .isPlanCanonical)) ?? false
+        if let parsedPlanOrder = try? container.decode(Int.self, forKey: .planOrder) {
+            planOrder = parsedPlanOrder
+        } else if let legacyPlanOrder = try? container.decode(String.self, forKey: .planOrder),
+                  let parsed = Int(legacyPlanOrder.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            planOrder = parsed
+        } else {
+            planOrder = nil
+        }
         if let parsedConversationId = try? container.decode(UUID.self, forKey: .planConversationId) {
             planConversationId = parsedConversationId
         } else if let legacyConversationId = try? container.decode(String.self, forKey: .planConversationId),
@@ -160,6 +172,7 @@ struct TodoItem: Identifiable, Codable {
         try container.encode(notes, forKey: .notes)
         try container.encode(linkedFiles, forKey: .linkedFiles)
         try container.encode(isPlanCanonical, forKey: .isPlanCanonical)
+        try container.encodeIfPresent(planOrder, forKey: .planOrder)
         try container.encodeIfPresent(planConversationId, forKey: .planConversationId)
         try container.encode(activeForm, forKey: .activeForm)
     }

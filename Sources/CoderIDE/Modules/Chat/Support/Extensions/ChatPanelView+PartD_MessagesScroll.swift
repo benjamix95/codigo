@@ -91,7 +91,7 @@ extension ChatPanelView {
             ? { chatStore.removeMessage(messageId: message.id, in: conversationId) }
             : nil
 
-        if shouldHideBuildKickoffMessage(message) {
+        if shouldHideBuildKickoffMessage(message, in: conversationId) {
             EmptyView()
                 .id(message.id)
         } else {

@@ -16,7 +16,7 @@ extension PlanPanelView {
         isPlanBuildEnabled(
             phase: planFlowPhase,
             hasBuildChoice: resolvedBuildChoice != nil,
-            allowIdleRebuild: isPlanFullyBuilt,
+            allowIdleRebuild: resolvedBuildChoice != nil,
             providerExecutionCapable: isActiveProviderExecutionCapable
         )
     }
@@ -171,7 +171,7 @@ extension PlanPanelView {
         buildHint = "Build started..."
         let allowIdleRebuild = shouldAllowIdleRebuildFromMainBuildAction(
             phase: planFlowPhase,
-            isPlanFullyBuilt: isPlanFullyBuilt
+            hasBuildChoice: resolvedBuildChoice != nil
         )
         onBuild(choice, planProviderId, allowIdleRebuild)
     }

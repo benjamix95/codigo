@@ -139,7 +139,9 @@ extension ChatPanelView {
         chatStore.setWalkthrough("", for: planConversationId)
 
         todoStore.upsertCanonicalPlanTodos(planTodos, conversationId: planConversationId)
-        let canonicalTodos = todoStore.canonicalTodos(for: planConversationId)
+        let canonicalTodos = todoStore.prepareCanonicalPlanTodosForBuild(
+            conversationId: planConversationId
+        )
         chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planConversationId)
 
         if let selected = planHistoryStore.selectedEntryId {

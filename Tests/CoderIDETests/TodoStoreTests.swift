@@ -86,6 +86,47 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertTrue(sorted.first?.isPlanCanonical == true)
     }
 
+    func testUpsertCanonicalPlanTodosAssignsStablePlanOrder() {
+        let store = makeStore()
+        store.upsertCanonicalPlanTodos(["Step C", "Step A", "Step B"])
+
+        let scoped = store.canonicalTodos(for: nil)
+        XCTAssertEqual(scoped.map(\.title), ["Step C", "Step A", "Step B"])
+        XCTAssertEqual(scoped.map(\.planOrder), [0, 1, 2])
+    }
+
+    func testPrepareCanonicalPlanTodosForBuildSetsFirstInProgressAndResetsOthers() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["First", "Second", "Third"], conversationId: conversationId)
+
+        store.upsertCanonicalOnlyFromAgent(
+            id: nil,
+            title: "First",
+            status: .done,
+            priority: nil,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+        store.upsertCanonicalOnlyFromAgent(
+            id: nil,
+            title: "Second",
+            status: .blocked,
+            priority: nil,
+            notes: nil,
+            linkedFiles: [],
+            conversationId: conversationId
+        )
+
+        let prepared = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
+
+        XCTAssertEqual(prepared.map(\.title), ["First", "Second", "Third"])
+        XCTAssertEqual(prepared.map(\.status), [.inProgress, .pending, .pending])
+        XCTAssertEqual(prepared.first?.activeForm, "First")
+        XCTAssertTrue(prepared.dropFirst().allSatisfy { $0.activeForm.isEmpty })
+    }
+
     func testClearAgentTodosPreservesCanonicalPlanTodos() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Plan A"])

@@ -125,23 +125,23 @@ final class PlanFlowPhaseTests: XCTestCase {
         }
     }
 
-    func testAllowIdleRebuildFromMainBuildActionOnlyWhenIdleAndFullyBuilt() {
+    func testAllowIdleRebuildFromMainBuildActionOnlyWhenIdleAndChoiceExists() {
         XCTAssertTrue(
             shouldAllowIdleRebuildFromMainBuildAction(
                 phase: .idle,
-                isPlanFullyBuilt: true
+                hasBuildChoice: true
             )
         )
         XCTAssertFalse(
             shouldAllowIdleRebuildFromMainBuildAction(
                 phase: .readyToBuild,
-                isPlanFullyBuilt: true
+                hasBuildChoice: true
             )
         )
         XCTAssertFalse(
             shouldAllowIdleRebuildFromMainBuildAction(
                 phase: .idle,
-                isPlanFullyBuilt: false
+                hasBuildChoice: false
             )
         )
     }

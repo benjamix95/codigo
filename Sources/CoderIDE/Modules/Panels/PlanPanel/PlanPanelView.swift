@@ -39,6 +39,7 @@ struct PlanPanelView: View {
     @State var showDeleteAllHistoryConfirmation = false
     @State var walkthroughExpanded = false
     @State var historySelectionVersion = 0
+    @State var expandedHistoryEntryIds: Set<UUID> = []
     /// Override provider for plan execution (nil = use conversation/global default)
     @State var planProviderId: String?
     /// Cached auth per provider — populated async to avoid blocking main thread on isAuthenticated().
@@ -175,6 +176,7 @@ struct PlanPanelView: View {
             isEditing = false
             buildHint = nil
             walkthroughExpanded = false
+            expandedHistoryEntryIds = []
             planProviderId = nil
             didAutoSelectSingleOption = false
             refreshProviderAuthCache()
@@ -188,12 +190,14 @@ struct PlanPanelView: View {
             buildHint = nil
             walkthroughExpanded = false
             historySelectionVersion = 0
+            expandedHistoryEntryIds = []
             planProviderId = nil
             didAutoSelectSingleOption = false
         }
         .onChange(of: planningState) { _, _ in
             didAutoSelectSingleOption = false
             walkthroughExpanded = false
+            expandedHistoryEntryIds = []
         }
         .onReceive(NotificationCenter.default.publisher(for: ChatPanelView.planBuildShortcutNotification)) { _ in
             if isCurrentConversationLoading {

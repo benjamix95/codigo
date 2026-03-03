@@ -25,10 +25,35 @@ extension ChatPanelView {
         selectedConversationId = newConversationId
     }
 
-    internal func shouldHideBuildKickoffMessage(_ message: ChatMessage) -> Bool {
+    internal func shouldHideBuildKickoffMessage(
+        _ message: ChatMessage,
+        in targetConversationId: UUID?
+    ) -> Bool {
         guard message.role == .assistant else { return false }
         guard suppressedEmptyBuildAssistantMessageIds.contains(message.id) else { return false }
-        return message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        guard let targetConversationId else { return true }
+
+        if activeToolTraceTurnsByConversation[targetConversationId]?.assistantMessageId == message.id {
+            return false
+        }
+        if toolTraceStore.hasTrace(
+            conversationId: targetConversationId,
+            assistantMessageId: message.id
+        ) {
+            return false
+        }
+        if chatStore.isTaskActive(for: targetConversationId),
+           let conversation = chatStore.conversation(for: targetConversationId),
+           conversation.messages.last(where: { $0.role == .assistant })?.id == message.id {
+            return false
+        }
+        if !todoStore.displayTodosForChat(for: targetConversationId).isEmpty,
+           let conversation = chatStore.conversation(for: targetConversationId),
+           conversation.messages.last(where: { $0.role == .assistant })?.id == message.id {
+            return false
+        }
+        return true
     }
 
 

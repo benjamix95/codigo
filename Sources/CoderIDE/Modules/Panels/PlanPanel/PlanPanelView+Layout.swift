@@ -70,6 +70,19 @@ extension PlanPanelView {
         }
 
         return Menu {
+            Button {
+                planProviderId = nil
+            } label: {
+                HStack {
+                    Text("Auto (same as Agent)")
+                    if planProviderId == nil {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+
+            Divider()
+
             if allowedProviders.isEmpty {
                 Text("No providers available")
                     .foregroundStyle(.secondary)
@@ -93,7 +106,7 @@ extension PlanPanelView {
                                     .font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle(.orange)
                             }
-                            if activeProviderId == provider.id {
+                            if planProviderId == provider.id {
                                 Image(systemName: "checkmark")
                             }
                         }
@@ -105,19 +118,6 @@ extension PlanPanelView {
                                 registry: providerRegistry
                             )
                     )
-                }
-            }
-
-            Divider()
-
-            Button {
-                planProviderId = nil
-            } label: {
-                HStack {
-                    Text("Use default")
-                    if planProviderId == nil {
-                        Image(systemName: "checkmark")
-                    }
                 }
             }
         } label: {
@@ -158,6 +158,9 @@ extension PlanPanelView {
     }
 
     var activeProviderLabel: String {
+        if planProviderId == nil {
+            return "Auto"
+        }
         let targetId = activeProviderId
         if let p = providerRegistry.providers.first(where: { $0.id == targetId }) {
             return p.displayName

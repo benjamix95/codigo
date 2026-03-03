@@ -49,127 +49,170 @@ extension PlanPanelView {
                     .padding(.vertical, 6)
             } else {
                 ForEach(items) { entry in
+                    let isExpanded = expandedHistoryEntryIds.contains(entry.id)
+                    let isSelected = planHistoryStore.selectedEntryId == entry.id
                     let selectedHistoryOptionId = selectedOptionIdForHistoryEntry(entry)
-                    HStack(alignment: .top, spacing: 8) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(1)
-                            Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        Button {
-                            if planHistoryStore.selectedEntryId == entry.id {
-                                planHistoryStore.setSelectedEntry(id: nil)
-                            } else {
-                                planHistoryStore.setSelectedEntry(id: entry.id)
-                                let choice = resolvedBuildContent(for: entry) ?? ""
-                                if PlanOptionsParser.hasRequiredTodoHeader(choice),
-                                   !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
-                                    onHistoryEntrySelectedForBuild?()
-                                }
+                    VStack(alignment: .leading, spacing: isExpanded ? 8 : 0) {
+                        HStack(alignment: .center, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(1)
+                                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
                             }
-                            historySelectionVersion &+= 1
-                        } label: {
-                            let isActive = planHistoryStore.selectedEntryId == entry.id
-                            Text(isActive ? "Hide" : "Preview")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(isActive ? planColor : .secondary)
-                        }
-                        .buttonStyle(.plain)
 
-                        if !entry.options.isEmpty {
-                            Menu {
-                                ForEach(entry.options.sorted(by: { $0.id < $1.id })) { option in
-                                    Button {
-                                        planHistoryStore.updateChosenPath(id: entry.id, chosenPath: option.fullText)
-                                        planHistoryStore.setSelectedEntry(id: entry.id)
-                                        onHistoryEntrySelectedForBuild?()
-                                        historySelectionVersion &+= 1
-                                        buildHint = "Selected Option \(option.id)"
-                                    } label: {
-                                        HStack {
-                                            Text("Option \(option.id): \(option.title)")
-                                                .lineLimit(1)
-                                            if selectedHistoryOptionId == option.id {
-                                                Spacer()
-                                                Image(systemName: "checkmark")
-                                            }
-                                        }
+                            Spacer(minLength: 4)
+
+                            if isSelected {
+                                Text("Selected")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(planColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(planColor.opacity(0.12), in: Capsule())
+                            }
+
+                            Button {
+                                guard isPlanBuildEnabled(
+                                    phase: planFlowPhase,
+                                    hasBuildChoice: true,
+                                    allowIdleRebuild: true,
+                                    providerExecutionCapable: isActiveProviderExecutionCapable
+                                ) else {
+                                    buildHint = phaseHint ?? "Build unavailable in this phase."
+                                    return
+                                }
+                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                guard let choice = resolvedBuildContent(for: entry) else {
+                                    buildHint = "Select an option before rebuilding."
+                                    return
+                                }
+                                let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
+                                let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
+                                guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
+                                    buildHint = "Build requires a todo checklist."
+                                    return
+                                }
+                                onBuild(choice, planProviderId, true)
+                                planHistoryStore.markRebuilt(id: entry.id)
+                                historySelectionVersion &+= 1
+                                buildHint = "Rebuild started..."
+                            } label: {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Rebuild from this entry")
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if isExpanded {
+                                        expandedHistoryEntryIds.remove(entry.id)
+                                    } else {
+                                        expandedHistoryEntryIds.insert(entry.id)
                                     }
                                 }
                             } label: {
-                                Image(systemName: "list.number")
-                                    .font(.system(size: 11, weight: .semibold))
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.secondary)
                             }
-                            .help("Select option for rebuild")
+                            .buttonStyle(.plain)
+                            .help(isExpanded ? "Collapse" : "Expand")
                         }
 
-                        Button {
-                            guard isPlanBuildEnabled(
-                                phase: planFlowPhase,
-                                hasBuildChoice: true,
-                                allowIdleRebuild: true,
-                                providerExecutionCapable: isActiveProviderExecutionCapable
-                            ) else {
-                                buildHint = phaseHint ?? "Build unavailable in this phase."
-                                return
-                            }
-                            planHistoryStore.setSelectedEntry(id: entry.id)
-                            guard let choice = resolvedBuildContent(for: entry) else {
-                                buildHint = "Select an option before rebuilding."
-                                return
-                            }
-                            let hasRequiredTodoHeader = PlanOptionsParser.hasRequiredTodoHeader(choice)
-                            let extractedTodos = PlanOptionsParser.extractTodosFromOptionText(choice)
-                            guard hasRequiredTodoHeader, !extractedTodos.isEmpty else {
-                                buildHint = "Build requires a todo checklist."
-                                return
-                            }
-                            onBuild(choice, planProviderId, true)
-                            planHistoryStore.markRebuilt(id: entry.id)
-                            historySelectionVersion &+= 1
-                            buildHint = "Rebuild started..."
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
+                        if isExpanded {
+                            HStack(alignment: .center, spacing: 10) {
+                                Button {
+                                    if planHistoryStore.selectedEntryId == entry.id {
+                                        planHistoryStore.setSelectedEntry(id: nil)
+                                    } else {
+                                        planHistoryStore.setSelectedEntry(id: entry.id)
+                                        let choice = resolvedBuildContent(for: entry) ?? ""
+                                        if PlanOptionsParser.hasRequiredTodoHeader(choice),
+                                           !PlanOptionsParser.extractTodosFromOptionText(choice).isEmpty {
+                                            onHistoryEntrySelectedForBuild?()
+                                        }
+                                    }
+                                    historySelectionVersion &+= 1
+                                } label: {
+                                    Text(isSelected ? "Hide preview" : "Preview")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(isSelected ? planColor : .secondary)
+                                }
+                                .buttonStyle(.plain)
 
-                        Button {
-                            _ = planHistoryStore.duplicateEntry(id: entry.id)
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
+                                if !entry.options.isEmpty {
+                                    Menu {
+                                        ForEach(entry.options.sorted(by: { $0.id < $1.id })) { option in
+                                            Button {
+                                                planHistoryStore.updateChosenPath(
+                                                    id: entry.id,
+                                                    chosenPath: option.fullText
+                                                )
+                                                planHistoryStore.setSelectedEntry(id: entry.id)
+                                                onHistoryEntrySelectedForBuild?()
+                                                historySelectionVersion &+= 1
+                                                buildHint = "Selected Option \(option.id)"
+                                            } label: {
+                                                HStack {
+                                                    Text("Option \(option.id): \(option.title)")
+                                                        .lineLimit(1)
+                                                    if selectedHistoryOptionId == option.id {
+                                                        Spacer()
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Image(systemName: "list.number")
+                                            .font(.system(size: 11, weight: .semibold))
+                                    }
+                                    .help("Select option for rebuild")
+                                }
 
-                        Button {
-                            downloadPlan(entry)
-                        } label: {
-                            Image(systemName: "arrow.down.to.line")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
+                                Button {
+                                    _ = planHistoryStore.duplicateEntry(id: entry.id)
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Duplicate")
 
-                        Button(role: .destructive) {
-                            if planHistoryStore.selectedEntryId == entry.id {
-                                historySelectionVersion &+= 1
+                                Button {
+                                    downloadPlan(entry)
+                                } label: {
+                                    Image(systemName: "arrow.down.to.line")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Download")
+
+                                Button(role: .destructive) {
+                                    if planHistoryStore.selectedEntryId == entry.id {
+                                        historySelectionVersion &+= 1
+                                    }
+                                    expandedHistoryEntryIds.remove(entry.id)
+                                    planHistoryStore.deleteEntry(id: entry.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 11, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Delete")
                             }
-                            planHistoryStore.deleteEntry(id: entry.id)
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11, weight: .semibold))
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(8)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, isExpanded ? 8 : 6)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(
-                                planHistoryStore.selectedEntryId == entry.id
+                                isSelected
                                     ? DesignSystem.Colors.planColor.opacity(0.12)
                                     : Color(nsColor: .controlBackgroundColor).opacity(0.2)
                             )
@@ -186,6 +229,7 @@ extension PlanPanelView {
         .alert("Delete all history?", isPresented: $showDeleteAllHistoryConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete all", role: .destructive) {
+                expandedHistoryEntryIds.removeAll()
                 planHistoryStore.deleteAllForContext(contextId: ctxId, contextFolderPath: ctxPath)
             }
         } message: {

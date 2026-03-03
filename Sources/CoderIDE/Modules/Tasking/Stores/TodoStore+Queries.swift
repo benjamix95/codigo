@@ -32,6 +32,15 @@ extension TodoStore {
     func sortedCanonicalFirstTodos(_ items: [TodoItem]? = nil) -> [TodoItem] {
         (items ?? todos).sorted { lhs, rhs in
             if lhs.isPlanCanonical != rhs.isPlanCanonical { return lhs.isPlanCanonical }
+            if lhs.isPlanCanonical, rhs.isPlanCanonical {
+                let lhsScope = lhs.planConversationId?.uuidString ?? ""
+                let rhsScope = rhs.planConversationId?.uuidString ?? ""
+                if lhsScope != rhsScope { return lhsScope < rhsScope }
+
+                let lhsOrder = lhs.planOrder ?? Int.max
+                let rhsOrder = rhs.planOrder ?? Int.max
+                if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
+            }
             if lhs.priority.rank != rhs.priority.rank { return lhs.priority.rank < rhs.priority.rank }
             return lhs.createdAt < rhs.createdAt
         }

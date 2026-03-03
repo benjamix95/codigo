@@ -158,7 +158,12 @@ func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUI
 
     let canonicalTodos = todos
         .filter(\.isPlanCanonical)
-        .sorted(by: { $0.createdAt < $1.createdAt })
+        .sorted { lhs, rhs in
+            let lhsOrder = lhs.planOrder ?? Int.max
+            let rhsOrder = rhs.planOrder ?? Int.max
+            if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
+            return lhs.createdAt < rhs.createdAt
+        }
 
     // Don't replace steps with a placeholder when todos are empty —
     // this preserves existing step data during transient clear operations.
