@@ -2,6 +2,20 @@ import Foundation
 import SwiftUI
 
 extension PlanPanelView {
+    func isPlanHistoryEntryAllowedForCurrentConversationThread(_ entry: PlanHistoryEntry) -> Bool {
+        guard let currentConversationId = conversationId,
+              let currentConversation = chatStore.conversation(for: currentConversationId) else {
+            return false
+        }
+        let sourceConversation = chatStore.conversation(for: entry.conversationId)
+        return CoderIDE.isPlanHistoryEntryCompatibleWithCurrentThread(
+            entryConversationId: entry.conversationId,
+            currentConversationId: currentConversationId,
+            entryThreadRootConversationId: sourceConversation?.threadRootConversationId,
+            currentThreadRootConversationId: currentConversation.threadRootConversationId
+        )
+    }
+
     var canonicalPlanTodos: [TodoItem] {
         todoStore.canonicalTodos(for: conversationId)
     }
@@ -34,7 +48,8 @@ extension PlanPanelView {
             currentContextId: currentConversation.contextId,
             currentContextFolderPath: currentConversation.contextFolderPath
         )
-        return isCompatible ? selected : nil
+        guard isCompatible else { return nil }
+        return isPlanHistoryEntryAllowedForCurrentConversationThread(selected) ? selected : nil
     }
 
     func latestPlanHistoryEntry() -> PlanHistoryEntry? {

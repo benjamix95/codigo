@@ -3,6 +3,7 @@ import CoderEngine
 
 struct Conversation: Identifiable, Codable {
     let id: UUID
+    var threadRootConversationId: UUID
     var title: String
     var messages: [ChatMessage]
     var createdAt: Date
@@ -27,6 +28,7 @@ struct Conversation: Identifiable, Codable {
 
     init(
         id: UUID = UUID(),
+        threadRootConversationId: UUID? = nil,
         title: String = "New conversation",
         messages: [ChatMessage] = [],
         createdAt: Date = .now,
@@ -46,6 +48,7 @@ struct Conversation: Identifiable, Codable {
         checkpoints: [ConversationCheckpoint] = []
     ) {
         self.id = id
+        self.threadRootConversationId = threadRootConversationId ?? id
         self.title = title
         self.messages = messages
         self.createdAt = createdAt
@@ -66,12 +69,13 @@ struct Conversation: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, contextMemorySummaryMarkdown, contextMemoryGeneratedAt, contextMemorySourceMessageCount, isArchived, isPinned, isFavorite, lastInputTokens, workspaceId, adHocFolderPaths, checkpoints
+        case id, threadRootConversationId, title, messages, createdAt, contextId, contextFolderPath, mode, preferredProviderId, contextMemorySummaryMarkdown, contextMemoryGeneratedAt, contextMemorySourceMessageCount, isArchived, isPinned, isFavorite, lastInputTokens, workspaceId, adHocFolderPaths, checkpoints
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
+        threadRootConversationId = (try? c.decode(UUID.self, forKey: .threadRootConversationId)) ?? id
         title = try c.decode(String.self, forKey: .title)
         messages = try c.decode([ChatMessage].self, forKey: .messages)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
@@ -98,6 +102,7 @@ struct Conversation: Identifiable, Codable {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
+        try c.encode(threadRootConversationId, forKey: .threadRootConversationId)
         try c.encode(title, forKey: .title)
         try c.encode(messages, forKey: .messages)
         try c.encode(createdAt, forKey: .createdAt)

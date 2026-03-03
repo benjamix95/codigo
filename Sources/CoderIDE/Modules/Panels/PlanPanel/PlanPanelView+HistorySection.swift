@@ -8,7 +8,7 @@ extension PlanPanelView {
         let items = planHistoryStore.entriesForContext(
             contextId: ctxId,
             contextFolderPath: ctxPath
-        )
+        ).filter { isPlanHistoryEntryAllowedForCurrentConversationThread($0) }
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {

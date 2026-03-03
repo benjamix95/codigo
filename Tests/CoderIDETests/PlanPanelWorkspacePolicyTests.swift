@@ -104,6 +104,41 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
         )
     }
 
+    func testHistoryEntryThreadCompatibilityAllowsSameConversation() {
+        let conversationId = UUID()
+        XCTAssertTrue(
+            isPlanHistoryEntryCompatibleWithCurrentThread(
+                entryConversationId: conversationId,
+                currentConversationId: conversationId,
+                entryThreadRootConversationId: UUID(),
+                currentThreadRootConversationId: UUID()
+            )
+        )
+    }
+
+    func testHistoryEntryThreadCompatibilityAllowsSameThreadRoot() {
+        let threadRoot = UUID()
+        XCTAssertTrue(
+            isPlanHistoryEntryCompatibleWithCurrentThread(
+                entryConversationId: UUID(),
+                currentConversationId: UUID(),
+                entryThreadRootConversationId: threadRoot,
+                currentThreadRootConversationId: threadRoot
+            )
+        )
+    }
+
+    func testHistoryEntryThreadCompatibilityRejectsDifferentThreadRoots() {
+        XCTAssertFalse(
+            isPlanHistoryEntryCompatibleWithCurrentThread(
+                entryConversationId: UUID(),
+                currentConversationId: UUID(),
+                entryThreadRootConversationId: UUID(),
+                currentThreadRootConversationId: UUID()
+            )
+        )
+    }
+
     func testMakePlanFileNamePrefersPlanTitleOverConversationTitle() {
         let fileName = makePlanFileName(
             preferredPlanTitle: "Implementare Sync Offline v2",

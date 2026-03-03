@@ -69,6 +69,7 @@ final class ChatStoreForkTests: XCTestCase {
         let fork = try XCTUnwrap(store.conversation(for: forkId))
         let source = try XCTUnwrap(store.conversation(for: sourceId))
 
+        XCTAssertEqual(fork.threadRootConversationId, source.threadRootConversationId)
         XCTAssertEqual(fork.contextId, source.contextId)
         XCTAssertEqual(fork.contextFolderPath, source.contextFolderPath)
         XCTAssertEqual(fork.mode, source.mode)

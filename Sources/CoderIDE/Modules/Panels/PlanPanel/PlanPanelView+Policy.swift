@@ -87,6 +87,21 @@ func isPlanHistoryEntryCompatibleWithCurrentContext(
     return matchesContext || matchesFolder
 }
 
+func isPlanHistoryEntryCompatibleWithCurrentThread(
+    entryConversationId: UUID,
+    currentConversationId: UUID?,
+    entryThreadRootConversationId: UUID?,
+    currentThreadRootConversationId: UUID?
+) -> Bool {
+    guard let currentConversationId else { return false }
+    if entryConversationId == currentConversationId { return true }
+    guard let entryThreadRootConversationId,
+          let currentThreadRootConversationId else {
+        return false
+    }
+    return entryThreadRootConversationId == currentThreadRootConversationId
+}
+
 func stablePlanSnapshotContentHash(_ content: String) -> UInt64 {
     var hash: UInt64 = 5381
     for byte in content.utf8 {

@@ -66,6 +66,7 @@ extension ChatStore {
         }
 
         let forkedConversation = Conversation(
+            threadRootConversationId: source.threadRootConversationId,
             title: "\(resolvedBaseTitle) (Fork)",
             messages: forkedMessages,
             createdAt: .now,
