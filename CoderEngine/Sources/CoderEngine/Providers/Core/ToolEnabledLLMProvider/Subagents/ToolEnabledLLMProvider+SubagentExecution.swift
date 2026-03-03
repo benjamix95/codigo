@@ -1,5 +1,36 @@
 import Foundation
 
+private actor SubagentExecutionLimiter {
+    static let shared = SubagentExecutionLimiter(maxConcurrent: 4)
+
+    private let maxConcurrent: Int
+    private var running = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(maxConcurrent: Int) {
+        self.maxConcurrent = max(1, maxConcurrent)
+    }
+
+    func acquire() async {
+        if running < maxConcurrent {
+            running += 1
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        if !waiters.isEmpty {
+            let next = waiters.removeFirst()
+            next.resume()
+            return
+        }
+        running = max(0, running - 1)
+    }
+}
+
 extension ToolEnabledLLMProvider {
     /// The subagent runs to completion using its own ToolEnabledLLMProvider instance,
     /// then returns the result as tool output events.
@@ -40,6 +71,13 @@ extension ToolEnabledLLMProvider {
         let subagentId = preAssignedSubagentId ?? "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
         let toolCallId = marker.payload["id"] ?? UUID().uuidString
         var events: [StreamEvent] = []
+
+        await SubagentExecutionLimiter.shared.acquire()
+        defer {
+            Task {
+                await SubagentExecutionLimiter.shared.release()
+            }
+        }
 
         // Only emit "started" if it wasn't already emitted by the caller
         // (parallel batch pre-emits started events for immediate UI feedback).
@@ -96,23 +134,48 @@ extension ToolEnabledLLMProvider {
             // Run the subagent to completion
             var fullTextParts: [String] = []
             var fullTextLength = 0
+            var liveTextBuffer = ""
+            var lastLiveEmitAt = Date.distantPast
+            let hasLiveCallback = onLiveEvent != nil
+
+            func emitBufferedLiveTextIfNeeded(force: Bool = false) {
+                guard hasLiveCallback else { return }
+                guard !liveTextBuffer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    liveTextBuffer = ""
+                    return
+                }
+                let now = Date()
+                let shouldEmit =
+                    force
+                    || liveTextBuffer.count >= 1200
+                    || now.timeIntervalSince(lastLiveEmitAt) >= 0.20
+                guard shouldEmit else { return }
+                onLiveEvent?(.raw(type: "subagent_text", payload: [
+                    "swarm_id": subagentId,
+                    "group_id": "swarm-\(subagentId)",
+                    "text": String(liveTextBuffer.prefix(1200)),
+                    "_live_emitted": "1"
+                ]))
+                liveTextBuffer = ""
+                lastLiveEmitAt = now
+            }
+
             let stream = try await subagentProvider.send(
                 prompt: prompt, context: context, imageURLs: nil
             )
-            let hasLiveCallback = onLiveEvent != nil
             for try await event in stream {
                 switch event {
                 case .textDelta(let delta):
                     if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
                     if hasLiveCallback, !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        onLiveEvent?(.raw(type: "subagent_text", payload: [
-                            "swarm_id": subagentId,
-                            "group_id": "swarm-\(subagentId)",
-                            "text": String(delta.prefix(2000)),
-                            "_live_emitted": "1"
-                        ]))
+                        liveTextBuffer += delta
+                        if liveTextBuffer.count > 2400 {
+                            liveTextBuffer = String(liveTextBuffer.suffix(2400))
+                        }
+                        emitBufferedLiveTextIfNeeded()
                     }
                 case .raw(let type, var payload):
+                    emitBufferedLiveTextIfNeeded(force: true)
                     payload["swarm_id"] = subagentId
                     payload["group_id"] = "swarm-\(subagentId)"
                     if hasLiveCallback {
@@ -125,6 +188,7 @@ extension ToolEnabledLLMProvider {
                     break
                 }
             }
+            emitBufferedLiveTextIfNeeded(force: true)
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
             let output = String(fullTextParts.joined().prefix(8000))

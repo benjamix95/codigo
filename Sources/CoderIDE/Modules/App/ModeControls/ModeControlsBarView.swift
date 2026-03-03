@@ -79,10 +79,10 @@ struct ModeControlsBarView: View {
     func controlsHStack(tier: ControlsTier) -> some View {
         let pid = providerRegistry.selectedProviderId ?? ""
         HStack(spacing: 6) {
-            // Provider picker: full=icon+name, medium=icon-only, compact/minimal=hidden
+            // Provider picker: full=icon+name, other tiers=icon-only
             if tier == .full {
                 providerPickerView(showLabel: true)
-            } else if tier == .medium {
+            } else {
                 providerPickerView(showLabel: false)
             }
 

@@ -70,34 +70,41 @@ public struct SwarmWorkerRunner: Sendable {
                             continuation.yield(.textDelta("\n## Parallelo: \(groupTasks.map { $0.role.displayName }.joined(separator: ", "))\n\n"))
                             for t in groupTasks { continuation.yield(.raw(type: "agent", payload: swarmPayload(for: t, detail: "started"))) }
                             var groupOutputs: [(String, String)] = []
-                            await withTaskGroup(of: (String, String).self) { g in
-                                for (idx, task) in groupTasks.enumerated() {
-                                    g.addTask {
-                                        if checkCancelled?() == true {
-                                            return (task.role.rawValue, "\n### \(task.role.displayName)\n\n[Interrupted by user]\n")
-                                        }
-                                        let header = "\n### \(task.role.displayName)\n\n"
-                                        let prompt = self.buildPrompt(for: task, previousOutputs: accumulatedOutput)
-                                        let taskImageURLs = (isFirstTask && idx == 0 && !(imageURLs?.isEmpty ?? true)) ? imageURLs : nil
-                                        var out = header
-                                        do {
-                                            let stream = try await self.provider.send(prompt: prompt, context: context, imageURLs: taskImageURLs)
-                                            for try await event in stream {
-                                                if case .textDelta(let d) = event { out += d }
-                                                if case .error(let e) = event {
-                                                    out += "\n[Errore \(task.role.displayName): \(e)]\n"
-                                                }
-                                                if case .raw(let type, let payload) = event {
-                                                    continuation.yield(.raw(type: type, payload: self.enrichSwarmPayload(payload, for: task)))
-                                                }
+                            let maxParallelWorkers = 3
+                            for chunkStart in stride(from: 0, to: groupTasks.count, by: maxParallelWorkers) {
+                                let chunkEnd = min(chunkStart + maxParallelWorkers, groupTasks.count)
+                                let chunkTasks = Array(groupTasks[chunkStart..<chunkEnd])
+                                await withTaskGroup(of: (String, String).self) { g in
+                                    for (chunkIdx, task) in chunkTasks.enumerated() {
+                                        g.addTask {
+                                            if checkCancelled?() == true {
+                                                return (task.role.rawValue, "\n### \(task.role.displayName)\n\n[Interrupted by user]\n")
                                             }
-                                        } catch {
-                                            out += "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
+                                            let header = "\n### \(task.role.displayName)\n\n"
+                                            let prompt = self.buildPrompt(for: task, previousOutputs: accumulatedOutput)
+                                            let globalIdx = chunkStart + chunkIdx
+                                            let taskImageURLs = (isFirstTask && globalIdx == 0 && !(imageURLs?.isEmpty ?? true)) ? imageURLs : nil
+                                            var out = header
+                                            do {
+                                                let stream = try await self.provider.send(prompt: prompt, context: context, imageURLs: taskImageURLs)
+                                                for try await event in stream {
+                                                    if case .textDelta(let d) = event { out += d }
+                                                    if case .error(let e) = event {
+                                                        out += "\n[Errore \(task.role.displayName): \(e)]\n"
+                                                    }
+                                                    if case .raw(let type, let payload) = event {
+                                                        continuation.yield(.raw(type: type, payload: self.enrichSwarmPayload(payload, for: task)))
+                                                    }
+                                                }
+                                            } catch {
+                                                out += "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
+                                            }
+                                            return (task.role.rawValue, out)
                                         }
-                                        return (task.role.rawValue, out)
                                     }
+                                    for await res in g { groupOutputs.append(res) }
                                 }
-                                for await res in g { groupOutputs.append(res) }
+                                if checkCancelled?() == true { break }
                             }
                             for t in groupTasks { continuation.yield(.raw(type: "agent", payload: swarmPayload(for: t, detail: "completed"))) }
                             let merged = groupOutputs.sorted(by: { $0.0 < $1.0 }).map(\.1).joined(separator: "\n")

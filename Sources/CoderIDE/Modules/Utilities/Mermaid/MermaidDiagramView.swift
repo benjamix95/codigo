@@ -19,6 +19,8 @@ struct MermaidDiagramView: View {
     @State private var isHoveringSave = false
     @State private var isHoveringCopy = false
     @State private var showCopied = false
+    @State private var diagramError: String? = nil
+    @State private var reloadToken = UUID()
 
     private var hasRendered: Bool {
         !latestDiagramSVG.isEmpty || latestDiagramPNGData != nil
@@ -129,26 +131,75 @@ struct MermaidDiagramView: View {
         VStack(spacing: 0) {
             Divider().opacity(0.3)
 
-            MermaidWebView(
-                mermaidCode: mermaidCode,
-                accentColor: accentColor,
-                isDarkMode: colorScheme == .dark,
-                onImageRendered: { svg in
-                    latestDiagramSVG = svg
-                    latestDiagramURL = writeTempFile(svg.data(using: .utf8), ext: "svg", replacing: latestDiagramURL)
-                },
-                onImageRenderedPNG: { png in
-                    latestDiagramPNGData = png
-                    latestDiagramPNGURL = writeTempFile(png, ext: "png", replacing: latestDiagramPNGURL)
-                },
-                onHeightChanged: { h in
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        diagramHeight = min(max(h, 100), 800)
+            if let errorMessage = diagramError {
+                diagramErrorView(errorMessage)
+            } else {
+                MermaidWebView(
+                    mermaidCode: mermaidCode,
+                    accentColor: accentColor,
+                    isDarkMode: colorScheme == .dark,
+                    onImageRendered: { svg in
+                        latestDiagramSVG = svg
+                        latestDiagramURL = writeTempFile(svg.data(using: .utf8), ext: "svg", replacing: latestDiagramURL)
+                    },
+                    onImageRenderedPNG: { png in
+                        latestDiagramPNGData = png
+                        latestDiagramPNGURL = writeTempFile(png, ext: "png", replacing: latestDiagramPNGURL)
+                    },
+                    onHeightChanged: { h in
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            diagramHeight = min(max(h, 100), 800)
+                        }
+                    },
+                    onError: { error in
+                        diagramError = error
                     }
-                }
-            )
-            .frame(height: diagramHeight)
+                )
+                .id(reloadToken)
+                .frame(height: diagramHeight)
+            }
         }
+    }
+
+    private func diagramErrorView(_ message: String) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.orange)
+
+                Text("Diagram rendering failed")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+
+            Text(message)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(6)
+
+            Button {
+                diagramError = nil
+                reloadToken = UUID()
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.red.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+        .padding(12)
     }
 
     // MARK: - Actions

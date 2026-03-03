@@ -51,13 +51,6 @@ extension ChatPanelView {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(height: 32)
-        .background {
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.width) { _, w in chatHeaderWidth = w }
-                    .onAppear { chatHeaderWidth = geo.size.width }
-            }
-        }
     }
 
     @ViewBuilder
@@ -86,8 +79,7 @@ extension ChatPanelView {
     }
 
     internal func shouldShowConversationTitle(headerWidth: CGFloat) -> Bool {
-        // Hide thread title aggressively in narrow layouts to avoid overlap with centered mode tabs.
-        headerWidth >= 720
+        false
     }
 
     internal var rewindButton: some View {
@@ -181,12 +173,15 @@ extension ChatPanelView {
         .padding(.horizontal, 24)
         .overlay(messagesAreaEmptyStateOverlay)
         .onChange(of: streamContentVersion) { _, _ in
+            guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)
         }
         .onChange(of: chatStore.conversation(for: conversationId)?.messages.count) { _, _ in
+            guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleMessagesCountChange(proxy: proxy)
         }
         .onChange(of: liveTraceEventCount) { _, _ in
+            guard isLoadingForCurrentConversation else { return }
             handleLiveTraceEventsChange(proxy: proxy)
         }
         .onChange(of: planningState) { _, new in
@@ -196,6 +191,7 @@ extension ChatPanelView {
             handleActiveTaskConversationChange(oldSet: oldSet, newSet: newSet, proxy: proxy)
         }
         .onChange(of: scopedTaskActivityCount) { _, _ in
+            guard isLoadingForCurrentConversation else { return }
             handleTaskActivitiesChange(proxy: proxy)
         }
         .simultaneousGesture(
@@ -208,9 +204,6 @@ extension ChatPanelView {
             },
             including: isLoadingForCurrentConversation ? .gesture : .subviews
         )
-        .overlay(alignment: .bottomTrailing) {
-            messagesAreaFloatingScrollButtons(using: proxy)
-        }
     }
 
     @ViewBuilder

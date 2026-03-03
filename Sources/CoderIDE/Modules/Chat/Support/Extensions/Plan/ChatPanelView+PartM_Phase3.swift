@@ -76,6 +76,38 @@ extension ChatPanelView {
         }
 
         var full = generationResult
+
+        // Phase 3 clarification fallback: if the LLM flagged critical ambiguities
+        // via a `## Clarifications Needed` section, route back to questioning instead
+        // of producing a potentially incorrect plan.
+        if planClarificationCycles < 2,
+           let clarRange = full.range(of: "## Clarifications Needed")
+        {
+            let clarificationsText = String(full[clarRange.lowerBound...])
+            await MainActor.run {
+                guard self.conversationId == conversationId else { return }
+                planClarificationCycles += 1
+                planFlowPhase = .questioning
+                planningState = .awaitingClarification(questions: clarificationsText)
+                updatePlanStreamingContent(full, conversationId: conversationId)
+                chatStore.updateLastAssistantMessage(
+                    content: "Additional clarifications needed — answer in the plan panel.",
+                    in: conversationId,
+                    persistImmediately: true
+                )
+                chatStore.setLastAssistantStreaming(false, in: conversationId)
+                if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+                    openPlanPanelForCurrentContext(
+                        preserveHistorySelection: false,
+                        source: .automaticFlow
+                    )
+                }
+            }
+            clearStreamingReasoning(for: conversationId)
+            finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
+            return
+        }
+
         var options = parsePlanOptions(full)
 
         // Hard enforcement: every option must contain an explicit `## Todo` section.

@@ -11,6 +11,7 @@ struct MermaidWebView: NSViewRepresentable {
     let onImageRendered: ((String) -> Void)?
     let onImageRenderedPNG: ((Data) -> Void)?
     let onHeightChanged: ((CGFloat) -> Void)?
+    let onError: ((String) -> Void)?
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -42,7 +43,8 @@ struct MermaidWebView: NSViewRepresentable {
         Coordinator(
             onImageRendered: onImageRendered,
             onImageRenderedPNG: onImageRenderedPNG,
-            onHeightChanged: onHeightChanged
+            onHeightChanged: onHeightChanged,
+            onError: onError
         )
     }
 
@@ -60,15 +62,18 @@ struct MermaidWebView: NSViewRepresentable {
         let onImageRendered: ((String) -> Void)?
         let onImageRenderedPNG: ((Data) -> Void)?
         let onHeightChanged: ((CGFloat) -> Void)?
+        let onError: ((String) -> Void)?
 
         init(
             onImageRendered: ((String) -> Void)?,
             onImageRenderedPNG: ((Data) -> Void)?,
-            onHeightChanged: ((CGFloat) -> Void)?
+            onHeightChanged: ((CGFloat) -> Void)?,
+            onError: ((String) -> Void)?
         ) {
             self.onImageRendered = onImageRendered
             self.onImageRenderedPNG = onImageRenderedPNG
             self.onHeightChanged = onHeightChanged
+            self.onError = onError
         }
     }
 }

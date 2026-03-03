@@ -19,7 +19,7 @@ extension MessageToolTraceView {
         init(events: [ToolTraceEvent], isExpanded: Bool, runningCompactLimit: Int, collapser: ([ToolTraceEvent]) -> [ToolTraceEvent]) {
             let visible = events
                 .filter { ToolTraceVisibility.shouldDisplay(event: $0) }
-            let maxEventsToProcess = isExpanded ? 240 : max(120, runningCompactLimit * 8)
+            let maxEventsToProcess = isExpanded ? 120 : max(60, runningCompactLimit * 4)
             let boundedVisible: [ToolTraceEvent]
             if visible.count > maxEventsToProcess {
                 boundedVisible = Array(visible.suffix(maxEventsToProcess))

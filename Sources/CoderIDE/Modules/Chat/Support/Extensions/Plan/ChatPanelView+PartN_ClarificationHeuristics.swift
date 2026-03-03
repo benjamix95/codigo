@@ -32,15 +32,15 @@ extension ChatPanelView {
                 hits += 1
             }
         }
-        return hits >= 3
+        return hits >= 1
     }
 
     internal func shouldAllowFollowUpClarification(
         userRequest: String,
         clarificationCycles: Int
     ) -> Bool {
-        // Keep a single clarification round by default to avoid loops.
-        guard clarificationCycles < 1 else {
+        // Allow up to 2 clarification rounds before cutting off.
+        guard clarificationCycles < 2 else {
             return false
         }
         return userExplicitlyWantsClarifications(userRequest)

@@ -222,11 +222,29 @@ extension MessageRow {
                 .accessibilityLabel("Delete message")
             }
         }
-        .opacity(isHovered ? 1 : 0)
+        .opacity((isHovered || isActionsHovered) ? 1 : 0)
         .animation(.easeOut(duration: 0.12), value: isHovered)
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.trailing, isUser ? 6 : 0)
         .padding(.leading, isUser ? 0 : 2)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            if hovering {
+                hoverTask?.cancel()
+                isActionsHovered = true
+                isHovered = true
+            } else {
+                isActionsHovered = false
+                hoverTask?.cancel()
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    guard !Task.isCancelled else { return }
+                    if !isActionsHovered {
+                        isHovered = false
+                    }
+                }
+            }
+        }
     }
 
     func copyMessageToClipboard() {

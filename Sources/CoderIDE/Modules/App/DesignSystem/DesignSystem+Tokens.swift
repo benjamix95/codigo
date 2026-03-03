@@ -5,12 +5,11 @@ import AppKit
 
 @inline(__always)
 private func codigoAppearanceIsDark(_ appearance: NSAppearance) -> Bool {
-    switch appearance.name {
-    case .darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua, .accessibilityHighContrastVibrantDark:
-        return true
-    default:
-        return false
-    }
+    let raw = appearance.name.rawValue
+    return raw == NSAppearance.Name.darkAqua.rawValue
+        || raw == NSAppearance.Name.vibrantDark.rawValue
+        || raw == NSAppearance.Name.accessibilityHighContrastDarkAqua.rawValue
+        || raw == NSAppearance.Name.accessibilityHighContrastVibrantDark.rawValue
 }
 
 func codigoAdaptiveNS(_ light: NSColor, _ dark: NSColor) -> NSColor {

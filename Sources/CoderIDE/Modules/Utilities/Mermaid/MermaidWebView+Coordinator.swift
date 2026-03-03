@@ -24,6 +24,11 @@ extension MermaidWebView.Coordinator {
             if let payload = payload, let h = Double(payload) {
                 Task { @MainActor in self.onHeightChanged?(CGFloat(h)) }
             }
+        case "error":
+            if let payload = payload {
+                print("[MermaidWebView] Rendering error: \(payload)")
+                Task { @MainActor in self.onError?(payload) }
+            }
         default:
             break
         }

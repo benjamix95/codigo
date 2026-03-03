@@ -147,7 +147,7 @@ extension ChatPanelView {
         - Under `## Todo`, include 3-8 checklist items using `- [ ] ...`.
         - Do NOT use alternative headers like "Tasks", "Steps", or "Checklist".
         - Steps must be concrete and directly implementable.
-        - Do NOT ask questions or request clarifications
+        - If you discover critical ambiguities that could lead to an incorrect plan, include a `## Clarifications Needed` section BEFORE the `## Todo` section listing what you need clarified. Otherwise, generate the plan directly.
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         """
 

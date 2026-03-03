@@ -210,32 +210,75 @@ struct PlanLiveTraceView: View {
     let activities: [TaskActivity]
     let workspaceHints: [String]
     let onOpenFile: ((String) -> Void)?
-    private let maxVisibleEvents = 40
+    private let maxVisibleEvents = 24
+    private let compactLimit = 8
+    private let compactMaxHeight: CGFloat = 160
 
+    @State private var isExpanded = false
     @State private var expandedRawById: Set<UUID> = []
     @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
 
     private var visibleActivities: [TaskActivity] {
-        Array(activities.suffix(maxVisibleEvents))
+        let all = Array(activities.suffix(maxVisibleEvents))
+        guard !isExpanded else { return all }
+
+        // In compact mode, prioritize running/in-progress activities
+        let running = all.filter { $0.isRunning }
+        let rest = all.filter { !$0.isRunning }
+
+        if running.count >= compactLimit {
+            return Array(running.suffix(compactLimit))
+        }
+        let remaining = compactLimit - running.count
+        return Array(rest.suffix(remaining)) + running
+    }
+
+    private var hiddenCount: Int {
+        let totalCapped = min(activities.count, maxVisibleEvents)
+        return max(0, totalCapped - visibleActivities.count)
     }
 
     var body: some View {
         let traceItems = visibleActivities.map(PlanTraceItem.init(activity:))
         VStack(alignment: .leading, spacing: 10) {
+            // Clickable header
             HStack {
-                Text("Plan Live Trace")
+                Text("Plan Trace")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(traceItems.count)/\(activities.count) events")
+                Text("\(activities.count) activities")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
             }
 
-            ForEach(traceItems) { item in
-                traceRow(item)
+            // Scrollable activity list with height constraint
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !isExpanded && hiddenCount > 0 {
+                        Text("+\(hiddenCount) more...")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.bottom, 2)
+                    }
+
+                    ForEach(traceItems) { item in
+                        traceRow(item)
+                    }
+                }
             }
+            .frame(maxHeight: isExpanded ? 400 : compactMaxHeight)
         }
         .padding(10)
         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))

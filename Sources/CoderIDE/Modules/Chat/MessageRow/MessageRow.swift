@@ -22,6 +22,7 @@ struct MessageRow: View {
     var hasCheckpointForRestore: Bool = false
     var showTopDivider: Bool = false
     @State var isHovered = false
+    @State var isActionsHovered = false
     @State var didCopyMessage = false
     @State var hoverTask: Task<Void, Never>?
     let userRowMaxWidth: CGFloat = 640
@@ -62,19 +63,25 @@ struct MessageRow: View {
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .frame(maxWidth: rowMaxWidth, alignment: isUser ? .trailing : .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .contentShape(Rectangle())
         .onHover { hovering in
             if hovering {
                 hoverTask?.cancel()
-                hoverTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 40_000_000)
-                    guard !Task.isCancelled else { return }
-                    isHovered = true
-                }
+                isHovered = true
             } else {
                 hoverTask?.cancel()
-                hoverTask = nil
-                isHovered = false
+                hoverTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    guard !Task.isCancelled else { return }
+                    if !isActionsHovered {
+                        isHovered = false
+                    }
+                }
             }
+        }
+        .onDisappear {
+            hoverTask?.cancel()
+            hoverTask = nil
         }
     }
 }
