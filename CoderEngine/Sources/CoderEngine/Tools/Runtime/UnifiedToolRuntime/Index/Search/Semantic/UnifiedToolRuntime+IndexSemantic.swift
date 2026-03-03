@@ -38,164 +38,60 @@ extension UnifiedToolRuntime {
             }
             return deduped
         }()
-
-        // Primary: BM25 SemanticIndex (AST-aware chunks + inverted index)
-        if let index = codebaseIndex {
-            await ensureSemanticIndexReadyIfNeeded(index: index, context: context)
-            let results = await index.semanticIndex.search(
-                query: query,
-                targetDirectories: targetDirs,
-                numResults: numResults
-            )
-
-            if !results.isEmpty {
-                var output = ""
-                for (i, result) in results.enumerated() {
-                    let chunk = result.chunk
-                    let lineRange = chunk.startLine == chunk.endLine
-                        ? ":\(chunk.startLine)"
-                        : ":\(chunk.startLine)-\(chunk.endLine)"
-                    let scopeInfo = chunk.scope.isEmpty ? "" : " [\(chunk.scope)]"
-                    output += "\(i + 1). \(chunk.filePath)\(lineRange)\(scopeInfo) (score: \(String(format: "%.2f", result.score)))\n"
-
-                    // Include a compact code preview (first 3 meaningful lines)
-                    let previewLines = chunk.content
-                        .components(separatedBy: "\n")
-                        .map { $0.trimmingCharacters(in: .whitespaces) }
-                        .filter { !$0.isEmpty }
-                        .prefix(3)
-                    for line in previewLines {
-                        let trimmed = line.count > 120 ? String(line.prefix(120)) + "…" : line
-                        output += "   \(trimmed)\n"
-                    }
-                }
-
-                return success([
-                    "title": "semantic_search",
-                    "query": query,
-                    "detail": "\(results.count) results (BM25 index)",
-                    "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
-                    "count": "\(results.count)",
-                    "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ",")
-                ], startDate: startDate)
-            }
-        }
-
-        // Fallback: grep-based search when SemanticIndex is empty or unavailable
         let queryTokens = query.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 2 }
-
         guard !queryTokens.isEmpty else {
             return success([
                 "title": "semantic_search",
                 "query": query,
                 "detail": "No results found",
                 "output": "No matches found for: \(query)",
-                "count": "0"
+                "count": "0",
             ], startDate: startDate)
         }
+        let minConfidence = min(max(Double(call.args["min_confidence"] ?? "0.28") ?? 0.28, 0.0), 1.0)
 
-        // Generate grep patterns from query tokens (camelCase, snake_case, raw)
-        var patterns: [String] = []
-        if queryTokens.count >= 2 {
-            patterns.append(queryTokens.joined(separator: ".*"))
-            let camel = queryTokens[0] + queryTokens.dropFirst().map { $0.capitalized }.joined()
-            patterns.append(camel)
-            let pascal = queryTokens.map { $0.capitalized }.joined()
-            patterns.append(pascal)
-            patterns.append(queryTokens.joined(separator: "_"))
+        if let index = codebaseIndex {
+            await ensureSemanticIndexReadyIfNeeded(index: index, context: context)
         }
-        for token in queryTokens where token.count >= 3 {
-            patterns.append(token)
-        }
-
-        struct FallbackResult: Comparable {
-            let file: String; let line: Int; let snippet: String; let score: Double
-            static func < (lhs: FallbackResult, rhs: FallbackResult) -> Bool { lhs.score > rhs.score }
-        }
-
-        func relativePathForDisplay(absolutePath: String) -> String {
-            let normalized = (absolutePath as NSString).standardizingPath
-            for root in allWorkspacePaths {
-                let rootNorm = (root as NSString).standardizingPath
-                if normalized == rootNorm { return (root as NSString).lastPathComponent }
-                let prefix = rootNorm.hasSuffix("/") ? rootNorm : rootNorm + "/"
-                if normalized.hasPrefix(prefix) {
-                    let tail = String(normalized.dropFirst(prefix.count))
-                    return ((root as NSString).lastPathComponent) + "/" + tail
-                }
-            }
-            return normalized
-        }
-
-        var grepResults: [FallbackResult] = []
-        for pattern in patterns.prefix(5) {
-            for searchPath in searchPaths {
-                let output = await runSemanticTextSearch(
-                    pattern: pattern,
-                    searchPath: searchPath,
-                    workspace: searchPath
-                )
-                guard !output.isEmpty else { continue }
-
-                for line in output.components(separatedBy: "\n") where !line.isEmpty {
-                    let parts = line.split(separator: ":", maxSplits: 2).map(String.init)
-                    guard parts.count >= 3 else { continue }
-                    let filePath = parts[0]
-                    let lineNum = Int(parts[1]) ?? 0
-                    let content = parts[2].trimmingCharacters(in: .whitespaces)
-                    let contentLower = content.lowercased()
-                    var score = 0.5
-                    for token in queryTokens where contentLower.contains(token) { score += 0.8 }
-                    if contentLower.contains("func ") || contentLower.contains("class ") ||
-                       contentLower.contains("struct ") || contentLower.contains("protocol ") ||
-                       contentLower.contains("enum ") || contentLower.contains("def ") ||
-                       contentLower.contains("function ") {
-                        score += 1.5
-                    }
-                    let relPath = relativePathForDisplay(absolutePath: filePath)
-                    grepResults.append(FallbackResult(file: relPath, line: lineNum, snippet: content, score: score))
-                }
-            }
-        }
-
-        var seen = Set<String>()
-        let deduped = grepResults.sorted().filter { r in
-            let key = "\(r.file):\(r.line)"
-            guard !seen.contains(key) else { return false }
-            seen.insert(key)
-            return true
-        }
-        let top = Array(deduped.prefix(numResults))
-
-        if top.isEmpty {
+        let request = HybridSearchRequest(
+            query: query,
+            queryTokens: queryTokens,
+            targetDirectories: targetDirs,
+            numResults: numResults,
+            minConfidence: minConfidence,
+            workspacePaths: allWorkspacePaths,
+            searchPaths: searchPaths
+        )
+        let hits = await collectHybridSearchHits(request: request, index: codebaseIndex)
+        let (top, diagnostics) = fuseHybridSearchResults(hits: hits, request: request)
+        guard !top.isEmpty else {
             return success([
                 "title": "semantic_search",
                 "query": query,
                 "detail": "No results found",
                 "output": "No matches found for: \(query)",
-                "count": "0"
+                "count": "0",
+                "diagnostics": renderHybridDiagnostics(diagnostics),
             ], startDate: startDate)
         }
-
-        var output = ""
-        for (i, r) in top.enumerated() {
-            let lineInfo = r.line > 0 ? ":\(r.line)" : ""
-            output += "\(i + 1). \(r.file)\(lineInfo) (score: \(String(format: "%.1f", r.score)))\n"
-            if !r.snippet.isEmpty {
-                let trimmed = r.snippet.count > 120 ? String(r.snippet.prefix(120)) + "…" : r.snippet
-                output += "   \(trimmed)\n"
-            }
-        }
+        let output = renderHybridSearchOutput(top)
+        let sourceKinds = diagnostics.sourceUsedInTop
+            .filter { $0.value > 0 }
+            .map { "\($0.key.rawValue)=\($0.value)" }
+            .sorted()
+            .joined(separator: ", ")
+        let detailSuffix = sourceKinds.isEmpty ? "hybrid fusion" : "hybrid fusion (\(sourceKinds))"
 
         return success([
             "title": "semantic_search",
             "query": query,
-            "detail": "\(top.count) results (grep fallback)",
+            "detail": "\(top.count) results (\(detailSuffix))",
             "output": truncate(output, maxBytes: context.policy.maxBashOutputBytes),
             "count": "\(top.count)",
-            "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ",")
+            "pathScope": targetDirs.isEmpty ? "." : targetDirs.joined(separator: ","),
+            "diagnostics": renderHybridDiagnostics(diagnostics),
         ], startDate: startDate)
     }
 
