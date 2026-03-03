@@ -47,7 +47,7 @@ struct MCPSettingsSection: View {
                         isRestarting: restartingServerIds.contains(serverId),
                         restartError: restartErrors[serverId],
                         onToggle: { toggleDetected(server) },
-                        onRestart: isDetectedEnabled(server) ? { restartServer(serverId) } : nil,
+                        onRestart: { restartServer(serverId) },
                         onEdit: nil
                     )
                 }
@@ -77,7 +77,7 @@ struct MCPSettingsSection: View {
                         isRestarting: restartingServerIds.contains(serverId),
                         restartError: restartErrors[serverId],
                         onToggle: nil,
-                        onRestart: server.enabled ? { restartServer(serverId) } : nil,
+                        onRestart: { restartServer(serverId) },
                         onEdit: { editingServer = server }
                     )
                     .contextMenu {
