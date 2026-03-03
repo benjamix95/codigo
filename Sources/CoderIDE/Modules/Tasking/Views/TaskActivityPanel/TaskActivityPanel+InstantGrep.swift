@@ -29,7 +29,7 @@ struct InstantGrepCardsView: View {
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .lineLimit(1)
                 Spacer()
-                Text("\(result.matchesCount) match")
+                Text("\(result.matchesCount) match\(result.matchesCount == 1 ? "" : "es")")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                 Button {

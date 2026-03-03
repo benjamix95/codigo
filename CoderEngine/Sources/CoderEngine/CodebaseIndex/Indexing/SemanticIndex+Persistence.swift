@@ -23,7 +23,12 @@ extension SemanticIndex {
         }
 
         let content = lines.joined(separator: "\n")
-        try? content.write(to: path, atomically: true, encoding: .utf8)
+        do {
+            try content.write(to: path, atomically: true, encoding: .utf8)
+        } catch {
+            Self.logger.error("persist: failed to write semantic index — \(error.localizedDescription)")
+            return
+        }
 
         let metaPath = path.deletingLastPathComponent()
             .appendingPathComponent("semantic.meta.json")
@@ -32,8 +37,11 @@ extension SemanticIndex {
             totalChunks: chunks.count,
             totalFiles: fileToChunks.count
         )
-        if let metaData = try? JSONEncoder().encode(meta) {
-            try? metaData.write(to: metaPath, options: .atomic)
+        do {
+            let metaData = try JSONEncoder().encode(meta)
+            try metaData.write(to: metaPath, options: .atomic)
+        } catch {
+            Self.logger.error("persist: failed to write semantic metadata — \(error.localizedDescription)")
         }
     }
 

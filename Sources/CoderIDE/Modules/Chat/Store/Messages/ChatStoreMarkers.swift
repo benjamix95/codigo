@@ -113,6 +113,7 @@ private static func shouldRunMarkerCleanup(_ content: String, aggressive: Bool) 
             "Initializing ",
             "Preparing ",
             "Setting ",
+            "Starting ",
         ]
         for needle in aggressiveNeedles where content.range(of: needle, options: .caseInsensitive) != nil {
             return true

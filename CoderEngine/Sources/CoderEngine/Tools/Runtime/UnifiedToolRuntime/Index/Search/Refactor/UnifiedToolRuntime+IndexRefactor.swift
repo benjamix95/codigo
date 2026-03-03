@@ -66,7 +66,16 @@ extension UnifiedToolRuntime {
             do {
                 var content = try String(contentsOfFile: filePath, encoding: .utf8)
                 let originalContent = content
-                content = content.replacingOccurrences(of: query, with: newName)
+                // Use word-boundary regex to avoid replacing inside strings, comments, or unrelated identifiers
+                let escapedQuery = NSRegularExpression.escapedPattern(for: query)
+                let wordBoundaryPattern = "\\b\(escapedQuery)\\b"
+                if let regex = try? NSRegularExpression(pattern: wordBoundaryPattern) {
+                    content = regex.stringByReplacingMatches(
+                        in: content,
+                        range: NSRange(content.startIndex..., in: content),
+                        withTemplate: NSRegularExpression.escapedTemplate(for: newName)
+                    )
+                }
                 if content != originalContent {
                     try content.write(toFile: filePath, atomically: true, encoding: .utf8)
                     replaced += 1

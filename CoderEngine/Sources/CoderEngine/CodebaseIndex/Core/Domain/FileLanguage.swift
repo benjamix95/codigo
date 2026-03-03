@@ -44,8 +44,10 @@ public enum FileLanguage: String, Sendable, Codable, CaseIterable {
 
     static func from(extension ext: String) -> FileLanguage {
         switch ext.lowercased() {
-        case "swift", "storyboard", "xib":
+        case "swift":
             return .swift
+        case "storyboard", "xib":
+            return .xml
         case "m":
             return .objectiveC
         case "mm":
@@ -58,10 +60,14 @@ public enum FileLanguage: String, Sendable, Codable, CaseIterable {
             return .cpp
         case "py", "pyw", "pyi":
             return .python
-        case "js", "mjs", "cjs", "jsx":
+        case "js", "mjs", "cjs":
             return .javascript
-        case "ts", "mts", "cts", "tsx":
+        case "jsx":
+            return .javascriptReact
+        case "ts", "mts", "cts":
             return .typescript
+        case "tsx":
+            return .typescriptReact
         case "go":
             return .go
         case "rs":

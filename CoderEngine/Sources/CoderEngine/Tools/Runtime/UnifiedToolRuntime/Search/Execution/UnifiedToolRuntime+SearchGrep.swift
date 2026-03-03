@@ -49,6 +49,14 @@ extension UnifiedToolRuntime {
         }()
         let shouldUseContentMode = outputMode == "content"
 
+        // Guard against empty queries that would match every line
+        guard !query.isEmpty else {
+            return ToolResult(ok: false, payload: [
+                "title": "Grep",
+                "detail": "query is required — provide a non-empty search pattern",
+            ], durationMs: 0)
+        }
+
         // If query looks like a symbol name (no regex chars) and index is available, try index first.
         // Use a short timeout (200ms) to avoid blocking grep when the index is still building.
         if shouldUseContentMode, let indexTools, let codebaseIndex, !query.isEmpty, !containsRegexChars(query) {

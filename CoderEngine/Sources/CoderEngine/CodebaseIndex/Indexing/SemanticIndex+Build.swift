@@ -112,22 +112,33 @@ extension SemanticIndex {
         }
 
         recalcAvgDocLength()
+
+        // Persist after incremental update so the on-disk index stays fresh
+        if persistencePath != nil {
+            await persist()
+        }
     }
 
     /// Update a single file (called from file watcher callbacks).
-    public func updateFile(_ indexed: IndexedFile) {
+    /// Uses async file I/O to avoid blocking the actor's serial executor.
+    public func updateFile(_ indexed: IndexedFile) async {
         removeChunksForFile(indexed.relativePath)
 
-        let content: String
-        do {
-            content = try String(contentsOfFile: indexed.absolutePath, encoding: .utf8)
-        } catch {
-            return
-        }
+        // Read file content off the actor's executor to prevent blocking
+        let content: String? = await Task.detached(priority: .utility) {
+            try? String(contentsOfFile: indexed.absolutePath, encoding: .utf8)
+        }.value
+
+        guard let content else { return }
 
         let fileChunks = SemanticChunker.chunk(indexedFile: indexed, fileContent: content)
         addChunks(fileChunks, forFile: indexed.relativePath)
         recalcAvgDocLength()
+
+        // Persist incrementally so the on-disk index stays fresh
+        if persistencePath != nil {
+            await persist()
+        }
     }
 
     /// Remove all semantic chunks for a single file.

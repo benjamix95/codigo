@@ -29,6 +29,12 @@ private actor SubagentExecutionLimiter {
         }
         running = max(0, running - 1)
     }
+
+    func withPermit<T>(_ operation: () async throws -> T) async rethrows -> T {
+        await acquire()
+        defer { release() }
+        return try await operation()
+    }
 }
 
 extension ToolEnabledLLMProvider {
@@ -68,16 +74,31 @@ extension ToolEnabledLLMProvider {
             ])]
         }
 
+        return await SubagentExecutionLimiter.shared.withPermit {
+            await executeSubagentToolWithAcquiredSlot(
+                toolName: toolName,
+                role: role,
+                task: task,
+                marker: marker,
+                context: context,
+                preAssignedSubagentId: preAssignedSubagentId,
+                onLiveEvent: onLiveEvent
+            )
+        }
+    }
+
+    private func executeSubagentToolWithAcquiredSlot(
+        toolName: String,
+        role: SubagentRole,
+        task: String,
+        marker: CoderIDEMarker,
+        context: WorkspaceContext,
+        preAssignedSubagentId: String?,
+        onLiveEvent: (@Sendable (StreamEvent) -> Void)?
+    ) async -> [StreamEvent] {
         let subagentId = preAssignedSubagentId ?? "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
         let toolCallId = marker.payload["id"] ?? UUID().uuidString
         var events: [StreamEvent] = []
-
-        await SubagentExecutionLimiter.shared.acquire()
-        defer {
-            Task {
-                await SubagentExecutionLimiter.shared.release()
-            }
-        }
 
         // Only emit "started" if it wasn't already emitted by the caller
         // (parallel batch pre-emits started events for immediate UI feedback).
@@ -167,7 +188,7 @@ extension ToolEnabledLLMProvider {
                 switch event {
                 case .textDelta(let delta):
                     if fullTextLength + delta.count <= 50_000 { fullTextParts.append(delta); fullTextLength += delta.count }
-                    if hasLiveCallback, !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if hasLiveCallback, !delta.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
                         liveTextBuffer += delta
                         if liveTextBuffer.count > 2400 {
                             liveTextBuffer = String(liveTextBuffer.suffix(2400))
@@ -191,7 +212,7 @@ extension ToolEnabledLLMProvider {
             emitBufferedLiveTextIfNeeded(force: true)
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
-            let output = String(fullTextParts.joined().prefix(8000))
+            let output = String(fullTextParts.joined().prefix(Self.subagentOutputLimit(for: role)))
 
             // Emit completed event
             events.append(.raw(type: "agent", payload: [
@@ -246,4 +267,15 @@ extension ToolEnabledLLMProvider {
 
     // MARK: - Skill Execution
 
+}
+
+private extension ToolEnabledLLMProvider {
+    static func subagentOutputLimit(for role: SubagentRole) -> Int {
+        switch role {
+        case .reviewer, .securityAuditor:
+            return 20_000
+        default:
+            return 8_000
+        }
+    }
 }

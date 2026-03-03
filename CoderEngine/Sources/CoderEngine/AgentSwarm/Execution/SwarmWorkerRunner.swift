@@ -10,7 +10,7 @@ private func systemPrompt(for role: AgentRole) -> String {
     case .debugger:
         return "You are the Debugger. Identify bugs, analyze stack traces and resolve issues. Modify code to fix them."
     case .reviewer:
-        return "You are the Reviewer. Review the code for style, best practices and possible improvements. Suggest optimizations."
+        return "You are the Reviewer. Review for bugs, regressions, logic errors and risks. Do NOT auto-fix. Report concrete findings with file paths and line numbers."
     case .docWriter:
         return "You are the DocWriter. Write clear documentation: README, comments, docstrings. Keep consistency with the code."
     case .securityAuditor:

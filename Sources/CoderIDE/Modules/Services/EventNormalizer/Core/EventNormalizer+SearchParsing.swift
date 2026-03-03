@@ -90,13 +90,49 @@ extension EventNormalizer {
     }
 
     static func parseSearchQueryFromCommand(_ command: String) -> String? {
-        let tokens = command.split(whereSeparator: \.isWhitespace).map(String.init)
-        guard !tokens.isEmpty else { return nil }
-        if let rgIndex = tokens.firstIndex(where: { $0 == "rg" || $0.hasSuffix("/rg") || $0 == "grep" || $0.hasSuffix("/grep") }) {
-            for token in tokens.dropFirst(rgIndex + 1) {
-                if token.hasPrefix("-") { continue }
-                return token.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+        // Handle quoted multi-word patterns like: rg "hello world" Sources/
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        // Find the rg/grep command position
+        guard let cmdRange = trimmed.range(of: #"(?:^|\s)(?:rg|grep)(?:\s|$)"#, options: .regularExpression) else {
+            return nil
+        }
+        let afterCmd = String(trimmed[cmdRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+
+        // Skip flags, then extract the first non-flag argument (possibly quoted)
+        var remaining = afterCmd[afterCmd.startIndex...]
+        while !remaining.isEmpty {
+            remaining = remaining.drop(while: \.isWhitespace)
+            guard !remaining.isEmpty else { break }
+
+            if remaining.hasPrefix("-") {
+                // Skip flag and its value if it's a known value-taking flag
+                let flag = remaining.prefix(while: { !$0.isWhitespace })
+                remaining = remaining.dropFirst(flag.count).drop(while: \.isWhitespace)
+                // Flags like -t, -g, --type, --glob take a value argument
+                let flagStr = String(flag)
+                let valueTakingFlags = ["-t", "-g", "--type", "--glob", "--max-count", "-m", "-C", "-A", "-B", "--threads", "-j"]
+                if valueTakingFlags.contains(where: { flagStr == $0 || flagStr.hasPrefix($0 + "=") }) && !flagStr.contains("=") {
+                    let val = remaining.prefix(while: { !$0.isWhitespace })
+                    remaining = remaining.dropFirst(val.count)
+                }
+                continue
             }
+
+            // Found the pattern argument — handle quoted strings
+            if remaining.hasPrefix("\"") || remaining.hasPrefix("'") {
+                let quote = remaining.first!
+                remaining = remaining.dropFirst()
+                if let endIdx = remaining.firstIndex(of: quote) {
+                    return String(remaining[remaining.startIndex..<endIdx])
+                }
+                return String(remaining) // Unterminated quote, return what we have
+            }
+
+            // Unquoted argument
+            let arg = remaining.prefix(while: { !$0.isWhitespace })
+            return String(arg)
         }
         return nil
     }

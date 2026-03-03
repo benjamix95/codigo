@@ -10,6 +10,7 @@ extension ToolEnabledLLMProvider {
         let sawCodeMutationDuringTask: Bool
         let reviewerCompletedAfterLatestMutation: Bool
         let testWriterCompletedAfterLatestMutation: Bool
+        let mutatedPaths: Set<String>
         let acceptedSubagentInFirstRound: Bool
         let didEmitPolicyAck: Bool
     }
@@ -33,6 +34,7 @@ extension ToolEnabledLLMProvider {
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
         var testWriterCompletedAfterLatestMutation = false
+        var mutatedPaths: Set<String> = []
         var didEmitMeaningfulText = false
         var didEmitPolicyAck = didEmitPolicyAck
         var localAcceptedSubagentInFirstRound = acceptedSubagentInFirstRound
@@ -202,6 +204,9 @@ extension ToolEnabledLLMProvider {
                             sawCodeMutationDuringTask = true
                             reviewerCompletedAfterLatestMutation = false
                             testWriterCompletedAfterLatestMutation = false
+                            if let path = Self.mutatedFilePath(from: e, originatingToolName: name) {
+                                mutatedPaths.insert(path)
+                            }
                         }
                         if let completedRole = Self.completedSubagentRole(from: e) {
                             if completedRole == .reviewer {
@@ -237,6 +242,7 @@ extension ToolEnabledLLMProvider {
             sawCodeMutationDuringTask: sawCodeMutationDuringTask,
             reviewerCompletedAfterLatestMutation: reviewerCompletedAfterLatestMutation,
             testWriterCompletedAfterLatestMutation: testWriterCompletedAfterLatestMutation,
+            mutatedPaths: mutatedPaths,
             acceptedSubagentInFirstRound: localAcceptedSubagentInFirstRound,
             didEmitPolicyAck: didEmitPolicyAck
         )

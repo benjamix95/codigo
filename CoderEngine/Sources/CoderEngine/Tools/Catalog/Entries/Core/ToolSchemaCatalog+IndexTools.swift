@@ -38,7 +38,7 @@ extension ToolSchemaCatalog {
                 "query": ["type": "string", "description": "Symbol name"],
                 "name": ["type": "string", "description": "Alias for query"]
             ],
-            required: []
+            required: ["query"]
         ),
         ToolSchemaEntry(
             name: "project_structure",
