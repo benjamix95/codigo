@@ -6,7 +6,6 @@ extension ToolEnabledLLMProvider {
         let sawCodeMutationDuringTask: Bool
         let reviewerCompletedAfterLatestMutation: Bool
         let testWriterCompletedAfterLatestMutation: Bool
-        let mutatedPaths: Set<String>
         let didEmitPolicyAck: Bool
     }
 
@@ -23,7 +22,6 @@ extension ToolEnabledLLMProvider {
                 sawCodeMutationDuringTask: false,
                 reviewerCompletedAfterLatestMutation: false,
                 testWriterCompletedAfterLatestMutation: false,
-                mutatedPaths: [],
                 didEmitPolicyAck: false
             )
         }
@@ -32,7 +30,6 @@ extension ToolEnabledLLMProvider {
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
         var testWriterCompletedAfterLatestMutation = false
-        var mutatedPaths: Set<String> = []
         var didEmitPolicyAck = false
         var anyFailed = false
         var completedRolesInBatch = Set<String>()
@@ -80,9 +77,6 @@ extension ToolEnabledLLMProvider {
                         sawCodeMutationDuringTask = true
                         reviewerCompletedAfterLatestMutation = false
                         testWriterCompletedAfterLatestMutation = false
-                        if let path = Self.mutatedFilePath(from: e, originatingToolName: subagentToolName) {
-                            mutatedPaths.insert(path)
-                        }
                     }
                     if let completedRole = Self.completedSubagentRole(from: e) {
                         completedRolesInBatch.insert(completedRole.rawValue.lowercased())
@@ -130,7 +124,6 @@ extension ToolEnabledLLMProvider {
             sawCodeMutationDuringTask: sawCodeMutationDuringTask,
             reviewerCompletedAfterLatestMutation: reviewerCompletedAfterLatestMutation,
             testWriterCompletedAfterLatestMutation: testWriterCompletedAfterLatestMutation,
-            mutatedPaths: mutatedPaths,
             didEmitPolicyAck: didEmitPolicyAck
         )
     }
@@ -203,17 +196,15 @@ extension ToolEnabledLLMProvider {
 
     internal func buildAutoInjectedReviewCalls(
         sawReviewerComplete: Bool,
-        sawTestWriterComplete: Bool,
-        modifiedPaths: Set<String>
+        sawTestWriterComplete: Bool
     ) -> [(marker: CoderIDEMarker, name: String)] {
         var injectedCalls: [(marker: CoderIDEMarker, name: String)] = []
-        let changedFilesHint = autoInjectedChangedFilesHint(modifiedPaths)
         if !sawReviewerComplete {
             injectedCalls.append((
                 marker: CoderIDEMarker(kind: "tool_call", payload: [
                     "id": "auto-reviewer-\(UUID().uuidString)",
                     "name": SubagentRole.reviewer.toolName,
-                    "task": "\(changedFilesHint) Review all code changes completed in this task. Report bugs, regressions, and risks with concrete findings.",
+                    "task": "Review all code changes completed in this task. Report bugs, regressions, and risks with concrete findings.",
                 ]),
                 name: SubagentRole.reviewer.toolName
             ))
@@ -223,23 +214,11 @@ extension ToolEnabledLLMProvider {
                 marker: CoderIDEMarker(kind: "tool_call", payload: [
                     "id": "auto-testwriter-\(UUID().uuidString)",
                     "name": SubagentRole.testWriter.toolName,
-                    "task": "\(changedFilesHint) Write and run focused regression tests for all code changes completed in this task. Report failures and coverage gaps.",
+                    "task": "Write and run focused regression tests for all code changes completed in this task. Report failures and coverage gaps.",
                 ]),
                 name: SubagentRole.testWriter.toolName
             ))
         }
         return injectedCalls
-    }
-
-    private func autoInjectedChangedFilesHint(_ modifiedPaths: Set<String>) -> String {
-        guard !modifiedPaths.isEmpty else {
-            return "Code mutations were detected."
-        }
-        let sorted = modifiedPaths.sorted()
-        let preview = sorted.prefix(20).joined(separator: ", ")
-        if sorted.count > 20 {
-            return "Code mutations were detected in files (partial): \(preview), +\(sorted.count - 20) more."
-        }
-        return "Code mutations were detected in files: \(preview)."
     }
 }

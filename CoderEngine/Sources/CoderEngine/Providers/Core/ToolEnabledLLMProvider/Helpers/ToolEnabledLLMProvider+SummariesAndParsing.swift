@@ -254,41 +254,6 @@ extension ToolEnabledLLMProvider {
         return false
     }
 
-    static func mutatedFilePath(
-        from event: StreamEvent,
-        originatingToolName: String
-    ) -> String? {
-        guard streamEventIndicatesCodeMutation(event, originatingToolName: originatingToolName) else {
-            return nil
-        }
-        guard case .raw(_, let payload) = event else { return nil }
-        let candidates = [
-            payload["path"],
-            payload["file"],
-            payload["filepath"],
-            payload["file_path"],
-            payload["target"],
-        ]
-        for candidate in candidates {
-            guard let normalized = normalizeMutatedPath(candidate) else { continue }
-            return normalized
-        }
-        return nil
-    }
-
-    private static func normalizeMutatedPath(_ rawPath: String?) -> String? {
-        guard var value = rawPath?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if value.hasPrefix("`"), value.hasSuffix("`"), value.count >= 2 {
-            value.removeFirst()
-            value.removeLast()
-        }
-        guard !value.isEmpty else { return nil }
-        guard !value.contains("\n"), !value.contains("\r"), value.count <= 1024 else { return nil }
-        return value
-    }
-
     static func completedSubagentRole(from event: StreamEvent) -> SubagentRole? {
         guard case .raw(let type, let payload) = event else { return nil }
         guard type == "tool_result" else { return nil }

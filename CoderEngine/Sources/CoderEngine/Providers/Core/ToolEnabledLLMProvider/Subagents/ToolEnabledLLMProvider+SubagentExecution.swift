@@ -73,6 +73,11 @@ extension ToolEnabledLLMProvider {
         var events: [StreamEvent] = []
 
         await SubagentExecutionLimiter.shared.acquire()
+        defer {
+            Task {
+                await SubagentExecutionLimiter.shared.release()
+            }
+        }
 
         // Only emit "started" if it wasn't already emitted by the caller
         // (parallel batch pre-emits started events for immediate UI feedback).
@@ -186,7 +191,7 @@ extension ToolEnabledLLMProvider {
             emitBufferedLiveTextIfNeeded(force: true)
 
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
-            let output = String(fullTextParts.joined().prefix(Self.subagentOutputLimit(for: role)))
+            let output = String(fullTextParts.joined().prefix(8000))
 
             // Emit completed event
             events.append(.raw(type: "agent", payload: [
@@ -236,21 +241,9 @@ extension ToolEnabledLLMProvider {
             ]))
         }
 
-        await SubagentExecutionLimiter.shared.release()
         return events
     }
 
     // MARK: - Skill Execution
 
-}
-
-private extension ToolEnabledLLMProvider {
-    static func subagentOutputLimit(for role: SubagentRole) -> Int {
-        switch role {
-        case .reviewer, .securityAuditor:
-            return 20_000
-        default:
-            return 8_000
-        }
-    }
 }

@@ -28,27 +28,20 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
     }
 
     /// Whether this subagent can use file-editing tools.
-    /// Read-only roles can search/read/analyze but never edit.
+    /// Explorer is read-only — it can search, read, and analyze but never edit.
     public var canEditFiles: Bool {
         switch self {
-        case .explorer, .reviewer, .securityAuditor:
-            return false
+        case .explorer: return false
         default: return true
         }
     }
 
     /// Maximum tool execution rounds for this subagent.
-    /// Read-only analysis roles get lower budgets than write-capable roles.
+    /// Explorer has a lower budget since it only reads.
     public var maxToolRounds: Int {
         switch self {
-        case .explorer:
-            return 40
-        case .reviewer, .securityAuditor:
-            return 50
-        case .testWriter:
-            return 100
-        case .coder, .debugger, .docWriter:
-            return 80
+        case .explorer: return 40
+        default: return 80
         }
     }
 

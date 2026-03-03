@@ -150,9 +150,20 @@ extension ContentView {
 
     @ViewBuilder
     private var configuredDetailContent: some View {
+        // #region agent log
         GeometryReader { geo in
-            configuredModeContent(detailWidth: geo.size.width)
+            let w = geo.size.width, h = geo.size.height
+            if w < 100 || h < 100 {
+                DebugSessionLog.log(
+                    location: "ContentView+Layout:GeometryReader",
+                    message: "detail geometry SUSPICIOUS",
+                    data: ["width": Double(w), "height": Double(h), "coderMode": String(describing: coderMode)],
+                    hypothesisId: "A"
+                )
+            }
+            return configuredModeContent(detailWidth: w)
         }
+        // #endregion
         .frame(minWidth: 720)
         .background(DesignSystem.Colors.backgroundDeep)
         .ignoresSafeArea(.container, edges: .top)
@@ -175,6 +186,14 @@ extension ContentView {
         let chatIsLeft = chatPanelPosition == "left"
         let clampedChatW = min(CGFloat(chatPanelWidth), max(300, detailWidth * 0.45))
         let maxChatW = max(300, detailWidth * 0.45)
+        // #region agent log
+        let _ = detailWidth < 100 ? DebugSessionLog.log(
+            location: "ContentView:ideModeContent",
+            message: "ideMode detailWidth SUSPICIOUS",
+            data: ["detailWidth": Double(detailWidth), "clampedChatW": Double(clampedChatW)],
+            hypothesisId: "A"
+        ) : ()
+        // #endregion
         let clampedBrowserW = min(CGFloat(browserPanelWidth), max(300, detailWidth * 0.55))
         let maxBrowserW = max(300, detailWidth * 0.55)
 

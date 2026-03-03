@@ -1,8 +1,5 @@
 import CoderEngine
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#endif
 
 extension CoderIDEMCPServerApp {
 
@@ -76,68 +73,57 @@ extension CoderIDEMCPServerApp {
             )
         }
 
-        let waitTask = Task<Int32, Never> {
-            process.waitUntilExit()
-            return process.terminationStatus
-        }
-        let stdoutTask = Task<Data, Never> {
-            stdout.fileHandleForReading.readDataToEndOfFile()
-        }
-        let stderrTask = Task<Data, Never> {
-            stderr.fileHandleForReading.readDataToEndOfFile()
-        }
-
-        let timedOutByDeadline = await withTaskGroup(of: Bool.self) { group in
+        return await withTaskGroup(of: SubagentResult.self) { group in
             group.addTask {
-                _ = await waitTask.value
-                return false
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().async {
+                        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+                        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                        process.waitUntilExit()
+                        let outStr = String(data: outData, encoding: .utf8) ?? ""
+                        let errStr = String(data: errData, encoding: .utf8) ?? ""
+
+                        let exitCode = process.terminationStatus
+                        var result = outStr
+                        if !errStr.isEmpty && result.isEmpty {
+                            result = errStr
+                        }
+                        if result.isEmpty {
+                            result = exitCode == 0
+                                ? "Subagent completed successfully."
+                                : "Subagent failed (exit \(exitCode))."
+                        }
+
+                        let truncated = result.count > 100_000
+                            ? String(result.prefix(100_000)) + "\n... [truncated]"
+                            : result
+
+                        continuation.resume(returning: SubagentResult(
+                            output: truncated,
+                            isError: exitCode != 0
+                        ))
+                    }
+                }
             }
+
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                return true
+                if process.isRunning {
+                    process.terminate()
+                    if process.isRunning { process.interrupt() }
+                }
+                return SubagentResult(
+                    output: "Subagent \(resolvedRole.displayName) timed out after \(Int(timeout))s.",
+                    isError: true
+                )
             }
-            let first = await group.next() ?? false
+
+            guard let firstResult = await group.next() else {
+                return SubagentResult(output: "Subagent produced no result.", isError: true)
+            }
             group.cancelAll()
-            return first
+            return firstResult
         }
-        var didTimeout = timedOutByDeadline
-        if didTimeout && !process.isRunning {
-            didTimeout = false
-        }
-
-        if didTimeout {
-            await terminateProcessIfNeeded(process)
-            waitTask.cancel()
-            stdoutTask.cancel()
-            stderrTask.cancel()
-            try? stdout.fileHandleForReading.close()
-            try? stderr.fileHandleForReading.close()
-
-            let timeoutMessage = "Subagent \(resolvedRole.displayName) timed out after \(Int(timeout))s."
-            return SubagentResult(output: timeoutMessage, isError: true)
-        }
-
-        let exitCode = await waitTask.value
-        let outData = await stdoutTask.value
-        let errData = await stderrTask.value
-        let outStr = String(data: outData, encoding: .utf8) ?? ""
-        let errStr = String(data: errData, encoding: .utf8) ?? ""
-
-        var result = outStr
-        if !errStr.isEmpty && result.isEmpty {
-            result = errStr
-        }
-        if result.isEmpty {
-            result = exitCode == 0
-                ? "Subagent completed successfully."
-                : "Subagent failed (exit \(exitCode))."
-        }
-        let truncated = truncateOutput(result)
-
-        return SubagentResult(
-            output: truncated,
-            isError: exitCode != 0
-        )
     }
 
     private static func resolveAvailableCLI(readOnly: Bool) -> String? {
@@ -145,14 +131,9 @@ extension CoderIDEMCPServerApp {
         let byNameCandidates: [String: [String]] = [
             "codex": ["/usr/local/bin/codex", "/opt/homebrew/bin/codex"],
             "claude": ["/usr/local/bin/claude", "/opt/homebrew/bin/claude"],
-            "gemini": ["/usr/local/bin/gemini", "/opt/homebrew/bin/gemini"],
         ]
-        let fallbackNames = byNameCandidates.keys
-            .filter { !preferredNames.contains($0) }
-            .sorted()
-        let candidateOrder = preferredNames + fallbackNames
 
-        for name in candidateOrder {
+        for name in preferredNames {
             for path in byNameCandidates[name] ?? [] {
                 guard FileManager.default.isExecutableFile(atPath: path) else { continue }
                 if SubagentCLIConfig.supportsSandboxExpectations(cliPath: path, readOnly: readOnly) {
@@ -161,7 +142,7 @@ extension CoderIDEMCPServerApp {
             }
         }
 
-        for name in candidateOrder {
+        for name in preferredNames {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
             proc.arguments = [name]
@@ -185,27 +166,5 @@ extension CoderIDEMCPServerApp {
             }
         }
         return nil
-    }
-
-    private static func terminateProcessIfNeeded(_ process: Process) async {
-        guard process.isRunning else { return }
-        process.terminate()
-        try? await Task.sleep(nanoseconds: 300_000_000)
-        if process.isRunning {
-            process.interrupt()
-            try? await Task.sleep(nanoseconds: 300_000_000)
-        }
-#if canImport(Darwin)
-        if process.isRunning {
-            kill(process.processIdentifier, SIGKILL)
-        }
-#endif
-    }
-
-    private static func truncateOutput(_ output: String) -> String {
-        if output.count > 100_000 {
-            return String(output.prefix(100_000)) + "\n... [truncated]"
-        }
-        return output
     }
 }

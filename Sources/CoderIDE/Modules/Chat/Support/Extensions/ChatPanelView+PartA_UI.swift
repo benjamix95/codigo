@@ -34,6 +34,7 @@ extension ChatPanelView {
                     swarmDashboardArea
                 } else {
                     messagesArea
+                        .layoutPriority(1)
                 }
 
                 if shouldShowFinalChatActions {

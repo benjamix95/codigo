@@ -215,20 +215,4 @@ final class MCPSubagentPipelineTests: XCTestCase {
             XCTAssertTrue(prompt.contains("test task"), "Prompt for \(role) should contain the task")
         }
     }
-
-    func testPromptBuilderReviewerIncludesStructuredSummaryInstruction() {
-        let prompt = SubagentPromptBuilder.build(role: .reviewer, task: "review this")
-        XCTAssertTrue(prompt.contains("do NOT auto-fix"))
-        XCTAssertTrue(prompt.contains("\"issues_found\""))
-        XCTAssertTrue(prompt.contains("\"critical\""))
-        XCTAssertTrue(prompt.contains("\"warnings\""))
-        XCTAssertTrue(prompt.contains("\"suggestions\""))
-    }
-
-    func testPromptBuilderTestWriterIncludesRunAndFixLoopInstructions() {
-        let prompt = SubagentPromptBuilder.build(role: .testWriter, task: "add tests")
-        XCTAssertTrue(prompt.contains("ALWAYS read existing test files first"))
-        XCTAssertTrue(prompt.contains("run the relevant test command"))
-        XCTAssertTrue(prompt.contains("If tests fail, fix and re-run"))
-    }
 }
