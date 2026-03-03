@@ -37,8 +37,6 @@ extension ChatPanelView {
                 latestAssistantMessageId = message.id
             case .user:
                 userCount += 1
-            default:
-                break
             }
         }
 
