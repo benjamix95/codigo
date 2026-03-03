@@ -6,17 +6,19 @@ struct SwarmProgressView: View {
     let isTaskRunning: Bool
     let onSelectSwarm: ((String) -> Void)?
     private let inlineMaxWidth: CGFloat = 560
+    @State private var showInlineLiveCards = false
 
-    private var swarmLanes: [SwarmLaneState] {
-        TaskActivityStore.laneStates(from: activities)
-            .filter { lane in
-                !lane.swarmId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && lane.swarmId.lowercased() != "orchestrator"
+    var liveSwarmCards: [SwarmLiveCardState] {
+        let reduced = SwarmLiveReducer.reduce(activities: activities, limitRecentEvents: 12)
+        return SwarmLiveReducer.sorted(states: Array(reduced.values))
+            .filter { card in
+                !card.swarmId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && card.swarmId.lowercased() != "orchestrator"
             }
     }
 
     private var activeSubagentCount: Int {
-        swarmLanes.filter { $0.status == .running }.count
+        liveSwarmCards.filter { $0.status == .running }.count
     }
 
     private var stepCountLabel: String {
@@ -43,12 +45,24 @@ struct SwarmProgressView: View {
 
                 Spacer(minLength: 8)
 
-                metricPill(
-                    icon: "bolt.fill",
-                    text: activeAgentsLabel,
-                    tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
-                    isLive: isTaskRunning
-                )
+                Button {
+                    guard !liveSwarmCards.isEmpty else { return }
+                    withAnimation(.snappy(duration: 0.22)) {
+                        showInlineLiveCards.toggle()
+                    }
+                } label: {
+                    metricPill(
+                        icon: "bolt.fill",
+                        text: activeAgentsLabel,
+                        tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                        isLive: isTaskRunning,
+                        accessorySymbol: liveSwarmCards.isEmpty ? nil : (showInlineLiveCards ? "chevron.up" : "chevron.down")
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Show/hide live subagent cards")
+                .disabled(liveSwarmCards.isEmpty)
+
                 metricPill(icon: "checklist", text: stepCountLabel, tint: .secondary)
 
                 if isTaskRunning {
@@ -74,6 +88,13 @@ struct SwarmProgressView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
+            }
+
+            if showInlineLiveCards, !liveSwarmCards.isEmpty {
+                inlineLiveCardsSection
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal, 10)
@@ -105,6 +126,11 @@ struct SwarmProgressView: View {
         .frame(maxWidth: inlineMaxWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.leading, 6)
+        .onChange(of: liveSwarmCards.count) { _, newValue in
+            if newValue == 0 {
+                showInlineLiveCards = false
+            }
+        }
     }
 
     private var swarmAntIcon: some View {
@@ -130,7 +156,13 @@ struct SwarmProgressView: View {
         }
     }
 
-    private func metricPill(icon: String, text: String, tint: Color, isLive: Bool = false) -> some View {
+    private func metricPill(
+        icon: String,
+        text: String,
+        tint: Color,
+        isLive: Bool = false,
+        accessorySymbol: String? = nil
+    ) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 8.5, weight: .semibold))
@@ -138,6 +170,11 @@ struct SwarmProgressView: View {
                 .font(.system(size: 9, weight: .semibold))
                 .lineLimit(1)
                 .textShimmer(active: isLive)
+            if let accessorySymbol {
+                Image(systemName: accessorySymbol)
+                    .font(.system(size: 7.5, weight: .bold))
+                    .opacity(0.85)
+            }
         }
         .foregroundStyle(tint)
         .padding(.horizontal, 7)
