@@ -107,6 +107,14 @@ extension CoderIDEMCPServerApp {
 
         if didTimeout {
             await terminateProcessIfNeeded(process)
+            waitTask.cancel()
+            stdoutTask.cancel()
+            stderrTask.cancel()
+            try? stdout.fileHandleForReading.close()
+            try? stderr.fileHandleForReading.close()
+
+            let timeoutMessage = "Subagent \(resolvedRole.displayName) timed out after \(Int(timeout))s."
+            return SubagentResult(output: timeoutMessage, isError: true)
         }
 
         let exitCode = await waitTask.value
@@ -125,12 +133,6 @@ extension CoderIDEMCPServerApp {
                 : "Subagent failed (exit \(exitCode))."
         }
         let truncated = truncateOutput(result)
-
-        if didTimeout {
-            let timeoutMessage = "Subagent \(resolvedRole.displayName) timed out after \(Int(timeout))s."
-            let output = truncated.isEmpty ? timeoutMessage : "\(timeoutMessage)\n\nPartial output:\n\(truncated)"
-            return SubagentResult(output: output, isError: true)
-        }
 
         return SubagentResult(
             output: truncated,
