@@ -6,28 +6,106 @@ struct SwarmProgressView: View {
     let isTaskRunning: Bool
     let onSelectSwarm: ((String) -> Void)?
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 5) {
-                Image(systemName: "checklist")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.swarmColor)
-                Text("SUBAGENT · \(store.steps.count) steps")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                    .tracking(0.5)
+    private var swarmLanes: [SwarmLaneState] {
+        TaskActivityStore.laneStates(from: activities)
+            .filter { lane in
+                !lane.swarmId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && lane.swarmId.lowercased() != "orchestrator"
             }
-            .padding(.horizontal, 10).padding(.top, 6)
+    }
 
-            ForEach(store.steps) { step in
-                SwarmStepRow(step: step)
+    private var activeSubagentCount: Int {
+        swarmLanes.filter { $0.status == .running }.count
+    }
+
+    private var stepCountLabel: String {
+        let count = store.steps.count
+        return count == 1 ? "1 step" : "\(count) steps"
+    }
+
+    private var activeAgentsLabel: String {
+        let count = activeSubagentCount
+        return count == 1 ? "1 active" : "\(count) active"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.2.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.swarmColor)
+                    Text("SUBAGENT")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.5)
+                }
+
+                Spacer(minLength: 8)
+
+                metricPill(
+                    icon: "bolt.fill",
+                    text: activeAgentsLabel,
+                    tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary
+                )
+                metricPill(icon: "checklist", text: stepCountLabel, tint: .secondary)
+
+                if isTaskRunning {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(DesignSystem.Colors.swarmColor)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+
+            if store.steps.isEmpty {
+                Text("Waiting for subagent steps…")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(store.steps) { step in
+                        SwarmStepRow(step: step)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, 10)
             }
         }
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
         .padding(.bottom, 8)
-        .background(DesignSystem.Colors.backgroundSecondary.opacity(0.5))
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(DesignSystem.Colors.border).frame(height: 0.5)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.72))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 1)
         }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.border.opacity(0.45))
+                .frame(height: 0.5)
+                .offset(y: 8)
+        }
+    }
+
+    private func metricPill(icon: String, text: String, tint: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 8.5, weight: .semibold))
+            Text(text)
+                .font(.system(size: 9, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(tint.opacity(0.12), in: Capsule())
     }
 }
 
@@ -50,8 +128,16 @@ private struct SwarmStepRow: View {
         }
     }
 
+    private var statusLabel: String {
+        switch step.status {
+        case .completed: return "done"
+        case .inProgress: return "running"
+        case .pending: return "pending"
+        }
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: 8) {
             Image(systemName: statusIcon)
                 .font(.system(size: 12))
                 .foregroundStyle(statusColor)
@@ -61,7 +147,22 @@ private struct SwarmStepRow: View {
                 .strikethrough(step.status == .completed)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            Text(statusLabel)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(statusColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(statusColor.opacity(0.12), in: Capsule())
         }
-        .padding(.horizontal, 10).padding(.vertical, 2)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.8), lineWidth: 1)
+        }
     }
 }
