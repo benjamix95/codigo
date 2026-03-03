@@ -270,7 +270,7 @@ extension ChatPanelView {
             swarmWorkerBackend: swarmWorkerBackend,
             openaiModel: openaiModel,
             claudeModel: claudeModel,
-            contextRefreshTick: streamContentVersion
+            contextRefreshTick: streamContentVersion / 12
         )
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)

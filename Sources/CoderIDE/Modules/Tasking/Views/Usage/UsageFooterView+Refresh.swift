@@ -20,9 +20,25 @@ extension UsageFooterView {
         let generation = contextEstimateGeneration
 
         let timeSinceLast = Date().timeIntervalSince(lastContextEstimateFireDate)
-        let fireImmediately = timeSinceLast >= Self.contextEstimateThrottleInterval
-        let delay: TimeInterval = fireImmediately ? 0 : Self.contextEstimateThrottleInterval
+        let delay: TimeInterval = max(
+            0,
+            Self.contextEstimateThrottleInterval - timeSinceLast
+        )
+        let workItem = DispatchWorkItem {
+            Task { @MainActor in
+                guard generation == self.contextEstimateGeneration else { return }
+                self.runContextEstimateRefresh(generation: generation)
+            }
+        }
+        contextEstimateWorkItem = workItem
+        Self.contextEstimateQueue.asyncAfter(
+            deadline: .now() + delay,
+            execute: workItem
+        )
+    }
 
+    @MainActor
+    private func runContextEstimateRefresh(generation: Int) {
         let model = effectiveContextModel
         let contextWindowSize = resolvedContextWindowSize(providerId: effectiveProviderId, model: model)
         guard let conversation = chatStore.conversation(for: selectedConversationId) else {
@@ -41,7 +57,8 @@ extension UsageFooterView {
         let openFiles = openFilesStore.openFilesForContext()
         let activeFilePath = openFilesStore.openFilePath
         let scopeMode = ContextScopeMode(rawValue: contextScopeModeRaw) ?? .auto
-        let workItem = DispatchWorkItem {
+
+        let estimateWorkItem = DispatchWorkItem {
             let workspaceContext = scopedContext.toWorkspaceContext(
                 openFiles: openFiles,
                 activeSelection: nil,
@@ -68,11 +85,8 @@ extension UsageFooterView {
                 self.contextEstimateSnapshot = (estimate.0, estimate.1, estimate.2)
             }
         }
-        contextEstimateWorkItem = workItem
-        Self.contextEstimateQueue.asyncAfter(
-            deadline: .now() + delay,
-            execute: workItem
-        )
+        contextEstimateWorkItem = estimateWorkItem
+        Self.contextEstimateQueue.async(execute: estimateWorkItem)
     }
 
     func refreshUsage() {
