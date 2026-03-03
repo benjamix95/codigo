@@ -6,7 +6,13 @@ extension UnifiedToolRuntime {
         guard !query.isEmpty else {
             return failure("query is required", errorCode: "validation", startDate: startDate)
         }
-        let targetDirs = (call.args["target_directories"] ?? "")
+        let targetDirectoriesRaw =
+            call.args["target_directories"]
+            ?? call.args["targetDirectories"]
+            ?? call.args["pathScope"]
+            ?? call.args["path"]
+            ?? ""
+        let targetDirs = targetDirectoriesRaw
             .components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

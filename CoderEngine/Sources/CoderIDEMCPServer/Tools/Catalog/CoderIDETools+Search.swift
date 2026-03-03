@@ -6,19 +6,43 @@ extension CoderIDETools {
         // --- Search & Navigation ---
         Tool(
             name: "coderide_grep",
-            description: "Search file contents using regex patterns. Accepts 'pattern' (or 'query') and returns matching lines with context.",
+            description: "Search file contents using regex patterns. Supports aliases 'pattern'/'query' and 'path'/'pathScope'.",
             inputSchema: .object([
                 "type": "object",
                 "properties": .object([
-                    "query": .object(["type": "string", "description": "Regex/text query to search (alias of pattern)"]),
-                    "pattern": .object(["type": "string", "description": "Regex pattern to search for"]),
-                    "path": .object(["type": "string", "description": "Directory or file to search in"]),
+                    "query": .object(["type": "string", "description": "Text or regex query to search (alias of pattern)"]),
+                    "pattern": .object(["type": "string", "description": "Regex pattern to search for (alias of query)"]),
+                    "pathScope": .object(["type": "string", "description": "Directory/file scope (comma-separated for multiple scopes)"]),
+                    "path": .object(["type": "string", "description": "Alias for pathScope"]),
                     "fileType": .object(["type": "string", "description": "File extension filter (e.g. 'swift', 'py')"]),
-                    "maxResults": .object(["type": "string", "description": "Maximum number of results"]),
+                    "glob": .object(["type": "string", "description": "Glob pattern filter (e.g. '*.swift')"]),
+                    "output_mode": .object(["type": "string", "description": "content (default), files_only, or count"]),
+                    "context_lines": .object(["type": "string", "description": "Context lines around matches (default: 2, max: 10)"]),
+                    "case_sensitive": .object(["type": "string", "description": "'true' to enable case-sensitive matching"]),
+                    "multiline": .object(["type": "string", "description": "'true' to enable multiline regex mode"]),
+                    "maxResults": .object(["type": "string", "description": "Legacy alias for max matches per scope"]),
                 ]),
                 "required": .array([]),
             ]),
             annotations: .init(title: "Grep Search", readOnlyHint: true)
+        ),
+        Tool(
+            name: "coderide_semantic_search",
+            description: "Search code by intent and meaning using semantic index (with fallback text search).",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "query": .object(["type": "string", "description": "Natural language search query"]),
+                    "target_directories": .object(["type": "string", "description": "Optional comma-separated directories"]),
+                    "targetDirectories": .object(["type": "string", "description": "Alias for target_directories"]),
+                    "pathScope": .object(["type": "string", "description": "Compatibility alias for target_directories"]),
+                    "path": .object(["type": "string", "description": "Compatibility alias for target_directories"]),
+                    "num_results": .object(["type": "string", "description": "Max results (1-50)"]),
+                    "limit": .object(["type": "string", "description": "Alias for num_results"]),
+                ]),
+                "required": .array([.string("query")]),
+            ]),
+            annotations: .init(title: "Semantic Search", readOnlyHint: true, idempotentHint: true)
         ),
         Tool(
             name: "coderide_glob",

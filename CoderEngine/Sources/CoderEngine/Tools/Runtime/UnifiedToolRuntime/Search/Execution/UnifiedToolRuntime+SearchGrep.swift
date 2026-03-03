@@ -31,6 +31,8 @@ extension UnifiedToolRuntime {
         }()
         let fileType = call.args["fileType"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let globPattern = call.args["glob"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let rawMaxResults = call.args["maxResults"] ?? call.args["max_results"] ?? ""
+        let maxMatchesPerScope = min(max(Int(rawMaxResults) ?? 200, 1), 2000)
         let contextLines = Int(call.args["context_lines"] ?? "") ?? 2
         let caseSensitive = (call.args["case_sensitive"] ?? "false").lowercased() == "true"
         let multiline = (call.args["multiline"] ?? "false").lowercased() == "true"
@@ -81,7 +83,7 @@ extension UnifiedToolRuntime {
 
         // Primary: ripgrep — when multiple scopes (roots), search each; cwd uses first scope
         let rgCwd = scopes.first ?? primaryWorkspace
-        var rgArgs = ["/usr/bin/env", "rg", "-n", "--no-heading", "--max-count", "200"]
+        var rgArgs = ["/usr/bin/env", "rg", "-n", "--no-heading", "--max-count", "\(maxMatchesPerScope)"]
         if !caseSensitive { rgArgs.append("-i") }
         if multiline { rgArgs.append("-U") }
         if !fileType.isEmpty { rgArgs.append(contentsOf: ["--type", fileType]) }
@@ -109,6 +111,7 @@ extension UnifiedToolRuntime {
             usedFallback = true
             var grepArgs = ["/usr/bin/env", "grep", "-RIn"]
             if !caseSensitive { grepArgs.append("-i") }
+            grepArgs.append(contentsOf: ["-m", "\(maxMatchesPerScope)"])
             if shouldUseContentMode, maxContext > 0 { grepArgs.append(contentsOf: ["-C", "\(maxContext)"]) }
             if outputMode == "files_only" { grepArgs.append("-l") }
             if outputMode == "count" { grepArgs.append("-c") }

@@ -29,6 +29,7 @@ extension ToolSchemaCatalog {
                 "path": ["type": "string", "description": "Alias for pathScope"],
                 "fileType": ["type": "string", "description": "File type filter (e.g. 'swift', 'ts', 'py')"],
                 "glob": ["type": "string", "description": "Glob pattern to filter files (e.g. '*.swift', '*.{ts,tsx}')"],
+                "maxResults": ["type": "string", "description": "Legacy alias for max matches per scope (default: 200, max: 2000)"],
                 "output_mode": ["type": "string", "description": "'content' (default), 'files_only' (just paths), or 'count' (match counts)"],
                 "context_lines": ["type": "string", "description": "Context lines around matches (default: 2, max: 10). Only for 'content' mode"],
                 "case_sensitive": ["type": "string", "description": "'true' or 'false' (default: false)"],

@@ -112,6 +112,9 @@ extension ToolSchemaCatalog {
             properties: [
                 "query": ["type": "string", "description": "Natural language query"],
                 "target_directories": ["type": "string", "description": "Optional comma-separated directories"],
+                "targetDirectories": ["type": "string", "description": "Alias for target_directories"],
+                "pathScope": ["type": "string", "description": "Compatibility alias for target_directories"],
+                "path": ["type": "string", "description": "Compatibility alias for target_directories"],
                 "num_results": ["type": "string", "description": "Maximum results (1-50)"],
                 "limit": ["type": "string", "description": "Alias for num_results"]
             ],
