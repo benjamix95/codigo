@@ -1,6 +1,8 @@
 import Foundation
 
 extension AnthropicAPIProvider {
+    static let maxRetryDelayTotalSeconds: TimeInterval = 120
+
     static let retryableHTTPStatusCodes: Set<Int> = [408, 409, 425, 429, 500, 502, 503, 504, 529]
 
     static func makeSession(timeoutSeconds: TimeInterval) -> URLSession {
@@ -60,6 +62,39 @@ extension AnthropicAPIProvider {
             return delay > 0 ? delay : nil
         }
         return nil
+    }
+
+    static func normalizeRetryAfter(_ value: TimeInterval?) -> TimeInterval {
+        guard let retryAfter = value else {
+            return 0
+        }
+        if !retryAfter.isFinite || retryAfter <= 0 {
+            return 0
+        }
+        return min(max(0, retryAfter), maxRetryDelayTotalSeconds)
+    }
+
+    static func shouldRetryTransportError(for error: Error) -> Bool {
+        if error is CancellationError { return false }
+        if let urlError = error as? URLError {
+            return isRetryableTransportError(urlError)
+        }
+        return isRetryableTransportError(error)
+    }
+
+    static func retryDelay(
+        attempt: Int,
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval,
+        retryAfter: TimeInterval?
+    ) -> TimeInterval {
+        let backoff = Self.exponentialBackoffSeconds(
+            attempt: attempt,
+            initialDelay: initialDelay,
+            maxDelay: maxDelay
+        )
+        let serverDelay = Self.normalizeRetryAfter(retryAfter)
+        return min(maxRetryDelayTotalSeconds, max(backoff, serverDelay))
     }
 
     static func isRetryableTransportError(_ error: Error) -> Bool {

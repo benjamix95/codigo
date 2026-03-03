@@ -77,12 +77,12 @@ extension OpenAIAPIProvider {
 
                 if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
                     let retryAfter = Self.retryAfterSeconds(from: httpResponse)
-                    let backoffDelay = Self.exponentialBackoffSeconds(
+                    let delay = Self.retryDelay(
                         attempt: currentAttempt,
                         initialDelay: initialRetryDelaySeconds,
-                        maxDelay: maxRetryDelaySeconds
+                        maxDelay: maxRetryDelaySeconds,
+                        retryAfter: retryAfter
                     )
-                    let delay = max(retryAfter ?? 0, backoffDelay)
 
                     yieldProviderRetry(
                         continuation: continuation,
@@ -101,11 +101,16 @@ extension OpenAIAPIProvider {
                 let msg = Self.extractErrorMessage(from: errorBody, statusCode: statusCode)
                 throw CoderEngineError.apiError(msg)
             } catch {
-                if currentAttempt < maxRetries, Self.isRetryableTransportError(error) {
-                    let delay = Self.exponentialBackoffSeconds(
+                if error is CancellationError {
+                    throw error
+                }
+
+                if currentAttempt < maxRetries, Self.shouldRetryTransportError(for: error) {
+                    let delay = Self.retryDelay(
                         attempt: currentAttempt,
                         initialDelay: initialRetryDelaySeconds,
-                        maxDelay: maxRetryDelaySeconds
+                        maxDelay: maxRetryDelaySeconds,
+                        retryAfter: nil
                     )
 
                     yieldProviderRetry(

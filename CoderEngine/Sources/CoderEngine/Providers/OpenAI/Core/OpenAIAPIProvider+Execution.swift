@@ -44,11 +44,15 @@ extension OpenAIAPIProvider {
 
                     return
                 } catch {
+                    if error is CancellationError {
+                        throw error
+                    }
+
                     if websocketStarted {
                         throw error
                     }
 
-                    if websocketAttempt < maxRetries, Self.isRetryableTransportError(error) {
+                    if websocketAttempt < maxRetries, Self.shouldRetryTransportError(for: error) {
                         let delay = Self.exponentialBackoffSeconds(
                             attempt: websocketAttempt,
                             initialDelay: initialRetryDelaySeconds,

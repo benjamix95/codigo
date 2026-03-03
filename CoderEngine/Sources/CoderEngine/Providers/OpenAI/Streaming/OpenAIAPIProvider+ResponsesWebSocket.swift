@@ -48,7 +48,11 @@ extension OpenAIAPIProvider {
         guard let createText = String(data: encodedCreate, encoding: .utf8) else {
             throw CoderEngineError.apiError("Failed to encode WebSocket request")
         }
-        try await socket.send(.string(createText))
+        try await Self.sendWebSocketMessageWithTimeout(
+            socket: socket,
+            message: .string(createText),
+            timeoutSeconds: timeoutSeconds
+        )
 
         var didEmitUsage = false
         var didStartStream = false

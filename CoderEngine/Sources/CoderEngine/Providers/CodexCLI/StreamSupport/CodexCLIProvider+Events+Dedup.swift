@@ -1,0 +1,155 @@
+import Foundation
+
+extension CodexCLIProvider {
+    static func finalizeAssistantTurnIfNeeded(
+        state: inout CodexStreamParserState
+    ) -> [StreamEvent] {
+        guard !state.turn.lastValidAgentMessage.isEmpty else { return [] }
+        guard !state.turn.emittedAnyAssistantDelta else { return [] }
+
+        var events: [StreamEvent] = []
+        emitMarkerEvents(from: state.turn.lastValidAgentMessage, state: &state, events: &events)
+        var cleanupCarry = ""
+        let cleaned = scrubTechnicalTextChunk(state.turn.lastValidAgentMessage, carry: &cleanupCarry)
+        if !cleaned.isEmpty {
+            state.turn.emittedAnyAssistantDelta = true
+            state.cumulativeVisibleText += cleaned
+            events.append(.textDelta(cleaned))
+        }
+        return events
+    }
+
+    static func emitMarkerEvents(
+        from text: String,
+        state: inout CodexStreamParserState,
+        events: inout [StreamEvent]
+    ) {
+        // Marker parsing removed — IDE state tools now go exclusively through MCP.
+        // This function is kept as a no-op to preserve the call-site structure;
+        // it will be removed in the cleanup phase.
+    }
+
+    static func appendRawEvent(
+        type: String,
+        payload: [String: String],
+        state: inout CodexStreamParserState,
+        events: inout [StreamEvent]
+    ) {
+        let key = rawDedupKey(type: type, payload: payload)
+        guard state.emittedRawKeys.insert(key).inserted else { return }
+        events.append(.raw(type: type, payload: payload))
+    }
+
+    static func rawDedupKey(type: String, payload: [String: String]) -> String {
+        if type == "reasoning" {
+            let group = payload["group_id"] ?? ""
+            let preview = String((payload["output"] ?? "").suffix(160))
+            return "\(type)|\(group)|\(preview)"
+        }
+        let identityKeys = [
+            "id", "group_id", "queryId", "query_id",
+            "tool_call_id", "call_id", "swarm_id", "step_id"
+        ]
+        let identityKeySet = Set(identityKeys)
+        let identifier = identityKeys.compactMap { payload[$0] }.first(where: { !$0.isEmpty }) ?? ""
+        let status = (payload["status"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !identifier.isEmpty || !status.isEmpty {
+            let fingerprint = payloadFingerprint(
+                payload,
+                excluding: identityKeySet.union(["status"])
+            )
+            if !fingerprint.isEmpty {
+                return "\(type)|\(identifier)|\(status)|\(fingerprint)"
+            }
+            return "\(type)|\(identifier)|\(status)"
+        }
+        let canonicalPayload = payload.keys.sorted().map { key in
+            "\(key)=\(payload[key] ?? "")"
+        }.joined(separator: "|")
+        return "\(type)|\(canonicalPayload)"
+    }
+
+    static func payloadFingerprint(_ payload: [String: String], excluding ignored: Set<String>) -> String {
+        let entries = payload.keys.sorted().compactMap { key -> String? in
+            guard !ignored.contains(key) else { return nil }
+            let value = String((payload[key] ?? "").prefix(256))
+            return "\(key)=\(value)"
+        }
+        guard !entries.isEmpty else { return "" }
+        var hasher = Hasher()
+        for entry in entries {
+            hasher.combine(entry)
+        }
+        return String(hasher.finalize(), radix: 16)
+    }
+
+    static func extractAgentMessageChunk(from json: [String: Any]) -> (text: String, isDelta: Bool)? {
+        let eventType = (json["type"] as? String) ?? ""
+
+        if eventType.hasPrefix("item."),
+           let item = json["item"] as? [String: Any],
+           let itemType = item["type"] as? String,
+           itemType == "agent_message" {
+            if let delta = firstString(in: item, keys: ["delta", "text_delta"]), !delta.isEmpty {
+                return (delta, true)
+            }
+            if let text = extractTextPayload(from: item), !text.isEmpty {
+                return (text, false)
+            }
+            return nil
+        }
+
+        if eventType == "agent_message" {
+            if let text = extractTextPayload(from: json), !text.isEmpty {
+                return (text, false)
+            }
+        }
+
+        return nil
+    }
+
+    static func extractTextPayload(from obj: Any) -> String? {
+        if let s = obj as? String {
+            return s
+        }
+        if let dict = obj as? [String: Any] {
+            if let text = dict["text"] as? String { return text }
+            if let output = dict["output"] as? String { return output }
+            if let message = dict["message"] {
+                if let extracted = extractTextPayload(from: message), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let item = dict["item"] {
+                if let extracted = extractTextPayload(from: item), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let event = dict["event"] {
+                if let extracted = extractTextPayload(from: event), !extracted.isEmpty {
+                    return extracted
+                }
+            }
+            if let content = dict["content"] as? [Any] {
+                let chunks = content.compactMap { extractTextPayload(from: $0) }
+                if !chunks.isEmpty {
+                    return chunks.joined()
+                }
+            }
+            if let output = dict["output"] as? [Any] {
+                let chunks = output.compactMap { extractTextPayload(from: $0) }
+                if !chunks.isEmpty {
+                    return chunks.joined()
+                }
+            }
+            return nil
+        }
+        if let array = obj as? [Any] {
+            let chunks = array.compactMap { extractTextPayload(from: $0) }
+            if !chunks.isEmpty {
+                return chunks.joined()
+            }
+        }
+        return nil
+    }
+}

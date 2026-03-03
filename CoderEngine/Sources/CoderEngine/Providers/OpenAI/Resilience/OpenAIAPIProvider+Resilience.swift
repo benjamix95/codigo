@@ -1,6 +1,8 @@
 import Foundation
 
 extension OpenAIAPIProvider {
+    static let maxRetryDelayTotalSeconds: TimeInterval = 120
+
     static func supportsStreamUsage(baseURL: String) -> Bool {
         let lower = baseURL.lowercased()
         return lower.contains("/chat/completions")
@@ -61,6 +63,39 @@ extension OpenAIAPIProvider {
         return nil
     }
 
+    static func normalizeRetryAfter(_ value: TimeInterval?) -> TimeInterval {
+        guard let retryAfter = value else {
+            return 0
+        }
+        if !retryAfter.isFinite || retryAfter <= 0 {
+            return 0
+        }
+        return min(max(0, retryAfter), maxRetryDelayTotalSeconds)
+    }
+
+    static func shouldRetryTransportError(for error: Error) -> Bool {
+        if error is CancellationError { return false }
+        if let urlError = error as? URLError {
+            return isRetryableTransportCode(urlError.code)
+        }
+        return isRetryableTransportError(error)
+    }
+
+    static func retryDelay(
+        attempt: Int,
+        initialDelay: TimeInterval,
+        maxDelay: TimeInterval,
+        retryAfter: TimeInterval?
+    ) -> TimeInterval {
+        let backoff = Self.exponentialBackoffSeconds(
+            attempt: attempt,
+            initialDelay: initialDelay,
+            maxDelay: maxDelay
+        )
+        let serverDelay = Self.normalizeRetryAfter(retryAfter)
+        return min(maxRetryDelayTotalSeconds, max(backoff, serverDelay))
+    }
+
     static func isRetryableTransportError(_ error: Error) -> Bool {
         if let urlError = error as? URLError {
             return isRetryableTransportCode(urlError.code)
@@ -108,6 +143,22 @@ extension OpenAIAPIProvider {
     }
 
     /// Extract a human-readable stream event from WebSocket.
+    static func sendWebSocketMessageWithTimeout(
+        socket: URLSessionWebSocketTask,
+        message: URLSessionWebSocketTask.Message,
+        timeoutSeconds: TimeInterval
+    ) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await socket.send(message) }
+            group.addTask {
+                try await sleep(seconds: timeoutSeconds)
+                throw URLError(.timedOut)
+            }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
     static func receiveWebSocketMessage(
         socket: URLSessionWebSocketTask,
         timeoutSeconds: TimeInterval

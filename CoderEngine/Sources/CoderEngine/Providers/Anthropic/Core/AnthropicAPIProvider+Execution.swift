@@ -66,12 +66,12 @@ extension AnthropicAPIProvider {
                 let retryAfter = Self.retryAfterSeconds(from: httpResponse)
 
                 if currentAttempt < maxRetries, Self.retryableHTTPStatusCodes.contains(statusCode) {
-                    let backoffDelay = Self.exponentialBackoffSeconds(
+                    let delay = Self.retryDelay(
                         attempt: currentAttempt,
                         initialDelay: initialRetryDelaySeconds,
-                        maxDelay: maxRetryDelaySeconds
+                        maxDelay: maxRetryDelaySeconds,
+                        retryAfter: retryAfter
                     )
-                    let delay = max(retryAfter ?? 0, backoffDelay)
 
                     continuation.yield(.raw(type: "provider_retry", payload: [
                         "provider": "anthropic",
@@ -88,11 +88,16 @@ extension AnthropicAPIProvider {
 
                 throw CoderEngineError.apiError(errorMessage)
             } catch {
-                if currentAttempt < maxRetries, Self.isRetryableTransportError(error) {
-                    let delay = Self.exponentialBackoffSeconds(
+                if error is CancellationError {
+                    throw error
+                }
+
+                if currentAttempt < maxRetries, Self.shouldRetryTransportError(for: error) {
+                    let delay = Self.retryDelay(
                         attempt: currentAttempt,
                         initialDelay: initialRetryDelaySeconds,
-                        maxDelay: maxRetryDelaySeconds
+                        maxDelay: maxRetryDelaySeconds,
+                        retryAfter: nil
                     )
 
                     continuation.yield(.raw(type: "provider_retry", payload: [
