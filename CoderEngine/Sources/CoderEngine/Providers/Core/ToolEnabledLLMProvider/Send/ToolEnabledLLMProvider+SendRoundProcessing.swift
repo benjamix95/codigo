@@ -30,6 +30,7 @@ extension ToolEnabledLLMProvider {
         var roundToolResults: [[String: String]] = []
         var toolCallCountByKey: [String: Int] = [:]
         var toolCallsThisRound = 0
+        var didEmitToolBudgetExceededThisRound = false
         var sawExecutableSuggestion = false
         var sawCodeMutationDuringTask = false
         var reviewerCompletedAfterLatestMutation = false
@@ -109,12 +110,15 @@ extension ToolEnabledLLMProvider {
                 if name.isEmpty { continue }
 
                 if toolCallsThisRound >= policy.maxToolCallsPerRound {
-                    continuation.yield(.raw(type: "tool_execution_error", payload: [
-                        "title": "Tool budget exceeded",
-                        "detail": "Reached tool limit per round (\(policy.maxToolCallsPerRound))",
-                        "status": "failed",
-                        "error_code": "budget_exceeded"
-                    ]))
+                    if !didEmitToolBudgetExceededThisRound {
+                        didEmitToolBudgetExceededThisRound = true
+                        continuation.yield(.raw(type: "tool_execution_error", payload: [
+                            "title": "Tool budget exceeded",
+                            "detail": "Reached tool limit per round (\(policy.maxToolCallsPerRound))",
+                            "status": "failed",
+                            "error_code": "budget_exceeded"
+                        ]))
+                    }
                     continue
                 }
 

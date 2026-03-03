@@ -79,6 +79,70 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         XCTAssertTrue(sawMCPFailure)
     }
 
+    func testToolBudgetExceededIsEmittedOncePerRoundEvenWithManySuggestions() async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tool-budget-dedupe-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let first = workspace.appendingPathComponent("First.swift")
+        let second = workspace.appendingPathComponent("Second.swift")
+        let third = workspace.appendingPathComponent("Third.swift")
+        let fourth = workspace.appendingPathComponent("Fourth.swift")
+        try "let first = 1\n".write(to: first, atomically: true, encoding: .utf8)
+        try "let second = 2\n".write(to: second, atomically: true, encoding: .utf8)
+        try "let third = 3\n".write(to: third, atomically: true, encoding: .utf8)
+        try "let fourth = 4\n".write(to: fourth, atomically: true, encoding: .utf8)
+
+        let base = SequencedEventProvider(events: [
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-budget-1",
+                "name": "read",
+                "path": first.path,
+                "is_partial": "false",
+            ]),
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-budget-2",
+                "name": "read",
+                "path": second.path,
+                "is_partial": "false",
+            ]),
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-budget-3",
+                "name": "read",
+                "path": third.path,
+                "is_partial": "false",
+            ]),
+            .raw(type: "tool_call_suggested", payload: [
+                "id": "tc-budget-4",
+                "name": "read",
+                "path": fourth.path,
+                "is_partial": "false",
+            ]),
+        ])
+
+        let provider = ToolEnabledLLMProvider(
+            base: base,
+            policy: ToolRuntimePolicy(maxToolCallsPerRound: 1),
+            maxToolRounds: 1
+        )
+        let stream = try await provider.send(
+            prompt: "Leggi più file",
+            context: WorkspaceContext(workspacePath: workspace),
+            imageURLs: nil
+        )
+
+        var budgetExceededEvents = 0
+        for try await event in stream {
+            guard case .raw(let type, let payload) = event else { continue }
+            if type == "tool_execution_error", payload["error_code"] == "budget_exceeded" {
+                budgetExceededEvents += 1
+            }
+        }
+
+        XCTAssertEqual(budgetExceededEvents, 1)
+    }
+
     func testMCPEditRerouteMapsWriteToCoderideWrite() {
         let reroute = ToolEnabledLLMProvider.rerouteEditToolToMCP(
             toolName: "write",
