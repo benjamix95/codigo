@@ -33,6 +33,15 @@ extension TaskActivityStore {
         "permission_denied",
         "plan_step",
         "plan_step_update",
+        "plan_create",
+        "plan_read",
+        "plan_step_upsert",
+        "plan_step_batch_update",
+        "plan_step_reorder",
+        "plan_step_dependency_set",
+        "plan_set_walkthrough",
+        "plan_history_read",
+        "plan_diff",
         "planning_auto_reset",
         "activate_plan_mode",
         "activate_debug_mode",
@@ -89,6 +98,7 @@ extension TaskActivityStore {
             || normalized.hasPrefix("todo_")
             || normalized.hasPrefix("read_batch")
             || normalized.hasPrefix("plan_step")
+            || normalized.hasPrefix("plan_")
         {
             return true
         }
@@ -207,7 +217,7 @@ extension TaskActivityStore {
             default: return "Debugging"
             }
         }
-        if normalizedType.contains("todo") || normalizedType.contains("plan_step") {
+        if normalizedType.contains("todo") || normalizedType.contains("plan_step") || normalizedType.hasPrefix("plan_") {
             return "Planning next move"
         }
         switch last.phase {

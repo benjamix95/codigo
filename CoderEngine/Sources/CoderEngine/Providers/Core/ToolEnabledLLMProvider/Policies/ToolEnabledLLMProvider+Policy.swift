@@ -232,6 +232,15 @@ extension ToolEnabledLLMProvider {
         - **todo_write** — Create or update a todo item in the LiveCard. Args: `title`, `status` (pending/in_progress/done/blocked), `priority` (low/medium/high), `notes` (optional), `activeForm` (optional present-tense label), `linkedFiles` (optional file paths).
         - **todo_read** — Read the current todo list. No required args.
         - **plan_step_update** — Update a plan step status. Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
+        - **plan_create** — Create/replace a plan snapshot. Args: `goal`, `steps` (JSON array), `chosen_path` (optional), `conversation_id` (optional).
+        - **plan_read** — Read current plan snapshot. Args: `conversation_id` (optional), `include_history` (optional), `history_limit` (optional).
+        - **plan_step_upsert** — Upsert full plan step metadata. Args: `step_id`, `status`, optional `title`, `description`, `target_file`, `linked_files`, `depends_on`, `notes`.
+        - **plan_step_batch_update** — Batch update steps. Args: `updates` (JSON array), `conversation_id` (optional).
+        - **plan_step_reorder** — Reorder steps. Args: `ordered_step_ids` (JSON array), `conversation_id` (optional).
+        - **plan_step_dependency_set** — Set step dependencies. Args: `step_id`, `depends_on` (JSON array), `conversation_id` (optional).
+        - **plan_set_walkthrough** — Store walkthrough recap. Args: `markdown`, optional `summary`, `outcome`.
+        - **plan_history_read** — Read plan history snapshots. Args: `conversation_id` (optional), `limit` (optional).
+        - **plan_diff** — Diff two plan snapshots. Args: `from_snapshot_id`, optional `to_snapshot_id`, `conversation_id`.
         - **mermaid_render** — Render a Mermaid diagram in the LiveCard. Args: `code` (Mermaid syntax), `title` (optional).
         - **debug_set_phase** — Set debug pipeline phase. Args: `phase`, `detail` (optional).
         - **debug_request_user** — Request explicit user input in debug flow. Args: `kind` (question/reproduce), `prompt`.

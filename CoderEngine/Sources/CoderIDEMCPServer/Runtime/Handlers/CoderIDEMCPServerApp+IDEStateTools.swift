@@ -12,6 +12,9 @@ extension CoderIDEMCPServerApp {
         "debug_set_phase", "debug_request_user", "debug_resolve",
         "policy_ack", "activate_plan_mode", "activate_debug_mode",
         "show_task_panel", "show_swarm_panel",
+        "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
+        "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+        "plan_history_read", "plan_diff",
     ]
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call
@@ -19,6 +22,10 @@ extension CoderIDEMCPServerApp {
     /// process (CoderIDE) sees the MCP tool call event in the Codex CLI stream
     /// and routes it through EventNormalizer → TodoStore / ChatStore.
     static func handleIDEStateTool(name: String, args: [String: String]) -> CallTool.Result {
+        if let planResult = handlePlanIDEStateTool(name: name, args: args) {
+            return planResult
+        }
+
         switch name {
         case "todo_write":
             let todosRaw = (args["todos"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

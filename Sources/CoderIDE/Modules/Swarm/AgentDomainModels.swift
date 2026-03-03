@@ -55,6 +55,57 @@ struct PlanStep: Identifiable, Codable, Equatable {
     var description: String
     var targetFile: String?
     var status: PlanStepStatus
+    var linkedFiles: [String]
+    var dependsOn: [String]
+    var notes: String
+    var updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case targetFile
+        case status
+        case linkedFiles
+        case dependsOn
+        case notes
+        case updatedAt
+    }
+
+    init(
+        id: String,
+        title: String,
+        description: String,
+        targetFile: String?,
+        status: PlanStepStatus,
+        linkedFiles: [String] = [],
+        dependsOn: [String] = [],
+        notes: String = "",
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.targetFile = targetFile
+        self.status = status
+        self.linkedFiles = linkedFiles
+        self.dependsOn = dependsOn
+        self.notes = notes
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decode(String.self, forKey: .description)
+        targetFile = try container.decodeIfPresent(String.self, forKey: .targetFile)
+        status = try container.decode(PlanStepStatus.self, forKey: .status)
+        linkedFiles = try container.decodeIfPresent([String].self, forKey: .linkedFiles) ?? []
+        dependsOn = try container.decodeIfPresent([String].self, forKey: .dependsOn) ?? []
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? .now
+    }
 }
 
 struct PlanBoard: Codable, Equatable {
@@ -65,6 +116,28 @@ struct PlanBoard: Codable, Equatable {
     var updatedAt: Date
     /// Walkthrough markdown generated when the plan completes (Antigravity-style summary)
     var walkthroughMarkdown: String?
+    var walkthroughSummary: String?
+    var walkthroughOutcome: String?
+
+    init(
+        goal: String,
+        options: [PlanOption],
+        chosenPath: String?,
+        steps: [PlanStep],
+        updatedAt: Date,
+        walkthroughMarkdown: String? = nil,
+        walkthroughSummary: String? = nil,
+        walkthroughOutcome: String? = nil
+    ) {
+        self.goal = goal
+        self.options = options
+        self.chosenPath = chosenPath
+        self.steps = steps
+        self.updatedAt = updatedAt
+        self.walkthroughMarkdown = walkthroughMarkdown
+        self.walkthroughSummary = walkthroughSummary
+        self.walkthroughOutcome = walkthroughOutcome
+    }
 
     static func build(from planContent: String, options: [PlanOption]) -> PlanBoard {
         let goal = PlanBoard.extractGoal(from: planContent)

@@ -28,7 +28,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CoderEngineTests",
-            dependencies: ["CoderEngine"]
+            dependencies: ["CoderEngine", "CoderIDEMCPServer"]
         )
     ]
 )

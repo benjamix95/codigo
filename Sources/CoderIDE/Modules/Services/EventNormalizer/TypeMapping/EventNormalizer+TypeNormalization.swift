@@ -123,6 +123,10 @@ extension EventNormalizer {
             return .searching
         case "plan_step", "plan_step_update":
             return .planning
+        case "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+             "plan_history_read", "plan_diff":
+            return .planning
         case "policy_ack":
             return .planning
         default:
@@ -157,6 +161,14 @@ extension EventNormalizer {
         case "debug_phase_update":
             let normalizedPhase = (payload["phase"] ?? "").lowercased()
             return normalizedPhase != "resolved"
+        case "plan_step", "plan_step_update", "plan_step_upsert":
+            let normalizedStatus = (payload["status"] ?? "").lowercased()
+            return normalizedStatus == "running" || normalizedStatus == "in_progress" || normalizedStatus == "started"
+        case "plan_step_batch_update":
+            if let updates = payload["updates"]?.lowercased() {
+                return updates.contains("\"running\"") || updates.contains("\"in_progress\"")
+            }
+            return false
         default:
             return false
         }

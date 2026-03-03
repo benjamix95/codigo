@@ -46,99 +46,63 @@ extension ChatPanelView {
                 logTaskBacklogIfNeeded(context: "enqueue_grep")
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
-                guard shouldAcceptTodoWrite(todo, conversationId: conversationId) else { break }
-                enableTaskPanelIfNeeded()
-                if isPlanBuildContext(
-                    conversationId: conversationId,
-                    phase: planFlowPhase,
-                    activeBuildPlanConversationId: activeBuildPlanConversationId,
-                    activeBuildAgentConversationId: activeBuildAgentConversationId
-                ) {
-                    let sourcePlanId = activeBuildPlanConversationId ?? conversationId
-                    let updated = todoStore.upsertCanonicalOnlyFromAgent(
-                        id: todo.id,
-                        title: todo.title,
-                        status: todo.status,
-                        priority: todo.priority,
-                        notes: todo.notes,
-                        activeForm: todo.activeForm,
-                        linkedFiles: todo.files,
-                        conversationId: sourcePlanId
-                    )
-                    if updated {
-                        if let sourcePlanId {
-                            let canonicalTodos = todoStore.canonicalTodos(for: sourcePlanId)
-                            chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
-                        }
-                    }
-                } else {
-                    todoStore.upsertFromAgent(
-                        id: todo.id,
-                        title: todo.title,
-                        status: todo.status,
-                        priority: todo.priority,
-                        notes: todo.notes,
-                        activeForm: todo.activeForm,
-                        linkedFiles: todo.files,
-                        conversationId: conversationId
-                    )
-                }
-                recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
-            case .todoRead:
-                guard shouldAcceptTodoRead(conversationId: conversationId) else { break }
-                enableTaskPanelIfNeeded()
-                break
-            case .planStepUpdate(let stepId, let status, let stepTitle):
-                let targetId = resolvePlanStepTargetConversationId(
-                    eventConversationId: conversationId,
-                    activeBuildPlanConversationId: activeBuildPlanConversationId,
-                    activeTaskConversationId: chatStore.activeTaskConversationId
+                handleTodoWriteEvent(
+                    todo,
+                    providerId: providerId,
+                    conversationId: conversationId
                 )
-                chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
-                if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
-                    chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
-                }
-                // Cross-sync: PlanStep status → canonical TodoItem
-                if let title = stepTitle {
-                    let todoStatus: TodoStatus = {
-                        switch status {
-                        case .pending: return .pending
-                        case .running: return .inProgress
-                        case .done: return .done
-                        case .failed: return .blocked
-                        }
-                    }()
-                    let stepActiveForm: String? = status == .running ? title : nil
-                    let targetCanonicalConversationId = activeBuildPlanConversationId ?? targetId
-                    let updated = todoStore.upsertCanonicalOnlyFromAgent(
-                        id: nil,
-                        title: title,
-                        status: todoStatus,
-                        priority: nil,
-                        notes: nil,
-                        activeForm: stepActiveForm,
-                        linkedFiles: [],
-                        conversationId: targetCanonicalConversationId
-                    )
-                    if !updated,
-                       !isPlanBuildContext(
-                        conversationId: conversationId,
-                        phase: planFlowPhase,
-                        activeBuildPlanConversationId: activeBuildPlanConversationId,
-                        activeBuildAgentConversationId: activeBuildAgentConversationId
-                       ) {
-                        todoStore.upsertFromAgent(
-                            id: nil,
-                            title: title,
-                            status: todoStatus,
-                            priority: nil,
-                            notes: nil,
-                            activeForm: stepActiveForm,
-                            linkedFiles: [],
-                            conversationId: conversationId
-                        )
-                    }
-                }
+            case .todoRead:
+                handleTodoReadEvent(conversationId: conversationId)
+            case .planStepUpdate(let stepId, let status, let stepTitle):
+                handleLegacyPlanStepUpdateEvent(
+                    stepId: stepId,
+                    status: status,
+                    stepTitle: stepTitle,
+                    conversationId: conversationId
+                )
+            case .planCreate(let goal, let chosenPath, let steps, let planConversationId):
+                handlePlanCreateEvent(
+                    goal: goal,
+                    chosenPath: chosenPath,
+                    steps: steps,
+                    eventConversationId: planConversationId,
+                    fallbackConversationId: conversationId
+                )
+            case .planRead:
+                break
+            case .planStepUpsert(let payload):
+                handlePlanStepUpsertEvent(payload, fallbackConversationId: conversationId)
+            case .planStepBatchUpdate(let items, let planConversationId):
+                handlePlanStepBatchUpdateEvent(
+                    items: items,
+                    conversationId: planConversationId,
+                    fallbackConversationId: conversationId
+                )
+            case .planStepReorder(let orderedStepIds, let planConversationId):
+                handlePlanStepReorderEvent(
+                    orderedStepIds: orderedStepIds,
+                    conversationId: planConversationId,
+                    fallbackConversationId: conversationId
+                )
+            case .planStepDependencySet(let stepId, let dependsOn, let planConversationId):
+                handlePlanStepDependencySetEvent(
+                    stepId: stepId,
+                    dependsOn: dependsOn,
+                    conversationId: planConversationId,
+                    fallbackConversationId: conversationId
+                )
+            case .planSetWalkthrough(let markdown, let summary, let outcome, let planConversationId):
+                handlePlanSetWalkthroughEvent(
+                    markdown: markdown,
+                    summary: summary,
+                    outcome: outcome,
+                    conversationId: planConversationId,
+                    fallbackConversationId: conversationId
+                )
+            case .planHistoryRead:
+                break
+            case .planDiff:
+                break
             case .debugPhaseUpdate(let phase, let detail):
                 routeDebugEvent(
                     .debugPhaseUpdate(phase: phase, detail: detail),

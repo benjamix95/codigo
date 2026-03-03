@@ -120,7 +120,10 @@ extension ChatPanelView {
                     11. If subagent tools are available, the FIRST operational tool round must start with at least one `subagent_*` call. For independent workstreams, call 2-5 subagents in the same round.
                     12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
                     13. When the first subagent starts, emit \(CoderIDEMarkers.showSwarmPanel) so the swarm panel/card lane is visible.
-                    To update plan steps use marker:
+                    Prefer MCP plan tools for plan tracking (`plan_create`, `plan_step_upsert`, `plan_step_batch_update`,
+                    `plan_step_reorder`, `plan_step_dependency_set`, `plan_set_walkthrough`).
+                    Keep `plan_step_update` only as legacy fallback compatibility.
+                    If MCP tools are unavailable, fallback marker:
                     \(CoderIDEMarkers.planStepPrefix)step_id=1|status=running]
                     For code searches with rg, you can emit markers with results:
                     \(CoderIDEMarkers.instantGrepPrefix)query=foo|pathScope=Sources|matchesCount=3|previewLines=Sources/A.swift:12:line]

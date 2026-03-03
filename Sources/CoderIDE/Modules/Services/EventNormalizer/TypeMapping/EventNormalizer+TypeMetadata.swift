@@ -65,6 +65,24 @@ extension EventNormalizer {
             return "Debug resolved"
         case "policy_ack":
             return "Policy acknowledged"
+        case "plan_create":
+            return "Plan created"
+        case "plan_read":
+            return "Plan read"
+        case "plan_step_upsert":
+            return "Plan step upsert"
+        case "plan_step_batch_update":
+            return "Plan steps batch update"
+        case "plan_step_reorder":
+            return "Plan step order updated"
+        case "plan_step_dependency_set":
+            return "Plan step dependencies updated"
+        case "plan_set_walkthrough":
+            return "Plan walkthrough updated"
+        case "plan_history_read":
+            return "Plan history read"
+        case "plan_diff":
+            return "Plan diff computed"
         default:
             return type
         }

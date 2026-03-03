@@ -20,6 +20,93 @@ extension CodexCLIProvider {
             ?? [:]
 
         switch normalizedTool {
+        case "plan_create":
+            var planPayload: [String: String] = [:]
+            if let goal = firstString(in: arguments, keys: ["goal"]) { planPayload["goal"] = goal }
+            if let chosenPath = firstString(in: arguments, keys: ["chosen_path"]) { planPayload["chosen_path"] = chosenPath }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let stepsJson = jsonStringArgument(in: arguments, keys: ["steps"]) {
+                planPayload["steps"] = stepsJson
+            }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_create", planPayload)]
+
+        case "plan_read":
+            var planPayload: [String: String] = [:]
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let includeHistory = firstString(in: arguments, keys: ["include_history"]) { planPayload["include_history"] = includeHistory }
+            if let historyLimit = firstString(in: arguments, keys: ["history_limit"]) { planPayload["history_limit"] = historyLimit }
+            return [("plan_read", planPayload)]
+
+        case "plan_step_upsert":
+            var planPayload: [String: String] = [:]
+            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) { planPayload["step_id"] = stepId }
+            if let status = firstString(in: arguments, keys: ["status"]) { planPayload["status"] = status }
+            if let title = firstString(in: arguments, keys: ["title"]) { planPayload["title"] = title }
+            if let description = firstString(in: arguments, keys: ["description"]) { planPayload["description"] = description }
+            if let targetFile = firstString(in: arguments, keys: ["target_file", "targetFile"]) { planPayload["target_file"] = targetFile }
+            if let notes = firstString(in: arguments, keys: ["notes"]) { planPayload["notes"] = notes }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let linkedFiles = jsonStringArgument(in: arguments, keys: ["linked_files", "linkedFiles"]) {
+                planPayload["linked_files"] = linkedFiles
+            }
+            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on", "dependsOn"]) {
+                planPayload["depends_on"] = dependsOn
+            }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_step_upsert", planPayload)]
+
+        case "plan_step_batch_update":
+            var planPayload: [String: String] = [:]
+            if let updates = jsonStringArgument(in: arguments, keys: ["updates"]) {
+                planPayload["updates"] = updates
+            }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_step_batch_update", planPayload)]
+
+        case "plan_step_reorder":
+            var planPayload: [String: String] = [:]
+            if let ordered = jsonStringArgument(in: arguments, keys: ["ordered_step_ids"]) {
+                planPayload["ordered_step_ids"] = ordered
+            }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_step_reorder", planPayload)]
+
+        case "plan_step_dependency_set":
+            var planPayload: [String: String] = [:]
+            if let stepId = firstString(in: arguments, keys: ["step_id"]) { planPayload["step_id"] = stepId }
+            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on"]) {
+                planPayload["depends_on"] = dependsOn
+            }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_step_dependency_set", planPayload)]
+
+        case "plan_set_walkthrough":
+            var planPayload: [String: String] = [:]
+            if let markdown = firstString(in: arguments, keys: ["markdown"]) { planPayload["markdown"] = markdown }
+            if let summary = firstString(in: arguments, keys: ["summary"]) { planPayload["summary"] = summary }
+            if let outcome = firstString(in: arguments, keys: ["outcome"]) { planPayload["outcome"] = outcome }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_set_walkthrough", planPayload)]
+
+        case "plan_history_read":
+            var planPayload: [String: String] = [:]
+            if let limit = firstString(in: arguments, keys: ["limit"]) { planPayload["limit"] = limit }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            return [("plan_history_read", planPayload)]
+
+        case "plan_diff":
+            var planPayload: [String: String] = [:]
+            if let fromSnapshotId = firstString(in: arguments, keys: ["from_snapshot_id"]) { planPayload["from_snapshot_id"] = fromSnapshotId }
+            if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id"]) { planPayload["to_snapshot_id"] = toSnapshotId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_diff", planPayload)]
+
         case "todo_write":
             var todoPayload: [String: String] = [:]
             // Batch: "todos" is a JSON array string
@@ -150,5 +237,27 @@ extension CodexCLIProvider {
         default:
             return []
         }
+    }
+
+    private static func jsonStringArgument(
+        in arguments: [String: Any],
+        keys: [String]
+    ) -> String? {
+        for key in keys {
+            guard let value = arguments[key] else { continue }
+            if let raw = value as? String {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+                continue
+            }
+            guard JSONSerialization.isValidJSONObject(value),
+                  let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
+                  let json = String(data: data, encoding: .utf8),
+                  !json.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
+            return json
+        }
+        return nil
     }
 }

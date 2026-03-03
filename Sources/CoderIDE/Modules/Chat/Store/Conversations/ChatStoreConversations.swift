@@ -51,6 +51,7 @@ extension ChatStore {
     func deleteConversation(id: UUID) {
         conversations.removeAll { $0.id == id }
         planBoards.removeValue(forKey: id)
+        planSharedSyncSignatureByConversation.removeValue(forKey: id)
         draftTexts.removeValue(forKey: id)
         activeTaskConversationIds.remove(id)
         taskStartDates.removeValue(forKey: id)

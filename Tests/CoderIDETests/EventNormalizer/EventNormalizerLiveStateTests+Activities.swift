@@ -141,6 +141,25 @@ extension EventNormalizerLiveStateTests {
         })
     }
 
+    func testPlanLifecycleEventsAreClassifiedAsPlanningActivities() {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "codex-cli",
+            type: "plan_step_batch_update",
+            payload: [
+                "updates": #"[{"step_id":"1","status":"running"}]"#
+            ]
+        )
+
+        XCTAssertEqual(envelope.kind, .planLifecycle)
+        XCTAssertTrue(envelope.events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_step_batch_update"
+                    && activity.phase == .planning
+            }
+            return false
+        })
+    }
+
     func testActivatePlanModeEmitsTypedEventAndTaskActivity() {
         let events = EventNormalizer.normalize(
             type: "activate_plan_mode",

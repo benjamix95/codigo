@@ -54,6 +54,19 @@ extension CLIProfileProvisioner {
       Do NOT call as your first action; investigate the task first.
     - `coderide_plan_step_update` — Update a plan step status in the IDE.
       Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
+    - `coderide_plan_create` — Create/replace an entire plan snapshot.
+      Args: `goal`, optional `steps` (JSON array), `chosen_path`, `conversation_id`, `replace_existing`.
+    - `coderide_plan_step_upsert` — Upsert one complete plan step with metadata.
+      Args: `step_id`, `status`, optional `title`, `description`, `target_file`, `linked_files`, `depends_on`, `notes`.
+    - `coderide_plan_step_batch_update` — Batch update multiple plan steps.
+      Args: `updates` (JSON array with `step_id` + `status`, optional metadata).
+    - `coderide_plan_step_reorder` — Reorder plan steps.
+      Args: `ordered_step_ids` (JSON array), optional `conversation_id`.
+    - `coderide_plan_step_dependency_set` — Set step dependencies.
+      Args: `step_id`, `depends_on` (JSON array), optional `conversation_id`.
+    - `coderide_plan_set_walkthrough` — Save final walkthrough.
+      Args: `markdown`, optional `summary`, `outcome` (done/failed/cancelled), `conversation_id`.
+    - `coderide_plan_read`, `coderide_plan_history_read`, `coderide_plan_diff` — Read plan snapshot/history/diff (read-only).
 
     ## Workflow
 
@@ -80,10 +93,20 @@ extension CLIProfileProvisioner {
     ```
     Notes: `activeForm` only needed for `in_progress` items. `linkedFiles` is optional.
 
-    ### Plan Steps (via MCP tool — preferred)
-    Call `coderide_plan_step_update`:
+    ### Plan Steps (via MCP tools — preferred)
+    Legacy (still supported):
     ```json
     {"step_id": "1", "status": "running", "title": "Analysis"}
+    ```
+    Recommended v2 flow:
+    ```json
+    {"goal":"Implement feature X","steps":"[{\"step_id\":\"1\",\"title\":\"Analyze\",\"status\":\"pending\"}]"}
+    ```
+    ```json
+    {"step_id":"1","status":"running","title":"Analyze","description":"Review impacted files","linked_files":"[\"Sources/A.swift\"]"}
+    ```
+    ```json
+    {"markdown":"## Walkthrough\nDone.","summary":"Feature completed","outcome":"done"}
     ```
 
     ### Fallback: Inline Markers

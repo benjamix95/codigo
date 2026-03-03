@@ -103,6 +103,16 @@ extension ProviderToolEventMapper {
         "activate_debug_mode": .ideState,
         "show_task_panel": .ideState,
         "show_swarm_panel": .ideState,
+        "plan_step_update": .ideState,
+        "plan_create": .ideState,
+        "plan_read": .ideState,
+        "plan_step_upsert": .ideState,
+        "plan_step_batch_update": .ideState,
+        "plan_step_reorder": .ideState,
+        "plan_step_dependency_set": .ideState,
+        "plan_set_walkthrough": .ideState,
+        "plan_history_read": .ideState,
+        "plan_diff": .ideState,
     ]
 
     static func map(

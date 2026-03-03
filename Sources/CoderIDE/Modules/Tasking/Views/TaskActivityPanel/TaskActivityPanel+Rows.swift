@@ -11,6 +11,12 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return "magnifyingglass"
         case "todo_write", "todo_read": return "checklist"
         case "plan_step_update": return "list.bullet.rectangle"
+        case "plan_create": return "square.and.pencil"
+        case "plan_read", "plan_history_read", "plan_diff": return "doc.text.magnifyingglass"
+        case "plan_step_upsert", "plan_step_batch_update": return "list.bullet.rectangle.portrait"
+        case "plan_step_reorder": return "arrow.up.arrow.down"
+        case "plan_step_dependency_set": return "link"
+        case "plan_set_walkthrough": return "text.book.closed"
         case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return "ladybug.fill"
         case "debug_log": return "text.badge.plus"
         case "debug_query": return "text.magnifyingglass"
@@ -39,6 +45,11 @@ struct TaskActivityRow: View {
         case "search", "web_search", "instant_grep", "web_search_started", "web_search_completed", "web_search_failed": return .secondary
         case "todo_write", "todo_read": return .secondary
         case "plan_step_update": return .secondary
+        case "plan_create", "plan_step_upsert", "plan_step_batch_update",
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough":
+            return DesignSystem.Colors.planColor
+        case "plan_read", "plan_history_read", "plan_diff":
+            return DesignSystem.Colors.info
         case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return DesignSystem.Colors.debugColor
         case "debug_log", "debug_query", "debug_session", "debug_mark", "debug_clean":
             return DesignSystem.Colors.debugColor
@@ -89,4 +100,3 @@ struct TaskActivityRow: View {
         .padding(.horizontal, 6).padding(.vertical, 2)
     }
 }
-

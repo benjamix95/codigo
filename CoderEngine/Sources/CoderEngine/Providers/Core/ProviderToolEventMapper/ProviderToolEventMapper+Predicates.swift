@@ -79,7 +79,11 @@ extension ProviderToolEventMapper {
     }
 
     static func isIDEStateTool(_ tool: String) -> Bool {
-        [
+        if isPlanLifecycleTool(tool) {
+            return true
+        }
+        return [
+            "plan_step_update",
             "debug_set_phase", "debug_request_user", "debug_resolve",
             "policy_ack", "mermaid_render",
             "activate_plan_mode", "activate_debug_mode",

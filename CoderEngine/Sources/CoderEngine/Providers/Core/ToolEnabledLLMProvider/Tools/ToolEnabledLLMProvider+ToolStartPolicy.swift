@@ -16,6 +16,7 @@ extension ToolEnabledLLMProvider {
         "read_lints", "debug_context",
         "batch_read", "diff_files", "git_status", "git_show", "code_context",
         "web_search", "web_fetch",
+        "plan_read", "plan_history_read", "plan_diff",
         "subagent_explorer",
     ]
 

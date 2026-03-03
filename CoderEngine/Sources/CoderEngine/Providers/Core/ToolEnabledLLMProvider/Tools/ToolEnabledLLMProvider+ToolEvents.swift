@@ -43,6 +43,24 @@ extension ToolEnabledLLMProvider {
             return [.raw(type: "policy_ack", payload: marker.payload)]
         case "plan_step_update":
             return [.raw(type: "plan_step_update", payload: marker.payload)]
+        case "plan_create":
+            return [.raw(type: "plan_create", payload: marker.payload)]
+        case "plan_read":
+            return [.raw(type: "plan_read", payload: marker.payload)]
+        case "plan_step_upsert":
+            return [.raw(type: "plan_step_upsert", payload: marker.payload)]
+        case "plan_step_batch_update":
+            return [.raw(type: "plan_step_batch_update", payload: marker.payload)]
+        case "plan_step_reorder":
+            return [.raw(type: "plan_step_reorder", payload: marker.payload)]
+        case "plan_step_dependency_set":
+            return [.raw(type: "plan_step_dependency_set", payload: marker.payload)]
+        case "plan_set_walkthrough":
+            return [.raw(type: "plan_set_walkthrough", payload: marker.payload)]
+        case "plan_history_read":
+            return [.raw(type: "plan_history_read", payload: marker.payload)]
+        case "plan_diff":
+            return [.raw(type: "plan_diff", payload: marker.payload)]
         case "debug_panel":
             return [.raw(type: "tool_validation_error", payload: [
                 "title": "Legacy debug_panel is not supported",

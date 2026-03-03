@@ -168,6 +168,9 @@ extension ChatPanelView {
         - Steps must be concrete and directly implementable.
         - If you discover critical ambiguities that could lead to an incorrect plan, include a `## Clarifications Needed` section BEFORE the `## Todo` section listing what you need clarified. Otherwise, generate the plan directly.
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        - During execution, prefer MCP plan tools flow:
+          `plan_create` once, then `plan_step_upsert`/`plan_step_batch_update`, and finalize with `plan_set_walkthrough`.
+          Keep `plan_step_update` only as legacy fallback.
         """
 
         return prompt
@@ -212,6 +215,7 @@ extension ChatPanelView {
         - Do NOT use alternative headers like Tasks/Steps/Checklist
         - Output only the final markdown plan (no commentary)
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
+        - Execution tracking should use MCP plan tools (`plan_create`, `plan_step_upsert`, `plan_step_batch_update`, `plan_set_walkthrough`).
         """
 
         return prompt

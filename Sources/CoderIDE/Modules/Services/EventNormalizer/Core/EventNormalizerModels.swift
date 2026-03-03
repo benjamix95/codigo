@@ -69,12 +69,44 @@ struct DebugQueryToolPayload {
     let status: String?
 }
 
+struct PlanStepUpsertPayload {
+    let stepId: String
+    let status: PlanStepStatus
+    let title: String?
+    let description: String?
+    let targetFile: String?
+    let linkedFiles: [String]
+    let dependsOn: [String]
+    let notes: String?
+    let conversationId: String?
+}
+
+struct PlanStepBatchUpdateItemPayload {
+    let stepId: String
+    let status: PlanStepStatus
+    let title: String?
+    let description: String?
+    let targetFile: String?
+    let linkedFiles: [String]
+    let dependsOn: [String]
+    let notes: String?
+}
+
 enum NormalizedEvent {
     case taskActivity(TaskActivity)
     case instantGrep(InstantGrepResult)
     case todoWrite(TodoWritePayload)
     case todoRead
     case planStepUpdate(stepId: String, status: PlanStepStatus, title: String?)
+    case planCreate(goal: String, chosenPath: String?, steps: [PlanStepUpsertPayload], conversationId: String?)
+    case planRead(conversationId: String?)
+    case planStepUpsert(PlanStepUpsertPayload)
+    case planStepBatchUpdate(items: [PlanStepBatchUpdateItemPayload], conversationId: String?)
+    case planStepReorder(orderedStepIds: [String], conversationId: String?)
+    case planStepDependencySet(stepId: String, dependsOn: [String], conversationId: String?)
+    case planSetWalkthrough(markdown: String, summary: String?, outcome: String, conversationId: String?)
+    case planHistoryRead(conversationId: String?, limit: Int?)
+    case planDiff(fromSnapshotId: String, toSnapshotId: String?, conversationId: String?)
     case debugPhaseUpdate(phase: DebugFlowPhase, detail: String?)
     case debugUserRequest(kind: String, prompt: String)
     case debugResolved(summary: String)
@@ -99,6 +131,7 @@ enum EventKind: String, Codable {
     case instantGrep = "instant_grep"
     case todoUpdate = "todo_update"
     case planStepUpdate = "plan_step_update"
+    case planLifecycle = "plan_lifecycle"
     case debugPhaseUpdate = "debug_phase_update"
     case debugUserRequest = "debug_user_request"
     case debugResolved = "debug_resolved"

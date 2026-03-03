@@ -170,6 +170,18 @@ extension ProviderToolEventMapper {
             if let swarmId = firstString(in: payload, keys: ["swarm_id"]) { mapped["swarm_id"] = swarmId }
             return ("coderide_show_swarm_panel", mapped)
 
+        case "plan_step_update", "plan_step":
+            var mapped: [String: String] = [:]
+            if let stepId = firstString(in: payload, keys: ["step_id", "stepId"]) { mapped["step_id"] = stepId }
+            if let status = firstString(in: payload, keys: ["status"]) { mapped["status"] = status }
+            if let title = firstString(in: payload, keys: ["title"]) { mapped["title"] = title }
+            return ("plan_step_update", mapped)
+
+        case "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+             "plan_history_read", "plan_diff":
+            return mapPlanLifecycle(tool: tool, payload: payload)
+
         default:
             return ("command_execution", ["title": tool, "tool": tool])
         }

@@ -17,6 +17,8 @@ let userDefaults: UserDefaults
 var pendingSaveTask: Task<Void, Never>?
 /// Debounce task for coalescing rapid `savePlanBoards()` calls.
 var pendingPlanSaveTask: Task<Void, Never>?
+/// Last shared-state signature per conversation to deduplicate plan snapshot writes.
+var planSharedSyncSignatureByConversation: [UUID: String] = [:]
 /// Guards against async load overwriting more recent saves.
 var hasSavedSinceLoad = false
 /// Background queue for serialization + UserDefaults writes.

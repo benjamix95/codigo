@@ -4,8 +4,7 @@ import CoderEngine
 extension ChatStore {
 func setPlanBoard(_ board: PlanBoard, for conversationId: UUID?) {
     guard let conversationId else { return }
-    planBoards[conversationId] = board
-    savePlanBoards()
+    persistPlanBoard(board, for: conversationId)
 }
 
 func choosePlanPath(_ chosenPath: String, for conversationId: UUID?) {
@@ -22,8 +21,7 @@ func choosePlanPath(_ chosenPath: String, for conversationId: UUID?) {
     board.chosenPath = chosenPath
     board.steps = PlanBoard.buildSteps(fromTodoTitles: optionTodos)
     board.updatedAt = .now
-    planBoards[conversationId] = board
-    savePlanBoards()
+    persistPlanBoard(board, for: conversationId)
 }
 
 func planBoard(for conversationId: UUID?) -> PlanBoard? {
@@ -142,9 +140,9 @@ func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversatio
     guard let conversationId, var board = planBoards[conversationId] else { return }
     guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
     board.steps[index].status = status
+    board.steps[index].updatedAt = .now
     board.updatedAt = .now
-    planBoards[conversationId] = board
-    savePlanBoards()
+    persistPlanBoard(board, for: conversationId)
 }
 
 func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUID?) {
@@ -182,6 +180,7 @@ func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUI
             $0.title.caseInsensitiveCompare(todo.title) == .orderedSame
         }) {
             updatedSteps[idx].status = todoStatus
+            updatedSteps[idx].updatedAt = .now
         } else {
             updatedSteps.append(PlanStep(
                 id: String(updatedSteps.count + 1),
@@ -195,8 +194,7 @@ func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUI
 
     board.steps = updatedSteps
     board.updatedAt = .now
-    planBoards[conversationId] = board
-    savePlanBoards()
+    persistPlanBoard(board, for: conversationId)
 }
 
 func upsertPlanStep(
@@ -205,54 +203,29 @@ func upsertPlanStep(
     title: String? = nil,
     in conversationId: UUID?
 ) {
-    guard let conversationId else { return }
-    var board = planBoards[conversationId] ?? PlanBoard(
-        goal: "Operational plan in progress",
-        options: [],
-        chosenPath: nil,
-        steps: [],
-        updatedAt: .now,
-        walkthroughMarkdown: nil
+    applyPlanStepUpsert(
+        PlanStepUpsertPayload(
+            stepId: stepId,
+            status: status,
+            title: title,
+            description: title,
+            targetFile: nil,
+            linkedFiles: [],
+            dependsOn: [],
+            notes: nil,
+            conversationId: nil
+        ),
+        fallbackConversationId: conversationId
     )
-
-    if let index = board.steps.firstIndex(where: { $0.id == stepId }) {
-        board.steps[index].status = status
-        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            board.steps[index].title = title
-            board.steps[index].description = title
-        }
-    } else {
-        let cleanTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedTitle = (cleanTitle?.isEmpty == false) ? cleanTitle! : "Step \(stepId)"
-        board.steps.append(
-            PlanStep(
-                id: stepId,
-                title: resolvedTitle,
-                description: resolvedTitle,
-                targetFile: nil,
-                status: status
-            )
-        )
-    }
-
-    board.updatedAt = .now
-    planBoards[conversationId] = board
-    savePlanBoards()
 }
 
 func setWalkthrough(_ markdown: String, for conversationId: UUID?) {
-    guard let conversationId else { return }
-    var board = planBoards[conversationId] ?? PlanBoard(
-        goal: "Operational plan in progress",
-        options: [],
-        chosenPath: nil,
-        steps: [],
-        updatedAt: .now,
-        walkthroughMarkdown: nil
+    applyPlanSetWalkthrough(
+        markdown: markdown,
+        summary: nil,
+        outcome: "done",
+        conversationId: nil,
+        fallbackConversationId: conversationId
     )
-    board.walkthroughMarkdown = markdown
-    board.updatedAt = .now
-    planBoards[conversationId] = board
-    savePlanBoards()
 }
 }

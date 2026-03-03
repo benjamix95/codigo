@@ -50,17 +50,33 @@ struct PlanBoardView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
             ForEach(board.steps.prefix(8)) { step in
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(color(for: step.status))
-                        .frame(width: 7, height: 7)
-                    Text(step.title)
-                        .font(.system(size: 11))
-                        .lineLimit(1)
-                    Spacer()
-                    Text(step.status.rawValue)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(color(for: step.status))
+                            .frame(width: 7, height: 7)
+                        Text(step.title)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                        Spacer()
+                        Text(step.status.rawValue)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    if !step.dependsOn.isEmpty || !step.linkedFiles.isEmpty {
+                        HStack(spacing: 8) {
+                            if !step.dependsOn.isEmpty {
+                                Text("deps: \(step.dependsOn.count)")
+                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                            if !step.linkedFiles.isEmpty {
+                                Text("files: \(step.linkedFiles.count)")
+                                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -24,6 +24,10 @@ enum EventNormalizer {
              "web_fetch", "web_fetch_started", "web_fetch_completed", "web_fetch_failed": kind = .instantGrep
         case "todo_write", "todo_read": kind = .todoUpdate
         case "plan_step", "plan_step_update": kind = .planStepUpdate
+        case "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+             "plan_history_read", "plan_diff":
+            kind = .planLifecycle
         case "mermaid_render": kind = .mermaidRender
         case "debug_phase_update": kind = .debugPhaseUpdate
         case "debug_user_request": kind = .debugUserRequest
@@ -67,6 +71,10 @@ enum EventNormalizer {
 
         if type == "plan_step" || type == "plan_step_update" {
             return normalizePlanStep(type: type, payload: payload)
+        }
+
+        if isPlanLifecycleType(type) {
+            return normalizePlanLifecycleEvent(type: type, payload: payload, timestamp: timestamp)
         }
 
         if type == "mermaid_render" {

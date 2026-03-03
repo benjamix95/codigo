@@ -10,6 +10,7 @@ struct CoderIDETools {
         + webTools
         + advancedEditingTools
         + ideIntegrationTools
+        + planIntegrationTools
         + subagentTools
         + debugTools
 
