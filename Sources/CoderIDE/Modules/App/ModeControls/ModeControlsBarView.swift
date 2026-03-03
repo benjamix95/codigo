@@ -55,6 +55,7 @@ struct ModeControlsBarView: View {
     @Binding var swarmToggleEnabled: Bool
     @Binding var codeReviewToggleEnabled: Bool
     @Binding var browserToggleEnabled: Bool
+    @State private var availableWidth: CGFloat = 900
 
     // MARK: - Collapse Tiers
 
@@ -65,12 +66,37 @@ struct ModeControlsBarView: View {
     // MARK: - Body
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            controlsHStack(tier: .full)
-            controlsHStack(tier: .medium)
-            controlsHStack(tier: .compact)
-            controlsHStack(tier: .minimal)
+        controlsHStack(tier: controlsTier(for: availableWidth))
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear {
+                            updateAvailableWidth(proxy.size.width)
+                        }
+                        .onChange(of: proxy.size.width) { _, newWidth in
+                            updateAvailableWidth(newWidth)
+                        }
+                }
+            }
+    }
+
+    private func controlsTier(for width: CGFloat) -> ControlsTier {
+        if width >= 900 {
+            return .full
         }
+        if width >= 760 {
+            return .medium
+        }
+        if width >= 640 {
+            return .compact
+        }
+        return .minimal
+    }
+
+    private func updateAvailableWidth(_ width: CGFloat) {
+        guard width > 0 else { return }
+        guard abs(width - availableWidth) > 1 else { return }
+        availableWidth = width
     }
 
     // MARK: - Tier HStack Builder

@@ -35,6 +35,7 @@ struct UsageFooterView: View {
     @State var contextEstimateWorkItem: DispatchWorkItem?
     @State var contextEstimateGeneration: Int = 0
     @State var lastContextEstimateFireDate: Date = .distantPast
+    @State private var availableWidth: CGFloat = 980
     static let contextEstimateQueue = DispatchQueue(
         label: "com.codigo.context-estimate",
         qos: .utility
@@ -46,11 +47,25 @@ struct UsageFooterView: View {
     }
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            footerTier(showBranch: true, showProviderUsage: true, showContext: true, showTotal: true, showMessages: true)
-            footerTier(showBranch: true, showProviderUsage: false, showContext: true, showTotal: true, showMessages: true)
-            footerTier(showBranch: false, showProviderUsage: false, showContext: true, showTotal: true, showMessages: false)
-            footerTier(showBranch: false, showProviderUsage: false, showContext: false, showTotal: false, showMessages: false)
+        let tier = footerTierFlags(for: availableWidth)
+
+        footerTier(
+            showBranch: tier.showBranch,
+            showProviderUsage: tier.showProviderUsage,
+            showContext: tier.showContext,
+            showTotal: tier.showTotal,
+            showMessages: tier.showMessages
+        )
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        updateAvailableWidth(proxy.size.width)
+                    }
+                    .onChange(of: proxy.size.width) { _, newWidth in
+                        updateAvailableWidth(newWidth)
+                    }
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -89,5 +104,30 @@ struct UsageFooterView: View {
             contextEstimateWorkItem?.cancel()
             contextEstimateWorkItem = nil
         }
+    }
+
+    private func footerTierFlags(for width: CGFloat) -> (
+        showBranch: Bool,
+        showProviderUsage: Bool,
+        showContext: Bool,
+        showTotal: Bool,
+        showMessages: Bool
+    ) {
+        if width >= 980 {
+            return (true, true, true, true, true)
+        }
+        if width >= 860 {
+            return (true, false, true, true, true)
+        }
+        if width >= 720 {
+            return (false, false, true, true, false)
+        }
+        return (false, false, false, false, false)
+    }
+
+    private func updateAvailableWidth(_ width: CGFloat) {
+        guard width > 0 else { return }
+        guard abs(width - availableWidth) > 1 else { return }
+        availableWidth = width
     }
 }
