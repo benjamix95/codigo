@@ -77,9 +77,9 @@ extension CoderIDEMCPServerApp {
             group.addTask {
                 await withCheckedContinuation { continuation in
                     DispatchQueue.global().async {
-                        process.waitUntilExit()
                         let outData = stdout.fileHandleForReading.readDataToEndOfFile()
                         let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+                        process.waitUntilExit()
                         let outStr = String(data: outData, encoding: .utf8) ?? ""
                         let errStr = String(data: errData, encoding: .utf8) ?? ""
 
@@ -118,7 +118,9 @@ extension CoderIDEMCPServerApp {
                 )
             }
 
-            let firstResult = await group.next()!
+            guard let firstResult = await group.next() else {
+                return SubagentResult(output: "Subagent produced no result.", isError: true)
+            }
             group.cancelAll()
             return firstResult
         }
@@ -149,9 +151,9 @@ extension CoderIDEMCPServerApp {
             proc.standardError = Pipe()
             do {
                 try proc.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 proc.waitUntilExit()
                 if proc.terminationStatus == 0 {
-                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
                     let path = String(data: data, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     if !path.isEmpty,

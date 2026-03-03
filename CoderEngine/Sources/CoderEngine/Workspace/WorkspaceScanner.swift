@@ -52,12 +52,12 @@ public enum WorkspaceScanner {
         process.standardError = nil
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return []
         }
-        guard process.terminationStatus == 0 else { return [] }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return [] }
         guard let output = String(data: data, encoding: .utf8) else { return [] }
         return collectSourceFilesFromGitStatusOutput(
             output: output,
@@ -77,12 +77,12 @@ public enum WorkspaceScanner {
         process.standardError = nil
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return []
         }
-        guard process.terminationStatus == 0 else { return [] }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return [] }
         guard let output = String(data: data, encoding: .utf8) else { return [] }
         return listSourceFilesFromGitDiffOutput(
             output: output,

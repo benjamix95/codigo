@@ -188,10 +188,10 @@ struct ConversationCheckpointGitStore {
         process.standardOutput = out
         process.standardError = err
         try process.run()
-        process.waitUntilExit()
 
         let stdout = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        process.waitUntilExit()
         if process.terminationStatus != 0 {
             let cmd = "git " + args.joined(separator: " ")
             let tail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)

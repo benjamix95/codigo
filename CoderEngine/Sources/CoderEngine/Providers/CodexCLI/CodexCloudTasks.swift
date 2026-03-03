@@ -32,11 +32,11 @@ public enum CodexCloudTasks {
         
         do {
             try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard process.terminationStatus == 0 else {
                 return []
             }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let tasksArray = json["tasks"] as? [[String: Any]] else {
                 return []

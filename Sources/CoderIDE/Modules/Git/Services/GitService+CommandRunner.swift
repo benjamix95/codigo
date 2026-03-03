@@ -28,10 +28,10 @@ extension GitService {
         p.standardOutput = out
         p.standardError = err
         try p.run()
-        p.waitUntilExit()
 
         let stdout = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let stderr = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        p.waitUntilExit()
         if p.terminationStatus != 0 {
             let cmd = ([executable] + args).joined(separator: " ")
             throw GitServiceError.commandFailed("Command failed (\(cmd)): \(stderr.trimmingCharacters(in: .whitespacesAndNewlines))")

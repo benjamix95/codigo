@@ -61,11 +61,7 @@ extension CodeReviewMultiSwarmProvider {
                         return (task.id, [.textDelta("\n**Worker \(task.id) skipped:** could not acquire file locks.\n")])
                     }
 
-                    defer {
-                        Task { [taskId = task.id] in
-                            await fileLockCoordinator.releaseAllLocks(swarmId: taskId)
-                        }
-                    }
+
 
                     var collected: [StreamEvent] = []
                     var workerDidError = false

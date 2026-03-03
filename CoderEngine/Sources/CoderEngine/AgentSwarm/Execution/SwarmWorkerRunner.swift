@@ -80,19 +80,19 @@ public struct SwarmWorkerRunner: Sendable {
                                         let prompt = self.buildPrompt(for: task, previousOutputs: accumulatedOutput)
                                         let taskImageURLs = (isFirstTask && idx == 0 && !(imageURLs?.isEmpty ?? true)) ? imageURLs : nil
                                         var out = header
-                                        var err: String?
                                         do {
                                             let stream = try await self.provider.send(prompt: prompt, context: context, imageURLs: taskImageURLs)
                                             for try await event in stream {
                                                 if case .textDelta(let d) = event { out += d }
-                                                if case .error(let e) = event { err = "\n[Errore \(task.role.displayName): \(e)]\n"; out += err! }
+                                                if case .error(let e) = event {
+                                                    out += "\n[Errore \(task.role.displayName): \(e)]\n"
+                                                }
                                                 if case .raw(let type, let payload) = event {
                                                     continuation.yield(.raw(type: type, payload: self.enrichSwarmPayload(payload, for: task)))
                                                 }
                                             }
                                         } catch {
-                                            err = "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
-                                            out += err!
+                                            out += "\n[Errore \(task.role.displayName): \(error.localizedDescription)]\n"
                                         }
                                         return (task.role.rawValue, out)
                                     }
