@@ -146,11 +146,11 @@ extension ChatComposerView {
     @ViewBuilder
     internal var runtimeTimerLabel: some View {
         if let startDate = runtimeTaskStartDate {
-            TimelineView(.periodic(from: startDate, by: 1.0)) { context in
-                let elapsed = max(0, Int(context.date.timeIntervalSince(startDate)))
+            ElapsedTimerView(startDate: startDate) { elapsed in
                 Text(formatElapsed(elapsed))
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
+                    .frame(minWidth: 36, alignment: .trailing)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
                     .background(Color.white.opacity(0.08), in: Capsule())

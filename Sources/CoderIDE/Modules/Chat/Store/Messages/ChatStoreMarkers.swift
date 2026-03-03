@@ -52,6 +52,76 @@ private enum MarkerRegex {
         pattern: #"(?i)(?:\b[a-z_][a-z0-9_]*=[^|\n\r]+(?:\|\s*|\s*$)){2,}"#, options: [])
 }
 
+private enum MarkerStripCache {
+    static let aggressive: NSCache<NSString, NSString> = makeCache()
+    static let conservative: NSCache<NSString, NSString> = makeCache()
+
+    static func cache(for aggressive: Bool) -> NSCache<NSString, NSString> {
+        aggressive ? self.aggressive : self.conservative
+    }
+
+    static func key(for content: String, aggressive: Bool) -> NSString {
+        var hasher = Hasher()
+        hasher.combine(content)
+        let digest = hasher.finalize()
+        let prefix = content.prefix(56)
+        let suffix = content.suffix(28)
+        return "\(aggressive ? 1 : 0)|\(content.count)|\(digest)|\(prefix)|\(suffix)" as NSString
+    }
+
+    private static func makeCache() -> NSCache<NSString, NSString> {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 512
+        cache.totalCostLimit = 12 * 1024 * 1024
+        return cache
+    }
+}
+
+private static func shouldRunMarkerCleanup(_ content: String, aggressive: Bool) -> Bool {
+    guard !content.isEmpty else { return false }
+
+    let commonNeedles = [
+        "[CODERIDE",
+        "markers:",
+        "todo_write|",
+        "todo_read|",
+        "plan_step",
+        "read_batch",
+        "web_search",
+        "web_fetch",
+        "instant_grep",
+        "coderide_show_task_panel",
+        "coderide_show_swarm_panel",
+    ]
+
+    for needle in commonNeedles where content.range(of: needle, options: .caseInsensitive) != nil {
+        return true
+    }
+
+    if aggressive {
+        if content.contains("=") && content.contains("|") {
+            return true
+        }
+        let aggressiveNeedles = [
+            "IDE: files=",
+            "Planning bug review workflow",
+            "Planning code review workflow",
+            "Explored ",
+            "Inspecting ",
+            "Ran ",
+            "Bootstrapping ",
+            "Initializing ",
+            "Preparing ",
+            "Setting ",
+        ]
+        for needle in aggressiveNeedles where content.range(of: needle, options: .caseInsensitive) != nil {
+            return true
+        }
+    }
+
+    return false
+}
+
 /// Helper: apply pre-compiled NSRegularExpression as a replacement on the full string.
 private static func applyRegex(_ regex: NSRegularExpression, on string: inout String, template: String) {
     let ns = string as NSString
@@ -62,6 +132,27 @@ private static func applyRegex(_ regex: NSRegularExpression, on string: inout St
 /// Removes CODERIDE markers from source to avoid flashes during streaming.
 /// Protects code fences (```...```) from being corrupted by cleanup regexes.
 static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> String {
+    let cache = MarkerStripCache.cache(for: aggressive)
+    let cacheKey = MarkerStripCache.key(for: content, aggressive: aggressive)
+    if let cached = cache.object(forKey: cacheKey) {
+        return cached as String
+    }
+
+    if !shouldRunMarkerCleanup(content, aggressive: aggressive) {
+        var fastPathResult = aggressive
+            ? content.trimmingCharacters(in: .whitespacesAndNewlines)
+            : content
+        while fastPathResult.contains("\n\n\n") {
+            fastPathResult = fastPathResult.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+        cache.setObject(
+            fastPathResult as NSString,
+            forKey: cacheKey,
+            cost: min(16_384, fastPathResult.utf16.count)
+        )
+        return fastPathResult
+    }
+
     // Split into code-fence vs prose segments so regexes only touch prose
     let segments = splitByCodeFences(content)
     var result = segments.map { seg -> String in
@@ -71,7 +162,13 @@ static func stripCoderideMarkers(_ content: String, aggressive: Bool = true) -> 
     // Final whitespace cleanup across the whole result (safe — doesn't alter code blocks)
     applyRegex(MarkerRegex.excessiveNewlines, on: &result, template: "\n\n")
     applyRegex(MarkerRegex.tripleNewlines, on: &result, template: "\n\n")
-    return aggressive ? result.trimmingCharacters(in: .whitespacesAndNewlines) : result
+    let finalResult = aggressive ? result.trimmingCharacters(in: .whitespacesAndNewlines) : result
+    cache.setObject(
+        finalResult as NSString,
+        forKey: cacheKey,
+        cost: min(16_384, finalResult.utf16.count)
+    )
+    return finalResult
 }
 
 /// Strip markers from a prose (non-code-fence) segment.

@@ -4,6 +4,21 @@ import XCTest
 extension UnifiedToolRuntimeTests {
     // MARK: - Bash
 
+    func testShellExecTimeoutTerminatesAndReturnsCoherentError() async {
+        let runtime = UnifiedToolRuntime()
+        let start = Date()
+        let (_, stderr, exitCode) = await runtime.shellExec(
+            args: ["/bin/zsh", "-lc", "sleep 2"],
+            cwd: FileManager.default.currentDirectoryPath,
+            timeout: 100
+        )
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertEqual(exitCode, 124)
+        XCTAssertLessThan(elapsed, 1.5, "shellExec should enforce timeout without waiting full command duration")
+        XCTAssertTrue(stderr.contains("Timeout on /bin/zsh"), "Expected coherent timeout error, got: \(stderr)")
+    }
+
     func testBashTimeoutReturnsTimeoutCode() async {
         let runtime = UnifiedToolRuntime()
         let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

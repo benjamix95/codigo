@@ -4,8 +4,7 @@ import SwiftUI
 extension TaskControlBar {
     @ViewBuilder
     internal func taskTimerBar(startDate: Date) -> some View {
-        TimelineView(.periodic(from: startDate, by: 1.0)) { (context: TimelineViewDefaultContext) in
-            let elapsed = Int(context.date.timeIntervalSince(startDate))
+        ElapsedTimerView(startDate: startDate) { elapsed in
             taskTimerView(elapsed: elapsed)
         }
     }
@@ -21,6 +20,7 @@ extension TaskControlBar {
             Text(formatElapsed(elapsed))
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.primary)
+                .frame(minWidth: 38, alignment: .trailing)
 
             if let lastActivity = TaskActivityStore.lastConcreteNonSwarmActivity(
                 in: taskActivityStore.activities

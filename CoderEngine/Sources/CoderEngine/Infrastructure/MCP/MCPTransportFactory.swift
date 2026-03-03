@@ -63,6 +63,26 @@ public enum MCPTransportFactory {
     ) {
         Task.detached(priority: .utility) {
             var rollingBuffer = Data()
+            var windowStart = Date()
+            var loggedInWindow = 0
+            var suppressedInWindow = 0
+            let maxLinesPerSecond = 20
+
+            func flushSuppressedIfNeeded() {
+                guard suppressedInWindow > 0 else { return }
+                Self.logger.error(
+                    "MCP stderr[\(serverLabel, privacy: .public)] suppressed \(suppressedInWindow, privacy: .public) noisy line(s) in last second"
+                )
+                suppressedInWindow = 0
+            }
+
+            func rotateWindowIfNeeded(now: Date) {
+                if now.timeIntervalSince(windowStart) < 1.0 { return }
+                flushSuppressedIfNeeded()
+                windowStart = now
+                loggedInWindow = 0
+            }
+
             while true {
                 let chunk: Data
                 do {
@@ -83,7 +103,14 @@ public enum MCPTransportFactory {
                     rollingBuffer.removeSubrange(0...newlineRange.lowerBound)
                     let line = Self.sanitizedLine(from: lineData)
                     if !line.isEmpty {
-                        Self.logger.error("MCP stderr[\(serverLabel, privacy: .public)] \(line, privacy: .public)")
+                        let now = Date()
+                        rotateWindowIfNeeded(now: now)
+                        if loggedInWindow < maxLinesPerSecond {
+                            Self.logger.error("MCP stderr[\(serverLabel, privacy: .public)] \(line, privacy: .public)")
+                            loggedInWindow += 1
+                        } else {
+                            suppressedInWindow += 1
+                        }
                     }
                 }
             }
@@ -94,6 +121,7 @@ public enum MCPTransportFactory {
                     Self.logger.error("MCP stderr[\(serverLabel, privacy: .public)] \(line, privacy: .public)")
                 }
             }
+            flushSuppressedIfNeeded()
             try? fileHandle.close()
         }
     }

@@ -17,8 +17,16 @@ extension MessageToolTraceView {
         let collapsedSummary: String
 
         init(events: [ToolTraceEvent], isExpanded: Bool, runningCompactLimit: Int, collapser: ([ToolTraceEvent]) -> [ToolTraceEvent]) {
-            let filtered = events
+            let visible = events
                 .filter { ToolTraceVisibility.shouldDisplay(event: $0) }
+            let maxEventsToProcess = isExpanded ? 240 : max(120, runningCompactLimit * 8)
+            let boundedVisible: [ToolTraceEvent]
+            if visible.count > maxEventsToProcess {
+                boundedVisible = Array(visible.suffix(maxEventsToProcess))
+            } else {
+                boundedVisible = visible
+            }
+            let filtered = boundedVisible
                 .sorted { lhs, rhs in
                     if lhs.sequence != rhs.sequence { return lhs.sequence < rhs.sequence }
                     return lhs.timestamp < rhs.timestamp

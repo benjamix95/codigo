@@ -1,4 +1,23 @@
+import Foundation
 import SwiftUI
+
+private enum MarkdownDisplayContentCache {
+    static let cache: NSCache<NSString, NSString> = {
+        let c = NSCache<NSString, NSString>()
+        c.countLimit = 512
+        c.totalCostLimit = 16 * 1024 * 1024
+        return c
+    }()
+
+    static func key(content: String, isStreaming: Bool, aggressive: Bool) -> NSString {
+        var hasher = Hasher()
+        hasher.combine(content)
+        hasher.combine(isStreaming)
+        hasher.combine(aggressive)
+        let digest = hasher.finalize()
+        return "\(isStreaming ? 1 : 0)|\(aggressive ? 1 : 0)|\(content.count)|\(digest)" as NSString
+    }
+}
 
 struct MarkdownContentView: View {
     let content: String
@@ -14,12 +33,29 @@ struct MarkdownContentView: View {
     }
 
     var displayContent: String {
-        let stripped = ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
-        if isStreaming {
-            return stripped.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        let key = MarkdownDisplayContentCache.key(
+            content: content,
+            isStreaming: isStreaming,
+            aggressive: shouldUseAggressiveSanitization
+        )
+        if let cached = MarkdownDisplayContentCache.cache.object(forKey: key) {
+            return cached as String
         }
-        return Self.normalizeAssistantDisplayLayout(stripped)
+
+        let stripped = ChatStore.stripCoderideMarkers(content, aggressive: shouldUseAggressiveSanitization)
+        let computed: String
+        if isStreaming {
+            computed = stripped.replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        } else {
+            computed = Self.normalizeAssistantDisplayLayout(stripped)
             .replacingOccurrences(of: "\n\n\n+", with: "\n\n", options: .regularExpression)
+        }
+        MarkdownDisplayContentCache.cache.setObject(
+            computed as NSString,
+            forKey: key,
+            cost: min(32_768, computed.utf16.count)
+        )
+        return computed
     }
 
     @Environment(\.colorScheme) var colorScheme

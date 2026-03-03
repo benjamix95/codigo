@@ -50,6 +50,9 @@ func updateLastAssistantMessage(content: String, in conversationId: UUID?, persi
     guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
     guard let lastIdx = targetAssistantMessageIndex(conversationIndex: idx) else { return }
     let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
+    if conversations[idx].messages[lastIdx].content == resolvedContent {
+        return
+    }
     conversations[idx].messages[lastIdx].content = resolvedContent
     if persistImmediately {
         saveConversations()
@@ -73,6 +76,9 @@ func updateAssistantMessage(
         $0.id == messageId && $0.role == .assistant
     }) else { return }
     let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
+    if conversations[idx].messages[messageIdx].content == resolvedContent {
+        return
+    }
     conversations[idx].messages[messageIdx].content = resolvedContent
     if persistImmediately {
         saveConversations()

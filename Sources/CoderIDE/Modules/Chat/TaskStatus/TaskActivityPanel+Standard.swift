@@ -15,7 +15,7 @@ extension TaskActivityPanel {
         // Plan trace
         if coderMode == .plan {
             PlanLiveTraceView(
-                activities: taskActivityStore.planRelevantRecentActivities(limit: 60),
+                activities: taskActivityStore.planRelevantRecentActivities(limit: 30),
                 workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
                 onOpenFile: onOpenFile
             )

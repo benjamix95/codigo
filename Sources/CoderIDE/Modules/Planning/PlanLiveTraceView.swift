@@ -210,20 +210,25 @@ struct PlanLiveTraceView: View {
     let activities: [TaskActivity]
     let workspaceHints: [String]
     let onOpenFile: ((String) -> Void)?
+    private let maxVisibleEvents = 40
 
     @State private var expandedRawById: Set<UUID> = []
     @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
 
+    private var visibleActivities: [TaskActivity] {
+        Array(activities.suffix(maxVisibleEvents))
+    }
+
     var body: some View {
-        let traceItems = activities.map(PlanTraceItem.init(activity:))
+        let traceItems = visibleActivities.map(PlanTraceItem.init(activity:))
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Plan Live Trace")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(traceItems.count) events")
+                Text("\(traceItems.count)/\(activities.count) events")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
             }

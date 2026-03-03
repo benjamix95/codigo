@@ -3,9 +3,19 @@ import AppKit
 
 // MARK: - Adaptive Color Helpers
 
+@inline(__always)
+private func codigoAppearanceIsDark(_ appearance: NSAppearance) -> Bool {
+    switch appearance.name {
+    case .darkAqua, .vibrantDark, .accessibilityHighContrastDarkAqua, .accessibilityHighContrastVibrantDark:
+        return true
+    default:
+        return false
+    }
+}
+
 func codigoAdaptiveNS(_ light: NSColor, _ dark: NSColor) -> NSColor {
     NSColor(name: nil, dynamicProvider: { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        codigoAppearanceIsDark(appearance) ? dark : light
     })
 }
 

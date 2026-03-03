@@ -91,13 +91,16 @@ struct ChatTerminalSessionsView: View {
             )
 
             if let running = runningSession {
-                TimelineView(.periodic(from: running.timestamp, by: 1.0)) { context in
-                    let elapsed = max(0, Int(context.date.timeIntervalSince(running.timestamp)))
+                ElapsedTimerView(startDate: running.timestamp) { elapsed in
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Command running for \(elapsed)s")
+                        Text("Command running")
                             .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                             .foregroundStyle(.primary)
+                        Text("\(elapsed)s")
+                            .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .frame(minWidth: 44, alignment: .trailing)
                         Spacer()
                         Text("LIVE")
                             .font(.system(size: 9.5, weight: .semibold, design: .rounded))

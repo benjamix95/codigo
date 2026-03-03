@@ -16,15 +16,31 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         self.requiredAckMarker = requiredAckMarker
     }
 
+    private struct CacheEntry {
+        let bundle: InstructionPolicyBundle
+        let createdAt: Date
+    }
+
+    private static let cacheTTL: TimeInterval = 5
+    private static let cacheLock = NSLock()
+    private static nonisolated(unsafe) var cacheByWorkspaceKey: [String: CacheEntry] = [:]
+
     public static func load(workspacePath: String?) -> InstructionPolicyBundle {
         load(workspacePaths: workspacePath.map { [$0] } ?? [])
     }
 
     public static func load(workspacePaths: [String]) -> InstructionPolicyBundle {
+        let cacheKey = workspaceCacheKey(workspacePaths: workspacePaths)
+        if let cached = cachedBundle(for: cacheKey) {
+            return cached
+        }
+
         let sections = collectPolicySections(workspacePaths: workspacePaths)
         let skills = collectSkillCatalog()
         guard !sections.isEmpty || !skills.isEmpty else {
-            return InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
+            let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
+            storeCachedBundle(empty, for: cacheKey)
+            return empty
         }
 
         var lines: [String] = []
@@ -44,7 +60,9 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         }
         let policyBody = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !policyBody.isEmpty else {
-            return InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
+            let empty = InstructionPolicyBundle(policyText: "", policyHash: "", requiredAckMarker: "")
+            storeCachedBundle(empty, for: cacheKey)
+            return empty
         }
 
         let hash = hashForPolicy(policyBody)
@@ -56,7 +74,9 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         You MUST acknowledge policy ingestion before any operational tool call.
         Use the `policy_ack` tool with hash=\(hash)
         """
-        return InstructionPolicyBundle(policyText: promptBlock, policyHash: hash, requiredAckMarker: ackMarker)
+        let bundle = InstructionPolicyBundle(policyText: promptBlock, policyHash: hash, requiredAckMarker: ackMarker)
+        storeCachedBundle(bundle, for: cacheKey)
+        return bundle
     }
 
     public static func promptBlock(workspacePaths: [String]) -> String {
@@ -66,6 +86,37 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
     static func hashForPolicy(_ text: String) -> String {
         let digest = SHA256.hash(data: Data(text.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func workspaceCacheKey(workspacePaths: [String]) -> String {
+        workspacePaths
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: "|")
+    }
+
+    private static func cachedBundle(for key: String) -> InstructionPolicyBundle? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        guard let entry = cacheByWorkspaceKey[key] else { return nil }
+        if Date().timeIntervalSince(entry.createdAt) <= cacheTTL {
+            return entry.bundle
+        }
+        cacheByWorkspaceKey.removeValue(forKey: key)
+        return nil
+    }
+
+    private static func storeCachedBundle(_ bundle: InstructionPolicyBundle, for key: String) {
+        cacheLock.lock()
+        cacheByWorkspaceKey[key] = CacheEntry(bundle: bundle, createdAt: Date())
+        if cacheByWorkspaceKey.count > 64 {
+            let staleThreshold = Date().addingTimeInterval(-cacheTTL)
+            cacheByWorkspaceKey = cacheByWorkspaceKey.filter { _, entry in
+                entry.createdAt >= staleThreshold
+            }
+        }
+        cacheLock.unlock()
     }
 
     // MARK: - Collection
