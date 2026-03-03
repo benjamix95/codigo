@@ -10,7 +10,7 @@ extension CLIAccountLoginSheet {
         let isDefault: Bool
     }
 
-    private var providerColor: Color {
+    var providerColor: Color {
         switch account.provider {
         case .codex: return .green
         case .claude: return .orange
@@ -18,7 +18,7 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private var providerIcon: String {
+    var providerIcon: String {
         switch account.provider {
         case .codex: return "terminal"
         case .claude: return "brain.head.profile"
@@ -26,7 +26,7 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private var browserSubtitle: String {
+    var browserSubtitle: String {
         switch account.provider {
         case .codex: return "Sign in with your ChatGPT account"
         case .claude: return "Sign in with your Anthropic account"
@@ -34,7 +34,7 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private var apiKeyPlaceholder: String {
+    var apiKeyPlaceholder: String {
         switch account.provider {
         case .codex: return "sk-..."
         case .claude: return "sk-ant-..."
@@ -42,20 +42,20 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private var supportsDeviceCode: Bool {
+    var supportsDeviceCode: Bool {
         account.provider != .claude
     }
 
-    private var isLoginSuccess: Bool {
+    var isLoginSuccess: Bool {
         guard let status = coordinator.statusByAccount[account.id] else { return false }
         return statusIsSuccess(status)
     }
 
-    private var isLoginRunning: Bool {
+    var isLoginRunning: Bool {
         coordinator.isRunningByAccount[account.id] == true
     }
 
-    private var shouldShowAuthCodeInput: Bool {
+    var shouldShowAuthCodeInput: Bool {
         if coordinator.awaitingInputByAccount[account.id] == true {
             return true
         }
@@ -65,7 +65,7 @@ extension CLIAccountLoginSheet {
         return false
     }
 
-    private var dividerLine: some View {
+    var dividerLine: some View {
         HStack(spacing: 8) {
             Rectangle().fill(Color(nsColor: .separatorColor)).frame(height: 0.5)
             Text("or").font(.caption).foregroundStyle(.tertiary)
@@ -73,7 +73,7 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private func statusIsSuccess(_ status: String) -> Bool {
+    func statusIsSuccess(_ status: String) -> Bool {
         let lower = status.lowercased()
         return status == "Connected"
             || lower.contains("logged in")
@@ -81,12 +81,12 @@ extension CLIAccountLoginSheet {
             || lower.contains("authenticated")
     }
 
-    private func copyToClipboard(value: String) {
+    func copyToClipboard(value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
     }
 
-    private func open(_ url: URL, with browserURL: URL) {
+    func open(_ url: URL, with browserURL: URL) {
         NSWorkspace.shared.open(
             [url],
             withApplicationAt: browserURL,

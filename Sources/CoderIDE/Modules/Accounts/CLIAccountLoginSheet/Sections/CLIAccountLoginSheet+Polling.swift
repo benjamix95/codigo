@@ -2,7 +2,7 @@ import SwiftUI
 
 extension CLIAccountLoginSheet {
     // MARK: - Polling
-    private func pollingView(message: String) -> some View {
+    func pollingView(message: String) -> some View {
         VStack(spacing: 12) {
             ScrollView {
                 VStack(spacing: 16) {
@@ -48,7 +48,7 @@ extension CLIAccountLoginSheet {
         }
     }
 
-    private var pollingFooter: some View {
+    var pollingFooter: some View {
         HStack(spacing: 8) {
             if isLoginRunning {
                 Button("Cancel") {
@@ -73,7 +73,7 @@ extension CLIAccountLoginSheet {
         .padding(.bottom, 20)
     }
 
-    private func loginLinkSection(authURL: URL) -> some View {
+    func loginLinkSection(authURL: URL) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Login link")
                 .font(.caption.weight(.semibold))
@@ -137,7 +137,7 @@ extension CLIAccountLoginSheet {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private func deviceCodeSection(code: String) -> some View {
+    func deviceCodeSection(code: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your device code")
                 .font(.caption.weight(.semibold))
@@ -169,7 +169,7 @@ extension CLIAccountLoginSheet {
     }
 
     @ViewBuilder
-    private var authCodeSection: some View {
+    var authCodeSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Authentication code")
                 .font(.caption.weight(.semibold))

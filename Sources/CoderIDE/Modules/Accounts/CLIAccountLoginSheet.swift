@@ -11,16 +11,16 @@ struct CLIAccountLoginSheet: View {
     let providerPath: String?
     var onDismiss: (() -> Void)?
 
-    @StateObject private var coordinator = CLIAccountLoginCoordinator()
-    @State private var apiKey = ""
-    @State private var phase: LoginPhase = .options
-    @State private var copiedURLHint = false
-    @State private var authCodeInput = ""
-    @State private var authCodeHint = ""
-    @State private var deviceCodeCopied = false
-    @State private var availableBrowsers: [BrowserApp] = []
+    @StateObject var coordinator = CLIAccountLoginCoordinator()
+    @State var apiKey = ""
+    @State var phase: LoginPhase = .options
+    @State var copiedURLHint = false
+    @State var authCodeInput = ""
+    @State var authCodeHint = ""
+    @State var deviceCodeCopied = false
+    @State var availableBrowsers: [BrowserApp] = []
 
-    private enum LoginPhase {
+    enum LoginPhase {
         case options
         case polling(message: String)
     }

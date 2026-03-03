@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 
 extension CLIAccountLoginSheet {
-    private func refreshAvailableBrowsers() {
+    func refreshAvailableBrowsers() {
         guard let probeURL = URL(string: "https://claude.ai") else { return }
         let defaultAppURL = NSWorkspace.shared.urlForApplication(toOpen: probeURL)
         let defaultBundleId = defaultAppURL.flatMap { Bundle(url: $0)?.bundleIdentifier }

@@ -3,7 +3,7 @@ import AppKit
 
 extension CLIAccountLoginSheet {
     // MARK: - Actions
-    private func loginWithBrowser(browserAppURL: URL? = nil) {
+    func loginWithBrowser(browserAppURL: URL? = nil) {
         coordinator.setSelectedBrowser(browserAppURL, forAccount: account.id)
         authCodeInput = ""
         authCodeHint = ""
@@ -17,7 +17,7 @@ extension CLIAccountLoginSheet {
         )
     }
 
-    private func loginWithDeviceCode() {
+    func loginWithDeviceCode() {
         authCodeInput = ""
         authCodeHint = ""
         phase = .polling(message: "Generating device code...")
@@ -29,7 +29,7 @@ extension CLIAccountLoginSheet {
         )
     }
 
-    private func loginWithAPIKey() {
+    func loginWithAPIKey() {
         guard !apiKey.isEmpty else { return }
         authCodeInput = ""
         authCodeHint = ""
