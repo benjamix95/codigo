@@ -34,12 +34,18 @@ enum ToolTraceFileChangeMapper {
     }
 
     static func collect(from events: [ToolTraceEvent]) -> [ToolTraceFileChange] {
-        let ordered = events.sorted {
-            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
-            return $0.timestamp < $1.timestamp
+        let ordered: [ToolTraceEvent]
+        if areEventsAlreadyOrdered(events) {
+            ordered = events
+        } else {
+            ordered = events.sorted {
+                if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
+                return $0.timestamp < $1.timestamp
+            }
         }
 
         var byKey: [String: ToolTraceFileChange] = [:]
+        var keyOrder: [String] = []
         for event in ordered {
             guard let change = from(event: event) else { continue }
             let key = stableKey(for: event, fallbackPath: change.path)
@@ -47,11 +53,22 @@ enum ToolTraceFileChangeMapper {
                 byKey[key] = prefer(existing: existing, incoming: change)
             } else {
                 byKey[key] = change
+                keyOrder.append(key)
             }
         }
-        return byKey.values.sorted {
-            if $0.sequence != $1.sequence { return $0.sequence < $1.sequence }
-            return $0.timestamp < $1.timestamp
+        return keyOrder.compactMap { byKey[$0] }
+    }
+
+    static func areEventsAlreadyOrdered(_ events: [ToolTraceEvent]) -> Bool {
+        guard events.count > 1 else { return true }
+        var previous = events[0]
+        for current in events.dropFirst() {
+            if current.sequence < previous.sequence { return false }
+            if current.sequence == previous.sequence, current.timestamp < previous.timestamp {
+                return false
+            }
+            previous = current
         }
+        return true
     }
 }

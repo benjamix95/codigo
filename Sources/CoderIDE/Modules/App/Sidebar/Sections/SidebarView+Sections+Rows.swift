@@ -5,6 +5,7 @@ import CoderEngine
 extension SidebarView {
     var threadsSection: some View {
         let threads = visibleThreads
+        let now = Date()
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Threads")
@@ -89,17 +90,17 @@ extension SidebarView {
                             .padding(.horizontal, 6)
                             .padding(.top, 4)
                         ForEach(group.threads) { conv in
-                            threadRow(conv)
+                            threadRow(conv, referenceDate: now)
                         }
                     }
                 } else {
                     ForEach(threads) { conv in
-                        threadRow(conv)
+                        threadRow(conv, referenceDate: now)
                     }
                 }
 
                 let query = sidebarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !query.isEmpty {
+                if query.count >= 2 {
                     let hits = chatStore.searchThreads(query: query, includeArchived: true, limit: 12)
                     if !hits.isEmpty {
                         Button {
@@ -122,7 +123,7 @@ extension SidebarView {
         }
     }
 
-    func threadRow(_ conv: Conversation) -> some View {
+    func threadRow(_ conv: Conversation, referenceDate: Date) -> some View {
         let selected = selectedConversationId == conv.id
         let hasDraft = !(chatStore.draftTexts[conv.id]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         let isActive = chatStore.isTaskActive(for: conv.id)
@@ -165,7 +166,7 @@ extension SidebarView {
                     .controlSize(.mini)
             }
             if !isActive {
-                Text(relativeDate(conv.createdAt))
+                Text(relativeDate(conv.createdAt, relativeTo: referenceDate))
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }

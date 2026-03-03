@@ -32,11 +32,11 @@ private struct PlanTraceItem: Identifiable {
     }
 
     let id: UUID
+    let activity: TaskActivity
     let icon: String
     let iconColor: Color
     let displayTitle: String
     let displaySummary: String
-    let rawOutput: String?
     let timestamp: Date
     let status: Status
     let isExpandable: Bool
@@ -44,16 +44,16 @@ private struct PlanTraceItem: Identifiable {
 
     init(activity: TaskActivity) {
         let mappedFileChange = ToolTraceFileChangeMapper.from(activity: activity)
+        self.activity = activity
         id = activity.id
         icon = PlanTraceItem.icon(for: activity.type)
         iconColor = PlanTraceItem.color(for: activity.type)
         displayTitle = PlanTraceItem.title(for: activity, fileChange: mappedFileChange)
         displaySummary = PlanTraceItem.summary(for: activity)
-        rawOutput = PlanTraceItem.rawOutput(for: activity)
         timestamp = activity.timestamp
         status = PlanTraceItem.status(for: activity)
         fileChange = mappedFileChange
-        isExpandable = mappedFileChange != nil || rawOutput?.isEmpty == false
+        isExpandable = mappedFileChange != nil || PlanTraceItem.hasExpandableOutput(activity)
     }
 
     private static func title(for activity: TaskActivity, fileChange: ToolTraceFileChange?) -> String {
@@ -101,7 +101,7 @@ private struct PlanTraceItem: Identifiable {
         return activity.title
     }
 
-    private static func rawOutput(for activity: TaskActivity) -> String? {
+    fileprivate static func rawOutput(for activity: TaskActivity) -> String? {
         var lines: [String] = []
         if let command = activity.payload["command"], !command.isEmpty {
             lines.append("$ \(command)")
@@ -127,6 +127,16 @@ private struct PlanTraceItem: Identifiable {
         }
         let joined = lines.joined(separator: "\n")
         return joined.isEmpty ? nil : joined
+    }
+
+    private static func hasExpandableOutput(_ activity: TaskActivity) -> Bool {
+        if let detail = activity.detail, !detail.isEmpty { return true }
+        if let command = activity.payload["command"], !command.isEmpty { return true }
+        if let cwd = activity.payload["cwd"], !cwd.isEmpty { return true }
+        if let diffPreview = activity.payload["diffPreview"], !diffPreview.isEmpty { return true }
+        if let output = activity.payload["output"], !output.isEmpty { return true }
+        if let stderr = activity.payload["stderr"], !stderr.isEmpty { return true }
+        return false
     }
 
     private static func status(for activity: TaskActivity) -> Status {
@@ -301,7 +311,7 @@ struct PlanLiveTraceView: View {
             if isExpanded {
                 if let fileChange = item.fileChange {
                     fileChangePreview(for: fileChange)
-                } else if let raw = item.rawOutput {
+                } else if let raw = PlanTraceItem.rawOutput(for: item.activity) {
                     Text(truncated(raw))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)

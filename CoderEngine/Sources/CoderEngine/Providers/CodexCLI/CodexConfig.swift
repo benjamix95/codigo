@@ -43,6 +43,11 @@ public struct CodexConfig: Sendable, Equatable {
 
 /// Parser e writer per ~/.codex/config.toml
 public enum CodexConfigLoader {
+    private static let cacheLock = NSLock()
+    private static var cachedPath: String?
+    private static var cachedMtime: Date?
+    private static var cachedConfig: CodexConfig?
+
     public static var codexHome: String {
         ProcessInfo.processInfo.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex"
     }
@@ -53,11 +58,26 @@ public enum CodexConfigLoader {
 
     public static func load() -> CodexConfig {
         let path = configPath
-        guard FileManager.default.fileExists(atPath: path),
-              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
-            return CodexConfig()
+        let fileManager = FileManager.default
+        let mtime = modificationDate(for: path, fileManager: fileManager)
+
+        cacheLock.lock()
+        if cachedPath == path, cachedMtime == mtime, let cachedConfig {
+            cacheLock.unlock()
+            return cachedConfig
         }
-        return parse(content)
+        cacheLock.unlock()
+
+        guard fileManager.fileExists(atPath: path),
+              let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            let empty = CodexConfig()
+            updateCache(path: path, mtime: mtime, config: empty)
+            return empty
+        }
+
+        let parsed = parse(content)
+        updateCache(path: path, mtime: mtime, config: parsed)
+        return parsed
     }
 
     public static func save(_ config: CodexConfig) {
@@ -107,6 +127,9 @@ public enum CodexConfigLoader {
         let dir = (configPath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         try? lines.joined(separator: "\n").write(toFile: configPath, atomically: true, encoding: .utf8)
+        let path = configPath
+        let mtime = modificationDate(for: path, fileManager: .default)
+        updateCache(path: path, mtime: mtime, config: config)
     }
 
     // MARK: - Parser
@@ -223,5 +246,18 @@ public enum CodexConfigLoader {
             i += 1
         }
         return (collected.joined(separator: "\n"), i)
+    }
+
+    private static func modificationDate(for path: String, fileManager: FileManager) -> Date? {
+        guard let attrs = try? fileManager.attributesOfItem(atPath: path) else { return nil }
+        return attrs[.modificationDate] as? Date
+    }
+
+    private static func updateCache(path: String, mtime: Date?, config: CodexConfig) {
+        cacheLock.lock()
+        cachedPath = path
+        cachedMtime = mtime
+        cachedConfig = config
+        cacheLock.unlock()
     }
 }

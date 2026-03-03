@@ -61,8 +61,8 @@ extension SidebarView {
         return f
     }()
 
-    func relativeDate(_ date: Date) -> String {
-        Self.relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    func relativeDate(_ date: Date, relativeTo referenceDate: Date = Date()) -> String {
+        Self.relativeDateFormatter.localizedString(for: date, relativeTo: referenceDate)
     }
 
     func matchesQuery(_ conv: Conversation, query: String) -> Bool {

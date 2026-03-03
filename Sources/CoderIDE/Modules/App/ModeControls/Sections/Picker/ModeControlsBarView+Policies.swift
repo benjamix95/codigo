@@ -38,13 +38,11 @@ extension ModeControlsBarView {
     }
 
     // MARK: - Access Level Menu
-    var effectiveSandbox: String {
-        codexSandbox.isEmpty
-            ? (CodexConfigLoader.load().sandboxMode ?? "workspace-write") : codexSandbox
-    }
-
     func accessLevelMenuView(showLabel: Bool) -> some View {
         let cfg = CodexConfigLoader.load()
+        let currentSandbox = codexSandbox.isEmpty
+            ? (cfg.sandboxMode ?? "workspace-write")
+            : codexSandbox
         return Menu {
             Button {
                 codexSandbox = ""
@@ -81,14 +79,14 @@ extension ModeControlsBarView {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: accessLevelIcon(for: effectiveSandbox)).font(.caption)
+                Image(systemName: accessLevelIcon(for: currentSandbox)).font(.caption)
                 if showLabel {
-                    Text(accessLevelLabel(for: effectiveSandbox)).font(.caption).lineLimit(1)
+                    Text(accessLevelLabel(for: currentSandbox)).font(.caption).lineLimit(1)
                 }
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(
-                effectiveSandbox == "danger-full-access"
+                currentSandbox == "danger-full-access"
                     ? DesignSystem.Colors.error : .secondary
             )
         }

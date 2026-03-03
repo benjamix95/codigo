@@ -4,21 +4,100 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
+    private struct FinalChatActionMetrics {
+        let messageCount: Int
+        let assistantCount: Int
+        let userCount: Int
+        let editCount: Int
+        let fileChanges: [ToolTraceFileChange]
+        let linesAdded: Int
+        let linesRemoved: Int
+    }
+
+    private func buildFinalChatActionMetrics(for conversation: Conversation?) -> FinalChatActionMetrics {
+        guard let conversation else {
+            return .init(
+                messageCount: 0,
+                assistantCount: 0,
+                userCount: 0,
+                editCount: 0,
+                fileChanges: [],
+                linesAdded: 0,
+                linesRemoved: 0
+            )
+        }
+
+        var assistantCount = 0
+        var userCount = 0
+        var latestAssistantMessageId: UUID?
+        for message in conversation.messages {
+            switch message.role {
+            case .assistant:
+                assistantCount += 1
+                latestAssistantMessageId = message.id
+            case .user:
+                userCount += 1
+            default:
+                break
+            }
+        }
+
+        guard let latestAssistantMessageId else {
+            return .init(
+                messageCount: conversation.messages.count,
+                assistantCount: assistantCount,
+                userCount: userCount,
+                editCount: 0,
+                fileChanges: [],
+                linesAdded: 0,
+                linesRemoved: 0
+            )
+        }
+
+        let traceEvents = toolTraceStore.events(
+            conversationId: conversation.id,
+            assistantMessageId: latestAssistantMessageId
+        )
+        guard !traceEvents.isEmpty else {
+            return .init(
+                messageCount: conversation.messages.count,
+                assistantCount: assistantCount,
+                userCount: userCount,
+                editCount: 0,
+                fileChanges: [],
+                linesAdded: 0,
+                linesRemoved: 0
+            )
+        }
+
+        var editCount = 0
+        for event in traceEvents where ToolTraceFileChangeMapper.isFileChangeEvent(event) {
+            editCount += 1
+        }
+
+        let fileChanges = editCount > 0 ? ToolTraceFileChangeMapper.collect(from: traceEvents) : []
+        var linesAdded = 0
+        var linesRemoved = 0
+        for change in fileChanges {
+            linesAdded += max(0, change.added)
+            linesRemoved += max(0, change.removed)
+        }
+
+        return .init(
+            messageCount: conversation.messages.count,
+            assistantCount: assistantCount,
+            userCount: userCount,
+            editCount: editCount,
+            fileChanges: fileChanges,
+            linesAdded: linesAdded,
+            linesRemoved: linesRemoved
+        )
+    }
+
     @ViewBuilder
     internal var finalChatActionsBar: some View {
         let conv = chatStore.conversation(for: conversationId)
-        let messageCount = conv?.messages.count ?? 0
-        let assistantCount = conv?.messages.filter { $0.role == .assistant }.count ?? 0
-        let userCount = conv?.messages.filter { $0.role == .user }.count ?? 0
-        let latestAssistantMessageId = conv?.messages.last(where: { $0.role == .assistant })?.id
-        let traceEvents = {
-            guard let c = conv, let assistantId = latestAssistantMessageId else { return [ToolTraceEvent]() }
-            return toolTraceStore.events(conversationId: c.id, assistantMessageId: assistantId)
-        }()
-        let editCount = traceEvents.filter { ToolTraceFileChangeMapper.isFileChangeEvent($0) }.count
-        let fileChanges = ToolTraceFileChangeMapper.collect(from: traceEvents)
-        let linesAdded = fileChanges.reduce(0) { $0 + max(0, $1.added) }
-        let linesRemoved = fileChanges.reduce(0) { $0 + max(0, $1.removed) }
+        let metrics = buildFinalChatActionMetrics(for: conv)
 
         VStack(spacing: 0) {
             Rectangle()
@@ -47,33 +126,33 @@ extension ChatPanelView {
                         .tracking(0.2)
                 }
 
-                if messageCount > 0 {
+                if metrics.messageCount > 0 {
                     HStack(spacing: 16) {
                         finalStatPill(
                             icon: "bubble.left.and.bubble.right",
-                            value: "\(userCount + assistantCount)",
+                            value: "\(metrics.userCount + metrics.assistantCount)",
                             label: "messages"
                         )
-                        if editCount > 0 {
+                        if metrics.editCount > 0 {
                             finalStatPill(
                                 icon: "pencil",
-                                value: "\(editCount)",
-                                label: editCount == 1 ? "edit" : "edits"
+                                value: "\(metrics.editCount)",
+                                label: metrics.editCount == 1 ? "edit" : "edits"
                             )
                         }
-                        if fileChanges.count > 0 {
+                        if metrics.fileChanges.count > 0 {
                             finalStatPill(
                                 icon: "doc.text",
-                                value: "\(fileChanges.count)",
-                                label: fileChanges.count == 1 ? "file" : "files"
+                                value: "\(metrics.fileChanges.count)",
+                                label: metrics.fileChanges.count == 1 ? "file" : "files"
                             )
                         }
-                        if linesAdded > 0 || linesRemoved > 0 {
+                        if metrics.linesAdded > 0 || metrics.linesRemoved > 0 {
                             HStack(spacing: 4) {
-                                Text("+\(linesAdded)")
+                                Text("+\(metrics.linesAdded)")
                                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     .foregroundStyle(DesignSystem.Colors.success.opacity(0.8))
-                                Text("-\(linesRemoved)")
+                                Text("-\(metrics.linesRemoved)")
                                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     .foregroundStyle(DesignSystem.Colors.error.opacity(0.8))
                             }
