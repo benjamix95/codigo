@@ -2,6 +2,13 @@ import XCTest
 @testable import CoderIDE
 
 extension PlanOptionsParserTests {
+    func testParseClarificationQuestionsSupportsLevelThreeHeader() {
+        let input = """
+        ### Questions:
+        1. Which module should be updated?
+        2. Which behavior must be preserved?
+        """
+        let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
         XCTAssertEqual(questions?.count, 2)
         XCTAssertEqual(questions?.first, "Which module should be updated?")
     }
@@ -110,36 +117,4 @@ extension PlanOptionsParserTests {
         let parsed = PlanOptionsParser.parse(from: input)
         XCTAssertTrue(parsed.isEmpty)
     }
-
-    func testExtractTodosFromOptionText() {
-        let input = """
-        ## Option 1: Refactor
-        - Pro: robustness
-        ## Todo
-        - [ ] Step 1: Create interface
-        - [ ] Step 2: Implement concrete class
-        - [ ] Step 3: Update tests
-        """
-        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
-        XCTAssertEqual(todos.count, 3)
-        XCTAssertEqual(todos[0], "Step 1: Create interface")
-        XCTAssertEqual(todos[1], "Step 2: Implement concrete class")
-        XCTAssertEqual(todos[2], "Step 3: Update tests")
-    }
-
-    func testExtractTodosFromOptionTextWithBullets() {
-        let input = """
-        ## Todo
-        - First task
-        - Second task
-        """
-        let todos = PlanOptionsParser.extractTodosFromOptionText(input)
-        XCTAssertEqual(todos.count, 2)
-    }
-
-    func testExtractTodosFromOptionTextWithNonH2TodoHeader() {
-        let input = """
-        ### To-do
-        - [ ] First task
-        - [ ] Second task
 }

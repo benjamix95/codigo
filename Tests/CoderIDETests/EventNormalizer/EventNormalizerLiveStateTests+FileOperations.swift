@@ -2,9 +2,6 @@ import XCTest
 @testable import CoderIDE
 
 extension EventNormalizerLiveStateTests {
-        })
-    }
-
     func testDebugInstrumentEmitsTypedPayload() {
         let events = EventNormalizer.normalize(
             type: "debug_instrument",

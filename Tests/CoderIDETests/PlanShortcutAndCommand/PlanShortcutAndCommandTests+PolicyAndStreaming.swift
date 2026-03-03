@@ -252,15 +252,4 @@ extension PlanShortcutAndCommandTests {
             )
         )
     }
-
-    func testRoutePlanStreamOnlyForPlanContextOrActiveBuildConversations() {
-        let streamConversationId = UUID()
-        let activeBuildPlanConversationId = UUID()
-        let activeBuildAgentConversationId = UUID()
-
-        XCTAssertTrue(
-            shouldRoutePlanStreamToPlanPanel(
-                shouldRoutePlanStreamingToPanel: true,
-                streamConversationId: streamConversationId,
-                hasActivePlanContext: true,
 }

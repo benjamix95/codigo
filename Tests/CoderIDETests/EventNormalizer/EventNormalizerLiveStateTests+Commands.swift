@@ -262,4 +262,6 @@ extension EventNormalizerLiveStateTests {
                     && payload.status == .confirmed
             }
             return false
+        })
+    }
 }

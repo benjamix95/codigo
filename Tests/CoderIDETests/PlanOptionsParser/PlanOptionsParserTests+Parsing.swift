@@ -130,12 +130,4 @@ extension PlanOptionsParserTests {
             )
         )
     }
-
-    func testParseClarificationQuestionsSupportsLevelThreeHeader() {
-        let input = """
-        ### Questions:
-        1. Which module should be updated?
-        2. Which behavior must be preserved?
-        """
-        let questions = PlanOptionsParser.parseClarificationQuestions(from: input)
 }
