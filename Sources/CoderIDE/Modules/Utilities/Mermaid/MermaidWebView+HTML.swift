@@ -285,9 +285,31 @@ extension MermaidWebView {
                     try {
                         const mermaid = await loadMermaid();
                         mermaid.initialize(mermaidConfig);
+                        const nodes = document.querySelectorAll('.mermaid');
+                        if (!nodes.length) {
+                            setError('No Mermaid content found.');
+                            return;
+                        }
+
+                        // Explicit render is required in dynamically loaded runtimes.
+                        if (typeof mermaid.run === 'function') {
+                            await mermaid.run({ nodes });
+                        } else if (typeof mermaid.init === 'function') {
+                            mermaid.init(undefined, '.mermaid');
+                        } else if (typeof mermaid.contentLoaded === 'function') {
+                            mermaid.contentLoaded();
+                        } else {
+                            setError('Mermaid runtime does not expose a render API.');
+                            return;
+                        }
                         requestAnimationFrame(ensureDiagramReady);
                     } catch (error) {
-                        setError('Mermaid runtime unavailable (offline/CDN blocked).');
+                        const message = error?.message ?? '';
+                        if (message && !message.toLowerCase().includes('offline')) {
+                            setError(`Unable to render Mermaid diagram. ${message}`);
+                        } else {
+                            setError('Mermaid runtime unavailable (offline/CDN blocked).');
+                        }
                     }
                 })();
             </script>

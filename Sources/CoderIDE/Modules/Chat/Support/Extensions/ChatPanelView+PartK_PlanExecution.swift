@@ -10,8 +10,8 @@ extension ChatPanelView {
         providerOverrideId: String? = nil,
         allowIdleRebuild: Bool = false
     ) {
-        guard conversationId != nil else { return }
-        let planConversationId = explicitPlanConversationId ?? conversationId
+        guard let currentConversationId = conversationId else { return }
+        let planConversationId = explicitPlanConversationId ?? currentConversationId
         let hasActiveBuildTask = activeBuildAgentConversationId.map { chatStore.isTaskActive(for: $0) } ?? false
         let canStartBuild = shouldAllowStartingPlanBuild(
             isLoadingCurrentConversation: isLoadingForCurrentConversation,
@@ -110,11 +110,10 @@ extension ChatPanelView {
             provider = backendProvider
         }
 
-        let currentConv = chatStore.conversation(for: conversationId)
-        let contextId = currentConv?.contextId
-        let contextFolderPath = currentConv?.contextFolderPath
-        let agentConvId = chatStore.getOrCreateConversationForMode(
-            contextId: contextId, contextFolderPath: contextFolderPath, mode: .agent)
+        // Keep execution bound to the currently selected plan conversation.
+        // Creating/reusing a detached agent thread causes trace/todo events
+        // to appear outside the chat the user is actively using.
+        let agentConvId = planConversationId
         let ctx = effectiveContext.toWorkspaceContext(
             openFiles: openFilesStore.openFilesForContext(linkedPaths: linkedContextPaths()),
             activeSelection: nil,

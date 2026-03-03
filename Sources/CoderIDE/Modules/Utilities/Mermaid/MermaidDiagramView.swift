@@ -139,10 +139,12 @@ struct MermaidDiagramView: View {
                     accentColor: accentColor,
                     isDarkMode: colorScheme == .dark,
                     onImageRendered: { svg in
+                        diagramError = nil
                         latestDiagramSVG = svg
                         latestDiagramURL = writeTempFile(svg.data(using: .utf8), ext: "svg", replacing: latestDiagramURL)
                     },
                     onImageRenderedPNG: { png in
+                        diagramError = nil
                         latestDiagramPNGData = png
                         latestDiagramPNGURL = writeTempFile(png, ext: "png", replacing: latestDiagramPNGURL)
                     },

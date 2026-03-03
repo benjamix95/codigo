@@ -15,6 +15,17 @@ extension ChatPanelView {
         let envelope = flowCoordinator.normalizeRawEvent(
             providerId: providerId, type: type, payload: payload)
         taskActivityStore.addEnvelope(envelope)
+        let planFallbackConversationId: UUID? = {
+            guard let streamConversationId = conversationId else {
+                return activeBuildPlanConversationId ?? chatStore.activeTaskConversationId
+            }
+            if let activeBuildAgentConversationId,
+               let activeBuildPlanConversationId,
+               streamConversationId == activeBuildAgentConversationId {
+                return activeBuildPlanConversationId
+            }
+            return streamConversationId
+        }()
 
         for event in envelope.events {
             switch event {
@@ -58,7 +69,7 @@ extension ChatPanelView {
                     stepId: stepId,
                     status: status,
                     stepTitle: stepTitle,
-                    conversationId: conversationId
+                    conversationId: planFallbackConversationId
                 )
             case .planCreate(let goal, let chosenPath, let steps, let planConversationId):
                 handlePlanCreateEvent(
@@ -66,30 +77,30 @@ extension ChatPanelView {
                     chosenPath: chosenPath,
                     steps: steps,
                     eventConversationId: planConversationId,
-                    fallbackConversationId: conversationId
+                    fallbackConversationId: planFallbackConversationId
                 )
             case .planRead:
                 break
             case .planStepUpsert(let payload):
-                handlePlanStepUpsertEvent(payload, fallbackConversationId: conversationId)
+                handlePlanStepUpsertEvent(payload, fallbackConversationId: planFallbackConversationId)
             case .planStepBatchUpdate(let items, let planConversationId):
                 handlePlanStepBatchUpdateEvent(
                     items: items,
                     conversationId: planConversationId,
-                    fallbackConversationId: conversationId
+                    fallbackConversationId: planFallbackConversationId
                 )
             case .planStepReorder(let orderedStepIds, let planConversationId):
                 handlePlanStepReorderEvent(
                     orderedStepIds: orderedStepIds,
                     conversationId: planConversationId,
-                    fallbackConversationId: conversationId
+                    fallbackConversationId: planFallbackConversationId
                 )
             case .planStepDependencySet(let stepId, let dependsOn, let planConversationId):
                 handlePlanStepDependencySetEvent(
                     stepId: stepId,
                     dependsOn: dependsOn,
                     conversationId: planConversationId,
-                    fallbackConversationId: conversationId
+                    fallbackConversationId: planFallbackConversationId
                 )
             case .planSetWalkthrough(let markdown, let summary, let outcome, let planConversationId):
                 handlePlanSetWalkthroughEvent(
@@ -97,7 +108,7 @@ extension ChatPanelView {
                     summary: summary,
                     outcome: outcome,
                     conversationId: planConversationId,
-                    fallbackConversationId: conversationId
+                    fallbackConversationId: planFallbackConversationId
                 )
             case .planHistoryRead:
                 break

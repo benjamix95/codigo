@@ -23,7 +23,7 @@ extension ChatStore {
         if let latestConversation = conversations.last?.id {
             return latestConversation
         }
-        return createConversation(contextId: nil, contextFolderPath: nil, mode: nil)
+        return nil
     }
 
     func persistPlanBoard(_ board: PlanBoard, for conversationId: UUID) {
