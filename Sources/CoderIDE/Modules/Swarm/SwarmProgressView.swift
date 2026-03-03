@@ -5,6 +5,7 @@ struct SwarmProgressView: View {
     let activities: [TaskActivity]
     let isTaskRunning: Bool
     let onSelectSwarm: ((String) -> Void)?
+    private let inlineMaxWidth: CGFloat = 560
 
     private var swarmLanes: [SwarmLaneState] {
         TaskActivityStore.laneStates(from: activities)
@@ -100,6 +101,10 @@ struct SwarmProgressView: View {
                 .frame(height: 0.5)
                 .offset(y: 8)
         }
+        // Keep the inline swarm strip centered in chat and prevent full-width expansion.
+        .frame(maxWidth: inlineMaxWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.leading, 6)
     }
 
     private var swarmAntIcon: some View {
