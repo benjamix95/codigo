@@ -1,6 +1,13 @@
 import Foundation
 
 extension CLIProfileProvisioner {
+    static func bundledMCPServerSiblingPath() -> String? {
+        guard let execURL = Bundle.main.executableURL else { return nil }
+        return execURL.deletingLastPathComponent()
+            .appendingPathComponent("coderide-mcp-server")
+            .path
+    }
+
     static func mcpServerBinaryPath() -> String? {
         let overridePath = ProcessInfo.processInfo.environment[mcpServerPathOverrideEnv]?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -13,11 +20,9 @@ extension CLIProfileProvisioner {
             return bundled
         }
 
-        if let execURL = Bundle.main.executableURL {
-            let sibling = execURL.deletingLastPathComponent().appendingPathComponent("coderide-mcp-server")
-            if FileManager.default.isExecutableFile(atPath: sibling.path) {
-                return sibling.path
-            }
+        if let siblingPath = bundledMCPServerSiblingPath(),
+           FileManager.default.isExecutableFile(atPath: siblingPath) {
+            return siblingPath
         }
 
         // Dev fallback: locate the binary in CoderEngine/.build from workspace root.

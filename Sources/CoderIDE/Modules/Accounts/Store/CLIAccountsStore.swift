@@ -21,6 +21,7 @@ final class CLIAccountsStore: ObservableObject {
 
     /// Ensures account bootstrap invariants.
     func bootstrapAccountsIfNeeded() {
+        CLIProfileProvisioner.selfHealManagedProfiles()
         ensureGlobalAccountsIfNeeded()
         ensureDefaultAccountsIfNeeded()
         _ = deduplicateAccounts(provider: .claude, preferredActiveAccountId: nil)
