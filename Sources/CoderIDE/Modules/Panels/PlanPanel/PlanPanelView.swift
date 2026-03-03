@@ -139,6 +139,7 @@ struct PlanPanelView: View {
                     // 7) Live activity (compact)
                     if !planTraceActivities.isEmpty {
                         traceSection
+                            .animation(.none, value: planTraceActivities.count)
                     }
 
                     if shouldShowPlanDetailsSection {

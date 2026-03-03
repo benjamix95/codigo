@@ -261,43 +261,4 @@ extension ChatPanelView {
         )
     }
 
-    // MARK: - Silent Plan Screening (Auto-Detect)
-
-    /// Runs a lightweight LLM call to assess whether the user's request needs a structured plan.
-    /// Uses provider.send() directly to avoid polluting conversation history.
-    /// Returns `true` if a plan is recommended.
-    internal func runSilentPlanScreening(
-        provider: any LLMProvider,
-        ctx: WorkspaceContext,
-        userRequest: String
-    ) async throws -> Bool {
-        let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: String(userRequest.prefix(16_000)))
-        let screeningCtx = WorkspaceContext(
-            workspacePaths: ctx.workspacePaths,
-            isNamedWorkspace: ctx.isNamedWorkspace,
-            workspaceName: ctx.workspaceName,
-            excludedPaths: ctx.excludedPaths,
-            includedPaths: ctx.includedPaths,
-            openFiles: [],
-            activeSelection: nil,
-            activeFilePath: nil,
-            activeRootPath: ctx.activeRootPath,
-            skipContextEnrichment: true,
-            systemPromptOverride: "You are a request screener. Assess if the request needs a structured plan. Be concise."
-        )
-        let stream = try await provider.send(prompt: screeningPrompt, context: screeningCtx, imageURLs: nil)
-        var parts: [String] = []
-        for try await event in stream {
-            switch event {
-            case .textDelta(let delta):
-                parts.append(delta)
-            case .textReplace(let replacement):
-                parts = replacement.isEmpty ? [] : [replacement]
-            case .error, .started, .completed, .raw:
-                break
-            }
-        }
-        let result = parts.joined().trimmingCharacters(in: .whitespacesAndNewlines)
-        return result.contains("PLAN_NEEDED")
-    }
 }

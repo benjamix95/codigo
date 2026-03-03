@@ -203,6 +203,10 @@ extension ChatPanelView {
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(swarmPanelWidthStorage))
                 } else if !isShowing && wasOpen {
                     adjustWindowForPanelToggle(isOpening: false, width: CGFloat(swarmPanelWidthStorage))
+                    // Restore the plan panel if plan mode is still active
+                    if planToggleEnabled && !showPlanPanel && !showDebugPanel {
+                        showPlanPanel = true
+                    }
                 }
             }
             .onChange(of: showDebugPanel) { wasOpen, isShowing in
@@ -222,6 +226,10 @@ extension ChatPanelView {
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(debugPanelWidthStorage))
                 } else if !isShowing && wasOpen {
                     adjustWindowForPanelToggle(isOpening: false, width: CGFloat(debugPanelWidthStorage))
+                    // Restore the plan panel if plan mode is still active
+                    if planToggleEnabled && !showPlanPanel {
+                        showPlanPanel = true
+                    }
                 }
             }
             .onChange(of: debugToggleEnabled) { _, isEnabled in
@@ -275,6 +283,10 @@ extension ChatPanelView {
                     adjustWindowForPanelToggle(isOpening: true, width: CGFloat(codeReviewPanelWidthStorage))
                 } else if !isOpen && wasOpen {
                     adjustWindowForPanelToggle(isOpening: false, width: CGFloat(codeReviewPanelWidthStorage))
+                    // Restore the plan panel if plan mode is still active
+                    if planToggleEnabled && !showPlanPanel && !showDebugPanel {
+                        showPlanPanel = true
+                    }
                 }
             }
             .onChange(of: effectiveContext.primaryPath) { _, newPath in

@@ -218,6 +218,8 @@ struct PlanLiveTraceView: View {
     @State private var expandedRawById: Set<UUID> = []
     @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
+    /// Tracks the last known activity count to only auto-scroll when new items appear.
+    @State private var lastScrolledActivityCount: Int = 0
 
     private var visibleActivities: [TaskActivity] {
         let all = Array(activities.suffix(maxVisibleEvents))
@@ -263,19 +265,40 @@ struct PlanLiveTraceView: View {
             }
 
             // Scrollable activity list with height constraint
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    if !isExpanded && hiddenCount > 0 {
-                        Text("+\(hiddenCount) more...")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.bottom, 2)
-                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if !isExpanded && hiddenCount > 0 {
+                            Text("+\(hiddenCount) more...")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.bottom, 2)
+                        }
 
-                    ForEach(traceItems) { item in
-                        traceRow(item)
+                        ForEach(traceItems) { item in
+                            traceRow(item)
+                        }
+
+                        // Anchor for scrolling to bottom
+                        Color.clear
+                            .frame(height: 1)
+                            .id("trace-bottom-anchor")
                     }
+                    .padding(.bottom, 4)
+                }
+                .onChange(of: activities.count) { oldCount, newCount in
+                    // Only auto-scroll when NEW items are added, not on every update
+                    guard newCount > oldCount else { return }
+                    lastScrolledActivityCount = newCount
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("trace-bottom-anchor", anchor: .bottom)
+                    }
+                }
+                .onAppear {
+                    // Scroll to bottom on first appearance
+                    lastScrolledActivityCount = activities.count
+                    proxy.scrollTo("trace-bottom-anchor", anchor: .bottom)
                 }
             }
             .frame(maxHeight: isExpanded ? 400 : compactMaxHeight)

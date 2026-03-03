@@ -305,100 +305,44 @@ extension ChatPanelView {
                         }
                     }
                 } else {
-                    // Auto-detect: run silent screening to check if a plan is needed
-                    let planAutoDetected = try await runSilentPlanScreening(
+                    // Standard single-stream flow (non-plan modes + plan build)
+                    let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
-                        ctx: ctx,
-                        userRequest: text
+                        prompt: prompt,
+                        context: ctx,
+                        attachments: attachmentsToSend,
+                        onText: { content in
+                            applyStreamingUpdate(
+                                content: content,
+                                conversationId: targetConversationId
+                            )
+                        },
+                        onRaw: { t, p, pid in
+                            handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
+                        },
+                        onError: { content in
+                            Task { @MainActor in
+                                chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
+                            }
+                        },
+                        onSignal: nil
                     )
 
-                    if planAutoDetected {
-                        // Auto-activate plan mode
-                        await MainActor.run {
-                            self.planToggleEnabled = true
-                            self.planFlowPhase = .analyzing
-                            self.planningState = .idle
-                            self.planAnalysisContext = ""
-                            self.planUserRequest = String(text.prefix(16_000))
-                            self.planClarificationAnswers = ""
-                            self.planClarificationCycles = 0
-                            self.clearPlanStreamingState()
-                            self.planShouldRunInline = true
-                        }
-                        // Run plan flow (skip Phase 0 since we already screened silently)
-                        try await runMultiTurnPlanFlow(
-                            provider: effectiveRuntimeProvider,
-                            ctx: ctx,
-                            attachmentsToSend: attachmentsToSend,
-                            conversationId: targetConversationId,
-                            shouldRunPlanInline: true,
-                            skipScreening: true
-                        )
-                        // Safety net (same as explicit plan flow)
-                        await MainActor.run {
-                            guard shouldMutatePlanState(
-                                targetConversationId: targetConversationId,
-                                currentConversationId: self.conversationId
-                            ) else { return }
-                            let isPausedForClarification: Bool = {
-                                if case .awaitingClarification = planningState { return true }
-                                return false
-                            }()
-                            switch planFlowPhase {
-                            case .analyzing, .generating:
-                                NSLog("[PlanFlow] Safety reset after auto-detect: planFlowPhase was still %@", String(describing: planFlowPhase))
-                                planFlowPhase = .idle
-                                planningState = .idle
-                                clearPlanStreamingState()
-                            case .questioning where !isPausedForClarification:
-                                NSLog("[PlanFlow] Safety reset after auto-detect: .questioning without awaitingClarification")
-                                planFlowPhase = .idle
-                                planningState = .idle
-                                clearPlanStreamingState()
-                            default:
-                                break
-                            }
-                        }
-                    } else {
-                        // Standard single-stream flow (non-plan modes + plan build)
-                        let streamResult = try await flowCoordinator.runStream(
-                            provider: effectiveRuntimeProvider,
-                            prompt: prompt,
-                            context: ctx,
-                            attachments: attachmentsToSend,
-                            onText: { content in
-                                applyStreamingUpdate(
-                                    content: content,
-                                    conversationId: targetConversationId
-                                )
-                            },
-                            onRaw: { t, p, pid in
-                                handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: targetConversationId)
-                            },
-                            onError: { content in
-                                Task { @MainActor in
-                                    chatStore.updateLastAssistantMessage(content: content, in: targetConversationId)
-                                }
-                            },
-                            onSignal: nil
-                        )
+                    let finalizedResult = try await continueIfPrematureStub(
+                        initial: streamResult,
+                        provider: effectiveRuntimeProvider,
+                        originalPrompt: prompt,
+                        context: ctx,
+                        conversationId: targetConversationId,
+                        hideContentDuringPlanDiscovery: false
+                    )
 
-                        let finalizedResult = try await continueIfPrematureStub(
-                            initial: streamResult,
-                            provider: effectiveRuntimeProvider,
-                            originalPrompt: prompt,
-                            context: ctx,
-                            conversationId: targetConversationId,
-                            hideContentDuringPlanDiscovery: false
-                        )
-
-                        // 6. Handle stream completion (plan options)
-                        await handleStreamResult(
-                            conversationId: targetConversationId,
-                            fullText: finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
-                            ctx: ctx, attachmentsToSend: attachmentsToSend, prompt: prompt
-                        )
-                    }
+                    // 6. Handle stream completion (plan options)
+                    await handleStreamResult(
+                        conversationId: targetConversationId,
+                        fullText: finalizedResult, shouldRunPlanInline: shouldRunPlanInline,
+                        ctx: ctx, attachmentsToSend: attachmentsToSend, prompt: prompt
+                    )
                 }
             } catch {
                 chatStore.setLastAssistantStreaming(false, in: targetConversationId)
