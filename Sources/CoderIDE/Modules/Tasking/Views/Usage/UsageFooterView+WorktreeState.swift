@@ -28,7 +28,7 @@ extension UsageFooterView {
 
     var isWorktreeToggleDisabled: Bool {
         if selectedConversationId == nil { return true }
-        guard let root = resolvedGitRoot(from: effectiveContext.primaryPath) else { return true }
+        guard let root = gitPanelStore.gitRoot else { return true }
         return root.isEmpty
     }
 
@@ -42,6 +42,9 @@ extension UsageFooterView {
     }
 
     func resolvedGitRoot(from path: String?) -> String? {
+        if let cached = gitPanelStore.gitRoot, !cached.isEmpty {
+            return cached
+        }
         guard let path, !path.isEmpty else { return nil }
         return try? GitService().resolveGitRoot(from: path)
     }

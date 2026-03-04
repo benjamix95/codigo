@@ -78,7 +78,7 @@ struct PlanPanelView: View {
             thinSeparator
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     // 1) Progress (analyzing/questioning/generating)
                     if planFlowPhase == .analyzing || planFlowPhase == .questioning || planFlowPhase == .generating {
                         PlanPhaseProgressView(phase: planFlowPhase, questionsWereVisited: questionsWereVisited)

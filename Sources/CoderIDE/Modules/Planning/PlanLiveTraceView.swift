@@ -14,13 +14,11 @@ struct PlanLiveTraceView: View {
     let onOpenFile: ((String) -> Void)?
     private let maxVisibleEvents = 24
     private let compactLimit = 8
-    private let compactMaxHeight: CGFloat = 160
 
     @State private var isExpanded = false
     @State private var expandedRawById: Set<UUID> = []
     @State private var filePreviewById: [UUID: FileChangePreviewResult] = [:]
     @State private var loadingPreviewIds: Set<UUID> = []
-    @State private var lastScrolledActivityCount: Int = 0
 
     private var visibleActivities: [TaskActivity] {
         let all = Array(activities.suffix(maxVisibleEvents))
@@ -62,50 +60,29 @@ struct PlanLiveTraceView: View {
                 }
             }
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        if !isExpanded && hiddenCount > 0 {
-                            Text("+\(hiddenCount) more...")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.bottom, 2)
-                        }
-
-                        ForEach(traceItems) { item in
-                            PlanLiveTraceRowView(
-                                item: item,
-                                workspaceHints: workspaceHints,
-                                isExpanded: expandedRawById.contains(item.id),
-                                preview: item.fileChange.flatMap { filePreviewById[$0.id] },
-                                isLoadingPreview: item.fileChange.map { loadingPreviewIds.contains($0.id) } ?? false,
-                                expandedOutput: formattedOutput(for: item),
-                                timestampText: timestamp(item.timestamp),
-                                onToggleExpanded: { toggleExpanded(item) },
-                                onOpenFile: onOpenFile
-                            )
-                        }
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id("trace-bottom-anchor")
-                    }
-                    .padding(.bottom, 4)
+            VStack(alignment: .leading, spacing: 10) {
+                if !isExpanded && hiddenCount > 0 {
+                    Text("+\(hiddenCount) more...")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.bottom, 2)
                 }
-                .onChange(of: activities.count) { oldCount, newCount in
-                    guard newCount > oldCount else { return }
-                    lastScrolledActivityCount = newCount
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("trace-bottom-anchor", anchor: .bottom)
-                    }
-                }
-                .onAppear {
-                    lastScrolledActivityCount = activities.count
-                    proxy.scrollTo("trace-bottom-anchor", anchor: .bottom)
+
+                ForEach(traceItems) { item in
+                    PlanLiveTraceRowView(
+                        item: item,
+                        workspaceHints: workspaceHints,
+                        isExpanded: expandedRawById.contains(item.id),
+                        preview: item.fileChange.flatMap { filePreviewById[$0.id] },
+                        isLoadingPreview: item.fileChange.map { loadingPreviewIds.contains($0.id) } ?? false,
+                        expandedOutput: formattedOutput(for: item),
+                        timestampText: timestamp(item.timestamp),
+                        onToggleExpanded: { toggleExpanded(item) },
+                        onOpenFile: onOpenFile
+                    )
                 }
             }
-            .frame(maxHeight: isExpanded ? 400 : compactMaxHeight)
         }
         .padding(10)
         .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
