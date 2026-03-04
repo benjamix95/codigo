@@ -21,6 +21,23 @@ final class DebugStore: ObservableObject {
     /// Instrumentation points the agent has inserted (richer than markers)
     @Published var instrumentationPoints: [InstrumentationPoint] = []
 
+    /// Native debugger session state (LLDB-backed)
+    @Published var nativeSession: NativeDebugSessionState = .idle
+
+    /// Path esplicito del target usato per avviare la sessione native.
+    @Published var nativeTargetPathInput: String = ""
+
+    /// Argomenti CLI del target (separati da virgola o newline).
+    @Published var nativeArgumentsInput: String = ""
+
+    /// Comma-separated watch expressions used by native debugger.
+    @Published var nativeWatchExpressionsInput: String = ""
+
+    /// Draft fields per aggiunta breakpoint dalla tab Native.
+    @Published var nativeBreakpointFilePathInput: String = ""
+    @Published var nativeBreakpointLineInput: String = ""
+    @Published var nativeBreakpointConditionInput: String = ""
+
     /// Current reproduce run ID (groups runtime logs from a single reproduce)
     @Published var currentRunId: String?
 
@@ -65,4 +82,6 @@ final class DebugStore: ObservableObject {
     var pendingResolutionAfterClean: String?
 
     static let maxFixLoopIterations = 5
+
+    let nativeDebugService = DebugService()
 }

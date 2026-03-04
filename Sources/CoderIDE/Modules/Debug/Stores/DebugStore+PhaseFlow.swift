@@ -10,6 +10,8 @@ extension DebugStore {
         runtimeLogs.removeAll()
         instrumentationPoints.removeAll()
         debugMarkers.removeAll()
+        nativeSession = .idle
+        resetNativeInputs()
         phase = .describing
         errorSummary = errorContext
         streamingContent = ""
@@ -91,6 +93,8 @@ extension DebugStore {
         runtimeLogs.removeAll()
         instrumentationPoints.removeAll()
         debugMarkers.removeAll()
+        nativeSession = .idle
+        resetNativeInputs()
         streamingContent = ""
         errorSummary = ""
         clarificationQuestions = ""

@@ -20,6 +20,13 @@ extension DebugStore {
         var severityFilter: Set<DebugEntrySeverity>
         var categoryFilter: String?
         var searchQuery: String
+        var nativeSession: NativeDebugSessionState
+        var nativeTargetPathInput: String
+        var nativeArgumentsInput: String
+        var nativeWatchExpressionsInput: String
+        var nativeBreakpointFilePathInput: String
+        var nativeBreakpointLineInput: String
+        var nativeBreakpointConditionInput: String
     }
 
     func snapshot() -> SessionSnapshot {
@@ -43,7 +50,14 @@ extension DebugStore {
             pendingResolutionAfterClean: pendingResolutionAfterClean,
             severityFilter: severityFilter,
             categoryFilter: categoryFilter,
-            searchQuery: searchQuery
+            searchQuery: searchQuery,
+            nativeSession: nativeSession,
+            nativeTargetPathInput: nativeTargetPathInput,
+            nativeArgumentsInput: nativeArgumentsInput,
+            nativeWatchExpressionsInput: nativeWatchExpressionsInput,
+            nativeBreakpointFilePathInput: nativeBreakpointFilePathInput,
+            nativeBreakpointLineInput: nativeBreakpointLineInput,
+            nativeBreakpointConditionInput: nativeBreakpointConditionInput
         )
     }
 
@@ -68,6 +82,12 @@ extension DebugStore {
         severityFilter = snapshot.severityFilter
         categoryFilter = snapshot.categoryFilter
         searchQuery = snapshot.searchQuery
+        nativeSession = snapshot.nativeSession
+        nativeTargetPathInput = snapshot.nativeTargetPathInput
+        nativeArgumentsInput = snapshot.nativeArgumentsInput
+        nativeWatchExpressionsInput = snapshot.nativeWatchExpressionsInput
+        nativeBreakpointFilePathInput = snapshot.nativeBreakpointFilePathInput
+        nativeBreakpointLineInput = snapshot.nativeBreakpointLineInput
+        nativeBreakpointConditionInput = snapshot.nativeBreakpointConditionInput
     }
 }
-
