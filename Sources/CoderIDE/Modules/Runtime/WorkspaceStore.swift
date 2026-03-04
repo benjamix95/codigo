@@ -19,6 +19,9 @@ final class WorkspaceStore: ObservableObject {
     /// Shared codebase index — available to all providers
     let codebaseIndex = CodebaseIndex()
 
+    /// Language service facade (SourceKit-LSP + local index fallback)
+    lazy var languageService = LanguageService(codebaseIndex: codebaseIndex)
+
     /// File watcher for real-time index updates
     private var fileWatcher: FileWatcher?
 

@@ -28,6 +28,7 @@ struct DebugPanelView: View {
         case runtime = "Runtime"
         case hypotheses = "Hypotheses"
         case markers = "Markers"
+        case native = "Native"
 
         var icon: String {
             switch self {
@@ -35,6 +36,7 @@ struct DebugPanelView: View {
             case .runtime:    return "waveform.path.ecg"
             case .hypotheses: return "lightbulb"
             case .markers:    return "mappin"
+            case .native:     return "terminal"
             }
         }
     }

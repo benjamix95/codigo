@@ -9,6 +9,7 @@ extension DebugPanelView {
         case .runtime:    runtimeLogsContent
         case .hypotheses: hypothesesContent
         case .markers:    markersContent
+        case .native:     nativeDebugContent
         }
     }
 

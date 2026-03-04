@@ -13,22 +13,22 @@ actor LanguageService {
     ) {
         self.configuration = configuration
         self.localAdapter = LocalIndexLanguageAdapter(index: codebaseIndex)
-        if let sourceKitAdapterOverride {
-            self.sourceKitAdapter = sourceKitAdapterOverride
-        } else if configuration.sourceKitLSPEnabled {
-            self.sourceKitAdapter = SourceKitLSPAdapter(executablePath: configuration.sourceKitLSPPath)
-        } else {
-            self.sourceKitAdapter = nil
-        }
+        self.sourceKitAdapter = configuration.sourceKitLSPEnabled
+            ? (sourceKitAdapterOverride ?? SourceKitLSPAdapter(executablePath: configuration.sourceKitLSPPath))
+            : nil
     }
 
     func goToDefinition(symbol: String, fileHint: String? = nil) async throws -> [LanguageLocation] {
         let normalized = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return [] }
         try ensureEnabled()
-        return try await executeWithFallback(
+        let locations = try await executeWithFallback(
             operation: { try await $0.goToDefinition(symbol: normalized, fileHint: fileHint) },
             shouldFallback: { $0.isEmpty }
+        )
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            locations: locations,
+            symbolName: normalized
         )
     }
 
@@ -36,22 +36,29 @@ actor LanguageService {
         let normalized = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
         try ensureEnabled()
-        return try await executeWithFallback(
+        let hover = try await executeWithFallback(
             operation: { try await $0.hover(symbol: normalized, fileHint: fileHint) },
             shouldFallback: { result in
                 guard let result else { return true }
                 return result.contents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
         )
+        return LanguageServiceResultCanonicalizer.canonicalize(hover: hover)
     }
 
     func findReferences(symbol: String, limit: Int = 200) async throws -> [LanguageLocation] {
         let normalized = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return [] }
+        let cappedLimit = max(1, limit)
         try ensureEnabled()
-        return try await executeWithFallback(
-            operation: { try await $0.findReferences(symbol: normalized, limit: max(1, limit)) },
+        let references = try await executeWithFallback(
+            operation: { try await $0.findReferences(symbol: normalized, limit: cappedLimit) },
             shouldFallback: { $0.isEmpty }
+        )
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            locations: references,
+            symbolName: normalized,
+            limit: cappedLimit
         )
     }
 
@@ -59,12 +66,22 @@ actor LanguageService {
         let oldNormalized = oldName.trimmingCharacters(in: .whitespacesAndNewlines)
         let newNormalized = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !oldNormalized.isEmpty, !newNormalized.isEmpty else {
-            return LanguageRenamePlan(oldName: oldName, newName: newName, references: [], source: .localIndex)
+            return LanguageRenamePlan(
+                oldName: oldNormalized,
+                newName: newNormalized,
+                references: [],
+                source: .localIndex
+            )
         }
         try ensureEnabled()
-        return try await executeWithFallback(
+        let renamePlan = try await executeWithFallback(
             operation: { try await $0.rename(oldName: oldNormalized, newName: newNormalized) },
             shouldFallback: { $0.references.isEmpty }
+        )
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            renamePlan: renamePlan,
+            requestedOldName: oldNormalized,
+            requestedNewName: newNormalized
         )
     }
 

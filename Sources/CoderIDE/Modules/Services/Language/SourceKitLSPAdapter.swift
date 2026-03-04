@@ -21,7 +21,7 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
         let request = try makeRequest(method: "textDocument/definition", params: params, context: context)
         let data = try await run(request: request, operation: "go-to-definition")
         let locations = try decodeDefinitionLocations(from: data)
-        return locations.map { location in
+        let mapped = locations.map { location in
             LanguageLocation(
                 filePath: path(fromURI: location.uri) ?? location.uri,
                 line: location.range.start.line + 1,
@@ -30,6 +30,11 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
                 source: source
             )
         }
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            locations: mapped,
+            symbolName: symbol,
+            source: source
+        )
     }
 
     func hover(symbol: String, fileHint: String?) async throws -> LanguageHoverResult? {
@@ -45,15 +50,17 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
         }
         let payload = try decoder.decode(LSPHoverResponse.self, from: data)
         let text = payload.contents.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        return LanguageHoverResult(contents: text, source: source)
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            hover: text.isEmpty ? nil : LanguageHoverResult(contents: text, source: source),
+            source: source
+        )
     }
 
     func findReferences(symbol: String, limit: Int) async throws -> [LanguageLocation] {
         let anchors = try await fetchWorkspaceSymbolAnchors(symbol: symbol, limit: min(max(1, limit), 20))
         guard !anchors.isEmpty else { return [] }
 
-        var unique = Set<LanguageLocation>()
+        var references: [LanguageLocation] = []
         for anchor in anchors {
             let params = LSPReferenceParams(
                 textDocument: LSPTextDocumentIdentifier(uri: anchor.uri),
@@ -64,7 +71,7 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
             let data = try await run(request: request, operation: "find-references")
             let refs = try decodeLocationArray(from: data, operation: "find-references")
             for ref in refs {
-                unique.insert(
+                references.append(
                     LanguageLocation(
                         filePath: path(fromURI: ref.uri) ?? ref.uri,
                         line: ref.range.start.line + 1,
@@ -73,12 +80,14 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
                         source: source
                     )
                 )
-                if unique.count >= limit {
-                    return Array(unique.prefix(limit))
-                }
             }
         }
-        return Array(unique.prefix(limit))
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            locations: references,
+            symbolName: symbol,
+            source: source,
+            limit: limit
+        )
     }
 
     func rename(oldName: String, newName: String) async throws -> LanguageRenamePlan {
@@ -99,7 +108,12 @@ actor SourceKitLSPAdapter: LanguageServiceAdapter {
         }
         let edit = try decoder.decode(LSPWorkspaceEdit.self, from: data)
         let refs = workspaceEditLocations(edit, symbolName: oldName)
-        return LanguageRenamePlan(oldName: oldName, newName: newName, references: refs, source: source)
+        return LanguageServiceResultCanonicalizer.canonicalize(
+            renamePlan: LanguageRenamePlan(oldName: oldName, newName: newName, references: refs, source: source),
+            requestedOldName: oldName,
+            requestedNewName: newName,
+            source: source
+        )
     }
 
     func run(request: SourceKitLSPRequest, operation: String) async throws -> Data {

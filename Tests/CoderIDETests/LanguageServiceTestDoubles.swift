@@ -53,7 +53,20 @@ actor SuccessfulLanguageAdapter: LanguageServiceAdapter {
     }
 
     func rename(oldName: String, newName: String) async throws -> LanguageRenamePlan {
-        LanguageRenamePlan(oldName: oldName, newName: newName, references: [], source: .sourceKitLSP)
+        LanguageRenamePlan(
+            oldName: oldName,
+            newName: newName,
+            references: [
+                LanguageLocation(
+                    filePath: "/tmp/Fake.swift",
+                    line: 20,
+                    column: 5,
+                    symbolName: oldName,
+                    source: .sourceKitLSP
+                )
+            ],
+            source: .sourceKitLSP
+        )
     }
 }
 

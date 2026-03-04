@@ -64,6 +64,8 @@ extension DebugPanelView {
                 : debugStore.currentRunLogs.count
         case .hypotheses: return debugStore.hypotheses.count
         case .markers: return debugStore.debugMarkers.count + debugStore.instrumentationPoints.count
+        case .native:
+            return debugStore.nativeSession.callStack.count + debugStore.nativeSession.watchVariables.count
         }
     }
 

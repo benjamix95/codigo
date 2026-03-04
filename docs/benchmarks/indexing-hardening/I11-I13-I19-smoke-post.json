@@ -1,0 +1,1 @@
+{"dataset_files":120,"incremental_p95_ms":22,"incremental_median_ms":22,"timestamp_utc":"2026-03-04T09:57:55Z","phase":"post","full_max_ms":63,"warmup_runs":1,"runs":3,"full_p95_ms":63,"incremental_max_ms":22,"full_median_ms":63}

@@ -29,6 +29,7 @@ extension DebugStore {
     func confirmReproduced() {
         userConfirmedReproduce = true
         phase = .fixing
+        startNativeDebugSession()
         addLog(severity: .info, source: "debug_session", message: "Bug reproduced — proceeding to fix phase", category: "system")
     }
 
