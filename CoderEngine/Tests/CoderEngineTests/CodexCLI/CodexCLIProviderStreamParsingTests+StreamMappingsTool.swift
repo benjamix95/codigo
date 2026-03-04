@@ -165,4 +165,137 @@ extension CodexCLIProviderStreamParsingTests {
             "Fixed cache race"
         )
     }
+
+    func testParseStreamJSONEventCarriesMCPMetadataOnPanelSyntheticEvents() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-panel-1",
+                    "call_id": "tool-call-42",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "functions.coderide_show_task_panel",
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let panelPayload = rawEvents.first(where: { $0.0 == "coderide_show_task_panel" })?.1
+        XCTAssertNotNil(panelPayload)
+        XCTAssertEqual(panelPayload?["id"], "mcp-panel-1")
+        XCTAssertEqual(panelPayload?["group_id"], "mcp-panel-1")
+        XCTAssertEqual(panelPayload?["tool_call_id"], "tool-call-42")
+        XCTAssertEqual(panelPayload?["mcp_tool"], "functions.coderide_show_task_panel")
+    }
+
+    func testParseStreamJSONEventAllowsNonTerminalDebugSyntheticUpdates() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "mcp-debug-phase-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_debug_set_phase",
+                    "arguments": #"{\"phase\":\"instrumenting\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let debugPayload = rawEvents.first(where: { $0.0 == "debug_phase_update" })?.1
+        XCTAssertNotNil(debugPayload)
+        XCTAssertEqual(debugPayload?["phase"], "instrumenting")
+        XCTAssertEqual(debugPayload?["status"], "in_progress")
+    }
+
+    func testParseStreamJSONEventEmitsTodoValidationErrorOnFailedMCPStatus() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-todo-failed-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_todo_write",
+                    "status": "failed",
+                    "arguments": #"{\"todos\":{\"content\":\"not-array\"}}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        XCTAssertTrue(rawEvents.map(\.0).contains("tool_validation_error"))
+        let payload = rawEvents.first(where: { $0.0 == "tool_validation_error" })?.1
+        XCTAssertEqual(payload?["error_code"], "invalid_todos_payload")
+    }
+
+    func testParseStreamJSONEventSubagentSyntheticUsesDeterministicLifecycle() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.updated",
+                "item": [
+                    "id": "mcp-subagent-1",
+                    "call_id": "call-99",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_subagent_reviewer",
+                    "arguments": #"{\"task\":\"Review PR\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-subagent-1",
+                    "call_id": "call-99",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_subagent_reviewer",
+                    "arguments": #"{\"task\":\"Review PR\",\"output\":\"Looks good\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let agentEvents = rawEvents.filter { $0.0 == "agent" }
+        XCTAssertEqual(agentEvents.count, 2)
+        XCTAssertEqual(agentEvents.first?.1["swarm_id"], "reviewer")
+        XCTAssertEqual(agentEvents.last?.1["swarm_id"], "reviewer")
+        XCTAssertEqual(agentEvents.first?.1["status"], "in_progress")
+        XCTAssertEqual(agentEvents.last?.1["status"], "completed")
+    }
+
+    func testParseStreamJSONEventNormalizesMCPNamespaceWrappedIDEStateTool() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-panel-ns-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "functions.mcp__coderide__coderide_show_task_panel",
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        XCTAssertTrue(rawEvents.map(\.0).contains("coderide_show_task_panel"))
+    }
 }

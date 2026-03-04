@@ -11,9 +11,7 @@ extension CodexCLIProvider {
         let rawTool = (
             payload["mcp_tool"] ?? payload["tool"] ?? payload["tool_raw"] ?? ""
         ).trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedTool = rawTool.lowercased()
-            .replacingOccurrences(of: "coderide_", with: "")
-            .replacingOccurrences(of: "-", with: "_")
+        let normalizedTool = normalizeIDEStateMCPTool(rawTool)
 
         let arguments = decodedJSONObject(from: item["arguments"])
             ?? decodedJSONObject(from: item["input"])
@@ -187,10 +185,10 @@ extension CodexCLIProvider {
             var p: [String: String] = [:]
             if let c = firstString(in: arguments, keys: ["code"]) { p["code"] = c }
             if let t = firstString(in: arguments, keys: ["title"]) { p["title"] = t }
-            return p["code"] != nil ? [("mermaid_render", p)] : []
+            return p["code"] != nil ? [wrapped("mermaid_render", p)] : []
 
         case "debug_panel", "debug_panel_update":
-            return [(
+            return [wrapped(
                 "tool_validation_error",
                 [
                     "title": "Legacy debug_panel is not supported",
@@ -205,65 +203,95 @@ extension CodexCLIProvider {
             var p: [String: String] = [:]
             if let ph = firstString(in: arguments, keys: ["phase"]) { p["phase"] = ph }
             if let d = firstString(in: arguments, keys: ["detail"]) { p["detail"] = d }
-            return p["phase"] != nil ? [("debug_phase_update", p)] : []
+            return p["phase"] != nil ? [wrapped("debug_phase_update", p)] : []
 
         case "debug_request_user":
             var p: [String: String] = [:]
             if let kind = firstString(in: arguments, keys: ["kind"]) { p["kind"] = kind }
             if let prompt = firstString(in: arguments, keys: ["prompt"]) { p["prompt"] = prompt }
-            return (p["kind"] != nil && p["prompt"] != nil) ? [("debug_user_request", p)] : []
+            return (p["kind"] != nil && p["prompt"] != nil) ? [wrapped("debug_user_request", p)] : []
 
         case "debug_resolve":
             if let summary = firstString(in: arguments, keys: ["summary", "detail", "message"]) {
-                return [("debug_resolved", ["summary": summary])]
+                return [wrapped("debug_resolved", ["summary": summary])]
             }
             return []
 
         case "policy_ack":
-            if let h = firstString(in: arguments, keys: ["hash"]) { return [("policy_ack", ["hash": h])] }
+            if let h = firstString(in: arguments, keys: ["hash"]) { return [wrapped("policy_ack", ["hash": h])] }
             return []
 
         case "activate_plan_mode":
             if let reason = firstString(in: arguments, keys: ["reason"]) {
-                return [("activate_plan_mode", ["reason": reason])]
+                return [wrapped("activate_plan_mode", ["reason": reason])]
             }
-            return [("activate_plan_mode", [:])]
+            return [wrapped("activate_plan_mode", [:])]
 
         case "activate_debug_mode":
             if let reason = firstString(in: arguments, keys: ["reason"]) {
-                return [("activate_debug_mode", ["reason": reason])]
+                return [wrapped("activate_debug_mode", ["reason": reason])]
             }
-            return [("activate_debug_mode", [:])]
+            return [wrapped("activate_debug_mode", [:])]
 
         case "show_task_panel":
-            return [("coderide_show_task_panel", [:])]
+            return [wrapped("coderide_show_task_panel", [:])]
 
         case "show_swarm_panel":
             if let swarmId = firstString(in: arguments, keys: ["swarm_id"]) {
-                return [("coderide_show_swarm_panel", ["swarm_id": swarmId])]
+                return [wrapped("coderide_show_swarm_panel", ["swarm_id": swarmId])]
             }
-            return [("coderide_show_swarm_panel", [:])]
+            return [wrapped("coderide_show_swarm_panel", [:])]
 
         case let t where t.hasPrefix("subagent_"):
             let role = String(t.dropFirst("subagent_".count))
             let task = firstString(in: arguments, keys: ["task"]) ?? ""
-            let subagentId = "\(role)-\(UUID().uuidString.prefix(8).lowercased())"
+            let status = (metadata["status"] ?? payload["status"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let isTerminalStatus = isTerminalMCPToolStatus(status)
+            let isFailureStatus: Bool = {
+                let failureStatuses: Set<String> = [
+                    "failed", "error", "cancelled", "canceled", "aborted", "timeout", "timed_out",
+                ]
+                return failureStatuses.contains(status)
+            }()
+            let fallbackToken = (metadata["tool_call_id"] ?? metadata["id"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9_-]"#, with: "", options: .regularExpression)
+            let explicitSwarmId = (
+                firstString(in: arguments, keys: ["swarm_id"])
+                ?? payload["swarm_id"]
+                ?? metadata["swarm_id"]
+                ?? ""
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            let subagentId: String = {
+                if !explicitSwarmId.isEmpty {
+                    return explicitSwarmId
+                }
+                if fallbackToken.isEmpty {
+                    return role
+                }
+                return "\(role)-\(String(fallbackToken.prefix(8)))"
+            }()
             var events: [(type: String, payload: [String: String])] = []
-            events.append(("agent", [
-                "swarm_id": subagentId,
-                "role": role,
-                "status": "started",
-                "title": "Subagent \(role.capitalized) started",
-                "detail": task,
-            ]))
             let output = firstString(in: arguments, keys: ["output"]) ?? payload["output"] ?? ""
-            if !output.isEmpty {
-                events.append(("agent", [
+            if isTerminalStatus {
+                let detail = !output.isEmpty ? output : task
+                events.append(wrapped("agent", [
                     "swarm_id": subagentId,
                     "role": role,
-                    "status": "completed",
-                    "title": "Subagent \(role.capitalized) completed",
-                    "detail": output,
+                    "status": isFailureStatus ? "failed" : "completed",
+                    "title": "Subagent \(role.capitalized) \(isFailureStatus ? "failed" : "completed")",
+                    "detail": detail,
+                ]))
+            } else {
+                events.append(wrapped("agent", [
+                    "swarm_id": subagentId,
+                    "role": role,
+                    "status": status.isEmpty ? "started" : status,
+                    "title": "Subagent \(role.capitalized) started",
+                    "detail": task,
                 ]))
             }
             return events
@@ -287,8 +315,16 @@ extension CodexCLIProvider {
         if let groupId = firstString(in: item, keys: ["group_id"]), !groupId.isEmpty {
             metadata["group_id"] = groupId
         }
+        if let payloadGroupId = payload["group_id"], !payloadGroupId.isEmpty {
+            if metadata["group_id"] == nil || payloadGroupId.lowercased().hasPrefix("swarm-") {
+                metadata["group_id"] = payloadGroupId
+            }
+        }
         if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]), !toolCallId.isEmpty {
             metadata["tool_call_id"] = toolCallId
+        }
+        if let swarmId = payload["swarm_id"], !swarmId.isEmpty {
+            metadata["swarm_id"] = swarmId
         }
         if let status = payload["status"], !status.isEmpty {
             metadata["status"] = status

@@ -78,6 +78,80 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("invalid status"))
     }
 
+    func testPlanStepBatchUpdateRejectsInvalidLinkedFilesShape() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_batch_update",
+            args: [
+                "updates": #"[{"step_id":"1","status":"running","linked_files":{"path":"Sources/A.swift"}}]"#
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("invalid linked_files"))
+    }
+
+    func testPlanStepBatchUpdateRejectsInvalidDependsOnShape() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_batch_update",
+            args: [
+                "updates": #"[{"step_id":"1","status":"running","depends_on":[1,2]}]"#
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("invalid depends_on"))
+    }
+
+    func testTodoWriteDoesNotFailOnIrrelevantInvalidConversationIdArgument() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "todo_write",
+            args: [
+                "title": "Aggiorna parser eventi",
+                "status": "in_progress",
+                "conversation_id": "not-a-uuid"
+            ]
+        )
+
+        XCTAssertNil(result.isError)
+        XCTAssertTrue(extractText(from: result).contains("todo list updated"))
+    }
+
+    func testPlanStepUpsertAcceptsCamelCaseAliases() throws {
+        let conversationId = UUID().uuidString.lowercased()
+        let upsert = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_upsert",
+            args: [
+                "conversationId": conversationId,
+                "stepId": "7",
+                "status": "running",
+                "title": "Estrarre normalizer",
+                "targetFile": "Sources/Normalizer.swift",
+                "linkedFiles": #"["Sources/A.swift","Sources/B.swift"]"#,
+                "dependsOn": #"["1","2"]"#,
+            ]
+        )
+        XCTAssertNil(upsert.isError)
+
+        let read = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_read",
+            args: [
+                "conversation_id": conversationId
+            ]
+        )
+        XCTAssertNil(read.isError)
+        let json = extractText(from: read)
+        let object = try XCTUnwrap(parseJSONObject(json))
+        let snapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        let steps = try XCTUnwrap(snapshot["steps"] as? [[String: Any]])
+        let step = try XCTUnwrap(steps.first(where: { ($0["id"] as? String) == "7" }))
+        XCTAssertEqual(step["targetFile"] as? String, "Sources/Normalizer.swift")
+        XCTAssertEqual(step["status"] as? String, "running")
+        let linkedFiles = step["linkedFiles"] as? [String] ?? []
+        XCTAssertEqual(Set(linkedFiles), Set(["Sources/A.swift", "Sources/B.swift"]))
+        let dependsOn = step["dependsOn"] as? [String] ?? []
+        XCTAssertEqual(Set(dependsOn), Set(["1", "2"]))
+    }
+
     func testPlanRequestUserInputRejectsInvalidQuestionsPayload() {
         let result = CoderIDEMCPServerApp.handleIDEStateTool(
             name: "plan_request_user_input",

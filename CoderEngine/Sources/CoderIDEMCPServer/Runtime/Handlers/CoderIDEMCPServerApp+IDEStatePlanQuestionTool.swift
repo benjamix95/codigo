@@ -18,7 +18,7 @@ extension CoderIDEMCPServerApp {
         let title = sanitizedText(args["title"]) ?? "Clarification questions"
         let phase = sanitizedText(args["phase"]) ?? "questioning"
         let round = sanitizedText(args["round"]) ?? "n/a"
-        let conversationId = sanitizedText(args["conversation_id"])
+        let conversationId = sanitizedText(args["conversation_id"] ?? args["conversationId"])
         let context = sanitizedText(args["context"])
         let contextSuffix = context.map { " | context: \($0)" } ?? ""
         let conversationSuffix = conversationId.map { " | conversation_id: \($0)" } ?? ""

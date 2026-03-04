@@ -8,6 +8,11 @@ extension CoderIDEMCPServerApp {
         let isInvalid: Bool
     }
 
+    struct ParsedStringList {
+        let values: [String]
+        let isInvalid: Bool
+    }
+
     struct MutablePlanSnapshot {
         var conversationId: UUID
         var goal: String
@@ -83,6 +88,38 @@ extension CoderIDEMCPServerApp {
             return parseJSONStringArray(rawString) ?? []
         }
         return []
+    }
+
+    static func parseStringList(_ raw: Any?) -> ParsedStringList {
+        guard let raw else { return ParsedStringList(values: [], isInvalid: false) }
+        if let array = raw as? [String] {
+            return ParsedStringList(
+                values: array
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty },
+                isInvalid: false
+            )
+        }
+        if let array = raw as? [Any] {
+            var normalized: [String] = []
+            for value in array {
+                guard let stringValue = value as? String else {
+                    return ParsedStringList(values: [], isInvalid: true)
+                }
+                let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    normalized.append(trimmed)
+                }
+            }
+            return ParsedStringList(values: normalized, isInvalid: false)
+        }
+        if let rawString = raw as? String {
+            guard let parsed = parseJSONStringArray(rawString) else {
+                return ParsedStringList(values: [], isInvalid: true)
+            }
+            return ParsedStringList(values: parsed, isInvalid: false)
+        }
+        return ParsedStringList(values: [], isInvalid: true)
     }
 
     static func parseBool(_ raw: String?, defaultValue: Bool) -> ParsedBool {

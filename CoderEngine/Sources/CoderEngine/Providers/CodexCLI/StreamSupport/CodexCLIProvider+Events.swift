@@ -9,8 +9,7 @@ extension CodexCLIProvider {
             return true
         }
 
-        let terminalStatuses: Set<String> = ["completed", "success", "done", "ok"]
-        if terminalStatuses.contains(normalizedStatus) {
+        if isTerminalMCPToolStatus(normalizedStatus) {
             return true
         }
 
@@ -19,11 +18,7 @@ extension CodexCLIProvider {
         let rawTool = (
             payload["mcp_tool"] ?? payload["tool"] ?? payload["tool_raw"] ?? ""
         ).trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedTool = rawTool
-            .lowercased()
-            .replacingOccurrences(of: "functions.", with: "")
-            .replacingOccurrences(of: "coderide_", with: "")
-            .replacingOccurrences(of: "-", with: "_")
+        let normalizedTool = normalizeIDEStateMCPTool(rawTool)
 
         if normalizedTool == "todo_write" {
             return false
@@ -31,8 +26,14 @@ extension CodexCLIProvider {
         if normalizedTool.hasPrefix("plan_") {
             return true
         }
+        if normalizedTool.hasPrefix("debug_") {
+            return true
+        }
+        if normalizedTool.hasPrefix("subagent_") {
+            return true
+        }
         switch normalizedTool {
-        case "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel":
+        case "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel", "mermaid_render", "policy_ack":
             return true
         default:
             return false
