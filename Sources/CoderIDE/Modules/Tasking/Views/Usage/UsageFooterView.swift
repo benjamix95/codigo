@@ -39,6 +39,7 @@ struct UsageFooterView: View {
     @State var contextEstimateGeneration: Int = 0
     @State var lastContextEstimateFireDate: Date = .distantPast
     @State private var availableWidth: CGFloat = 980
+    @State private var resolvedTier: FooterTier = .full
     @State var showWorktreeSheet = false
     @State var availableLocalBranches: [GitBranch] = []
     @State var worktreeBranchDraft = ""
@@ -57,12 +58,21 @@ struct UsageFooterView: View {
     )
     let cliSecretsStore = CLIAccountSecretsStore()
 
+    enum FooterTier {
+        case full
+        case medium
+        case compact
+        case minimal
+    }
+
+    private let tierHysteresis: CGFloat = 20
+
     var effectiveProviderId: String? {
         providerRegistry.selectedProviderId
     }
 
     var body: some View {
-        let tier = footerTierFlags(for: availableWidth)
+        let tier = footerTierFlags(for: resolvedTier)
 
         footerTier(
             showBranch: tier.showBranch,
@@ -132,28 +142,63 @@ struct UsageFooterView: View {
         }
     }
 
-    private func footerTierFlags(for width: CGFloat) -> (
+    private func footerTierFlags(for tier: FooterTier) -> (
         showBranch: Bool,
         showProviderUsage: Bool,
         showContext: Bool,
         showTotal: Bool,
         showMessages: Bool
     ) {
-        if width >= 980 {
+        switch tier {
+        case .full:
             return (true, true, true, true, true)
-        }
-        if width >= 860 {
+        case .medium:
             return (true, false, true, true, true)
-        }
-        if width >= 720 {
+        case .compact:
             return (false, false, true, true, false)
+        case .minimal:
+            return (false, false, false, false, false)
         }
-        return (false, false, false, false, false)
+    }
+
+    private func stableTier(for width: CGFloat, current: FooterTier) -> FooterTier {
+        switch current {
+        case .full:
+            return width < (980 - tierHysteresis) ? .medium : .full
+        case .medium:
+            if width >= (980 + tierHysteresis) {
+                return .full
+            }
+            if width < (860 - tierHysteresis) {
+                return .compact
+            }
+            return .medium
+        case .compact:
+            if width >= (860 + tierHysteresis) {
+                return .medium
+            }
+            if width < (720 - tierHysteresis) {
+                return .minimal
+            }
+            return .compact
+        case .minimal:
+            return width >= (720 + tierHysteresis) ? .compact : .minimal
+        }
     }
 
     private func updateAvailableWidth(_ width: CGFloat) {
         guard width > 0 else { return }
         guard abs(width - availableWidth) > 1 else { return }
         availableWidth = width
+        var nextTier = resolvedTier
+        while true {
+            let candidate = stableTier(for: width, current: nextTier)
+            if candidate == nextTier {
+                break
+            }
+            nextTier = candidate
+        }
+        guard nextTier != resolvedTier else { return }
+        resolvedTier = nextTier
     }
 }

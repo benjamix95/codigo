@@ -56,6 +56,7 @@ struct ModeControlsBarView: View {
     @Binding var codeReviewToggleEnabled: Bool
     @Binding var browserToggleEnabled: Bool
     @State private var availableWidth: CGFloat = 900
+    @State private var resolvedTier: ControlsTier = .full
 
     // MARK: - Collapse Tiers
 
@@ -63,10 +64,12 @@ struct ModeControlsBarView: View {
         case full, medium, compact, minimal
     }
 
+    private let tierHysteresis: CGFloat = 20
+
     // MARK: - Body
 
     var body: some View {
-        controlsHStack(tier: controlsTier(for: availableWidth))
+        controlsHStack(tier: resolvedTier)
             .background {
                 GeometryReader { proxy in
                     Color.clear
@@ -80,23 +83,45 @@ struct ModeControlsBarView: View {
             }
     }
 
-    private func controlsTier(for width: CGFloat) -> ControlsTier {
-        if width >= 900 {
-            return .full
-        }
-        if width >= 760 {
+    private func stableControlsTier(for width: CGFloat, current: ControlsTier) -> ControlsTier {
+        switch current {
+        case .full:
+            return width < (900 - tierHysteresis) ? .medium : .full
+        case .medium:
+            if width >= (900 + tierHysteresis) {
+                return .full
+            }
+            if width < (760 - tierHysteresis) {
+                return .compact
+            }
             return .medium
-        }
-        if width >= 640 {
+        case .compact:
+            if width >= (760 + tierHysteresis) {
+                return .medium
+            }
+            if width < (640 - tierHysteresis) {
+                return .minimal
+            }
             return .compact
+        case .minimal:
+            return width >= (640 + tierHysteresis) ? .compact : .minimal
         }
-        return .minimal
     }
 
     private func updateAvailableWidth(_ width: CGFloat) {
         guard width > 0 else { return }
         guard abs(width - availableWidth) > 1 else { return }
         availableWidth = width
+        var nextTier = resolvedTier
+        while true {
+            let candidate = stableControlsTier(for: width, current: nextTier)
+            if candidate == nextTier {
+                break
+            }
+            nextTier = candidate
+        }
+        guard nextTier != resolvedTier else { return }
+        resolvedTier = nextTier
     }
 
     // MARK: - Tier HStack Builder
