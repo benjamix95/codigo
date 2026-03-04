@@ -78,53 +78,16 @@ extension ChatPanelView {
                     in: providerRegistry)
             }
         case .agent:
-            if let preferred = conv.preferredProviderId,
-                ProviderSupport.isAgentCompatibleProvider(id: preferred),
-                providerRegistry.provider(for: preferred) != nil
-            {
-                providerRegistry.selectedProviderId = preferred
-            } else if let current = providerRegistry.selectedProviderId,
-                ProviderSupport.isAgentCompatibleProvider(id: current)
-            {
-                // Keep current provider if already valid for Agent
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
         case .codeReviewMultiSwarm, .plan:
-            if let preferred = conv.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             debugToggleEnabled = false
         case .debug:
-            if let preferred = conv.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             debugToggleEnabled = true
             showDebugPanel = true
         case .browser:
-            if let preferred = conv.preferredProviderId,
-               ProviderSupport.isAgentCompatibleProvider(id: preferred),
-               providerRegistry.provider(for: preferred) != nil {
-                providerRegistry.selectedProviderId = preferred
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-            } else {
-                providerRegistry.selectedProviderId = "codex-cli"
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             showBrowserPanel = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }

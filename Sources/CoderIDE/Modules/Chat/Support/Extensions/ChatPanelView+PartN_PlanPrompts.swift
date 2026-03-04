@@ -16,22 +16,30 @@ extension ChatPanelView {
             snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
         }
 
-        let effectiveProvider: any LLMProvider
-        if let selected = providerRegistry.selectedProvider {
-            if selected.isAuthenticated() {
-                effectiveProvider = selected
-            } else if let fallback = preferredRealProvider() {
-                effectiveProvider = fallback
-            } else {
-                appendTechnicalErrorMessage(
-                    "[Plan] No authenticated provider available.",
-                    in: targetConversationId
-                )
-                return
-            }
-        } else {
+        guard let selectedProviderId = providerRegistry.selectedProviderId else {
             appendTechnicalErrorMessage(
                 "[Plan] No provider selected.",
+                in: targetConversationId
+            )
+            return
+        }
+        guard isPlanBuildExecutionCapableProvider(selectedProviderId, registry: providerRegistry) else {
+            appendTechnicalErrorMessage(
+                "[Plan] Provider not execution-capable (\(selectedProviderId)).",
+                in: targetConversationId
+            )
+            return
+        }
+        guard let effectiveProvider = providerRegistry.provider(for: selectedProviderId) else {
+            appendTechnicalErrorMessage(
+                "[Plan] Provider not available (\(selectedProviderId)).",
+                in: targetConversationId
+            )
+            return
+        }
+        guard effectiveProvider.isAuthenticated() else {
+            appendTechnicalErrorMessage(
+                "[Plan] Provider not authenticated (\(effectiveProvider.displayName)). Authenticate this provider in Settings.",
                 in: targetConversationId
             )
             return

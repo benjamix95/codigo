@@ -107,48 +107,15 @@ extension ChatPanelView {
                     in: providerRegistry)
             }
         case .agent:
-            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
-                providerRegistry.selectedProviderId = id
-            } else if let current = providerRegistry.selectedProviderId,
-                ProviderSupport.isAgentCompatibleProvider(id: current)
-            {
-                // Keep current provider if already valid for Agent
-            } else {
-                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
         case .codeReviewMultiSwarm:
-            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
-                providerRegistry.selectedProviderId = id
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
         case .debug:
-            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
-                providerRegistry.selectedProviderId = id
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
             debugToggleEnabled = true
             showDebugPanel = true
         case .plan:
-            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
-                providerRegistry.selectedProviderId = id
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-                // keep current real provider
-            } else {
-                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
             // Only reset plan state when no active flow is in progress
             switch planFlowPhase {
             case .analyzing, .questioning, .generating, .building, .proposalReady, .readyToBuild:
@@ -158,14 +125,7 @@ extension ChatPanelView {
             }
             planToggleEnabled = true
         case .browser:
-            if let id = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-                preferred: currentConv?.preferredProviderId, registry: providerRegistry) {
-                providerRegistry.selectedProviderId = id
-            } else if let current = providerRegistry.selectedProviderId,
-                      ProviderSupport.isAgentCompatibleProvider(id: current) {
-            } else {
-                providerRegistry.selectedProviderId = providerRegistry.provider(for: "codex-cli") != nil ? "codex-cli" : nil
-            }
+            applyStrictAgentModeProviderSelection(preferredProviderId: currentConv?.preferredProviderId)
             showBrowserPanel = true
         case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
         }
@@ -206,6 +166,28 @@ extension ChatPanelView {
             showBrowserPanel = false
         }
         chatStore.updateConversationMode(conversationId: selectedConversationId, mode: mode)
+    }
+
+    internal func applyStrictAgentModeProviderSelection(preferredProviderId: String?) {
+        if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
+            preferred: preferredProviderId,
+            current: providerRegistry.selectedProviderId,
+            registry: providerRegistry
+        ) {
+            providerRegistry.selectedProviderId = resolved
+            return
+        }
+        let hasCurrentAgentProvider: Bool = {
+            guard let current = providerRegistry.selectedProviderId else { return false }
+            return ProviderSupport.isAgentCompatibleProvider(id: current)
+                && providerRegistry.provider(for: current) != nil
+        }()
+        if !hasCurrentAgentProvider {
+            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderId(
+                preferred: nil,
+                registry: providerRegistry
+            )
+        }
     }
 
     internal func modeColor(for m: CoderMode) -> Color {

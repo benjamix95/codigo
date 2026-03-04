@@ -147,29 +147,16 @@ extension ChatPanelView {
             return
         }
 
-        let selectedProviderAuthenticated = runtimeProvider.isAuthenticated()
-        let preferredFallbackProvider = preferredRealProvider()
-        var effectiveRuntimeProvider: any LLMProvider = runtimeProvider
-        if shouldFallbackToPreferredProvider(
-            selectedProviderIsAuthenticated: selectedProviderAuthenticated,
-            hasPreferredAuthenticatedFallback: preferredFallbackProvider != nil
-        ),
-            let fallbackProvider = preferredFallbackProvider
-        {
-            effectiveRuntimeProvider = fallbackProvider
-            appendTechnicalErrorMessage(
-                "[Provider] \(runtimeProvider.displayName) not authenticated. Using fallback: \(fallbackProvider.displayName).",
-                in: targetConversationId
-            )
-        } else if !selectedProviderAuthenticated {
+        guard runtimeProvider.isAuthenticated() else {
             resetPlanFlowAfterPreflightFailureIfNeeded()
             let providerName = runtimeProvider.displayName
             appendTechnicalErrorMessage(
-                "[Error] Provider \(providerName) not authenticated and no fallback available. Open Settings and authenticate an execution-capable provider.",
+                "[Error] Provider \(providerName) not authenticated. \(providerNotReadyMessage)",
                 in: targetConversationId
             )
             return
         }
+        let effectiveRuntimeProvider: any LLMProvider = runtimeProvider
 
         // 2. Build workspace context & checkpoint
         let ctx = effectiveContext.toWorkspaceContext(

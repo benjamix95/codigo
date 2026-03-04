@@ -53,6 +53,26 @@ enum ProviderSupport {
         return nil
     }
 
+    /// Strict selection policy: keep preferred/current provider identity and never
+    /// auto-switch to a different provider. Authentication is checked at runtime.
+    static func preferredOrCurrentAgentProviderId(
+        preferred: String?,
+        current: String?,
+        registry: ProviderRegistry
+    ) -> String? {
+        if let preferred,
+           isAgentCompatibleProvider(id: preferred),
+           registry.provider(for: preferred) != nil {
+            return preferred
+        }
+        if let current,
+           isAgentCompatibleProvider(id: current),
+           registry.provider(for: current) != nil {
+            return current
+        }
+        return nil
+    }
+
     /// Like `firstHealthyAgentProviderId`, but falls back to `codex-cli` when registered
     /// if no healthy provider exists. Restores legacy UX for users with unconfigured providers.
     static func firstHealthyAgentProviderIdWithCodexFallback(

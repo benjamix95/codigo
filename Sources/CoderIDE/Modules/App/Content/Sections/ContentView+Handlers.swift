@@ -44,9 +44,12 @@ extension ContentView {
             selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
         let preferredProvider = chatStore.conversation(for: selectedConversationId)?.preferredProviderId
-        providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+        if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
             preferred: preferredProvider,
+            current: providerRegistry.selectedProviderId,
             registry: providerRegistry
-        )
+        ) {
+            providerRegistry.selectedProviderId = resolved
+        }
     }
 }

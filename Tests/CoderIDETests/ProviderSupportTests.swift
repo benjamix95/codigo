@@ -34,6 +34,31 @@ final class ProviderSupportTests: XCTestCase {
             ProviderSupport.isPlanBuildExecutionCapableProvider(id: "claude-cli", registry: registry)
         )
     }
+
+    func testPreferredOrCurrentAgentProviderIdKeepsPreferredIdentity() {
+        let registry = ProviderRegistry()
+        registry.register(MockTestProvider(id: "claude-cli", authenticated: false))
+        registry.register(MockTestProvider(id: "codex-cli", authenticated: true))
+
+        let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
+            preferred: "claude-cli",
+            current: "codex-cli",
+            registry: registry
+        )
+        XCTAssertEqual(resolved, "claude-cli")
+    }
+
+    func testPreferredOrCurrentAgentProviderIdFallsBackToCurrentOnly() {
+        let registry = ProviderRegistry()
+        registry.register(MockTestProvider(id: "codex-cli", authenticated: true))
+
+        let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
+            preferred: "claude-cli",
+            current: "codex-cli",
+            registry: registry
+        )
+        XCTAssertEqual(resolved, "codex-cli")
+    }
 }
 
 private struct MockTestProvider: LLMProvider {

@@ -81,27 +81,20 @@ extension ChatPanelView {
                 return
             }
             if let overrideProvider = providerRegistry.provider(for: overrideId) {
-                if overrideProvider.isAuthenticated() {
-                    provider = overrideProvider
-                } else {
+                guard overrideProvider.isAuthenticated() else {
                     appendTechnicalErrorMessage(
-                        "[Plan] Provider not authenticated (\(overrideProvider.displayName)). Using fallback.",
+                        "[Plan] Provider not authenticated (\(overrideProvider.displayName)). Authenticate this provider in Settings.",
                         in: conversationId
                     )
-                    guard let backendProvider = resolvePreferredRealProvider() else {
-                        return
-                    }
-                    provider = backendProvider
-                }
-            } else {
-                appendTechnicalErrorMessage(
-                    "[Plan] Provider not available (\(overrideId)). Using fallback.",
-                    in: conversationId
-                )
-                guard let backendProvider = resolvePreferredRealProvider() else {
                     return
                 }
-                provider = backendProvider
+                provider = overrideProvider
+            } else {
+                appendTechnicalErrorMessage(
+                    "[Plan] Provider not available (\(overrideId)).",
+                    in: conversationId
+                )
+                return
             }
         } else {
             guard let backendProvider = resolvePreferredRealProvider() else {

@@ -104,11 +104,21 @@ extension ContentView {
     }
 
     func configureDefaultProviderSelection() {
-        let safeMode = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
-            preferred: chatStore.conversation(for: selectedConversationId)?.preferredProviderId,
+        let preferred = chatStore.conversation(for: selectedConversationId)?.preferredProviderId
+        if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
+            preferred: preferred,
+            current: providerRegistry.selectedProviderId,
             registry: providerRegistry
-        )
-        providerRegistry.selectedProviderId = safeMode
+        ) {
+            providerRegistry.selectedProviderId = resolved
+            return
+        }
+        if providerRegistry.selectedProviderId == nil {
+            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderId(
+                preferred: nil,
+                registry: providerRegistry
+            )
+        }
     }
 
     var editorArea: some View {

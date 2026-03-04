@@ -16,18 +16,11 @@ extension ChatPanelView {
             lastInputTokens: conv.lastInputTokens)
         guard pct >= summarizeThreshold else { return }
 
-        if let prov = providerRegistry.provider(for: summarizeProvider), prov.isAuthenticated() {
-            await runSummarize(provider: prov, ctx: ctx)
-        } else if let fallback = providerRegistry.selectedProvider, fallback.isAuthenticated() {
-            await runSummarize(provider: fallback, ctx: ctx)
-        } else {
-            for pid in ["claude-cli", "codex-cli", "gemini-cli", "anthropic-api", "openai-api", "google-api"] {
-                if let p = providerRegistry.provider(for: pid), p.isAuthenticated() {
-                    await runSummarize(provider: p, ctx: ctx)
-                    return
-                }
-            }
+        guard let summarize = providerRegistry.provider(for: summarizeProvider),
+              summarize.isAuthenticated() else {
+            return
         }
+        await runSummarize(provider: summarize, ctx: ctx)
     }
 
     internal func resolveActiveModelForContext() -> String {
@@ -101,24 +94,42 @@ extension ChatPanelView {
            selected.isAuthenticated() {
             return selected
         }
-        if let fallback = providerRegistry.providers.first(where: {
-            ProviderSupport.isPlanBuildExecutionCapableProvider(id: $0.id, registry: providerRegistry)
-                && $0.isAuthenticated()
-        }) {
-            return fallback
-        }
         return nil
     }
 
     internal func resolvePreferredRealProvider() -> (any LLMProvider)? {
-        if let provider = preferredRealProvider() {
-            return provider
+        guard let selectedId = providerRegistry.selectedProviderId else {
+            appendTechnicalErrorMessage(
+                "[Provider] No provider selected.",
+                in: conversationId
+            )
+            return nil
         }
-        appendTechnicalErrorMessage(
-            "[Provider] No authenticated execution-capable provider available.",
-            in: conversationId
-        )
-        return nil
+        guard ProviderSupport.isPlanBuildExecutionCapableProvider(
+            id: selectedId,
+            registry: providerRegistry
+        ) else {
+            appendTechnicalErrorMessage(
+                "[Provider] Selected provider (\(selectedId)) is not execution-capable.",
+                in: conversationId
+            )
+            return nil
+        }
+        guard let selectedProvider = providerRegistry.provider(for: selectedId) else {
+            appendTechnicalErrorMessage(
+                "[Provider] Selected provider (\(selectedId)) is not available.",
+                in: conversationId
+            )
+            return nil
+        }
+        guard selectedProvider.isAuthenticated() else {
+            appendTechnicalErrorMessage(
+                "[Provider] \(selectedProvider.displayName) not authenticated. Open Settings and authenticate this provider.",
+                in: conversationId
+            )
+            return nil
+        }
+        return selectedProvider
     }
 
     @MainActor

@@ -208,8 +208,8 @@ extension PlanShortcutAndCommandTests {
         XCTAssertTrue(shouldSyncModeOnProviderChange(suppressForUserPicker: false))
     }
 
-    func testShouldFallbackToPreferredProviderWhenSelectedNotAuthenticated() {
-        XCTAssertTrue(
+    func testShouldFallbackToPreferredProviderIsAlwaysDisabled() {
+        XCTAssertFalse(
             shouldFallbackToPreferredProvider(
                 selectedProviderIsAuthenticated: false,
                 hasPreferredAuthenticatedFallback: true

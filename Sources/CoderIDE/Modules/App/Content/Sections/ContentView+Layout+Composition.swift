@@ -29,10 +29,13 @@ extension ContentView {
         .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
             let agentConv = chatStore.conversation(for: selectedConversationId)
             let preferredProvider = agentConv?.preferredProviderId
-            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderIdWithCodexFallback(
+            if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
                 preferred: preferredProvider,
+                current: providerRegistry.selectedProviderId,
                 registry: providerRegistry
-            )
+            ) {
+                providerRegistry.selectedProviderId = resolved
+            }
         }
         .onReceive(appUpdateCenter.$availableUpdate.compactMap { $0 }) { update in
             pendingAppUpdate = update
