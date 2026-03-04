@@ -1,13 +1,17 @@
+import Foundation
+
 // MARK: - SemanticIndex Index Management
 
 extension SemanticIndex {
     /// Add chunks to the inverted index.
     func addChunks(_ newChunks: [SemanticChunk], forFile relativePath: String) {
         var chunkIds: [String] = []
+        let now = Date()
 
         for chunk in newChunks {
             chunks[chunk.id] = chunk
             chunkIds.append(chunk.id)
+            chunkAccessOrder[chunk.id] = now
 
             let tokens = Self.tokenizeStatic(chunk.contextualizedText)
             var termFrequency: [String: Int] = [:]
@@ -42,6 +46,7 @@ extension SemanticIndex {
             chunks.removeValue(forKey: chunkId)
             termFrequencies.removeValue(forKey: chunkId)
             docLengths.removeValue(forKey: chunkId)
+            chunkAccessOrder.removeValue(forKey: chunkId)
         }
 
         fileToChunks.removeValue(forKey: relativePath)

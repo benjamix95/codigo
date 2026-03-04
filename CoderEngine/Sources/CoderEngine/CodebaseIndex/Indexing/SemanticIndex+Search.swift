@@ -11,7 +11,10 @@ extension SemanticIndex {
         targetDirectories: [String] = [],
         numResults: Int = 25
     ) -> [SearchResult] {
-        let queryTokens = tokenize(query)
+        // NOT operator: split query into positive and negative terms (prefixed with `-`)
+        let (positiveQuery, negativeTokens) = splitQueryNegations(query)
+
+        let queryTokens = tokenize(positiveQuery)
         guard !queryTokens.isEmpty else {
             Self.logger.debug("search: empty query tokens for '\(query, privacy: .public)'")
             return []
@@ -45,9 +48,9 @@ extension SemanticIndex {
             }
         }
 
-        let queryLower = query.lowercased()
+        let queryLower = positiveQuery.lowercased()
         let queryTokensLower = Set(queryTokens)
-        let queryWordsLower = query.lowercased()
+        let queryWordsLower = positiveQuery.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 2 }
 
@@ -119,11 +122,23 @@ extension SemanticIndex {
             scores[chunkId] = (scores[chunkId] ?? 0) + bonus
         }
 
+        // NOT operator: rimuovi chunk che contengono token negativi
+        if !negativeTokens.isEmpty {
+            let negativeSet = Set(negativeTokens)
+            scores = scores.filter { chunkId, _ in
+                guard let chunk = chunks[chunkId] else { return false }
+                let chunkTokens = Set(tokenize(chunk.contextualizedText))
+                return negativeSet.isDisjoint(with: chunkTokens)
+            }
+        }
+
+        // Aggiorna LRU access per i chunk che verranno restituiti
         let ranked = scores
             .sorted { $0.value > $1.value }
             .prefix(numResults)
             .compactMap { (chunkId, score) -> SearchResult? in
                 guard let chunk = chunks[chunkId] else { return nil }
+                touchChunkAccess(chunkId)
                 return SearchResult(chunk: chunk, score: score)
             }
 
@@ -221,4 +236,31 @@ extension SemanticIndex {
         return parts
     }
 
+    // MARK: - NOT Operator Support
+
+    /// Separa la query in parte positiva e token negativi (prefisso `-`).
+    /// Esempio: `"auth -oauth -jwt"` → positiva `"auth"`, negativi `["oauth", "jwt"]`
+    private func splitQueryNegations(_ query: String) -> (positive: String, negative: [String]) {
+        let words = query.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var positiveWords: [String] = []
+        var negativeTokens: [String] = []
+
+        for word in words {
+            // Supporta anche `--term` (strip tutti i `-` iniziali)
+            let stripped = String(word.drop(while: { $0 == "-" }))
+            let isNegated = stripped.count < word.count && !stripped.isEmpty
+
+            if isNegated && stripped.count >= 2 {
+                // Tokenizza con la pipeline completa (camelCase split + stemming)
+                // ma senza espansione sinonimi per evitare falsi positivi
+                let expanded = Self.tokenizeStatic(stripped)
+                    .filter { !Self.stopWords.contains($0) }
+                negativeTokens.append(contentsOf: expanded)
+            } else {
+                positiveWords.append(word)
+            }
+        }
+
+        return (positiveWords.joined(separator: " "), negativeTokens)
+    }
 }

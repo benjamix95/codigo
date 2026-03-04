@@ -25,9 +25,19 @@ public actor SemanticIndex {
     var persistencePath: URL?
     var deferredMerkleTouchedFiles: Int = 0
 
+    // MARK: - Chunk Budget (LRU Eviction)
+    /// Limite massimo di chunk in memoria. Default 50K.
+    let maxChunks: Int
+    /// Timestamp di ultimo accesso per ogni chunkId (LRU tracking).
+    var chunkAccessOrder: [String: Date] = [:]
+    /// Soglia di warning (80% della capacità).
+    static let capacityWarningThreshold: Double = 0.8
+
     // MARK: - Init
-    public init(persistencePath: URL? = nil) {
+    public init(persistencePath: URL? = nil, maxChunks: Int = 50_000) {
+        precondition(maxChunks > 0, "maxChunks deve essere positivo")
         self.persistencePath = persistencePath
+        self.maxChunks = maxChunks
     }
 
     /// Set or update persistence path.

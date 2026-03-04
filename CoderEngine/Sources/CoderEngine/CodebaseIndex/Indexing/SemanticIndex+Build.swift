@@ -73,6 +73,7 @@ extension SemanticIndex {
             }
         }
 
+        evictIfNeeded()
         recalcAvgDocLength()
         Self.logger.info(
             "buildIndex: completed — \(self.chunks.count) chunks, \(self.invertedIndex.count) tokens, \(self.fileToChunks.count) files"
@@ -131,6 +132,7 @@ extension SemanticIndex {
             addChunks(fileChunks, forFile: indexed.relativePath)
         }
 
+        evictIfNeeded()
         recalcAvgDocLength()
 
         // Persist after incremental update so the on-disk index stays fresh
@@ -153,6 +155,7 @@ extension SemanticIndex {
 
         let fileChunks = SemanticChunker.chunk(indexedFile: indexed, fileContent: content)
         addChunks(fileChunks, forFile: indexed.relativePath)
+        evictIfNeeded()
         recalcAvgDocLength()
 
         // Persist incrementally so the on-disk index stays fresh
@@ -178,6 +181,7 @@ extension SemanticIndex {
         currentSimHash = 0
         fileToChunks.removeAll()
         deferredMerkleTouchedFiles = 0
+        clearAccessOrder()
     }
 
     private func shouldRebuildMerkleTree(forChangedFiles changedFiles: [IndexedFile]) -> Bool {
