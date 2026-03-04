@@ -135,8 +135,16 @@ extension UnifiedToolRuntime {
         context: ToolExecutionContext,
         startDate: Date
     ) async -> ToolResult {
-        let indexTools = await ensureIndexTools(for: context)
         let normalizedArgs = normalizedArgsForIndexTool(name: name, args: call.args)
+        if let languageResult = await executeIndexToolViaLanguageServiceIfAvailable(
+            name: name,
+            args: normalizedArgs,
+            context: context,
+            startDate: startDate
+        ) {
+            return languageResult
+        }
+        let indexTools = await ensureIndexTools(for: context)
         let events = await indexTools.execute(
             toolName: name,
             args: normalizedArgs,

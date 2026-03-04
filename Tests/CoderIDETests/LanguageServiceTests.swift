@@ -80,10 +80,11 @@ final class LanguageServiceTests: XCTestCase {
         _ = await index.indexWorkspace(paths: [workspace])
         let service = LanguageService(codebaseIndex: index)
 
-        let renamePlan = try await service.rename(oldName: "UserService", newName: "AccountService")
+        let renamePlan = try await service.rename(oldName: " UserService ", newName: " AccountService ")
         XCTAssertEqual(renamePlan.oldName, "UserService")
         XCTAssertEqual(renamePlan.newName, "AccountService")
         XCTAssertFalse(renamePlan.references.isEmpty)
+        XCTAssertEqual(renamePlan.source, .localIndex)
     }
 
     func testLanguageServiceHoverFallsBackToLocalIndexWhenSourceKitAdapterFails() async throws {
@@ -199,11 +200,11 @@ final class LanguageServiceTests: XCTestCase {
         XCTAssertTrue(references.allSatisfy { $0.source == .localIndex })
     }
 
-    func testLanguageServiceFallsBackWhenSourceKitReturnsEmptyDefinition() async throws {
+    func testLanguageServiceUsesLocalResultsWhenSourceKitFeatureFlagIsOff() async throws {
         let workspace = try makeWorkspace()
         defer { try? FileManager.default.removeItem(at: workspace) }
 
-        let file = workspace.appendingPathComponent("DefinitionFallback.swift")
+        let file = workspace.appendingPathComponent("DefinitionFlagOff.swift")
         try """
         struct UserService {}
         """.write(to: file, atomically: true, encoding: .utf8)
@@ -213,13 +214,18 @@ final class LanguageServiceTests: XCTestCase {
 
         let service = LanguageService(
             codebaseIndex: index,
-            configuration: configuration(),
-            sourceKitAdapterOverride: EmptyLanguageAdapter()
+            configuration: configuration(sourceKitLSPEnabled: false),
+            sourceKitAdapterOverride: SuccessfulLanguageAdapter()
         )
 
         let definitions = try await service.goToDefinition(symbol: "UserService")
         XCTAssertFalse(definitions.isEmpty)
-        XCTAssertEqual(definitions.first?.source, .localIndex)
+        XCTAssertTrue(definitions.allSatisfy { $0.source == .localIndex })
+        let resolvedPath = try XCTUnwrap(definitions.first?.filePath)
+        XCTAssertTrue(
+            resolvedPath == file.path ||
+            resolvedPath.hasSuffix("\(workspace.lastPathComponent)/\(file.lastPathComponent)")
+        )
     }
 
     func testLanguageServiceFallsBackWhenSourceKitReturnsNilHover() async throws {
@@ -246,30 +252,20 @@ final class LanguageServiceTests: XCTestCase {
         XCTAssertEqual(hover?.source, .localIndex)
     }
 
-    func testLanguageServiceFallsBackWhenSourceKitReturnsEmptyReferences() async throws {
-        let workspace = try makeWorkspace()
-        defer { try? FileManager.default.removeItem(at: workspace) }
-
-        let file = workspace.appendingPathComponent("ReferencesFallback.swift")
-        try """
-        struct UserService {}
-        struct Client {
-            let service: UserService
-        }
-        """.write(to: file, atomically: true, encoding: .utf8)
-
+    func testLanguageServiceRenameUsesSourceKitPlanWhenAdapterReturnsReferences() async throws {
         let index = CodebaseIndex()
-        _ = await index.indexWorkspace(paths: [workspace])
-
         let service = LanguageService(
             codebaseIndex: index,
-            configuration: configuration(),
-            sourceKitAdapterOverride: EmptyLanguageAdapter()
+            configuration: configuration(sourceKitLSPEnabled: true),
+            sourceKitAdapterOverride: SuccessfulLanguageAdapter()
         )
 
-        let references = try await service.findReferences(symbol: "UserService")
-        XCTAssertFalse(references.isEmpty)
-        XCTAssertTrue(references.allSatisfy { $0.source == .localIndex })
+        let rename = try await service.rename(oldName: " UserService ", newName: " AccountService ")
+        XCTAssertEqual(rename.oldName, "UserService")
+        XCTAssertEqual(rename.newName, "AccountService")
+        XCTAssertEqual(rename.source, .sourceKitLSP)
+        XCTAssertFalse(rename.references.isEmpty)
+        XCTAssertTrue(rename.references.allSatisfy { $0.source == .sourceKitLSP })
     }
 
     func testLanguageServiceFallsBackWhenSourceKitRenameHasNoReferences() async throws {
@@ -293,7 +289,9 @@ final class LanguageServiceTests: XCTestCase {
             sourceKitAdapterOverride: EmptyLanguageAdapter()
         )
 
-        let rename = try await service.rename(oldName: "UserService", newName: "AccountService")
+        let rename = try await service.rename(oldName: " UserService ", newName: " AccountService ")
+        XCTAssertEqual(rename.oldName, "UserService")
+        XCTAssertEqual(rename.newName, "AccountService")
         XCTAssertFalse(rename.references.isEmpty)
         XCTAssertEqual(rename.source, .localIndex)
     }

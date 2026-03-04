@@ -231,6 +231,8 @@ public actor UnifiedToolRuntime {
     weak var terminalBridge: (any TerminalBridge)?
     /// Browser bridge for integrated browser control
     weak var browserBridge: (any BrowserBridge)?
+    /// Optional language service bridge (SourceKit-LSP + fallback orchestration).
+    let languageService: (any RuntimeLanguageService)?
 
     public init(
         executionController: ExecutionController? = nil,
@@ -242,7 +244,8 @@ public actor UnifiedToolRuntime {
         webSearchProvider: String? = nil,
         webSearchApiKeys: [String: String]? = nil,
         terminalBridge: (any TerminalBridge)? = nil,
-        browserBridge: (any BrowserBridge)? = nil
+        browserBridge: (any BrowserBridge)? = nil,
+        languageService: (any RuntimeLanguageService)? = nil
     ) {
         self.executionController = executionController
         self.executionScope = executionScope
@@ -253,6 +256,7 @@ public actor UnifiedToolRuntime {
         self.excludedPaths = excludedPaths
         self.terminalBridge = terminalBridge
         self.browserBridge = browserBridge
+        self.languageService = languageService
 
         // Build web search service from provider + keys map
         let provider = WebSearchProvider(rawValue: webSearchProvider ?? "") ?? .duckduckgo
