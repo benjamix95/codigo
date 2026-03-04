@@ -20,6 +20,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("todo_write"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("plan_create"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("plan_step_batch_update"))
+        XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("plan_request_user_input"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("process_paused"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("debug_log"))
     }

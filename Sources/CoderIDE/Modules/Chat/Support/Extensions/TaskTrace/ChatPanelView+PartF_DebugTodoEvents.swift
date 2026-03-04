@@ -114,6 +114,11 @@ extension ChatPanelView {
                 break
             case .planDiff:
                 break
+            case .planRequestUserInput(let request):
+                handlePlanRequestUserInputEvent(
+                    request,
+                    fallbackConversationId: planFallbackConversationId
+                )
             case .debugPhaseUpdate(let phase, let detail):
                 routeDebugEvent(
                     .debugPhaseUpdate(phase: phase, detail: detail),

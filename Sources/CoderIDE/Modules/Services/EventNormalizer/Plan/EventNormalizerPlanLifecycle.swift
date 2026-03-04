@@ -11,6 +11,7 @@ extension EventNormalizer {
         "plan_set_walkthrough",
         "plan_history_read",
         "plan_diff",
+        "plan_request_user_input",
     ]
 
     static func isPlanLifecycleType(_ type: String) -> Bool {
@@ -41,6 +42,8 @@ extension EventNormalizer {
             return normalizePlanHistoryRead(payload: payload, timestamp: timestamp)
         case "plan_diff":
             return normalizePlanDiff(payload: payload, timestamp: timestamp)
+        case "plan_request_user_input":
+            return normalizePlanRequestUserInput(payload: payload, timestamp: timestamp)
         default:
             return []
         }
@@ -225,6 +228,35 @@ extension EventNormalizer {
                 phase: .planning,
                 isRunning: false,
                 groupId: conversationId ?? fromSnapshotId
+            ))
+        ]
+    }
+
+    private static func normalizePlanRequestUserInput(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
+        guard let request = parsePlanRequestUserInputPayload(payload: payload) else {
+            return [invalidPlanPayloadActivity(type: "plan_request_user_input", payload: payload, timestamp: timestamp)]
+        }
+
+        let questionCount = request.questionnaire.questions.count
+        let detail: String = {
+            let phase = request.phase ?? "questioning"
+            if let round = request.round {
+                return "Round \(round) • \(questionCount) question(s) • \(phase)"
+            }
+            return "\(questionCount) question(s) • \(phase)"
+        }()
+
+        return [
+            .planRequestUserInput(request),
+            .taskActivity(TaskActivity(
+                type: "plan_request_user_input",
+                title: request.title ?? "Plan clarification requested",
+                detail: request.context ?? detail,
+                payload: payload,
+                timestamp: timestamp,
+                phase: .planning,
+                isRunning: false,
+                groupId: request.conversationId
             ))
         ]
     }

@@ -139,5 +139,25 @@ extension CoderIDETools {
             ]),
             annotations: .init(title: "Plan Diff", readOnlyHint: true, idempotentHint: true)
         ),
+        Tool(
+            name: "coderide_plan_request_user_input",
+            description: "Request structured clarification questions in the IDE plan panel. Can be called multiple times during plan analysis loops.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "questions": .object([
+                        "type": "string",
+                        "description": "JSON array of questions. Each item supports: id, prompt/question, multi_select/allow_multiple (bool), options (array of {label/text, description, recommended})."
+                    ]),
+                    "title": .object(["type": "string", "description": "Optional UI title for this question round"]),
+                    "phase": .object(["type": "string", "description": "Optional phase label, e.g. post-analysis"]),
+                    "round": .object(["type": "string", "description": "Optional clarification round number"]),
+                    "context": .object(["type": "string", "description": "Optional short blocker/context summary"]),
+                    "conversation_id": .object(["type": "string", "description": "Optional conversation UUID"]),
+                ]),
+                "required": .array([.string("questions")]),
+            ]),
+            annotations: .init(title: "Plan Request User Input", readOnlyHint: false, idempotentHint: true)
+        ),
     ]
 }

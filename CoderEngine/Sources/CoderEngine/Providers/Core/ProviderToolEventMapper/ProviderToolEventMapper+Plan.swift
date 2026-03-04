@@ -11,6 +11,7 @@ extension ProviderToolEventMapper {
         "plan_set_walkthrough",
         "plan_history_read",
         "plan_diff",
+        "plan_request_user_input",
     ]
 
     static func isPlanLifecycleTool(_ tool: String) -> Bool {
@@ -29,15 +30,20 @@ extension ProviderToolEventMapper {
             "conversation_id", "goal", "chosen_path",
             "step_id", "status", "title", "description",
             "target_file", "notes", "markdown", "summary", "outcome",
-            "from_snapshot_id", "to_snapshot_id", "history_limit", "limit"
+            "from_snapshot_id", "to_snapshot_id", "history_limit", "limit",
+            "phase", "round", "context"
         ]
         for key in scalarKeys {
             if let value = firstString(in: payload, keys: [key]), !value.isEmpty {
+                if key == "title" {
+                    mapped["step_title"] = value
+                    continue
+                }
                 mapped[key] = value
             }
         }
 
-        let jsonKeys = ["steps", "updates", "ordered_step_ids", "depends_on", "linked_files"]
+        let jsonKeys = ["steps", "updates", "ordered_step_ids", "depends_on", "linked_files", "questions"]
         for key in jsonKeys {
             if let json = jsonString(from: payload[key]) {
                 mapped[key] = json
@@ -63,6 +69,7 @@ extension ProviderToolEventMapper {
         case "plan_set_walkthrough": return "Plan walkthrough updated"
         case "plan_history_read": return "Plan history read"
         case "plan_diff": return "Plan diff computed"
+        case "plan_request_user_input": return "Plan clarification requested"
         default: return payloadTitle(payload, fallback: tool)
         }
     }
@@ -85,6 +92,11 @@ extension ProviderToolEventMapper {
             return payload["summary"] ?? "Set walkthrough"
         case "plan_diff":
             return "Diff plan snapshots"
+        case "plan_request_user_input":
+            if let questions = payload["questions"], !questions.isEmpty {
+                return "Request structured clarification input"
+            }
+            return "Request clarification input"
         default:
             return payload["title"] ?? tool
         }

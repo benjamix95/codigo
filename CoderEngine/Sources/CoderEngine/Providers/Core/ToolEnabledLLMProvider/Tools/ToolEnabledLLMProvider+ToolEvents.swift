@@ -61,6 +61,8 @@ extension ToolEnabledLLMProvider {
             return [.raw(type: "plan_history_read", payload: marker.payload)]
         case "plan_diff":
             return [.raw(type: "plan_diff", payload: marker.payload)]
+        case "plan_request_user_input":
+            return [.raw(type: "plan_request_user_input", payload: marker.payload)]
         case "debug_panel":
             return [.raw(type: "tool_validation_error", payload: [
                 "title": "Legacy debug_panel is not supported",

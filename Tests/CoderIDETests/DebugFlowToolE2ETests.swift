@@ -202,7 +202,8 @@ final class DebugFlowToolE2ETests: XCTestCase {
             case .activatePlanMode, .activateDebugMode,
                  .instantGrep, .todoWrite, .todoRead, .planStepUpdate, .mermaidRender,
                  .planCreate, .planRead, .planStepUpsert, .planStepBatchUpdate, .planStepReorder,
-                 .planStepDependencySet, .planSetWalkthrough, .planHistoryRead, .planDiff:
+                 .planStepDependencySet, .planSetWalkthrough, .planHistoryRead, .planDiff,
+                 .planRequestUserInput:
                 break
             }
         }

@@ -26,7 +26,7 @@ enum EventNormalizer {
         case "plan_step", "plan_step_update": kind = .planStepUpdate
         case "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
              "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-             "plan_history_read", "plan_diff":
+             "plan_history_read", "plan_diff", "plan_request_user_input":
             kind = .planLifecycle
         case "mermaid_render": kind = .mermaidRender
         case "debug_phase_update": kind = .debugPhaseUpdate

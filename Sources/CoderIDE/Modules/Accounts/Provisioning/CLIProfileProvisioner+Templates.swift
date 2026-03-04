@@ -67,6 +67,8 @@ extension CLIProfileProvisioner {
     - `coderide_plan_set_walkthrough` — Save final walkthrough.
       Args: `markdown`, optional `summary`, `outcome` (done/failed/cancelled), `conversation_id`.
     - `coderide_plan_read`, `coderide_plan_history_read`, `coderide_plan_diff` — Read plan snapshot/history/diff (read-only).
+    - `coderide_plan_request_user_input` — Request structured clarification questions in the Plan panel.
+      Args: `questions` (JSON array), optional `title`, `phase`, `round`, `context`, `conversation_id`.
 
     ## Workflow
 

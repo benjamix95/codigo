@@ -98,5 +98,18 @@ extension ToolSchemaCatalog {
             ],
             required: ["from_snapshot_id"]
         ),
+        ToolSchemaEntry(
+            name: "plan_request_user_input",
+            description: "Request structured clarification questions in the plan panel. Can be used multiple times across clarification rounds.",
+            properties: [
+                "questions": ["type": "string", "description": "JSON array of questions. Item fields: prompt/question, optional id, optional multi_select/allow_multiple, options (array of strings or objects with label/text/description/recommended)."],
+                "title": ["type": "string", "description": "Optional title shown for this clarification set"],
+                "phase": ["type": "string", "description": "Optional flow phase label (e.g. post-analysis)"],
+                "round": ["type": "string", "description": "Optional clarification round number"],
+                "context": ["type": "string", "description": "Optional blocker/context summary"],
+                "conversation_id": ["type": "string", "description": "Optional conversation UUID"],
+            ],
+            required: ["questions"]
+        ),
     ]
 }

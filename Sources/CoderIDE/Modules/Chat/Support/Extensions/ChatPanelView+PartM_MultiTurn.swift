@@ -151,8 +151,10 @@ extension ChatPanelView {
         // ========================
         // PHASE 2: Clarification Questions
         // ========================
-        let shouldStartPhase2 = await MainActor.run { () -> Bool in
-            guard self.conversationId == conversationId else { return false }
+        let phase2StartContext = await MainActor.run { () -> (shouldStart: Bool, questionEpochBaseline: Int) in
+            guard self.conversationId == conversationId else {
+                return (false, planQuestionToolRequestEpoch)
+            }
             clearPlanStreamingState()
             planFlowPhase = .questioning
             let questionAssistantMessageId = UUID()
@@ -170,8 +172,10 @@ extension ChatPanelView {
                 assistantMessageId: questionAssistantMessageId,
                 providerId: provider.id
             )
-            return true
+            return (true, planQuestionToolRequestEpoch)
         }
+        let shouldStartPhase2 = phase2StartContext.shouldStart
+        let questionToolEpochBaseline = phase2StartContext.questionEpochBaseline
         guard shouldStartPhase2 else {
             // Conversation changed before Phase 2.
             return
@@ -201,6 +205,22 @@ extension ChatPanelView {
         )
 
         let questionText = questionResult.trimmingCharacters(in: .whitespacesAndNewlines)
+        let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
+            guard shouldMutatePlanState(
+                targetConversationId: conversationId,
+                currentConversationId: self.conversationId
+            ) else { return false }
+            guard planQuestionToolRequestEpoch > questionToolEpochBaseline else { return false }
+            if case .awaitingClarification = planningState {
+                return true
+            }
+            return false
+        }
+        if didReceiveToolDrivenQuestionnaire {
+            finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
+            return
+        }
+
         let questionDecision = decidePlanQuestionPhaseOutput(
             questionText,
             coderMode: coderMode,

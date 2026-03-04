@@ -74,4 +74,19 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.payload["from_snapshot_id"], "snap-1")
         XCTAssertEqual(mapped?.payload["to_snapshot_id"], "snap-2")
     }
+
+    func testPlanRequestUserInputMapsStructuredPayload() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "mcp_call",
+            payload: [
+                "mcp_tool": "coderide_plan_request_user_input",
+                "arguments": #"{\"title\":\"Clarify scope\",\"phase\":\"post-analysis\",\"questions\":[{\"prompt\":\"Target platform?\",\"options\":[{\"label\":\"iOS\",\"recommended\":true},{\"label\":\"macOS\"}]}]}"#
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "plan_request_user_input")
+        XCTAssertEqual(mapped?.payload["phase"], "post-analysis")
+        XCTAssertEqual(mapped?.payload["tool"], "plan_request_user_input")
+        XCTAssertNotNil(mapped?.payload["questions"])
+    }
 }

@@ -35,6 +35,16 @@ extension CodexCLIProviderStreamParsingTests {
                     "arguments": "{\"markdown\":\"## Done\",\"summary\":\"Completato\",\"outcome\":\"done\"}",
                 ],
             ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-plan-questions-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_request_user_input",
+                    "arguments": #"{\"title\":\"Clarify scope\",\"questions\":[{\"prompt\":\"Target?\",\"options\":[{\"label\":\"iOS\"},{\"label\":\"macOS\"}]}]}"#,
+                ],
+            ],
         ])
 
         let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
@@ -45,6 +55,7 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertTrue(rawEvents.map { $0.0 }.contains("plan_create"))
         XCTAssertTrue(rawEvents.map { $0.0 }.contains("plan_step_upsert"))
         XCTAssertTrue(rawEvents.map { $0.0 }.contains("plan_set_walkthrough"))
+        XCTAssertTrue(rawEvents.map { $0.0 }.contains("plan_request_user_input"))
 
         let createPayload = rawEvents.first(where: { $0.0 == "plan_create" })?.1
         XCTAssertEqual(createPayload?["goal"], "Plan v2")
@@ -53,6 +64,10 @@ extension CodexCLIProviderStreamParsingTests {
         let upsertPayload = rawEvents.first(where: { $0.0 == "plan_step_upsert" })?.1
         XCTAssertEqual(upsertPayload?["step_id"], "1")
         XCTAssertEqual(upsertPayload?["status"], "running")
+
+        let questionsPayload = rawEvents.first(where: { $0.0 == "plan_request_user_input" })?.1
+        XCTAssertEqual(questionsPayload?["title"], "Clarify scope")
+        XCTAssertTrue(questionsPayload?["questions"]?.contains("Target?") == true)
     }
 
     func testParseStreamJSONEventSynthesizesPlanBatchAndDiffEvents() {

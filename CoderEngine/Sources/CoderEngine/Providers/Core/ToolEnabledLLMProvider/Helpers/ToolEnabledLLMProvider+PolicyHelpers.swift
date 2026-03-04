@@ -6,7 +6,7 @@ extension ToolEnabledLLMProvider {
         case "todo_read", "todo_write", "plan_step_update", "mermaid_render",
              "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
              "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-             "plan_history_read", "plan_diff",
+             "plan_history_read", "plan_diff", "plan_request_user_input",
              "policy_ack", "activate_plan_mode", "activate_debug_mode",
              "show_task_panel", "show_swarm_panel":
             return true

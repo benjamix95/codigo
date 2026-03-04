@@ -28,7 +28,7 @@ extension ChatPanelView {
 
             Next steps:
             1. Perform ADDITIONAL codebase analysis based on these answers (use Read, Glob, Grep).
-            2. If you are blocked by a hard missing decision, output ONE additional ## Questions section (same A/B/C/D format).
+            2. If blocked by a hard missing decision, call `plan_request_user_input` with structured questions.
             3. Otherwise proceed directly to generate ONE definitive plan with ## Plan: Title and ## Todo sections.
             CRITICAL: prefer proceeding to plan generation; follow-up questions are exceptional.
             """
@@ -67,21 +67,14 @@ extension ChatPanelView {
 
             ## PHASE 2: CLARIFICATION QUESTIONS (ONLY IF BLOCKED)
             After analysis, ask clarifications ONLY when there is a blocking ambiguity that prevents a concrete plan.
-            - Output ONLY a section with this EXACT format:
-
-            ## Questions
-            1. Question text?
-            A) Option A text
-            B) Option B text
-            C) Option C text (optional)
-            D) Other (specify)
-
-            Rules: 1-3 questions max, each with 2-4 options A) B) C) D), mutually exclusive.
-            Include "Other (specify)" ONLY for genuinely open-ended questions.
-            Mark the best option with "(Recommended)" suffix, e.g.: A) Use SwiftUI (Recommended)
-            For questions where multiple answers can be selected, add "(select all that apply)" to the question.
-            DO NOT output anything else besides the ## Questions section.
-            NEVER include ## Plan or ## Todo in a response with ## Questions.
+            - If blocked, call `plan_request_user_input` with:
+              * `questions` JSON array (1-3 questions)
+              * each question with `prompt`, `options` (2-4), optional `multi_select`
+              * options as objects with `label`, optional `description`, optional `recommended`
+            - After the tool call, output a short confirmation sentence only.
+            - Do NOT output markdown `## Questions` blocks when using the tool.
+            - Rules: 1-3 questions max, each with 2-4 concrete, mutually exclusive options.
+            - Include "Other/specify" ONLY for genuinely open-ended questions.
             If the request is implementable with reasonable assumptions, skip questions.
 
             ## PHASE 3: DEFINITIVE PLAN (ONLY after Phases 1+2 resolved)
@@ -99,7 +92,7 @@ extension ChatPanelView {
             - Implementation step dependencies
             Use a ```mermaid code block in your response. The IDE will render it as an interactive diagram.
 
-            CRITICAL: NEVER combine ## Questions and ## Plan in the same response.
+            CRITICAL: NEVER combine clarification questions and ## Plan in the same response.
             Do not emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) during planning.
             """
             prompt = planningInstructions + "\n\n" + prompt
