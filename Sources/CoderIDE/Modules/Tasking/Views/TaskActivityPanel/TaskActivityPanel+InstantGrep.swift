@@ -1,9 +1,32 @@
 import SwiftUI
 
+struct InstantGrepCardSnapshot: Equatable {
+    let query: String
+    let scope: String
+    let matchesCount: Int
+    let visibleMatches: [String]
+}
+
 struct InstantGrepCardsView: View {
     let results: [InstantGrepResult]
     let onOpenMatch: (InstantGrepMatch) -> Void
     @State private var expandedCards: Set<UUID> = []
+
+    private static let maxCards = 4
+    private static let maxMatchesPerCard = 8
+
+    static func snapshotCards(from results: [InstantGrepResult]) -> [InstantGrepCardSnapshot] {
+        results.prefix(maxCards).map { result in
+            InstantGrepCardSnapshot(
+                query: result.query,
+                scope: result.scope,
+                matchesCount: result.matchesCount,
+                visibleMatches: result.matches.prefix(maxMatchesPerCard).map {
+                    "\(($0.file as NSString).lastPathComponent):\($0.line) \($0.preview)"
+                }
+            )
+        }
+    }
 
     var body: some View {
         if !results.isEmpty {
@@ -11,7 +34,7 @@ struct InstantGrepCardsView: View {
                 Text("Instant Grep")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                ForEach(results.prefix(4)) { result in
+                ForEach(results.prefix(Self.maxCards)) { result in
                     grepCard(result)
                 }
             }
@@ -50,7 +73,7 @@ struct InstantGrepCardsView: View {
                 .lineLimit(1)
 
             if isExpanded {
-                ForEach(result.matches.prefix(8)) { match in
+                ForEach(result.matches.prefix(Self.maxMatchesPerCard)) { match in
                     Button {
                         onOpenMatch(match)
                     } label: {
@@ -77,4 +100,3 @@ struct InstantGrepCardsView: View {
         )
     }
 }
-
