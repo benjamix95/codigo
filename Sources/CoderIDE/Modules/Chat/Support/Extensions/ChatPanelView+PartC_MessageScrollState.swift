@@ -8,7 +8,7 @@ extension ChatPanelView {
     internal var messagesAreaEmptyStateOverlay: some View {
         if messagesAreaIsEmpty && !isLoadingForCurrentConversation {
             VStack(spacing: 20) {
-                if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+                if let url = RuntimeResourceLocator.appLogoURL(),
                    let icon = NSImage(contentsOf: url) {
                     Image(nsImage: icon)
                         .resizable()
