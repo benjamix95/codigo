@@ -9,6 +9,7 @@ extension UsageFooterView {
         showMessages: Bool
     ) -> some View {
         HStack(spacing: 6) {
+            worktreeToggleButton
             gitButton(showBranch: showBranch)
             if showProviderUsage || showContext || showTotal {
                 Divider().frame(height: 12)
@@ -73,6 +74,36 @@ extension UsageFooterView {
         )
     }
 
+    var worktreeToggleButton: some View {
+        Button {
+            handleWorktreeToggleTap()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(worktreeToggleTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5)
+            .background(
+                Color(nsColor: .controlBackgroundColor).opacity(0.55),
+                in: Capsule()
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    DesignSystem.Colors.borderSubtle,
+                    lineWidth: 0.8
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isWorktreeToggleDisabled || isWorktreeActionInFlight)
+        .help(worktreeToggleHelpText)
+    }
+
     var totalUsageLabel: some View {
         Text(totalUsageText)
             .font(.system(size: 10, weight: .semibold))
@@ -81,6 +112,18 @@ extension UsageFooterView {
 
     @ViewBuilder
     var footerMessages: some View {
+        if let success = worktreeStatusMessage, !success.isEmpty {
+            Text(success)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.success)
+                .lineLimit(1)
+        }
+        if let err = worktreeErrorMessage, !err.isEmpty {
+            Text(err)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.error)
+                .lineLimit(1)
+        }
         if let success = gitPanelStore.successMessage, !success.isEmpty {
             Text(success)
                 .font(.system(size: 10, weight: .medium))

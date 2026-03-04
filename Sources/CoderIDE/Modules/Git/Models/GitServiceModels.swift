@@ -53,6 +53,28 @@ struct GitFileDiff: Equatable {
     let isBinary: Bool
 }
 
+struct GitWorktreeCreateRequest: Equatable {
+    let gitRoot: String
+    let branchName: String
+    let fromBranch: String
+    let worktreePath: String
+}
+
+struct GitAutoMergeReport: Equatable {
+    let localRootPath: String
+    let worktreePath: String
+    let worktreeBranch: String
+    let mergeTargetBranch: String
+    let steps: [String]
+    let deletedWorktree: Bool
+    let deletedBranch: Bool
+}
+
+struct GitMergeStartResult: Equatable {
+    let hadConflicts: Bool
+    let output: String
+}
+
 enum GitDiffBaseline: Equatable {
     case head
     case worktree

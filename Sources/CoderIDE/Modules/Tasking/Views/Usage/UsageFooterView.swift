@@ -7,8 +7,11 @@ struct UsageFooterView: View {
     @EnvironmentObject var chatStore: ChatStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var gitPanelStore: GitPanelStore
+    @EnvironmentObject var projectContextStore: ProjectContextStore
+    @EnvironmentObject var workspaceStore: WorkspaceStore
     @StateObject var cliAccountsStore = CLIAccountsStore.shared
     @StateObject var cliAccountRouter = CLIAccountRouter.shared
+    @StateObject var worktreeSessionStore = WorktreeSessionStore.shared
     @Binding var selectedConversationId: UUID?
     @AppStorage("context_scope_mode") var contextScopeModeRaw = "auto"
     @AppStorage("codex_path") var codexPath = ""
@@ -36,6 +39,18 @@ struct UsageFooterView: View {
     @State var contextEstimateGeneration: Int = 0
     @State var lastContextEstimateFireDate: Date = .distantPast
     @State private var availableWidth: CGFloat = 980
+    @State var showWorktreeSheet = false
+    @State var availableLocalBranches: [GitBranch] = []
+    @State var worktreeBranchDraft = ""
+    @State var worktreeBaseBranchDraft = ""
+    @State var worktreeMergeTargetDraft = ""
+    @State var worktreeAutoMergeOnReturn = true
+    @State var worktreeDeleteBranchAfterMerge = false
+    @State var pendingWorktreeLocalRoot: String?
+    @State var worktreeStatusMessage: String?
+    @State var worktreeErrorMessage: String?
+    @State var isWorktreeActionInFlight = false
+    @State var worktreeActionTask: Task<Void, Never>?
     static let contextEstimateQueue = DispatchQueue(
         label: "com.codigo.context-estimate",
         qos: .utility
@@ -70,6 +85,9 @@ struct UsageFooterView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .padding(.vertical, 2)
+        .sheet(isPresented: $showWorktreeSheet) {
+            worktreeCreateSheet
+        }
         .onAppear {
             cliAccountRouter.bootstrapActiveSelectionsIfNeeded()
             scheduleRefresh()
@@ -94,15 +112,23 @@ struct UsageFooterView: View {
             scheduleRefresh()
             scheduleContextEstimateRefresh()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+            clearWorktreeFeedback()
         }
         .onChange(of: cliAccountRouter.currentActiveAccountByProvider) { _, _ in
             scheduleRefresh()
+        }
+        .onChange(of: showWorktreeSheet) { _, isPresented in
+            if isPresented {
+                prepareWorktreeSheetState()
+            }
         }
         .onDisappear {
             usageRefreshTask?.cancel()
             usageRefreshTask = nil
             contextEstimateWorkItem?.cancel()
             contextEstimateWorkItem = nil
+            worktreeActionTask?.cancel()
+            worktreeActionTask = nil
         }
     }
 

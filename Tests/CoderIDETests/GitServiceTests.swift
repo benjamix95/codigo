@@ -67,6 +67,70 @@ final class GitServiceTests: XCTestCase {
         XCTAssertLessThan(worktreeAdded, headAdded)
     }
 
+    func testCreateAndRemoveWorktreeLifecycle() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+        let baseBranch = try git.currentBranch(gitRoot: root)
+        let branch = "solocode/worktree-\(UUID().uuidString.prefix(6))"
+        let worktreePath = repo
+            .deletingLastPathComponent()
+            .appendingPathComponent("repo-worktrees")
+            .appendingPathComponent(branch.replacingOccurrences(of: "/", with: "-"))
+
+        try git.createWorktree(
+            request: GitWorktreeCreateRequest(
+                gitRoot: root,
+                branchName: branch,
+                fromBranch: baseBranch,
+                worktreePath: worktreePath.path
+            )
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: worktreePath.path))
+        XCTAssertTrue(
+            try git.listLocalBranches(gitRoot: root).contains(where: { $0.name == branch })
+        )
+
+        try git.removeWorktree(gitRoot: root, worktreePath: worktreePath.path, force: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: worktreePath.path))
+
+        try git.deleteMergedBranch(name: branch, gitRoot: root)
+        XCTAssertFalse(
+            try git.listLocalBranches(gitRoot: root).contains(where: { $0.name == branch })
+        )
+    }
+
+    func testStartNoCommitMergeDetectsConflictsAndAbortRestoresState() throws {
+        let repo = try XCTUnwrap(repoURL)
+        let root = try git.resolveGitRoot(from: repo.path)
+        let baseBranch = try git.currentBranch(gitRoot: root)
+        let sourceBranch = "solocode/conflict-\(UUID().uuidString.prefix(6))"
+        let fileURL = repo.appendingPathComponent("a.txt")
+
+        try runGit(["checkout", "-b", sourceBranch], cwd: repo.path)
+        try "from-source\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "a.txt"], cwd: repo.path)
+        try runGit(["commit", "-m", "source"], cwd: repo.path)
+
+        try runGit(["checkout", baseBranch], cwd: repo.path)
+        try "from-target\n".write(to: fileURL, atomically: true, encoding: .utf8)
+        try runGit(["add", "a.txt"], cwd: repo.path)
+        try runGit(["commit", "-m", "target"], cwd: repo.path)
+
+        let mergeResult = try git.startNoCommitMerge(
+            sourceBranch: sourceBranch,
+            intoTarget: baseBranch,
+            gitRoot: root
+        )
+        XCTAssertTrue(mergeResult.hadConflicts)
+        XCTAssertTrue(
+            try git.listConflictedFiles(gitRoot: root).contains("a.txt")
+        )
+
+        try git.abortMerge(gitRoot: root)
+        XCTAssertTrue(try git.listConflictedFiles(gitRoot: root).isEmpty)
+    }
+
     private func countAddedLines(in diff: GitFileDiff) -> Int {
         diff.chunks
             .flatMap(\.lines)
