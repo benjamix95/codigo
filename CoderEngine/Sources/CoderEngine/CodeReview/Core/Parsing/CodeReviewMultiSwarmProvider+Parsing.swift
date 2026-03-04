@@ -120,7 +120,8 @@ extension CodeReviewMultiSwarmProvider {
     ) -> ExtractedReviewTasks? {
         let allowedSet = allowedFiles.map(Set.init)
 
-        let codeBlockPattern = #"```json\s*\n(\[[\s\S]*\])\s*\n```"#
+        // Non-greedy JSON capture so multiple fenced blocks are handled correctly.
+        let codeBlockPattern = #"```json\s*(?:\r?\n)(\[[\s\S]*?\])\s*(?:\r?\n)```"#
         if let regex = try? NSRegularExpression(pattern: codeBlockPattern, options: []) {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             var lastInvalidReason: String?

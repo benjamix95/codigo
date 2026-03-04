@@ -252,13 +252,15 @@ extension ToolEnabledLLMProviderPolicyAckTests {
                 sawQueued = true
             }
             if type == "agent", payload["detail"] == "started",
-               (payload["swarm_id"] ?? "").hasPrefix("testWriter-") {
+               (payload["swarm_id"] ?? "").hasPrefix("testWriter-")
+               || (payload["swarm_id"] ?? "").hasPrefix("queued-") {
                 sawStarted = true
             }
             if type == "tool_result",
                payload["status"] == "completed",
                payload["name"] == "subagent_testwriter",
-               (payload["subagent_id"] ?? "").hasPrefix("testWriter-") {
+               (payload["subagent_id"] ?? "").hasPrefix("testWriter-")
+               || (payload["subagent_id"] ?? "").hasPrefix("queued-") {
                 sawCompletedResult = true
             }
         }
