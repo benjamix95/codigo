@@ -23,6 +23,9 @@ public enum MCPSharedState {
         sharedDirectory.appendingPathComponent("todos.json")
     }
 
+    private static let legacyWarningQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.LegacyWarnings")
+    private static var legacyWarningKeys: Set<String> = []
+
     // MARK: - Todos
 
     /// Write the full todo list (authoritative). Called by the main IDE app.
@@ -83,7 +86,10 @@ public enum MCPSharedState {
         if let idx = todos.firstIndex(where: {
             ($0["title"] as? String)?.caseInsensitiveCompare(normalizedTitle) == .orderedSame
         }) {
-            print("[MCPSharedState] ⚠️ Legacy todo upsert matched by title (no id provided): '\(normalizedTitle)'")
+            logLegacyWarningOnce(
+                key: "upsert|\(normalizedTitle.lowercased())",
+                message: "[MCPSharedState] ⚠️ Legacy todo upsert matched by title (no id provided): '\(normalizedTitle)'"
+            )
             if let status { todos[idx]["status"] = normalizeStatus(status) }
             if let priority { todos[idx]["priority"] = priority }
             if let notes, !notes.isEmpty { todos[idx]["notes"] = notes }
@@ -115,6 +121,7 @@ public enum MCPSharedState {
         var existing = readTodos()
         for todoItem in todosArray {
             guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
+            let hasProvidedID = providedTodoID(in: todoItem) != nil
             let id = (canonicalItem["id"] as? String) ?? UUID().uuidString
             canonicalItem["id"] = id
 
@@ -125,13 +132,18 @@ public enum MCPSharedState {
                 continue
             }
 
-            let content = (canonicalItem["title"] as? String ?? "")
-            if let titleIndex = existing.firstIndex(where: {
-                (($0["title"] as? String) ?? "").caseInsensitiveCompare(content) == .orderedSame
-            }) {
-                print("[MCPSharedState] ⚠️ Legacy batch merge matched by title (id missing/new): '\(content)'")
-                mergeTodoFields(from: canonicalItem, into: &existing[titleIndex])
-                continue
+            if !hasProvidedID {
+                let content = (canonicalItem["title"] as? String ?? "")
+                if let titleIndex = existing.firstIndex(where: {
+                    (($0["title"] as? String) ?? "").caseInsensitiveCompare(content) == .orderedSame
+                }) {
+                    logLegacyWarningOnce(
+                        key: "batch|\(content.lowercased())",
+                        message: "[MCPSharedState] ⚠️ Legacy batch merge matched by title (id missing/new): '\(content)'"
+                    )
+                    mergeTodoFields(from: canonicalItem, into: &existing[titleIndex])
+                    continue
+                }
             }
 
             existing.append(canonicalItem)
@@ -144,9 +156,10 @@ public enum MCPSharedState {
     private static func canonicalizedTodos(_ items: [[String: Any]], defaultSource: String) -> [[String: Any]] {
         var byID: [String: [String: Any]] = [:]
         var idOrder: [String] = []
-        var titleIndex: [String: String] = [:]
+        var legacyTitleIndex: [String: String] = [:]
 
         for raw in items {
+            let hasProvidedID = providedTodoID(in: raw) != nil
             guard var item = canonicalTodo(raw, defaultSource: defaultSource) else { continue }
             let id = (item["id"] as? String) ?? UUID().uuidString
             item["id"] = id
@@ -154,20 +167,29 @@ public enum MCPSharedState {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
 
-            let existingID: String? = byID[id] != nil ? id : titleIndex[title]
+            let existingID: String? = {
+                if byID[id] != nil { return id }
+                if !hasProvidedID { return legacyTitleIndex[title] }
+                return nil
+            }()
             if let existingID, let existing = byID[existingID] {
                 var merged = existing
                 mergeTodoFields(from: item, into: &merged)
                 byID[existingID] = merged
                 if existingID != id {
-                    print("[MCPSharedState] ⚠️ Legacy dedupe matched by title '\(title)' (missing/shared id).")
+                    logLegacyWarningOnce(
+                        key: "canonicalize|\(title)",
+                        message: "[MCPSharedState] ⚠️ Legacy dedupe matched by title '\(title)' (missing/shared id)."
+                    )
                 }
                 continue
             }
 
             byID[id] = item
             idOrder.append(id)
-            titleIndex[title] = id
+            if !hasProvidedID {
+                legacyTitleIndex[title] = id
+            }
         }
 
         return idOrder.compactMap { byID[$0] }
@@ -216,6 +238,19 @@ public enum MCPSharedState {
             canonical["planConversationId"] = planConversationId
         }
         return canonical
+    }
+
+    private static func providedTodoID(in raw: [String: Any]) -> String? {
+        let trimmed = (raw["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func logLegacyWarningOnce(key: String, message: String) {
+        legacyWarningQueue.sync {
+            guard !legacyWarningKeys.contains(key) else { return }
+            legacyWarningKeys.insert(key)
+            print(message)
+        }
     }
 
     private static func mergeTodoFields(from incoming: [String: Any], into target: inout [String: Any]) {

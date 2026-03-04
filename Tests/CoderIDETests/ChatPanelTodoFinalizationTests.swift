@@ -54,6 +54,32 @@ final class ChatPanelTodoFinalizationTests: XCTestCase {
         XCTAssertFalse(ids.contains(done.id))
     }
 
+    func testSubagentBatchAutoCompletionCanExcludeCanonicalTodos() {
+        let canonicalInProgress = TodoItem(
+            id: UUID(),
+            title: "Canonical plan step",
+            status: .inProgress,
+            source: .agent,
+            isPlanCanonical: true
+        )
+        let runtimeInProgress = TodoItem(
+            id: UUID(),
+            title: "Runtime task",
+            status: .inProgress,
+            source: .agent,
+            isPlanCanonical: false
+        )
+
+        let ids = todoIDsToAutoCompleteAfterSubagentBatch(
+            todos: [canonicalInProgress, runtimeInProgress],
+            includePendingReviewTodo: false,
+            excludeCanonicalTodos: true
+        )
+
+        XCTAssertFalse(ids.contains(canonicalInProgress.id))
+        XCTAssertTrue(ids.contains(runtimeInProgress.id))
+    }
+
     func testSubagentBatchAutoCompletionExcludesGenericPendingTodos() {
         let pendingGeneric = TodoItem(id: UUID(), title: "Write docs", status: .pending, source: .agent)
         let ids = todoIDsToAutoCompleteAfterSubagentBatch(todos: [pendingGeneric])

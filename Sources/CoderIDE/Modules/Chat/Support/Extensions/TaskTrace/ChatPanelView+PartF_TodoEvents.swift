@@ -19,7 +19,7 @@ extension ChatPanelView {
             activeBuildAgentConversationId: activeBuildAgentConversationId
         ) {
             let sourcePlanId = activeBuildPlanConversationId ?? conversationId
-            let updated = todoStore.upsertCanonicalOnlyFromAgent(
+            var updated = todoStore.upsertCanonicalOnlyFromAgent(
                 id: todo.id,
                 title: todo.title,
                 status: todo.status,
@@ -29,7 +29,20 @@ extension ChatPanelView {
                 linkedFiles: todo.files,
                 conversationId: sourcePlanId
             )
+            if !updated {
+                updated = todoStore.upsertCanonicalFromExecutionFallback(
+                    status: todo.status,
+                    priority: todo.priority,
+                    notes: todo.notes,
+                    activeForm: todo.activeForm,
+                    linkedFiles: todo.files,
+                    conversationId: sourcePlanId
+                )
+            }
             if updated, let sourcePlanId {
+                if todo.status == .done {
+                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(conversationId: sourcePlanId)
+                }
                 let canonicalTodos = todoStore.canonicalTodos(for: sourcePlanId)
                 chatStore.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: sourcePlanId)
             }

@@ -152,6 +152,45 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(prepared.map(\.status), [.inProgress, .pending, .pending])
     }
 
+    func testUpsertCanonicalFromExecutionFallbackCompletesCurrentInProgressStep() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["First", "Second"], conversationId: conversationId)
+        _ = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
+
+        let updated = store.upsertCanonicalFromExecutionFallback(
+            status: .done,
+            priority: nil,
+            notes: "verified",
+            activeForm: nil,
+            linkedFiles: ["Sources/CoderIDE/Feature.swift"],
+            conversationId: conversationId
+        )
+
+        XCTAssertTrue(updated)
+        let canonical = store.canonicalTodos(for: conversationId)
+        XCTAssertEqual(canonical.first?.status, .done)
+        XCTAssertTrue(canonical.first?.linkedFiles.contains("Sources/CoderIDE/Feature.swift") == true)
+    }
+
+    func testAdvanceNextCanonicalTodoIfNeededStartsFirstPendingAfterDone() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.upsertCanonicalPlanTodos(["First", "Second", "Third"], conversationId: conversationId)
+        _ = store.prepareCanonicalPlanTodosForBuild(conversationId: conversationId)
+        let canonical = store.canonicalTodos(for: conversationId)
+        guard let firstId = canonical.first?.id else {
+            return XCTFail("Missing first canonical todo")
+        }
+
+        store.setStatus(id: firstId, status: .done)
+        let advanced = store.advanceNextCanonicalTodoIfNeeded(conversationId: conversationId)
+
+        XCTAssertTrue(advanced)
+        let refreshed = store.canonicalTodos(for: conversationId)
+        XCTAssertEqual(refreshed.map(\.status), [.done, .inProgress, .pending])
+    }
+
     func testLoadTodosDeduplicatesCanonicalEntriesPreservingDoneStatus() {
         let conversationId = UUID()
         do {

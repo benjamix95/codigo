@@ -76,11 +76,17 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
     todos: [TodoItem],
     conversationId: UUID? = nil,
     includePendingReviewTodo: Bool = false,
+    excludeCanonicalTodos: Bool = false,
     reviewTodoTitle: String = "Code Review & Test"
 ) -> [UUID] {
     let normalizedReviewTitle = normalizedTodoTitle(reviewTodoTitle)
     let isInScope = todoConversationScopeFilter(todos: todos, conversationId: conversationId)
-    var ids = Set(todos.filter { isInScope($0) && $0.source == .agent && $0.status == .inProgress }.map(\.id))
+    var ids = Set(todos.filter {
+        isInScope($0)
+            && $0.source == .agent
+            && $0.status == .inProgress
+            && (!excludeCanonicalTodos || !$0.isPlanCanonical)
+    }.map(\.id))
     if includePendingReviewTodo,
        let pendingReview = todos.first(where: {
            isInScope($0)

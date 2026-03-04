@@ -180,12 +180,19 @@ extension ChatPanelView {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         let targetStatus: TodoStatus = normalizedStatus == "done" ? .done : .blocked
+        let excludeCanonicalTodos = isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
         let targetIDs = todoIDsToAutoCompleteAfterSubagentBatch(
             todos: todoStore.todos,
             conversationId: conversationId,
             includePendingReviewTodo: shouldAutoCompletePendingReviewTodo(
                 subagentBatchPayload: payload
-            )
+            ),
+            excludeCanonicalTodos: excludeCanonicalTodos
         )
         for id in targetIDs {
             todoStore.setStatus(id: id, status: targetStatus)
