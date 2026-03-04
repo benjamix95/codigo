@@ -22,21 +22,37 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
     }
 
     typealias LLDBBatchRunner = @Sendable ([String]) async -> LLDBBatchExecutionResult
-    private static let liveBatchRunner: LLDBBatchRunner = { commands in
-        await LLDBDAPDebugAdapterSupport.defaultBatchRunner(commands: commands)
+    typealias LLDBSessionFactory = @Sendable () async throws -> LLDBCommandSession
+
+    enum ExecutionEngine {
+        case persistent(LLDBSessionFactory)
+        case batch(LLDBBatchRunner)
     }
 
-    nonisolated let name = "lldb-cli"
-    private let runBatch: LLDBBatchRunner
-    private var state: NativeDebugSessionState = .idle
-    private var activeBreakpoints: [DebugBreakpoint] = []
-    private var watchExpressions: [String] = []
-    private var targetPath: String?
-    private var arguments: [String] = []
-    private var isSessionActive = false
+    private static let liveSessionFactory: LLDBSessionFactory = {
+        try LLDBPersistentSession()
+    }
 
-    init(runBatch: @escaping LLDBBatchRunner = LLDBDAPDebugAdapter.liveBatchRunner) {
-        self.runBatch = runBatch
+    nonisolated let name = "lldb-dap"
+    let engine: ExecutionEngine
+    var persistentSession: LLDBCommandSession?
+    var state: NativeDebugSessionState = .idle
+    var activeBreakpoints: [DebugBreakpoint] = []
+    var watchExpressions: [String] = []
+    var targetPath: String?
+    var arguments: [String] = []
+    var isSessionActive = false
+
+    init() {
+        self.engine = .persistent(Self.liveSessionFactory)
+    }
+
+    init(sessionFactory: @escaping LLDBSessionFactory) {
+        self.engine = .persistent(sessionFactory)
+    }
+
+    init(runBatch: @escaping LLDBBatchRunner) {
+        self.engine = .batch(runBatch)
     }
 
     func startSession(
@@ -52,27 +68,47 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
         isSessionActive = false
         state = makeBaseState(status: .running, command: "start")
 
-        guard FileManager.default.isExecutableFile(atPath: targetPath) else {
+        guard LLDBDAPDebugAdapterSupport.isRunnableTarget(atPath: targetPath) else {
             state.status = .error
             state.lastError = "Target non eseguibile: \(targetPath)"
             state.updatedAt = Date()
             return state
         }
 
-        let version = await runBatch(["version"])
-        if version.exitCode != 0 {
-            state.status = .error
-            state.lastError = version.output.isEmpty ? "LLDB non disponibile" : version.output
-            state.updatedAt = Date()
-            return state
+        switch engine {
+        case .persistent(let factory):
+            await closePersistentSession()
+            do {
+                let session = try await factory()
+                persistentSession = session
+                isSessionActive = true
+                let commands = buildBootstrapCommands(targetPath: targetPath) + runtimeInspectionCommands()
+                return await executePersistent(
+                    commands: commands,
+                    lastCommand: "process launch --stop-at-entry",
+                    fallbackStatus: .paused
+                )
+            } catch {
+                state.status = .error
+                state.lastError = "LLDB non disponibile: \(error.localizedDescription)"
+                state.updatedAt = Date()
+                return state
+            }
+        case .batch(let runBatch):
+            let version = await runBatch(["version"])
+            if version.exitCode != 0 {
+                state.status = .error
+                state.lastError = version.output.isEmpty ? "LLDB non disponibile" : version.output
+                state.updatedAt = Date()
+                return state
+            }
+            isSessionActive = true
+            return await executeBatchCycle(
+                actionCommand: nil,
+                lastCommand: "process launch --stop-at-entry",
+                fallbackStatus: .paused
+            )
         }
-
-        isSessionActive = true
-        return await executeDebugCycle(
-            actionCommand: nil,
-            lastCommand: "process launch --stop-at-entry",
-            fallbackStatus: .paused
-        )
     }
 
     func syncBreakpoints(_ breakpoints: [DebugBreakpoint]) async -> NativeDebugSessionState {
@@ -80,7 +116,10 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
         state = makeBaseState(status: state.status, command: "sync_breakpoints")
         state.breakpointsCount = activeBreakpoints.count
         state.updatedAt = Date()
-        return state
+        guard isSessionActive else { return state }
+
+        let commands = ["breakpoint delete --all"] + breakpointCommands() + runtimeInspectionCommands()
+        return await execute(commands: commands, lastCommand: "sync_breakpoints", fallbackStatus: state.status)
     }
 
     func syncWatches(_ expressions: [String]) async -> NativeDebugSessionState {
@@ -90,7 +129,11 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
         state = makeBaseState(status: state.status, command: "sync_watches")
         state.updatedAt = Date()
         guard isSessionActive else { return state }
-        return await refresh()
+        return await execute(
+            commands: runtimeInspectionCommands(),
+            lastCommand: "sync_watches",
+            fallbackStatus: state.status
+        )
     }
 
     func step(command: String) async -> NativeDebugSessionState {
@@ -100,8 +143,8 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
         let executionCommand = LLDBDAPDebugAdapterSupport.normalizeExecutionCommand(normalized)
         let fallbackStatus: NativeDebugStatus = LLDBDAPDebugAdapterSupport.isContinueLikeCommand(executionCommand) ? .running : .paused
         state = makeBaseState(status: fallbackStatus, command: executionCommand)
-        return await executeDebugCycle(
-            actionCommand: executionCommand,
+        return await execute(
+            commands: [executionCommand] + runtimeInspectionCommands(),
             lastCommand: executionCommand,
             fallbackStatus: fallbackStatus
         )
@@ -109,17 +152,18 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
 
     func refresh() async -> NativeDebugSessionState {
         guard isSessionActive else { return state }
-        let actionCommand = state.status == .running ? "process continue" : nil
-        let fallbackStatus: NativeDebugStatus = actionCommand == nil ? .paused : .running
-        return await executeDebugCycle(
-            actionCommand: actionCommand,
+        let shouldContinue = state.status == .running
+        let fallbackStatus: NativeDebugStatus = shouldContinue ? .running : .paused
+        let commands = (shouldContinue ? ["process continue"] : []) + runtimeInspectionCommands()
+        return await execute(
+            commands: commands,
             lastCommand: "refresh",
             fallbackStatus: fallbackStatus
         )
     }
 
     func stopSession() async -> NativeDebugSessionState {
-        isSessionActive = false
+        await closePersistentSession()
         state = makeBaseState(status: .stopped, command: "stop")
         state.callStack = []
         state.watchVariables = []
@@ -127,7 +171,7 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
         return state
     }
 
-    private func makeBaseState(status: NativeDebugStatus, command: String?) -> NativeDebugSessionState {
+    func makeBaseState(status: NativeDebugStatus, command: String?) -> NativeDebugSessionState {
         NativeDebugSessionState(
             status: status,
             adapter: name,
@@ -139,68 +183,5 @@ actor LLDBDAPDebugAdapter: NativeDebugAdapter {
             lastError: nil,
             updatedAt: Date()
         )
-    }
-
-    private func executeDebugCycle(
-        actionCommand: String?,
-        lastCommand: String,
-        fallbackStatus: NativeDebugStatus
-    ) async -> NativeDebugSessionState {
-        guard let targetPath else {
-            isSessionActive = false
-            state = .idle
-            return state
-        }
-
-        let lldbCommands = buildLLDBCommands(targetPath: targetPath, actionCommand: actionCommand)
-        let result = await runBatch(lldbCommands)
-        let computedStatus = LLDBDAPDebugAdapterSupport.inferSessionStatus(
-            from: result.output,
-            exitCode: result.exitCode,
-            fallback: fallbackStatus
-        )
-
-        state = makeBaseState(status: computedStatus, command: lastCommand)
-        state.callStack = LLDBDAPDebugAdapterSupport.parseBacktrace(from: result.output)
-        state.watchVariables = LLDBDAPDebugAdapterSupport.parseWatchValues(
-            from: result.output,
-            expressions: watchExpressions
-        )
-        state.lastError = result.exitCode == 0 ? nil : (result.output.isEmpty ? "Comando LLDB fallito" : result.output)
-        state.updatedAt = Date()
-
-        if computedStatus == .stopped || computedStatus == .error {
-            isSessionActive = false
-        }
-
-        return state
-    }
-
-    private func buildLLDBCommands(targetPath: String, actionCommand: String?) -> [String] {
-        var commands: [String] = ["target create \"\(targetPath)\""]
-        if !arguments.isEmpty {
-            let lldbArgs = arguments.map(LLDBDAPDebugAdapterSupport.escapeLLDBString).joined(separator: " ")
-            commands.append("settings set -- target.run-args \(lldbArgs)")
-        }
-        for bp in activeBreakpoints {
-            let filePath = bp.filePath.replacingOccurrences(of: "\"", with: "\\\"")
-            var cmd = "breakpoint set --file \"\(filePath)\" --line \(bp.line)"
-            if let condition = bp.condition, !condition.isEmpty {
-                let escapedCondition = condition.replacingOccurrences(of: "\"", with: "\\\"")
-                cmd += " --condition \"\(escapedCondition)\""
-            }
-            commands.append(cmd)
-        }
-        commands.append("process launch --stop-at-entry")
-        if let actionCommand, !actionCommand.isEmpty {
-            commands.append(actionCommand)
-        }
-        commands.append("process status")
-        commands.append("thread backtrace")
-        for watch in watchExpressions {
-            let escaped = watch.replacingOccurrences(of: "\"", with: "\\\"")
-            commands.append("expression -- \(escaped)")
-        }
-        return commands
     }
 }

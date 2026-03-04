@@ -19,6 +19,8 @@ extension DebugStore {
     }
 
     func startNativeDebugSession(targetPath: String? = nil, arguments: [String]? = nil) {
+        guard ensureNativeDebugEnabledForUI() else { return }
+
         let targetOverride = targetPath?.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedTarget = (targetOverride?.isEmpty == false)
             ? targetOverride
@@ -46,12 +48,14 @@ extension DebugStore {
     }
 
     func stopNativeDebugSession() {
+        guard ensureNativeDebugEnabledForUI() else { return }
         performNativeServiceUpdate { service in
             await service.stopSession()
         }
     }
 
     func refreshNativeDebugSession() {
+        guard ensureNativeDebugEnabledForUI() else { return }
         performNativeServiceUpdate { service in
             await service.refresh()
         }
@@ -66,6 +70,7 @@ extension DebugStore {
     }
 
     func syncNativeConfiguration(force: Bool = false) {
+        guard ensureNativeDebugEnabledForUI() else { return }
         guard force || shouldAutoSyncNativeConfiguration else { return }
         performNativeServiceUpdate { [breakpoints = self.breakpoints, watches = self.parsedNativeWatchExpressions] service in
             _ = await service.syncBreakpoints(breakpoints)
@@ -74,21 +79,47 @@ extension DebugStore {
     }
 
     func nativeStepIn() {
+        guard ensureNativeDebugEnabledForUI() else { return }
         performNativeServiceUpdate { service in
             await service.stepIn()
         }
     }
 
     func nativeStepOut() {
+        guard ensureNativeDebugEnabledForUI() else { return }
         performNativeServiceUpdate { service in
             await service.stepOut()
         }
     }
 
     func nativeStepOver() {
+        guard ensureNativeDebugEnabledForUI() else { return }
         performNativeServiceUpdate { service in
             await service.stepOver()
         }
+    }
+
+    @discardableResult
+    private func ensureNativeDebugEnabledForUI() -> Bool {
+        guard isNativeDebugEnabled else {
+            applyNativeFeatureDisabledState()
+            return false
+        }
+        return true
+    }
+
+    private func applyNativeFeatureDisabledState() {
+        nativeSession = NativeDebugSessionState(
+            status: .idle,
+            adapter: "native-debug-disabled",
+            targetPath: resolvedNativeTargetPathInput,
+            breakpointsCount: breakpoints.filter(\.isActive).count,
+            callStack: [],
+            watchVariables: [],
+            lastCommand: nil,
+            lastError: nativeDebugDisabledReason ?? "Native debug disabilitato.",
+            updatedAt: Date()
+        )
     }
 
     private func performNativeServiceUpdate(

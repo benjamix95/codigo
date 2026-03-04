@@ -3,6 +3,9 @@ import SwiftUI
 extension DebugPanelView {
     var nativeDebugContent: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if !debugStore.isNativeDebugEnabled {
+                nativeFeatureDisabledCard
+            }
             nativeDebugHeader
             nativeLaunchEditor
             nativeBreakpointsCard
@@ -20,6 +23,25 @@ extension DebugPanelView {
                 nativeWatchSection
             }
         }
+    }
+
+    var nativeFeatureDisabledCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.warning)
+                Text("Native debug disabilitato")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+            }
+            Text(debugStore.nativeDebugDisabledReason ?? "Il debugger LLDB/DAP non e disponibile.")
+                .font(.system(size: 10))
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(3)
+        }
+        .padding(10)
+        .background(DesignSystem.Colors.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
     }
 
     var nativeDebugHeader: some View {

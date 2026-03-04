@@ -42,4 +42,22 @@ final class DebugServiceFlowTests: XCTestCase {
             ]
         )
     }
+
+    func testServiceDisabilitatoDaFeatureFlagUsaFallbackSafe() async {
+        let service = DebugService(configuration: DebugServiceConfiguration(
+            debugServiceEnabled: false,
+            debugDAPLLDBEnabled: true
+        ))
+
+        let state = await service.startSession(
+            targetPath: "/bin/ls",
+            arguments: [],
+            breakpoints: [],
+            watchExpressions: []
+        )
+
+        XCTAssertEqual(state.status, .idle)
+        XCTAssertEqual(state.adapter, "native-debug-disabled")
+        XCTAssertTrue(state.lastError?.contains("debug_service_enabled") ?? false)
+    }
 }

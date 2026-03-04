@@ -21,6 +21,23 @@ enum LLDBDAPDebugAdapterSupport {
         return lowercased.contains("continue") || lowercased == "run" || lowercased == "c"
     }
 
+    static func isExecutionCommand(_ command: String) -> Bool {
+        let normalized = command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.hasPrefix("process continue")
+            || normalized.hasPrefix("thread step-in")
+            || normalized.hasPrefix("thread step-out")
+            || normalized.hasPrefix("thread step-over")
+            || normalized == "continue"
+            || normalized == "next"
+            || normalized == "step"
+            || normalized == "finish"
+            || normalized == "run"
+    }
+
+    static func isRunnableTarget(atPath path: String) -> Bool {
+        FileManager.default.isExecutableFile(atPath: path)
+    }
+
     static func inferSessionStatus(
         from output: String,
         exitCode: Int32,
@@ -61,6 +78,16 @@ enum LLDBDAPDebugAdapterSupport {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(escaped)\""
+    }
+
+    static func makeBreakpointCommand(from breakpoint: DebugBreakpoint) -> String {
+        let filePath = breakpoint.filePath.replacingOccurrences(of: "\"", with: "\\\"")
+        var command = "breakpoint set --file \"\(filePath)\" --line \(breakpoint.line)"
+        if let condition = breakpoint.condition, !condition.isEmpty {
+            let escapedCondition = condition.replacingOccurrences(of: "\"", with: "\\\"")
+            command += " --condition \"\(escapedCondition)\""
+        }
+        return command
     }
 
     static func defaultBatchRunner(commands: [String]) async -> LLDBDAPDebugAdapter.LLDBBatchExecutionResult {

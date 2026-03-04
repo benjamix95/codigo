@@ -29,6 +29,8 @@ extension DebugPanelView {
         .onAppear {
             debugStore.primeNativeTargetInputIfNeeded()
         }
+        .disabled(!debugStore.isNativeDebugEnabled)
+        .opacity(debugStore.isNativeDebugEnabled ? 1 : 0.65)
     }
 
     var nativeWatchEditor: some View {
@@ -53,6 +55,8 @@ extension DebugPanelView {
                 .disabled(debugStore.nativeWatchExpressionsInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+        .disabled(!debugStore.isNativeDebugEnabled)
+        .opacity(debugStore.isNativeDebugEnabled ? 1 : 0.65)
     }
 
     var nativeDebugControls: some View {
@@ -82,5 +86,7 @@ extension DebugPanelView {
         .buttonStyle(.borderless)
         .font(.system(size: 10, weight: .semibold))
         .foregroundStyle(accent)
+        .disabled(!debugStore.isNativeDebugEnabled)
+        .opacity(debugStore.isNativeDebugEnabled ? 1 : 0.65)
     }
 }
