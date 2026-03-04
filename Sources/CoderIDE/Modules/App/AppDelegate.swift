@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Set the app icon asynchronously to avoid blocking launch
         DispatchQueue.global(qos: .userInitiated).async {
-            if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+            if let url = RuntimeResourceLocator.appLogoURL(),
                let icon = NSImage(contentsOf: url) {
                 DispatchQueue.main.async {
                     NSApplication.shared.applicationIconImage = icon

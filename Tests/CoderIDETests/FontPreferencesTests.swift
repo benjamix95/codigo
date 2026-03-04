@@ -25,4 +25,14 @@ struct FontPreferencesTests {
         #expect(!FontPreferences.availableSansFamilies().isEmpty)
         #expect(!FontPreferences.availableMonoFamilies().isEmpty)
     }
+
+    @Test
+    func registerBundledFontsIsIdempotent() {
+        let completedWithoutCrash = {
+            FontPreferences.registerBundledFonts()
+            FontPreferences.registerBundledFonts()
+            return true
+        }()
+        #expect(completedWithoutCrash)
+    }
 }

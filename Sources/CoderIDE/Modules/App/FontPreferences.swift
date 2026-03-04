@@ -34,7 +34,7 @@ struct FontPreferences {
     static func registerBundledFonts() {
         guard !didRegisterBundledFonts else { return }
         didRegisterBundledFonts = true
-        guard let fontDir = Bundle.module.resourceURL?.appendingPathComponent("Fonts", isDirectory: true) else {
+        guard let fontDir = RuntimeResourceLocator.fontsDirectoryURL() else {
             return
         }
         guard let urls = try? FileManager.default.contentsOfDirectory(

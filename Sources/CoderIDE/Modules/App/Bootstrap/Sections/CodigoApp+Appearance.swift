@@ -19,7 +19,7 @@ extension CodigoApp {
 
     /// Menu bar image loaded and resized once, reused on every render.
     static let cachedMenuBarImage: NSImage? = {
-        guard let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
+        guard let url = RuntimeResourceLocator.appLogoURL(),
               let img = NSImage(contentsOf: url) else { return nil }
         let resized = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
             img.draw(in: rect)
