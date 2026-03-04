@@ -43,13 +43,6 @@ extension ContentView {
         } else {
             selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)
         }
-        let preferredProvider = chatStore.conversation(for: selectedConversationId)?.preferredProviderId
-        if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
-            preferred: preferredProvider,
-            current: providerRegistry.selectedProviderId,
-            registry: providerRegistry
-        ) {
-            providerRegistry.selectedProviderId = resolved
-        }
+        syncThreadBoundProviderSelection(for: selectedConversationId)
     }
 }

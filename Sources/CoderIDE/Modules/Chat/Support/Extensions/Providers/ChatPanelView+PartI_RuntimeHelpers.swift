@@ -60,36 +60,32 @@ extension ChatPanelView {
     }
 
     internal func syncProviderFromConversation() {
-        guard let conv = chatStore.conversation(for: selectedConversationId), let mode = conv.mode
-        else {
+        guard let conv = chatStore.conversation(for: selectedConversationId) else {
             syncCoderModeToProvider(providerRegistry.selectedProviderId)
             return
         }
-        coderMode = mode
-        switch mode {
-        case .ide:
-            if let preferred = conv.preferredProviderId,
-                ProviderSupport.isIDEProvider(id: preferred),
-                providerRegistry.provider(for: preferred) != nil
-            {
-                providerRegistry.selectedProviderId = preferred
-            } else {
-                providerRegistry.selectedProviderId = ProviderSupport.preferredIDEProvider(
-                    in: providerRegistry)
-            }
-        case .agent:
-            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
+
+        let effectiveMode = ThreadProviderSelectionService.effectiveMode(for: conv)
+        coderMode = effectiveMode
+
+        if let resolved = ThreadProviderSelectionService.resolveProviderId(
+            conversation: conv,
+            currentProviderId: providerRegistry.selectedProviderId,
+            registry: providerRegistry
+        ) {
+            providerRegistry.selectedProviderId = resolved
+        }
+
+        switch effectiveMode {
         case .codeReviewMultiSwarm, .plan:
-            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             debugToggleEnabled = false
         case .debug:
-            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             debugToggleEnabled = true
             showDebugPanel = true
         case .browser:
-            applyStrictAgentModeProviderSelection(preferredProviderId: conv.preferredProviderId)
             showBrowserPanel = true
-        case .mcpServer: providerRegistry.selectedProviderId = "claude-cli"
+        case .agent, .ide, .mcpServer:
+            break
         }
         checkProviderAuth()
     }

@@ -6,12 +6,33 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func checkProviderAuth() {
         if coderMode == .ide {
-            let preferred = ProviderSupport.preferredIDEProvider(in: providerRegistry)
-            if providerRegistry.selectedProviderId != preferred {
-                DispatchQueue.main.async {
-                    // Avoid re-entrant mutations during SwiftUI/AppKit transactions (Picker/Menu).
-                    if coderMode == .ide, providerRegistry.selectedProviderId != preferred {
-                        providerRegistry.selectedProviderId = preferred
+            let conversation = chatStore.conversation(for: selectedConversationId)
+            let threadPreferred = conversation?.preferredProviderId?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasBoundIDEProvider = ThreadProviderSelectionService.effectiveMode(
+                for: conversation
+            ) == .ide
+                && (threadPreferred?.isEmpty == false)
+                && ProviderSupport.isIDEProvider(id: threadPreferred)
+
+            if hasBoundIDEProvider, let threadPreferred {
+                if providerRegistry.selectedProviderId != threadPreferred {
+                    DispatchQueue.main.async {
+                        // Evita mutazioni rientranti durante transazioni SwiftUI/AppKit.
+                        if coderMode == .ide,
+                           providerRegistry.selectedProviderId != threadPreferred {
+                            providerRegistry.selectedProviderId = threadPreferred
+                        }
+                    }
+                }
+            } else {
+                let preferred = ProviderSupport.preferredIDEProvider(in: providerRegistry)
+                if providerRegistry.selectedProviderId != preferred {
+                    DispatchQueue.main.async {
+                        // Avoid re-entrant mutations during SwiftUI/AppKit transactions (Picker/Menu).
+                        if coderMode == .ide, providerRegistry.selectedProviderId != preferred {
+                            providerRegistry.selectedProviderId = preferred
+                        }
                     }
                 }
             }

@@ -27,15 +27,7 @@ extension ContentView {
             NSApp.activate(ignoringOtherApps: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: .providersDidRegister)) { _ in
-            let agentConv = chatStore.conversation(for: selectedConversationId)
-            let preferredProvider = agentConv?.preferredProviderId
-            if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
-                preferred: preferredProvider,
-                current: providerRegistry.selectedProviderId,
-                registry: providerRegistry
-            ) {
-                providerRegistry.selectedProviderId = resolved
-            }
+            syncThreadBoundProviderSelection(for: selectedConversationId)
         }
         .onReceive(appUpdateCenter.$availableUpdate.compactMap { $0 }) { update in
             pendingAppUpdate = update

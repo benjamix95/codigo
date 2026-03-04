@@ -104,21 +104,7 @@ extension ContentView {
     }
 
     func configureDefaultProviderSelection() {
-        let preferred = chatStore.conversation(for: selectedConversationId)?.preferredProviderId
-        if let resolved = ProviderSupport.preferredOrCurrentAgentProviderId(
-            preferred: preferred,
-            current: providerRegistry.selectedProviderId,
-            registry: providerRegistry
-        ) {
-            providerRegistry.selectedProviderId = resolved
-            return
-        }
-        if providerRegistry.selectedProviderId == nil {
-            providerRegistry.selectedProviderId = ProviderSupport.firstHealthyAgentProviderId(
-                preferred: nil,
-                registry: providerRegistry
-            )
-        }
+        syncThreadBoundProviderSelection(for: selectedConversationId)
     }
 
     var editorArea: some View {
