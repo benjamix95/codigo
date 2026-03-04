@@ -19,7 +19,9 @@ public struct ClaudeStatus: Sendable {
 public enum ClaudeDetector {
     private static let cacheLock = NSLock()
     private static var cliAvailableCache: [String: (result: Bool, date: Date)] = [:]
+    private static var authStatusCache: [String: (result: Bool?, date: Date)] = [:]
     private static let cacheTTL: TimeInterval = 60
+    private static let authStatusTTL: TimeInterval = 15
 
     private static var claudeHome: String {
         ProcessInfo.processInfo.environment["CLAUDE_HOME"] ?? "\(NSHomeDirectory())/.claude"
@@ -29,6 +31,8 @@ public enum ClaudeDetector {
         [
             "\(claudeHome)/.credentials.json",
             "\(claudeHome)/credentials.json",
+            "\(claudeHome)/auth-status.json",
+            "\(NSHomeDirectory())/.claude.json",
         ]
     }
 
@@ -91,8 +95,7 @@ public enum ClaudeDetector {
         process.environment = shellEnvironment()
         do {
             try process.run()
-            process.waitUntilExit()
-            let result = process.terminationStatus == 0
+            let result = waitForExit(process, timeout: 5) == 0
             cacheLock.lock()
             cliAvailableCache[claudePath] = (result, Date())
             cacheLock.unlock()
@@ -105,6 +108,41 @@ public enum ClaudeDetector {
         }
     }
 
+    /// Esegue `claude auth status` (con timeout + cache) per validare login reale.
+    public static func checkAuthStatus(claudePath: String) -> Bool? {
+        cacheLock.lock()
+        if let cached = authStatusCache[claudePath], Date().timeIntervalSince(cached.date) < authStatusTTL {
+            let result = cached.result
+            cacheLock.unlock()
+            return result
+        }
+        cacheLock.unlock()
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: claudePath)
+        process.arguments = ["auth", "status"]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        process.environment = shellEnvironment()
+
+        let result: Bool?
+        do {
+            try process.run()
+            if let exitCode = waitForExit(process, timeout: 8) {
+                result = (exitCode == 0)
+            } else {
+                result = nil
+            }
+        } catch {
+            result = nil
+        }
+
+        cacheLock.lock()
+        authStatusCache[claudePath] = (result, Date())
+        cacheLock.unlock()
+        return result
+    }
+
     /// Detects complete Claude Code CLI status
     public static func detect(customPath: String? = nil) -> ClaudeStatus {
         guard let path = findClaudePath(customPath: customPath) else {
@@ -113,12 +151,24 @@ public enum ClaudeDetector {
         let hasAuth = hasAuthFile()
         let cliOk = checkCLIAvailable(claudePath: path)
         let hasEnvKey = shellEnvironment()["ANTHROPIC_API_KEY"] != nil
-        let loggedIn = hasAuth || hasEnvKey
+        let authStatus = cliOk ? checkAuthStatus(claudePath: path) : nil
+
+        let loggedIn: Bool
+        if hasEnvKey {
+            loggedIn = true
+        } else if let authStatus {
+            // Authoritative when command succeeds/fails explicitly.
+            loggedIn = authStatus
+        } else {
+            // Fallback only when auth-status could not be determined (timeout/crash).
+            loggedIn = hasAuth
+        }
 
         let authMethod: String?
         if loggedIn {
             if hasAuth { authMethod = "file" }
             else if hasEnvKey { authMethod = "env" }
+            else if authStatus == true { authMethod = "oauth" }
             else { authMethod = nil }
         } else {
             authMethod = nil
@@ -137,6 +187,25 @@ public enum ClaudeDetector {
         if let value = json["refreshToken"] as? String, !value.isEmpty { return true }
         if let value = json["refresh_token"] as? String, !value.isEmpty { return true }
         return false
+    }
+
+    private static func waitForExit(_ process: Process, timeout: TimeInterval) -> Int32? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            process.terminate()
+            let hardStop = Date().addingTimeInterval(0.5)
+            while process.isRunning, Date() < hardStop {
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+            if process.isRunning {
+                process.interrupt()
+            }
+            return nil
+        }
+        return process.terminationStatus
     }
 
     private static func loadAnthropicKeyFromShellConfig() -> String? {

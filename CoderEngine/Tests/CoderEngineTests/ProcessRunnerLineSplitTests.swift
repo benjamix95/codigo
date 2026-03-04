@@ -41,4 +41,23 @@ final class ProcessRunnerLineSplitTests: XCTestCase {
             XCTFail("Expected CancellationError, got: \(error)")
         }
     }
+
+    func testRunInfersAuthFailureMessageFromStdoutWhenStderrIsEmpty() async throws {
+        let json = #"{"type":"result","is_error":true,"result":"Not logged in · Please run /login"}"#
+        let stream = try await ProcessRunner.run(
+            executable: "/bin/sh",
+            arguments: ["-c", "printf '%s\\n' '\(json)'; exit 1"]
+        )
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected ProcessRunnerError")
+        } catch let error as ProcessRunner.ProcessRunnerError {
+            XCTAssertEqual(error.exitCode, 1)
+            XCTAssertEqual(error.message, "Not logged in · Please run /login")
+            XCTAssertTrue(error.stdoutTail?.contains("Not logged in · Please run /login") == true)
+        } catch {
+            XCTFail("Expected ProcessRunnerError, got: \(error)")
+        }
+    }
 }

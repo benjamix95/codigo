@@ -42,14 +42,16 @@ extension ChatPanelView {
             if case .allExhausted(let reason) = cliAccountRouter.currentAvailability(
                 provider: kind)
             {
+                if selectedProvider.isAuthenticated() {
+                    appendTechnicalErrorMessage(
+                        "[Multi-account \(kind.displayName): \(reason). Falling back to the single configured CLI provider for this turn.]",
+                        in: conversationId)
+                    return selectedProvider
+                }
                 appendTechnicalErrorMessage(
                     "[Multi-account \(kind.displayName): \(reason). Configure accounts or reset limits in Settings.]",
                     in: conversationId)
                 return nil
-            }
-            let availability = cliAccountRouter.currentAvailability(provider: kind)
-            if case .allExhausted = availability {
-                return selectedProvider
             }
             return CLIMultiAccountProviderAdapter(
                 providerKind: kind,

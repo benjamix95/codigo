@@ -99,6 +99,56 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         XCTAssertEqual(status, .loggedIn(method: .oauth))
     }
 
+    func testDetectOnMainThreadUsesModernClaudeSessionFileWithUserID() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let executable = try makeTemporaryExecutable(named: "claude")
+        try writeModernClaudeSessionJSON(to: profile)
+
+        let account = CLIAccount(
+            id: UUID(),
+            provider: .claude,
+            label: "Claude Modern",
+            isEnabled: true,
+            priority: 0,
+            profilePath: profile.path,
+            quota: .empty,
+            health: .healthy,
+            createdAt: .now,
+            updatedAt: .now
+        )
+
+        let status = CLIAccountAuthDetector.detect(
+            account: account,
+            providerPath: executable.path
+        )
+        XCTAssertEqual(status, .loggedIn(method: .oauth))
+    }
+
+    func testDetectOnMainThreadClaudeStatusCommandWinsOverStaleProfileMarkers() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let executable = try makeTemporaryExecutable(named: "claude", exitCode: 1)
+        try writeModernClaudeSessionJSON(to: profile)
+
+        let account = CLIAccount(
+            id: UUID(),
+            provider: .claude,
+            label: "Claude stale",
+            isEnabled: true,
+            priority: 0,
+            profilePath: profile.path,
+            quota: .empty,
+            health: .healthy,
+            createdAt: .now,
+            updatedAt: .now
+        )
+
+        let status = CLIAccountAuthDetector.detect(
+            account: account,
+            providerPath: executable.path
+        )
+        XCTAssertEqual(status, .notLoggedIn)
+    }
+
     func testClaudeIdentityReadsAuthStatusSnapshotEmail() throws {
         let profile = try makeTemporaryProfileDirectory()
         let authStatusDir = profile.appendingPathComponent(".claude", isDirectory: true)
@@ -163,6 +213,28 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         XCTAssertEqual(identity?.authMethod, .oauth)
     }
 
+    func testClaudeIdentityReadsUserIDFromModernClaudeJSON() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        try writeModernClaudeSessionJSON(to: profile)
+
+        let account = CLIAccount(
+            id: UUID(),
+            provider: .claude,
+            label: "Claude Modern",
+            isEnabled: true,
+            priority: 0,
+            profilePath: profile.path,
+            quota: .empty,
+            health: .healthy,
+            createdAt: .now,
+            updatedAt: .now
+        )
+
+        let identity = CLIAccountAuthDetector.identity(account: account)
+        XCTAssertEqual(identity?.accountId, "user-modern-123")
+        XCTAssertEqual(identity?.authMethod, .oauth)
+    }
+
     private func makeTemporaryProfileDirectory() throws -> URL {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("cli-auth-tests-\(UUID().uuidString)", isDirectory: true)
@@ -171,10 +243,10 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         return directory
     }
 
-    private func makeTemporaryExecutable(named name: String) throws -> URL {
+    private func makeTemporaryExecutable(named name: String, exitCode: Int = 0) throws -> URL {
         let directory = try makeTemporaryProfileDirectory()
         let executable = directory.appendingPathComponent(name)
-        try "#!/bin/sh\nexit 0\n".write(to: executable, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nexit \(exitCode)\n".write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: executable.path)
         return executable
     }
@@ -211,6 +283,20 @@ final class CLIAccountAuthDetectorTests: XCTestCase {
         ]
         let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
         try data.write(to: claudeDir.appendingPathComponent(".credentials.json"))
+    }
+
+    private func writeModernClaudeSessionJSON(to profile: URL) throws {
+        let json: [String: Any] = [
+            "userID": "user-modern-123",
+            "hasCompletedOnboarding": true,
+            "projects": [
+                "/tmp/workspace": [
+                    "lastTotalInputTokens": 1
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+        try data.write(to: profile.appendingPathComponent(".claude.json"))
     }
 
     private func makeJWT(payload: [String: Any]) -> String {

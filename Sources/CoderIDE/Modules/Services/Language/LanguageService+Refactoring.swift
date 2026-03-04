@@ -110,7 +110,7 @@ extension LanguageService {
     ) async throws -> RefactoringResult {
         try ensureEnabled()
 
-        guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else {
+        guard (try? String(contentsOfFile: filePath, encoding: .utf8)) != nil else {
             return .failure("Impossibile leggere il file: \(filePath)")
         }
 

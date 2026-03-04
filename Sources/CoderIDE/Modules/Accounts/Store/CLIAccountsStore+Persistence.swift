@@ -112,7 +112,7 @@ extension CLIAccountsStore {
             if claudeDirName == ".claude" {
                 return URL(fileURLWithPath: normalizedClaudeHome).deletingLastPathComponent().path
             }
-            return NSHomeDirectory()
+            return normalizedClaudeHome
         case .gemini:
             let path = ProcessInfo.processInfo.environment["GEMINI_CONFIG_DIR"] ?? "\(NSHomeDirectory())/.gemini"
             return normalizedPath(path)

@@ -8,6 +8,11 @@ extension ChatPanelView {
         guard let id = providerRegistry.selectedProviderId else {
             return "No provider selected. Go to Settings to configure."
         }
+        if multiCLIAccountEnabled,
+           let kind = CLIProviderKind.fromProviderId(id),
+           case .allExhausted(let reason) = cliAccountRouter.currentAvailability(provider: kind) {
+            return "\(kind.displayName) account unavailable (\(reason)). Configure accounts in Settings."
+        }
         switch id {
         case "openai-api": return "OpenAI API Key missing. Configure it in Settings."
         case "anthropic-api": return "Anthropic API Key missing. Configure it in Settings."

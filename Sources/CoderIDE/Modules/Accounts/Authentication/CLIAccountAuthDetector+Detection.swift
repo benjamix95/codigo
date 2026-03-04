@@ -16,7 +16,16 @@ extension CLIAccountAuthDetector {
         process.standardOutput = Pipe()
         process.standardError = Pipe()
         try process.run()
-        process.waitUntilExit()
+        let timeout: TimeInterval
+        switch provider {
+        case .claude:
+            timeout = 8
+        case .codex, .gemini:
+            timeout = 5
+        }
+        guard waitForExit(process, timeout: timeout) != nil else {
+            return false
+        }
         return process.terminationStatus == 0
     }
 
@@ -32,5 +41,24 @@ extension CLIAccountAuthDetector {
             return .loggedIn(method: method)
         }
         return .notLoggedIn
+    }
+
+    private static func waitForExit(_ process: Process, timeout: TimeInterval) -> Int32? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        if process.isRunning {
+            process.terminate()
+            let hardDeadline = Date().addingTimeInterval(0.5)
+            while process.isRunning, Date() < hardDeadline {
+                Thread.sleep(forTimeInterval: 0.02)
+            }
+            if process.isRunning {
+                process.interrupt()
+            }
+            return nil
+        }
+        return process.terminationStatus
     }
 }

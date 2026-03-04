@@ -136,9 +136,13 @@ extension CLIAccountLoginCoordinator {
         }
         await MainActor.run {
             isRunningByAccount[account.id] = false
-            if statusByAccount[account.id] == nil || statusByAccount[account.id] == "Starting login..." {
-                statusByAccount[account.id] = "Login timeout"
+            let current = (statusByAccount[account.id] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if current == "connected" || current == "login cancelled" {
+                return
             }
+            statusByAccount[account.id] = "Login timeout. Complete authentication in browser and retry."
         }
     }
 }

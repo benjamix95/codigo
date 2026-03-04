@@ -36,6 +36,25 @@ enum CLIAccountAuthDetector {
         let fallback = profileBasedStatus(account: account)
 
         if Thread.isMainThread {
+            if account.provider == .claude {
+                let env = buildEnvironment(for: account)
+                do {
+                    let ok = try runLoginStatus(
+                        provider: .claude,
+                        executable: executable,
+                        environment: env
+                    )
+                    if ok {
+                        if case .loggedIn(let method) = fallback {
+                            return .loggedIn(method: method)
+                        }
+                        return .loggedIn(method: .oauth)
+                    }
+                    return .notLoggedIn
+                } catch {
+                    return fallback
+                }
+            }
             return fallback
         }
 
@@ -47,6 +66,9 @@ enum CLIAccountAuthDetector {
                     return .loggedIn(method: method)
                 }
                 return .loggedIn(method: .oauth)
+            }
+            if account.provider == .claude {
+                return .notLoggedIn
             }
             return fallback
         } catch {

@@ -155,10 +155,10 @@ struct ProcessRunner {
                     continuation.finish(throwing: CancellationError())
                     return
                 }
-                let message = stderrTail.isEmpty ? "no stderr output available" : stderrTail
                 let stdoutTail: String? = stderrTail.isEmpty && !state.tailBuffer.isEmpty
                     ? state.tailBuffer.suffix(Self.stdoutTailCapacity).joined(separator: "\n")
                     : nil
+                let message = deriveFailureMessage(stderrTail: stderrTail, stdoutTail: stdoutTail)
                 continuation.finish(throwing: ProcessRunnerError(
                     exitCode: process.terminationStatus,
                     message: message,
@@ -236,6 +236,59 @@ struct ProcessRunner {
             !line.isEmpty
         else { return }
         onLine(line)
+    }
+
+    private static func deriveFailureMessage(stderrTail: String, stdoutTail: String?) -> String {
+        if !stderrTail.isEmpty {
+            return stderrTail
+        }
+        guard let stdoutTail, !stdoutTail.isEmpty else {
+            return "no stderr output available"
+        }
+        if let inferred = inferMessageFromStdoutTail(stdoutTail) {
+            return inferred
+        }
+        return "no stderr output available"
+    }
+
+    private static func inferMessageFromStdoutTail(_ tail: String) -> String? {
+        let lines = tail
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for line in lines.reversed() {
+            let lower = line.lowercased()
+            if lower.contains("not logged in") || lower.contains("please run /login") {
+                return "Not logged in · Please run /login"
+            }
+            guard let data = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+
+            if let error = json["error"] as? String, !error.isEmpty {
+                if let resultText = json["result"] as? String, !resultText.isEmpty {
+                    return "\(resultText) (\(error))"
+                }
+                return error
+            }
+
+            if let resultText = json["result"] as? String, !resultText.isEmpty {
+                return resultText
+            }
+
+            if let message = json["message"] as? [String: Any],
+               let content = message["content"] as? [[String: Any]] {
+                for block in content {
+                    if let text = block["text"] as? String,
+                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return text
+                    }
+                }
+            }
+        }
+        return nil
     }
 
     /// Sendable wrapper used by stream termination callbacks.

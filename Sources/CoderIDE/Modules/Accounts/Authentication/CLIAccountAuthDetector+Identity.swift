@@ -72,7 +72,7 @@ extension CLIAccountAuthDetector {
                     keys: [
                         "orgId", "org_id", "organizationUuid",
                         "account_id", "accountId", "accountUuid",
-                        "user_id", "userId"
+                        "user_id", "userId", "userID"
                     ]
                 )
             }).first
@@ -81,8 +81,15 @@ extension CLIAccountAuthDetector {
                 stringValue(dict, keys: ["accessToken", "access_token", "refreshToken", "refresh_token", "oauthToken", "token"]) != nil
             }
             let loggedInFlag = raw["loggedIn"] as? Bool == true
+            let hasModernClaudeMarkers = dicts.contains { dict in
+                stringValue(dict, keys: ["userID", "userId", "user_id", "orgId", "org_id"]) != nil
+            }
+                || stringValue(raw, keys: ["claudeCodeFirstTokenDate"]) != nil
+                || ((raw["projects"] as? [String: Any])?.isEmpty == false)
 
-            if hasOAuthTokens || loggedInFlag || email != nil || accountId != nil || displayName != nil {
+            if hasOAuthTokens || loggedInFlag || hasModernClaudeMarkers
+                || email != nil || accountId != nil || displayName != nil
+            {
                 return CLIAccountIdentity(email: email, displayName: displayName, accountId: accountId, authMethod: .oauth)
             }
         }
