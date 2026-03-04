@@ -21,11 +21,22 @@ extension ContentView {
         workspaceStore.save()
         let ctx = projectContextStore.context(id: contextId)
         let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
-        if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
-           let lastConv = chatStore.conversation(for: lastId),
-           lastConv.contextId == contextId,
-           !lastConv.isArchived,
-           lastConv.messages.contains(where: { $0.role == .user }) {
+        if let selectedId = selectedConversationId,
+           let selected = chatStore.conversation(for: selectedId),
+           !selected.isArchived,
+           !chatStore.hasUserMessages(selected) {
+            if selected.contextId != contextId || selected.contextFolderPath != folderScope {
+                chatStore.setContext(conversationId: selectedId, contextId: contextId)
+                chatStore.setContextFolder(conversationId: selectedId, folderPath: folderScope)
+            }
+            selectedConversationId = selectedId
+        } else if let reusable = chatStore.reusableEmptyConversation(contextId: contextId, contextFolderPath: folderScope) {
+            selectedConversationId = reusable.id
+        } else if let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
+                  let lastConv = chatStore.conversation(for: lastId),
+                  lastConv.contextId == contextId,
+                  !lastConv.isArchived,
+                  chatStore.hasUserMessages(lastConv) {
             selectedConversationId = lastId
         } else {
             selectedConversationId = chatStore.createConversation(contextId: contextId, contextFolderPath: folderScope)

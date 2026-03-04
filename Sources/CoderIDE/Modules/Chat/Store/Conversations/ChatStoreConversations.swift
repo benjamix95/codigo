@@ -2,6 +2,19 @@ import Foundation
 import CoderEngine
 
 extension ChatStore {
+    func hasUserMessages(_ conversation: Conversation) -> Bool {
+        conversation.messages.contains(where: { $0.role == .user })
+    }
+
+    func reusableEmptyConversation(contextId: UUID?, contextFolderPath: String?) -> Conversation? {
+        conversations.first { conv in
+            !conv.isArchived
+                && conv.contextId == contextId
+                && conv.contextFolderPath == contextFolderPath
+                && !hasUserMessages(conv)
+        }
+    }
+
     @discardableResult
     func createConversation(contextId: UUID? = nil, contextFolderPath: String? = nil, mode: CoderMode? = nil) -> UUID {
         let conv = Conversation(contextId: contextId, contextFolderPath: contextFolderPath, mode: mode)

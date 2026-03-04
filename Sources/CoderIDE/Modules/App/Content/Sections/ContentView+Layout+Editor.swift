@@ -61,6 +61,7 @@ extension ContentView {
     }
 
     func configureInitialConversationSelection() {
+        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
         guard selectedConversationId == nil else { return }
         let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
         let ctx = projectContextStore.context(id: defaultContextId)
@@ -77,7 +78,10 @@ extension ContentView {
                     && conv.contextId == defaultContextId
                     && conv.contextFolderPath == folderScope
                     && (conv.mode == nil || conv.mode == .agent)
-            }
+            } ?? chatStore.reusableEmptyConversation(
+                contextId: defaultContextId,
+                contextFolderPath: folderScope
+            )
             selectedConversationId = reusableConversation?.id ?? chatStore.createConversation(
                 contextId: defaultContextId,
                 contextFolderPath: folderScope,

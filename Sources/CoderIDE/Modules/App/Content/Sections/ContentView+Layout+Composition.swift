@@ -97,22 +97,28 @@ extension ContentView {
             }
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
+            let ctx = projectContextStore.context(id: newContextId)
+            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
             if let selectedId = selectedConversationId,
                let selected = chatStore.conversation(for: selectedId),
                !selected.isArchived,
-               selected.messages.isEmpty {
+               !chatStore.hasUserMessages(selected) {
+                if selected.contextId != newContextId || selected.contextFolderPath != folderScope {
+                    chatStore.setContext(conversationId: selectedId, contextId: newContextId)
+                    chatStore.setContextFolder(conversationId: selectedId, folderPath: folderScope)
+                }
                 return
             }
             let conv = chatStore.conversation(for: selectedConversationId)
             guard conv?.contextId != newContextId else { return }
-            let ctx = projectContextStore.context(id: newContextId)
-            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
             if let lastId = projectContextStore.lastActiveConversationId(contextId: newContextId, folderPath: folderScope),
                let lastConv = chatStore.conversation(for: lastId),
                lastConv.contextId == newContextId,
                !lastConv.isArchived,
-               lastConv.messages.contains(where: { $0.role == .user }) {
+               chatStore.hasUserMessages(lastConv) {
                 selectedConversationId = lastId
+            } else if let reusable = chatStore.reusableEmptyConversation(contextId: newContextId, contextFolderPath: folderScope) {
+                selectedConversationId = reusable.id
             } else {
                 selectedConversationId = chatStore.createConversation(contextId: newContextId, contextFolderPath: folderScope)
             }
