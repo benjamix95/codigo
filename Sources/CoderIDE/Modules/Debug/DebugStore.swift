@@ -53,6 +53,29 @@ final class DebugStore: ObservableObject {
     /// While true, the panel is waiting for debug_clean completion before resolving.
     @Published var awaitingDebugClean = false
 
+    // MARK: - Extended Debug State (Fase 1 — Debug Engine Hardening)
+
+    /// Risultato della selezione frame corrente.
+    @Published var selectedFrameResult: FrameSelectionResult?
+
+    /// Variabili locali del frame corrente.
+    @Published var localVariables: [NativeVariable] = []
+
+    /// Variabili globali/statiche.
+    @Published var globalVariables: [NativeVariable] = []
+
+    /// Argomenti del frame corrente.
+    @Published var argumentVariables: [NativeVariable] = []
+
+    /// Ultimo risultato di valutazione espressione.
+    @Published var lastExpressionResult: ExpressionResult?
+
+    /// Storico delle espressioni valutate con successo.
+    @Published var expressionHistory: [ExpressionResult] = []
+
+    /// Input per la REPL di expression evaluation.
+    @Published var expressionInput: String = ""
+
     /// Filters for log panel
     @Published var severityFilter: Set<DebugEntrySeverity> = Set(DebugEntrySeverity.allCases)
     @Published var categoryFilter: String? = nil

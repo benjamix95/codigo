@@ -1,9 +1,9 @@
 import Foundation
 
 actor DebugService {
-    private let adapter: NativeDebugAdapter
-    private let configuration: DebugServiceConfiguration
-    private var state: NativeDebugSessionState = .idle
+    let adapter: NativeDebugAdapter
+    let configuration: DebugServiceConfiguration
+    var state: NativeDebugSessionState = .idle
 
     init(
         adapter: NativeDebugAdapter? = nil,
