@@ -93,8 +93,14 @@ public actor PluginRuntime {
         allowedToolsByPluginID[id] ?? []
     }
 
-    public func clearAll() {
+    public func clearAll() async {
+        let loadedDescriptors = pluginsByID.values.sorted { lhs, rhs in
+            lhs.manifest.id < rhs.manifest.id
+        }
         pluginsByID.removeAll()
         allowedToolsByPluginID.removeAll()
+        for descriptor in loadedDescriptors {
+            await lifecycleHandler.unload(descriptor: descriptor)
+        }
     }
 }

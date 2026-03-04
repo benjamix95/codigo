@@ -41,6 +41,10 @@ actor ExtensionRuntime {
             manifest: manifest,
             currentIDEVersion: configuration.currentIDEVersion
         )
+        let effectiveTools = sandbox.effectiveTools(
+            for: manifest,
+            grantedCapabilities: granted
+        )
         let context = ExtensionRuntimeContext(
             workspaceRoots: workspaceRoots,
             allowedCapabilities: configuration.allowedCapabilities,
@@ -52,7 +56,7 @@ actor ExtensionRuntime {
             pluginId: manifest.id,
             pluginName: manifest.name,
             version: manifest.version,
-            exposedTools: Set(manifest.exposedTools),
+            exposedTools: effectiveTools,
             grantedCapabilities: granted
         )
         loadedPlugins[manifest.id] = LoadedPlugin(plugin: plugin, context: context, metadata: metadata)

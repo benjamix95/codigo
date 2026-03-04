@@ -185,6 +185,60 @@ final class PluginRuntimeTests: XCTestCase {
         }
     }
 
+    func testClearAllInvokesLifecycleUnloadForLoadedPlugins() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let pluginOneDir = root.appendingPathComponent("plugin-one", isDirectory: true)
+        let pluginTwoDir = root.appendingPathComponent("plugin-two", isDirectory: true)
+        try FileManager.default.createDirectory(at: pluginOneDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: pluginTwoDir, withIntermediateDirectories: true)
+
+        let manifestOneURL = pluginOneDir.appendingPathComponent("manifest.json")
+        let manifestTwoURL = pluginTwoDir.appendingPathComponent("manifest.json")
+
+        try """
+        {
+          "id": "plugin.clear.one",
+          "name": "Clear One",
+          "version": "1.0.0",
+          "entryPoint": "index.js",
+          "capabilities": ["read"],
+          "exposedTools": ["read"]
+        }
+        """.write(to: manifestOneURL, atomically: true, encoding: .utf8)
+
+        try """
+        {
+          "id": "plugin.clear.two",
+          "name": "Clear Two",
+          "version": "1.0.0",
+          "entryPoint": "index.js",
+          "capabilities": ["read"],
+          "exposedTools": ["read"]
+        }
+        """.write(to: manifestTwoURL, atomically: true, encoding: .utf8)
+
+        let recorder = LifecycleRecorder()
+        let runtime = PluginRuntime(lifecycleHandler: recorder)
+
+        _ = try await runtime.loadPlugin(manifestURL: manifestOneURL)
+        _ = try await runtime.loadPlugin(manifestURL: manifestTwoURL)
+
+        await runtime.clearAll()
+
+        let loaded = await runtime.loadedPlugins()
+        let toolsPluginOne = await runtime.allowedTools(forPluginID: "plugin.clear.one")
+        let toolsPluginTwo = await runtime.allowedTools(forPluginID: "plugin.clear.two")
+        XCTAssertTrue(loaded.isEmpty)
+        XCTAssertTrue(toolsPluginOne.isEmpty)
+        XCTAssertTrue(toolsPluginTwo.isEmpty)
+
+        let events = await recorder.events()
+        XCTAssertEqual(Set(events.unloadedIDs), Set(["plugin.clear.one", "plugin.clear.two"]))
+        XCTAssertEqual(events.unloadedIDs.count, 2)
+    }
+
     func testLifecycleHandlerReceivesLoadAndUnloadEvents() async throws {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }

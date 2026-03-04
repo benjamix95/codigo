@@ -138,6 +138,29 @@ final class ExtensionRuntimeTests: XCTestCase {
         }
     }
 
+    func testRuntimeUsesCapabilityWhitelistWhenExposedToolsIsEmpty() async throws {
+        let runtime = ExtensionRuntime(
+            configuration: ExtensionRuntimeConfiguration(
+                runtimeEnabled: true,
+                allowedCapabilities: [.readWorkspace]
+            )
+        )
+
+        let loaded = try await runtime.load(
+            plugin: EmptyExposedToolsReadPlugin(),
+            workspaceRoots: ["/tmp/workspace"]
+        )
+        XCTAssertTrue(loaded.exposedTools.contains("read"))
+        XCTAssertFalse(loaded.exposedTools.contains("bash"))
+
+        let response = try await runtime.execute(
+            pluginId: loaded.pluginId,
+            tool: "read",
+            payload: ["path": "/tmp/workspace/README.md"]
+        )
+        XCTAssertEqual(response.output, "read:/tmp/workspace/README.md")
+    }
+
     func testExtensionManifestDecodesLegacyContractKeys() throws {
         let data = Data(
             """
@@ -177,6 +200,41 @@ final class ExtensionRuntimeTests: XCTestCase {
             Set(extensionManifest.capabilities),
             [.readWorkspace, .readOnlyTools, .networkAccess, .executeCommands]
         )
+    }
+}
+
+private struct EmptyExposedToolsReadPlugin: IDEExtensionPlugin {
+    let manifest = ExtensionManifest(
+        id: "com.codigo.extensions.empty-exposed-tools",
+        name: "Empty Exposed Tools",
+        version: "1.0.0",
+        entryPoint: "EmptyExposedToolsReadPlugin",
+        capabilities: [.readWorkspace],
+        exposedTools: []
+    )
+
+    func onLoad(context: ExtensionRuntimeContext) async throws {
+        guard context.isCapabilityAllowed(.readWorkspace) else {
+            throw ExtensionRuntimeError.capabilityDenied(.readWorkspace)
+        }
+    }
+
+    func onUnload(context: ExtensionRuntimeContext) async {
+        _ = context
+    }
+
+    func handle(
+        request: ExtensionToolRequest,
+        context: ExtensionRuntimeContext
+    ) async throws -> ExtensionToolResponse {
+        guard context.isCapabilityAllowed(.readWorkspace) else {
+            throw ExtensionRuntimeError.capabilityDenied(.readWorkspace)
+        }
+        guard request.tool == "read" else {
+            throw ExtensionRuntimeError.toolNotExposed(pluginId: manifest.id, tool: request.tool)
+        }
+        let path = request.payload["path"] ?? ""
+        return ExtensionToolResponse(output: "read:\(path)")
     }
 }
 

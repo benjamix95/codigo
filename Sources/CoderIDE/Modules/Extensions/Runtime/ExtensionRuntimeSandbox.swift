@@ -32,6 +32,85 @@ enum ExtensionRuntimeError: Error, LocalizedError, Equatable {
 
 struct ExtensionRuntimeSandbox: Sendable {
     let allowedCapabilities: Set<ExtensionCapability>
+    private static let toolsByCapability: [ExtensionCapability: Set<String>] = [
+        .readWorkspace: [
+            "read",
+            "read_range",
+            "list_dir",
+            "find_files",
+            "glob",
+            "grep",
+            "semantic_search",
+            "codebase_search",
+            "find_symbol",
+            "find_references",
+            "file_outline",
+        ],
+        .readOnlyTools: [
+            "read",
+            "read_range",
+            "list_dir",
+            "find_files",
+            "glob",
+            "grep",
+            "semantic_search",
+            "codebase_search",
+            "find_symbol",
+            "find_references",
+            "file_outline",
+            "web_search",
+            "web_fetch",
+            "mcp_call",
+            "mcp_batch",
+            "mcp_list_resources",
+            "mcp_read_resource",
+            "mcp_health",
+            "mcp_reconnect",
+            "mcp_restart_server",
+            "git_diff",
+            "git_status",
+            "git_show",
+            "git_log_search",
+            "debug_context",
+            "debug_log",
+            "debug_query",
+            "debug_session",
+            "debug_hypothesize",
+            "debug_mark",
+            "debug_clean",
+            "debug_set_phase",
+            "debug_request_user",
+            "debug_resolve",
+        ],
+        .writeWorkspace: [
+            "edit",
+            "str_replace",
+            "multi_edit",
+            "parallel_apply",
+            "apply_diff",
+            "write",
+            "create_file",
+            "write_json",
+        ],
+        .executeCommands: [
+            "bash",
+            "run_tests",
+            "build_project",
+            "diagnostics",
+            "read_lints",
+            "subagent_explorer",
+            "subagent_coder",
+            "subagent_reviewer",
+            "subagent_testWriter",
+            "subagent_debugger",
+            "subagent_docWriter",
+            "subagent_securityAuditor",
+        ],
+        .networkAccess: [
+            "web_search",
+            "web_fetch",
+        ],
+    ]
 
     func validate(
         manifest: ExtensionManifest,
@@ -42,9 +121,6 @@ struct ExtensionRuntimeSandbox: Sendable {
         }
         guard !manifest.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ExtensionRuntimeError.invalidManifest("name mancante")
-        }
-        guard !manifest.exposedTools.isEmpty else {
-            throw ExtensionRuntimeError.invalidManifest("exposedTools vuoto")
         }
         let granted = Set(manifest.capabilities)
         for capability in granted where !allowedCapabilities.contains(capability) {
@@ -64,5 +140,21 @@ struct ExtensionRuntimeSandbox: Sendable {
             }
         }
         return granted
+    }
+
+    func effectiveTools(
+        for manifest: ExtensionManifest,
+        grantedCapabilities: Set<ExtensionCapability>
+    ) -> Set<String> {
+        if !manifest.exposedTools.isEmpty {
+            return Set(manifest.exposedTools)
+        }
+        return Self.toolsAllowed(for: grantedCapabilities)
+    }
+
+    private static func toolsAllowed(for capabilities: Set<ExtensionCapability>) -> Set<String> {
+        capabilities.reduce(into: Set<String>()) { partialResult, capability in
+            partialResult.formUnion(toolsByCapability[capability] ?? [])
+        }
     }
 }
