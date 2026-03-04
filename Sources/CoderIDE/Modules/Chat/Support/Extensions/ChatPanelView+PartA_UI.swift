@@ -94,7 +94,7 @@ extension ChatPanelView {
             if gitPanelStore.isOpen {
                 PanelResizeHandle(
                     panelWidth: Binding(get: { CGFloat(gitPanelWidthStorage) }, set: { gitPanelWidthStorage = Double($0) }),
-                    minWidth: 280, maxWidth: 500, leadingEdge: true
+                    minWidth: 280, maxWidth: 500, leadingEdge: false
                 )
                 GitPanelView(
                     store: gitPanelStore,
