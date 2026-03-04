@@ -5,6 +5,8 @@ extension SettingsView {
     @ViewBuilder
     var detailContent: some View {
         switch selectedSection {
+        case .custom:
+            customSection
         case .apiKeys:
             apiKeysSection
         case .cliTools:

@@ -37,7 +37,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
 
         let agents = try String(contentsOf: profile.appendingPathComponent("AGENTS.md"), encoding: .utf8)
-        XCTAssertTrue(agents.contains("# CoderIDE Integration"))
+        XCTAssertEqual(agents, CLIProfileProvisioner.effectiveAgentsContent())
     }
 
     func testReseedCodexProfileOverwritesStaleFiles() throws {
@@ -58,11 +58,10 @@ final class CLIProfileProvisionerTests: XCTestCase {
         let config = try String(contentsOf: configURL, encoding: .utf8)
         let agents = try String(contentsOf: agentsURL, encoding: .utf8)
         XCTAssertNotEqual(config, "legacy config\n")
-        XCTAssertNotEqual(agents, "legacy agents\n")
+        XCTAssertEqual(agents, CLIProfileProvisioner.effectiveAgentsContent())
         XCTAssertTrue(config.contains("sandbox_mode = \"danger-full-access\""))
         XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
         XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
-        XCTAssertTrue(agents.contains("# CoderIDE Integration"))
     }
 
     func testCodexEnvironmentOverridesRepairsMissingMCPBlockInExistingConfig() throws {

@@ -83,6 +83,12 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
         load(workspacePaths: workspacePaths).policyText
     }
 
+    public static func invalidateCache() {
+        cacheLock.lock()
+        cacheByWorkspaceKey.removeAll()
+        cacheLock.unlock()
+    }
+
     static func hashForPolicy(_ text: String) -> String {
         let digest = SHA256.hash(data: Data(text.utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
@@ -154,7 +160,7 @@ public struct InstructionPolicyBundle: Sendable, Equatable {
             }
         }
 
-        let globalPath = "\(home)/.codex/AGENTS.md"
+        let globalPath = CodexAgentsFile.globalPath
         if seen.insert(globalPath).inserted, let globalContent = readPolicyFile(globalPath) {
             sections.append(
                 PolicySection(

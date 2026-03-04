@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import CoderEngine
+import Darwin
 
 final class InstructionPolicyBundleTests: XCTestCase {
     func testHashForPolicyIsDeterministic() {
@@ -26,5 +27,57 @@ final class InstructionPolicyBundleTests: XCTestCase {
         XCTAssertFalse(bundle.policyHash.isEmpty)
         XCTAssertEqual(bundle.requiredAckMarker, "policy_ack hash=\(bundle.policyHash)")
         XCTAssertTrue(bundle.policyText.contains("policy_ack"))
+    }
+
+    func testLoadUsesCodexHomeOverrideForGlobalAgentsPath() throws {
+        let codexHome = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-codex-home-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: codexHome) }
+
+        let globalAgents = codexHome.appendingPathComponent("AGENTS.md")
+        try "global-override-content".write(to: globalAgents, atomically: true, encoding: .utf8)
+
+        withEnvironmentVariable("CODEX_HOME", value: codexHome.path) {
+            InstructionPolicyBundle.invalidateCache()
+            let bundle = InstructionPolicyBundle.load(workspacePaths: [])
+            XCTAssertTrue(bundle.policyText.contains("global-override-content"))
+        }
+    }
+
+    func testInvalidateCacheForcesImmediatePolicyReload() throws {
+        let tmpRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("instruction-policy-cache-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpRoot) }
+
+        let agents = tmpRoot.appendingPathComponent("AGENTS.md")
+        try "version-one".write(to: agents, atomically: true, encoding: .utf8)
+
+        InstructionPolicyBundle.invalidateCache()
+        let first = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
+        XCTAssertTrue(first.policyText.contains("version-one"))
+
+        try "version-two".write(to: agents, atomically: true, encoding: .utf8)
+        let cachedSecond = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
+        XCTAssertEqual(cachedSecond.policyHash, first.policyHash)
+
+        InstructionPolicyBundle.invalidateCache()
+        let reloaded = InstructionPolicyBundle.load(workspacePaths: [tmpRoot.path])
+        XCTAssertTrue(reloaded.policyText.contains("version-two"))
+        XCTAssertNotEqual(reloaded.policyHash, first.policyHash)
+    }
+
+    private func withEnvironmentVariable(_ key: String, value: String, operation: () throws -> Void) rethrows {
+        let previous = getenv(key).map { String(cString: $0) }
+        setenv(key, value, 1)
+        defer {
+            if let previous {
+                setenv(key, previous, 1)
+            } else {
+                unsetenv(key)
+            }
+        }
+        try operation()
     }
 }

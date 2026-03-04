@@ -108,6 +108,11 @@ struct SettingsView: View {
     // MARK: - UI State
     @State var showOpenRouterLogin = false
     @State var codexAgentsMd = ""
+    @State var customAgentsDraft = ""
+    @State var savedAgentsSnapshot = ""
+    @State var savedPersonalitySnapshot = "none"
+    @State var isSavingCustom = false
+    @State var customSaveMessage = ""
     @State var claudeMdContent = ""
     @State var globalRuleDocs: [CoderRuleDocument] = []
     @State var projectRuleDocs: [CoderRuleDocument] = []
@@ -178,6 +183,7 @@ struct SettingsView: View {
             cliAccountsStore.bootstrapAccountsIfNeeded()
             normalizeStoredSelections()
             loadCodexAdvanced()
+            prepareCustomDraftIfNeeded()
             codexMCPHealth.refresh()
             syncProviders()
             reloadRulesFromDisk()

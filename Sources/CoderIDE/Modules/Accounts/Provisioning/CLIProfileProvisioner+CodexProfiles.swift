@@ -161,7 +161,7 @@ extension CLIProfileProvisioner {
             return
         }
 
-        let content = codexInstructionsTemplate
+        let content = effectiveAgentsContent()
         try? content.write(to: agentsURL, atomically: true, encoding: .utf8)
     }
 
@@ -171,7 +171,7 @@ extension CLIProfileProvisioner {
             return
         }
 
-        let content = codexInstructionsTemplate
+        let content = effectiveAgentsContent()
         try? content.write(to: instructionsURL, atomically: true, encoding: .utf8)
     }
 }

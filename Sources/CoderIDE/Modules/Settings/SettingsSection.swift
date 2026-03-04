@@ -1,4 +1,5 @@
 enum SettingsSection: String, CaseIterable, Identifiable {
+    case custom = "Custom"
     case apiKeys = "API Keys"
     case cliTools = "CLI Tools"
     case mcp = "MCP Servers"
@@ -12,6 +13,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .custom: return "slider.horizontal.3"
         case .apiKeys: return "key.fill"
         case .cliTools: return "terminal"
         case .mcp: return "server.rack"
@@ -25,5 +27,5 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     static var providerAI: [SettingsSection] { [.apiKeys] }
     static var tools: [SettingsSection] { [.cliTools, .mcp, .skillsPlugins] }
-    static var general: [SettingsSection] { [.rules, .codebaseIndex, .behavior, .appearance] }
+    static var general: [SettingsSection] { [.custom, .rules, .codebaseIndex, .behavior, .appearance] }
 }
