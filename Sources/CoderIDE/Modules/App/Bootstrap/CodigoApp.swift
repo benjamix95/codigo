@@ -121,8 +121,5 @@ struct CodigoApp: App {
             }
         }
         .windowStyle(.hiddenTitleBar)
-        .commands {
-            CommandGroup(replacing: .newItem) {}
-        }
     }
 }
