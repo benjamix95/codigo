@@ -5,6 +5,8 @@ import CoderEngine
 extension SidebarView {
     var threadsSection: some View {
         let threads = visibleThreads
+        let pinnedThreads = threads.filter(\.isPinned)
+        let regularThreads = threads.filter { !$0.isPinned }
         let now = Date()
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -82,20 +84,30 @@ extension SidebarView {
                     createThread(contextId: currentContext?.id)
                 }
             } else {
-                if let context = currentContext, context.kind == .workspace {
-                    ForEach(groupedThreadsByFolder(from: threads), id: \.folder) { group in
-                        Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                            .padding(.horizontal, 6)
-                            .padding(.top, 4)
-                        ForEach(group.threads) { conv in
+                if !pinnedThreads.isEmpty {
+                    threadSubsectionTitle("Pinned")
+                    ForEach(pinnedThreads) { conv in
+                        threadRow(conv, referenceDate: now)
+                    }
+                }
+
+                if !regularThreads.isEmpty {
+                    threadSubsectionTitle("Threads")
+                    if let context = currentContext, context.kind == .workspace {
+                        ForEach(groupedThreadsByFolder(from: regularThreads), id: \.folder) { group in
+                            Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 6)
+                                .padding(.top, 4)
+                            ForEach(group.threads) { conv in
+                                threadRow(conv, referenceDate: now)
+                            }
+                        }
+                    } else {
+                        ForEach(regularThreads) { conv in
                             threadRow(conv, referenceDate: now)
                         }
-                    }
-                } else {
-                    ForEach(threads) { conv in
-                        threadRow(conv, referenceDate: now)
                     }
                 }
 
@@ -129,7 +141,11 @@ extension SidebarView {
         let isActive = chatStore.isTaskActive(for: conv.id)
         let statusText = chatStore.taskStatusTexts[conv.id]
         return HStack(spacing: 8) {
-            if isActive {
+            if conv.isPinned {
+                SidebarPinnedIconButton {
+                    chatStore.setPinned(conversationId: conv.id, pinned: false)
+                }
+            } else if isActive {
                 Circle()
                     .fill(Color.accentColor)
                     .frame(width: 6, height: 6)
@@ -138,10 +154,6 @@ extension SidebarView {
                 Image(systemName: "pencil.line")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.orange)
-            } else if conv.isPinned {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.yellow)
             } else {
                 Image(systemName: selected ? "message.fill" : "message")
                     .font(.system(size: 11, weight: .semibold))
@@ -257,6 +269,14 @@ extension SidebarView {
         .simultaneousGesture(TapGesture().onEnded {
             selectThread(conv)
         })
+    }
+
+    func threadSubsectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.top, 4)
     }
 
 }

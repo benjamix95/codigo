@@ -108,3 +108,23 @@ struct SidebarEmptyState: View {
         .padding(.vertical, 4)
     }
 }
+
+struct SidebarPinnedIconButton: View {
+    let onUnpin: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onUnpin) {
+            Image(systemName: "pin.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isHovering ? Color.white : Color.secondary.opacity(0.9))
+        }
+        .buttonStyle(.plain)
+        .help("Unpin thread")
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
