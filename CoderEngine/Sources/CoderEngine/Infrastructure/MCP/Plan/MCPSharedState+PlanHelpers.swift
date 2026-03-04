@@ -63,9 +63,11 @@ extension MCPSharedState {
 
     static func canonicalizedPlanSteps(_ input: [[String: Any]], now: String) -> [MCPSharedPlanStep] {
         var result: [MCPSharedPlanStep] = []
+        var seenIds = Set<String>()
         for (index, raw) in input.enumerated() {
             let fallbackID = String(index + 1)
             let stepId = sanitizedText(raw["id"] as? String ?? raw["step_id"] as? String, fallback: fallbackID)
+            guard seenIds.insert(stepId).inserted else { continue }
             let title = sanitizedText(raw["title"] as? String ?? raw["name"] as? String, fallback: "Step \(fallbackID)")
             let description = sanitizedText(raw["description"] as? String, fallback: title)
             let targetFile = optionalSanitizedText(raw["targetFile"] as? String ?? raw["target_file"] as? String)

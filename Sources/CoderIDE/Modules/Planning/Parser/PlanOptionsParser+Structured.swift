@@ -35,7 +35,7 @@ extension PlanOptionsParser {
                    let digitRange = Range(digitMatch.range, in: String(line[headerDigitMatch])),
                    let n = Int(String(String(line[headerDigitMatch])[digitRange])) {
                     num = n
-                } else if let letterMatch = line.range(of: #"(?i)(?:Option|Approach)\s+([A-Z])"#, options: .regularExpression) {
+                } else if let letterMatch = line.range(of: #"(?i)(?:Option|Approach|Plan)\s+([A-Z])"#, options: .regularExpression) {
                     let matched = line[letterMatch]
                     if let letter = matched.last?.uppercased().first,
                        letter.isLetter {

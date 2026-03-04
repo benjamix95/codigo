@@ -64,11 +64,11 @@ final class ToolSchemaCatalogTests: XCTestCase {
 
     func testDebugCleanSchemaMentionsVariablesType() throws {
         let debugClean = try XCTUnwrap(ToolSchemaCatalog.entries.first(where: { $0.name == "debug_clean" }))
-        let typeDescription = debugClean.properties["type"]?["description"] ?? ""
+        let typeDescription = (debugClean.properties["type"]?["description"] as? String) ?? ""
         XCTAssertTrue(typeDescription.contains("variables"))
     }
 
-    func testNativeRegistryEnumSerializationUsesJSONArrayString() throws {
+    func testNativeRegistryEnumSerializationPreservesArrayValues() throws {
         let registry = MCPNativeToolRegistry.shared
         registry.clear()
         defer { registry.clear() }
@@ -83,7 +83,8 @@ final class ToolSchemaCatalogTests: XCTestCase {
 
         XCTAssertTrue(registry.register(tools: [descriptor]))
         let registered = try XCTUnwrap(registry.entries.first)
-        XCTAssertEqual(registered.properties["mode"]?["enum"], #"["fast","safe"]"#)
+        let enumValues = registered.properties["mode"]?["enum"] as? [String]
+        XCTAssertEqual(enumValues, ["fast", "safe"])
     }
 
     func testOpenAISchemaIncludesPlanAndSwarmTools() {

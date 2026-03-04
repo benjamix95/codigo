@@ -55,8 +55,11 @@ func isPlanBuildContext(
     activeBuildPlanConversationId: UUID?,
     activeBuildAgentConversationId: UUID?
 ) -> Bool {
-    if phase == .building { return true }
     guard let conversationId else { return false }
+    if phase == .building {
+        return conversationId == activeBuildPlanConversationId
+            || conversationId == activeBuildAgentConversationId
+    }
     return conversationId == activeBuildPlanConversationId
         || conversationId == activeBuildAgentConversationId
 }

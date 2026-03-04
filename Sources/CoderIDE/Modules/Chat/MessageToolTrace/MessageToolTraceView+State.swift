@@ -79,7 +79,7 @@ extension MessageToolTraceView {
                 if ToolTraceFileChangeMapper.isFileChangeEvent(event) { editCount += 1 }
                 if ToolTraceVisibility.isMCPEvent(event: event) {
                     mcpCount += 1
-                    let mcpTool = (event.payload["tool"] ?? event.payload["mcp_tool"] ?? "").lowercased()
+                    let mcpTool = (event.payload["mcp_tool"] ?? event.payload["tool"] ?? "").lowercased()
                     if mcpTool == "mcp_batch" { mcpBatchCount += 1 }
                     if mcpTool == "mcp_list_resources" || mcpTool == "mcp_read_resource" { mcpResourceCount += 1 }
                     if mcpTool == "mcp_list_prompts" || mcpTool == "mcp_get_prompt" { mcpPromptCount += 1 }

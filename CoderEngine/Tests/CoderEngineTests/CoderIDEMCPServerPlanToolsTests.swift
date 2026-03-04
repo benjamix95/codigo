@@ -78,6 +78,145 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("invalid status"))
     }
 
+    func testPlanStepBatchUpdateRejectsInvalidLinkedFilesShape() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_batch_update",
+            args: [
+                "updates": #"[{"step_id":"1","status":"running","linked_files":{"path":"Sources/A.swift"}}]"#
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("invalid linked_files"))
+    }
+
+    func testPlanStepBatchUpdateRejectsInvalidDependsOnShape() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_batch_update",
+            args: [
+                "updates": #"[{"step_id":"1","status":"running","depends_on":[1,2]}]"#
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("invalid depends_on"))
+    }
+
+    func testTodoWriteDoesNotFailOnIrrelevantInvalidConversationIdArgument() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "todo_write",
+            args: [
+                "title": "Aggiorna parser eventi",
+                "status": "in_progress",
+                "conversation_id": "not-a-uuid"
+            ]
+        )
+
+        XCTAssertNil(result.isError)
+        XCTAssertTrue(extractText(from: result).contains("todo list updated"))
+    }
+
+    func testPlanStepUpsertAcceptsCamelCaseAliases() throws {
+        let conversationId = UUID().uuidString.lowercased()
+        let upsert = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_upsert",
+            args: [
+                "conversationId": conversationId,
+                "stepId": "7",
+                "status": "running",
+                "title": "Estrarre normalizer",
+                "targetFile": "Sources/Normalizer.swift",
+                "linkedFiles": #"["Sources/A.swift","Sources/B.swift"]"#,
+                "dependsOn": #"["1","2"]"#,
+            ]
+        )
+        XCTAssertNil(upsert.isError)
+
+        let read = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_read",
+            args: [
+                "conversation_id": conversationId
+            ]
+        )
+        XCTAssertNil(read.isError)
+        let json = extractText(from: read)
+        let object = try XCTUnwrap(parseJSONObject(json))
+        let snapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        let steps = try XCTUnwrap(snapshot["steps"] as? [[String: Any]])
+        let step = try XCTUnwrap(steps.first(where: { ($0["id"] as? String) == "7" }))
+        XCTAssertEqual(step["targetFile"] as? String, "Sources/Normalizer.swift")
+        XCTAssertEqual(step["status"] as? String, "running")
+        let linkedFiles = step["linkedFiles"] as? [String] ?? []
+        XCTAssertEqual(Set(linkedFiles), Set(["Sources/A.swift", "Sources/B.swift"]))
+        let dependsOn = step["dependsOn"] as? [String] ?? []
+        XCTAssertEqual(Set(dependsOn), Set(["1", "2"]))
+    }
+
+    func testPlanCreateAcceptsCamelCaseOptions() throws {
+        let conversationId = UUID().uuidString.lowercased()
+        let create = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversationId": conversationId,
+                "goal": "Hardening handlers",
+                "steps": #"[{"step_id":"1","title":"Audit","status":"pending"}]"#,
+                "chosenPath": "Path B",
+                "replaceExisting": "true",
+            ]
+        )
+
+        XCTAssertNil(create.isError)
+        let read = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_read",
+            args: [
+                "conversationId": conversationId,
+                "includeHistory": "true",
+                "historyLimit": "2",
+            ]
+        )
+        XCTAssertNil(read.isError)
+
+        let json = extractText(from: read)
+        let object = try XCTUnwrap(parseJSONObject(json))
+        let snapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        XCTAssertEqual(snapshot["chosenPath"] as? String, "Path B")
+        XCTAssertNotNil(object["history"] as? [[String: Any]])
+    }
+
+    func testPlanStepBatchUpdateAcceptsCamelCaseStepAndTargetFileAliases() throws {
+        let conversationId = UUID().uuidString.lowercased()
+        let create = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationId,
+                "goal": "Alias batch update",
+                "steps": #"[{"step_id":"1","title":"Base","status":"pending"}]"#,
+            ]
+        )
+        XCTAssertNil(create.isError)
+
+        let batch = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_batch_update",
+            args: [
+                "conversationId": conversationId,
+                "updates": #"[{"stepId":"1","status":"running","targetFile":"Sources/New.swift","linkedFiles":["Sources/New.swift"],"dependsOn":["0"]}]"#,
+            ]
+        )
+        XCTAssertNil(batch.isError)
+
+        let read = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_read",
+            args: ["conversation_id": conversationId]
+        )
+        let json = extractText(from: read)
+        let object = try XCTUnwrap(parseJSONObject(json))
+        let snapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        let steps = try XCTUnwrap(snapshot["steps"] as? [[String: Any]])
+        let step = try XCTUnwrap(steps.first(where: { ($0["id"] as? String) == "1" }))
+        XCTAssertEqual(step["status"] as? String, "running")
+        XCTAssertEqual(step["targetFile"] as? String, "Sources/New.swift")
+    }
+
     func testPlanRequestUserInputRejectsInvalidQuestionsPayload() {
         let result = CoderIDEMCPServerApp.handleIDEStateTool(
             name: "plan_request_user_input",

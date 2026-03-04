@@ -109,9 +109,19 @@ extension ChatPanelView {
     }
 
     internal func restorePlanStateIfNeeded(for conversationId: UUID?) {
-        clearPlanStreamingState()
-        let hasActiveTask = conversationId.map { activeBuildPlanConversationId == $0 || chatStore.isTaskActive(for: $0) } ?? false
-        if !hasActiveTask {
+        flushPlanStreamingContent()
+        if let conversationId {
+            planStreamingContent = planStreamingContentByConversation[conversationId] ?? ""
+        } else {
+            planStreamingContent = ""
+        }
+        let hasActivePlanBuild = isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        if !hasActivePlanBuild {
             planClarificationCycles = 0
             planShouldRunInline = false
         }
@@ -130,9 +140,14 @@ extension ChatPanelView {
             planningState = .idle
             return
         }
-        // If a non-build task is active (e.g., plan generation phases 1–3),
-        // preserve the current planFlowPhase — the running task manages it.
-        if chatStore.isTaskActive(for: conversationId) {
+        // Preserve state only when this conversation is the active plan-build scope.
+        // Generic active tasks (non-plan) must not pin plan UI state across threads.
+        if isPlanBuildContext(
+            conversationId: conversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ) {
             return
         }
         // No active flow — safe to reset per-flow context

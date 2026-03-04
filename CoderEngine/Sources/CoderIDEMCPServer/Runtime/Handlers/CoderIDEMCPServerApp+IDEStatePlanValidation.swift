@@ -3,6 +3,16 @@ import MCP
 import CoderEngine
 
 extension CoderIDEMCPServerApp {
+    struct ParsedBool {
+        let value: Bool
+        let isInvalid: Bool
+    }
+
+    struct ParsedStringList {
+        let values: [String]
+        let isInvalid: Bool
+    }
+
     struct MutablePlanSnapshot {
         var conversationId: UUID
         var goal: String
@@ -54,10 +64,7 @@ extension CoderIDEMCPServerApp {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         }
-        let commaSeparated = trimmed.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return commaSeparated.isEmpty ? nil : commaSeparated
+        return nil
     }
 
     static func parseJSONObjectArray(_ raw: String?) -> [[String: Any]]? {
@@ -83,10 +90,50 @@ extension CoderIDEMCPServerApp {
         return []
     }
 
-    static func parseBool(_ raw: String?, defaultValue: Bool) -> Bool {
+    static func parseStringList(_ raw: Any?) -> ParsedStringList {
+        guard let raw else { return ParsedStringList(values: [], isInvalid: false) }
+        if let array = raw as? [String] {
+            return ParsedStringList(
+                values: array
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty },
+                isInvalid: false
+            )
+        }
+        if let array = raw as? [Any] {
+            var normalized: [String] = []
+            for value in array {
+                guard let stringValue = value as? String else {
+                    return ParsedStringList(values: [], isInvalid: true)
+                }
+                let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    normalized.append(trimmed)
+                }
+            }
+            return ParsedStringList(values: normalized, isInvalid: false)
+        }
+        if let rawString = raw as? String {
+            guard let parsed = parseJSONStringArray(rawString) else {
+                return ParsedStringList(values: [], isInvalid: true)
+            }
+            return ParsedStringList(values: parsed, isInvalid: false)
+        }
+        return ParsedStringList(values: [], isInvalid: true)
+    }
+
+    static func parseBool(_ raw: String?, defaultValue: Bool) -> ParsedBool {
         let normalized = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized.isEmpty { return defaultValue }
-        return ["1", "true", "yes", "y"].contains(normalized)
+        if normalized.isEmpty {
+            return ParsedBool(value: defaultValue, isInvalid: false)
+        }
+        if ["1", "true", "yes", "y"].contains(normalized) {
+            return ParsedBool(value: true, isInvalid: false)
+        }
+        if ["0", "false", "no", "n"].contains(normalized) {
+            return ParsedBool(value: false, isInvalid: false)
+        }
+        return ParsedBool(value: defaultValue, isInvalid: true)
     }
 
     static func parseInt(_ raw: String?, defaultValue: Int) -> Int {
@@ -102,6 +149,13 @@ extension CoderIDEMCPServerApp {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return UUID(uuidString: trimmed)
+    }
+
+    static func hasInvalidConversationIdArgument(_ raw: String?) -> Bool {
+        guard let raw else { return false }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return UUID(uuidString: trimmed) == nil
     }
 
     static func resolveConversationId(
@@ -159,6 +213,28 @@ extension CoderIDEMCPServerApp {
     static func sanitizedStepId(_ raw: String?, fallback: String) -> String {
         let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    static func normalizePlanStep(_ step: [String: Any], fallbackId: String) -> [String: Any] {
+        var normalized = step
+        let stepId = sanitizedStepId(
+            step["id"] as? String ?? step["step_id"] as? String,
+            fallback: fallbackId
+        )
+        normalized["id"] = stepId
+        return normalized
+    }
+
+    static func deduplicatePlanStepsById(_ steps: [[String: Any]]) -> [[String: Any]] {
+        var seenIds = Set<String>()
+        var deduped: [[String: Any]] = []
+        for (index, rawStep) in steps.enumerated() {
+            let normalized = normalizePlanStep(rawStep, fallbackId: String(index + 1))
+            let stepId = sanitizedStepId(normalized["id"] as? String, fallback: String(index + 1))
+            guard seenIds.insert(stepId).inserted else { continue }
+            deduped.append(normalized)
+        }
+        return deduped
     }
 
     static func sanitizedText(_ raw: String?, fallback: String? = nil) -> String? {

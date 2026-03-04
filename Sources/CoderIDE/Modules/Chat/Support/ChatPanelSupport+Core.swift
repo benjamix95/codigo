@@ -81,12 +81,20 @@ func todoIDsToAutoCompleteAfterSubagentBatch(
 ) -> [UUID] {
     let normalizedReviewTitle = normalizedTodoTitle(reviewTodoTitle)
     let isInScope = todoConversationScopeFilter(todos: todos, conversationId: conversationId)
-    var ids = Set(todos.filter {
+    let inProgressCandidates = todos.filter {
         isInScope($0)
             && $0.source == .agent
             && $0.status == .inProgress
             && (!excludeCanonicalTodos || !$0.isPlanCanonical)
-    }.map(\.id))
+    }
+    let prioritizedInProgress = inProgressCandidates.sorted { lhs, rhs in
+        let lhsHasActiveForm = !lhs.activeForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let rhsHasActiveForm = !rhs.activeForm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if lhsHasActiveForm != rhsHasActiveForm { return lhsHasActiveForm && !rhsHasActiveForm }
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        return lhs.createdAt > rhs.createdAt
+    }
+    var ids = Set(prioritizedInProgress.prefix(1).map(\.id))
     if includePendingReviewTodo,
        let pendingReview = todos.first(where: {
            isInScope($0)

@@ -289,7 +289,7 @@ private extension ChatPanelView {
                 notes: nil,
                 activeForm: stepActiveForm,
                 linkedFiles: [],
-                conversationId: eventConversationId
+                conversationId: targetConversationId
             )
         }
     }

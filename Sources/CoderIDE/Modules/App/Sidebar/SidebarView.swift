@@ -10,6 +10,7 @@ struct SidebarView: View {
     @EnvironmentObject var projectContextStore: ProjectContextStore
     @EnvironmentObject var openFilesStore: OpenFilesStore
     @EnvironmentObject var codexState: CodexStateStore
+    @EnvironmentObject var todoStore: TodoStore
 
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool

@@ -1,6 +1,45 @@
 import Foundation
 
 extension CodexCLIProvider {
+    private static func shouldEmitSyntheticEventForMCPPayload(_ payload: [String: String]) -> Bool {
+        let normalizedStatus = (payload["status"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalizedStatus.isEmpty {
+            return true
+        }
+
+        if isTerminalMCPToolStatus(normalizedStatus) {
+            return true
+        }
+
+        // Keep live lifecycle updates for plan/debug/panel signals, but avoid
+        // non-terminal todo writes that can create duplicate optimistic updates.
+        let rawTool = (
+            payload["mcp_tool"] ?? payload["tool"] ?? payload["tool_raw"] ?? ""
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTool = normalizeIDEStateMCPTool(rawTool)
+
+        if normalizedTool == "todo_write" {
+            return false
+        }
+        if normalizedTool.hasPrefix("plan_") {
+            return true
+        }
+        if normalizedTool.hasPrefix("debug_") {
+            return true
+        }
+        if normalizedTool.hasPrefix("subagent_") {
+            return true
+        }
+        switch normalizedTool {
+        case "activate_plan_mode", "activate_debug_mode", "show_task_panel", "show_swarm_panel", "mermaid_render", "policy_ack":
+            return true
+        default:
+            return false
+        }
+    }
+
     static func parseStreamJSONEvent(
         _ json: [String: Any],
         state: inout CodexStreamParserState
@@ -83,17 +122,20 @@ extension CodexCLIProvider {
             // The MCP tool call event is kept for activity display; the synthetic
             // event feeds the EventNormalizer → TodoStore / PlanBoard pipeline.
             if rawEvent.type == "mcp_tool_call" {
-                let item = (json["item"] as? [String: Any]) ?? json
-                for synthetic in syntheticIDEStateEventsFromMCP(
-                    payload: rawEvent.payload,
-                    item: item
-                ) {
-                    appendRawEvent(
-                        type: synthetic.type,
-                        payload: synthetic.payload,
-                        state: &state,
-                        events: &events
-                    )
+                let shouldEmitSynthetic = shouldEmitSyntheticEventForMCPPayload(rawEvent.payload)
+                if shouldEmitSynthetic {
+                    let item = (json["item"] as? [String: Any]) ?? json
+                    for synthetic in syntheticIDEStateEventsFromMCP(
+                        payload: rawEvent.payload,
+                        item: item
+                    ) {
+                        appendRawEvent(
+                            type: synthetic.type,
+                            payload: synthetic.payload,
+                            state: &state,
+                            events: &events
+                        )
+                    }
                 }
             }
         }

@@ -19,6 +19,7 @@ extension SidebarView {
             try? checkpointGitStore.deleteSnapshotBranch(conversationId: conversation.id, gitRoot: root)
         }
         projectContextStore.clearLastActiveConversation(conversationId: conversation.id)
+        todoStore.clearTodos(forConversationId: conversation.id)
     }
 
     func deleteAllVisibleThreads() {

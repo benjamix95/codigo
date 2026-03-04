@@ -35,12 +35,32 @@ extension TodoStore {
         saveTodos()
     }
 
-    func clearAgentTodos(includePlanCanonical: Bool = false) {
+    func clearAgentTodos(
+        conversationId: UUID? = nil,
+        includePlanCanonical: Bool = false
+    ) {
+        let isRuntimeInScope = runtimeScopeFilter(for: conversationId)
+        let isCanonicalInScope = canonicalScopeFilter(for: conversationId)
         if includePlanCanonical {
-            todos.removeAll { $0.source == .agent }
+            todos.removeAll { item in
+                guard item.source == .agent else { return false }
+                if item.isPlanCanonical {
+                    return isCanonicalInScope(item)
+                }
+                return isRuntimeInScope(item)
+            }
         } else {
-            todos.removeAll { $0.source == .agent && !$0.isPlanCanonical }
+            todos.removeAll { item in
+                item.source == .agent
+                    && !item.isPlanCanonical
+                    && isRuntimeInScope(item)
+            }
         }
+        saveTodos()
+    }
+
+    func clearTodos(forConversationId conversationId: UUID) {
+        todos.removeAll { $0.planConversationId == conversationId }
         saveTodos()
     }
 }
