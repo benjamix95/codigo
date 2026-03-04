@@ -191,6 +191,7 @@ extension TodoStore {
         guard !cleaned.isEmpty else { return }
         let desiredKeys = seenKeys
         let isInScope = canonicalScopeFilter(for: conversationId)
+        _ = deduplicateCanonicalTodos(inScope: isInScope)
 
         for idx in todos.indices where isInScope(todos[idx]) {
             let existingKey = canonicalKey(for: todos[idx].title)

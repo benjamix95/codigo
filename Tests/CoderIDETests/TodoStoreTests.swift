@@ -152,6 +152,98 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(prepared.map(\.status), [.inProgress, .pending, .pending])
     }
 
+    func testLoadTodosDeduplicatesCanonicalEntriesPreservingDoneStatus() {
+        let conversationId = UUID()
+        do {
+            let persisted = try XCTUnwrap(userDefaults)
+            var seed = TodoStore(storageKey: storageKey, userDefaults: persisted)
+            seed.todos = [
+                TodoItem(
+                    title: "Step A",
+                    status: .pending,
+                    priority: .medium,
+                    source: .agent,
+                    notes: "",
+                    linkedFiles: [],
+                    isPlanCanonical: true,
+                    planOrder: 1,
+                    planConversationId: conversationId
+                ),
+                TodoItem(
+                    title: "Step A",
+                    status: .done,
+                    priority: .high,
+                    source: .agent,
+                    notes: "completed",
+                    linkedFiles: ["Sources/App.swift"],
+                    isPlanCanonical: true,
+                    planOrder: 0,
+                    planConversationId: conversationId
+                ),
+                TodoItem(
+                    title: "Step B",
+                    status: .pending,
+                    priority: .medium,
+                    source: .agent,
+                    notes: "",
+                    linkedFiles: [],
+                    isPlanCanonical: true,
+                    planOrder: 2,
+                    planConversationId: conversationId
+                ),
+            ]
+            seed.saveTodos()
+            seed = TodoStore(storageKey: storageKey, userDefaults: persisted)
+
+            let canonical = seed.canonicalTodos(for: conversationId)
+            XCTAssertEqual(canonical.count, 2)
+            XCTAssertEqual(canonical.first(where: { $0.title == "Step A" })?.status, .done)
+            XCTAssertEqual(canonical.first(where: { $0.title == "Step A" })?.planOrder, 0)
+            XCTAssertEqual(canonical.first(where: { $0.title == "Step A" })?.priority, .high)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testUpsertCanonicalPlanTodosCollapsesScopedDuplicates() {
+        let store = makeStore()
+        let conversationId = UUID()
+        store.todos = [
+            TodoItem(
+                title: "Definire baseline tecnica",
+                status: .pending,
+                priority: .medium,
+                source: .agent,
+                notes: "",
+                linkedFiles: [],
+                isPlanCanonical: true,
+                planOrder: 1,
+                planConversationId: conversationId
+            ),
+            TodoItem(
+                title: "Definire baseline tecnica",
+                status: .done,
+                priority: .high,
+                source: .agent,
+                notes: "already completed",
+                linkedFiles: [],
+                isPlanCanonical: true,
+                planOrder: 0,
+                planConversationId: conversationId
+            ),
+        ]
+
+        store.upsertCanonicalPlanTodos(
+            ["Definire baseline tecnica", "Implementare modulo LanguageService"],
+            conversationId: conversationId
+        )
+
+        let canonical = store.canonicalTodos(for: conversationId)
+        XCTAssertEqual(canonical.count, 2)
+        XCTAssertEqual(canonical.first(where: { $0.title == "Definire baseline tecnica" })?.status, .done)
+        XCTAssertEqual(canonical.first(where: { $0.title == "Definire baseline tecnica" })?.planOrder, 0)
+    }
+
     func testClearAgentTodosPreservesCanonicalPlanTodos() {
         let store = makeStore()
         store.upsertCanonicalPlanTodos(["Plan A"])
