@@ -57,6 +57,7 @@ final class TestExplorerStore: ObservableObject {
     }
 
     func runAllTests(projectPath: String) {
+        guard !isRunning else { return }
         isRunning = true
         Task { [weak self] in
             guard let self else { return }
@@ -70,6 +71,7 @@ final class TestExplorerStore: ObservableObject {
     }
 
     func runSingleTest(testId: String, projectPath: String) {
+        guard !isRunning else { return }
         isRunning = true
         Task { [weak self] in
             guard let self else { return }
@@ -83,6 +85,7 @@ final class TestExplorerStore: ObservableObject {
     }
 
     func runTestSuite(suiteName: String, projectPath: String) {
+        guard !isRunning else { return }
         isRunning = true
         Task { [weak self] in
             guard let self else { return }

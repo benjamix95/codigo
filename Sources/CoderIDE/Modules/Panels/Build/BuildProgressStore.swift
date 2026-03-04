@@ -42,6 +42,7 @@ final class BuildProgressStore: ObservableObject {
 
     /// Avvia una build Swift del progetto.
     func startBuild(projectPath: String) {
+        guard case .idle = buildState else { return }
         buildState = .building
         progress = 0
         currentStep = "Preparazione build..."
@@ -101,42 +102,50 @@ final class BuildProgressStore: ObservableObject {
     // MARK: - Privato
 
     private func runBuild(projectPath: String) async {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/swift")
-        process.arguments = ["build"]
-        process.currentDirectoryURL = URL(fileURLWithPath: projectPath)
+        let result = await launchBuildProcess(projectPath: projectPath)
 
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-
-        do {
-            try process.run()
-        } catch {
-            buildState = .failed(error.localizedDescription)
+        guard let (output, terminationStatus) = result else {
+            buildState = .failed("Impossibile avviare il processo di build")
             return
         }
 
-        // Monitora output in background
-        let outHandle = outPipe.fileHandleForReading
-        let errHandle = errPipe.fileHandleForReading
+        parseBuildOutput(output)
 
-        process.waitUntilExit()
-
-        let outData = outHandle.readDataToEndOfFile()
-        let errData = errHandle.readDataToEndOfFile()
-        let stdout = String(data: outData, encoding: .utf8) ?? ""
-        let stderr = String(data: errData, encoding: .utf8) ?? ""
-
-        parseBuildOutput(stdout + "\n" + stderr)
-
-        if process.terminationStatus == 0 {
+        if terminationStatus == 0 {
             progress = 1.0
             currentStep = "Build completata"
             buildState = .succeeded
         } else {
-            buildState = .failed("Build fallita con codice \(process.terminationStatus)")
+            buildState = .failed("Build fallita con codice \(terminationStatus)")
+        }
+    }
+
+    private func launchBuildProcess(projectPath: String) async -> (output: String, terminationStatus: Int32)? {
+        await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/swift")
+            process.arguments = ["build"]
+            process.currentDirectoryURL = URL(fileURLWithPath: projectPath)
+
+            let outPipe = Pipe()
+            let errPipe = Pipe()
+            process.standardOutput = outPipe
+            process.standardError = errPipe
+
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(returning: nil)
+                return
+            }
+
+            process.terminationHandler = { proc in
+                let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+                let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                let stdout = String(data: outData, encoding: .utf8) ?? ""
+                let stderr = String(data: errData, encoding: .utf8) ?? ""
+                continuation.resume(returning: (stdout + "\n" + stderr, proc.terminationStatus))
+            }
         }
     }
 

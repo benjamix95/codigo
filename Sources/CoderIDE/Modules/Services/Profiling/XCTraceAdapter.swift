@@ -75,7 +75,9 @@ actor XCTraceAdapter {
 
         if let process = activeProcess, process.isRunning {
             process.interrupt()
-            process.waitUntilExit()
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                process.terminationHandler = { _ in continuation.resume() }
+            }
         }
 
         let outputPath = (outputDirectory as NSString)
@@ -110,10 +112,12 @@ actor XCTraceAdapter {
 
         do {
             try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
         } catch {
             return false
+        }
+
+        return await withCheckedContinuation { continuation in
+            process.terminationHandler = { p in continuation.resume(returning: p.terminationStatus == 0) }
         }
     }
 
@@ -137,14 +141,17 @@ actor XCTraceAdapter {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
+        let exitStatus: Int32
         do {
             try process.run()
-            process.waitUntilExit()
+            exitStatus = await withCheckedContinuation { continuation in
+                process.terminationHandler = { p in continuation.resume(returning: p.terminationStatus) }
+            }
         } catch {
             return TraceStats(error: error.localizedDescription)
         }
 
-        guard process.terminationStatus == 0 else {
+        guard exitStatus == 0 else {
             let errOutput = String(
                 data: errPipe.fileHandleForReading.readDataToEndOfFile(),
                 encoding: .utf8

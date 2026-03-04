@@ -93,10 +93,15 @@ actor DocCIntegrationService {
     }
 
     /// Verifica la copertura della documentazione per un target.
+    ///
+    /// Returns the count of undocumented symbols and the associated warnings.
+    /// A percentage is not returned because the total symbol count cannot be
+    /// determined from DocC warning output alone; callers should not fabricate
+    /// an estimate.
     func checkDocumentationCoverage(
         projectPath: String,
         targetName: String
-    ) async -> (documented: Int, total: Int, percentage: Double) {
+    ) async -> (undocumentedCount: Int, warnings: [DocCDiagnostic]) {
         let result = await runSwift(
             arguments: ["package", "generate-documentation", "--target", targetName, "--warnings-as-errors"],
             workingDirectory: projectPath
@@ -104,17 +109,12 @@ actor DocCIntegrationService {
 
         let output = result.stdout + "\n" + result.stderr
         let warnings = parseDiagnostics(output: output).filter { $0.severity == .warning }
-        let undocumented = warnings.filter {
+        let undocumentedWarnings = warnings.filter {
             $0.message.lowercased().contains("undocumented") ||
             $0.message.lowercased().contains("no documentation")
-        }.count
+        }
 
-        // Stima totale dai warnings
-        let total = max(undocumented + 10, undocumented) // Stima conservativa
-        let documented = total - undocumented
-        let percentage = total > 0 ? Double(documented) / Double(total) * 100 : 0
-
-        return (documented, total, percentage)
+        return (undocumentedWarnings.count, undocumentedWarnings)
     }
 
     // MARK: - Privato
