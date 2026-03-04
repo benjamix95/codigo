@@ -66,7 +66,10 @@ extension ChatPanelView {
             if TaskActivityStore.isConcreteVisibleEvent(activity) {
                 let label = Self.immediateSubtitleLabel(for: activity)
                 if !label.isEmpty,
-                   let cid = conversationIdForStatusUpdate(from: activity)
+                   let cid = resolveTaskStatusConversationId(
+                    activityPayload: activity.payload,
+                    fallbackConversationId: conversationId
+                   )
                 {
                     chatStore.setTaskStatus(label, for: cid)
                 }
@@ -74,17 +77,5 @@ extension ChatPanelView {
         } else {
             scheduleTaskActivityFlush()
         }
-    }
-
-    @MainActor
-    private func conversationIdForStatusUpdate(from activity: TaskActivity) -> UUID? {
-        if let rawConversationId = activity.payload["conversation_id"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !rawConversationId.isEmpty,
-           let parsedConversationId = UUID(uuidString: rawConversationId)
-        {
-            return parsedConversationId
-        }
-        return conversationId
     }
 }
