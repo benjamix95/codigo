@@ -1,7 +1,11 @@
 import Foundation
 
 extension EventNormalizer {
-    static func normalizePlanStep(type: String, payload: [String: String]) -> [NormalizedEvent] {
+    static func normalizePlanStep(
+        type: String,
+        payload: [String: String],
+        timestamp: Date
+    ) -> [NormalizedEvent] {
         guard
             let stepId = payload["step_id"],
             let statusRaw = payload["status"]
@@ -12,7 +16,7 @@ extension EventNormalizer {
                     title: type,
                     detail: "Missing plan step payload",
                     payload: payload,
-                    timestamp: .now,
+                    timestamp: timestamp,
                     phase: .planning,
                     isRunning: false
                 ))
@@ -26,7 +30,7 @@ extension EventNormalizer {
                     title: type,
                     detail: "Invalid plan step status '\(statusRaw)'",
                     payload: payload,
-                    timestamp: .now,
+                    timestamp: timestamp,
                     phase: .planning,
                     isRunning: false
                 ))
@@ -41,7 +45,7 @@ extension EventNormalizer {
                 title: stepTitle ?? "Plan step updated",
                 detail: payload["detail"] ?? "Status: \(status.rawValue)",
                 payload: payload,
-                timestamp: .now,
+                timestamp: timestamp,
                 phase: .planning,
                 isRunning: status == .running,
                 groupId: payload["group_id"] ?? stepId

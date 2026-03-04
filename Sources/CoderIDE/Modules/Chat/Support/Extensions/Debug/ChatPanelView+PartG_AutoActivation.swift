@@ -1,3 +1,4 @@
+import Foundation
 import CoderEngine
 
 extension ChatPanelView {
@@ -64,12 +65,26 @@ extension ChatPanelView {
             // TaskActivityStore's internal 50ms coalescing buffer.
             if TaskActivityStore.isConcreteVisibleEvent(activity) {
                 let label = Self.immediateSubtitleLabel(for: activity)
-                if !label.isEmpty, let cid = conversationId {
+                if !label.isEmpty,
+                   let cid = conversationIdForStatusUpdate(from: activity)
+                {
                     chatStore.setTaskStatus(label, for: cid)
                 }
             }
         } else {
             scheduleTaskActivityFlush()
         }
+    }
+
+    @MainActor
+    private func conversationIdForStatusUpdate(from activity: TaskActivity) -> UUID? {
+        if let rawConversationId = activity.payload["conversation_id"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !rawConversationId.isEmpty,
+           let parsedConversationId = UUID(uuidString: rawConversationId)
+        {
+            return parsedConversationId
+        }
+        return conversationId
     }
 }

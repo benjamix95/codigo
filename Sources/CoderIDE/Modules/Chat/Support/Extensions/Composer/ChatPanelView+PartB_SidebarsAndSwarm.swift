@@ -167,7 +167,11 @@ extension ChatPanelView {
                     }
                 )
                 if taskPanelEnabled {
-                    if !taskActivityStore.concreteRecentActivities(limit: 1).isEmpty || !todoStore.todos.isEmpty {
+                    let hasScopedConcreteActivity = scopedTaskActivities(for: conversationId).contains {
+                        TaskActivityStore.isConcreteVisibleEvent($0)
+                    }
+                    let hasScopedTodos = !todoStore.displayTodosForChat(for: conversationId).isEmpty
+                    if hasScopedConcreteActivity || hasScopedTodos {
                         TaskActivityPanel(
                             chatStore: chatStore,
                             taskActivityStore: taskActivityStore,

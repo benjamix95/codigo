@@ -80,6 +80,35 @@ final class ChatStoreMarkerSanitizationTests: XCTestCase {
         XCTAssertTrue(sanitized.contains("then continuing with the analysis"))
     }
 
+    func testStripCoderideMarkersRemovesPlanLifecycleInlineMarkerVariant() {
+        let input = """
+        Proceeding markers:plan_step_upsert|step_id=2|status=running|title=Apply patch|and continuing with checks.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.contains("plan_step_upsert|"))
+        XCTAssertFalse(sanitized.contains("step_id=2"))
+        XCTAssertFalse(sanitized.contains("status=running"))
+        XCTAssertFalse(sanitized.contains("title=Apply patch"))
+        XCTAssertTrue(sanitized.contains("Proceeding"))
+        XCTAssertTrue(sanitized.contains("and continuing with checks"))
+    }
+
+    func testStripCoderideMarkersRemovesPlanLifecycleTechnicalEventTokens() {
+        let input = """
+        plan_create plan_step_batch_update plan_request_user_input
+        Final useful response.
+        """
+
+        let sanitized = ChatStore.stripCoderideMarkers(input)
+
+        XCTAssertFalse(sanitized.contains("plan_create"))
+        XCTAssertFalse(sanitized.contains("plan_step_batch_update"))
+        XCTAssertFalse(sanitized.contains("plan_request_user_input"))
+        XCTAssertTrue(sanitized.contains("Final useful response."))
+    }
+
     func testStripCoderideMarkersKeepsFollowingLinesWhenMarkerIsIncomplete() {
         let input = """
         [CODERIDE:todo_write|id=t1|title=Init

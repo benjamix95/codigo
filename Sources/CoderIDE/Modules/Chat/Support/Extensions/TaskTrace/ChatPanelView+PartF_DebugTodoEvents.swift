@@ -53,7 +53,12 @@ extension ChatPanelView {
                 )
             case .instantGrep(let grep):
                 enableTaskPanelIfNeeded()
-                pendingInstantGreps.append(grep)
+                let scopedGrep = instantGrepWithConversationContext(
+                    grep,
+                    conversationId: conversationId,
+                    payload: envelope.payload
+                )
+                pendingInstantGreps.append(scopedGrep)
                 logTaskBacklogIfNeeded(context: "enqueue_grep")
                 scheduleTaskActivityFlush()
             case .todoWrite(let todo):
@@ -239,46 +244,6 @@ extension ChatPanelView {
     ) {
         // Disabled: auto-TODO progress updates are no longer needed
         // since auto-TODO creation is disabled.
-    }
-
-    internal func emitAutoTodoTraceUpdate(
-        todoId: UUID,
-        title: String,
-        status: TodoStatus,
-        notes: String,
-        linkedFiles: [String],
-        providerId: String,
-        conversationId: UUID?,
-        timestamp: Date
-    ) {
-        var payload: [String: String] = [
-            "id": todoId.uuidString,
-            "title": title,
-            "task": title,
-            "status": status.rawValue,
-            "priority": TodoPriority.medium.rawValue,
-            "notes": notes,
-        ]
-        if !linkedFiles.isEmpty {
-            payload["files"] = linkedFiles.joined(separator: ",")
-        }
-
-        let activity = TaskActivity(
-            type: "todo_write",
-            title: "Todo updated",
-            detail: title,
-            payload: payload,
-            timestamp: timestamp,
-            phase: .planning,
-            isRunning: false
-        )
-        enqueueTaskActivity(activity)
-        appendToolTraceEvent(
-            activity: activity,
-            rawKind: .todoUpdate,
-            providerId: providerId,
-            conversationId: conversationId
-        )
     }
 
 }

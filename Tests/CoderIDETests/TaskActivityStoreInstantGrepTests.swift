@@ -29,6 +29,56 @@ final class TaskActivityStoreInstantGrepTests: XCTestCase {
         XCTAssertEqual(store.instantGreps.first?.matchesCount, 4)
     }
 
+    func testAddInstantGrepKeepsDistinctConversations() {
+        let store = TaskActivityStore()
+        let firstConversationId = UUID()
+        let secondConversationId = UUID()
+        store.addInstantGrep(
+            makeResult(
+                query: "auth flow",
+                scope: "Sources",
+                count: 1,
+                conversationId: firstConversationId
+            )
+        )
+        store.addInstantGrep(
+            makeResult(
+                query: "auth flow",
+                scope: "Sources",
+                count: 2,
+                conversationId: secondConversationId
+            )
+        )
+
+        XCTAssertEqual(store.instantGreps.count, 2)
+        XCTAssertEqual(store.instantGreps(for: firstConversationId).count, 1)
+        XCTAssertEqual(store.instantGreps(for: secondConversationId).count, 1)
+    }
+
+    func testInstantGrepsForConversationFiltersByScope() {
+        let store = TaskActivityStore()
+        let conversationId = UUID()
+        store.addInstantGrep(
+            makeResult(
+                query: "auth flow",
+                scope: "Sources",
+                count: 1,
+                conversationId: conversationId
+            )
+        )
+        store.addInstantGrep(
+            makeResult(
+                query: "auth flow",
+                scope: "Tests",
+                count: 1,
+                conversationId: UUID()
+            )
+        )
+
+        XCTAssertEqual(store.instantGreps(for: conversationId).count, 1)
+        XCTAssertEqual(store.instantGreps(for: conversationId).first?.scope, "Sources")
+    }
+
     func testAddInstantGrepPrunesExpiredResultsByTTL() {
         let store = TaskActivityStore()
         store.configureInstantGrepRetention(ttlSeconds: 60)
@@ -67,12 +117,19 @@ final class TaskActivityStoreInstantGrepTests: XCTestCase {
         XCTAssertEqual(store.instantGreps.map(\.query), ["q3", "q2"])
     }
 
-    private func makeResult(query: String, scope: String, count: Int = 1, createdAt: Date = Date()) -> InstantGrepResult {
+    private func makeResult(
+        query: String,
+        scope: String,
+        count: Int = 1,
+        conversationId: UUID? = nil,
+        createdAt: Date = Date()
+    ) -> InstantGrepResult {
         InstantGrepResult(
             query: query,
             scope: scope,
             matchesCount: count,
             matches: [InstantGrepMatch(file: "Sources/Auth.swift", line: 12, preview: "auth")],
+            conversationId: conversationId,
             createdAt: createdAt
         )
     }

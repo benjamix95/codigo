@@ -54,9 +54,11 @@ extension TaskActivityStore {
         // Deduplicate by normalized query + scope (case/space-insensitive).
         let normalizedQuery = result.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedScope = normalizedInstantGrepScope(result.scope)
+        let normalizedConversationId = normalizedInstantGrepConversationId(result.conversationId)
         instantGreps.removeAll { existing in
             existing.query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedQuery
                 && normalizedInstantGrepScope(existing.scope) == normalizedScope
+                && normalizedInstantGrepConversationId(existing.conversationId) == normalizedConversationId
         }
         instantGreps.insert(result, at: 0)
         if instantGreps.count > instantGrepsHardCap {
@@ -201,6 +203,13 @@ extension TaskActivityStore {
             .filter { !$0.isEmpty }
             .sorted()
             .joined(separator: ",")
+    }
+
+    private func normalizedInstantGrepConversationId(_ conversationId: UUID?) -> String {
+        conversationId?
+            .uuidString
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
     }
 
     private func pruneExpiredInstantGreps(referenceDate: Date) {

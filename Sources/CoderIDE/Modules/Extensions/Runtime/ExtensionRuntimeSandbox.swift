@@ -76,8 +76,6 @@ struct ExtensionRuntimeSandbox: Sendable {
             "debug_query",
             "debug_session",
             "debug_hypothesize",
-            "debug_mark",
-            "debug_clean",
             "debug_set_phase",
             "debug_request_user",
             "debug_resolve",
@@ -91,6 +89,9 @@ struct ExtensionRuntimeSandbox: Sendable {
             "write",
             "create_file",
             "write_json",
+            "debug_mark",
+            "debug_instrument",
+            "debug_clean",
         ],
         .executeCommands: [
             "bash",

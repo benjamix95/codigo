@@ -3,19 +3,19 @@ import SwiftUI
 extension TaskActivityPanel {
     @ViewBuilder
     internal var standardActivityContent: some View {
-        let concreteActivities = taskActivityStore.activities.filter {
-            TaskActivityStore.isConcreteVisibleEvent($0)
-            && !SwarmMetadata.isSwarmEvent($0.payload)
-        }
+        let concreteActivities = scopedConcreteNonSwarmActivities
+        let nonSwarmActivities = scopedNonSwarmActivities
+        let planTraceActivities = scopedPlanTraceActivities
+        let instantGreps = scopedInstantGreps
         let scopedTodos = todoStore.displayTodosForChat(for: conversationId)
         if chatStore.isTaskActive(for: conversationId) {
             liveModeBanner
         }
 
         // Plan trace
-        if coderMode == .plan {
+        if coderMode == .plan, !planTraceActivities.isEmpty {
             PlanLiveTraceView(
-                activities: taskActivityStore.planRelevantRecentActivities(limit: 20),
+                activities: planTraceActivities,
                 workspaceHints: effectivePrimaryPath.map { [$0] } ?? [],
                 onOpenFile: onOpenFile
             )
@@ -40,9 +40,6 @@ extension TaskActivityPanel {
         }
 
         // Web Search
-        let nonSwarmActivities = taskActivityStore.activities.filter {
-            !SwarmMetadata.isSwarmEvent($0.payload)
-        }
         let webActivities = nonSwarmActivities.filter {
             $0.type.hasPrefix("web_search")
         }
@@ -69,15 +66,15 @@ extension TaskActivityPanel {
         }
 
         // Instant Grep (expandable)
-        if !taskActivityStore.instantGreps.isEmpty {
+        if !instantGreps.isEmpty {
             expandableSection(
                 title: "Instant Grep",
-                count: taskActivityStore.instantGreps.count,
+                count: instantGreps.count,
                 icon: "magnifyingglass",
                 color: .secondary,
                 isExpanded: $isGrepExpanded
             ) {
-                InstantGrepCardsView(results: taskActivityStore.instantGreps) { match in
+                InstantGrepCardsView(results: instantGreps) { match in
                     let fullPath: String
                     if (match.file as NSString).isAbsolutePath {
                         fullPath = match.file
@@ -115,7 +112,7 @@ extension TaskActivityPanel {
                     && !$0.type.hasPrefix("web_search")
                     && $0.type != "todo_write"
                     && $0.type != "todo_read"
-                    && $0.type != "plan_step_update"
+                    && !$0.type.hasPrefix("plan_")
             }
             .suffix(8)
         if !otherActivities.isEmpty {

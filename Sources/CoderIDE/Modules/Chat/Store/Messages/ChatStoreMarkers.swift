@@ -31,11 +31,11 @@ private enum MarkerRegex {
     static let inlineMarkerPrefix = try! NSRegularExpression(
         pattern: #"(?i)\bmarkers\s*:\s*[a-z_][a-z0-9_]*\|"#, options: [])
     static let inlineMarkerTypes = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
+        pattern: #"(?i)\b(?:todo_write|todo_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
     static let inlineMarkerBroken = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update)?|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
+        pattern: #"(?i)\b(?:markers)?[a-z_]*(?:todo_write|todo_read|do_write|do_read|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|read_batch(?:_started|_completed)?|web_search(?:_started|_completed|_failed)?|web_fetch(?:_started|_completed|_failed)?|instant_grep)\|"#, options: [])
     static let technicalEvents = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_show_swarm_panel|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update)?|todo_write|todo_read|instant_grep)\b"#, options: [])
+        pattern: #"(?i)\b(?:coderide_show_task_panel|coderide_show_swarm_panel|read_batch_started|read_batch_completed|web_search_started|web_search_completed|web_search_failed|web_fetch_started|web_fetch_completed|web_fetch_failed|plan_step(?:_update|_upsert|_batch_update|_reorder|_dependency_set)?|plan_create|plan_read|plan_set_walkthrough|plan_history_read|plan_diff|plan_request_user_input|todo_write|todo_read|instant_grep)\b"#, options: [])
     static let stickyKeyValue = try! NSRegularExpression(
         pattern: #"([A-Za-zÀ-ÖØ-öø-ÿ])((?i:files|count|group_id|queryid|query|step_id|pathscope|matchescount|previewlines|status|priority|notes|title|id|task)=)"#, options: [])
     static let singleKeyValue = try! NSRegularExpression(
@@ -86,6 +86,16 @@ private static func shouldRunMarkerCleanup(_ content: String, aggressive: Bool) 
         "todo_write|",
         "todo_read|",
         "plan_step",
+        "plan_create",
+        "plan_read",
+        "plan_step_upsert",
+        "plan_step_batch_update",
+        "plan_step_reorder",
+        "plan_step_dependency_set",
+        "plan_set_walkthrough",
+        "plan_history_read",
+        "plan_diff",
+        "plan_request_user_input",
         "read_batch",
         "web_search",
         "web_fetch",
@@ -286,28 +296,4 @@ private static func stripStructuredMarkerPayloads(_ input: String) -> String {
     return out
 }
 
-/// Extracts the last "operational" line from content during streaming (e.g. "Planning next moves", "Explored lints").
-/// Used to show LLM thinking like Cursor does.
-static func extractLastOperationalThinkingLine(from content: String) -> String? {
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return nil }
-    let lines = trimmed.components(separatedBy: .newlines)
-    let operationalPrefixes = [
-        "Planning", "Explored", "Inspecting", "Ran ", "Reading", "Analyzing",
-        "Implementing", "Updating", "Creating", "Generating", "Processing",
-        "Setting", "Preparing", "Starting", "Initializing", "Bootstrapping",
-        "Writing", "Searching"
-    ]
-    for line in lines.reversed() {
-        let t = line.trimmingCharacters(in: .whitespaces)
-        guard t.count > 3, t.count < 150 else { continue }
-        let lower = t.lowercased()
-        for prefix in operationalPrefixes {
-            if lower.hasPrefix(prefix.lowercased()) {
-                return t
-            }
-        }
-    }
-    return nil
-}
 }

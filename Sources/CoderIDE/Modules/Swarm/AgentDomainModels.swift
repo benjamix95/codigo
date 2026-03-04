@@ -21,6 +21,7 @@ struct InstantGrepResult: Identifiable, Codable {
     let matchesCount: Int
     let durationMs: Int?
     let matches: [InstantGrepMatch]
+    let conversationId: UUID?
     let createdAt: Date
 
     init(
@@ -30,6 +31,7 @@ struct InstantGrepResult: Identifiable, Codable {
         matchesCount: Int,
         durationMs: Int? = nil,
         matches: [InstantGrepMatch],
+        conversationId: UUID? = nil,
         createdAt: Date = .now
     ) {
         self.id = id
@@ -38,6 +40,7 @@ struct InstantGrepResult: Identifiable, Codable {
         self.matchesCount = matchesCount
         self.durationMs = durationMs
         self.matches = matches
+        self.conversationId = conversationId
         self.createdAt = createdAt
     }
 }

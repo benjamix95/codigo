@@ -70,7 +70,7 @@ enum EventNormalizer {
         }
 
         if type == "plan_step" || type == "plan_step_update" {
-            return normalizePlanStep(type: type, payload: payload)
+            return normalizePlanStep(type: type, payload: payload, timestamp: timestamp)
         }
 
         if isPlanLifecycleType(type) {

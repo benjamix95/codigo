@@ -61,7 +61,8 @@ extension TaskActivityPanel {
 
     @ViewBuilder
     internal var liveModeBanner: some View {
-        let isPaused = taskActivityStore.activities.last?.type == "process_paused"
+        let activities = scopedActivities
+        let isPaused = activities.last?.type == "process_paused"
         let phaseLabel: String = {
             if isPaused { return "Paused" }
             switch coderMode {
@@ -77,22 +78,18 @@ extension TaskActivityPanel {
             }
             switch coderMode {
             case .plan:
-                let hasStepUpdate = taskActivityStore.activities.contains { $0.type == "plan_step_update" }
-                let hasExecutionSignal = taskActivityStore.activities.contains {
-                    $0.type == "command_execution" || $0.type == "file_change"
-                }
-                if hasExecutionSignal || hasStepUpdate {
+                if hasPlanExecutionSignal || hasPlanProgressSignal {
                     return "Plan: executing plan"
                 }
                 return "Plan: analyzing options"
             case .codeReviewMultiSwarm:
-                let hasFixRound = taskActivityStore.activities.contains { $0.type == "review-fix-round" }
-                let hasWorkerPlan = taskActivityStore.activities.contains { $0.type == "review-worker-plan" }
-                let hasExecutionSignal = taskActivityStore.activities.contains {
+                let hasFixRound = activities.contains { $0.type == "review-fix-round" }
+                let hasWorkerPlan = activities.contains { $0.type == "review-worker-plan" }
+                let hasExecutionSignal = activities.contains {
                     $0.type == "command_execution" || $0.type == "file_change"
                 }
                 if hasFixRound && hasExecutionSignal {
-                    let roundInfo = taskActivityStore.activities.reversed().first { $0.type == "review-fix-round" }
+                    let roundInfo = activities.reversed().first { $0.type == "review-fix-round" }
                     let round = roundInfo?.payload["round"] ?? "?"
                     let maxRounds = roundInfo?.payload["maxRounds"] ?? "?"
                     return "Code Review: Fix Phase (Round \(round)/\(maxRounds))"
@@ -113,14 +110,13 @@ extension TaskActivityPanel {
         let hint: String? = {
             guard !isPaused else { return "Press Resume to continue execution." }
             if coderMode == .codeReviewMultiSwarm {
-                let hasWorkerPlan = taskActivityStore.activities.contains { $0.type == "review-worker-plan" }
+                let hasWorkerPlan = activities.contains { $0.type == "review-worker-plan" }
                 if !hasWorkerPlan {
                     return "Analyzing code for issues. Workers will be spawned automatically."
                 }
             }
             if coderMode == .plan {
-                let hasStepUpdate = taskActivityStore.activities.contains { $0.type == "plan_step_update" }
-                if !hasStepUpdate {
+                if !hasPlanProgressSignal {
                     return "When the plan is ready, choose an option to start the implementation."
                 }
             }
