@@ -128,7 +128,12 @@ extension ContentView {
     var chatPanel: some View {
         ChatPanelView(
             selectedConversationId: $selectedConversationId,
-            effectiveContext: effectiveContext(for: selectedConversationId, chatStore: chatStore, projectContextStore: projectContextStore),
+            effectiveContext: effectiveContext(
+                for: selectedConversationId,
+                chatStore: chatStore,
+                projectContextStore: projectContextStore,
+                preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+            ),
             coderMode: $coderMode,
             showPlanPanel: $showPlanPanel,
             showDebugPanel: $showDebugPanel,

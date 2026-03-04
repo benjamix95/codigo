@@ -60,6 +60,7 @@ extension SidebarView {
 
     func attachConversation(to contextId: UUID) {
         projectContextStore.activeContextId = contextId
+        projectContextStore.markAsRecentlyUsed(contextId: contextId)
         syncActiveWorkspaceIfNeeded(contextId: contextId)
         let context = projectContextStore.context(id: contextId)
         let folderScope = (context?.kind == .workspace) ? context?.activeFolderPath : nil
@@ -104,6 +105,7 @@ extension SidebarView {
         selectedConversationId = conv.id
         if let contextId = conv.contextId {
             projectContextStore.activeContextId = contextId
+            projectContextStore.markAsRecentlyUsed(contextId: contextId)
             syncActiveWorkspaceIfNeeded(contextId: contextId)
             if conv.messages.contains(where: { $0.role == .user }) {
                 projectContextStore.setLastActiveConversation(contextId: contextId, folderPath: conv.contextFolderPath, conversationId: conv.id)

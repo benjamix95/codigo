@@ -85,7 +85,12 @@ extension ContentView {
                 if let selectedConversationId, conversationIds.contains(selectedConversationId) {
                     return
                 }
-                let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+                let defaultContextId: UUID?
+                if preferActiveContextForGlobalThread {
+                    defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+                } else {
+                    defaultContextId = nil
+                }
                 let ctx = projectContextStore.context(id: defaultContextId)
                 let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
                 let preferred = chatStore.conversations.first { conv in
@@ -144,7 +149,8 @@ extension ContentView {
         SidebarView(
             selectedConversationId: $selectedConversationId,
             showSettings: $showSettings,
-            isSelectingProjectFolders: $isSelectingProjectFolders
+            isSelectingProjectFolders: $isSelectingProjectFolders,
+            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
         )
         .environmentObject(providerRegistry)
         .environmentObject(chatStore)
@@ -249,7 +255,8 @@ extension ContentView {
         let ctx = effectiveContext(
             for: selectedConversationId,
             chatStore: chatStore,
-            projectContextStore: projectContextStore
+            projectContextStore: projectContextStore,
+            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
         )
         SidePanelView(
             activeItem: item,

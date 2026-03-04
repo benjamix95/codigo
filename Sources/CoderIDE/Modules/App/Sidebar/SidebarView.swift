@@ -14,6 +14,7 @@ struct SidebarView: View {
     @Binding var selectedConversationId: UUID?
     @Binding var showSettings: Bool
     @Binding var isSelectingProjectFolders: Bool
+    let preferActiveContextForGlobalThread: Bool
 
     @State var sidebarQuery = ""
     @State var isSelectingAddFolder = false

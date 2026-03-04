@@ -110,6 +110,9 @@ struct CodigoApp: App {
                     }
                 }
         }
+        .commands {
+            appFileCommands
+        }
         MenuBarExtra {
             UsageMenuBarView()
                 .environmentObject(accountUsageDashboardStore)

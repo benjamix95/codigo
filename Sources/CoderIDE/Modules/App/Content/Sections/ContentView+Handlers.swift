@@ -13,6 +13,8 @@ extension ContentView {
         let paths = urls.map { $0.path(percentEncoded: false) }
         guard let contextId = projectContextStore.createOrReuseSingleProject(paths: paths) else { return }
         projectContextStore.activeContextId = contextId
+        projectContextStore.markAsRecentlyUsed(contextId: contextId)
+        preferActiveContextForGlobalThread = true
         if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
             workspaceStore.activeWorkspaceId = contextId
         } else {

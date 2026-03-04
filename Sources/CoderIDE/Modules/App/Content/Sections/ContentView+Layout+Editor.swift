@@ -62,6 +62,19 @@ extension ContentView {
 
     func configureInitialConversationSelection() {
         projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+        if WindowLaunchIntentStore.shared.consumeCleanWindowIntent() {
+            preferActiveContextForGlobalThread = false
+            if let reusable = chatStore.reusableEmptyConversation(contextId: nil, contextFolderPath: nil) {
+                selectedConversationId = reusable.id
+            } else {
+                selectedConversationId = chatStore.createConversation(
+                    contextId: nil,
+                    contextFolderPath: nil,
+                    mode: nil
+                )
+            }
+            return
+        }
         guard selectedConversationId == nil else { return }
         let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
         let ctx = projectContextStore.context(id: defaultContextId)
@@ -106,7 +119,8 @@ extension ContentView {
         let ctx = effectiveContext(
             for: selectedConversationId,
             chatStore: chatStore,
-            projectContextStore: projectContextStore
+            projectContextStore: projectContextStore,
+            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
         )
 
         return VStack(spacing: 0) {

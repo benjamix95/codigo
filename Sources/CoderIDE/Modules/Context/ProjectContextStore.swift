@@ -81,7 +81,11 @@ final class ProjectContextStore: ObservableObject {
             var context = ProjectContext.fromWorkspace(workspace)
             if let existing = contexts.first(where: { $0.id == workspace.id }) {
                 context.createdAt = existing.createdAt
-                context.updatedAt = .now
+                let hasStructuralChange =
+                    existing.name != context.name
+                    || existing.folderPaths != context.folderPaths
+                    || existing.excludedPaths != context.excludedPaths
+                context.updatedAt = hasStructuralChange ? .now : existing.updatedAt
                 context.lastActiveFolderPath = existing.lastActiveFolderPath ?? (workspace.folderPaths.isEmpty ? nil : workspace.folderPaths.first)
             }
             upsert(context)

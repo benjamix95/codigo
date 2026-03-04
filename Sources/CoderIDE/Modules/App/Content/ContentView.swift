@@ -23,6 +23,7 @@ struct ContentView: View {
     @State var columnVisibility: NavigationSplitViewVisibility = .all
     @State var showTerminal = false
     @State var terminalHeight: CGFloat = 200
+    @State var preferActiveContextForGlobalThread = true
     @State var showSettings = false
     @State var showPlanPanel = false
     @State var showDebugPanel = false

@@ -18,7 +18,16 @@ extension SidebarView {
     /// Current project/workspace context. With no thread selected, keeps activeContextId
     /// so the project doesn't "close" when all conversations are deleted.
     var currentContext: ProjectContext? {
-        let ctxId = selectedConversation?.contextId ?? projectContextStore.activeContextId
+        let ctxId: UUID?
+        if let selectedConversation {
+            if let conversationContextId = selectedConversation.contextId {
+                ctxId = conversationContextId
+            } else {
+                ctxId = preferActiveContextForGlobalThread ? projectContextStore.activeContextId : nil
+            }
+        } else {
+            ctxId = projectContextStore.activeContextId
+        }
         return projectContextStore.context(id: ctxId)
     }
 

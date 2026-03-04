@@ -117,12 +117,17 @@ struct EffectiveContext {
 func effectiveContext(
     for conversationId: UUID?,
     chatStore: ChatStore,
-    projectContextStore: ProjectContextStore
+    projectContextStore: ProjectContextStore,
+    preferActiveContextForGlobalThread: Bool = true
 ) -> EffectiveContext {
     let contextId: UUID?
     if let conv = chatStore.conversation(for: conversationId) {
-        // Global thread (contextId nil): use active project if open.
-        contextId = conv.contextId ?? projectContextStore.activeContextId
+        if let conversationContextId = conv.contextId {
+            contextId = conversationContextId
+        } else {
+            // Global thread (contextId nil): optionally inherit active project.
+            contextId = preferActiveContextForGlobalThread ? projectContextStore.activeContextId : nil
+        }
     } else {
         // No selected conversation (e.g. all deleted): keep current project context.
         contextId = projectContextStore.activeContextId
