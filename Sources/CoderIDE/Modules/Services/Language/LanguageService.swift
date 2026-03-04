@@ -2,7 +2,7 @@ import CoderEngine
 import Foundation
 
 actor LanguageService {
-    private let configuration: LanguageServiceConfiguration
+    let configuration: LanguageServiceConfiguration
     private let localAdapter: LanguageServiceAdapter
     private let sourceKitAdapter: LanguageServiceAdapter?
 
