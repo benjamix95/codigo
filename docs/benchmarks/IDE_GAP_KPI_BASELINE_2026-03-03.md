@@ -100,10 +100,13 @@ Nota: smoke benchmark usa dataset sintetico ridotto per verifica rapida della pi
   - append dei risultati in `docs/benchmarks/` con data ISO;
   - link obbligatorio nella release note del candidato rilascio.
 
-## Nota di rischio (stato 2026-03-04)
+## Nota di rischio (aggiornamento 2026-03-04)
 
-Sono presenti errori compilativi test-side che impediscono oggi l'automazione completa end-to-end della raccolta KPI:
-- `Tests/CoderIDETests/DebugServiceTests.swift` (signature mismatch su `DebugBreakpoint`).
-- `CoderEngine/Tests/CoderEngineTests/PluginRuntimeTests.swift` (uso `await` in autoclosure XCTest).
+I blocchi compilativi test-side identificati nel run iniziale sono stati risolti nel flusso di hardening corrente.
 
-La baseline sopra è quindi congelata come riferimento operativo provvisorio fino allo sblocco di questi test nel flusso di hardening.
+Stato validazione corrente:
+- suite `LanguageService`, `DebugService`, `ExtensionRuntime`, `TaskActivity`, `ProviderFactoryRuntimeParity`: pass;
+- suite `PluginRuntime`, `CodebaseIndexIncremental`, `CodebaseIndexIndexingTransaction`, regressioni `UnifiedToolRuntime`: pass;
+- benchmark smoke indexing `pre/post` eseguito con script dedicato.
+
+La baseline rimane **provvisoria solo per natura pre-milestone** (smoke + dataset ridotto), non più per blocchi di compilazione.
