@@ -123,13 +123,20 @@ extension ChatPanelView {
             let n = s.split(separator: ",").map {
                 String($0).trimmingCharacters(in: .whitespaces)
             }
-            swarmProgressStore.setSteps(n)
+            if let scopedConversationId = convId ?? selectedConversationId {
+                swarmProgressStore.setSteps(n, conversationId: scopedConversationId)
+            }
         }
         if t == "agent", let title = p["title"], let detail = p["detail"] {
+            let scopedConversationId = convId ?? selectedConversationId
             if detail == "started" {
-                swarmProgressStore.markStarted(name: title)
+                if let scopedConversationId {
+                    swarmProgressStore.markStarted(name: title, conversationId: scopedConversationId)
+                }
             } else if detail == "completed" {
-                swarmProgressStore.markCompleted(name: title)
+                if let scopedConversationId {
+                    swarmProgressStore.markCompleted(name: title, conversationId: scopedConversationId)
+                }
             }
         }
         if t == "usage",

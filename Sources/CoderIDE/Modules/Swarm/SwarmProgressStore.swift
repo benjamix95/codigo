@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 enum SwarmStepStatus: String {
@@ -21,8 +22,26 @@ struct SwarmStep: Identifiable {
 @MainActor
 final class SwarmProgressStore: ObservableObject {
     @Published var steps: [SwarmStep] = []
+    @Published private var stepsByConversation: [String: [SwarmStep]] = [:]
 
-    func setSteps(_ names: [String]) {
+    func steps(for conversationId: UUID?) -> [SwarmStep] {
+        guard let scope = normalizedConversationScope(conversationId) else { return steps }
+        return stepsByConversation[scope] ?? []
+    }
+
+    func setSteps(_ names: [String], conversationId: UUID? = nil) {
+        if let scope = normalizedConversationScope(conversationId) {
+            let existing = stepsByConversation[scope] ?? []
+            let existingByName = Dictionary(uniqueKeysWithValues: existing.map { ($0.name, $0.status) })
+            let newSteps = names.map { name in
+                let preserved = existingByName[name]
+                let status: SwarmStepStatus = (preserved == .completed || preserved == .inProgress) ? preserved! : .pending
+                return SwarmStep(name: name, status: status)
+            }
+            stepsByConversation[scope] = newSteps
+            return
+        }
+
         let existingByName = Dictionary(uniqueKeysWithValues: steps.map { ($0.name, $0.status) })
         // Build new array then assign once (single @Published notification)
         let newSteps = names.map { name in
@@ -33,7 +52,23 @@ final class SwarmProgressStore: ObservableObject {
         steps = newSteps
     }
 
-    func markStarted(name: String) {
+    func markStarted(name: String, conversationId: UUID? = nil) {
+        if let scope = normalizedConversationScope(conversationId) {
+            guard let targetIndex = stepsByConversation[scope]?.firstIndex(where: { $0.name == name }) else { return }
+            var updated = stepsByConversation[scope] ?? []
+            if targetIndex > 0 {
+                let predecessor = targetIndex - 1
+                if updated[predecessor].status == .inProgress {
+                    updated[predecessor].status = .completed
+                }
+            }
+            if updated[targetIndex].status != .completed {
+                updated[targetIndex].status = .inProgress
+            }
+            stepsByConversation[scope] = updated
+            return
+        }
+
         guard let targetIndex = steps.firstIndex(where: { $0.name == name }) else { return }
         // Mutate a local copy, assign once to trigger a single @Published update
         var updated = steps
@@ -51,14 +86,33 @@ final class SwarmProgressStore: ObservableObject {
         steps = updated
     }
 
-    func markCompleted(name: String) {
+    func markCompleted(name: String, conversationId: UUID? = nil) {
+        if let scope = normalizedConversationScope(conversationId) {
+            guard let idx = stepsByConversation[scope]?.firstIndex(where: { $0.name == name }) else { return }
+            var updated = stepsByConversation[scope] ?? []
+            updated[idx].status = .completed
+            stepsByConversation[scope] = updated
+            return
+        }
+
         guard let idx = steps.firstIndex(where: { $0.name == name }) else { return }
         var updated = steps
         updated[idx].status = .completed
         steps = updated
     }
 
-    func clear() {
+    func clear(conversationId: UUID? = nil) {
+        if let scope = normalizedConversationScope(conversationId) {
+            stepsByConversation.removeValue(forKey: scope)
+            return
+        }
+
         steps.removeAll()
+        stepsByConversation.removeAll()
+    }
+
+    private func normalizedConversationScope(_ conversationId: UUID?) -> String? {
+        guard let conversationId else { return nil }
+        return conversationId.uuidString.lowercased()
     }
 }

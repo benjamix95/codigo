@@ -2,12 +2,15 @@ import SwiftUI
 
 extension SwarmPanelView {
     // MARK: - Overview List
+    private var scopedSteps: [SwarmStep] {
+        swarmProgressStore.steps(for: conversationId)
+    }
 
     var overviewList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    if !swarmProgressStore.steps.isEmpty {
+                    if !scopedSteps.isEmpty {
                         progressSection
                     }
                     ForEach(sortedCards) { card in
@@ -42,7 +45,7 @@ extension SwarmPanelView {
                     .foregroundStyle(.tertiary)
                     .tracking(0.8)
             }
-            ForEach(swarmProgressStore.steps) { step in
+            ForEach(scopedSteps) { step in
                 HStack(spacing: 6) {
                     Image(systemName: stepIcon(step))
                         .font(.system(size: 10))
@@ -108,4 +111,3 @@ extension SwarmPanelView {
         }
     }
 }
-

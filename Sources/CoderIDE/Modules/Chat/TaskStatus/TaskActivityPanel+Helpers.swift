@@ -7,7 +7,7 @@ extension TaskActivityPanel {
             liveModeBanner
         }
 
-        let cards = taskActivityStore.swarmCardStates()
+        let cards = taskActivityStore.swarmCardStates(for: conversationId)
         let effectiveSwarmId = selectedSwarmLaneId ?? cards.first?.swarmId
         let selectedCard = cards.first(where: { $0.swarmId == effectiveSwarmId })
         let selectedLaneActivities = (selectedCard?.recentEvents ?? []).filter {

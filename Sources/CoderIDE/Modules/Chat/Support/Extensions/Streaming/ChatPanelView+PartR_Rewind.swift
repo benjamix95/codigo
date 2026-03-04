@@ -86,7 +86,7 @@ extension ChatPanelView {
                 ) {
                     clearTaskActivityPipeline()
                 }
-                swarmProgressStore.clear()
+                swarmProgressStore.clear(conversationId: convId)
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
                 isRewinding = false
@@ -192,7 +192,7 @@ extension ChatPanelView {
                 ) {
                     clearTaskActivityPipeline()
                 }
-                swarmProgressStore.clear()
+                swarmProgressStore.clear(conversationId: conversationId)
                 activeBuildPlanConversationId = nil
                 activeBuildAgentConversationId = nil
                 isRewinding = false

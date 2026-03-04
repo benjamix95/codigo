@@ -2,7 +2,21 @@ import Foundation
 
 @MainActor
 extension TaskActivityStore {
-    func clearSwarmCards() {
+    func clearSwarmCards(for conversationId: UUID? = nil) {
+        if let scope = normalizedConversationScope(conversationId) {
+            let scopedIds = swarmCards.compactMap { key, card in
+                cardBelongsToConversation(card, scope: scope) ? key : nil
+            }
+            guard !scopedIds.isEmpty else { return }
+            for cardId in scopedIds {
+                swarmCards.removeValue(forKey: cardId)
+                swarmCardDedupKeys.removeValue(forKey: cardId)
+            }
+            markSortedSwarmCardsDirty()
+            swarmEventsReceivedCount += 1
+            return
+        }
+
         if swarmEventsReceivedCount > 0 {
             swarmLogger.debug("Swarm stats: received=\(self.swarmEventsReceivedCount) assigned=\(self.swarmEventsAssignedCount) fallback=\(self.swarmEventsFallbackCount) cards=\(self.swarmCards.count)")
         }
@@ -20,9 +34,13 @@ extension TaskActivityStore {
     /// Mark all cards still in `.running` status as `.completed`.
     /// Called when the parent task ends so the panel doesn't show
     /// stale running indicators after the stream finishes.
-    func finalizeRunningSwarmCards() {
+    func finalizeRunningSwarmCards(for conversationId: UUID? = nil) {
+        let scope = normalizedConversationScope(conversationId)
         var didChange = false
         for (key, var card) in swarmCards where card.status == .running {
+            if let scope, !cardBelongsToConversation(card, scope: scope) {
+                continue
+            }
             card.status = .completed
             card.completedAt = Date()
             card.activeOpsCount = 0
@@ -47,9 +65,25 @@ extension TaskActivityStore {
         markSortedSwarmCardsDirty()
     }
 
-    func swarmCardStates(limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit)
+    func swarmCardStates(
+        for conversationId: UUID? = nil,
+        limitEventsPerCard: Int = SwarmLiveReducer.defaultRecentEventsLimit
+    )
         -> [SwarmLiveCardState]
     {
+        if let conversationId {
+            let scope = conversationId.uuidString.lowercased()
+            if limitEventsPerCard == defaultSwarmEventsLimit {
+                let scopedCards = swarmCards.values.filter { cardBelongsToConversation($0, scope: scope) }
+                return SwarmLiveReducer.sorted(states: Array(scopedCards))
+            }
+            let reduced = SwarmLiveReducer.reduce(
+                activities: scopedActivities(for: conversationId),
+                limitRecentEvents: limitEventsPerCard
+            )
+            return SwarmLiveReducer.sorted(states: Array(reduced.values))
+        }
+
         if limitEventsPerCard != defaultSwarmEventsLimit {
             let reduced = SwarmLiveReducer.reduce(
                 activities: activities,
@@ -237,5 +271,26 @@ extension TaskActivityStore {
         }
         let severity = (activity.payload["severity"] ?? "").lowercased()
         return severity == "error" || severity == "critical"
+    }
+
+    private func normalizedConversationScope(_ conversationId: UUID?) -> String? {
+        guard let conversationId else { return nil }
+        return conversationId.uuidString.lowercased()
+    }
+
+    private func scopedActivities(for conversationId: UUID) -> [TaskActivity] {
+        let scope = conversationId.uuidString.lowercased()
+        return activities.filter { activityBelongsToConversation($0, scope: scope) }
+    }
+
+    private func cardBelongsToConversation(_ card: SwarmLiveCardState, scope: String) -> Bool {
+        card.recentEvents.contains(where: { activityBelongsToConversation($0, scope: scope) })
+    }
+
+    private func activityBelongsToConversation(_ activity: TaskActivity, scope: String) -> Bool {
+        let taggedScope = (activity.payload["conversation_id"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return taggedScope == scope
     }
 }

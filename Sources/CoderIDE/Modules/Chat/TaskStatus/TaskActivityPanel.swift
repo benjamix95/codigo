@@ -39,11 +39,11 @@ struct TaskActivityPanel: View {
         }
         .onAppear {
             if selectedSwarmLaneId == nil {
-                selectedSwarmLaneId = taskActivityStore.swarmCardStates().first?.swarmId
+                selectedSwarmLaneId = taskActivityStore.swarmCardStates(for: conversationId).first?.swarmId
             }
         }
         .onChange(of: taskActivityStore.activities.count) { _, _ in
-            let laneStates = taskActivityStore.swarmCardStates()
+            let laneStates = taskActivityStore.swarmCardStates(for: conversationId)
             let valid = laneStates.contains { $0.swarmId == selectedSwarmLaneId }
             if !valid {
                 selectedSwarmLaneId = laneStates.first?.swarmId

@@ -1,12 +1,18 @@
+import Foundation
 import SwiftUI
 
 struct SwarmProgressView: View {
     @ObservedObject var store: SwarmProgressStore
     let activities: [TaskActivity]
+    let conversationId: UUID?
     let isTaskRunning: Bool
     let onSelectSwarm: ((String) -> Void)?
     private let inlineMaxWidth: CGFloat = 560
     @State private var showInlineLiveCards = false
+
+    private var scopedSteps: [SwarmStep] {
+        store.steps(for: conversationId)
+    }
 
     var liveSwarmCards: [SwarmLiveCardState] {
         let reduced = SwarmLiveReducer.reduce(activities: activities, limitRecentEvents: 12)
@@ -22,7 +28,7 @@ struct SwarmProgressView: View {
     }
 
     private var stepCountLabel: String {
-        let count = store.steps.count
+        let count = scopedSteps.count
         return count == 1 ? "1 step" : "\(count) steps"
     }
 
@@ -74,7 +80,7 @@ struct SwarmProgressView: View {
             .padding(.horizontal, 12)
             .padding(.top, 10)
 
-            if store.steps.isEmpty {
+            if scopedSteps.isEmpty {
                 Text("Waiting for subagent steps…")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.tertiary)
@@ -82,7 +88,7 @@ struct SwarmProgressView: View {
                     .padding(.bottom, 10)
             } else {
                 VStack(spacing: 6) {
-                    ForEach(store.steps) { step in
+                    ForEach(scopedSteps) { step in
                         SwarmStepRow(step: step)
                     }
                 }

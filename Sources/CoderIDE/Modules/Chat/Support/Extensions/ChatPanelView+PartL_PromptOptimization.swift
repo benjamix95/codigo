@@ -257,7 +257,7 @@ extension ChatPanelView {
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id
         )
-        swarmProgressStore.clear()
+        swarmProgressStore.clear(conversationId: targetConversationId)
 
         let attachmentsToSend = attachmentBundle.llm.isEmpty ? nil : attachmentBundle.llm
         attachedComposerAttachments = []

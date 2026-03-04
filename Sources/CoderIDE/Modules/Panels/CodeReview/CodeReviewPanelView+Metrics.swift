@@ -10,7 +10,7 @@ extension CodeReviewPanelView {
             conversationId: conversationId
         )
         let cards = taskActivityStore
-            .swarmCardStates()
+            .swarmCardStates(for: conversationId)
             .filter {
                 $0.swarmId.hasPrefix("review-")
                     && reviewCardBelongsToConversation($0, conversationId: conversationId)

@@ -158,7 +158,8 @@ extension ChatPanelView {
             VStack(alignment: .leading, spacing: 12) {
                 SwarmProgressView(
                     store: swarmProgressStore,
-                    activities: taskActivityStore.activities,
+                    activities: scopedTaskActivities(for: conversationId),
+                    conversationId: conversationId,
                     isTaskRunning: isLoadingForCurrentConversation,
                     onSelectSwarm: { swarmId in
                         showSwarmPanel = true

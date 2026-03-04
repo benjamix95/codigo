@@ -90,6 +90,6 @@ struct SwarmPanelView: View {
 
     func refreshCachedCards() {
         // taskActivityStore.swarmCardStates() is already sorted and cached.
-        cachedCards = taskActivityStore.swarmCardStates()
+        cachedCards = taskActivityStore.swarmCardStates(for: conversationId)
     }
 }

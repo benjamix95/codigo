@@ -15,13 +15,15 @@ extension ChatPanelView {
 
                 ConnectionStatusBanner(monitor: networkMonitor)
 
+                let scopedSwarmCards = taskActivityStore.swarmCardStates(for: conversationId)
                 if coderMode == .agent
-                    && (!swarmProgressStore.steps.isEmpty
-                        || !taskActivityStore.swarmCards.isEmpty)
+                    && (!swarmProgressStore.steps(for: conversationId).isEmpty
+                        || !scopedSwarmCards.isEmpty)
                 {
                     SwarmProgressView(
                         store: swarmProgressStore,
-                        activities: taskActivityStore.activities,
+                        activities: scopedTaskActivities(for: conversationId),
+                        conversationId: conversationId,
                         isTaskRunning: isLoadingForCurrentConversation,
                         onSelectSwarm: { swarmId in
                             showSwarmPanel = true
@@ -165,8 +167,8 @@ extension ChatPanelView {
             }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
-            taskActivityStore.clearSwarmCards()
-            swarmProgressStore.clear()
+            taskActivityStore.clearSwarmCards(for: oldId)
+            swarmProgressStore.clear(conversationId: oldId)
             syncProviderFromConversation()
             restorePlanStateIfNeeded(for: newId)
             requestInitialComposerFocusIfNeeded()

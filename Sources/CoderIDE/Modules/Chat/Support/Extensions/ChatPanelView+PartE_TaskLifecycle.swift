@@ -93,7 +93,7 @@ extension ChatPanelView {
     @ViewBuilder
     internal func subagentCardsSection(message: ChatMessage, isLatestAssistant: Bool) -> some View {
         let liveCards: [SwarmLiveCardState] = (isLatestAssistant && isLoadingForCurrentConversation)
-            ? visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
+            ? visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates(for: conversationId))
             : []
         let hasLiveCards = !liveCards.isEmpty
 
@@ -257,9 +257,9 @@ extension ChatPanelView {
 
         // Transition any cards still stuck in .running to .completed
         // so the panel doesn't show stale running indicators.
-        taskActivityStore.finalizeRunningSwarmCards()
+        taskActivityStore.finalizeRunningSwarmCards(for: targetConversationId)
 
-        let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates())
+        let cards = visibleSwarmCardsForChat(from: taskActivityStore.swarmCardStates(for: targetConversationId))
             .map { SubagentCardSnapshot(from: $0) }
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
