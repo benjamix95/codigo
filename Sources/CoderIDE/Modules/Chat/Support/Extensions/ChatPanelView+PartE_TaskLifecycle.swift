@@ -172,6 +172,19 @@ extension ChatPanelView {
         lastAutoScrollAt = now
         autoScrollWorkItem?.cancel()
         let work = DispatchWorkItem {
+            guard NSApplication.shared.isActive else { return }
+            guard !showsSwarmViewOnly else { return }
+            let hasActiveConversation = chatStore.conversation(for: conversationId) != nil
+            let availableMessageIDs = Set(
+                chatStore.conversation(for: conversationId)?.messages.map(\.id) ?? []
+            )
+            guard canScrollToTarget(
+                target,
+                topAnchorId: chatScrollTopAnchorId,
+                bottomAnchorId: chatScrollBottomAnchorId,
+                allowAnchorTargets: hasActiveConversation,
+                availableMessageIDs: availableMessageIDs
+            ) else { return }
             if animated {
                 withAnimation(.easeOut(duration: 0.14)) {
                     proxy.scrollTo(target, anchor: .bottom)

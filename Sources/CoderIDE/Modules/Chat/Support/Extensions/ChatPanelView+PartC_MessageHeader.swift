@@ -234,5 +234,9 @@ extension ChatPanelView {
             guard isLoadingForCurrentConversation else { return }
             handleTaskActivitiesChange(proxy: proxy)
         }
+        .onDisappear {
+            autoScrollWorkItem?.cancel()
+            autoScrollWorkItem = nil
+        }
     }
 }

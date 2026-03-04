@@ -101,6 +101,15 @@ extension ChatPanelView {
     internal var chatMessagesAreaContent: some View {
         if let conv = chatStore.conversation(for: conversationId) {
             messagesStack(for: conv)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .frame(height: 1)
+                    .id(chatScrollTopAnchorId)
+                Color.clear
+                    .frame(height: 1)
+                    .id(chatScrollBottomAnchorId)
+            }
         }
     }
 }

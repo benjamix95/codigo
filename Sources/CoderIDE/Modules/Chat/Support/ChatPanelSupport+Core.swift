@@ -125,6 +125,23 @@ func todoConversationScopeFilter(
     }
 }
 
+func canScrollToTarget(
+    _ target: AnyHashable,
+    topAnchorId: String,
+    bottomAnchorId: String,
+    allowAnchorTargets: Bool,
+    availableMessageIDs: Set<UUID>
+) -> Bool {
+    if let stringTarget = target as? String {
+        guard allowAnchorTargets else { return false }
+        return stringTarget == topAnchorId || stringTarget == bottomAnchorId
+    }
+    if let messageID = target as? UUID {
+        return availableMessageIDs.contains(messageID)
+    }
+    return false
+}
+
 func traceEventsContainSuccessfulCodeEdits(_ traceEvents: [ToolTraceEvent]) -> Bool {
     traceEvents.contains(where: isSuccessfulFileMutationEvent(_:))
 }
