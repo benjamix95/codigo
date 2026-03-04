@@ -107,6 +107,7 @@ final class ToolSchemaCatalogTests: XCTestCase {
             "plan_set_walkthrough",
             "plan_history_read",
             "plan_diff",
+            "plan_request_user_input",
             "mermaid_render",
             "policy_ack",
             "activate_plan_mode",

@@ -17,6 +17,7 @@ struct TaskActivityRow: View {
         case "plan_step_reorder": return "arrow.up.arrow.down"
         case "plan_step_dependency_set": return "link"
         case "plan_set_walkthrough": return "text.book.closed"
+        case "plan_request_user_input": return "questionmark.bubble"
         case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return "ladybug.fill"
         case "debug_log": return "text.badge.plus"
         case "debug_query": return "text.magnifyingglass"
@@ -46,7 +47,8 @@ struct TaskActivityRow: View {
         case "todo_write", "todo_read": return .secondary
         case "plan_step_update": return .secondary
         case "plan_create", "plan_step_upsert", "plan_step_batch_update",
-             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough":
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+             "plan_request_user_input":
             return DesignSystem.Colors.planColor
         case "plan_read", "plan_history_read", "plan_diff":
             return DesignSystem.Colors.info

@@ -78,6 +78,33 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("invalid status"))
     }
 
+    func testPlanRequestUserInputRejectsInvalidQuestionsPayload() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_request_user_input",
+            args: [
+                "questions": "{\"prompt\":\"Missing array\"}"
+            ]
+        )
+
+        XCTAssertEqual(result.isError, true)
+        XCTAssertTrue(extractText(from: result).contains("questions"))
+    }
+
+    func testPlanRequestUserInputAcceptsStructuredQuestionnaire() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_request_user_input",
+            args: [
+                "title": "Clarify deployment",
+                "phase": "post-analysis",
+                "round": "2",
+                "questions": #"[{"prompt":"Target environment?","options":[{"label":"Production","recommended":true},{"label":"Staging"}]}]"#
+            ]
+        )
+
+        XCTAssertNil(result.isError)
+        XCTAssertTrue(extractText(from: result).contains("queued 1 clarification question"))
+    }
+
     func testPlanDiffReturnsStatusChange() throws {
         let conversationId = UUID().uuidString.lowercased()
         _ = CoderIDEMCPServerApp.handleIDEStateTool(

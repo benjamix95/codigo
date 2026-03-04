@@ -6,6 +6,9 @@ extension TodoStore {
         guard let data = userDefaults.data(forKey: storageKey) else { return }
         do {
             todos = try JSONDecoder().decode([TodoItem].self, from: data)
+            if deduplicateCanonicalTodos() {
+                saveTodos()
+            }
         } catch {
             print("[TodoStore] ⚠️ Failed to decode todos: \(error.localizedDescription)")
         }

@@ -113,8 +113,10 @@ extension ChatPanelView {
         conversationId: UUID,
         shouldRunPlanInline: Bool
     ) async throws {
-        let shouldStartReanalysis = await MainActor.run { () -> Bool in
-            guard self.conversationId == conversationId else { return false }
+        let reanalysisStartContext = await MainActor.run { () -> (shouldStart: Bool, questionEpochBaseline: Int) in
+            guard self.conversationId == conversationId else {
+                return (false, planQuestionToolRequestEpoch)
+            }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
             let reanalysisAssistantMessageId = UUID()
@@ -127,8 +129,10 @@ extension ChatPanelView {
                 assistantMessageId: reanalysisAssistantMessageId,
                 providerId: provider.id
             )
-            return true
+            return (true, planQuestionToolRequestEpoch)
         }
+        let shouldStartReanalysis = reanalysisStartContext.shouldStart
+        let questionToolEpochBaseline = reanalysisStartContext.questionEpochBaseline
         guard shouldStartReanalysis else {
             // Conversation changed before post-clarification reanalysis.
             return
@@ -160,6 +164,20 @@ extension ChatPanelView {
         )
 
         let reAnalysisText = reAnalysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
+        let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
+            guard shouldMutatePlanState(
+                targetConversationId: conversationId,
+                currentConversationId: self.conversationId
+            ) else { return false }
+            guard planQuestionToolRequestEpoch > questionToolEpochBaseline else { return false }
+            if case .awaitingClarification = planningState {
+                return true
+            }
+            return false
+        }
+        if didReceiveToolDrivenQuestionnaire {
+            return
+        }
 
         // Check if the LLM produced more questions or is ready for plan generation
         let classification = PlanOutputClassifier.classify(

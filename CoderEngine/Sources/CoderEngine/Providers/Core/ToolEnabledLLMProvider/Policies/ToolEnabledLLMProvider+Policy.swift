@@ -241,6 +241,7 @@ extension ToolEnabledLLMProvider {
         - **plan_set_walkthrough** — Store walkthrough recap. Args: `markdown`, optional `summary`, `outcome`.
         - **plan_history_read** — Read plan history snapshots. Args: `conversation_id` (optional), `limit` (optional).
         - **plan_diff** — Diff two plan snapshots. Args: `from_snapshot_id`, optional `to_snapshot_id`, `conversation_id`.
+        - **plan_request_user_input** — Request structured clarification questions in the plan panel. Args: `questions` (JSON array), optional `title`, `phase`, `round`, `context`, `conversation_id`.
         - **mermaid_render** — Render a Mermaid diagram in the LiveCard. Args: `code` (Mermaid syntax), `title` (optional).
         - **debug_set_phase** — Set debug pipeline phase. Args: `phase`, `detail` (optional).
         - **debug_request_user** — Request explicit user input in debug flow. Args: `kind` (question/reproduce), `prompt`.

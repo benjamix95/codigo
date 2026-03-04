@@ -2,13 +2,33 @@ import Foundation
 
 extension UnifiedToolRuntime {
     func executeRenameSymbol(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {
-        let query = call.args["query"] ?? ""
-        let newName = call.args["new_name"] ?? ""
+        let query = (call.args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let newName = (call.args["new_name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !newName.isEmpty else {
             return ToolResult(ok: false, payload: ["detail": "Both query and new_name are required"], durationMs: 0)
         }
         let allWorkspacePaths = context.workspaceContext.workspacePaths.map(\.path)
         let primaryWorkspace = allWorkspacePaths.first ?? context.workspaceContext.workspacePath.path
+
+        if let languagePlan = await collectLanguageRenamePlan(
+            query: query,
+            newName: newName,
+            workspacePaths: allWorkspacePaths,
+            primaryWorkspace: primaryWorkspace
+        ) {
+            let applied = applyRename(
+                query: query,
+                newName: newName,
+                files: languagePlan.files
+            )
+            let detail = "Renamed '\(query)' → '\(newName)' in \(applied.replaced) files (\(languagePlan.referenceCount) references) [\(languagePlan.source.rawValue)]"
+            let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+            return ToolResult(ok: applied.errors.isEmpty, payload: [
+                "title": "rename_symbol",
+                "detail": applied.errors.isEmpty ? detail : "\(detail); errors: \(applied.errors.joined(separator: "; "))",
+                "output": detail
+            ], durationMs: ms)
+        }
 
         // Use index to find all references
         var files: [(path: String, line: Int, content: String)] = []
@@ -16,17 +36,10 @@ extension UnifiedToolRuntime {
             let refCall = ToolCall(id: UUID().uuidString, name: "find_references", args: ["query": query], sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope)
             let refResult = await executeIndexTool(name: "find_references", call: refCall, context: context, startDate: startDate)
             if refResult.ok, let output = refResult.payload["output"] {
-                // Parse references output
+                // Parse both classic index format and language-service format.
                 for line in output.components(separatedBy: "\n") {
-                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.isEmpty { continue }
-                    // Format: "file.swift:42: content..."
-                    let parts = trimmed.components(separatedBy: ":")
-                    if parts.count >= 2, let lineNum = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
-                        let filePath = parts[0].trimmingCharacters(in: .whitespaces)
-                        let absPath = (filePath as NSString).isAbsolutePath ? filePath : (primaryWorkspace as NSString).appendingPathComponent(filePath)
-                        files.append((path: absPath, line: lineNum, content: trimmed))
-                    }
+                    guard let parsed = parseReferenceOutputLine(line, primaryWorkspace: primaryWorkspace) else { continue }
+                    files.append((path: parsed.path, line: parsed.line, content: line))
                 }
             }
         }
@@ -45,10 +58,8 @@ extension UnifiedToolRuntime {
             }
             let (output, _, _) = await shellExec(args: [rgPath] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
             for line in output.components(separatedBy: "\n") {
-                let parts = line.components(separatedBy: ":")
-                if parts.count >= 3, let lineNum = Int(parts[1]) {
-                    files.append((path: parts[0], line: lineNum, content: line))
-                }
+                guard let parsed = parseReferenceOutputLine(line, primaryWorkspace: primaryWorkspace) else { continue }
+                files.append((path: parsed.path, line: parsed.line, content: line))
             }
         }
 
@@ -56,7 +67,79 @@ extension UnifiedToolRuntime {
             return ToolResult(ok: false, payload: ["detail": "Symbol '\(query)' not found in codebase"], durationMs: Int(Date().timeIntervalSince(startDate) * 1000))
         }
 
-        // Get unique file paths and perform replacements
+        let applied = applyRename(query: query, newName: newName, files: files)
+
+        let detail = "Renamed '\(query)' → '\(newName)' in \(applied.replaced) files (\(files.count) references)"
+        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
+        return ToolResult(ok: applied.errors.isEmpty, payload: [
+            "title": "rename_symbol",
+            "detail": applied.errors.isEmpty ? detail : "\(detail); errors: \(applied.errors.joined(separator: "; "))",
+            "output": detail
+        ], durationMs: ms)
+    }
+
+    private func collectLanguageRenamePlan(
+        query: String,
+        newName: String,
+        workspacePaths: [String],
+        primaryWorkspace: String
+    ) async -> (files: [(path: String, line: Int, content: String)], referenceCount: Int, source: RuntimeLanguageSource)? {
+        guard let languageService else { return nil }
+        do {
+            let renamePlan = try await languageService.rename(oldName: query, newName: newName)
+            guard !renamePlan.references.isEmpty else { return nil }
+            let files = renamePlan.references.map { reference in
+                let path = resolveLanguageLocationPath(
+                    reference.filePath,
+                    workspacePaths: workspacePaths,
+                    primaryWorkspace: primaryWorkspace
+                )
+                let content = "\(path):\(reference.line): \(reference.symbolName)"
+                return (path: path, line: reference.line, content: content)
+            }
+            return (files: files, referenceCount: renamePlan.references.count, source: renamePlan.source)
+        } catch {
+            return nil
+        }
+    }
+
+    private func parseReferenceOutputLine(
+        _ line: String,
+        primaryWorkspace: String
+    ) -> (path: String, line: Int)? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        // Supported formats:
+        // - "Sources/Foo.swift:42: matched text"
+        // - "Sources/Foo.swift:42 — SymbolName"
+        // - "/abs/path/Foo.swift:42:7 — SymbolName"
+        let pattern = #"^(.+):([0-9]+)(?::[0-9]+)?(?:\s*(?:[:—-]).*)?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = regex.firstMatch(in: trimmed, range: range), match.numberOfRanges >= 3 else {
+            return nil
+        }
+
+        guard let pathRange = Range(match.range(at: 1), in: trimmed),
+              let lineRange = Range(match.range(at: 2), in: trimmed),
+              let lineNumber = Int(trimmed[lineRange]) else {
+            return nil
+        }
+
+        let filePath = String(trimmed[pathRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !filePath.isEmpty else { return nil }
+        let absolutePath = (filePath as NSString).isAbsolutePath
+            ? filePath
+            : (primaryWorkspace as NSString).appendingPathComponent(filePath)
+        return (path: absolutePath, line: lineNumber)
+    }
+
+    private func applyRename(
+        query: String,
+        newName: String,
+        files: [(path: String, line: Int, content: String)]
+    ) -> (replaced: Int, errors: [String]) {
         let uniquePaths = Set(files.map { $0.path })
         var replaced = 0
         var errors: [String] = []
@@ -66,7 +149,6 @@ extension UnifiedToolRuntime {
             do {
                 var content = try String(contentsOfFile: filePath, encoding: .utf8)
                 let originalContent = content
-                // Use word-boundary regex to avoid replacing inside strings, comments, or unrelated identifiers
                 let escapedQuery = NSRegularExpression.escapedPattern(for: query)
                 let wordBoundaryPattern = "\\b\(escapedQuery)\\b"
                 if let regex = try? NSRegularExpression(pattern: wordBoundaryPattern) {
@@ -85,13 +167,7 @@ extension UnifiedToolRuntime {
             }
         }
 
-        let detail = "Renamed '\(query)' → '\(newName)' in \(replaced) files (\(files.count) references)"
-        let ms = Int(Date().timeIntervalSince(startDate) * 1000)
-        return ToolResult(ok: errors.isEmpty, payload: [
-            "title": "rename_symbol",
-            "detail": errors.isEmpty ? detail : "\(detail); errors: \(errors.joined(separator: "; "))",
-            "output": detail
-        ], durationMs: ms)
+        return (replaced: replaced, errors: errors)
     }
 
     func executeFindAndReplaceAll(call: ToolCall, context: ToolExecutionContext, startDate: Date) async -> ToolResult {

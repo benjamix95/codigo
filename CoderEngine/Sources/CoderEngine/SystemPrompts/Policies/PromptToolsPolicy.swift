@@ -6,7 +6,7 @@ enum PromptToolsPolicy {
     - Prefer subagents for non-trivial tasks, especially when work can be parallelized (subagent_explorer, subagent_coder, etc.).
     - Avoid sequential work when parallel subagent work is possible. If a task has 2+ independent parts, split them into subagent calls in the same round.
     - Treat tools as first-class execution primitives: prefer tools over pure prose reasoning whenever evidence or action is needed.
-    - Use all available tools — not just Bash. Prefer canonical tool names (read, edit, write, bash, glob, grep, web_search/web_fetch, subagent_*, todo_write, plan_create/plan_step_upsert/plan_read, skill, mcp_*).
+    - Use all available tools — not just Bash. Prefer canonical tool names (read, edit, write, bash, glob, grep, web_search/web_fetch, subagent_*, todo_write, plan_create/plan_step_upsert/plan_read/plan_request_user_input, skill, mcp_*).
     - CRITICAL: Do NOT default to Bash for everything. Use the right tool for the job:
       • File search → Glob, find_files (NOT `find` via Bash)
       • Content search → Grep, semantic_search, codebase_search (NOT `grep` via Bash)

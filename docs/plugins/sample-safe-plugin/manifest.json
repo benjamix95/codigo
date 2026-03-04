@@ -1,0 +1,9 @@
+{
+  "id": "sample.safe.tools",
+  "name": "Sample Safe Tools Plugin",
+  "version": "0.1.0",
+  "entryPoint": "plugin.js",
+  "capabilities": ["read", "web", "git"],
+  "exposedTools": ["sample.echo.safe", "sample.web.ping"],
+  "minimumIDEVersion": "1.0.0"
+}

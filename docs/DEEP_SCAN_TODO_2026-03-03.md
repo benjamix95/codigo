@@ -84,15 +84,15 @@
 - [x] I08 supportare opzione `semantic_search` strict-scope (no grep outside scope)
 - [x] I09 aggiungere test proprietà (property-based) per parser grep output
 - [x] I10 aggiungere fuzz test su `parseSearchQueryFromCommand`
-- [ ] I11 aggiungere snapshot test UI per cards instantgrep deduplicate
+- [x] I11 aggiungere snapshot test UI per cards instantgrep deduplicate
 - [x] I12 introdurre cap configurabile per `instantGreps` nel TaskActivityStore
-- [ ] I13 introdurre `IndexingTransaction` con rollback status/state centralizzato
+- [x] I13 introdurre `IndexingTransaction` con rollback status/state centralizzato
 - [x] I14 aggiungere circuit breaker su fallback grep in repository enormi
 - [x] I15 aggiungere timeout dinamico grep in base a dimensione/scope workspace
 - [x] I16 aggiungere cancellazione cooperativa in `buildIndex` batch loop
 - [x] I17 aggiungere metriche di drift tra `matchesCount` provider e parsed preview
 - [x] I18 normalizzare output detail semantic in etichette localizzabili
-- [ ] I19 ridurre I/O sync su `incrementalUpdate` con pipeline chunked async
+- [x] I19 ridurre I/O sync su `incrementalUpdate` con pipeline chunked async
 - [x] I20 estendere integration tests multi-root con `.gitignore` per-root
 - [x] I21 aggiungere test regressione su reorder deterministico `persist` semantic JSONL
 - [x] I22 aggiungere logging strutturato per queue flush realtime (batch size, duration, queue age)

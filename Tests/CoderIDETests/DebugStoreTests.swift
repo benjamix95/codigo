@@ -118,5 +118,20 @@ final class DebugStoreTests: XCTestCase {
 
         XCTAssertEqual(store.runtimeLogs.last?.runId, "incoming-run")
     }
-}
 
+    func testNativeDebugFeatureFlagsDisabilitanoSessioneConFallbackSafe() {
+        let configuration = DebugServiceConfiguration(
+            debugServiceEnabled: false,
+            debugDAPLLDBEnabled: true
+        )
+        let store = DebugStore(nativeDebugConfiguration: configuration)
+
+        store.startNativeDebugSession(targetPath: "/bin/ls")
+
+        XCTAssertEqual(store.nativeSession.status, .idle)
+        XCTAssertEqual(store.nativeSession.adapter, "native-debug-disabled")
+        XCTAssertTrue(store.nativeSession.callStack.isEmpty)
+        XCTAssertTrue(store.nativeSession.watchVariables.isEmpty)
+        XCTAssertTrue(store.nativeSession.lastError?.contains("debug_service_enabled") ?? false)
+    }
+}

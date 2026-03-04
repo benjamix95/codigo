@@ -139,7 +139,7 @@ extension ToolEnabledLLMProvider {
         case "policy_ack", "todo_read", "todo_write", "plan_step",
              "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
              "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-             "plan_history_read", "plan_diff":
+             "plan_history_read", "plan_diff", "plan_request_user_input":
             return false
         case "tool_call":
             let toolName = inferredToolName(from: marker.payload)
@@ -147,7 +147,7 @@ extension ToolEnabledLLMProvider {
                 "todo_read", "todo_write", "plan_step_update", "mermaid_render",
                 "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
                 "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-                "plan_history_read", "plan_diff",
+                "plan_history_read", "plan_diff", "plan_request_user_input",
                 "debug_set_phase", "debug_request_user", "debug_resolve",
                 "policy_ack", "activate_plan_mode", "activate_debug_mode",
                 "show_task_panel", "invoke_swarm", "show_swarm_panel",
@@ -175,7 +175,7 @@ extension ToolEnabledLLMProvider {
             "todo_read", "todo_write", "plan_step_update", "context_compacted",
             "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-            "plan_history_read", "plan_diff",
+            "plan_history_read", "plan_diff", "plan_request_user_input",
             "debug_phase_update", "debug_user_request", "debug_resolved",
             "activate_plan_mode", "activate_debug_mode",
             "coderide_show_task_panel", "coderide_invoke_swarm", "coderide_show_swarm_panel",

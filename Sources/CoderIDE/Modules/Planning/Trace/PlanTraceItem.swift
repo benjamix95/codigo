@@ -100,6 +100,7 @@ private extension PlanTraceItem {
         case "plan_set_walkthrough": return "Plan walkthrough updated"
         case "plan_history_read": return "Plan history read"
         case "plan_diff": return "Plan diff computed"
+        case "plan_request_user_input": return "Plan clarification requested"
         case "debug_phase_update": return "Debug phase"
         case "debug_user_request": return "Debug user request"
         case "debug_resolved": return "Debug resolved"
@@ -157,7 +158,8 @@ private extension PlanTraceItem {
         case "web_search_failed", "web_fetch_failed":
             return .failed
         case "read_batch_completed", "web_search_completed", "web_fetch_completed", "process_resumed",
-             "debug_clean", "plan_read", "plan_history_read", "plan_diff":
+             "debug_clean", "plan_read", "plan_history_read", "plan_diff",
+             "plan_request_user_input":
             return .completed
         default:
             return activity.isRunning ? .running : .completed
@@ -180,6 +182,7 @@ private extension PlanTraceItem {
         case "plan_step_reorder": return "arrow.up.arrow.down"
         case "plan_step_dependency_set": return "link"
         case "plan_set_walkthrough": return "text.book.closed"
+        case "plan_request_user_input": return "questionmark.bubble"
         case "debug_phase_update", "debug_user_request", "debug_resolved", "debug_hypothesize": return "ladybug.fill"
         case "debug_log": return "text.badge.plus"
         case "debug_query": return "text.magnifyingglass"
@@ -204,7 +207,8 @@ private extension PlanTraceItem {
         case "process_paused": return DesignSystem.Colors.warning
         case "process_resumed": return DesignSystem.Colors.success
         case "plan_step_update", "plan_create", "plan_step_upsert", "plan_step_batch_update",
-             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough":
+             "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
+             "plan_request_user_input":
             return DesignSystem.Colors.planColor
         case "plan_read", "plan_history_read", "plan_diff":
             return DesignSystem.Colors.info

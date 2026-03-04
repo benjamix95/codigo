@@ -42,6 +42,7 @@ extension TaskActivityStore {
         "plan_set_walkthrough",
         "plan_history_read",
         "plan_diff",
+        "plan_request_user_input",
         "planning_auto_reset",
         "activate_plan_mode",
         "activate_debug_mode",

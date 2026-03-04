@@ -110,6 +110,8 @@ struct ChatPanelView: View {
     @State  var planClarificationAnswers: String = ""
     @State  var planClarificationCycles: Int = 0
     @State  var planStreamingContent: String = ""
+    /// Incremented whenever plan_request_user_input emits a new clarification round.
+    @State  var planQuestionToolRequestEpoch: Int = 0
     @State  var planShouldRunInline: Bool = false
     @State  var activeBuildPlanConversationId: UUID?
     @State  var activeBuildAgentConversationId: UUID?

@@ -13,7 +13,10 @@ extension ProviderFactory {
         terminalBridge: (any TerminalBridge)? = nil,
         browserBridge: (any BrowserBridge)? = nil
     ) -> UnifiedToolRuntime {
-        UnifiedToolRuntime(
+        let languageRuntimeBridge: (any RuntimeLanguageService)? = codebaseIndex.map {
+            LanguageServiceRuntimeBridge(service: LanguageService(codebaseIndex: $0))
+        }
+        return UnifiedToolRuntime(
             executionController: executionController,
             executionScope: executionScope,
             index: codebaseIndex,
@@ -21,7 +24,8 @@ extension ProviderFactory {
             webSearchProvider: webSearchProvider,
             webSearchApiKeys: webSearchApiKeys,
             terminalBridge: terminalBridge,
-            browserBridge: browserBridge
+            browserBridge: browserBridge,
+            languageService: languageRuntimeBridge
         )
     }
 }

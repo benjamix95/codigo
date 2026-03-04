@@ -13,8 +13,10 @@ extension ChatPanelView {
         // ========================
         // PHASE 3: Plan Generation
         // ========================
-        let shouldStartPhase3 = await MainActor.run { () -> Bool in
-            guard self.conversationId == conversationId else { return false }
+        let phase3StartContext = await MainActor.run { () -> (shouldStart: Bool, questionEpochBaseline: Int) in
+            guard self.conversationId == conversationId else {
+                return (false, planQuestionToolRequestEpoch)
+            }
             planFlowPhase = .generating
             let generationAssistantMessageId = UUID()
             chatStore.addMessage(
@@ -31,8 +33,10 @@ extension ChatPanelView {
                 in: conversationId,
                 persistImmediately: true
             )
-            return true
+            return (true, planQuestionToolRequestEpoch)
         }
+        let shouldStartPhase3 = phase3StartContext.shouldStart
+        let questionToolEpochBaseline = phase3StartContext.questionEpochBaseline
         guard shouldStartPhase3 else {
             // Conversation changed before Phase 3.
             return
@@ -67,6 +71,23 @@ extension ChatPanelView {
             let strict = PlanOptionsParser.parseStrict(from: text)
             if !strict.isEmpty { return strict }
             return PlanOptionsParser.parse(from: text)
+        }
+
+        let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
+            guard shouldMutatePlanState(
+                targetConversationId: conversationId,
+                currentConversationId: self.conversationId
+            ) else { return false }
+            guard planQuestionToolRequestEpoch > questionToolEpochBaseline else { return false }
+            if case .awaitingClarification = planningState {
+                return true
+            }
+            return false
+        }
+        if didReceiveToolDrivenQuestionnaire {
+            clearStreamingReasoning(for: conversationId)
+            finalizeToolTraceTurn(conversationId: conversationId, outcome: .success)
+            return
         }
 
         func areAllOptionsTodoCompliant(_ options: [PlanOption]) -> Bool {

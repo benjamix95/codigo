@@ -94,7 +94,7 @@ func buildPlanClarificationPrompt(_ submission: PlanClarificationSubmission) -> 
     \(finalNoteLine)
 
     After these answers, run additional codebase analysis using the selected constraints.
-    If new ambiguities appear, you may ask follow-up questions again using ## Questions.
+    If new ambiguities appear, ask follow-up questions using `plan_request_user_input`.
     Propose the definitive plan (## Plan: Title + ## Todo) only when you are fully confident.
     """
 }

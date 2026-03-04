@@ -113,6 +113,7 @@ extension ProviderToolEventMapper {
         "plan_set_walkthrough": .ideState,
         "plan_history_read": .ideState,
         "plan_diff": .ideState,
+        "plan_request_user_input": .ideState,
     ]
 
     static func map(

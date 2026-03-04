@@ -130,6 +130,47 @@ final class LLDBDAPDebugAdapterTests: XCTestCase {
         XCTAssertEqual(refreshState.status, .stopped)
         XCTAssertEqual(callCountBeforeRefresh, callCountAfterRefresh)
     }
+
+    func testPersistentSessionMantieneLoStatoTraStartEStep() async {
+        let session = LLDBPersistentSessionSpy(
+            queuedOutputs: [
+                """
+                Process 808 stopped
+                * thread #1, stop reason = breakpoint 1.1
+                frame #0: 0x1 Demo`main at Sources/Main.swift:10
+                """,
+                """
+                Process 808 stopped
+                * thread #1, stop reason = step over
+                frame #0: 0x2 Demo`next at Sources/Main.swift:11
+                """
+            ]
+        )
+        let adapter = LLDBDAPDebugAdapter(sessionFactory: {
+            session
+        })
+
+        _ = await adapter.startSession(
+            targetPath: "/bin/ls",
+            arguments: ["-l"],
+            breakpoints: [DebugBreakpoint(filePath: "Sources/Main.swift", line: 10)],
+            watchExpressions: ["counter"]
+        )
+        let step = await adapter.step(command: "thread step-over")
+
+        XCTAssertEqual(step.status, .paused)
+        XCTAssertEqual(step.lastCommand, "thread step-over")
+
+        let firstInvocation = await session.invocation(at: 0)
+        XCTAssertTrue(firstInvocation.contains(where: { $0.contains("target create") }))
+        XCTAssertTrue(firstInvocation.contains("process launch --stop-at-entry"))
+        XCTAssertTrue(firstInvocation.contains("process status"))
+
+        let secondInvocation = await session.invocation(at: 1)
+        XCTAssertFalse(secondInvocation.contains(where: { $0.contains("target create") }))
+        XCTAssertTrue(secondInvocation.contains("thread step-over"))
+        XCTAssertTrue(secondInvocation.contains("process status"))
+    }
 }
 
 private actor LLDBBatchRunnerSpy {
@@ -154,5 +195,31 @@ private actor LLDBBatchRunnerSpy {
 
     func invocationCount() -> Int {
         invocations.count
+    }
+}
+
+private actor LLDBPersistentSessionSpy: LLDBCommandSession {
+    private var queuedOutputs: [String]
+    private var invocations: [[String]] = []
+    private(set) var closeCalls = 0
+
+    init(queuedOutputs: [String]) {
+        self.queuedOutputs = queuedOutputs
+    }
+
+    func send(commands: [String]) async throws -> String {
+        invocations.append(commands)
+        if queuedOutputs.isEmpty {
+            return ""
+        }
+        return queuedOutputs.removeFirst()
+    }
+
+    func close() async {
+        closeCalls += 1
+    }
+
+    func invocation(at index: Int) -> [String] {
+        invocations[index]
     }
 }

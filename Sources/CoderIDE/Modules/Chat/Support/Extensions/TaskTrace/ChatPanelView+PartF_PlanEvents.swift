@@ -163,6 +163,51 @@ extension ChatPanelView {
             fallbackConversationId: fallbackConversationId
         )
     }
+
+    @MainActor
+    internal func handlePlanRequestUserInputEvent(
+        _ payload: PlanRequestUserInputPayload,
+        fallbackConversationId: UUID?
+    ) {
+        enableTaskPanelIfNeeded()
+
+        guard let targetConversationId = resolvePlanMutationConversationId(
+            rawConversationId: payload.conversationId,
+            fallbackConversationId: fallbackConversationId
+        ) else {
+            return
+        }
+
+        guard shouldMutatePlanState(
+            targetConversationId: targetConversationId,
+            currentConversationId: self.conversationId
+        ) else {
+            return
+        }
+
+        let questionsMarkdown = PlanClarificationQuestionnaireMarkdown.render(
+            questionnaire: payload.questionnaire
+        )
+        planClarificationCycles += 1
+        planQuestionToolRequestEpoch += 1
+        planFlowPhase = .questioning
+        planningState = .awaitingClarification(questions: questionsMarkdown)
+        updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
+
+        chatStore.updateLastAssistantMessage(
+            content: "Questions ready — answer in the plan panel.",
+            in: targetConversationId,
+            persistImmediately: true
+        )
+        chatStore.setLastAssistantStreaming(false, in: targetConversationId)
+
+        if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
+            openPlanPanelForCurrentContext(
+                preserveHistorySelection: false,
+                source: .automaticFlow
+            )
+        }
+    }
 }
 
 private extension ChatPanelView {

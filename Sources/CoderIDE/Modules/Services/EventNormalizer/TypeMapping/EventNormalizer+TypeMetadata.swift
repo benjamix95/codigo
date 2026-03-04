@@ -83,6 +83,8 @@ extension EventNormalizer {
             return "Plan history read"
         case "plan_diff":
             return "Plan diff computed"
+        case "plan_request_user_input":
+            return "Plan clarification requested"
         default:
             return type
         }

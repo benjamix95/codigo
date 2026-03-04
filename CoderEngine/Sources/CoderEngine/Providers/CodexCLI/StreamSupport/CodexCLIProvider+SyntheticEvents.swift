@@ -107,6 +107,21 @@ extension CodexCLIProvider {
             guard !planPayload.isEmpty else { return [] }
             return [("plan_diff", planPayload)]
 
+        case "plan_request_user_input":
+            var planPayload: [String: String] = [:]
+            if let questions = jsonStringArgument(in: arguments, keys: ["questions"]) {
+                planPayload["questions"] = questions
+            }
+            if let title = firstString(in: arguments, keys: ["title"]) { planPayload["title"] = title }
+            if let phase = firstString(in: arguments, keys: ["phase"]) { planPayload["phase"] = phase }
+            if let round = firstString(in: arguments, keys: ["round"]) { planPayload["round"] = round }
+            if let context = firstString(in: arguments, keys: ["context"]) { planPayload["context"] = context }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) {
+                planPayload["conversation_id"] = conversationId
+            }
+            guard !planPayload.isEmpty else { return [] }
+            return [("plan_request_user_input", planPayload)]
+
         case "todo_write":
             var todoPayload: [String: String] = [:]
             // Batch: "todos" is a JSON array string

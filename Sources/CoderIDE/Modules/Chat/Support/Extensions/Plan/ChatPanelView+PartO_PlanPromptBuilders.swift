@@ -69,17 +69,13 @@ extension ChatPanelView {
         1. Use Read, Glob, and Grep to explore specific files relevant based on the user's answers.
         2. Deep-dive into the areas indicated by the user's choices.
         3. Ask follow-up questions ONLY if there is a hard blocker. Otherwise continue without questions.
-        4. If blocked, generate at most ONE additional question set using the format:
-
-        ## Questions
-        1. Question?
-        A) Option A
-        B) Option B
-        C) Other (specify)
-
-        5. If you have sufficient information, provide an analysis report without questions.
-        6. Do NOT generate ## Plan, ## Todo or plan proposals in this phase.
-        7. Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
+        4. If blocked, call `plan_request_user_input` with a structured `questions` JSON array (1-3 questions, 2-4 options each).
+           Example shape:
+           {"questions":"[{\\"prompt\\":\\"Question?\\",\\"options\\":[{\\"label\\":\\"Option A\\",\\"recommended\\":true},{\\"label\\":\\"Option B\\"},{\\"label\\":\\"Other\\",\\"description\\":\\"Specify custom answer\\"}]}]","phase":"post_analysis"}
+        5. After calling `plan_request_user_input`, reply with a short confirmation sentence only (no markdown question blocks).
+        6. If you have sufficient information, provide an analysis report without questions.
+        7. Do NOT generate ## Plan, ## Todo or plan proposals in this phase.
+        8. Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers.
         """
     }
 
@@ -97,28 +93,21 @@ extension ChatPanelView {
         Instructions:
         - If you can proceed with reasonable assumptions, respond ONLY with: NO_QUESTIONS_NEEDED
         - Ask questions ONLY when blocked by missing requirements or conflicting constraints.
-        - If blocked, generate 1-3 structured questions in this EXACT format:
-
-        ## Questions
-        1. Question text?
-        A) First concrete option
-        B) Second concrete option
-        C) Third option (optional, only if useful)
-        D) Other (specify)
-
-        2. Second question?
-        A) First option
-        B) Second option
+        - If blocked, call `plan_request_user_input` with 1-3 structured questions.
+          Each question must have:
+          * `prompt` (string)
+          * `options` (2-4 items, each with `label`, optional `description`, optional `recommended`)
+          * optional `multi_select` true when multiple answers are valid
+        - After calling the tool, respond with a short confirmation sentence only.
 
         STRICT rules for questions:
         - Minimum 1, maximum 3 questions
-        - Each question MUST have 2-4 options labeled A) B) C) D)
+        - Each question MUST have 2-4 concrete, mutually exclusive options
         - Options must be mutually exclusive and concrete (not vague)
-        - Include "D) Other (specify)" ONLY for genuinely open-ended questions
-        - The header MUST be exactly "## Questions" (no localized alternatives)
-        - Do NOT include ## Plan, ## Todo or plan proposals
+        - Include an "Other/specify" option ONLY for genuinely open-ended questions
+        - Do NOT output markdown `## Questions` blocks when using the tool
+        - Do NOT include ## Plan, ## Todo, or plan proposals in this phase
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
-        - The format must be EXACTLY as above: number + text + options A) B) C) on separate lines
         """
     }
 
@@ -166,7 +155,7 @@ extension ChatPanelView {
         - Under `## Todo`, include 3-8 checklist items using `- [ ] ...`.
         - Do NOT use alternative headers like "Tasks", "Steps", or "Checklist".
         - Steps must be concrete and directly implementable.
-        - If you discover critical ambiguities that could lead to an incorrect plan, include a `## Clarifications Needed` section BEFORE the `## Todo` section listing what you need clarified. Otherwise, generate the plan directly.
+        - If you discover critical ambiguities that could lead to an incorrect plan, call `plan_request_user_input` with structured questions and stop generation (no plan output in that response).
         - Do NOT emit \(CoderIDEMarkers.todoWritePrefix) or \(CoderIDEMarkers.todoRead) markers
         - During execution, prefer MCP plan tools flow:
           `plan_create` once, then `plan_step_upsert`/`plan_step_batch_update`, and finalize with `plan_set_walkthrough`.

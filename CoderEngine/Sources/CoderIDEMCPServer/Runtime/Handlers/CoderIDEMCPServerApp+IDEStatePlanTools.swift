@@ -25,6 +25,8 @@ extension CoderIDEMCPServerApp {
             return handlePlanHistoryRead(args: args)
         case "plan_diff":
             return handlePlanDiff(args: args)
+        case "plan_request_user_input":
+            return handlePlanRequestUserInput(args: args)
         default:
             return nil
         }

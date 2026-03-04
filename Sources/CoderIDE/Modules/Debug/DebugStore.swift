@@ -83,5 +83,23 @@ final class DebugStore: ObservableObject {
 
     static let maxFixLoopIterations = 5
 
-    let nativeDebugService = DebugService()
+    let nativeDebugConfiguration: DebugServiceConfiguration
+    let nativeDebugService: DebugService
+
+    var isNativeDebugEnabled: Bool {
+        nativeDebugConfiguration.nativeDebuggerEnabled
+    }
+
+    var nativeDebugDisabledReason: String? {
+        nativeDebugConfiguration.disabledReason
+    }
+
+    init(
+        nativeDebugConfiguration: DebugServiceConfiguration = .load(),
+        nativeDebugService: DebugService? = nil
+    ) {
+        self.nativeDebugConfiguration = nativeDebugConfiguration
+        self.nativeDebugService = nativeDebugService
+            ?? DebugService(configuration: nativeDebugConfiguration)
+    }
 }

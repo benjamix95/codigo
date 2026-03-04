@@ -79,7 +79,7 @@ extension CodexCLIProvider {
                 events: &events
             )
             // Emit synthetic IDE-state events when an MCP tool call targets
-            // coderide_todo_write / coderide_todo_read / coderide_plan_step_update.
+            // coderide_todo_write / coderide_todo_read / coderide_plan_* tools.
             // The MCP tool call event is kept for activity display; the synthetic
             // event feeds the EventNormalizer → TodoStore / PlanBoard pipeline.
             if rawEvent.type == "mcp_tool_call" {

@@ -92,6 +92,15 @@ struct PlanStepBatchUpdateItemPayload {
     let notes: String?
 }
 
+struct PlanRequestUserInputPayload {
+    let questionnaire: PlanClarificationQuestionnaire
+    let title: String?
+    let phase: String?
+    let round: Int?
+    let context: String?
+    let conversationId: String?
+}
+
 enum NormalizedEvent {
     case taskActivity(TaskActivity)
     case instantGrep(InstantGrepResult)
@@ -107,6 +116,7 @@ enum NormalizedEvent {
     case planSetWalkthrough(markdown: String, summary: String?, outcome: String, conversationId: String?)
     case planHistoryRead(conversationId: String?, limit: Int?)
     case planDiff(fromSnapshotId: String, toSnapshotId: String?, conversationId: String?)
+    case planRequestUserInput(PlanRequestUserInputPayload)
     case debugPhaseUpdate(phase: DebugFlowPhase, detail: String?)
     case debugUserRequest(kind: String, prompt: String)
     case debugResolved(summary: String)
