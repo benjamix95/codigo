@@ -89,11 +89,8 @@ extension SidebarView {
     }
 
     func syncActiveWorkspaceIfNeeded(contextId: UUID?) {
-        guard let contextId else { return }
-        let newId: UUID? = workspaceStore.workspaces.contains(where: { $0.id == contextId }) ? contextId : nil
-        guard workspaceStore.activeWorkspaceId != newId else { return }
-        workspaceStore.activeWorkspaceId = newId
-        workspaceStore.save()
+        let context = contextId.flatMap { projectContextStore.context(id: $0) }
+        workspaceStore.syncActiveWorkspace(with: context)
     }
 
     func clearConversationContext() {

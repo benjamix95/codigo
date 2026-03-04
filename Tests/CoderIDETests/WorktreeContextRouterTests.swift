@@ -53,7 +53,8 @@ final class WorktreeContextRouterTests: XCTestCase {
         let context = try XCTUnwrap(projectContextStore.context(id: contextId))
         XCTAssertEqual(context.folderPaths, [tempDirURL.path])
         XCTAssertEqual(projectContextStore.activeContextId, contextId)
-        XCTAssertNil(workspaceStore.activeWorkspaceId)
+        XCTAssertEqual(workspaceStore.activeWorkspaceId, contextId)
+        XCTAssertEqual(workspaceStore.workspaces.first(where: { $0.id == contextId })?.folderPaths, [tempDirURL.path])
     }
 
     private func clearContextPersistence() {

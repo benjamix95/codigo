@@ -76,12 +76,7 @@ extension CodigoApp {
     private func openContextById(_ contextId: UUID) {
         projectContextStore.activeContextId = contextId
         projectContextStore.markAsRecentlyUsed(contextId: contextId)
-
-        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
-            workspaceStore.setActive(id: contextId)
-        } else {
-            workspaceStore.setActive(id: nil)
-        }
+        workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
     }
 
     private func recentMenuTitle(for context: ProjectContext) -> String {

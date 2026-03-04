@@ -27,13 +27,7 @@ enum WorktreeContextRouter {
 
         chatStore.setContext(conversationId: conversationId, contextId: contextId)
         projectContextStore.activeContextId = contextId
-
-        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
-            workspaceStore.activeWorkspaceId = contextId
-        } else {
-            workspaceStore.activeWorkspaceId = nil
-        }
-        workspaceStore.save()
+        workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
     }
 
     private static func normalized(_ path: String) -> String {

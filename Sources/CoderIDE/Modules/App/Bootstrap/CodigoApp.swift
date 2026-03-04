@@ -99,6 +99,7 @@ struct CodigoApp: App {
                     Task { @MainActor in
                         FontPreferences.registerBundledFonts()
                         projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+                        workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
                         chatStore.migrateLegacyContextsIfNeeded(
                             contextStore: projectContextStore, workspaceStore: workspaceStore)
                         chatStore.backfillPlanAttachmentsIfNeeded(historyStore: planHistoryStore)

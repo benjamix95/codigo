@@ -15,12 +15,7 @@ extension ContentView {
         projectContextStore.activeContextId = contextId
         projectContextStore.markAsRecentlyUsed(contextId: contextId)
         preferActiveContextForGlobalThread = true
-        if workspaceStore.workspaces.contains(where: { $0.id == contextId }) {
-            workspaceStore.activeWorkspaceId = contextId
-        } else {
-            workspaceStore.activeWorkspaceId = nil
-        }
-        workspaceStore.save()
+        workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
         let ctx = projectContextStore.context(id: contextId)
         let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
         if let selectedId = selectedConversationId,
