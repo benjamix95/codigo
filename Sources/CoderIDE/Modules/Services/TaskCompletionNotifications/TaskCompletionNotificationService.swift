@@ -16,6 +16,18 @@ protocol UserNotificationCenterAdapter {
     func add(_ request: UNNotificationRequest) async throws
 }
 
+final class DisabledUserNotificationCenterAdapter: UserNotificationCenterAdapter {
+    func authorizationStatus() async -> TaskCompletionNotificationAuthorizationStatus {
+        .denied
+    }
+
+    func requestAuthorization(options _: UNAuthorizationOptions) async -> Bool {
+        false
+    }
+
+    func add(_ request: UNNotificationRequest) async throws {}
+}
+
 final class UNUserNotificationCenterAdapter: UserNotificationCenterAdapter {
     private let center: UNUserNotificationCenter
 
@@ -75,8 +87,8 @@ actor TaskCompletionNotificationService {
     private let centerAdapter: any UserNotificationCenterAdapter
     private var deliveredAssistantMessageIds: Set<UUID> = []
 
-    init(centerAdapter: any UserNotificationCenterAdapter = UNUserNotificationCenterAdapter()) {
-        self.centerAdapter = centerAdapter
+    init(centerAdapter: (any UserNotificationCenterAdapter)? = nil) {
+        self.centerAdapter = centerAdapter ?? Self.makeDefaultCenterAdapter()
     }
 
     func deliver(payload: TaskCompletionNotificationPayload) async {
@@ -112,6 +124,23 @@ actor TaskCompletionNotificationService {
 
     static func requestIdentifier(for assistantMessageId: UUID) -> String {
         "coderide.task-completion.\(assistantMessageId.uuidString)"
+    }
+
+    private static func makeDefaultCenterAdapter() -> any UserNotificationCenterAdapter {
+        guard isUserNotificationEnvironmentSupported() else {
+            NSLog("[TaskCompletionNotificationService] notifications disabled: invalid app bundle metadata")
+            return DisabledUserNotificationCenterAdapter()
+        }
+        return UNUserNotificationCenterAdapter()
+    }
+
+    private static func isUserNotificationEnvironmentSupported() -> Bool {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !bundleIdentifier.isEmpty
+        else {
+            return false
+        }
+        return Bundle.main.bundleURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame
     }
 
     private func canDeliverNotification() async -> Bool {
