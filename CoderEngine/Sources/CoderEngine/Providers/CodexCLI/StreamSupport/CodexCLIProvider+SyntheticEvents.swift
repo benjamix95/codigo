@@ -22,8 +22,28 @@ extension CodexCLIProvider {
             arguments: arguments,
             normalizedTool: normalizedTool
         )
+        let normalizedStatus = (metadata["status"] ?? payload["status"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let isFailureStatus = isFailureMCPToolStatus(normalizedStatus)
         func wrapped(_ type: String, _ payload: [String: String]) -> (type: String, payload: [String: String]) {
             (type, mergeSyntheticPayload(payload, metadata: metadata))
+        }
+        func failedToolCallEvent(for toolName: String) -> [(type: String, payload: [String: String])] {
+            let detail = (
+                payload["stderr"]
+                ?? payload["error"]
+                ?? payload["output"]
+                ?? payload["detail"]
+                ?? "MCP tool call failed"
+            )
+            return [wrapped("tool_validation_error", [
+                "title": "\(toolName) failed",
+                "detail": detail,
+                "status": "failed",
+                "error_code": "mcp_tool_call_failed",
+                "tool": toolName,
+            ])]
         }
 
         switch normalizedTool {
@@ -35,6 +55,7 @@ extension CodexCLIProvider {
             if let stepsJson = jsonStringArgument(in: arguments, keys: ["steps"]) {
                 planPayload["steps"] = stepsJson
             }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_create") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_create", planPayload)]
 
@@ -43,6 +64,7 @@ extension CodexCLIProvider {
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             if let includeHistory = firstString(in: arguments, keys: ["include_history"]) { planPayload["include_history"] = includeHistory }
             if let historyLimit = firstString(in: arguments, keys: ["history_limit"]) { planPayload["history_limit"] = historyLimit }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_read") }
             return [wrapped("plan_read", planPayload)]
 
         case "plan_step_upsert":
@@ -60,6 +82,7 @@ extension CodexCLIProvider {
             if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on", "dependsOn"]) {
                 planPayload["depends_on"] = dependsOn
             }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_step_upsert") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_upsert", planPayload)]
 
@@ -69,6 +92,7 @@ extension CodexCLIProvider {
                 planPayload["updates"] = updates
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_step_batch_update") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_batch_update", planPayload)]
 
@@ -78,6 +102,7 @@ extension CodexCLIProvider {
                 planPayload["ordered_step_ids"] = ordered
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_step_reorder") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_reorder", planPayload)]
 
@@ -88,6 +113,7 @@ extension CodexCLIProvider {
                 planPayload["depends_on"] = dependsOn
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_step_dependency_set") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_dependency_set", planPayload)]
 
@@ -97,6 +123,7 @@ extension CodexCLIProvider {
             if let summary = firstString(in: arguments, keys: ["summary"]) { planPayload["summary"] = summary }
             if let outcome = firstString(in: arguments, keys: ["outcome"]) { planPayload["outcome"] = outcome }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_set_walkthrough") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_set_walkthrough", planPayload)]
 
@@ -104,6 +131,7 @@ extension CodexCLIProvider {
             var planPayload: [String: String] = [:]
             if let limit = firstString(in: arguments, keys: ["limit"]) { planPayload["limit"] = limit }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_history_read") }
             return [wrapped("plan_history_read", planPayload)]
 
         case "plan_diff":
@@ -111,6 +139,7 @@ extension CodexCLIProvider {
             if let fromSnapshotId = firstString(in: arguments, keys: ["from_snapshot_id"]) { planPayload["from_snapshot_id"] = fromSnapshotId }
             if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id"]) { planPayload["to_snapshot_id"] = toSnapshotId }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_diff") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_diff", planPayload)]
 
@@ -126,6 +155,7 @@ extension CodexCLIProvider {
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) {
                 planPayload["conversation_id"] = conversationId
             }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_request_user_input") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_request_user_input", planPayload)]
 
@@ -162,9 +192,11 @@ extension CodexCLIProvider {
                 if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
             }
             if todoPayload.isEmpty { return [] }
+            if isFailureStatus { return failedToolCallEvent(for: "todo_write") }
             return [wrapped("todo_write", todoPayload)]
 
         case "todo_read":
+            if isFailureStatus { return failedToolCallEvent(for: "todo_read") }
             return [wrapped("todo_read", [:])]
 
         case "plan_step_update", "plan_step":
@@ -178,6 +210,7 @@ extension CodexCLIProvider {
             if let title = firstString(in: arguments, keys: ["title"]) {
                 planPayload["title"] = title
             }
+            if isFailureStatus { return failedToolCallEvent(for: "plan_step_update") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_update", planPayload)]
 
@@ -185,6 +218,7 @@ extension CodexCLIProvider {
             var p: [String: String] = [:]
             if let c = firstString(in: arguments, keys: ["code"]) { p["code"] = c }
             if let t = firstString(in: arguments, keys: ["title"]) { p["title"] = t }
+            if isFailureStatus { return failedToolCallEvent(for: "mermaid_render") }
             return p["code"] != nil ? [wrapped("mermaid_render", p)] : []
 
         case "debug_panel", "debug_panel_update":
@@ -203,40 +237,48 @@ extension CodexCLIProvider {
             var p: [String: String] = [:]
             if let ph = firstString(in: arguments, keys: ["phase"]) { p["phase"] = ph }
             if let d = firstString(in: arguments, keys: ["detail"]) { p["detail"] = d }
+            if isFailureStatus { return failedToolCallEvent(for: "debug_set_phase") }
             return p["phase"] != nil ? [wrapped("debug_phase_update", p)] : []
 
         case "debug_request_user":
             var p: [String: String] = [:]
             if let kind = firstString(in: arguments, keys: ["kind"]) { p["kind"] = kind }
             if let prompt = firstString(in: arguments, keys: ["prompt"]) { p["prompt"] = prompt }
+            if isFailureStatus { return failedToolCallEvent(for: "debug_request_user") }
             return (p["kind"] != nil && p["prompt"] != nil) ? [wrapped("debug_user_request", p)] : []
 
         case "debug_resolve":
+            if isFailureStatus { return failedToolCallEvent(for: "debug_resolve") }
             if let summary = firstString(in: arguments, keys: ["summary", "detail", "message"]) {
                 return [wrapped("debug_resolved", ["summary": summary])]
             }
             return []
 
         case "policy_ack":
+            if isFailureStatus { return failedToolCallEvent(for: "policy_ack") }
             if let h = firstString(in: arguments, keys: ["hash"]) { return [wrapped("policy_ack", ["hash": h])] }
             return []
 
         case "activate_plan_mode":
+            if isFailureStatus { return failedToolCallEvent(for: "activate_plan_mode") }
             if let reason = firstString(in: arguments, keys: ["reason"]) {
                 return [wrapped("activate_plan_mode", ["reason": reason])]
             }
             return [wrapped("activate_plan_mode", [:])]
 
         case "activate_debug_mode":
+            if isFailureStatus { return failedToolCallEvent(for: "activate_debug_mode") }
             if let reason = firstString(in: arguments, keys: ["reason"]) {
                 return [wrapped("activate_debug_mode", ["reason": reason])]
             }
             return [wrapped("activate_debug_mode", [:])]
 
         case "show_task_panel":
+            if isFailureStatus { return failedToolCallEvent(for: "show_task_panel") }
             return [wrapped("coderide_show_task_panel", [:])]
 
         case "show_swarm_panel":
+            if isFailureStatus { return failedToolCallEvent(for: "show_swarm_panel") }
             if let swarmId = firstString(in: arguments, keys: ["swarm_id"]) {
                 return [wrapped("coderide_show_swarm_panel", ["swarm_id": swarmId])]
             }
@@ -249,12 +291,7 @@ extension CodexCLIProvider {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
             let isTerminalStatus = isTerminalMCPToolStatus(status)
-            let isFailureStatus: Bool = {
-                let failureStatuses: Set<String> = [
-                    "failed", "error", "cancelled", "canceled", "aborted", "timeout", "timed_out",
-                ]
-                return failureStatuses.contains(status)
-            }()
+            let isFailureStatus = isFailureMCPToolStatus(status)
             let fallbackToken = (metadata["tool_call_id"] ?? metadata["id"] ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()

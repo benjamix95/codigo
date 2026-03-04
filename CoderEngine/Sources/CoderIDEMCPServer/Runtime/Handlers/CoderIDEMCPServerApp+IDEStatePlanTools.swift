@@ -91,12 +91,12 @@ extension CoderIDEMCPServerApp {
         }
         let incomingSteps = deduplicatePlanStepsById(parsedIncomingSteps)
 
-        let parsedReplaceExisting = parseBool(args["replace_existing"], defaultValue: true)
+        let parsedReplaceExisting = parseBool(args["replace_existing"] ?? args["replaceExisting"], defaultValue: true)
         if parsedReplaceExisting.isInvalid {
             return planError("Error: 'replace_existing' must be true/false")
         }
         let replaceExisting = parsedReplaceExisting.value
-        let chosenPath = sanitizedText(args["chosen_path"])
+        let chosenPath = sanitizedText(args["chosen_path"] ?? args["chosenPath"])
 
         var steps = incomingSteps
         if !replaceExisting,
@@ -127,12 +127,12 @@ extension CoderIDEMCPServerApp {
 
     private static func handlePlanRead(args: [String: String]) -> CallTool.Result {
         let conversationId = parseConversationId(args["conversation_id"] ?? args["conversationId"])
-        let parsedIncludeHistory = parseBool(args["include_history"], defaultValue: false)
+        let parsedIncludeHistory = parseBool(args["include_history"] ?? args["includeHistory"], defaultValue: false)
         if parsedIncludeHistory.isInvalid {
             return planError("Error: 'include_history' must be true/false")
         }
         let includeHistory = parsedIncludeHistory.value
-        let historyLimit = min(50, max(1, parseInt(args["history_limit"], defaultValue: 10)))
+        let historyLimit = min(50, max(1, parseInt(args["history_limit"] ?? args["historyLimit"], defaultValue: 10)))
         guard let object = MCPSharedState.readLatestPlanSnapshotJSONObject(
             conversationId: conversationId,
             includeHistory: includeHistory,
@@ -196,7 +196,7 @@ extension CoderIDEMCPServerApp {
         }
 
         for (index, update) in updates.enumerated() {
-            let stepId = sanitizedText(update["step_id"] as? String)
+            let stepId = sanitizedText((update["step_id"] ?? update["stepId"]) as? String)
             guard let stepId, !stepId.isEmpty else {
                 return planError("Error: updates[\(index)] requires non-empty step_id")
             }
@@ -219,7 +219,7 @@ extension CoderIDEMCPServerApp {
                 status: status,
                 title: sanitizedText(update["title"] as? String),
                 description: sanitizedText(update["description"] as? String),
-                targetFile: sanitizedText(update["target_file"] as? String),
+                targetFile: sanitizedText((update["target_file"] ?? update["targetFile"]) as? String),
                 linkedFiles: linkedFiles.values,
                 dependsOn: dependsOn.values,
                 notes: sanitizedText(update["notes"] as? String)

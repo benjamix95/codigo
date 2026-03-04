@@ -1,6 +1,14 @@
 import Foundation
 
 extension CodexCLIProvider {
+    static func isFailureMCPToolStatus(_ normalizedStatus: String) -> Bool {
+        let failureStatuses: Set<String> = [
+            "failed", "error", "cancelled", "canceled", "aborted",
+            "timeout", "timed_out",
+        ]
+        return failureStatuses.contains(normalizedStatus)
+    }
+
     static func normalizeIDEStateMCPTool(_ rawTool: String) -> String {
         var normalized = rawTool
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,11 +50,9 @@ extension CodexCLIProvider {
     }
 
     static func isTerminalMCPToolStatus(_ normalizedStatus: String) -> Bool {
-        let terminalStatuses: Set<String> = [
+        let successfulTerminalStatuses: Set<String> = [
             "completed", "success", "done", "ok",
-            "failed", "error", "cancelled", "canceled", "aborted",
-            "timeout", "timed_out",
         ]
-        return terminalStatuses.contains(normalizedStatus)
+        return successfulTerminalStatuses.contains(normalizedStatus) || isFailureMCPToolStatus(normalizedStatus)
     }
 }

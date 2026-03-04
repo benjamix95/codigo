@@ -298,4 +298,58 @@ extension CodexCLIProviderStreamParsingTests {
         }
         XCTAssertTrue(rawEvents.map(\.0).contains("coderide_show_task_panel"))
     }
+
+    func testParseStreamJSONEventDoesNotEmitTodoWriteOnFailedStatusWithValidPayload() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-todo-failed-2",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_todo_write",
+                    "status": "failed",
+                    "arguments": #"{\"title\":\"Sync store\",\"status\":\"in_progress\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        XCTAssertFalse(rawEvents.map(\.0).contains("todo_write"))
+        let validationPayload = rawEvents.first(where: { $0.0 == "tool_validation_error" })?.1
+        XCTAssertNotNil(validationPayload)
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_tool_call_failed")
+        XCTAssertEqual(validationPayload?["tool"], "todo_write")
+    }
+
+    func testParseStreamJSONEventDoesNotEmitPlanCreateOnFailedStatus() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-plan-failed-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_create",
+                    "status": "failed",
+                    "arguments": #"{\"goal\":\"Plan X\",\"steps\":[{\"step_id\":\"1\",\"status\":\"pending\"}]}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        XCTAssertFalse(rawEvents.map(\.0).contains("plan_create"))
+        let validationPayload = rawEvents.first(where: { $0.0 == "tool_validation_error" })?.1
+        XCTAssertNotNil(validationPayload)
+        XCTAssertEqual(validationPayload?["error_code"], "mcp_tool_call_failed")
+        XCTAssertEqual(validationPayload?["tool"], "plan_create")
+    }
 }
