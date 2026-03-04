@@ -9,13 +9,6 @@ extension UnifiedToolRuntime {
     ) async -> ToolResult? {
         guard let languageService else { return nil }
         switch name {
-        case "find_symbol":
-            return await executeLanguageServiceFindSymbol(
-                languageService: languageService,
-                args: args,
-                context: context,
-                startDate: startDate
-            )
         case "find_references":
             return await executeLanguageServiceFindReferences(
                 languageService: languageService,
@@ -62,50 +55,6 @@ extension UnifiedToolRuntime {
             .appendingPathComponent(trimmed)
             .standardizedFileURL
             .path
-    }
-
-    private func executeLanguageServiceFindSymbol(
-        languageService: any RuntimeLanguageService,
-        args: [String: String],
-        context: ToolExecutionContext,
-        startDate: Date
-    ) async -> ToolResult? {
-        let query = (args["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return nil }
-
-        do {
-            let fileHint = args["fileHint"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let definitions = try await languageService.goToDefinition(
-                symbol: query,
-                fileHint: fileHint?.isEmpty == true ? nil : fileHint
-            )
-            guard !definitions.isEmpty else { return nil }
-            let allWorkspacePaths = preferredWorkspacePaths(for: context).map(\.path)
-            let primaryWorkspace = allWorkspacePaths.first ?? context.workspaceContext.workspacePath.path
-            var lines: [String] = []
-            lines.append("Found \(definitions.count) definition(s) for '\(query)':")
-            lines.append("")
-            for definition in definitions {
-                let absolutePath = resolveLanguageLocationPath(
-                    definition.filePath,
-                    workspacePaths: allWorkspacePaths,
-                    primaryWorkspace: primaryWorkspace
-                )
-                let displayPath = makeDisplayPath(
-                    absolutePath: absolutePath,
-                    workspacePaths: allWorkspacePaths
-                )
-                let lineColumn = definition.column.map { "\(definition.line):\($0)" } ?? "\(definition.line)"
-                lines.append("  \(displayPath):\(lineColumn) [\(definition.source.rawValue)]")
-            }
-            return success([
-                "title": "find_symbol: \(query)",
-                "detail": "\(definitions.count) definition(s) [language_service]",
-                "output": lines.joined(separator: "\n")
-            ], startDate: startDate)
-        } catch {
-            return nil
-        }
     }
 
     private func executeLanguageServiceFindReferences(

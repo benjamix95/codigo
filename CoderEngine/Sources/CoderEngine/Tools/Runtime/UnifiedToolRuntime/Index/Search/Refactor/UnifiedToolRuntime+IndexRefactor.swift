@@ -36,17 +36,10 @@ extension UnifiedToolRuntime {
             let refCall = ToolCall(id: UUID().uuidString, name: "find_references", args: ["query": query], sourceProvider: call.sourceProvider, swarmId: nil, scope: call.scope)
             let refResult = await executeIndexTool(name: "find_references", call: refCall, context: context, startDate: startDate)
             if refResult.ok, let output = refResult.payload["output"] {
-                // Parse references output
+                // Parse both classic index format and language-service format.
                 for line in output.components(separatedBy: "\n") {
-                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.isEmpty { continue }
-                    // Format: "file.swift:42: content..."
-                    let parts = trimmed.components(separatedBy: ":")
-                    if parts.count >= 2, let lineNum = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
-                        let filePath = parts[0].trimmingCharacters(in: .whitespaces)
-                        let absPath = (filePath as NSString).isAbsolutePath ? filePath : (primaryWorkspace as NSString).appendingPathComponent(filePath)
-                        files.append((path: absPath, line: lineNum, content: trimmed))
-                    }
+                    guard let parsed = parseReferenceOutputLine(line, primaryWorkspace: primaryWorkspace) else { continue }
+                    files.append((path: parsed.path, line: parsed.line, content: line))
                 }
             }
         }
@@ -65,10 +58,8 @@ extension UnifiedToolRuntime {
             }
             let (output, _, _) = await shellExec(args: [rgPath] + rgArgs, cwd: primaryWorkspace, timeout: 15_000)
             for line in output.components(separatedBy: "\n") {
-                let parts = line.components(separatedBy: ":")
-                if parts.count >= 3, let lineNum = Int(parts[1]) {
-                    files.append((path: parts[0], line: lineNum, content: line))
-                }
+                guard let parsed = parseReferenceOutputLine(line, primaryWorkspace: primaryWorkspace) else { continue }
+                files.append((path: parsed.path, line: parsed.line, content: line))
             }
         }
 
@@ -110,6 +101,38 @@ extension UnifiedToolRuntime {
         } catch {
             return nil
         }
+    }
+
+    private func parseReferenceOutputLine(
+        _ line: String,
+        primaryWorkspace: String
+    ) -> (path: String, line: Int)? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        // Supported formats:
+        // - "Sources/Foo.swift:42: matched text"
+        // - "Sources/Foo.swift:42 — SymbolName"
+        // - "/abs/path/Foo.swift:42:7 — SymbolName"
+        let pattern = #"^(.+):([0-9]+)(?::[0-9]+)?(?:\s*(?:[:—-]).*)?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(trimmed.startIndex..., in: trimmed)
+        guard let match = regex.firstMatch(in: trimmed, range: range), match.numberOfRanges >= 3 else {
+            return nil
+        }
+
+        guard let pathRange = Range(match.range(at: 1), in: trimmed),
+              let lineRange = Range(match.range(at: 2), in: trimmed),
+              let lineNumber = Int(trimmed[lineRange]) else {
+            return nil
+        }
+
+        let filePath = String(trimmed[pathRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !filePath.isEmpty else { return nil }
+        let absolutePath = (filePath as NSString).isAbsolutePath
+            ? filePath
+            : (primaryWorkspace as NSString).appendingPathComponent(filePath)
+        return (path: absolutePath, line: lineNumber)
     }
 
     private func applyRename(
