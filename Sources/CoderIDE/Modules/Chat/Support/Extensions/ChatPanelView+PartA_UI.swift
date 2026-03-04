@@ -292,11 +292,6 @@ extension ChatPanelView {
             .onChange(of: effectiveContext.primaryPath) { _, newPath in
                 gitPanelStore.refresh(workingDirectory: newPath)
             }
-            .onChange(of: taskActivityStore.swarmEventsAssignedCount) { oldCount, newCount in
-                if oldCount == 0, newCount > 0, !showSwarmPanel, isLoadingForCurrentConversation {
-                    showSwarmPanel = true
-                }
-            }
             .onChange(of: selectedConversationId) { _, _ in
                 gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
                 composerFrozenTimerState = nil

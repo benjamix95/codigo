@@ -112,7 +112,8 @@ extension ChatPanelView {
                     10. If context contains a required marker `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
                     11. If subagent tools are available, the FIRST operational tool round must start with at least one `subagent_*` call. For independent workstreams, call 2-5 subagents in the same round.
                     12. For implementation tasks, always run `subagent_reviewer` + `subagent_testWriter` before finalizing.
-                    13. When the first subagent starts, emit \(CoderIDEMarkers.showSwarmPanel) so the swarm panel/card lane is visible.
+                    13. Do NOT auto-open the swarm/subagent panel. Emit \(CoderIDEMarkers.showSwarmPanel) only when the user explicitly asks to open/focus that panel.
+                    14. For local code discovery/inspection, prefer dedicated tools (`read`/`grep`/`semantic_search` or aliases like `coderide_read`/`coderide_grep`/`coderide_semantic_search`) and avoid `bash` commands such as `cat`, `rg`, `grep`, `find` unless those dedicated tools fail first.
                     Prefer MCP plan tools for plan tracking (`plan_create`, `plan_step_upsert`, `plan_step_batch_update`,
                     `plan_step_reorder`, `plan_step_dependency_set`, `plan_set_walkthrough`).
                     Keep `plan_step_update` only as legacy fallback compatibility.

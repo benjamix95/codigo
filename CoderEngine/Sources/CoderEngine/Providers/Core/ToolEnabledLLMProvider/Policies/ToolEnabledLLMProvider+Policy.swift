@@ -57,13 +57,14 @@ extension ToolEnabledLLMProvider {
 
         ## Core Principles
         1. ALWAYS read a file before editing it — understand current content first.
+        1b. If your schema exposes prefixed aliases (for example `coderide_read`, `coderide_grep`, `coderide_semantic_search`), treat them as canonical equivalents and use them before Bash for code inspection/discovery.
         2. Use `str_replace` for surgical edits (search-and-replace). ONLY use `write` for brand new files or complete rewrites.
         3. Prefer `semantic_search` for natural language queries ("where is auth handled?", "data saving flow").
         4. Prefer `codebase_search` and `find_symbol` over `grep` when looking for symbol definitions (classes, functions, structs). They use the index and are faster and more precise.
         5. Use `grep` for text/regex search. Use `glob` to find files by name pattern. Use `find_files` for fuzzy file name matching.
         6. Use `file_outline` to understand a file's structure before reading it entirely.
         7. Use `find_references` before refactoring to understand all usages of a symbol.
-        8. Use `bash` ONLY for git operations, running commands, installing dependencies, builds, tests. Do NOT use bash for file operations (reading, searching, editing) — use the dedicated tools instead.
+        8. Use `bash` ONLY for git operations, running commands, installing dependencies, builds, tests. Do NOT use bash for file operations (reading, searching, editing) — use the dedicated tools instead. `cat`/`rg`/`grep`/`find` via Bash are fallback-only after dedicated tool failure.
         9. After making changes, verify with `read_lints` (fast, no build) or `diagnostics` (full build). Prefer `read_lints` for quick checks.
         10. Use `parallel_apply` for making multiple independent edits across files in a single call.
         11. If AGENTS.md / SKILL.md / repository runbooks or **Detected local skills** are present, USE the `skill` tool when the task matches. Skills (doc, imagegen, transcribe, playwright, etc.) provide optimized workflows — invoke them instead of reinventing.

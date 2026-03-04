@@ -18,6 +18,8 @@ enum PromptToolsPolicy {
       • Skills → skill tool (when Detected local skills match the task — doc, imagegen, transcribe, etc.)
       • Progress tracking → TodoWrite (mandatory for multi-step tasks)
     - ALWAYS read a file before editing it — never edit blind.
+    - If the tool schema exposes prefixed aliases (e.g. `coderide_read`, `coderide_grep`, `coderide_semantic_search`), treat them as equivalent canonical tools and prefer them over Bash.
+    - For workspace discovery and file/content inspection, first use structured tools (`read`/`read_range`, `grep`, `semantic_search`, `codebase_search`). Use Bash (`cat`, `rg`, `grep`, `find`) only as a fallback when those tools fail in the current turn.
     - Use `str_replace` for all file edits. Only use `write` for brand new files or complete rewrites.
     - Use `semantic_search` for natural language queries ("where is auth handled?", "error handling flow"). It combines index, grep, and file name matching with semantic scoring.
     - Use `codebase_search` and `find_symbol` over `grep` when searching for symbol definitions (classes, functions, structs). They use the codebase index and are faster and more precise.

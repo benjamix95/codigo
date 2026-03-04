@@ -2,6 +2,14 @@ import CoderEngine
 import Foundation
 
 extension ProviderFactory {
+    private static let legacyClaudeDefaultToolsLowercased: Set<String> = [
+        "read",
+        "edit",
+        "bash",
+        "write",
+        "search",
+    ]
+
     static func codexEnvironmentOverride(
         _ environmentOverride: [String: String]?
     ) -> [String: String]? {
@@ -59,6 +67,15 @@ extension ProviderFactory {
             if seen.insert(trimmed).inserted {
                 tools.append(trimmed)
             }
+        }
+        // Backward-compat migration: older builds defaulted Claude allowed tools
+        // without `Task`, which prevents subagent tool invocation.
+        // Add `Task` only for that exact legacy preset to avoid overriding explicit user choices.
+        let normalizedSet = Set(tools.map { $0.lowercased() })
+        if normalizedSet == legacyClaudeDefaultToolsLowercased,
+           !normalizedSet.contains("task")
+        {
+            tools.append("Task")
         }
         return tools
     }

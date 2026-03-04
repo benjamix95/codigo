@@ -109,15 +109,15 @@ extension ChatPanelView {
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
         if t == "coderide_show_swarm_panel",
            planFlowPhase != .building,
+           showSwarmPanel,
            shouldAutoOpenSwarmPanelForEvent(
                eventConversationId: convId,
                selectedConversationId: selectedConversationId
-           )
-        {
-            showSwarmPanel = true
-            if let swarmId = SwarmMetadata.swarmId(from: p) {
-                selectedSwarmId = swarmId
-            }
+           ),
+           let swarmId = SwarmMetadata.swarmId(from: p) {
+            // Keep panel opening user-driven: if the swarm panel is already open,
+            // only sync the selected swarm/card target.
+            selectedSwarmId = swarmId
         }
         if t == "swarm_steps", let s = p["steps"], !s.isEmpty {
             let n = s.split(separator: ",").map {
