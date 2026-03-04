@@ -271,7 +271,10 @@ extension ChatPanelView {
                 }
             }
             finalizeToolTraceTurn(conversationId: agentConvId, outcome: traceOutcome)
-            snapshotSubagentCardsAndEndTask(conversationId: agentConvId)
+            snapshotSubagentCardsAndEndTask(
+                conversationId: agentConvId,
+                outcome: traceOutcome
+            )
             await MainActor.run {
                 chatStore.removeAssistantMessageIfEmpty(
                     messageId: planBuildAssistantMessageId,

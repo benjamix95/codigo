@@ -393,7 +393,10 @@ extension ChatPanelView {
                 }
             }
             finalizeToolTraceTurn(conversationId: targetConversationId, outcome: traceOutcome)
-            snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
+            snapshotSubagentCardsAndEndTask(
+                conversationId: targetConversationId,
+                outcome: traceOutcome
+            )
         }
     }
 

@@ -242,7 +242,10 @@ extension ChatPanelView {
     /// Snapshots current swarm cards into the last assistant message, then ends the task.
     /// Flushes pending streaming content first to ensure no data is lost.
     @MainActor
-    internal func snapshotSubagentCardsAndEndTask(conversationId targetConversationId: UUID?) {
+    internal func snapshotSubagentCardsAndEndTask(
+        conversationId targetConversationId: UUID?,
+        outcome: ToolTraceTurnOutcome? = nil
+    ) {
         // Flush any pending streamed content so the assistant message is up-to-date
         // before we attach subagent cards or end the task.
         flushStreamingContent()
@@ -261,6 +264,7 @@ extension ChatPanelView {
         if !cards.isEmpty {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
         }
+        notifyTaskCompletionIfNeeded(conversationId: targetConversationId, outcome: outcome)
         chatStore.endTask(conversationId: targetConversationId)
         // Force immediate persistence so the final state (cards + content)
         // survives an app crash right after task completion.
