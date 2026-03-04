@@ -58,6 +58,14 @@ extension UnifiedToolRuntime {
 
         let eventType = eventTypeForTool(name: normalizedName, ok: result.ok, payload: completedPayload)
         events.append(.raw(type: eventType, payload: completedPayload))
+        if completedPayload["is_mcp"] == "true" {
+            events.append(
+                contentsOf: Self.syntheticIDEStateEventsFromMCP(
+                    call: call,
+                    completedPayload: completedPayload
+                )
+            )
+        }
 
         // Auto-reindex modified files so semantic search stays fresh
         if result.ok, UnifiedToolRuntime.fileChangingTools.contains(normalizedName) {
