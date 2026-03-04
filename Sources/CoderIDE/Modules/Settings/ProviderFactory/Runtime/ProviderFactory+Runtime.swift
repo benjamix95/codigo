@@ -16,7 +16,7 @@ extension ProviderFactory {
         let languageRuntimeBridge: (any RuntimeLanguageService)? = codebaseIndex.map {
             LanguageServiceRuntimeBridge(service: LanguageService(codebaseIndex: $0))
         }
-        UnifiedToolRuntime(
+        return UnifiedToolRuntime(
             executionController: executionController,
             executionScope: executionScope,
             index: codebaseIndex,
