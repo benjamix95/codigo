@@ -136,6 +136,23 @@ private func normalizedPlanContentHash(_ raw: String) -> Int {
     return Int(bitPattern: UInt(hash))
 }
 
+private func canonicalPlanTitleKey(_ title: String) -> String {
+    title
+        .lowercased()
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        .replacingOccurrences(of: #"[^\p{L}\p{N}\s]"#, with: "", options: .regularExpression)
+}
+
+private func nextGeneratedPlanStepId(existing: [PlanStep]) -> String {
+    let usedIds = Set(existing.map(\.id))
+    var next = max(1, existing.compactMap { Int($0.id) }.max() ?? 0)
+    while usedIds.contains(String(next)) {
+        next += 1
+    }
+    return String(next)
+}
+
 func updatePlanStepStatus(stepId: String, status: PlanStepStatus, in conversationId: UUID?) {
     guard let conversationId, var board = planBoards[conversationId] else { return }
     guard let index = board.steps.firstIndex(where: { $0.id == stepId }) else { return }
@@ -172,6 +189,13 @@ func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUI
     // Merge into existing steps: update status for matched titles,
     // preserve existing step IDs and metadata (targetFile, description).
     var updatedSteps = board.steps
+    var stepIndexByCanonicalKey: [String: Int] = [:]
+    for (index, step) in updatedSteps.enumerated() {
+        let key = canonicalPlanTitleKey(step.title)
+        if !key.isEmpty, stepIndexByCanonicalKey[key] == nil {
+            stepIndexByCanonicalKey[key] = index
+        }
+    }
     for todo in canonicalTodos {
         let todoStatus: PlanStepStatus = {
             switch todo.status {
@@ -181,19 +205,20 @@ func syncPlanStepsFromCanonicalTodos(_ todos: [TodoItem], in conversationId: UUI
             case .blocked: return .failed
             }
         }()
-        if let idx = updatedSteps.firstIndex(where: {
-            $0.title.caseInsensitiveCompare(todo.title) == .orderedSame
-        }) {
+        let todoKey = canonicalPlanTitleKey(todo.title)
+        if let idx = stepIndexByCanonicalKey[todoKey] {
             updatedSteps[idx].status = todoStatus
             updatedSteps[idx].updatedAt = .now
         } else {
+            let nextStepId = nextGeneratedPlanStepId(existing: updatedSteps)
             updatedSteps.append(PlanStep(
-                id: String(updatedSteps.count + 1),
+                id: nextStepId,
                 title: todo.title,
                 description: todo.title,
                 targetFile: nil,
                 status: todoStatus
             ))
+            stepIndexByCanonicalKey[todoKey] = updatedSteps.count - 1
         }
     }
 

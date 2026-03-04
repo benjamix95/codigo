@@ -127,8 +127,9 @@ extension ChatPanelView {
                     \(CoderIDEMarkers.webSearchPrefix)queryId=q1|query=swift concurrency|status=started|group_id=web-1]
                     """
                 prompt = baseInstructions + "\n" + prompt
-                if !todoStore.todos.isEmpty {
-                    let todoSection = todoStore.todos.sorted { $0.status.rank < $1.status.rank }
+                let scopedTodos = todoStore.displayTodosForChat(for: conversationId)
+                if !scopedTodos.isEmpty {
+                    let todoSection = scopedTodos.sorted { $0.status.rank < $1.status.rank }
                         .map { t -> String in
                             let check = t.status == .done ? "x" : " "
                             let trimmedNotes = t.notes.trimmingCharacters(in: .whitespacesAndNewlines)

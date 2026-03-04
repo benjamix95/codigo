@@ -119,8 +119,14 @@ public extension MCPSharedState {
             return nil
         }
 
-        let fromById = Dictionary(uniqueKeysWithValues: resolved.from.steps.map { ($0.id, $0) })
-        let toById = Dictionary(uniqueKeysWithValues: resolved.to.steps.map { ($0.id, $0) })
+        let fromById = Dictionary(
+            resolved.from.steps.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let toById = Dictionary(
+            resolved.to.steps.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
         let added = resolved.to.steps.filter { fromById[$0.id] == nil }
         let removed = resolved.from.steps.filter { toById[$0.id] == nil }

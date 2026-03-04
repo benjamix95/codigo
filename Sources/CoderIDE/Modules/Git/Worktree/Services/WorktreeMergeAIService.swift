@@ -169,17 +169,16 @@ extension WorktreeMergeAIService {
         preferredProviderId: String?,
         providerRegistry: ProviderRegistry
     ) throws -> any LLMProvider {
-        if let preferredProviderId {
-            guard ProviderSupport.isAgentCompatibleProvider(id: preferredProviderId),
-                  let provider = providerRegistry.provider(for: preferredProviderId),
-                  provider.isAuthenticated() else {
-                throw WorktreeMergeAIServiceError.providerUnavailable
-            }
-            return provider
+        if let preferredProviderId,
+           ProviderSupport.isAgentCompatibleProvider(id: preferredProviderId),
+           let preferredProvider = providerRegistry.provider(for: preferredProviderId),
+           preferredProvider.isAuthenticated()
+        {
+            return preferredProvider
         }
 
         if let bootstrapId = ProviderSupport.firstHealthyAgentProviderId(
-            preferred: nil,
+            preferred: preferredProviderId,
             registry: providerRegistry
         ),
            let bootstrapProvider = providerRegistry.provider(for: bootstrapId),

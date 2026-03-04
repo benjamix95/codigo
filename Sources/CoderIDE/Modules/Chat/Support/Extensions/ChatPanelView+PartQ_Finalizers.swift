@@ -86,9 +86,19 @@ extension ChatPanelView {
 
     internal func clearPlanStreamingState() {
         flushPlanStreamingContent()
-        planStreamingContent = ""
-        pendingPlanStreamConversationId = nil
-        pendingPlanStreamingContent = nil
+        if let targetConversationId = conversationId {
+            planStreamingContentByConversation[targetConversationId] = ""
+            planStreamingContent = ""
+            if pendingPlanStreamConversationId == targetConversationId {
+                pendingPlanStreamConversationId = nil
+                pendingPlanStreamingContent = nil
+            }
+        } else {
+            planStreamingContentByConversation.removeAll()
+            planStreamingContent = ""
+            pendingPlanStreamConversationId = nil
+            pendingPlanStreamingContent = nil
+        }
         planStreamThrottleTask?.cancel()
         planStreamThrottleTask = nil
     }
@@ -135,10 +145,23 @@ extension ChatPanelView {
     internal func flushPlanStreamingContent() {
         planStreamThrottleTask?.cancel()
         planStreamThrottleTask = nil
-        guard let newContent = pendingPlanStreamingContent else { return }
+        guard let newContent = pendingPlanStreamingContent else {
+            if let currentConversationId = conversationId {
+                planStreamingContent = planStreamingContentByConversation[currentConversationId] ?? ""
+            }
+            return
+        }
+        let targetConversationId = pendingPlanStreamConversationId
         pendingPlanStreamingContent = nil
         pendingPlanStreamConversationId = nil
-        planStreamingContent = newContent
+        if let targetConversationId {
+            planStreamingContentByConversation[targetConversationId] = newContent
+        }
+        if let currentConversationId = conversationId {
+            planStreamingContent = planStreamingContentByConversation[currentConversationId] ?? ""
+        } else if targetConversationId == nil {
+            planStreamingContent = newContent
+        }
     }
 
     internal func buildWalkthroughMarkdown(

@@ -232,7 +232,10 @@ extension ChatPanelView {
             hasActivePlanBuildTask: hasActivePlanBuildTask,
             hasResumablePlanState: hasResumablePlanState
         )
-        todoStore.clearAgentTodos(includePlanCanonical: shouldClearPlanCanonicalTodos)
+        todoStore.clearAgentTodos(
+            conversationId: targetConversationId,
+            includePlanCanonical: shouldClearPlanCanonicalTodos
+        )
         scheduleFallbackTurnStartEvent(
             conversationId: targetConversationId,
             providerId: effectiveRuntimeProvider.id

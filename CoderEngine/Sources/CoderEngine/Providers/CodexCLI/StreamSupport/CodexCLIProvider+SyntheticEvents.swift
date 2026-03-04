@@ -18,6 +18,15 @@ extension CodexCLIProvider {
         let arguments = decodedJSONObject(from: item["arguments"])
             ?? decodedJSONObject(from: item["input"])
             ?? [:]
+        let metadata = syntheticMCPMetadata(
+            payload: payload,
+            item: item,
+            arguments: arguments,
+            normalizedTool: normalizedTool
+        )
+        func wrapped(_ type: String, _ payload: [String: String]) -> (type: String, payload: [String: String]) {
+            (type, mergeSyntheticPayload(payload, metadata: metadata))
+        }
 
         switch normalizedTool {
         case "plan_create":
@@ -29,14 +38,14 @@ extension CodexCLIProvider {
                 planPayload["steps"] = stepsJson
             }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_create", planPayload)]
+            return [wrapped("plan_create", planPayload)]
 
         case "plan_read":
             var planPayload: [String: String] = [:]
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             if let includeHistory = firstString(in: arguments, keys: ["include_history"]) { planPayload["include_history"] = includeHistory }
             if let historyLimit = firstString(in: arguments, keys: ["history_limit"]) { planPayload["history_limit"] = historyLimit }
-            return [("plan_read", planPayload)]
+            return [wrapped("plan_read", planPayload)]
 
         case "plan_step_upsert":
             var planPayload: [String: String] = [:]
@@ -54,7 +63,7 @@ extension CodexCLIProvider {
                 planPayload["depends_on"] = dependsOn
             }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_step_upsert", planPayload)]
+            return [wrapped("plan_step_upsert", planPayload)]
 
         case "plan_step_batch_update":
             var planPayload: [String: String] = [:]
@@ -63,7 +72,7 @@ extension CodexCLIProvider {
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_step_batch_update", planPayload)]
+            return [wrapped("plan_step_batch_update", planPayload)]
 
         case "plan_step_reorder":
             var planPayload: [String: String] = [:]
@@ -72,7 +81,7 @@ extension CodexCLIProvider {
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_step_reorder", planPayload)]
+            return [wrapped("plan_step_reorder", planPayload)]
 
         case "plan_step_dependency_set":
             var planPayload: [String: String] = [:]
@@ -82,7 +91,7 @@ extension CodexCLIProvider {
             }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_step_dependency_set", planPayload)]
+            return [wrapped("plan_step_dependency_set", planPayload)]
 
         case "plan_set_walkthrough":
             var planPayload: [String: String] = [:]
@@ -91,13 +100,13 @@ extension CodexCLIProvider {
             if let outcome = firstString(in: arguments, keys: ["outcome"]) { planPayload["outcome"] = outcome }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_set_walkthrough", planPayload)]
+            return [wrapped("plan_set_walkthrough", planPayload)]
 
         case "plan_history_read":
             var planPayload: [String: String] = [:]
             if let limit = firstString(in: arguments, keys: ["limit"]) { planPayload["limit"] = limit }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
-            return [("plan_history_read", planPayload)]
+            return [wrapped("plan_history_read", planPayload)]
 
         case "plan_diff":
             var planPayload: [String: String] = [:]
@@ -105,7 +114,7 @@ extension CodexCLIProvider {
             if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id"]) { planPayload["to_snapshot_id"] = toSnapshotId }
             if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_diff", planPayload)]
+            return [wrapped("plan_diff", planPayload)]
 
         case "plan_request_user_input":
             var planPayload: [String: String] = [:]
@@ -120,35 +129,45 @@ extension CodexCLIProvider {
                 planPayload["conversation_id"] = conversationId
             }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_request_user_input", planPayload)]
+            return [wrapped("plan_request_user_input", planPayload)]
 
         case "todo_write":
             var todoPayload: [String: String] = [:]
-            // Batch: "todos" is a JSON array string
-            if let todosRaw = firstString(in: arguments, keys: ["todos"]),
-               let todosData = todosRaw.data(using: .utf8),
-               let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]],
-               !todosArray.isEmpty {
-                if let reEncoded = try? JSONSerialization.data(withJSONObject: todosArray),
-                   let reString = String(data: reEncoded, encoding: .utf8) {
-                    todoPayload["todos_json"] = reString
+            if arguments.keys.contains("todos") {
+                let parsedTodos = parseTodoArrayArgument(arguments["todos"])
+                if let parsedTodos {
+                    if parsedTodos.isEmpty {
+                        return []
+                    }
+                    if let reEncoded = try? JSONSerialization.data(withJSONObject: parsedTodos),
+                       let reString = String(data: reEncoded, encoding: .utf8) {
+                        todoPayload["todos_json"] = reString
+                    }
+                    todoPayload["title"] = "Todo updated"
+                } else {
+                    return [wrapped("tool_validation_error", [
+                        "title": "Invalid todo payload",
+                        "detail": "'todos' must be a valid JSON array",
+                        "status": "failed",
+                        "error_code": "invalid_todos_payload",
+                        "tool": normalizedTool,
+                    ])]
                 }
-                todoPayload["title"] = "Todo updated"
             } else {
                 // Single-item shorthand
                 if let t = firstString(in: arguments, keys: ["title", "content"]) { todoPayload["title"] = t }
                 if let s = firstString(in: arguments, keys: ["status"]) { todoPayload["status"] = s }
                 if let p = firstString(in: arguments, keys: ["priority"]) { todoPayload["priority"] = p }
                 if let n = firstString(in: arguments, keys: ["notes"]) { todoPayload["notes"] = n }
+                // Fallback from outer payload only for shorthand mode.
+                if todoPayload["title"] == nil, let t = payload["title"] { todoPayload["title"] = t }
+                if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
             }
-            // Fallback from outer payload
-            if todoPayload["title"] == nil, let t = payload["title"] { todoPayload["title"] = t }
-            if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
             if todoPayload.isEmpty { return [] }
-            return [("todo_write", todoPayload)]
+            return [wrapped("todo_write", todoPayload)]
 
         case "todo_read":
-            return [("todo_read", [:])]
+            return [wrapped("todo_read", [:])]
 
         case "plan_step_update", "plan_step":
             var planPayload: [String: String] = [:]
@@ -162,7 +181,7 @@ extension CodexCLIProvider {
                 planPayload["title"] = title
             }
             guard !planPayload.isEmpty else { return [] }
-            return [("plan_step_update", planPayload)]
+            return [wrapped("plan_step_update", planPayload)]
 
         case "mermaid_render":
             var p: [String: String] = [:]
@@ -252,6 +271,65 @@ extension CodexCLIProvider {
         default:
             return []
         }
+    }
+
+    private static func syntheticMCPMetadata(
+        payload: [String: String],
+        item: [String: Any],
+        arguments: [String: Any],
+        normalizedTool: String
+    ) -> [String: String] {
+        var metadata: [String: String] = [:]
+        if let id = firstString(in: item, keys: ["id"]), !id.isEmpty {
+            metadata["id"] = id
+            metadata["group_id"] = id
+        }
+        if let groupId = firstString(in: item, keys: ["group_id"]), !groupId.isEmpty {
+            metadata["group_id"] = groupId
+        }
+        if let toolCallId = firstString(in: item, keys: ["tool_call_id", "call_id"]), !toolCallId.isEmpty {
+            metadata["tool_call_id"] = toolCallId
+        }
+        if let status = payload["status"], !status.isEmpty {
+            metadata["status"] = status
+        }
+        if let conversationId = firstString(in: arguments, keys: ["conversation_id"]), !conversationId.isEmpty {
+            metadata["conversation_id"] = conversationId
+        }
+        if let mcpTool = payload["mcp_tool"], !mcpTool.isEmpty {
+            metadata["mcp_tool"] = mcpTool
+        } else if !normalizedTool.isEmpty {
+            metadata["mcp_tool"] = normalizedTool
+        }
+        if let mcpServer = payload["mcp_server"], !mcpServer.isEmpty {
+            metadata["mcp_server"] = mcpServer
+        }
+        return metadata
+    }
+
+    private static func mergeSyntheticPayload(
+        _ payload: [String: String],
+        metadata: [String: String]
+    ) -> [String: String] {
+        var merged = metadata
+        for (key, value) in payload where !value.isEmpty {
+            merged[key] = value
+        }
+        return merged
+    }
+
+    private static func parseTodoArrayArgument(_ raw: Any?) -> [[String: Any]]? {
+        if let array = raw as? [[String: Any]] {
+            return array
+        }
+        if let rawString = raw as? String {
+            let trimmed = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else {
+                return []
+            }
+            return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        }
+        return nil
     }
 
     private static func jsonStringArgument(

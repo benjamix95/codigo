@@ -308,14 +308,21 @@ final class TodoStoreTests: XCTestCase {
         XCTAssertEqual(store.todos.first?.source, .manual)
     }
 
-    func testRemovedCanonicalTasksBecomeBlockedWithStandardNote() {
+    func testRemovedCanonicalTasksAreDeletedAndEmitBlockedCallback() {
         let store = makeStore()
+        var callbackEvents: [(title: String, status: TodoStatus, conversationId: UUID?)] = []
+        store.onCanonicalTodoStatusChange = { title, status, conversationId in
+            callbackEvents.append((title, status, conversationId))
+        }
+
         store.upsertCanonicalPlanTodos(["Task 1", "Task 2"])
         store.upsertCanonicalPlanTodos(["Task 1"])
 
         let removed = store.todos.first { $0.title == "Task 2" }
-        XCTAssertEqual(removed?.status, .blocked)
-        XCTAssertEqual(removed?.notes, "Removed from current plan")
+        XCTAssertNil(removed)
+        XCTAssertEqual(callbackEvents.count, 1)
+        XCTAssertEqual(callbackEvents.first?.title, "Task 2")
+        XCTAssertEqual(callbackEvents.first?.status, .blocked)
     }
 
     func testEmptyPlanTodosDoesNotMutateCanonicalTasks() {

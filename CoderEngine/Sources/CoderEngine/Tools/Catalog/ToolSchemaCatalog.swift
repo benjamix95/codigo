@@ -1,9 +1,9 @@
 import Foundation
 
-struct ToolSchemaEntry: Sendable {
+struct ToolSchemaEntry: @unchecked Sendable {
     let name: String
     let description: String
-    let properties: [String: [String: String]]
+    let properties: [String: [String: Any]]
     let required: [String]
 }
 
@@ -180,16 +180,16 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
 
     /// Extract simplified properties from an MCP tool descriptor.
     /// Flattens complex JSON Schema into [String: [String: String]] for ToolSchemaEntry.
-    private static func extractSimplifiedProperties(from tool: MCPToolDescriptor) -> (properties: [String: [String: String]], required: [String]) {
+    private static func extractSimplifiedProperties(from tool: MCPToolDescriptor) -> (properties: [String: [String: Any]], required: [String]) {
         guard let schema = tool.inputSchemaDict,
               let props = schema["properties"] as? [String: Any] else {
             return (properties: [:], required: [])
         }
 
-        var simplified: [String: [String: String]] = [:]
+        var simplified: [String: [String: Any]] = [:]
         for (key, value) in props {
             if let propDict = value as? [String: Any] {
-                var entry: [String: String] = [:]
+                var entry: [String: Any] = [:]
                 if let type = propDict["type"] as? String {
                     entry["type"] = type
                 } else {
@@ -199,12 +199,7 @@ final class MCPNativeToolRegistry: @unchecked Sendable {
                     entry["description"] = desc
                 }
                 if let enumValues = propDict["enum"] as? [String] {
-                    if let encoded = try? JSONSerialization.data(withJSONObject: enumValues),
-                       let text = String(data: encoded, encoding: .utf8) {
-                        entry["enum"] = text
-                    } else {
-                        entry["enum"] = enumValues.joined(separator: ", ")
-                    }
+                    entry["enum"] = enumValues
                 }
                 simplified[key] = entry
             } else {

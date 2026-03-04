@@ -83,17 +83,27 @@ extension CodexCLIProvider {
             // The MCP tool call event is kept for activity display; the synthetic
             // event feeds the EventNormalizer → TodoStore / PlanBoard pipeline.
             if rawEvent.type == "mcp_tool_call" {
-                let item = (json["item"] as? [String: Any]) ?? json
-                for synthetic in syntheticIDEStateEventsFromMCP(
-                    payload: rawEvent.payload,
-                    item: item
-                ) {
-                    appendRawEvent(
-                        type: synthetic.type,
-                        payload: synthetic.payload,
-                        state: &state,
-                        events: &events
-                    )
+                let normalizedStatus = (rawEvent.payload["status"] ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                let shouldEmitSynthetic = normalizedStatus.isEmpty
+                    || normalizedStatus == "completed"
+                    || normalizedStatus == "success"
+                    || normalizedStatus == "done"
+                    || normalizedStatus == "ok"
+                if shouldEmitSynthetic {
+                    let item = (json["item"] as? [String: Any]) ?? json
+                    for synthetic in syntheticIDEStateEventsFromMCP(
+                        payload: rawEvent.payload,
+                        item: item
+                    ) {
+                        appendRawEvent(
+                            type: synthetic.type,
+                            payload: synthetic.payload,
+                            state: &state,
+                            events: &events
+                        )
+                    }
                 }
             }
         }

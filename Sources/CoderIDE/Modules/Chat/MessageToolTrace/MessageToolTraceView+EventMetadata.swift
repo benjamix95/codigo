@@ -6,7 +6,12 @@ extension MessageToolTraceView {
     @ViewBuilder
     func toolIcon(for event: ToolTraceEvent) -> some View {
         let type = event.type.lowercased()
-        let tool = (event.payload["tool"] ?? event.payload["name"] ?? "").lowercased()
+        let mcpTool = (event.payload["mcp_tool"] ?? "").lowercased()
+        let tool = (
+            type == "mcp_tool_call" && !mcpTool.isEmpty
+                ? mcpTool
+                : (event.payload["tool"] ?? event.payload["name"] ?? "")
+        ).lowercased()
 
         if Self.isErrorType(event) {
             Image(systemName: "xmark.circle")

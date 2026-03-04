@@ -50,9 +50,9 @@ extension EventNormalizer {
               let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return []
         }
-        return objects.enumerated().compactMap { index, item in
-            let stepId = ((item["step_id"] as? String) ?? String(index + 1))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        return objects.compactMap { item in
+            let stepId = (item["step_id"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !stepId.isEmpty,
                   let status = normalizePlanStepStatus(item["status"] as? String) else { return nil }
             return PlanStepBatchUpdateItemPayload(

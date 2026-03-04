@@ -193,21 +193,18 @@ extension TodoStore {
         let isInScope = canonicalScopeFilter(for: conversationId)
         _ = deduplicateCanonicalTodos(inScope: isInScope)
 
-        for idx in todos.indices where isInScope(todos[idx]) {
-            let existingKey = canonicalKey(for: todos[idx].title)
-            if !desiredKeys.contains(existingKey) {
-                let oldStatus = todos[idx].status
-                todos[idx].status = .blocked
-                todos[idx].notes = "Removed from current plan"
-                todos[idx].updatedAt = .now
-                if oldStatus != .blocked {
-                    onCanonicalTodoStatusChange?(
-                        todos[idx].title,
-                        .blocked,
-                        todos[idx].planConversationId
-                    )
-                }
-            }
+        let removedCanonical = todos.filter {
+            isInScope($0) && !desiredKeys.contains(canonicalKey(for: $0.title))
+        }
+        for removed in removedCanonical where removed.status != .blocked {
+            onCanonicalTodoStatusChange?(
+                removed.title,
+                .blocked,
+                removed.planConversationId
+            )
+        }
+        todos.removeAll {
+            isInScope($0) && !desiredKeys.contains(canonicalKey(for: $0.title))
         }
 
         for (index, title) in cleaned.enumerated() {

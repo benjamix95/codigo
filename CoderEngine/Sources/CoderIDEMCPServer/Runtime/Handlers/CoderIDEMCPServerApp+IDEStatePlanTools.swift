@@ -4,6 +4,9 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handlePlanIDEStateTool(name: String, args: [String: String]) -> CallTool.Result? {
+        if hasInvalidConversationIdArgument(args["conversation_id"]) {
+            return planError("Error: 'conversation_id' must be a valid UUID")
+        }
         switch name {
         case "plan_step_update":
             return handleLegacyPlanStepUpdate(args: args)
@@ -66,11 +69,16 @@ extension CoderIDEMCPServerApp {
         guard let conversationId = resolveConversationId(from: args, createIfMissing: true) else {
             return planError("Error: invalid conversation id")
         }
-        guard let incomingSteps = parseJSONObjectArray(args["steps"]) else {
+        guard let parsedIncomingSteps = parseJSONObjectArray(args["steps"]) else {
             return planError("Error: 'steps' must be a valid JSON array")
         }
+        let incomingSteps = deduplicatePlanStepsById(parsedIncomingSteps)
 
-        let replaceExisting = parseBool(args["replace_existing"], defaultValue: true)
+        let parsedReplaceExisting = parseBool(args["replace_existing"], defaultValue: true)
+        if parsedReplaceExisting.isInvalid {
+            return planError("Error: 'replace_existing' must be true/false")
+        }
+        let replaceExisting = parsedReplaceExisting.value
         let chosenPath = sanitizedText(args["chosen_path"])
 
         var steps = incomingSteps
@@ -84,7 +92,7 @@ extension CoderIDEMCPServerApp {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return !id.isEmpty && !existingIds.contains(id)
             }
-            steps = existing.steps + filteredIncoming
+            steps = deduplicatePlanStepsById(existing.steps + filteredIncoming)
         }
 
         MCPSharedState.writePlanSnapshotFromIDE(
@@ -102,7 +110,11 @@ extension CoderIDEMCPServerApp {
 
     private static func handlePlanRead(args: [String: String]) -> CallTool.Result {
         let conversationId = parseConversationId(args["conversation_id"])
-        let includeHistory = parseBool(args["include_history"], defaultValue: false)
+        let parsedIncludeHistory = parseBool(args["include_history"], defaultValue: false)
+        if parsedIncludeHistory.isInvalid {
+            return planError("Error: 'include_history' must be true/false")
+        }
+        let includeHistory = parsedIncludeHistory.value
         let historyLimit = min(50, max(1, parseInt(args["history_limit"], defaultValue: 10)))
         guard let object = MCPSharedState.readLatestPlanSnapshotJSONObject(
             conversationId: conversationId,
@@ -129,6 +141,17 @@ extension CoderIDEMCPServerApp {
             return planError("Error: unable to resolve target plan snapshot")
         }
 
+        let rawLinkedFiles = args["linked_files"]
+        let linkedFiles = parseJSONStringArray(rawLinkedFiles)
+        if rawLinkedFiles != nil, linkedFiles == nil {
+            return planError("Error: 'linked_files' must be a valid JSON string array")
+        }
+        let rawDependsOn = args["depends_on"]
+        let dependsOn = parseJSONStringArray(rawDependsOn)
+        if rawDependsOn != nil, dependsOn == nil {
+            return planError("Error: 'depends_on' must be a valid JSON string array")
+        }
+
         upsertStep(
             in: &snapshot,
             stepId: stepId,
@@ -136,8 +159,8 @@ extension CoderIDEMCPServerApp {
             title: sanitizedText(args["title"]),
             description: sanitizedText(args["description"]),
             targetFile: sanitizedText(args["target_file"]),
-            linkedFiles: parseJSONStringArray(args["linked_files"]),
-            dependsOn: parseJSONStringArray(args["depends_on"]),
+            linkedFiles: linkedFiles,
+            dependsOn: dependsOn,
             notes: sanitizedText(args["notes"])
         )
         writeMutableSnapshot(snapshot)
@@ -154,8 +177,10 @@ extension CoderIDEMCPServerApp {
         }
 
         for (index, update) in updates.enumerated() {
-            let fallbackId = String(index + 1)
-            let stepId = sanitizedStepId(update["step_id"] as? String, fallback: fallbackId)
+            let stepId = sanitizedText(update["step_id"] as? String)
+            guard let stepId, !stepId.isEmpty else {
+                return planError("Error: updates[\(index)] requires non-empty step_id")
+            }
             guard let status = parsePlanStepStatus(update["status"] as? String) else {
                 return planError("Error: updates[\(index)] has invalid status")
             }
@@ -176,8 +201,17 @@ extension CoderIDEMCPServerApp {
     }
 
     private static func handlePlanStepReorder(args: [String: String]) -> CallTool.Result {
-        guard let orderedStepIds = parseJSONStringArray(args["ordered_step_ids"]), !orderedStepIds.isEmpty else {
+        guard let orderedStepIdsRaw = parseJSONStringArray(args["ordered_step_ids"]), !orderedStepIdsRaw.isEmpty else {
             return planError("Error: 'ordered_step_ids' must be a non-empty JSON array")
+        }
+        let orderedStepIds = orderedStepIdsRaw
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !orderedStepIds.isEmpty else {
+            return planError("Error: 'ordered_step_ids' must contain at least one id")
+        }
+        guard Set(orderedStepIds).count == orderedStepIds.count else {
+            return planError("Error: 'ordered_step_ids' must not contain duplicate ids")
         }
         guard let conversationId = resolveConversationId(from: args, createIfMissing: false),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: false) else {
@@ -219,7 +253,7 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'step_id' is required")
         }
         guard let dependsOn = parseJSONStringArray(args["depends_on"]) else {
-            return planError("Error: 'depends_on' must be a valid JSON array or comma-separated list")
+            return planError("Error: 'depends_on' must be a valid JSON string array")
         }
         guard let conversationId = resolveConversationId(from: args, createIfMissing: true),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {

@@ -36,6 +36,7 @@ extension ChatPanelView {
         snapshotSubagentCardsAndEndTask(conversationId: targetConversationId)
         if activeBuildPlanConversationId == targetConversationId {
             activeBuildPlanConversationId = nil
+            activeBuildAgentConversationId = nil
         }
         if targetConversationId == conversationId {
             resetPlanFlowAfterInterruption()
