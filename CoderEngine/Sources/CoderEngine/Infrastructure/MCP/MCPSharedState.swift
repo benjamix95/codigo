@@ -65,6 +65,7 @@ public enum MCPSharedState {
         case "running", "active", "doing", "started": return "in_progress"
         case "todo", "open", "queued", "waiting": return "pending"
         case "failed", "error", "stuck": return "blocked"
+        case "cancelled", "canceled", "aborted", "skipped": return "blocked"
         default: return "pending"
         }
     }

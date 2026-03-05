@@ -117,6 +117,7 @@ extension MCPSharedState {
         case "running", "in_progress", "active", "started": return "running"
         case "done", "completed", "complete", "finished", "success": return "done"
         case "failed", "error", "blocked", "stuck": return "failed"
+        case "cancelled", "canceled", "aborted", "skipped": return "failed"
         default: return "pending"
         }
     }

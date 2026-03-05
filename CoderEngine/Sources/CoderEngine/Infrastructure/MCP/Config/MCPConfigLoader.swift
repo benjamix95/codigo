@@ -42,11 +42,23 @@ public enum MCPConfigLoader {
         ]
     }
 
+    /// Serial queue for atomic load/save of manual servers JSON.
+    private static let manualServersQueue = DispatchQueue(label: "MCPConfigLoader.manualServers")
+
     /// Path JSON server manuali CoderIDE.
     public static var localMCPConfigPath: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("CoderIDE", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            // Fallback to home directory if Application Support is unavailable
+            let fallback = home.appendingPathComponent(".coderIDE", isDirectory: true)
+            try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+            return fallback.appendingPathComponent("mcp-servers.json")
+        }
+        let dir = appSupport.appendingPathComponent("CoderIDE", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        } catch {
+            print("[MCPConfigLoader] ⚠️ Failed to create config directory: \(error.localizedDescription)")
+        }
         return dir.appendingPathComponent("mcp-servers.json")
     }
 
@@ -126,21 +138,25 @@ public enum MCPConfigLoader {
         }
     }
 
-    /// Carica server manuali da JSON locale.
+    /// Carica server manuali da JSON locale (thread-safe).
     public static func loadManualServers() -> [MCPServerConfig] {
-        let path = localMCPConfigPath
-        guard FileManager.default.fileExists(atPath: path.path),
-              let data = try? Data(contentsOf: path),
-              let decoded = try? JSONDecoder().decode([MCPServerConfig].self, from: data) else {
-            return []
+        manualServersQueue.sync {
+            let path = localMCPConfigPath
+            guard FileManager.default.fileExists(atPath: path.path),
+                  let data = try? Data(contentsOf: path),
+                  let decoded = try? JSONDecoder().decode([MCPServerConfig].self, from: data) else {
+                return []
+            }
+            return decoded
         }
-        return decoded
     }
 
-    /// Salva server manuali in JSON locale.
+    /// Salva server manuali in JSON locale (thread-safe).
     public static func saveManualServers(_ servers: [MCPServerConfig]) throws {
-        let data = try JSONEncoder().encode(servers)
-        try data.write(to: localMCPConfigPath)
+        try manualServersQueue.sync {
+            let data = try JSONEncoder().encode(servers)
+            try data.write(to: localMCPConfigPath, options: .atomic)
+        }
     }
 
     static func deduplicateDetectedServers(_ input: [DetectedServer]) -> [DetectedServer] {

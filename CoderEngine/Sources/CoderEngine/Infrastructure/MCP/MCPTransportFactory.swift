@@ -46,13 +46,21 @@ public enum MCPTransportFactory {
             serverLabel: serverLabel ?? command,
             bufferLimitBytes: max(4_096, stderrBufferLimitBytes)
         )
-        
+
         try serverRead.close()
         try serverWrite.close()
-        
+
         let transport = StdioTransport(input: clientRead, output: clientWrite)
-        try await transport.connect()
-        
+        do {
+            try await transport.connect()
+        } catch {
+            // Clean up leaked resources on connection failure
+            process.terminate()
+            try? clientRead.close()
+            try? clientWrite.close()
+            throw error
+        }
+
         return (transport, process)
     }
 

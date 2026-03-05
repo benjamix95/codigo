@@ -107,7 +107,8 @@ extension CoderIDEMCPServerApp {
 
         if didTimeout {
             await terminateProcessIfNeeded(process)
-            waitTask.cancel()
+            // Await waitTask to avoid resource leak — process is terminated so it will finish promptly
+            _ = await waitTask.value
             stdoutTask.cancel()
             stderrTask.cancel()
             try? stdout.fileHandleForReading.close()

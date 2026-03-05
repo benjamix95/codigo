@@ -44,6 +44,7 @@ extension CoderIDEMCPServerApp {
                 "running", "active", "doing", "started",
                 "todo", "open", "queued", "waiting",
                 "failed", "error", "stuck",
+                "cancelled", "canceled", "aborted", "skipped",
             ]
 
             if !todosRaw.isEmpty {

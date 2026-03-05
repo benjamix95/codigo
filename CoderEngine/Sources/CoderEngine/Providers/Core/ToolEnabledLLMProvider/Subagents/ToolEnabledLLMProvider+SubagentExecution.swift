@@ -198,6 +198,7 @@ extension ToolEnabledLLMProvider {
             // not just the instant stream-creation call.
             try await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask {
+                    defer { emitBufferedLiveTextIfNeeded(force: true) }
                     let stream = try await subagentProvider.send(
                         prompt: prompt, context: context, imageURLs: nil
                     )
@@ -227,7 +228,6 @@ extension ToolEnabledLLMProvider {
                             break
                         }
                     }
-                    emitBufferedLiveTextIfNeeded(force: true)
                 }
                 group.addTask {
                     try await Task.sleep(nanoseconds: 300_000_000_000) // 5 minutes
