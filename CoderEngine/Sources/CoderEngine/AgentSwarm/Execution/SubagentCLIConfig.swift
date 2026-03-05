@@ -113,7 +113,7 @@ public enum SubagentCLIRunner {
     ) async -> SubagentCLIRunResult {
         let startedAt = Date()
 
-        guard let backend = SubagentBackendResolver.selectBackend(for: role) else {
+        guard let backend = await SubagentBackendResolver.selectBackend(for: role) else {
             let installHint = SubagentCLIConfig.isReadOnly(role)
                 ? "Install codex or claude CLI."
                 : "Install codex CLI (required for workspace-write sandbox)."
@@ -152,6 +152,10 @@ public enum SubagentCLIRunner {
         do {
             try process.run()
         } catch {
+            await SubagentProviderHealthRuntime.shared.recordExecution(
+                providerID: backend.providerID,
+                success: false
+            )
             return SubagentCLIRunResult(
                 output: "Failed to launch subagent CLI: \(error.localizedDescription)",
                 isError: true,
@@ -184,6 +188,10 @@ public enum SubagentCLIRunner {
             stderrTask.cancel()
             try? stdout.fileHandleForReading.close()
             try? stderr.fileHandleForReading.close()
+            await SubagentProviderHealthRuntime.shared.recordExecution(
+                providerID: backend.providerID,
+                success: false
+            )
 
             return SubagentCLIRunResult(
                 output: "Subagent \(role.displayName) timed out after \(Int(backend.timeoutSeconds))s.",
@@ -209,6 +217,10 @@ public enum SubagentCLIRunner {
                 ? "Subagent completed successfully."
                 : "Subagent failed (exit \(exitCode))."
         }
+        await SubagentProviderHealthRuntime.shared.recordExecution(
+            providerID: backend.providerID,
+            success: exitCode == 0
+        )
 
         return SubagentCLIRunResult(
             output: truncateOutput(resultText),

@@ -74,13 +74,24 @@ extension CLIProfileProvisioner {
 
     1. **INVESTIGATE** — Use `coderide_grep`, `coderide_codebase_search`, `coderide_find_symbol`,
        `coderide_read`, `coderide_file_outline` to understand the problem BEFORE making changes.
-    2. **PLAN** — For tasks with 3+ concrete steps, use `coderide_todo_write` AFTER investigation
-       to create a structured task list. Include all steps in a single batch call.
-       ALWAYS include `activeForm` for `in_progress` items.
+    2. **TODO WORKFLOW (USE ONLY WHEN TRULY NEEDED)** — After investigation, create todos only if
+       the task is genuinely multi-step (for example 3+ concrete or interdependent steps).
+       If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
+       When todos are needed, create one coherent list with concrete executable steps only,
+       never placeholder items like "Task", "Analysis", "Step 1", or "Todo update".
+       Emit the first `coderide_todo_write` update BEFORE the first command/edit/tool action,
+       and ALWAYS include `activeForm` for `in_progress` items.
+       Emit `coderide_show_task_panel` only when a real todo list exists or when the user explicitly asks.
+       Use `coderide_todo_read` only for resume/reconciliation, never as the default first action.
     3. **RESOLVE** — Use `coderide_str_replace` for surgical edits. Only use `coderide_write`
        for new files or complete rewrites. Always `coderide_read` before editing.
-       Update todo status via `coderide_todo_write` as you complete each step.
+       Update todo status via `coderide_todo_write` only for real tasks: `in_progress` before work,
+       `done` after completion, `blocked` only when genuinely blocked.
     4. **VERIFY** — Use `coderide_read_lints` (fast) or `coderide_diagnostics` (full build).
+    5. **FINALIZE** — If subagent tools are available for the current provider/runtime,
+       start the first operational tool round with at least one `subagent_*` call and use parallel
+       subagents for independent workstreams. Before finalizing an implementation task, run
+       `subagent_reviewer` and `subagent_testWriter`.
 
     ## IDE Progress Tools
 
@@ -124,8 +135,11 @@ extension CLIProfileProvisioner {
     - Prefer `coderide_str_replace` over `apply_patch` for targeted edits.
     - Prefer `coderide_grep`/`coderide_find_symbol` over shell `grep`/`find`.
     - Use shell (`bash`) only for git operations, running builds, installing deps.
-    - Use `coderide_todo_write` for any task with 3+ steps.
+    - Use `coderide_todo_write` only when the task is truly multi-step after investigation.
     - ALWAYS include `activeForm` when setting a todo to `in_progress`.
+    - Do NOT emit todo markers for simple single-action tasks or tasks with <=2 concrete operations.
+    - Never create placeholder todos.
+    - If the context includes `[CODERIDE:policy_ack|hash=...]`, emit it once before any operational tool action.
     - Do NOT stop until the task is fully resolved.
     """
 }

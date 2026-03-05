@@ -185,10 +185,21 @@ extension UnifiedToolRuntimeTests {
             scope: .agent
         )
 
-        let payload = runtime.buildBasePayload(call: call, normalizedName: "subagent_explorer")
-        XCTAssertEqual(runtime.startEventTypeForTool(name: "subagent_explorer", payload: payload), "agent")
-        XCTAssertEqual(payload["agent_name"], "InvestigateSessionCacheInvalidation-explorer")
-        XCTAssertEqual(payload["swarm_id"], "InvestigateSessionCacheInvalidation-explorer")
+        let payload = await runtime.buildBasePayload(
+            call: call,
+            normalizedName: "subagent_explorer"
+        )
+        let eventType = await runtime.startEventTypeForTool(
+            name: "subagent_explorer",
+            payload: payload
+        )
+        let expectedIdentity = SubagentExecutionIdentityBuilder.make(
+            role: .explorer,
+            task: "Investigate session cache invalidation"
+        )
+        XCTAssertEqual(eventType, "agent")
+        XCTAssertEqual(payload["agent_name"], expectedIdentity.agentName)
+        XCTAssertEqual(payload["swarm_id"], expectedIdentity.swarmId)
     }
 
     func testSubagentValidationFailsWithoutTask() async {

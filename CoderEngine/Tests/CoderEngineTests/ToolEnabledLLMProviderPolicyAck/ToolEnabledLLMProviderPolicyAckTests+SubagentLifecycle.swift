@@ -91,7 +91,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
                 sawReviewer = true
             }
             if type == "tool_result",
-               payload["name"] == "subagent_testwriter",
+               payload["name"] == SubagentRole.testWriter.toolName,
                payload["status"] == "completed" {
                 sawTestWriter = true
             }
@@ -149,7 +149,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             if payload["name"] == "subagent_reviewer" {
                 reviewerCompletions += 1
             }
-            if payload["name"] == "subagent_testwriter" {
+            if payload["name"] == SubagentRole.testWriter.toolName {
                 testWriterCompletions += 1
             }
         }

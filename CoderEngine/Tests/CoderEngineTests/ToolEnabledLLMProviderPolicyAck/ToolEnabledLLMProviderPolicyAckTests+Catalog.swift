@@ -241,6 +241,13 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             imageURLs: nil
         )
 
+        let identity = SubagentExecutionIdentityBuilder.make(
+            role: .testWriter,
+            task: "Write tests for plan panel regressions"
+        )
+        let normalizedToolName = ProviderToolEventMapper.normalizeToolIdentifier(
+            SubagentRole.testWriter.toolName
+        )
         var sawQueued = false
         var sawStarted = false
         var sawCompletedResult = false
@@ -251,16 +258,17 @@ extension ToolEnabledLLMProviderPolicyAckTests {
                (payload["swarm_id"] ?? "").hasPrefix("queued-") {
                 sawQueued = true
             }
-            if type == "agent", payload["detail"] == "started",
-               (payload["swarm_id"] ?? "").hasPrefix("testWriter-")
-               || (payload["swarm_id"] ?? "").hasPrefix("queued-") {
+            if type == "agent", payload["status"] == "started",
+               payload["swarm_id"] == identity.swarmId {
                 sawStarted = true
             }
             if type == "tool_result",
                payload["status"] == "completed",
-               payload["name"] == "subagent_testwriter",
-               (payload["subagent_id"] ?? "").hasPrefix("testWriter-")
-               || (payload["subagent_id"] ?? "").hasPrefix("queued-") {
+               [
+                SubagentRole.testWriter.toolName,
+                normalizedToolName,
+               ].contains(payload["name"] ?? ""),
+               payload["agent_name"] == identity.agentName {
                 sawCompletedResult = true
             }
         }

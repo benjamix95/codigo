@@ -3,6 +3,10 @@ import XCTest
 @testable import CoderEngine
 
 extension ToolEnabledLLMProviderPolicyAckTests {
+    private var normalizedTestWriterToolName: String {
+        ProviderToolEventMapper.normalizeToolIdentifier(SubagentRole.testWriter.toolName)
+    }
+
     func testSubagentBatchDonePayloadIncludesCompletedRoles() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("subagent-batch-roles-\(UUID().uuidString)", isDirectory: true)
@@ -152,7 +156,10 @@ extension ToolEnabledLLMProviderPolicyAckTests {
                 reviewerCompleted = true
             }
             if type == "tool_result",
-               payload["name"] == "subagent_testwriter",
+               [
+                SubagentRole.testWriter.toolName,
+                normalizedTestWriterToolName,
+               ].contains(payload["name"] ?? ""),
                payload["status"] == "completed" {
                 testWriterCompleted = true
             }
@@ -192,13 +199,17 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             imageURLs: nil
         )
 
+        let reviewerIdentity = SubagentExecutionIdentityBuilder.make(
+            role: .reviewer,
+            task: "Review all changes"
+        )
         var sawReviewerAgentStarted = false
         var sawReviewerToolResult = false
         for try await event in stream {
             guard case .raw(let type, let payload) = event else { continue }
             if type == "agent",
                payload["status"] == "started",
-               (payload["swarm_id"] ?? "").hasPrefix("reviewer-") {
+               payload["swarm_id"] == reviewerIdentity.swarmId {
                 sawReviewerAgentStarted = true
             }
             if type == "tool_result",
@@ -246,7 +257,7 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         for try await event in stream {
             guard case .raw(let type, let payload) = event else { continue }
             if type == "tool_result",
-               payload["name"] == "subagent_testwriter",
+               payload["name"] == normalizedTestWriterToolName,
                payload["status"] == "completed" {
                 sawTestWriterToolResult = true
             }

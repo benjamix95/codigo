@@ -324,9 +324,13 @@ extension CodexCLIProviderStreamParsingTests {
             return nil
         }
         let agentEvents = rawEvents.filter { $0.0 == "agent" }
+        let expectedIdentity = SubagentExecutionIdentityBuilder.make(
+            role: .reviewer,
+            task: "Review PR"
+        )
         XCTAssertEqual(agentEvents.count, 2)
-        XCTAssertEqual(agentEvents.first?.1["swarm_id"], "reviewer")
-        XCTAssertEqual(agentEvents.last?.1["swarm_id"], "reviewer")
+        XCTAssertEqual(agentEvents.first?.1["swarm_id"], expectedIdentity.swarmId)
+        XCTAssertEqual(agentEvents.last?.1["swarm_id"], expectedIdentity.swarmId)
         XCTAssertEqual(agentEvents.first?.1["status"], "in_progress")
         XCTAssertEqual(agentEvents.last?.1["status"], "completed")
     }

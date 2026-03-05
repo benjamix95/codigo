@@ -117,14 +117,70 @@ public struct SubagentBackendSelection: Sendable, Equatable {
 }
 
 public enum SubagentBackendResolver {
-    public static func selectBackend(for role: SubagentRole) -> SubagentBackendSelection? {
-        selectBackend(for: role, discoveredCLIs: discoverAvailableCLIs())
+    public static func selectBackend(for role: SubagentRole) async -> SubagentBackendSelection? {
+        await selectBackend(for: role, discoveredCLIs: discoverAvailableCLIs())
+    }
+
+    static func selectBackend(
+        for role: SubagentRole,
+        discoveredCLIs: [String: String]
+    ) async -> SubagentBackendSelection? {
+        guard let routing = await buildRoutingContext(for: role, discoveredCLIs: discoveredCLIs) else {
+            return nil
+        }
+        return selectBackend(
+            for: role,
+            compatibleCLIs: routing.compatibleCLIs,
+            matrix: routing.matrix
+        )
     }
 
     static func selectBackend(
         for role: SubagentRole,
         discoveredCLIs: [String: String]
     ) -> SubagentBackendSelection? {
+        guard let routing = buildRoutingContextSync(for: role, discoveredCLIs: discoveredCLIs) else {
+            return nil
+        }
+        return selectBackend(
+            for: role,
+            compatibleCLIs: routing.compatibleCLIs,
+            matrix: routing.matrix
+        )
+    }
+
+    private static func selectBackend(
+        for role: SubagentRole,
+        compatibleCLIs: [String: String],
+        matrix: ProviderCapabilityMatrix
+    ) -> SubagentBackendSelection? {
+        guard !compatibleCLIs.isEmpty else { return nil }
+        let preferredProviders = SubagentCLIConfig.preferredBackendNames(
+            readOnly: SubagentCLIConfig.isReadOnly(role)
+        )
+        let fallbackChain = preferredProviders
+            + compatibleCLIs.keys.sorted().filter { !preferredProviders.contains($0) }
+        let router = ProviderRouter()
+        let selection = router.selectWithFallback(
+            matrix: matrix,
+            role: role.agentRole,
+            fallbackChain: fallbackChain
+        )
+        guard case .success(let result) = selection,
+              let cliPath = compatibleCLIs[result.provider.providerId] else {
+            return nil
+        }
+        return SubagentBackendSelection(
+            providerID: result.provider.providerId,
+            cliPath: cliPath,
+            timeoutSeconds: SubagentCLIConfig.timeout(for: role)
+        )
+    }
+
+    private static func buildRoutingContextSync(
+        for role: SubagentRole,
+        discoveredCLIs: [String: String]
+    ) -> (compatibleCLIs: [String: String], matrix: ProviderCapabilityMatrix)? {
         let readOnly = SubagentCLIConfig.isReadOnly(role)
         let compatibleCLIs = discoveredCLIs.filter { _, path in
             SubagentCLIConfig.supportsSandboxExpectations(
@@ -139,27 +195,20 @@ public enum SubagentBackendResolver {
                 capabilityEntry(for: providerID)
             }
         )
-        let preferredProviders = SubagentCLIConfig.preferredBackendNames(readOnly: readOnly)
-        let fallbackChain = preferredProviders
-            + compatibleCLIs.keys.sorted().filter { !preferredProviders.contains($0) }
+        return (compatibleCLIs, matrix)
+    }
 
-        let router = ProviderRouter()
-        let selection = router.selectWithFallback(
-            matrix: matrix,
-            role: role.agentRole,
-            fallbackChain: fallbackChain
-        )
-
-        guard case .success(let result) = selection,
-              let cliPath = compatibleCLIs[result.provider.providerId] else {
+    private static func buildRoutingContext(
+        for role: SubagentRole,
+        discoveredCLIs: [String: String]
+    ) async -> (compatibleCLIs: [String: String], matrix: ProviderCapabilityMatrix)? {
+        guard let base = buildRoutingContextSync(for: role, discoveredCLIs: discoveredCLIs) else {
             return nil
         }
-
-        return SubagentBackendSelection(
-            providerID: result.provider.providerId,
-            cliPath: cliPath,
-            timeoutSeconds: SubagentCLIConfig.timeout(for: role)
+        let hydratedMatrix = await SubagentProviderHealthRuntime.shared.hydratedMatrix(
+            from: base.matrix
         )
+        return (base.compatibleCLIs, hydratedMatrix)
     }
 
     static func discoverAvailableCLIs() -> [String: String] {

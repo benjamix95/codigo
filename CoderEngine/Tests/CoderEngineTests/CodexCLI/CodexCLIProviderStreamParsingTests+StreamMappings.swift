@@ -251,10 +251,14 @@ extension CodexCLIProviderStreamParsingTests {
             return
         }
 
+        let expectedIdentity = SubagentExecutionIdentityBuilder.make(
+            role: .reviewer,
+            task: ""
+        )
         XCTAssertEqual(parsed.type, "mcp_tool_call")
         XCTAssertEqual(parsed.payload["status"], "started")
-        XCTAssertEqual(parsed.payload["swarm_id"], "reviewer")
-        XCTAssertEqual(parsed.payload["group_id"], "swarm-reviewer")
+        XCTAssertEqual(parsed.payload["swarm_id"], expectedIdentity.swarmId)
+        XCTAssertEqual(parsed.payload["group_id"], "swarm-\(expectedIdentity.swarmId)")
     }
 
     func testRawMCPToolCallWithSwarmIdUsesCanonicalSwarmGroup() {
