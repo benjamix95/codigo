@@ -25,9 +25,7 @@ struct OpenRouterLoginView: View {
         }
         .frame(width: 420)
     }
-
     // MARK: - Header
-
     private var header: some View {
         VStack(spacing: 12) {
             Image(systemName: "arrow.triangle.branch")
@@ -45,9 +43,7 @@ struct OpenRouterLoginView: View {
         .padding(24)
         .frame(maxWidth: .infinity)
     }
-
     // MARK: - Progress
-
     private var progressView: some View {
         VStack(spacing: 16) {
             ProgressView()
@@ -72,9 +68,7 @@ struct OpenRouterLoginView: View {
         }
         .padding(32)
     }
-
     // MARK: - Options
-
     private var optionsView: some View {
         VStack(spacing: 16) {
             Button(action: loginWithOAuth) {
@@ -123,9 +117,7 @@ struct OpenRouterLoginView: View {
         }
         .padding(24)
     }
-
     // MARK: - OAuth PKCE
-
     private func loginWithOAuth() {
         isAuthenticating = true
         authMessage = "Opening browser..."
@@ -140,12 +132,14 @@ struct OpenRouterLoginView: View {
 
         let callbackScheme = "codigo"
         let callbackURL = "\(callbackScheme)://oauth/callback"
+        let oauthState = UUID().uuidString.replacingOccurrences(of: "-", with: "")
 
         var components = URLComponents(string: "https://openrouter.ai/auth")!
         components.queryItems = [
             URLQueryItem(name: "callback_url", value: callbackURL),
             URLQueryItem(name: "code_challenge", value: challenge),
-            URLQueryItem(name: "code_challenge_method", value: "S256")
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "state", value: oauthState)
         ]
 
         guard let authURL = components.url else {
@@ -175,11 +169,20 @@ struct OpenRouterLoginView: View {
                 }
                 return
             }
-            guard let callbackURL = callbackURL,
-                  let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                    .queryItems?.first(where: { $0.name == "code" })?.value else {
+            guard let callbackURL = callbackURL else {
                 DispatchQueue.main.async {
-                    errorMessage = "Authorization code not received"
+                    errorMessage = "Authorization response non valida (missing callback URL)"
+                    authMessage = "Error"
+                    isAuthenticating = false
+                    authSession = nil
+                }
+                return
+            }
+            let queryItems = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            guard let code = queryItems.first(where: { $0.name == "code" })?.value,
+                  queryItems.first(where: { $0.name == "state" })?.value == oauthState else {
+                DispatchQueue.main.async {
+                    errorMessage = "Authorization response non valida (code/state)"
                     authMessage = "Error"
                     isAuthenticating = false
                     authSession = nil
