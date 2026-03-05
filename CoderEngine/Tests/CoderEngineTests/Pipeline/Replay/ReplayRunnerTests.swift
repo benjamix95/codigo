@@ -159,6 +159,57 @@ final class ReplayRunnerTests: XCTestCase {
         )
         XCTAssertEqual(divergences.count, 1)
         XCTAssertTrue(divergences[0].reason.contains("Extra"))
+        XCTAssertNil(
+            divergences[0].expected,
+            "Extra replay decisions have no expected original"
+        )
+        XCTAssertNotNil(divergences[0].actual)
+        XCTAssertEqual(divergences[0].actual?.event, "task_completed")
+    }
+
+    func testCompare_extraInReplay_doesNotDeflateMatchRate() throws {
+        let originalEntries = (1...5).map { i in
+            makeEntry(event: "task_started", seq: UInt64(i))
+        }
+        let replayEntries = originalEntries + [
+            makeEntry(event: "task_completed", seq: 6),
+            makeEntry(event: "task_completed", seq: 7),
+        ]
+        let report = try runner.replay(
+            snapshot: makeSnapshot(),
+            originalEntries: originalEntries,
+            replayEntries: replayEntries
+        )
+        XCTAssertEqual(report.totalDecisions, 5)
+        XCTAssertEqual(report.matchedDecisions, 5)
+        XCTAssertEqual(report.matchRate, 1.0, accuracy: 0.001)
+        XCTAssertEqual(report.divergences.count, 2)
+        XCTAssertFalse(report.isFullMatch)
+    }
+
+    func testCompare_mixedDivergences_correctMatchCount() throws {
+        let originalEntries = [
+            makeEntry(event: "task_started", seq: 1),
+            makeEntry(event: "task_completed", seq: 2),
+            makeEntry(event: "task_started", seq: 3),
+        ]
+        let replayEntries = [
+            makeEntry(event: "task_started", seq: 1),
+            makeEntry(event: "task_failed", seq: 2),
+            makeEntry(event: "task_started", seq: 3),
+            makeEntry(event: "task_completed", seq: 4),
+        ]
+        let report = try runner.replay(
+            snapshot: makeSnapshot(),
+            originalEntries: originalEntries,
+            replayEntries: replayEntries
+        )
+        XCTAssertEqual(report.totalDecisions, 3)
+        XCTAssertEqual(
+            report.matchedDecisions, 2,
+            "1 mismatch on original[1], extras don't reduce count"
+        )
+        XCTAssertEqual(report.divergences.count, 2)
     }
 
     // MARK: - Replay

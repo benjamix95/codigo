@@ -41,13 +41,13 @@ public struct ReplayDecision: Sendable, Equatable {
 /// Report di divergenza tra run originale e replay (§6.10).
 public struct ReplayDivergence: Sendable, Equatable {
     public let sequenceNumber: UInt64
-    public let expected: ReplayDecision
+    public let expected: ReplayDecision?
     public let actual: ReplayDecision?
     public let reason: String
 
     public init(
         sequenceNumber: UInt64,
-        expected: ReplayDecision,
+        expected: ReplayDecision?,
         actual: ReplayDecision?,
         reason: String
     ) {
@@ -174,8 +174,8 @@ public struct ReplayRunner: Sendable {
             } else if let r = rep {
                 divergences.append(ReplayDivergence(
                     sequenceNumber: r.sequenceNumber,
-                    expected: r,
-                    actual: nil,
+                    expected: nil,
+                    actual: r,
                     reason: "Extra decision in replay"
                 ))
             }
@@ -205,7 +205,10 @@ public struct ReplayRunner: Sendable {
             replay: replayDecisions
         )
 
-        let matched = originalDecisions.count - divergences.count
+        let originalDivergences = divergences.filter {
+            $0.expected != nil
+        }
+        let matched = originalDecisions.count - originalDivergences.count
         return ReplayReport(
             snapshot: snapshot,
             totalDecisions: originalDecisions.count,
