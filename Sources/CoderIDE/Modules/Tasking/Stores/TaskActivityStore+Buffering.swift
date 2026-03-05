@@ -98,7 +98,8 @@ extension TaskActivityStore {
         pruneCompletedTerminalActivities()
         trimActivitiesToHardCapPreservingRunning()
         recalcActiveOperations()
-        ingestSwarmCard(activity: activity)
+        // NOTE: NON chiamare ingestSwarmCard qui — l'ingestion avviene già in
+        // flushPendingActivities() e rebuildSwarmCards(). Duplicare causa contatori inflazionati.
     }
 
     private func pruneCompletedTerminalActivities() {
@@ -231,7 +232,7 @@ extension TaskActivityStore {
         swarmCards.removeAll()
         swarmCardDedupKeys.removeAll()
         sortedSwarmCardsCache.removeAll()
-        isSortedSwarmCardsCacheDirty = false
+        isSortedSwarmCardsCacheDirty = true
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0

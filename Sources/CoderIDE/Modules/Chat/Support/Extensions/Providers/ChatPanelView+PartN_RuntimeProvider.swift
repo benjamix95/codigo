@@ -27,7 +27,9 @@ extension ChatPanelView {
                 let store = taskActivityStore
                 Task {
                     await multiSwarm.sessionState.setOnStateChange { snapshot in
-                        store.ingestCodeReviewSnapshot(snapshot)
+                        Task { @MainActor in
+                            store.ingestCodeReviewSnapshot(snapshot)
+                        }
                     }
                 }
                 return multiSwarm

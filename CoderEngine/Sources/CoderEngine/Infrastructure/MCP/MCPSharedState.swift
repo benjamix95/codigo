@@ -23,6 +23,9 @@ public enum MCPSharedState {
         sharedDirectory.appendingPathComponent("todos.json")
     }
 
+    /// Serial queue per garantire atomicità delle operazioni read-modify-write su disco.
+    private static let fileAccessQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.FileAccess")
+
     private static let legacyWarningQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.LegacyWarnings")
     private static var legacyWarningKeys: Set<String> = []
 
@@ -79,76 +82,80 @@ public enum MCPSharedState {
         linkedFiles: [String]? = nil,
         sourceServer: String? = nil
     ) {
-        var todos = readTodos()
-        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedTitle.isEmpty else { return }
+        fileAccessQueue.sync {
+            var todos = readTodos()
+            let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedTitle.isEmpty else { return }
 
-        if let idx = todos.firstIndex(where: {
-            ($0["title"] as? String)?.caseInsensitiveCompare(normalizedTitle) == .orderedSame
-        }) {
-            logLegacyWarningOnce(
-                key: "upsert|\(normalizedTitle.lowercased())",
-                message: "[MCPSharedState] ⚠️ Legacy todo upsert matched by title (no id provided): '\(normalizedTitle)'"
-            )
-            if let status { todos[idx]["status"] = normalizeStatus(status) }
-            if let priority { todos[idx]["priority"] = priority }
-            if let notes, !notes.isEmpty { todos[idx]["notes"] = notes }
-            if let activeForm, !activeForm.isEmpty { todos[idx]["activeForm"] = activeForm }
-            if let linkedFiles, !linkedFiles.isEmpty { todos[idx]["linkedFiles"] = linkedFiles }
-            todos[idx]["updatedAt"] = ISO8601DateFormatter().string(from: .now)
-        } else {
-            let source = sourceServer?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let item: [String: Any] = [
-                "id": UUID().uuidString,
-                "title": normalizedTitle,
-                "status": normalizeStatus(status),
-                "priority": priority ?? "medium",
-                "source": source.isEmpty ? "agent" : source,
-                "createdAt": ISO8601DateFormatter().string(from: .now),
-                "updatedAt": ISO8601DateFormatter().string(from: .now),
-                "notes": notes ?? "",
-                "activeForm": activeForm ?? "",
-                "linkedFiles": linkedFiles ?? [],
-                "isPlanCanonical": false,
-            ]
-            todos.append(item)
+            if let idx = todos.firstIndex(where: {
+                ($0["title"] as? String)?.caseInsensitiveCompare(normalizedTitle) == .orderedSame
+            }) {
+                logLegacyWarningOnce(
+                    key: "upsert|\(normalizedTitle.lowercased())",
+                    message: "[MCPSharedState] ⚠️ Legacy todo upsert matched by title (no id provided): '\(normalizedTitle)'"
+                )
+                if let status { todos[idx]["status"] = normalizeStatus(status) }
+                if let priority { todos[idx]["priority"] = priority }
+                if let notes, !notes.isEmpty { todos[idx]["notes"] = notes }
+                if let activeForm, !activeForm.isEmpty { todos[idx]["activeForm"] = activeForm }
+                if let linkedFiles, !linkedFiles.isEmpty { todos[idx]["linkedFiles"] = linkedFiles }
+                todos[idx]["updatedAt"] = ISO8601DateFormatter().string(from: .now)
+            } else {
+                let source = sourceServer?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let item: [String: Any] = [
+                    "id": UUID().uuidString,
+                    "title": normalizedTitle,
+                    "status": normalizeStatus(status),
+                    "priority": priority ?? "medium",
+                    "source": source.isEmpty ? "agent" : source,
+                    "createdAt": ISO8601DateFormatter().string(from: .now),
+                    "updatedAt": ISO8601DateFormatter().string(from: .now),
+                    "notes": notes ?? "",
+                    "activeForm": activeForm ?? "",
+                    "linkedFiles": linkedFiles ?? [],
+                    "isPlanCanonical": false,
+                ]
+                todos.append(item)
+            }
+            writeTodos(todos)
         }
-        writeTodos(todos)
     }
 
     /// Batch-write todos from the MCP server (full replacement of todos_json).
     public static func batchWriteTodosFromMCP(_ todosArray: [[String: Any]]) {
-        var existing = readTodos()
-        for todoItem in todosArray {
-            guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
-            let hasProvidedID = providedTodoID(in: todoItem) != nil
-            let id = (canonicalItem["id"] as? String) ?? UUID().uuidString
-            canonicalItem["id"] = id
+        fileAccessQueue.sync {
+            var existing = readTodos()
+            for todoItem in todosArray {
+                guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
+                let hasProvidedID = providedTodoID(in: todoItem) != nil
+                let id = (canonicalItem["id"] as? String) ?? UUID().uuidString
+                canonicalItem["id"] = id
 
-            if let idIndex = existing.firstIndex(where: {
-                (($0["id"] as? String) ?? "").caseInsensitiveCompare(id) == .orderedSame
-            }) {
-                mergeTodoFields(from: canonicalItem, into: &existing[idIndex])
-                continue
-            }
-
-            if !hasProvidedID {
-                let content = (canonicalItem["title"] as? String ?? "")
-                if let titleIndex = existing.firstIndex(where: {
-                    (($0["title"] as? String) ?? "").caseInsensitiveCompare(content) == .orderedSame
+                if let idIndex = existing.firstIndex(where: {
+                    (($0["id"] as? String) ?? "").caseInsensitiveCompare(id) == .orderedSame
                 }) {
-                    logLegacyWarningOnce(
-                        key: "batch|\(content.lowercased())",
-                        message: "[MCPSharedState] ⚠️ Legacy batch merge matched by title (id missing/new): '\(content)'"
-                    )
-                    mergeTodoFields(from: canonicalItem, into: &existing[titleIndex])
+                    mergeTodoFields(from: canonicalItem, into: &existing[idIndex])
                     continue
                 }
-            }
 
-            existing.append(canonicalItem)
+                if !hasProvidedID {
+                    let content = (canonicalItem["title"] as? String ?? "")
+                    if let titleIndex = existing.firstIndex(where: {
+                        (($0["title"] as? String) ?? "").caseInsensitiveCompare(content) == .orderedSame
+                    }) {
+                        logLegacyWarningOnce(
+                            key: "batch|\(content.lowercased())",
+                            message: "[MCPSharedState] ⚠️ Legacy batch merge matched by title (id missing/new): '\(content)'"
+                        )
+                        mergeTodoFields(from: canonicalItem, into: &existing[titleIndex])
+                        continue
+                    }
+                }
+
+                existing.append(canonicalItem)
+            }
+            writeTodos(canonicalizedTodos(existing, defaultSource: "agent"))
         }
-        writeTodos(canonicalizedTodos(existing, defaultSource: "agent"))
     }
 
     // MARK: - Helpers

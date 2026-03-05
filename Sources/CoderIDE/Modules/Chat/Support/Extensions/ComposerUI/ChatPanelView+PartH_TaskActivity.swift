@@ -28,7 +28,7 @@ extension ChatPanelView {
         taskFlushTask = Task { @MainActor in
             let delay = UInt64(taskActivityFlushInterval * 1_000_000_000)
             try? await Task.sleep(nanoseconds: delay)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { taskFlushTask = nil; return }
             taskFlushTask = nil
             flushPendingTaskActivities()
         }
