@@ -120,20 +120,10 @@ extension SidebarView {
                 .padding(.vertical, 8)
         }
         .safeAreaInset(edge: .bottom) { footer }
-        .sheet(isPresented: $showCreateWorkspace) {
-            CreateWorkspaceSheetView(
-                workspaceStore: workspaceStore,
-                newWorkspaceName: $newWorkspaceName,
-                showCreateWorkspace: $showCreateWorkspace,
-                onCreated: { id in
-                    projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
-                    attachConversation(to: id)
-                }
-            )
-        }
         .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderSelection)
-        .sheet(item: $workspaceToRename) { ws in
-            RenameWorkspaceSheet(workspace: ws, onDismiss: { workspaceToRename = nil })
+        .sheet(item: $contextToRename) { context in
+            RenameContextSheet(context: context, onDismiss: { contextToRename = nil })
+                .environmentObject(projectContextStore)
                 .environmentObject(workspaceStore)
         }
         .sheet(item: $conversationToRename) { conv in

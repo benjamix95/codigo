@@ -19,12 +19,10 @@ struct SidebarView: View {
 
     @State var sidebarQuery = ""
     @State var isSelectingAddFolder = false
-    @State var pendingAddFolderWorkspaceId: UUID?
+    @State var pendingAddFolderContextId: UUID?
     @State var codexTasks: [CodexCloudTask] = []
     @State var isLoadingTasks = false
-    @State var showCreateWorkspace = false
-    @State var newWorkspaceName = ""
-    @State var workspaceToRename: Workspace?
+    @State var contextToRename: ProjectContext?
     @State var conversationToRename: Conversation?
     @State var expandedFolders: Set<String> = []
     @State var showArchived = false

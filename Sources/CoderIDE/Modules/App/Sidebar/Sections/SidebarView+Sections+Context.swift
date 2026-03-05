@@ -64,7 +64,7 @@ extension SidebarView {
                         Spacer()
 
                         Button {
-                            pendingAddFolderWorkspaceId = context.id
+                            pendingAddFolderContextId = context.id
                             isSelectingAddFolder = true
                         } label: {
                             Image(systemName: "folder.badge.plus")
@@ -75,17 +75,9 @@ extension SidebarView {
                         .help("Add folder to context")
 
                         Menu {
-                            if context.kind == .workspace,
-                               let ws = workspaceStore.workspaces.first(where: { $0.id == context.id }) {
-                                Button("Rename context") { workspaceToRename = ws }
-                                Divider()
-                                Button(role: .destructive) { deleteWorkspace(ws) } label: { Text("Remove context") }
-                            } else {
-                                Button(role: .destructive) {
-                                    projectContextStore.remove(id: context.id)
-                                    clearConversationContext()
-                                } label: { Text("Remove context") }
-                            }
+                            Button("Rename context") { contextToRename = context }
+                            Divider()
+                            Button(role: .destructive) { deleteContext(context) } label: { Text("Remove context") }
                             Divider()
                             Button("Close context") { clearConversationContext() }
                         } label: {

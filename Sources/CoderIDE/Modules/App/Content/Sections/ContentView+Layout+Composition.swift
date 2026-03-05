@@ -4,6 +4,14 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 extension ContentView {
+    var activeContextSyncFingerprint: String {
+        guard let context = projectContextStore.activeContext else { return "none" }
+        let folders = context.folderPaths.joined(separator: "|")
+        let exclusions = context.excludedPaths.joined(separator: "|")
+        let activeRoot = context.activeFolderPath ?? ""
+        return "\(context.id.uuidString)#\(folders)#\(exclusions)#\(activeRoot)"
+    }
+
     var configuredContent: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             configuredSidebar
@@ -13,6 +21,12 @@ extension ContentView {
             .onAppear(perform: configureInitialConversationSelection)
         .onAppear {
             configureDefaultProviderSelection()
+        }
+        .onAppear {
+            workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
+        }
+        .onChange(of: activeContextSyncFingerprint) { _, _ in
+            workspaceStore.syncActiveWorkspace(with: projectContextStore.activeContext)
         }
         .fileImporter(isPresented: $isSelectingProjectFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true, onCompletion: handleProjectFolderSelection)
         .sheet(isPresented: $showSettings) {

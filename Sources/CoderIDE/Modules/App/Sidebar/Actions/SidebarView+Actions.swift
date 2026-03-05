@@ -138,12 +138,6 @@ extension SidebarView {
         }
     }
 
-    func deleteWorkspace(_ ws: Workspace) {
-        chatStore.clearWorkspaceReferences(workspaceId: ws.id)
-        workspaceStore.delete(id: ws.id)
-        projectContextStore.remove(id: ws.id)
-    }
-
     func loadCodexTasks() {
         guard let path = codexState.status.path else { return }
         isLoadingTasks = true
@@ -157,8 +151,8 @@ extension SidebarView {
     }
 
     func handleAddFolderSelection(result: Result<[URL], Error>) {
-        guard let contextId = pendingAddFolderWorkspaceId else { return }
-        defer { pendingAddFolderWorkspaceId = nil }
+        guard let contextId = pendingAddFolderContextId else { return }
+        defer { pendingAddFolderContextId = nil }
         guard case .success(let urls) = result, let url = urls.first else { return }
         let normalizedPath = workspaceStore.normalizedWorkspacePath(url.path(percentEncoded: false))
         guard !normalizedPath.isEmpty else { return }
@@ -180,5 +174,14 @@ extension SidebarView {
     func scopedFolderPath(for context: ProjectContext?) -> String? {
         guard let context else { return nil }
         return context.folderPaths.count > 1 ? context.activeFolderPath : nil
+    }
+
+    func deleteContext(_ context: ProjectContext) {
+        chatStore.clearWorkspaceReferences(workspaceId: context.id)
+        workspaceStore.delete(id: context.id)
+        projectContextStore.remove(id: context.id)
+        if currentContext?.id == context.id {
+            clearConversationContext()
+        }
     }
 }
