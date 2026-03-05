@@ -141,10 +141,11 @@ public struct ErrorBudgetTracker: Sendable {
             totalTasks: totalTasks,
             weightedFailures: weightedFailures
         )
-        return remaining < Self.lowBudgetThreshold && remaining > 0
+        return remaining < Self.lowBudgetThreshold && remaining >= 0
     }
 
-    /// Verifica se il budget è esaurito (<= 0%).
+    /// Verifica se il budget è esaurito (< 0%, coerente con `CircuitBreakerState.shouldTrip`
+    /// che usa `>` stretto su `failureRate > maxPercent`).
     public func isBudgetExhausted(
         totalTasks: Int,
         weightedFailures: Int
@@ -152,7 +153,7 @@ public struct ErrorBudgetTracker: Sendable {
         budgetRemaining(
             totalTasks: totalTasks,
             weightedFailures: weightedFailures
-        ) <= 0
+        ) < 0
     }
 
     /// Verifica se il consecutive failures trigger è superato.
@@ -198,8 +199,8 @@ public struct ErrorBudgetTracker: Sendable {
             failureRatePercent: rate,
             budgetMaxPercent: budget.maxFailedTasksPercent,
             budgetRemainingPercent: remaining,
-            isLow: remaining < Self.lowBudgetThreshold && remaining > 0,
-            isExhausted: remaining <= 0,
+            isLow: remaining < Self.lowBudgetThreshold && remaining >= 0,
+            isExhausted: remaining < 0,
             consecutiveFailures: consecutiveFailures,
             maxConsecutiveFailures: budget.maxConsecutiveFailures
         )
@@ -217,7 +218,7 @@ public struct ErrorBudgetTracker: Sendable {
             weightedFailures: weightedFailures
         )
 
-        if remaining <= 0 {
+        if remaining < 0 {
             return .budgetExhausted(
                 failureRate: weightedFailureRate(
                     totalTasks: totalTasks,

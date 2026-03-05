@@ -158,8 +158,18 @@ final class ErrorBudgetTrackerTests: XCTestCase {
         let tracker = makeTracker(maxPercent: 20)
         XCTAssertTrue(
             tracker.isBudgetExhausted(
-                totalTasks: 10, weightedFailures: 2
+                totalTasks: 10, weightedFailures: 3
             )
+        )
+    }
+
+    func testIsBudgetExhausted_exactBoundary_false() {
+        let tracker = makeTracker(maxPercent: 20)
+        XCTAssertFalse(
+            tracker.isBudgetExhausted(
+                totalTasks: 10, weightedFailures: 2
+            ),
+            "rate == maxPercent should NOT be exhausted (strict >, consistent with CircuitBreakerState.shouldTrip)"
         )
     }
 
@@ -210,9 +220,21 @@ final class ErrorBudgetTrackerTests: XCTestCase {
         XCTAssertTrue(
             tracker.shouldTrip(
                 totalTasks: 10,
-                weightedFailures: 2,
+                weightedFailures: 3,
                 consecutiveFailures: 0
             )
+        )
+    }
+
+    func testShouldTrip_exactBoundary_false() {
+        let tracker = makeTracker(maxPercent: 20)
+        XCTAssertFalse(
+            tracker.shouldTrip(
+                totalTasks: 10,
+                weightedFailures: 2,
+                consecutiveFailures: 0
+            ),
+            "rate == maxPercent should NOT trip (strict >, consistent with CircuitBreakerState.shouldTrip)"
         )
     }
 
