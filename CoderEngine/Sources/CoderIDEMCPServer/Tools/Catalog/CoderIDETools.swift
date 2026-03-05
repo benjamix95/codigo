@@ -22,7 +22,7 @@ struct CoderIDETools {
         var normalized = mcpName.trimmingCharacters(in: .whitespacesAndNewlines)
         if let slash = normalized.lastIndex(of: "/") {
             let afterSlash = normalized[normalized.index(after: slash)...]
-            normalized = afterSlash.isEmpty ? normalized : String(afterSlash)
+            normalized = afterSlash.isEmpty ? String(normalized[..<slash]) : String(afterSlash)
         }
         if normalized.hasPrefix("coderide_") {
             return String(normalized.dropFirst("coderide_".count))
