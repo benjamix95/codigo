@@ -202,6 +202,8 @@ extension SettingsView {
                 }.padding(4)
             }
 
+            codexCustomModelGroup
+
             multiAccountProviderSection(.codex)
 
             GroupBox("Claude Code") {

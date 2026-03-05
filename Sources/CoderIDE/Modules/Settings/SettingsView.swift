@@ -43,6 +43,7 @@ struct SettingsView: View {
     @AppStorage("codex_model_provider") var codexModelProvider = ""
     @AppStorage("codex_prefer_responses_wire_api") var codexPreferResponsesWireAPI = false
     @AppStorage("codex_session_full_access") var codexSessionFullAccess = false
+    @AppStorage(CodexCustomModelProfileSync.settingsKey) var codexCustomGPT54Enabled = false
     @AppStorage("codex_network_access") var codexNetworkAccess = false
     @AppStorage("codex_additional_write_roots") var codexAdditionalWriteRoots = ""
     @AppStorage("codex_check_update") var codexCheckUpdate = true
@@ -212,19 +213,24 @@ struct SettingsView: View {
     }
 
     func applyCLISyncs<V: View>(_ content: V) -> some View {
-        content
+        let codexCoreSyncs = content
             .onChange(of: codexPath) { _, _ in codexState.refresh(); syncCodex() }
             .onChange(of: codexSandbox) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexAskForApproval) { _, _ in syncCodex() }
             .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexReasoningEffort) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexFastMode) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexModelProvider) { _, _ in syncCodex(); saveCodexToml() }
+        let codexSettingsSyncs = codexCoreSyncs
             .onChange(of: codexPreferResponsesWireAPI) { _, _ in syncCodex() }
             .onChange(of: codexSessionFullAccess) { _, _ in syncCodex() }
+            .onChange(of: codexCustomGPT54Enabled) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexNetworkAccess) { _, _ in saveCodexToml() }
             .onChange(of: codexAdditionalWriteRoots) { _, _ in saveCodexToml() }
             .onChange(of: codexCheckUpdate) { _, _ in saveCodexToml() }
             .onChange(of: codexDeveloperInstructions) { _, _ in saveCodexToml() }
+            .onChange(of: codexVerbosity) { _, _ in saveCodexToml() }
+        return codexSettingsSyncs
             .onChange(of: claudePath) { _, _ in syncClaude() }
             .onChange(of: claudeModel) { _, _ in syncClaude() }
             .onChange(of: claudeAllowedTools) { _, _ in syncClaude() }

@@ -15,6 +15,12 @@ public struct CodexModel: Sendable {
 
 /// Reads available models from ~/.codex/models_cache.json (populated by Codex CLI)
 public enum CodexModelsCache {
+    private static let injectedCustomModel = CodexModel(
+        slug: "gpt-5.4",
+        displayName: "GPT-5.4 1M",
+        reasoningLevels: ["low", "medium", "high", "xhigh"]
+    )
+
     private static var codexHome: String {
         ProcessInfo.processInfo.environment["CODEX_HOME"] ?? "\(NSHomeDirectory())/.codex"
     }
@@ -30,10 +36,10 @@ public enum CodexModelsCache {
               let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let modelsArray = json["models"] as? [[String: Any]] else {
-            return []
+            return mergeInjectedModels(into: [])
         }
-        
-        return modelsArray.compactMap { dict -> CodexModel? in
+
+        let models = modelsArray.compactMap { dict -> CodexModel? in
             guard let slug = dict["slug"] as? String else { return nil }
             let displayName = dict["display_name"] as? String ?? slug
             let reasoningLevels: [String] = (dict["supported_reasoning_levels"] as? [[String: Any]])?
@@ -42,8 +48,29 @@ public enum CodexModelsCache {
                 ?? ["low", "medium", "high", "xhigh"]
             return CodexModel(slug: slug, displayName: displayName, reasoningLevels: reasoningLevels)
         }
+
+        return mergeInjectedModels(into: models)
     }
-    
+
+    private static func mergeInjectedModels(into models: [CodexModel]) -> [CodexModel] {
+        guard shouldShowGPT54Preset() else { return models }
+        guard !models.contains(where: { $0.slug.lowercased() == injectedCustomModel.slug }) else {
+            return models
+        }
+        return [injectedCustomModel] + models
+    }
+
+    private static func shouldShowGPT54Preset() -> Bool {
+        if UserDefaults.standard.bool(forKey: "codex_custom_gpt54_1m_enabled") {
+            return true
+        }
+
+        let currentModel = CodexConfigLoader.load().model?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return currentModel == injectedCustomModel.slug
+    }
+
     private static func orderReasoningLevel(_ s: String) -> Int {
         switch s.lowercased() {
         case "low": return 0

@@ -32,6 +32,7 @@ extension SettingsView {
     }
     func loadCodexAdvanced() {
         let cfg = CodexConfigLoader.load()
+        let codexHomes = CodexCustomModelProfileSync.allCodexHomes(accounts: cliAccountsStore.accounts)
         codexSandbox = cfg.sandboxMode ?? ""
         codexModelOverride = cfg.model ?? ""
         codexModelProvider = cfg.modelProvider ?? ""
@@ -45,6 +46,8 @@ extension SettingsView {
         codexAdditionalWriteRoots = cfg.additionalWriteRoots.joined(separator: ", ")
         codexDeveloperInstructions = cfg.developerInstructions ?? ""
         codexCheckUpdate = cfg.checkForUpdateOnStartup ?? true
+        codexCustomGPT54Enabled = CodexCustomModelProfileSync.featureEnabledFromDisk(codexHomes: codexHomes)
+            || cfg.model?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == CodexCustomModelProfileSync.slug
         codexAgentsMd = CodexAgentsFile.loadGlobal()
         normalizeStoredSelections()
         reloadRulesFromDisk()
@@ -53,11 +56,15 @@ extension SettingsView {
         var cfg = CodexConfigLoader.load()
         if !codexSandbox.isEmpty { cfg.sandboxMode = codexSandbox }
         cfg.fastMode = codexFastMode
-        if !codexModelOverride.isEmpty { cfg.model = codexModelOverride }
-        if !codexModelProvider.isEmpty { cfg.modelProvider = codexModelProvider }
+        let trimmedModelOverride = codexModelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        cfg.model = trimmedModelOverride.isEmpty ? nil : trimmedModelOverride
+        cfg.modelProvider = codexModelProvider.isEmpty ? nil : codexModelProvider
 
-        let model = codexModelOverride.lowercased()
-        let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("o3") || model.hasPrefix("o4")
+        let model = trimmedModelOverride.lowercased()
+        let isReasoningModel = model.hasPrefix("o1")
+            || model.hasPrefix("o3")
+            || model.hasPrefix("o4")
+            || model == CodexCustomModelProfileSync.slug
         if isReasoningModel {
             if !codexReasoningEffort.isEmpty { cfg.modelReasoningEffort = codexReasoningEffort }
             cfg.modelReasoningSummary = codexReasoningSummary == "auto" ? nil : codexReasoningSummary
@@ -72,7 +79,15 @@ extension SettingsView {
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         cfg.developerInstructions = codexDeveloperInstructions.isEmpty ? nil : codexDeveloperInstructions
         cfg.checkForUpdateOnStartup = codexCheckUpdate ? nil : false
-        CodexConfigLoader.save(cfg)
+
+        let presetEnabled = codexCustomGPT54Enabled || model == CodexCustomModelProfileSync.slug
+        let syncedConfig = CodexCustomModelProfileSync.applyPresetIfEnabled(
+            to: cfg,
+            enabled: presetEnabled,
+            modelOverride: trimmedModelOverride
+        )
+        let codexHomes = CodexCustomModelProfileSync.allCodexHomes(accounts: cliAccountsStore.accounts)
+        CodexCustomModelProfileSync.sync(config: syncedConfig, codexHomes: codexHomes, enabled: presetEnabled)
     }
     func refreshIndexStatus() async {
         let index = workspaceStore.codebaseIndex
