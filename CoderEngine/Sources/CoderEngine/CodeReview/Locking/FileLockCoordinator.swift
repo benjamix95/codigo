@@ -4,6 +4,8 @@ import Foundation
 /// Uses exponential backoff with jitter to reduce contention and starvation.
 /// Locks have a 10-minute lease — stale locks from crashed workers are auto-evicted.
 public actor FileLockCoordinator {
+    public init() {}
+
     private var lockedFiles: [String: String] = [:]
     /// Timestamps tracking when each file was locked (for lease expiration).
     private var lockTimestamps: [String: UInt64] = [:]
