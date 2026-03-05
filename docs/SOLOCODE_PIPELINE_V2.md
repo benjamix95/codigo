@@ -1,337 +1,962 @@
-# SoloCode Pipeline v2
+# SoloCode Pipeline v2.1
 
 Data: 2026-03-05  
-Stato: Proposta operativa approvata per implementazione incrementale  
-Target: workflow stile Cursor, deterministico, affidabile, compatibile provider CLI + API
+Stato: Specifica operativa completa  
+Obiettivo: pipeline AI engineering stile Cursor, deterministica, robusta, provider-agnostic (CLI + API), con orchestrator centrale
 
-## 1) Obiettivo
+## 0. Convenzioni normative
 
-Costruire una pipeline AI engineering dove:
+In questo documento:
 
-- l'orchestrator decide sempre il flusso;
-- gli agenti eseguono task assegnati;
-- le modifiche sono patch-first;
-- review e test sono gate obbligatori;
-- il runtime è robusto con provider multipli;
-- il comportamento è osservabile, ripetibile e ripristinabile.
+- `MUST`: obbligatorio
+- `SHOULD`: fortemente raccomandato
+- `MAY`: opzionale
 
-## 2) Revisione critica del draft originario
+Le regole `MUST` sono vincoli di sistema e di CI.
 
-Il draft iniziale è valido nella direzione, ma incompleto su alcuni punti critici.
+## 1. Scope
 
-Correzioni necessarie:
+Questa specifica copre:
 
-1. Il lock file non basta da solo: serve lock con lease, fairness, timeout e cleanup stale.
-2. Il rollback deve essere transazionale su patch-set, non un concetto generico.
-3. "Gli agenti non modificano il repo" va reso tecnico con una modalità `strict`.
-4. Mancava un router capability-based per provider CLI/API.
-5. Mancava una persistenza job-state robusta (event log + resume).
-6. Test/documentazione devono essere gate risk-based, non solo slogan.
-7. Auto-improvement loop va isolato su branch dedicato, mai auto-merge su trunk.
+1. architettura end-to-end della pipeline;
+2. processi di esecuzione fase per fase;
+3. catalogo completo tool MCP usati nel flusso;
+4. contratti dati (job/task/patch/review/memory);
+5. algoritmi di orchestrazione (DAG, scheduler, lock, apply);
+6. strategia provider CLI + API;
+7. quality gates (review/test/docs/security/size);
+8. piano implementativo concreto con struttura file.
 
-## 3) Stato attuale del codice (baseline reale)
+Non copre:
 
-Capacità già presenti e riusabili:
+1. UI pixel-level design;
+2. dettagli cloud multi-tenant;
+3. billing/accounting avanzato provider.
 
-- Lock coordinator con fairness/lease/backoff: `CodeReview/Locking/FileLockCoordinator.swift`.
-- Loop review multi-round (`fix -> test -> re-review`): `CodeReviewMultiSwarmProvider+Pipeline+Loop.swift`.
-- Gate obbligatorio reviewer + testWriter dopo mutazioni: `ToolEnabledLLMProvider+Send.swift`.
-- Tool MCP code review completi: `CoderIDETools+CodeReview.swift`.
-- Tool MCP subagent completi: `CoderIDETools+Subagent.swift`.
-- Plan/Todo/Panel tools già integrati: `CoderIDETools+PlanIntegration.swift`, `CoderIDETools+IdeIntegration.swift`.
-- Provider factory multi-backend CLI/API già strutturata.
+## 2. Principi invarianti
 
-Gap principali:
+1. `Orchestrator authority`: solo l'orchestrator decide ordine, retry, apply e chiusura task.
+2. `Task determinism`: task con input/output tipizzati, idempotenti quando possibile.
+3. `Patch-first`: niente rewrite completo salvo casi espliciti e tracciati.
+4. `Safe concurrency`: lock file-set + fairness + lease + timeout.
+5. `Mandatory quality`: ogni mutazione deve passare review + test.
+6. `Auditability`: ogni decisione e ogni patch sono tracciate.
+7. `Provider neutrality`: routing per capability, non per nome provider.
+8. `Small modules`: target `<300` LOC/file, hard block `>500`.
 
-- write-subagent CLI oggi è effettivamente codex-first (Claude read-only);
-- manca un "apply engine" unico con patch manifest e rollback transazionale;
-- policy `<300` righe non ancora enforced in CI.
+## 3. Baseline reale del repository
 
-## 4) Principi architetturali v2
+Capacità già presenti:
 
-1. Orchestrator authority: solo l'orchestrator chiude task e applica patch.
-2. Determinismo: state machine, input/output formalizzati, retry bounded.
-3. Patch-first: niente rewrite completo se non dichiarato e giustificato.
-4. Safety-first: lock, policy ack, review/test mandatory, rollback sicuro.
-5. Observability-first: ogni fase emette eventi strutturati.
-6. Provider-agnostic: routing per capability, non per brand.
-7. Moduli piccoli: target `<300` LOC/file, hard limit CI.
+1. `FileLockCoordinator` con lease/fairness/backoff.
+2. `CodeReviewMultiSwarmProvider` con fix/test/re-review loop.
+3. `ToolEnabledLLMProvider` con gate obbligatorio reviewer + testWriter post-mutation.
+4. catalogo MCP esteso (plan/subagent/review/debug/todo/search/file ops).
+5. provider factory multi-backend CLI/API.
 
-## 5) Architettura target
+Gap tecnici principali:
+
+1. write-subagent CLI oggi è codex-first (Claude read-only, Gemini non idoneo write-safe nel path subagent).
+2. manca un apply engine transazionale unico con patch manifest formale.
+3. manca enforcement CI hard del limite `<300` e blocco `>500`.
+4. manca schema persistente standard per job DAG + resume automatico.
+
+## 4. Architettura target
 
 ```mermaid
 flowchart TD
-    U[User Request] --> P[Plan Orchestrator]
-    P --> C[Context Builder]
-    P --> G[Task Graph Builder DAG]
-    G --> S[Scheduler]
-    S --> X[Execution Subagents]
-    X --> R[Review Swarm]
-    R --> T[Test Runner]
-    T --> A[Safe Apply Engine]
-    A --> D[Doc + Walkthrough]
-    D --> M[Metrics + Memory]
-    M --> O[Output + Commit]
+    U[User Request] --> PM[Plan Manager]
+    PM --> CB[Context Builder]
+    PM --> TG[Task Graph Builder]
+    TG --> SCH[Deterministic Scheduler]
+    SCH --> EXE[Execution Agents]
+    EXE --> REV[Review Swarm]
+    REV --> VAL[Validation Gates]
+    VAL --> AP[Safe Apply Engine]
+    AP --> DOC[Documentation Stage]
+    DOC --> RES[Result + Commit]
+    RES --> MEM[Project Memory + Metrics]
 ```
 
-Componenti:
+Componenti logici:
 
-- `Orchestrator Core`
-- `Context Builder`
-- `DAG Scheduler`
-- `Execution Layer (Subagent)`
-- `Review & Validation`
-- `Safe Apply Engine`
-- `Observability + Project Memory`
+1. `Plan Manager`
+2. `Context Builder`
+3. `Task Graph Builder`
+4. `Scheduler`
+5. `Execution Layer`
+6. `Review Layer`
+7. `Validation Layer`
+8. `Apply Engine`
+9. `Memory & Observability`
 
-## 6) Contratti MCP obbligatori per pipeline
+## 5. State machine globale
 
-### 6.1 Plan & state
+```mermaid
+stateDiagram-v2
+    [*] --> intake
+    intake --> planning
+    planning --> context_ready
+    context_ready --> scheduled
+    scheduled --> executing
+    executing --> reviewing
+    reviewing --> validating
+    validating --> applying
+    applying --> finalized
+    finalized --> [*]
 
-- `coderide_plan_create`
-- `coderide_plan_read`
-- `coderide_plan_step_upsert`
-- `coderide_plan_step_batch_update`
-- `coderide_plan_step_reorder`
-- `coderide_plan_step_dependency_set`
-- `coderide_plan_set_walkthrough`
-- `coderide_plan_history_read`
-- `coderide_plan_diff`
-- `coderide_plan_request_user_input`
-- `coderide_plan_step_update`
+    executing --> failed
+    reviewing --> failed
+    validating --> failed
+    applying --> failed
 
-### 6.2 Task tracking & panels
+    failed --> retrying
+    retrying --> scheduled
+    failed --> aborted
+    aborted --> [*]
+```
 
-- `coderide_todo_write`
-- `coderide_todo_read`
-- `coderide_show_task_panel`
-- `coderide_show_swarm_panel`
-- `coderide_activate_plan_mode`
-- `coderide_activate_debug_mode`
+Stati terminali:
 
-### 6.3 Subagent runtime
+1. `finalized`
+2. `aborted`
 
-- `coderide_subagent_explorer`
-- `coderide_subagent_coder`
-- `coderide_subagent_debugger`
-- `coderide_subagent_reviewer`
-- `coderide_subagent_testWriter`
-- `coderide_subagent_docWriter`
-- `coderide_subagent_securityAuditor`
+## 6. Contratti dati obbligatori
 
-### 6.4 Code review runtime
+## 6.1 `pipeline_job.json`
 
-- `coderide_review_start`
-- `coderide_review_status`
-- `coderide_review_findings`
-- `coderide_review_apply_fix`
-- `coderide_review_dismiss`
-- `coderide_review_configure`
-- `coderide_review_diff_summary`
-- `coderide_review_comment`
+```json
+{
+  "job_id": "job_20260305_001",
+  "workspace": "/abs/path/repo",
+  "request": "testo richiesta utente",
+  "mode": "strict",
+  "created_at": "2026-03-05T15:00:00Z",
+  "state": "planning",
+  "policy_version": "v2.1",
+  "selected_provider_profile": "default",
+  "plan_snapshot_id": "plan_123"
+}
+```
 
-### 6.5 Guardrail di policy/debug
+Campi minimi:
 
-- `coderide_policy_ack`
-- `coderide_debug_set_phase`
-- `coderide_debug_request_user`
-- `coderide_debug_resolve`
+1. `job_id`
+2. `workspace`
+3. `request`
+4. `mode`
+5. `state`
 
-## 7) Flusso esecutivo standard (Cursor-style)
+## 6.2 `task_node.json`
 
-### Fase 0: Intake + Plan
+```json
+{
+  "task_id": "T3",
+  "title": "Refactor parser lock handling",
+  "depends_on": ["T1", "T2"],
+  "priority": 70,
+  "risk": "medium",
+  "file_scope": ["Sources/A.swift", "Sources/B.swift"],
+  "status": "pending",
+  "attempts": 0,
+  "max_attempts": 3
+}
+```
 
-1. Attiva Plan Mode.
-2. Crea piano con step DAG e dipendenze esplicite.
-3. Registra todo iniziali con stato `pending`.
+## 6.3 `patch_manifest.json`
 
-### Fase 1: Context build
+```json
+{
+  "patch_id": "p_abc123",
+  "job_id": "job_20260305_001",
+  "task_id": "T3",
+  "provider": "codex-cli",
+  "agent_role": "coder",
+  "touched_files": ["Sources/A.swift"],
+  "unified_diff_path": "artifacts/patches/p_abc123.diff",
+  "risk_score": 0.42,
+  "created_at": "2026-03-05T15:07:30Z",
+  "status": "proposed"
+}
+```
 
-1. Costruisci contesto minimo (semantic search, symbol search, refs, file outline).
-2. Limita scope dei file per task.
-3. Stima complessità e rischio.
+## 6.4 `review_session.json`
 
-### Fase 2: Execution (subagent)
+```json
+{
+  "session_id": "rev_987",
+  "scope": "uncommitted",
+  "max_workers": 6,
+  "max_rounds": 3,
+  "analysis_backend": "codex",
+  "execution_backend": "codex",
+  "phase": "reviewing",
+  "findings_count": 4
+}
+```
 
-1. Lancia explorer in parallelo su aree diverse.
-2. Lancia coder/debugger su file-set disgiunti.
-3. Ogni worker produce patch proposal + metadata.
+## 6.5 `provider_capability_matrix.json`
 
-### Fase 3: Review gate
+```json
+{
+  "providers": [
+    {
+      "id": "codex-cli",
+      "supports_readonly_subagent": true,
+      "supports_write_subagent": true,
+      "supports_workspace_sandbox": true,
+      "supports_native_tools": true
+    },
+    {
+      "id": "claude-cli",
+      "supports_readonly_subagent": true,
+      "supports_write_subagent": false,
+      "supports_workspace_sandbox": false,
+      "supports_native_tools": true
+    }
+  ]
+}
+```
 
-1. Avvia `coderide_review_start`.
-2. Raccogli findings e diff summary.
-3. Se critico, nuova iterazione fix.
-4. Reviewer + testWriter obbligatori dopo mutazioni.
+## 6.6 `project_memory.json`
 
-### Fase 4: Validation gate
+```json
+{
+  "workspace": "/abs/path/repo",
+  "coding_standards": ["swiftlint strict", "no giant files"],
+  "naming_rules": ["camelCase functions", "PascalCase types"],
+  "forbidden_patterns": ["force unwrap in production paths"],
+  "architecture_notes": ["adapter layer mandatory for external APIs"],
+  "last_updated_at": "2026-03-05T15:00:00Z"
+}
+```
 
-1. Lint.
-2. Build.
-3. Tests.
-4. Security scan.
-5. Se progetto iOS richiede run/test, usare sempre `xcodebuildmcp`.
+## 6.7 `event_log.ndjson`
 
-### Fase 5: Safe apply + finalize
+Ogni evento MUST essere append-only:
 
-1. Validazione patch manifest.
-2. Apply atomico.
-3. Se failure, rollback patch-set.
-4. Walkthrough finale nel Plan Panel.
-5. Commit selettivo per file verificati.
+```json
+{"ts":"2026-03-05T15:00:05Z","job_id":"job_1","phase":"planning","event":"plan_created"}
+{"ts":"2026-03-05T15:01:10Z","job_id":"job_1","phase":"executing","event":"subagent_started","role":"explorer"}
+```
 
-## 8) Modalità operative
+## 7. Modalità operative
 
-### Strict mode (default consigliata)
+## 7.1 `strict` (default)
 
-- I subagent non applicano direttamente.
-- Producono solo patch proposal.
-- Apply finale solo orchestrator.
+1. i subagent write producono patch proposal;
+2. apply solo orchestrator;
+3. nessun commit finché non passano tutti i gate.
 
-### Fast mode (controllata)
+## 7.2 `fast` (controllata)
 
-- I subagent possono mutare file in sandbox.
-- Review/test gate resta obbligatorio.
-- Orchestrator valida e consolida prima del commit.
+1. subagent write possono mutare in sandbox;
+2. review/test gate comunque obbligatori;
+3. orchestrator valida e consolida prima del commit.
 
-## 9) Strategia provider CLI + API
+## 8. Sequenza end-to-end della pipeline
 
-Routing capability-based:
+## 8.1 Fase A - Intake
 
-1. Read-only analysis: qualsiasi backend con tooling read affidabile.
-2. Workspace-write: backend con sandbox write verificata.
-3. Review finale: provider diverso da quello che ha implementato.
-4. Fallback: API patch-proposal-only quando CLI write non idoneo.
-5. Timeouts: hard limit per ruolo (read-only più corto, write più lungo).
+Input:
 
-Regole pratiche:
+1. richiesta utente;
+2. contesto workspace.
 
-- no hard-coding "un solo provider per tutto";
-- preferire pluralità backend nei batch review;
-- preservare tracciabilità per provider usato in ogni step.
+Azioni:
 
-## 10) Locking, patching, rollback
+1. crea `pipeline_job.json`;
+2. imposta `state=intake`;
+3. verifica preflight provider e strumenti.
 
-Lock policy:
+Tool MCP consigliati:
 
-- lock su set file + fairness FIFO su overlap;
-- lease expiration per lock stale;
-- cleanup automatico su timeout/cancel.
+1. `coderide_show_task_panel`
+2. `coderide_todo_write`
 
-Patch policy:
+Output:
 
-- unified diff obbligatorio;
-- patch metadata: `patch_id`, `task_id`, `provider`, `files`, `risk`, `timestamp`.
+1. job inizializzato;
+2. todo iniziali.
 
-Rollback policy:
+## 8.2 Fase B - Planning
 
-- rollback a livello patch-set;
-- mai rollback globale distruttivo;
-- evento audit sempre scritto.
+Azioni:
 
-## 11) CI Gate obbligatori
+1. attiva plan mode;
+2. genera opzioni;
+3. crea piano DAG;
+4. registra step e dipendenze.
 
-Pull request non mergiabile se fallisce uno di questi:
+Tool MCP:
 
-1. Build verde.
-2. Test verdi.
-3. Lint verde.
-4. Review gate completato.
-5. Nessun file oltre hard limit LOC.
-6. Documentazione aggiornata se comportamento cambia.
+1. `coderide_activate_plan_mode`
+2. `coderide_plan_create`
+3. `coderide_plan_step_upsert`
+4. `coderide_plan_step_dependency_set`
+5. `coderide_plan_step_update`
+6. `coderide_plan_request_user_input` (se necessario)
 
-Policy LOC:
+Output:
 
-- target: `<300` LOC per file;
-- hard limit: `>500` blocca merge;
-- warning: `301-500` richiede piano di split.
+1. snapshot piano selezionato;
+2. DAG pronto per scheduler.
 
-## 12) Observability e SLO
+## 8.3 Fase C - Context Build
 
-Metriche minime:
+Azioni:
 
-- tempo per fase e per task;
-- lock contention rate;
-- retry count per fase;
-- patch reject rate;
-- test failure rate post-fix;
-- token/latency per provider.
+1. semantic search;
+2. symbol search;
+3. references;
+4. file outline.
+
+Tool MCP:
+
+1. `coderide_semantic_search`
+2. `coderide_codebase_search`
+3. `coderide_find_symbol`
+4. `coderide_find_references`
+5. `coderide_file_outline`
+6. `coderide_read` / `coderide_read_range`
+
+Output:
+
+1. context bundle minimo per task;
+2. scope file definitivo.
+
+## 8.4 Fase D - Scheduling
+
+Azioni:
+
+1. calcolo ready nodes del DAG;
+2. policy priorità + retry budget;
+3. prenotazione lock file-set.
+
+Output:
+
+1. queue task eseguibili;
+2. lock map aggiornata.
+
+## 8.5 Fase E - Execution
+
+Azioni:
+
+1. explorer in parallelo su scope disgiunti;
+2. coder/debugger su unità modulari;
+3. produzione patch proposal.
+
+Tool MCP:
+
+1. `coderide_subagent_explorer`
+2. `coderide_subagent_coder`
+3. `coderide_subagent_debugger`
+4. `coderide_subagent_securityAuditor` (se area sensibile)
+
+Output:
+
+1. patch manifest proposti;
+2. eventi attività.
+
+## 8.6 Fase F - Review
+
+Azioni:
+
+1. avvio review session;
+2. raccolta findings;
+3. eventuale fix assistito;
+4. comment/dismiss dove appropriato.
+
+Tool MCP:
+
+1. `coderide_review_start`
+2. `coderide_review_status`
+3. `coderide_review_findings`
+4. `coderide_review_diff_summary`
+5. `coderide_review_apply_fix` (opzionale)
+6. `coderide_review_comment`
+7. `coderide_review_dismiss` (solo motivato)
+8. `coderide_review_configure` (se tuning necessario)
+
+Gate obbligatorio:
+
+1. se ci sono mutazioni, reviewer + testWriter MUST completare.
+
+Tool correlati:
+
+1. `coderide_subagent_reviewer`
+2. `coderide_subagent_testWriter`
+
+## 8.7 Fase G - Validation
+
+Azioni:
+
+1. lint;
+2. build;
+3. test;
+4. security checks.
+
+Tool MCP:
+
+1. `coderide_read_lints`
+2. `coderide_diagnostics`
+3. `coderide_git_diff`
+
+Regola iOS:
+
+1. se task coinvolge app iOS, test/run/screenshot MUST passare da `xcodebuildmcp`.
+
+## 8.8 Fase H - Apply
+
+Azioni:
+
+1. valida patch manifest;
+2. verifica lock ownership;
+3. apply atomico patch-set;
+4. update stato patch.
+
+Tool file ops (solo orchestrator):
+
+1. `coderide_write`
+2. `coderide_str_replace`
+3. `coderide_create_file`
+4. `coderide_regex_replace` (solo casi specifici)
+
+Vincolo:
+
+1. patch apply senza lock valido MUST fallire.
+
+## 8.9 Fase I - Finalize
+
+Azioni:
+
+1. aggiorna piano/todo finali;
+2. salva walkthrough;
+3. aggiorna memory;
+4. prepara commit selettivo.
+
+Tool MCP:
+
+1. `coderide_plan_step_batch_update`
+2. `coderide_plan_set_walkthrough`
+3. `coderide_todo_write`
+4. `coderide_plan_history_read`
+5. `coderide_plan_diff`
+
+## 8.10 Fase J - Commit
+
+Regole:
+
+1. stage solo file verificati e toccati dal task;
+2. hunk selettivo quando necessario;
+3. commit dedicato;
+4. nessuna modifica locale non verificata inclusa.
+
+## 9. Catalogo tool MCP completo (rilevante per pipeline)
+
+## 9.1 File operations
+
+1. `coderide_read`
+2. `coderide_read_range`
+3. `coderide_list_dir`
+4. `coderide_write`
+5. `coderide_str_replace`
+6. `coderide_create_file`
+
+## 9.2 Search/navigation
+
+1. `coderide_grep`
+2. `coderide_semantic_search`
+3. `coderide_glob`
+4. `coderide_find_files`
+5. `coderide_codebase_search`
+6. `coderide_find_symbol`
+7. `coderide_find_references`
+8. `coderide_file_outline`
+
+## 9.3 Execution/validation
+
+1. `coderide_git_diff`
+2. `coderide_diagnostics`
+3. `coderide_read_lints`
+
+## 9.4 Web intelligence
+
+1. `coderide_web_search`
+2. `coderide_web_fetch`
+
+## 9.5 Advanced editing
+
+1. `coderide_regex_replace`
+
+## 9.6 IDE integration
+
+1. `coderide_todo_write`
+2. `coderide_todo_read`
+3. `coderide_plan_step_update`
+4. `coderide_mermaid_render`
+5. `coderide_debug_set_phase`
+6. `coderide_debug_request_user`
+7. `coderide_debug_resolve`
+8. `coderide_policy_ack`
+9. `coderide_activate_plan_mode`
+10. `coderide_activate_debug_mode`
+11. `coderide_show_task_panel`
+12. `coderide_show_swarm_panel`
+
+## 9.7 Plan integration
+
+1. `coderide_plan_create`
+2. `coderide_plan_read`
+3. `coderide_plan_step_upsert`
+4. `coderide_plan_step_batch_update`
+5. `coderide_plan_step_reorder`
+6. `coderide_plan_step_dependency_set`
+7. `coderide_plan_set_walkthrough`
+8. `coderide_plan_history_read`
+9. `coderide_plan_diff`
+10. `coderide_plan_request_user_input`
+
+## 9.8 Subagent tools
+
+1. `coderide_subagent_explorer`
+2. `coderide_subagent_coder`
+3. `coderide_subagent_debugger`
+4. `coderide_subagent_reviewer`
+5. `coderide_subagent_testWriter`
+6. `coderide_subagent_docWriter`
+7. `coderide_subagent_securityAuditor`
+
+## 9.9 Debug suite
+
+1. `coderide_debug_context`
+2. `coderide_debug_log`
+3. `coderide_debug_query`
+4. `coderide_debug_session`
+5. `coderide_debug_hypothesize`
+6. `coderide_debug_mark`
+7. `coderide_debug_clean`
+8. `coderide_debug_trace_analyze`
+9. `coderide_debug_instrument`
+10. `coderide_debug_timeline`
+11. `coderide_debug_snapshot`
+12. `coderide_debug_test_check`
+
+## 9.10 Code review suite
+
+1. `coderide_review_start`
+2. `coderide_review_status`
+3. `coderide_review_findings`
+4. `coderide_review_apply_fix`
+5. `coderide_review_dismiss`
+6. `coderide_review_configure`
+7. `coderide_review_diff_summary`
+8. `coderide_review_comment`
+
+## 10. Regole runtime e limiti operativi
+
+Review handler constraints:
+
+1. `review_start.scope` valido: `uncommitted|staged|against_ref`.
+2. `against_ref` richiede `ref`.
+3. `max_workers` range `1..12`.
+4. `max_rounds` range `1..10`.
+
+Review findings constraints:
+
+1. `severity` valida: `critical|warning|suggestion|info`.
+2. `status` valido: `open|fix_applied|dismissed|wont_fix`.
+
+Subagent CLI constraints:
+
+1. read-only roles: `explorer|reviewer|securityAuditor`.
+2. write roles: `coder|debugger|testWriter|docWriter`.
+3. backend write-safe attuale: `codex`.
+4. timeout tipico: `95s` read-only, `110s` write.
+
+Mandatory mutation rule:
+
+1. se il task ha mutato codice, reviewer + testWriter MUST risultare completati.
+
+## 11. Scheduler deterministico
+
+Pseudocodice:
+
+```text
+while exists task not terminal:
+  ready = tasks where status=pending and deps=done
+  ready = sort by priority desc, created_at asc
+  for task in ready:
+    if lock_acquire(task.file_scope):
+      dispatch(task)
+    else:
+      enqueue_wait(task)
+
+  collect task results
+  for each failed task:
+    if attempts < max_attempts and retryable(error):
+      status = pending
+      attempts += 1
+    else:
+      status = failed
+      if fail_policy == fail_fast:
+        abort job
+```
+
+Retry policy:
+
+1. exponential backoff con jitter;
+2. cap massimo retry per task;
+3. errore non retryable porta a `failed` immediato.
+
+## 12. Lock manager
+
+Requisiti:
+
+1. lock per file-set;
+2. fairness FIFO su overlap;
+3. lease timeout per lock stale;
+4. release all on cancel/error;
+5. no force-acquire distruttivo.
+
+Output lock events:
+
+1. `lock_acquired`
+2. `lock_waiting`
+3. `lock_timeout`
+4. `lock_released`
+5. `lock_evicted_stale`
+
+## 13. Patch system e apply engine
+
+Regole:
+
+1. ogni modifica è rappresentata da unified diff;
+2. ogni patch ha manifest;
+3. apply è atomico per patch-set;
+4. rollback è atomico e tracciato.
+
+Flusso apply:
+
+1. validate manifest schema;
+2. validate file ownership locks;
+3. dry-run patch;
+4. apply transaction;
+5. run quick verification;
+6. commit or rollback.
+
+Error taxonomy:
+
+1. `patch_invalid_format`
+2. `patch_conflict`
+3. `patch_lock_violation`
+4. `patch_apply_failed`
+5. `patch_verify_failed`
+
+## 14. Strategia provider CLI + API
+
+## 14.1 Routing capability-based
+
+Per ogni fase, scegliere provider per capacità:
+
+1. planning/review: alta qualità reasoning + tool compliance;
+2. execution read-only: backend economico e stabile;
+3. execution write: backend con sandbox write affidabile;
+4. validation/review finale: provider diverso quando possibile.
+
+## 14.2 Fallback chain
+
+Esempio:
+
+1. write subagent: `codex-cli -> openai-api(proposal-only) -> anthropic-api(proposal-only)`.
+2. read subagent: `codex-cli -> claude-cli -> gemini-cli -> api`.
+
+## 14.3 Policy determinismo provider
+
+1. parametri modello fissati per fase;
+2. prompt template versionati;
+3. log provider scelto per ogni task.
+
+## 15. Review swarm e quality gates
+
+Gate minimi per mutazioni:
+
+1. review findings non critici irrisolti;
+2. reviewer completato;
+3. testWriter completato;
+4. lint/build/tests passati;
+5. security check passata se area sensibile.
+
+Comportamento con findings:
+
+1. `critical`: MUST fix prima di apply;
+2. `warning`: SHOULD fix o motivare dismiss;
+3. `suggestion/info`: MAY differire con nota.
+
+## 16. Pipeline iOS (regola dedicata)
+
+Se task tocca app iOS:
+
+1. test/run/screenshot MUST usare `xcodebuildmcp`;
+2. non usare workaround shell manuali come path primario;
+3. report finale MUST includere esito run/test iOS.
+
+Checklist iOS minima:
+
+1. build target iOS;
+2. unit test iOS;
+3. smoke test scenario principale;
+4. eventuali screenshot richiesti.
+
+## 17. Observability
+
+Metriche obbligatorie:
+
+1. `job_duration_ms`
+2. `phase_duration_ms`
+3. `task_retry_count`
+4. `lock_wait_ms`
+5. `patch_reject_rate`
+6. `review_round_count`
+7. `test_failure_rate`
+8. `provider_latency_ms`
+9. `provider_error_rate`
+10. `tokens_in/out`
 
 SLO iniziali:
 
-- completion pipeline p95 < 15m per task medio;
-- rollback correctness 100%;
-- orphan locks 0;
-- mandatory review coverage 100% su task mutanti.
+1. `orphan_lock_count = 0`
+2. `mandatory_review_coverage = 100%` su job con mutazioni
+3. `rollback_success_rate = 100%`
+4. `pipeline_success_rate >= 95%` su task standard
 
-## 13) Project memory
+## 18. Sicurezza e guardrail
 
-`project_memory.json` versionato per workspace, con:
+1. `coderide_policy_ack` MUST essere emesso quando richiesto da policy hash.
+2. tool distruttivi vietati fuori scope orchestrator.
+3. niente comandi distruttivi git in automatico.
+4. segregazione read-only vs write roles obbligatoria.
+5. log sanitizzato, niente secret in chiaro.
 
-- standard di codifica;
-- naming rules;
-- pattern consentiti/vietati;
-- decisioni ADR operative;
-- baseline SLO e eccezioni approvate.
+## 19. CI policy e quality enforcement
 
-Regola:
+Gate CI obbligatori:
 
-- ogni run deve leggere memory all'inizio;
-- ogni decisione strutturale la aggiorna a fine run.
+1. build green;
+2. tests green;
+3. lint green;
+4. review gate complete;
+5. LOC policy rispettata;
+6. docs aggiornate se comportamento cambia.
 
-## 14) Migliorie derivate da oh-my-codex (adattate)
+LOC policy:
 
-Adottare:
+1. target: `<300` LOC/file;
+2. warning: `301..500`;
+3. hard fail: `>500`.
 
-1. Workflow conductor/worker esplicito.
-2. Modalità operative separate (`plan`, `execute`, `review`, `verify`).
-3. Health checks iniziali tipo `doctor`.
-4. Prompt/role pack riusabili per compiti ricorrenti.
-5. Stato persistente di run e resume dopo interruzioni.
+Script check esempio:
 
-Non adottare in produzione:
+```bash
+find Sources CoderEngine/Sources Tests CoderEngine/Tests -name '*.swift' -print0 | \
+  xargs -0 wc -l | awk '$2!="total" && $1>500 {print $1" "$2; fail=1} END{exit fail}'
+```
 
-- bypass indiscriminato sandbox/approval;
-- modalità ad alta aggressività senza gate di sicurezza.
+## 20. Struttura moduli da implementare
 
-## 15) Roadmap implementativa
+Layout proposto:
 
-### Milestone M0 (1-2 giorni)
+1. `CoderEngine/Sources/CoderEngine/Pipeline/Orchestrator/`
+2. `CoderEngine/Sources/CoderEngine/Pipeline/Scheduler/`
+3. `CoderEngine/Sources/CoderEngine/Pipeline/Locking/`
+4. `CoderEngine/Sources/CoderEngine/Pipeline/Patching/`
+5. `CoderEngine/Sources/CoderEngine/Pipeline/Providers/`
+6. `CoderEngine/Sources/CoderEngine/Pipeline/Observability/`
+7. `CoderEngine/Sources/CoderEngine/Pipeline/Contracts/`
 
-- Scrivere schema `pipeline_job.json`.
-- Definire patch manifest.
-- Definire provider capability matrix.
+File target (tutti `<300` LOC):
 
-### Milestone M1 (3-5 giorni)
+1. `JobStateMachine.swift`
+2. `DagScheduler.swift`
+3. `TaskRetryPolicy.swift`
+4. `PatchManifest.swift`
+5. `PatchApplyTransaction.swift`
+6. `ProviderCapabilityMatrix.swift`
+7. `ProviderRouter.swift`
+8. `PipelineEventLogger.swift`
+9. `PipelineMetrics.swift`
+10. `ProjectMemoryStore.swift`
 
-- Implementare apply engine atomico.
-- Collegare rollback transazionale.
-- Collegare metriche minime e audit log.
+## 21. Piano implementativo dettagliato
 
-### Milestone M2 (3-5 giorni)
+## 21.1 M0 - Contracts e scaffolding
 
-- Enforcement LOC policy in CI.
-- Enforcement strict/fast mode in orchestrator.
-- Hardening retry/timeout policy.
+Deliverable:
 
-### Milestone M3 (3-5 giorni)
+1. schemi JSON (job/task/patch/provider/memory);
+2. parser+validator;
+3. test unitari schema.
 
-- Router CLI/API capability-based completo.
-- Fallback API patch-proposal-only.
-- Cross-provider review obbligatoria.
+Esito atteso:
 
-### Milestone M4 (continuo)
+1. nessun run parte senza contract valido.
 
-- Auto-improvement loop su branch isolato.
-- Benchmark periodici e tuning SLO.
+## 21.2 M1 - Orchestrator core
 
-## 16) Definition of Done della pipeline
+Deliverable:
 
-La pipeline è "super solida" quando:
+1. state machine;
+2. scheduler DAG;
+3. lock integration;
+4. event log append-only.
 
-1. ogni task segue il DAG con stato persistito e resumable;
-2. nessuna mutazione passa senza reviewer + testWriter;
-3. apply/rollback sono atomici e auditabili;
-4. provider fallback non rompe determinismo;
-5. CI blocca regressioni strutturali e violazioni LOC;
-6. output finale include sempre summary tecnico + stato gate.
+Esito atteso:
+
+1. run resumable dopo interruzione.
+
+## 21.3 M2 - Apply transaction
+
+Deliverable:
+
+1. patch manifest validator;
+2. apply atomic transaction;
+3. rollback service.
+
+Esito atteso:
+
+1. apply/rollback deterministici.
+
+## 21.4 M3 - Provider routing
+
+Deliverable:
+
+1. capability matrix loader;
+2. routing decision engine;
+3. fallback chain configurabile.
+
+Esito atteso:
+
+1. compatibilità robusta CLI + API.
+
+## 21.5 M4 - CI hardening
+
+Deliverable:
+
+1. gates review/test/docs/LOC;
+2. benchmark e dashboard metriche;
+3. runbook failure.
+
+Esito atteso:
+
+1. regressioni strutturali bloccate in PR.
+
+## 22. Runbook failure e recovery
+
+## 22.1 Lock timeout
+
+Azioni:
+
+1. verifica stale lock;
+2. evict lock scaduti;
+3. retry task con backoff.
+
+## 22.2 Review inconclusive
+
+Azioni:
+
+1. marca task `blocked`;
+2. rilancia analysis phase con scope ridotto;
+3. se ancora inconclusive, escalation manuale.
+
+## 22.3 Test failure post-fix
+
+Azioni:
+
+1. rollback patch-set;
+2. apri nuovo task debug;
+3. rilancia coder/debugger con contesto failure.
+
+## 22.4 Provider outage
+
+Azioni:
+
+1. mark provider unhealthy;
+2. switch fallback chain;
+3. conserva idempotency key per evitare duplicazioni.
+
+## 23. Definition of Done finale
+
+Pipeline dichiarata "super solida" quando tutti i punti sono veri:
+
+1. orchestrator è single source of truth del flusso;
+2. tutte le mutazioni passano reviewer + testWriter;
+3. apply è atomico e rollback garantito;
+4. fallback provider non rompe determinismo;
+5. event log e metriche coprono tutto il ciclo;
+6. CI blocca violazioni qualità/struttura;
+7. regola iOS con `xcodebuildmcp` applicata sempre dove rilevante.
+
+## 24. Allegato A - Sequenze tool raccomandate
+
+## 24.1 Feature task standard
+
+1. `coderide_activate_plan_mode`
+2. `coderide_plan_create`
+3. `coderide_plan_step_upsert`
+4. `coderide_semantic_search`
+5. `coderide_find_symbol`
+6. `coderide_subagent_explorer` (xN)
+7. `coderide_subagent_coder` (xN)
+8. `coderide_review_start`
+9. `coderide_review_findings`
+10. `coderide_subagent_reviewer`
+11. `coderide_subagent_testWriter`
+12. `coderide_read_lints`
+13. `coderide_diagnostics`
+14. `coderide_plan_set_walkthrough`
+
+## 24.2 Bugfix task
+
+1. `coderide_activate_debug_mode`
+2. `coderide_debug_set_phase`
+3. `coderide_debug_context`
+4. `coderide_debug_hypothesize`
+5. `coderide_subagent_debugger`
+6. `coderide_subagent_reviewer`
+7. `coderide_subagent_testWriter`
+8. `coderide_debug_resolve`
+
+## 25. Allegato B - Migliorie ereditate da oh-my-codex
+
+Da adottare:
+
+1. conductor/worker esplicito;
+2. fasi operative separate (plan/execute/review/verify);
+3. preflight health checks (`doctor`);
+4. resume state robusto;
+5. role prompt pack riusabile.
+
+Da non adottare:
+
+1. bypass indiscriminati sandbox/approval;
+2. esecuzione aggressiva senza gate quality.
+
+## 26. Allegato C - Checklist pronta all'implementazione
+
+Checklist tecnica:
+
+1. definire `PipelineContracts` module;
+2. introdurre `OrchestratorStateMachine`;
+3. introdurre `PatchApplyTransaction`;
+4. integrare `ProviderCapabilityMatrix`;
+5. aggiungere CI `LOC > 500` fail;
+6. aggiungere CI `301..500` warning report;
+7. consolidare runbook failure in docs.
+
+Checklist di adozione:
+
+1. abilitare mode `strict` per default;
+2. attivare event log persistente;
+3. attivare dashboard metriche minime;
+4. validare 10 task reali end-to-end;
+5. firmare ADR di adozione v2.1.
