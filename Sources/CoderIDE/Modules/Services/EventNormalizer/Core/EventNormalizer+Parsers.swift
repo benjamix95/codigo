@@ -19,7 +19,8 @@ extension EventNormalizer {
         let status = normalizedTodoStatus(payload["status"])
         let priority = normalizedTodoPriority(payload["priority"])
         let notes = payload["notes"]
-        let activeForm = payload["activeForm"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let activeForm = (payload["activeForm"] ?? payload["active_form"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let files = normalizeFileList(from: payload)
 
         return TodoWritePayload(

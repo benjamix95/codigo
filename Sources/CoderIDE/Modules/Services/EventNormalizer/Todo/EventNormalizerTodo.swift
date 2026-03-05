@@ -16,7 +16,10 @@ extension EventNormalizer {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !content.isEmpty else { continue }
                 let status = normalizedTodoStatus(todoItem["status"] as? String)
-                var activeForm = (todoItem["activeForm"] as? String)?
+                var activeForm = (
+                    (todoItem["activeForm"] as? String)
+                        ?? (todoItem["active_form"] as? String)
+                )?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
                 // Reject nested JSON objects accidentally passed as activeForm

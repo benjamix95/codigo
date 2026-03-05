@@ -70,8 +70,11 @@ extension EventNormalizer {
 
         let isMultiSelect = parseFlexibleBool(
             object["multi_select"]
+                ?? object["multiSelect"]
                 ?? object["allow_multiple"]
+                ?? object["allowMultiple"]
                 ?? object["is_multi_select"]
+                ?? object["isMultiSelect"]
         )
 
         let parsedOptions = parsePlanRequestOptions(object["options"])
