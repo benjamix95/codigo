@@ -123,6 +123,9 @@ public enum PipelineEventType: String, Codable, Sendable, Equatable, CaseIterabl
     case verifyFailedRollback = "verify_failed_rollback"
     case rollbackFailed = "rollback_failed"
     case securityBlock = "security_block"
+    case textDelta = "text_delta"
+    case textReplace = "text_replace"
+    case rawAgentEvent = "raw_agent_event"
 }
 
 // MARK: - DeliveryStatus

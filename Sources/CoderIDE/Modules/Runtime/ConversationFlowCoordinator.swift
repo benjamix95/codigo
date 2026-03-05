@@ -2,8 +2,7 @@ import Foundation
 import CoderEngine
 
 /// Legacy flow coordinator: handles direct LLM streaming.
-/// Will be superseded by PipelineFacade when `usePipelineOrchestrator` flag is enabled.
-/// Retained for: chat simple (no tool), plan non-pipeline fallback.
+/// Retained for: chat simple (no tool), plan multi-turn analysis phases.
 final class ConversationFlowCoordinator: ObservableObject {
     private let initialEventTimeoutOverride: Int?
     private let activityTimeoutOverride: Int?

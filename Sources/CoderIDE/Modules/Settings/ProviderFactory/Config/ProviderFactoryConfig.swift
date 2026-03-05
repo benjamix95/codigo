@@ -44,8 +44,6 @@ struct ProviderFactoryConfig {
     var agentsHardBlockEnabled: Bool
     var mcpEditEnforcementEnabled: Bool
 
-    var usePipelineOrchestrator: Bool
-
     var webSearchProvider: String
     var braveSearchApiKey: String
     var tavilyApiKey: String

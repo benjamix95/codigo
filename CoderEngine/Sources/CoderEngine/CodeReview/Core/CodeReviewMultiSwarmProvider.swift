@@ -89,31 +89,17 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    if config.usePipelineOrchestrator {
-                        try await Self.runReviewPipelineOrchestrated(
-                            prompt: prompt,
-                            context: context,
-                            config: config,
-                            analysisProvider: analysisProvider,
-                            executionProvider: executionProvider,
-                            execController: execController,
-                            fileLockCoordinator: fileLockCoordinator,
-                            sessionState: sessionState,
-                            continuation: continuation
-                        )
-                    } else {
-                        try await Self.runReviewPipeline(
-                            prompt: prompt,
-                            context: context,
-                            config: config,
-                            analysisProvider: analysisProvider,
-                            executionProvider: executionProvider,
-                            execController: execController,
-                            fileLockCoordinator: fileLockCoordinator,
-                            sessionState: sessionState,
-                            continuation: continuation
-                        )
-                    }
+                    try await Self.runReviewPipelineOrchestrated(
+                        prompt: prompt,
+                        context: context,
+                        config: config,
+                        analysisProvider: analysisProvider,
+                        executionProvider: executionProvider,
+                        execController: execController,
+                        fileLockCoordinator: fileLockCoordinator,
+                        sessionState: sessionState,
+                        continuation: continuation
+                    )
                 } catch {
                     await sessionState.fail(error: error.localizedDescription)
                     continuation.yield(.error(error.localizedDescription))

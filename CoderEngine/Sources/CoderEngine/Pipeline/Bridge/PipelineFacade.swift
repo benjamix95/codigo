@@ -176,6 +176,11 @@ public actor PipelineFacade {
             completionTimeoutMs: facadeConfig.completionTimeoutMs
         )
 
+        let eventBridge = AgentWorkerEventBridge(
+            eventBus: eventBus, jobId: job.jobId
+        )
+        await workerAdapter.setDelegate(eventBridge)
+
         let orchestrator = OrchestratorMainLoop(
             stateMachine: stateMachine,
             scheduler: scheduler,
@@ -186,7 +191,8 @@ public actor PipelineFacade {
             nameAssigner: nameAssigner,
             eventBus: eventBus,
             completionHandler: completionHandler,
-            config: orchestratorConfig
+            config: orchestratorConfig,
+            workerAdapter: workerAdapter
         )
 
         return PipelineComponents(
@@ -306,6 +312,23 @@ public actor PipelineFacade {
                 jobId: jobId, failedPercent: failedPct,
                 maxPercent: maxPct, consecutiveFailures: consecutive
             )))
+
+        case .textDelta:
+            let delta = event.payload["delta"] ?? ""
+            let taskId = event.taskId ?? event.payload["task_id"] ?? ""
+            results.append(.textDelta(TextDeltaPayload(
+                jobId: jobId, taskId: taskId, delta: delta
+            )))
+
+        case .textReplace:
+            let replacement = event.payload["replacement"] ?? ""
+            let taskId = event.taskId ?? event.payload["task_id"] ?? ""
+            results.append(.textReplace(TextReplacePayload(
+                jobId: jobId, taskId: taskId, replacement: replacement
+            )))
+
+        case .rawAgentEvent:
+            break
 
         default:
             break

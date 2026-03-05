@@ -172,7 +172,6 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             unifiedToolRuntimeEnabled: true,
             agentsHardBlockEnabled: true,
             mcpEditEnforcementEnabled: true,
-            usePipelineOrchestrator: false,
             webSearchProvider: "duckduckgo",
             braveSearchApiKey: "",
             tavilyApiKey: "",

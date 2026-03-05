@@ -69,7 +69,6 @@ struct CodigoApp: App {
     @AppStorage("gemini_model_override") var geminiModelOverride = ""
     @AppStorage("grok_api_key") var grokApiKey = ""
     @AppStorage("grok_model") var grokModel = "grok-4-1-fast-reasoning"
-    @AppStorage("use_pipeline_orchestrator") var usePipelineOrchestrator = false
     @AppStorage("web_search_provider") var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key") var braveSearchApiKey = ""
     @AppStorage("tavily_api_key") var tavilyApiKey = ""

@@ -61,7 +61,7 @@ extension ChatPanelView {
                             break
                         }
                     }
-                } else if usePipelineOrchestrator && coderMode == .agent {
+                } else if coderMode == .agent {
                     await MainActor.run {
                         let assistantMsgId = UUID()
                         let (job, tasks) = PipelineJobFactory.fromChatMessage(

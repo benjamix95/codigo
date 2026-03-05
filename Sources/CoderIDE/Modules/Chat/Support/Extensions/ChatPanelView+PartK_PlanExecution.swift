@@ -173,58 +173,14 @@ extension ChatPanelView {
         }
         scheduleFallbackTurnStartEvent(conversationId: agentConvId, providerId: provider.id)
 
-        let planExecutionWorkflow = """
-            **FUNDAMENTAL RULE: The plan TODOs are your BIBLE. Follow them EXACTLY in the order listed.**
-
-            **Todo Workflow (strict, no noise):**
-            1. The canonical plan TODOs are IMMUTABLE: do NOT create new TODOs, do NOT modify titles, do NOT reorder. Execute EXACTLY those present in the given order.
-            2. For each TODO: set status=in_progress BEFORE starting, then status=done AFTER completion. Use \(CoderIDEMarkers.todoWritePrefix) to update the status.
-            3. Emit \(CoderIDEMarkers.showTaskPanel) only if useful to visualize a real multi-step execution. Never emit it as a placeholder.
-            4. Do NOT skip any TODO. Do NOT proceed to the next TODO until the current one is done.
-            5. If a TODO is blocked, explain why and try to resolve it before moving on.
-            6. Before finishing: ALL canonical TODOs MUST be done. If any is not done, do NOT terminate.
-            7. Do not repeat the plan in chat: execute, update status, provide minimal operational feedback.
-            8. Do NOT post kickoff fillers like "starting build/execution": begin directly from concrete execution updates.
-            """
-
-        let executionPlanBase: String
-        if let board = chatStore.planBoard(for: planConversationId), !board.goal.isEmpty {
-            executionPlanBase = """
-            **Objective:** \(board.goal)
-
-            **Plan (selected option):**
-            \(choice)
-            """
-        } else {
-            executionPlanBase = "**Plan to implement:**\n\(choice)"
-        }
-
-        let prompt = buildPlanExecutionPrompt(
-            workflowInstructions: planExecutionWorkflow,
-            executionPlanBase: executionPlanBase,
+        executePlanBuildViaPipeline(
+            provider: provider,
+            ctx: ctx,
             planTodos: planTodos,
-            canonicalTodos: canonicalTodos
-        ).prompt
-
-        if usePipelineOrchestrator {
-            executePlanBuildViaPipeline(
-                provider: provider,
-                ctx: ctx,
-                planTodos: planTodos,
-                agentConvId: agentConvId,
-                planConversationId: planConversationId,
-                planBuildAssistantMessageId: planBuildAssistantMessageId
-            )
-        } else {
-            executePlanBuildViaLegacyStream(
-                provider: provider,
-                prompt: prompt,
-                ctx: ctx,
-                agentConvId: agentConvId,
-                planConversationId: planConversationId,
-                planBuildAssistantMessageId: planBuildAssistantMessageId
-            )
-        }
+            agentConvId: agentConvId,
+            planConversationId: planConversationId,
+            planBuildAssistantMessageId: planBuildAssistantMessageId
+        )
     }
 
     // MARK: - Pipeline Path
@@ -257,135 +213,6 @@ extension ChatPanelView {
             conversationId: agentConvId,
             assistantMessageId: planBuildAssistantMessageId
         )
-    }
-
-    // MARK: - Legacy Stream Path
-
-    private func executePlanBuildViaLegacyStream(
-        provider: any LLMProvider,
-        prompt: String,
-        ctx: WorkspaceContext,
-        agentConvId: UUID,
-        planConversationId: UUID,
-        planBuildAssistantMessageId: UUID
-    ) {
-        launchRunTask(for: agentConvId) {
-            var traceOutcome: ToolTraceTurnOutcome = .success
-            do {
-                _ = try await flowCoordinator.runStream(
-                    provider: provider,
-                    prompt: prompt,
-                    context: ctx,
-                    attachments: nil,
-                    onText: { content in
-                        applyStreamingUpdate(content: content, conversationId: agentConvId)
-                    },
-                    onRaw: { t, p, pid in
-                        handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: agentConvId)
-                    },
-                    onError: { content in
-                        Task { @MainActor in
-                            chatStore.updateLastAssistantMessage(content: content, in: agentConvId)
-                        }
-                    },
-                    onSignal: nil
-                )
-                chatStore.setLastAssistantStreaming(false, in: agentConvId)
-                clearStreamingReasoning(for: agentConvId)
-                await MainActor.run {
-                    if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
-                        planFlowPhase = .readyToBuild
-                    } else if planFlowPhase == .building {
-                        planFlowPhase = .idle
-                    }
-                }
-            } catch {
-                chatStore.setLastAssistantStreaming(false, in: agentConvId)
-                clearStreamingReasoning(for: agentConvId)
-                if isInterruptedStreamError(error) {
-                    traceOutcome = .aborted
-                    await MainActor.run {
-                        applyFlowCoordinatorState(for: agentConvId) { $0.interrupt() }
-                        if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
-                            planFlowPhase = .readyToBuild
-                        } else if planFlowPhase == .building {
-                            planFlowPhase = .idle
-                        }
-                    }
-                } else {
-                    traceOutcome = .failed
-                    chatStore.updateLastAssistantMessage(
-                        content: userFacingStreamError(error), in: agentConvId)
-                    await MainActor.run {
-                        applyFlowCoordinatorState(for: agentConvId) { $0.fail() }
-                        if selectedConversationId == planConversationId || selectedConversationId == agentConvId {
-                            planFlowPhase = .readyToBuild
-                        } else if planFlowPhase == .building {
-                            planFlowPhase = .idle
-                        }
-                    }
-                }
-            }
-            finalizeToolTraceTurn(conversationId: agentConvId, outcome: traceOutcome)
-            snapshotSubagentCardsAndEndTask(
-                conversationId: agentConvId,
-                outcome: traceOutcome
-            )
-            await MainActor.run {
-                chatStore.removeAssistantMessageIfEmpty(
-                    messageId: planBuildAssistantMessageId,
-                    in: agentConvId
-                )
-                suppressedEmptyBuildAssistantMessageIds.remove(planBuildAssistantMessageId)
-                if traceOutcome == .success, let planConvId = activeBuildPlanConversationId {
-                    let canonicalTodos = todoStore.canonicalTodos(for: planConvId)
-                    let agentMessages: [ChatMessage] = {
-                        guard let conversation = chatStore.conversation(for: agentConvId),
-                              let buildStartIndex = conversation.messages.firstIndex(where: { $0.id == planBuildAssistantMessageId }) else {
-                            return []
-                        }
-                        return conversation.messages[buildStartIndex...]
-                            .filter { $0.role == .assistant }
-                    }()
-                    let traceEventsForWalkthrough = toolTraceStore.events(
-                        conversationId: agentConvId,
-                        assistantMessageId: planBuildAssistantMessageId
-                    )
-                    let walkthroughMd = buildWalkthroughMarkdown(
-                        canonicalTodos: canonicalTodos,
-                        planBoard: chatStore.planBoard(for: planConvId),
-                        agentMessages: agentMessages,
-                        traceEvents: traceEventsForWalkthrough
-                    )
-                    let reviewLinkedFiles = touchedFilePathsFromTraceEvents(traceEventsForWalkthrough)
-                    chatStore.setWalkthrough(walkthroughMd, for: planConvId)
-
-                    let doneCount = canonicalTodos.filter { $0.status == .done }.count
-                    let totalCount = canonicalTodos.count
-                    let goalText = chatStore.planBoard(for: planConvId)?.goal ?? "Plan"
-                    let recap = doneCount == totalCount
-                        ? "Build complete. All \(totalCount) steps done: \(goalText)"
-                        : "Build finished. \(doneCount)/\(totalCount) steps completed: \(goalText)"
-                    chatStore.addMessage(
-                        ChatMessage(id: UUID(), role: .assistant, content: recap),
-                        to: agentConvId
-                    )
-
-                    todoStore.upsertFromAgent(
-                        id: nil,
-                        title: "Code Review & Test",
-                        status: .pending,
-                        priority: .high,
-                        notes: "Review changes and run tests",
-                        activeForm: "Reviewing code and running tests",
-                        linkedFiles: reviewLinkedFiles,
-                        conversationId: planConvId
-                    )
-                }
-                activeBuildPlanConversationId = nil
-                activeBuildAgentConversationId = nil
-            }
-        }
     }
 
 }

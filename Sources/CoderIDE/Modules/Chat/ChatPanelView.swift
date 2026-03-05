@@ -79,7 +79,6 @@ struct ChatPanelView: View {
     @AppStorage("unified_tool_runtime_enabled")  var unifiedToolRuntimeEnabled = true
     @AppStorage("agents_hard_block_enabled")  var agentsHardBlockEnabled = true
     @AppStorage("mcp_edit_enforcement_enabled")  var mcpEditEnforcementEnabled = true
-    @AppStorage("use_pipeline_orchestrator")  var usePipelineOrchestrator = false
     @AppStorage("web_search_provider")  var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key")  var braveSearchApiKey = ""
     @AppStorage("tavily_api_key")  var tavilyApiKey = ""

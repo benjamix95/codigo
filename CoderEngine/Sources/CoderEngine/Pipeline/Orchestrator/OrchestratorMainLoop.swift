@@ -44,6 +44,7 @@ public actor OrchestratorMainLoop {
     public let eventBus: EventBus
     public let completionHandler: TaskCompletionHandler
     public let config: OrchestratorConfig
+    public let workerAdapter: AgentWorkerAdapter?
 
     // MARK: - State
 
@@ -61,7 +62,8 @@ public actor OrchestratorMainLoop {
         nameAssigner: AgentNameAssigner,
         eventBus: EventBus,
         completionHandler: TaskCompletionHandler = TaskCompletionHandler(),
-        config: OrchestratorConfig = OrchestratorConfig()
+        config: OrchestratorConfig = OrchestratorConfig(),
+        workerAdapter: AgentWorkerAdapter? = nil
     ) {
         self.stateMachine = stateMachine
         self.scheduler = scheduler
@@ -73,6 +75,7 @@ public actor OrchestratorMainLoop {
         self.eventBus = eventBus
         self.completionHandler = completionHandler
         self.config = config
+        self.workerAdapter = workerAdapter
     }
 
     // MARK: - Run
@@ -206,19 +209,23 @@ public actor OrchestratorMainLoop {
             let taskId = task.taskId
             let jobId = job.jobId
 
+            let work: @Sendable () async -> WorkerTaskResult
+            if let adapter = workerAdapter {
+                work = await adapter.makeWorkClosure(
+                    task: task, agentName: agentName, role: role
+                )
+            } else {
+                work = Self.stubClosure(
+                    taskId: taskId, agentName: agentName, role: role
+                )
+            }
+
             try? await workerPool.dispatch(
                 taskId: taskId,
                 agentName: agentName,
-                agentRole: role
-            ) {
-                WorkerTaskResult(
-                    taskId: taskId,
-                    agentName: agentName,
-                    agentRole: role,
-                    success: true,
-                    durationMs: 0
-                )
-            }
+                agentRole: role,
+                work: work
+            )
 
             await emitEvent(
                 type: .taskStarted,
@@ -366,5 +373,20 @@ public actor OrchestratorMainLoop {
             return .explorer
         }
         return .coder
+    }
+
+    /// Stub di fallback usato nei test quando nessun adapter e' iniettato.
+    private static func stubClosure(
+        taskId: String,
+        agentName: String,
+        role: AgentRole
+    ) -> @Sendable () async -> WorkerTaskResult {
+        { WorkerTaskResult(
+            taskId: taskId,
+            agentName: agentName,
+            agentRole: role,
+            success: true,
+            durationMs: 0
+        ) }
     }
 }

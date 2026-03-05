@@ -63,6 +63,10 @@ public actor AgentWorkerAdapter {
         self.config = config
     }
 
+    public func setDelegate(_ newDelegate: AgentWorkerDelegate?) {
+        self.delegate = newDelegate
+    }
+
     // MARK: - Execute Task
 
     /// Crea la closure di lavoro per il `WorkerPool.dispatch`.
