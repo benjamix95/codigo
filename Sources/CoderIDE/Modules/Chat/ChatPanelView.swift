@@ -130,6 +130,8 @@ struct ChatPanelView: View {
     @State  var isPlanTabHovered = false
     @State  var isPlanShortcutCycling = false
     @State  var inlinePlanSummaries: [UUID: InlinePlanSummary] = [:]
+    @State  var threadUIStateByConversation: [UUID: ChatThreadUIState] = [:]
+    @State  var isRestoringThreadUIState = false
     @State  var hasJustCompletedTask = false
     @State  var showRateLimitAlert = false
     @State  var rateLimitAlertText = ""

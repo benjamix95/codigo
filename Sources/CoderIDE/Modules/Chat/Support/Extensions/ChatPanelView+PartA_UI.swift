@@ -132,6 +132,7 @@ extension ChatPanelView {
         .onChange(of: selectedConversationId) { oldId, newId in
             draftSaveTask?.cancel()
             draftSaveTask = nil
+            persistThreadUIState(for: oldId)
             persistDebugState(for: oldId)
             // Save draft text for the previous conversation.
             if let oldId {
@@ -154,28 +155,15 @@ extension ChatPanelView {
             // don't nil out activeBuildPlanConversationId here so the
             // build completion handler can still finalize successfully.
             planHistoryStore.setSelectedEntry(id: nil)
-            // Close side panels that are scoped to the previous conversation.
-            showSwarmPanel = false
-            showCodeReviewPanel = false
-            selectedSwarmId = nil
             restoreDebugState(for: newId)
             applyPendingDebugEvents(for: newId)
-            if debugStore.phase == .idle {
-                showDebugPanel = false
-                debugToggleEnabled = false
-                if coderMode == .debug {
-                    selectMode(.agent)
-                }
-            } else {
-                debugToggleEnabled = true
-                showDebugPanel = debugStore.phase.isActive
-            }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
             taskActivityStore.clearSwarmCards(for: oldId)
             swarmProgressStore.clear(conversationId: oldId)
             syncProviderFromConversation()
             restorePlanStateIfNeeded(for: newId)
+            restoreThreadUIState(for: newId)
             requestInitialComposerFocusIfNeeded()
         }
         .onAppear {
@@ -190,6 +178,7 @@ extension ChatPanelView {
             checkProviderAuth()
             gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
             restorePlanStateIfNeeded(for: selectedConversationId)
+            restoreThreadUIState(for: selectedConversationId)
             wireTodoPlanBidirectionalSync()
             requestInitialComposerFocusIfNeeded()
         }
@@ -240,6 +229,7 @@ extension ChatPanelView {
                 }
             }
             .onChange(of: debugToggleEnabled) { _, isEnabled in
+                guard !isRestoringThreadUIState else { return }
                 guard showDebugPanel != isEnabled else { return }
                 showDebugPanel = isEnabled
             }
@@ -272,6 +262,7 @@ extension ChatPanelView {
                 }
             }
             .onChange(of: planToggleEnabled) { _, isEnabled in
+                guard !isRestoringThreadUIState else { return }
                 // Keep planner panel visibility in sync with the composer inline-plan button.
                 if isEnabled {
                     if !showPlanPanel && !isPlanShortcutCycling {
