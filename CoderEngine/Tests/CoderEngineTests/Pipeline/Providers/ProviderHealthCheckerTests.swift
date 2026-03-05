@@ -200,6 +200,39 @@ final class ProviderHealthCheckerTests: XCTestCase {
         XCTAssertEqual(afterRecovery?.healthStatus, .healthy)
     }
 
+    // MARK: - Recovery with Threshold = 1 (default)
+
+    func testProbe_recovery_threshold1_singleSuccessRecovers() async {
+        let probe = MockProbeDelegate()
+        let notifier = MockNotificationDelegate()
+        let config = makeConfig(
+            unhealthyThreshold: 1, healthyThreshold: 1
+        )
+
+        probe.setResults(for: "codex", results: [
+            HealthProbeResult(providerId: "codex", success: false),
+            HealthProbeResult(providerId: "codex", success: true),
+        ])
+
+        let checker = ProviderHealthChecker(
+            probeDelegate: probe,
+            notificationDelegate: notifier,
+            config: config
+        )
+        await checker.registerProvider(makeEntry(id: "codex"))
+
+        await checker.probeProvider("codex")
+        let afterFail = await checker.state(for: "codex")
+        XCTAssertEqual(afterFail?.healthStatus, .unhealthy)
+
+        await checker.probeProvider("codex")
+        let afterOneSuccess = await checker.state(for: "codex")
+        XCTAssertEqual(
+            afterOneSuccess?.healthStatus, .healthy,
+            "With healthyThreshold=1, a single success should recover directly from unhealthy to healthy"
+        )
+    }
+
     // MARK: - Recovery Interrupted
 
     func testProbe_recoveringFailure_backToUnhealthy() async {

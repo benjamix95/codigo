@@ -339,7 +339,8 @@ public struct ProviderRouter: Sendable {
     ) -> Double {
         let capScore = required.matchScore(for: provider)
         let reliability = 1.0 - min(provider.errorRateLastHour, 1.0)
-        let latencyMs = latencies[provider.providerId] ?? 0
+        let latencyMs = latencies[provider.providerId]
+            ?? (Self.maxLatencyMs * 0.5)
         let latencyScore = 1.0
             - min(latencyMs / Self.maxLatencyMs, 1.0)
         let costScore = costScores[provider.providerId] ?? 0.5

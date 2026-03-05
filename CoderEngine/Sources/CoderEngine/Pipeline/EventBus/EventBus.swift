@@ -6,12 +6,12 @@ import Foundation
 public struct EventSubscription: Sendable {
     public let id: String
     public let filter: EventSubscriptionFilter
-    public let handler: @Sendable (EventBusEvent) async -> Void
+    public let handler: @Sendable (EventBusEvent) async throws -> Void
 
     public init(
         id: String,
         filter: EventSubscriptionFilter,
-        handler: @escaping @Sendable (EventBusEvent) async -> Void
+        handler: @escaping @Sendable (EventBusEvent) async throws -> Void
     ) {
         self.id = id
         self.filter = filter

@@ -213,8 +213,15 @@ public actor ProviderHealthChecker {
             break
 
         case .unhealthy:
-            updated.healthStatus = .recovering
             updated.consecutiveSuccessesSinceRecovery = 1
+            if updated.consecutiveSuccessesSinceRecovery
+                >= config.healthyThreshold
+            {
+                updated.healthStatus = .healthy
+                updated.consecutiveSuccessesSinceRecovery = 0
+            } else {
+                updated.healthStatus = .recovering
+            }
 
         case .recovering:
             updated.consecutiveSuccessesSinceRecovery += 1

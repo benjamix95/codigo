@@ -155,16 +155,7 @@ public actor EventDeliveryManager {
         attemptNumber: Int
     ) async -> Bool {
         do {
-            try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                Task {
-                    do {
-                        await subscription.handler(event)
-                        cont.resume()
-                    } catch {
-                        cont.resume(throwing: error)
-                    }
-                }
-            }
+            try await subscription.handler(event)
 
             let attempt = DeliveryAttempt(
                 eventId: event.eventId,

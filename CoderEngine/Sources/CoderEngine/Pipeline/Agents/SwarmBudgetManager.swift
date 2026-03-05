@@ -66,6 +66,15 @@ public actor SwarmBudgetManager {
         totalActive += 1
         totalReservations += 1
 
+        if config.adaptive {
+            let multiplier = adaptiveMultiplier(for: task)
+            if multiplier > 1.0 {
+                adaptiveScaleUpCount += 1
+            } else if multiplier < 1.0 {
+                adaptiveScaleDownCount += 1
+            }
+        }
+
         if let pid = providerId {
             activeByProvider[pid, default: 0] += 1
         }
@@ -96,6 +105,7 @@ public actor SwarmBudgetManager {
     // MARK: - Effective Limit
 
     /// Calcola il limite effettivo per un ruolo, tenendo conto del budget adattivo.
+    /// Funzione pura: non modifica stato interno.
     public func effectiveLimit(for role: AgentRole, task: TaskNode) -> Int {
         let base = baseLimit(for: role)
         guard config.adaptive else {
@@ -103,15 +113,7 @@ public actor SwarmBudgetManager {
         }
 
         let multiplier = adaptiveMultiplier(for: task)
-
-        if multiplier > 1.0 {
-            adaptiveScaleUpCount += 1
-        } else if multiplier < 1.0 {
-            adaptiveScaleDownCount += 1
-        }
-
-        let adapted = max(1, Int((Double(base) * multiplier).rounded()))
-        return adapted
+        return max(1, Int((Double(base) * multiplier).rounded()))
     }
 
     // MARK: - Adaptive Multiplier (§8.5)
