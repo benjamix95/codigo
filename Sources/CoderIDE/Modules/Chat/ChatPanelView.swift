@@ -279,34 +279,6 @@ struct ChatPanelView: View {
      var hasActivePlanContext: Bool {
         hasActivePlanContext(for: conversationId)
     }
-     var planInPanelPlaceholder: String {
-        "Plan available in the Plan Panel."
-    }
-     var shouldShowPlanTodosInChat: Bool {
-        return true
-    }
-     var shouldRoutePlanStreamingToPanel: Bool {
-        return hasActivePlanContext
-    }
-     var shouldShowPlanBoardInChat: Bool {
-        false
-    }
-     var shouldShowInlinePlanSummaryInChat: Bool {
-        false
-    }
-     var shouldShowPlanAttachmentsInChat: Bool {
-        false
-    }
-
-     var hasActivePlanFlowPhase: Bool {
-        planFlowPhase == .analyzing
-        || planFlowPhase == .questioning
-        || planFlowPhase == .generating
-        || planFlowPhase == .proposalReady
-        || planFlowPhase == .readyToBuild
-        || planFlowPhase == .building
-    }
-
     var planPanelConversationId: UUID? { conversationId }
 
     var body: some View {
