@@ -103,6 +103,14 @@ func clarificationQuestionsMarkdownFromSnapshot(_ raw: String) -> String? {
     return normalized
 }
 
+func clarificationQuestionsMarkdownForRestore(
+    _ raw: String,
+    isBuildScopedConversation: Bool
+) -> String? {
+    guard !isBuildScopedConversation else { return nil }
+    return clarificationQuestionsMarkdownFromSnapshot(raw)
+}
+
 func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     switch phase {
     case .analyzing, .questioning, .generating, .building:

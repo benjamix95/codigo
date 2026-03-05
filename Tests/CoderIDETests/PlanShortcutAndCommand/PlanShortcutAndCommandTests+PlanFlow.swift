@@ -269,4 +269,18 @@ extension PlanShortcutAndCommandTests {
         XCTAssertEqual(normalized.count, 80)
         XCTAssertTrue(normalized.allSatisfy { $0 == "y" })
     }
+
+    func testClarificationQuestionsMarkdownForRestoreSkipsBuildScopedConversation() {
+        let snapshot = """
+        ## Questions
+        1. Target platform? (select all that apply)
+        A) iOS
+        B) macOS
+        """
+        let restored = clarificationQuestionsMarkdownForRestore(
+            snapshot,
+            isBuildScopedConversation: true
+        )
+        XCTAssertNil(restored)
+    }
 }

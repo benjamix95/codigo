@@ -92,7 +92,7 @@ struct PlanPanelView: View {
                                 planColor: planColor,
                                 onSubmit: onSubmitClarificationAnswers
                             )
-                            .id("plan-clarification-wizard-\(questions.count)")
+                            .id(clarificationWizardIdentityKey(for: questions))
                         } else {
                             PlanClarificationView(questions: questions, planColor: planColor)
                         }
