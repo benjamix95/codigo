@@ -9,7 +9,7 @@ enum PlanOptionsParser {
     static let optionWithTitlePattern =
         #"(?i)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)\s*[:\-\u{2013}\u{2014}]\s*.+$"#
     static let clarificationHeaderPattern =
-        #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
+        #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions|Clarifications?\s*Needed|Need(?:ed)?\s*Clarifications?)\s*:?\s*$"#
     static let otherLikePrimaryTokens: Set<String> = [
         "other",
         "altro",

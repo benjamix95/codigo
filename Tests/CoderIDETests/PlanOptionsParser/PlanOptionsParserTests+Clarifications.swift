@@ -188,4 +188,18 @@ extension PlanOptionsParserTests {
         XCTAssertEqual(options.map(\.text), ["Incrementale", "Other (specify)"])
         XCTAssertEqual(options.map(\.isRecommended), [true, false])
     }
+
+    func testParseClarificationQuestionnaireSupportsClarificationsNeededHeader() {
+        let input = """
+        ## Clarifications Needed
+        1. Quale modulo deve avere priorita'?
+        A) Parser
+        B) Routing panel/chat
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.prompt, "Quale modulo deve avere priorita'?")
+        XCTAssertEqual(questionnaire?.questions.first?.options.map(\.id), ["A", "B"])
+    }
 }

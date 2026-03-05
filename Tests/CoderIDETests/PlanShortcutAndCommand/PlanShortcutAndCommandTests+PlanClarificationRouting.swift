@@ -47,6 +47,21 @@ extension PlanShortcutAndCommandTests {
         XCTAssertNil(restored)
     }
 
+    func testClarificationQuestionsMarkdownFromSnapshotAcceptsClarificationsNeededHeader() {
+        let snapshot = """
+        ## Clarifications Needed
+        1. Quale area e' bloccante?
+        A) Todo sync
+        B) Routing panel/chat
+        """
+        let restored = clarificationQuestionsMarkdownFromSnapshot(snapshot)
+        XCTAssertNotNil(restored)
+        XCTAssertEqual(
+            PlanOptionsParser.parseClarificationQuestionnaire(from: restored ?? "")?.questions.count,
+            1
+        )
+    }
+
     func testPlanQuestionToolEpochDefaultsToZeroWhenConversationHasNoEvents() {
         XCTAssertEqual(planQuestionToolEpoch(for: UUID()), 0)
     }
@@ -80,5 +95,25 @@ extension PlanShortcutAndCommandTests {
         XCTAssertEqual(planQuestionToolEpoch(for: firstConversationId), 2)
         XCTAssertEqual(planQuestionToolEpoch(for: secondConversationId), 1)
         XCTAssertEqual(globalEpoch, 3)
+    }
+
+    func testResolveClarificationIdentitySeedUsesScopedConversationEpoch() {
+        let targetConversationId = UUID()
+        let otherConversationId = UUID()
+        var globalEpoch = 0
+
+        _ = incrementPlanQuestionToolEpoch(for: targetConversationId, globalEpoch: &globalEpoch)
+        _ = incrementPlanQuestionToolEpoch(for: otherConversationId, globalEpoch: &globalEpoch)
+        _ = incrementPlanQuestionToolEpoch(for: otherConversationId, globalEpoch: &globalEpoch)
+        _ = incrementPlanQuestionToolEpoch(for: otherConversationId, globalEpoch: &globalEpoch)
+
+        let seed = resolveClarificationIdentitySeed(
+            planClarificationCycles: 0,
+            planConversationId: targetConversationId,
+            globalEpoch: globalEpoch
+        )
+
+        XCTAssertEqual(seed, 1)
+        XCTAssertEqual(globalEpoch, 4)
     }
 }

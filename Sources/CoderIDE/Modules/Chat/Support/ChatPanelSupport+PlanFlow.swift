@@ -151,6 +151,15 @@ func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     }
 }
 
+func resolveClarificationIdentitySeed(
+    planClarificationCycles: Int,
+    planConversationId: UUID?,
+    globalEpoch: Int
+) -> Int {
+    let scopedEpoch = planConversationId.map { planQuestionToolEpoch(for: $0) } ?? globalEpoch
+    return max(planClarificationCycles, scopedEpoch)
+}
+
 func shouldDisablePlanToggleWhenPanelCloses(
     phase: PlanFlowPhase,
     planningState: PlanningState,
