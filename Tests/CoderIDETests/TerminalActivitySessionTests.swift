@@ -48,4 +48,26 @@ final class TerminalActivitySessionTests: XCTestCase {
         XCTAssertEqual(session.id, "grp-camel-2")
         XCTAssertEqual(session.command, "ls -la")
     }
+
+    func testInitFromActivityUsesCallIdFallbackWhenToolCallIdKeysMissing() {
+        let activity = TaskActivity(
+            type: "command_execution",
+            title: "Run command",
+            detail: nil,
+            payload: [
+                "callId": "call-camel-9",
+                "command": "pwd",
+            ],
+            timestamp: Date(timeIntervalSince1970: 300),
+            phase: .executing,
+            isRunning: true,
+            groupId: nil
+        )
+
+        let session = TerminalActivitySession(from: activity)
+
+        XCTAssertEqual(session.toolCallId, "call-camel-9")
+        XCTAssertEqual(session.id, "call-camel-9")
+        XCTAssertEqual(session.command, "pwd")
+    }
 }

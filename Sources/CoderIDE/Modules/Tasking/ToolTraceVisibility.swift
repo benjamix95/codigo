@@ -80,13 +80,19 @@ enum ToolTraceVisibility {
         "tool",
         "skill",
         "mcp_tool",
+        "mcpTool",
         "mcp_server",
+        "mcpServer",
         "server_id",
+        "serverId",
         "name",
         "pattern",
         "replacement",
         "url",
         "tool_call_id",
+        "toolCallId",
+        "call_id",
+        "callId",
     ]
 
     static func shouldInclude(activity: TaskActivity) -> Bool {
@@ -168,17 +174,17 @@ enum ToolTraceVisibility {
     }
 
     private static func isRealMCPEvent(payload: [String: String]) -> Bool {
-        let marker = normalizedType(payload["is_mcp"] ?? "")
+        let marker = normalizedType(payload["is_mcp"] ?? payload["isMcp"] ?? "")
         if marker == "true" || marker == "1" || marker == "yes" {
             return true
         }
-        if !(payload["mcp_tool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !(payload["mcp_tool"] ?? payload["mcpTool"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
-        if !(payload["mcp_server"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !(payload["mcp_server"] ?? payload["mcpServer"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
-        if !(payload["server_id"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !(payload["server_id"] ?? payload["serverId"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
         return false

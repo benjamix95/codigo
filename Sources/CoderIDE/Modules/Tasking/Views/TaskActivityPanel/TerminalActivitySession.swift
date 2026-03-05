@@ -45,7 +45,10 @@ struct TerminalActivitySession: Identifiable {
 
     init(from activity: TaskActivity) {
         sourceActivityId = activity.id
-        toolCallId = activity.payload["tool_call_id"] ?? activity.payload["toolCallId"]
+        toolCallId = activity.payload["tool_call_id"]
+            ?? activity.payload["toolCallId"]
+            ?? activity.payload["call_id"]
+            ?? activity.payload["callId"]
         groupId = activity.groupId ?? activity.payload["group_id"] ?? activity.payload["groupId"]
         id = toolCallId ?? groupId ?? activity.id.uuidString
         title = activity.title
