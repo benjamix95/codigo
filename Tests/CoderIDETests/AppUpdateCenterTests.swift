@@ -2,6 +2,23 @@ import XCTest
 @testable import CoderIDE
 
 final class AppUpdateCenterTests: XCTestCase {
+    private var suiteName: String!
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "AppUpdateCenterTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults = nil
+        suiteName = nil
+        super.tearDown()
+    }
+
     func testShouldUpdateWhenVersionIsHigher() {
         let local = "1.2.3"
         let manifest = AppUpdateCenter.AppUpdateManifest(
@@ -79,5 +96,33 @@ final class AppUpdateCenterTests: XCTestCase {
         XCTAssertEqual(manifest.minimumSystemVersion, "14.0")
         XCTAssertEqual(manifest.releaseNotes, "Release notes summary")
         XCTAssertEqual(manifest.releaseNotesURL, "https://example.com/release-notes")
+    }
+
+    @MainActor
+    func testShouldCheckNowReturnsTrueWhenLastCheckedDateIsInFutureAndHealsTimestampFailSafe() {
+        let futureDate = Date().addingTimeInterval(60 * 30)
+        defaults.set(futureDate, forKey: AppUpdateCenter.lastCheckedKey)
+        let center = AppUpdateCenter(userDefaults: defaults)
+        center.lastCheckedAt = futureDate
+
+        XCTAssertTrue(center.shouldCheckNow())
+        guard let healedDate = defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date else {
+            XCTFail("Expected healed lastCheckedAt date in UserDefaults")
+            return
+        }
+        let expectedHealedDate = Date().addingTimeInterval(-AppUpdateCenter.checkInterval)
+        XCTAssertLessThanOrEqual(abs(healedDate.timeIntervalSince(expectedHealedDate)), 2.0)
+        XCTAssertNotNil(center.lastCheckedAt)
+        XCTAssertLessThanOrEqual(abs((center.lastCheckedAt ?? .distantFuture).timeIntervalSince(expectedHealedDate)), 2.0)
+    }
+
+    @MainActor
+    func testShouldCheckNowReturnsFalseWhenLastCheckIsRecent() {
+        let recentDate = Date().addingTimeInterval(-(AppUpdateCenter.checkInterval / 2))
+        defaults.set(recentDate, forKey: AppUpdateCenter.lastCheckedKey)
+        let center = AppUpdateCenter(userDefaults: defaults)
+        center.lastCheckedAt = recentDate
+
+        XCTAssertFalse(center.shouldCheckNow())
     }
 }

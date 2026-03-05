@@ -3,9 +3,18 @@ import Foundation
 @MainActor
 extension AppUpdateCenter {
     func shouldCheckNow() -> Bool {
-        let latestDate = lastCheckedAt ?? userDefaults.object(forKey: Self.lastCheckedKey) as? Date
-        if latestDate == nil { return true }
-        let elapsed = Date().timeIntervalSince(latestDate!)
+        guard let latestDate = lastCheckedAt ?? userDefaults.object(forKey: Self.lastCheckedKey) as? Date else {
+            return true
+        }
+        let now = Date()
+        if latestDate > now {
+            // Clock skew fail-safe: non bloccare i check periodici su una data futura.
+            let healedDate = now.addingTimeInterval(-Self.checkInterval)
+            lastCheckedAt = healedDate
+            userDefaults.set(healedDate, forKey: Self.lastCheckedKey)
+            return true
+        }
+        let elapsed = now.timeIntervalSince(latestDate)
         return elapsed >= Self.checkInterval
     }
 

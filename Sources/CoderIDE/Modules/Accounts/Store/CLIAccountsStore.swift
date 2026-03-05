@@ -1,5 +1,17 @@
 import Foundation
 import CoderEngine
+import OSLog
+
+private enum CLIAccountsStoreQuickAddError: LocalizedError {
+    case accountMissingAfterAdd(provider: String, accountID: UUID)
+
+    var errorDescription: String? {
+        switch self {
+        case .accountMissingAfterAdd(let provider, let accountID):
+            return "Account quick-add inconsistente: provider=\(provider), accountID=\(accountID.uuidString)"
+        }
+    }
+}
 
 @MainActor
 final class CLIAccountsStore: ObservableObject {
@@ -12,6 +24,7 @@ final class CLIAccountsStore: ObservableObject {
     let key = "CoderIDE.cliAccounts"
     private let multiEnabledKey = "multi_cli_account_enabled"
     private let secrets = CLIAccountSecretsStore()
+    private let logger = Logger(subsystem: "com.codigo.app", category: "cli-accounts")
 
     init() {
         self.multiAccountEnabled = UserDefaults.standard.bool(forKey: multiEnabledKey)
@@ -47,7 +60,8 @@ final class CLIAccountsStore: ObservableObject {
             }
     }
 
-    func addAccount(provider: CLIProviderKind, label: String, apiKey: String?, quota: CLIAccountQuotaPolicy = .empty) {
+    @discardableResult
+    func addAccount(provider: CLIProviderKind, label: String, apiKey: String?, quota: CLIAccountQuotaPolicy = .empty) -> CLIAccount {
         let id = UUID()
         let profile = CLIProfileProvisioner.ensureProfile(provider: provider, accountId: id)
         let nextPriority = (accounts(for: provider).map(\.priority).max() ?? -1) + 1
@@ -68,6 +82,7 @@ final class CLIAccountsStore: ObservableObject {
             secrets.setSecret(apiKey, for: id)
         }
         save()
+        return account
     }
 
     /// Quick-add an account with auto-generated label. Returns the created account.
@@ -75,12 +90,16 @@ final class CLIAccountsStore: ObservableObject {
     func addAccountQuick(provider: CLIProviderKind) -> CLIAccount {
         let nextNum = accounts(for: provider).count + 1
         let label = "Account \(nextNum)"
-        addAccount(provider: provider, label: label, apiKey: nil)
-        // addAccount appends to `accounts` immediately above, so last is guaranteed non-nil.
-        guard let account = accounts.last else {
-            fatalError("addAccount did not append — accounts array is empty after addAccount call")
+        let account = addAccount(provider: provider, label: label, apiKey: nil)
+        do {
+            try validateQuickAddResult(account, provider: provider)
+            return account
+        } catch {
+            logger.error("addAccountQuick fallback activated: \(error.localizedDescription, privacy: .public)")
+            accounts.append(account)
+            save()
+            return account
         }
-        return account
     }
 
     /// Finalize a just-authenticated account and returns the primary account id.
@@ -212,5 +231,14 @@ final class CLIAccountsStore: ObservableObject {
         let managedRoot = normalizedPath(CLIProfileProvisioner.baseProfilesDir().path)
         let candidate = normalizedPath(path)
         return candidate == managedRoot || candidate.hasPrefix(managedRoot + "/")
+    }
+
+    private func validateQuickAddResult(_ account: CLIAccount, provider: CLIProviderKind) throws {
+        guard accounts.contains(where: { $0.id == account.id }) else {
+            throw CLIAccountsStoreQuickAddError.accountMissingAfterAdd(
+                provider: provider.rawValue,
+                accountID: account.id
+            )
+        }
     }
 }

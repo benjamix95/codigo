@@ -95,7 +95,9 @@ actor LLDBPersistentSession: LLDBCommandSession {
         guard !isClosed else { throw LLDBPersistentSessionError.terminated }
         guard process.isRunning else { throw LLDBPersistentSessionError.terminated }
 
-        let marker = "__CODERIDE_LDBB_EOT_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))__"
+        let markerSuffix = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let marker = "__CODERIDE_LLDB_EOT_\(markerSuffix)__"
+        let legacyMarker = "__CODERIDE_LDBB_EOT_\(markerSuffix)__"
         let commandStartOffset = await outputBuffer.currentOffset()
         let markerCommand = "script print(\"\(marker)\")"
         let payload = (commands + [markerCommand])
@@ -105,6 +107,7 @@ actor LLDBPersistentSession: LLDBCommandSession {
         stdinHandle.write(Data(payload.utf8))
         return try await outputBuffer.waitForMarker(
             marker,
+            legacyMarker: legacyMarker,
             fromOffset: commandStartOffset,
             timeoutNanoseconds: commandTimeoutNanoseconds
         )
@@ -155,25 +158,40 @@ private actor LLDBPersistentOutputBuffer {
 
     func waitForMarker(
         _ marker: String,
+        legacyMarker: String?,
         fromOffset: Int,
         timeoutNanoseconds: UInt64
     ) async throws -> String {
         let markerData = Data(marker.utf8)
+        let legacyMarkerData = legacyMarker.map { Data($0.utf8) }
         let deadline = DispatchTime.now().uptimeNanoseconds &+ timeoutNanoseconds
 
         while true {
             let localStart = max(0, fromOffset - baseOffset)
-            if localStart <= data.count,
-               let markerRange = data.range(
-                of: markerData,
-                options: [],
-                in: localStart ..< data.count
-               )
-            {
-                let segment = data[localStart ..< markerRange.lowerBound]
-                let output = String(decoding: segment, as: UTF8.self)
-                trimBuffer(consumedLocalOffset: markerRange.upperBound)
-                return output
+            if localStart <= data.count {
+                if let markerRange = data.range(
+                    of: markerData,
+                    options: [],
+                    in: localStart ..< data.count
+                ) {
+                    let segment = data[localStart ..< markerRange.lowerBound]
+                    let output = String(decoding: segment, as: UTF8.self)
+                    trimBuffer(consumedLocalOffset: markerRange.upperBound)
+                    return output
+                }
+
+                if let legacyMarkerData,
+                   let legacyMarkerRange = data.range(
+                    of: legacyMarkerData,
+                    options: [],
+                    in: localStart ..< data.count
+                   )
+                {
+                    let segment = data[localStart ..< legacyMarkerRange.lowerBound]
+                    let output = String(decoding: segment, as: UTF8.self)
+                    trimBuffer(consumedLocalOffset: legacyMarkerRange.upperBound)
+                    return output
+                }
             }
 
             if forciblyClosed || closedStreams >= 2 {

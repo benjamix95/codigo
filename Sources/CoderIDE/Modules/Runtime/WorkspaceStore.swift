@@ -219,18 +219,15 @@ final class WorkspaceStore: ObservableObject {
     /// Aggiunge cartella al workspace
     func addFolder(to workspaceId: UUID, path: String) {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
-        let pathNorm = path.hasSuffix("/") ? String(path.dropLast()) : path
-        if !workspaces[idx].folderPaths.contains(pathNorm) {
-            workspaces[idx].folderPaths.append(pathNorm)
-            save()
-            if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
-        }
+        guard addNormalizedWorkspacePath(path, to: &workspaces[idx].folderPaths) else { return }
+        save()
+        if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
     }
 
     /// Rimuove cartella dal workspace
     func removeFolder(from workspaceId: UUID, path: String) {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
-        workspaces[idx].folderPaths.removeAll { $0 == path }
+        guard removeNormalizedWorkspacePath(path, from: &workspaces[idx].folderPaths) else { return }
         save()
         if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
     }
@@ -276,20 +273,4 @@ final class WorkspaceStore: ObservableObject {
     }
     #endif
 
-    func addExclusion(to workspaceId: UUID, path: String) {
-        guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
-        let pathNorm = path.hasSuffix("/") ? String(path.dropLast()) : path
-        if !workspaces[idx].excludedPaths.contains(pathNorm) {
-            workspaces[idx].excludedPaths.append(pathNorm)
-            save()
-            if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
-        }
-    }
-
-    func removeExclusion(from workspaceId: UUID, path: String) {
-        guard let idx = workspaces.firstIndex(where: { $0.id == workspaceId }) else { return }
-        workspaces[idx].excludedPaths.removeAll { $0 == path }
-        save()
-        if workspaceId == activeWorkspaceId { indexActiveWorkspace() }
-    }
 }

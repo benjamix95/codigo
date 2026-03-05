@@ -158,7 +158,9 @@ public final class BrowserSessionStore: ObservableObject {
         clearCache()
         clearConsoleLogs()
         clearNetworkRequests()
-        webView?.load(URLRequest(url: URL(string: "about:blank")!))
+        if let blankURL = URL(string: "about:blank") {
+            webView?.load(URLRequest(url: blankURL))
+        }
         currentURL = ""
         pageTitle = ""
         lastScreenshot = nil
