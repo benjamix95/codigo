@@ -127,6 +127,18 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertEqual(scoped.map(\.title), ["a"])
     }
 
+    func testScopedTaskActivitiesForConversation_acceptsCamelCaseConversationId() {
+        let convA = UUID()
+        let convB = UUID()
+        let activities: [TaskActivity] = [
+            TaskActivity(type: "review-worker-plan", title: "a", payload: ["conversationId": convA.uuidString.lowercased()]),
+            TaskActivity(type: "review-worker-plan", title: "b", payload: ["conversationId": convB.uuidString.lowercased()])
+        ]
+
+        let scoped = scopedTaskActivitiesForConversation(activities, conversationId: convA)
+        XCTAssertEqual(scoped.map(\.title), ["a"])
+    }
+
     func testReviewCardBelongsToConversation_checksRecentEventConversation() {
         let convA = UUID()
         let convB = UUID()
@@ -143,5 +155,21 @@ final class CodeReviewPanelValidationTests: XCTestCase {
 
         XCTAssertFalse(reviewCardBelongsToConversation(cardForB, conversationId: convA))
         XCTAssertTrue(reviewCardBelongsToConversation(cardForB, conversationId: convB))
+    }
+
+    func testReviewCardBelongsToConversation_acceptsCamelCaseConversationId() {
+        let conversationId = UUID()
+        let card = SwarmLiveCardState(
+            swarmId: "review-3",
+            recentEvents: [
+                TaskActivity(
+                    type: "agent",
+                    title: "worker",
+                    payload: ["conversationId": conversationId.uuidString.uppercased()]
+                )
+            ]
+        )
+
+        XCTAssertTrue(reviewCardBelongsToConversation(card, conversationId: conversationId))
     }
 }

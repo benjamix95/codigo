@@ -37,10 +37,7 @@ func scopedTaskActivitiesForConversation(
     guard let conversationId else { return activities }
     let expected = conversationId.uuidString.lowercased()
     return activities.filter { activity in
-        let tagged = (activity.payload["conversation_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return tagged == expected
+        canonicalConversationScope(from: activity.payload) == expected
     }
 }
 
