@@ -86,6 +86,43 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
         XCTAssertTrue(exclusions.isEmpty)
     }
 
+    func testLoadNormalizesPersistedWorkspacePathsAndDeduplicates() throws {
+        let workspaceId = UUID()
+        let base = "/tmp/ws-\(UUID().uuidString)/project"
+        let dirtyWorkspace = Workspace(
+            id: workspaceId,
+            name: "WS",
+            folderPaths: ["\(base)/", "\(base)/./", "\(base)/Sources/.."],
+            excludedPaths: ["\(base)/.build/", "\(base)/.build/../.build", "   "]
+        )
+
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: "codebase_index_enabled")
+        defaults.set(try JSONEncoder().encode([dirtyWorkspace]), forKey: "CoderIDE.workspaces")
+        defaults.set(workspaceId.uuidString, forKey: "CoderIDE.activeWorkspaceId")
+
+        let store = WorkspaceStore()
+        guard let loaded = store.workspaces.first(where: { $0.id == workspaceId }) else {
+            XCTFail("Expected workspace loaded from persistence")
+            return
+        }
+
+        XCTAssertEqual(loaded.folderPaths, [canonicalPath(base)])
+        XCTAssertEqual(loaded.excludedPaths, [canonicalPath("\(base)/.build")])
+
+        guard
+            let persistedData = defaults.data(forKey: "CoderIDE.workspaces"),
+            let persisted = try? JSONDecoder().decode([Workspace].self, from: persistedData),
+            let persistedWorkspace = persisted.first(where: { $0.id == workspaceId })
+        else {
+            XCTFail("Expected normalized workspace persisted back to UserDefaults")
+            return
+        }
+
+        XCTAssertEqual(persistedWorkspace.folderPaths, [canonicalPath(base)])
+        XCTAssertEqual(persistedWorkspace.excludedPaths, [canonicalPath("\(base)/.build")])
+    }
+
     private func canonicalPath(_ rawPath: String) -> String {
         URL(fileURLWithPath: rawPath)
             .standardizedFileURL
@@ -96,5 +133,6 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "CoderIDE.workspaces")
         defaults.removeObject(forKey: "CoderIDE.activeWorkspaceId")
+        defaults.removeObject(forKey: "codebase_index_enabled")
     }
 }

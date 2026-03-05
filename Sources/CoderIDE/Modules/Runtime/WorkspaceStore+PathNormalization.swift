@@ -1,4 +1,5 @@
 import Foundation
+import CoderEngine
 
 @MainActor
 extension WorkspaceStore {
@@ -30,5 +31,42 @@ extension WorkspaceStore {
         let originalCount = paths.count
         paths.removeAll { normalizedWorkspacePath($0) == normalized }
         return paths.count != originalCount
+    }
+
+    func normalizePersistedWorkspacePaths() -> Bool {
+        var didChange = false
+        var normalizedWorkspaces: [Workspace] = []
+        normalizedWorkspaces.reserveCapacity(workspaces.count)
+
+        for workspace in workspaces {
+            var normalizedWorkspace = workspace
+            let normalizedFolders = normalizedUniqueWorkspacePaths(workspace.folderPaths)
+            let normalizedExclusions = normalizedUniqueWorkspacePaths(workspace.excludedPaths)
+            if normalizedFolders != workspace.folderPaths || normalizedExclusions != workspace.excludedPaths {
+                didChange = true
+            }
+            normalizedWorkspace.folderPaths = normalizedFolders
+            normalizedWorkspace.excludedPaths = normalizedExclusions
+            normalizedWorkspaces.append(normalizedWorkspace)
+        }
+
+        if didChange {
+            workspaces = normalizedWorkspaces
+        }
+        return didChange
+    }
+
+    private func normalizedUniqueWorkspacePaths(_ rawPaths: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+        normalized.reserveCapacity(rawPaths.count)
+
+        for rawPath in rawPaths {
+            let candidate = normalizedWorkspacePath(rawPath)
+            guard !candidate.isEmpty else { continue }
+            guard seen.insert(candidate).inserted else { continue }
+            normalized.append(candidate)
+        }
+        return normalized
     }
 }

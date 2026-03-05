@@ -168,13 +168,18 @@ final class WorkspaceStore: ObservableObject {
     }
 
     func load() {
+        var normalizedPersistedPaths = false
         if let data = UserDefaults.standard.data(forKey: workspacesKey),
            let decoded = try? JSONDecoder().decode([Workspace].self, from: data) {
             workspaces = decoded
+            normalizedPersistedPaths = normalizePersistedWorkspacePaths()
         }
         if let idStr = UserDefaults.standard.string(forKey: activeWorkspaceIdKey),
            let id = UUID(uuidString: idStr) {
             activeWorkspaceId = workspaces.contains { $0.id == id } ? id : nil
+        }
+        if normalizedPersistedPaths {
+            save()
         }
         indexActiveWorkspace()
     }
