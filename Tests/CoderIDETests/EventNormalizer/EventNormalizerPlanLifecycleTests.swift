@@ -31,6 +31,27 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
+    func testPlanCreateDefaultsMissingStepStatusToPending() {
+        let events = EventNormalizer.normalize(
+            type: "plan_create",
+            payload: [
+                "goal": "Implementare panel plan",
+                "steps": #"[{"step_id":"1","title":"Analisi"},{"stepId":"2","title":"Patch mapper","status":"running"}]"#,
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planCreate(_, _, let steps, _) = $0 {
+                guard steps.count == 2 else { return false }
+                return steps[0].stepId == "1"
+                    && steps[0].status == .pending
+                    && steps[1].stepId == "2"
+                    && steps[1].status == .running
+            }
+            return false
+        })
+    }
+
     func testPlanStepUpsertParsesMetadataAndRunningState() {
         let events = EventNormalizer.normalize(
             type: "plan_step_upsert",

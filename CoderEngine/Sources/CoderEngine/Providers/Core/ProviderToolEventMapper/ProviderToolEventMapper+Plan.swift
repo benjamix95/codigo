@@ -23,32 +23,48 @@ extension ProviderToolEventMapper {
         let eventType = normalized
         var mapped: [String: String] = [
             "tool": normalized,
-            "title": planTitle(for: normalized, payload: payload),
         ]
 
-        let scalarKeys = [
-            "conversation_id", "goal", "chosen_path",
-            "step_id", "status", "title", "description",
-            "target_file", "notes", "markdown", "summary", "outcome",
-            "from_snapshot_id", "to_snapshot_id", "history_limit", "limit",
-            "phase", "round", "context"
+        let scalarKeyAliases: [(output: String, aliases: [String])] = [
+            ("conversation_id", ["conversation_id", "conversationId"]),
+            ("goal", ["goal"]),
+            ("chosen_path", ["chosen_path", "chosenPath"]),
+            ("step_id", ["step_id", "stepId"]),
+            ("status", ["status"]),
+            ("title", ["title", "step_title", "stepTitle"]),
+            ("description", ["description"]),
+            ("target_file", ["target_file", "targetFile"]),
+            ("notes", ["notes"]),
+            ("markdown", ["markdown"]),
+            ("summary", ["summary"]),
+            ("outcome", ["outcome"]),
+            ("from_snapshot_id", ["from_snapshot_id", "fromSnapshotId"]),
+            ("to_snapshot_id", ["to_snapshot_id", "toSnapshotId"]),
+            ("history_limit", ["history_limit", "historyLimit"]),
+            ("limit", ["limit"]),
+            ("phase", ["phase"]),
+            ("round", ["round"]),
+            ("context", ["context"]),
         ]
-        for key in scalarKeys {
-            if let value = firstString(in: payload, keys: [key]), !value.isEmpty {
-                if key == "title" {
-                    mapped["step_title"] = value
-                    continue
-                }
-                mapped[key] = value
+        for alias in scalarKeyAliases {
+            if let value = firstString(in: payload, keys: alias.aliases), !value.isEmpty {
+                mapped[alias.output] = value
             }
         }
 
-        let jsonKeys = ["steps", "updates", "ordered_step_ids", "depends_on", "linked_files", "questions"]
-        for key in jsonKeys {
-            if let json = jsonString(from: payload[key]) {
-                mapped[key] = json
-            } else if let raw = firstString(in: payload, keys: [key]), !raw.isEmpty {
-                mapped[key] = raw
+        let jsonKeyAliases: [(output: String, aliases: [String])] = [
+            ("steps", ["steps"]),
+            ("updates", ["updates"]),
+            ("ordered_step_ids", ["ordered_step_ids", "orderedStepIds"]),
+            ("depends_on", ["depends_on", "dependsOn"]),
+            ("linked_files", ["linked_files", "linkedFiles"]),
+            ("questions", ["questions"]),
+        ]
+        for alias in jsonKeyAliases {
+            if let json = alias.aliases.compactMap({ jsonString(from: payload[$0]) }).first {
+                mapped[alias.output] = json
+            } else if let raw = firstString(in: payload, keys: alias.aliases), !raw.isEmpty {
+                mapped[alias.output] = raw
             }
         }
 

@@ -28,8 +28,8 @@ extension EventNormalizer {
         return objects.enumerated().compactMap { index, item in
             let stepId = ((item["step_id"] as? String) ?? (item["stepId"] as? String) ?? (item["id"] as? String) ?? String(index + 1))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !stepId.isEmpty,
-                  let status = normalizePlanStepStatus(item["status"] as? String) else { return nil }
+            guard !stepId.isEmpty else { return nil }
+            let status = normalizePlanStepStatus(item["status"] as? String) ?? .pending
             return PlanStepUpsertPayload(
                 stepId: stepId,
                 status: status,

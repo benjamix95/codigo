@@ -74,15 +74,26 @@ extension ProviderToolEventMapperTests {
         }
     }
 
-    func testTodoWriteWithEmptyTodosArrayFallsBack() {
+    func testTodoWriteWithEmptyTodosArrayEmitsClearMarker() {
         let mapped = ProviderToolEventMapper.map(
             toolName: "TodoWrite",
             payload: ["todos": [] as [[String: Any]]]
         )
         XCTAssertEqual(mapped?.type, "todo_write")
-        // Empty array falls back to "Update todo list"
-        XCTAssertEqual(mapped?.payload["title"], "Update todo list")
-        XCTAssertNil(mapped?.payload["todos_json"])
+        XCTAssertEqual(mapped?.payload["title"], "__CODERIDE_CLEAR_TODOS__")
+        XCTAssertEqual(mapped?.payload["clear_todos"], "true")
+        XCTAssertEqual(mapped?.payload["todos_json"], "[]")
+    }
+
+    func testTodoWriteWithEmptyTodosJSONStringEmitsClearMarker() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "TodoWrite",
+            payload: ["todos": "[]"]
+        )
+        XCTAssertEqual(mapped?.type, "todo_write")
+        XCTAssertEqual(mapped?.payload["title"], "__CODERIDE_CLEAR_TODOS__")
+        XCTAssertEqual(mapped?.payload["clear_todos"], "true")
+        XCTAssertEqual(mapped?.payload["todos_json"], "[]")
     }
 
     func testTodoReadMapsCorrectly() {
