@@ -61,8 +61,28 @@ extension ChatPanelView {
                             break
                         }
                     }
+                } else if usePipelineOrchestrator && coderMode == .agent {
+                    await MainActor.run {
+                        let assistantMsgId = UUID()
+                        let (job, tasks) = PipelineJobFactory.fromChatMessage(
+                            prompt: prompt,
+                            workspace: ctx.workspacePath.path,
+                            providerId: effectiveRuntimeProvider.id
+                        )
+                        let adapter = AgentWorkerAdapter(
+                            provider: effectiveRuntimeProvider,
+                            context: ctx,
+                            jobId: job.jobId
+                        )
+                        pipelineIntegrationService.executeJob(
+                            job,
+                            tasks: tasks,
+                            workerAdapter: adapter,
+                            conversationId: targetConversationId,
+                            assistantMessageId: assistantMsgId
+                        )
+                    }
                 } else {
-                    // Standard single-stream flow (non-plan modes + plan build)
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,
@@ -102,7 +122,6 @@ extension ChatPanelView {
                         hideContentDuringPlanDiscovery: false
                     )
 
-                    // 6. Handle stream completion (plan options)
                     await handleStreamResult(
                         conversationId: targetConversationId,
                         fullText: finalizedResult,

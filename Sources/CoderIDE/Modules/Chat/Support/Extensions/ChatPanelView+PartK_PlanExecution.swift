@@ -206,6 +206,69 @@ extension ChatPanelView {
             canonicalTodos: canonicalTodos
         ).prompt
 
+        if usePipelineOrchestrator {
+            executePlanBuildViaPipeline(
+                provider: provider,
+                ctx: ctx,
+                planTodos: planTodos,
+                agentConvId: agentConvId,
+                planConversationId: planConversationId,
+                planBuildAssistantMessageId: planBuildAssistantMessageId
+            )
+        } else {
+            executePlanBuildViaLegacyStream(
+                provider: provider,
+                prompt: prompt,
+                ctx: ctx,
+                agentConvId: agentConvId,
+                planConversationId: planConversationId,
+                planBuildAssistantMessageId: planBuildAssistantMessageId
+            )
+        }
+    }
+
+    // MARK: - Pipeline Path
+
+    private func executePlanBuildViaPipeline(
+        provider: any LLMProvider,
+        ctx: WorkspaceContext,
+        planTodos: [String],
+        agentConvId: UUID,
+        planConversationId: UUID,
+        planBuildAssistantMessageId: UUID
+    ) {
+        let todoItems = planTodos.map { PlanTodoItem(title: $0) }
+        let workspace = ctx.workspacePath.path
+        let (job, tasks) = PipelineJobFactory.fromPlanBuild(
+            todos: todoItems,
+            workspace: workspace,
+            providerId: provider.id
+        )
+        let workerAdapter = AgentWorkerAdapter(
+            provider: provider,
+            context: ctx,
+            jobId: job.jobId
+        )
+
+        pipelineIntegrationService.executeJob(
+            job,
+            tasks: tasks,
+            workerAdapter: workerAdapter,
+            conversationId: agentConvId,
+            assistantMessageId: planBuildAssistantMessageId
+        )
+    }
+
+    // MARK: - Legacy Stream Path
+
+    private func executePlanBuildViaLegacyStream(
+        provider: any LLMProvider,
+        prompt: String,
+        ctx: WorkspaceContext,
+        agentConvId: UUID,
+        planConversationId: UUID,
+        planBuildAssistantMessageId: UUID
+    ) {
         launchRunTask(for: agentConvId) {
             var traceOutcome: ToolTraceTurnOutcome = .success
             do {
@@ -308,7 +371,6 @@ extension ChatPanelView {
                         to: agentConvId
                     )
 
-                    // Add a Code Review & Test todo after plan build completion
                     todoStore.upsertFromAgent(
                         id: nil,
                         title: "Code Review & Test",

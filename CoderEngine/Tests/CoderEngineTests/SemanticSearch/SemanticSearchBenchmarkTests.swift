@@ -3,16 +3,15 @@ import XCTest
 
 final class SemanticSearchBenchmarkTests: XCTestCase {
     func testSemanticSearchBenchmarkSynthetic10kFiles() async throws {
-        guard ProcessInfo.processInfo.environment["RUN_SEMANTIC_BENCHMARK"] == "1" else {
-            throw XCTSkip("Set RUN_SEMANTIC_BENCHMARK=1 to run the 10k synthetic benchmark")
-        }
+        let isFull = ProcessInfo.processInfo.environment["RUN_SEMANTIC_BENCHMARK"] == "1"
+        let fileCount = isFull ? 10_000 : 200
 
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("semantic-bench-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workspace) }
 
-        for i in 0..<10_000 {
+        for i in 0..<fileCount {
             let content = """
             struct BenchType\(i) {
                 func authFlow\(i)() {

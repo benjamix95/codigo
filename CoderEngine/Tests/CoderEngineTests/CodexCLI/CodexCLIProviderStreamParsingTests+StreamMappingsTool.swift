@@ -94,7 +94,8 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertEqual(todoPayload?["title"], "Review PR")
         XCTAssertEqual(todoPayload?["status"], "in_progress")
         XCTAssertEqual(todoPayload?["activeForm"], "Reviewing PR")
-        XCTAssertEqual(todoPayload?["files"], #"["Sources/A.swift","Sources/B.swift"]"#)
+        let filesValue = todoPayload?["files"]?.replacingOccurrences(of: "\\/", with: "/")
+        XCTAssertEqual(filesValue, #"["Sources/A.swift","Sources/B.swift"]"#)
     }
 
     func testParseStreamJSONEventSynthesizesTodoClearMarkerForEmptyTodosBatch() {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SwarmProgressView: View {
     @ObservedObject var store: SwarmProgressStore
+    @EnvironmentObject var pipelineService: PipelineIntegrationService
     let activities: [TaskActivity]
     let conversationId: UUID?
     let isTaskRunning: Bool
@@ -42,11 +43,11 @@ struct SwarmProgressView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     swarmAntIcon
-                    Text("SUBAGENT")
+                    Text(pipelineService.isRunning ? "PIPELINE" : "SUBAGENT")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
-                        .textShimmer(active: isTaskRunning)
+                        .textShimmer(active: isTaskRunning || pipelineService.isRunning)
                 }
 
                 Spacer(minLength: 8)

@@ -69,6 +69,7 @@ struct SettingsView: View {
     @AppStorage("codex_reasoning_summary") var codexReasoningSummary = "auto"
     @AppStorage("codex_verbosity") var codexVerbosity = "medium"
     @AppStorage("codex_personality") var codexPersonality = "none"
+    @AppStorage("use_pipeline_orchestrator") var usePipelineOrchestrator = false
 
     // MARK: - Behavior
     @AppStorage("global_yolo") var globalYolo = false

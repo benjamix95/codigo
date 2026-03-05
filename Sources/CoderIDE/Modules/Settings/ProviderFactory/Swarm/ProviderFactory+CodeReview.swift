@@ -42,7 +42,8 @@ extension ProviderFactory {
             enabledPhases: config.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
             maxReviewRounds: config.codeReviewMaxRounds,
             analysisBackend: resolvedAnalysisId,
-            executionBackend: resolvedExecutionId
+            executionBackend: resolvedExecutionId,
+            usePipelineOrchestrator: config.usePipelineOrchestrator
         )
 
         return CodeReviewMultiSwarmProvider(

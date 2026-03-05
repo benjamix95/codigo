@@ -5,13 +5,11 @@ import XCTest
 final class CodebaseIndexIndexingBenchmarkSmokeTests: XCTestCase {
     func testIndexingBenchmarkSmoke() async throws {
         let env = ProcessInfo.processInfo.environment
-        guard env["RUN_INDEX_BENCHMARK_SMOKE"] == "1" else {
-            throw XCTSkip("Set RUN_INDEX_BENCHMARK_SMOKE=1 to run indexing benchmark smoke")
-        }
+        let isFull = env["RUN_INDEX_BENCHMARK_SMOKE"] == "1"
 
-        let measuredRuns = clampInt(env["INDEX_BENCHMARK_RUNS"], fallback: 6, min: 1, max: 40)
-        let warmupRuns = clampInt(env["INDEX_BENCHMARK_WARMUP"], fallback: 2, min: 0, max: 10)
-        let fileCount = clampInt(env["INDEX_BENCHMARK_FILES"], fallback: 180, min: 40, max: 2_000)
+        let measuredRuns = clampInt(env["INDEX_BENCHMARK_RUNS"], fallback: isFull ? 6 : 2, min: 1, max: 40)
+        let warmupRuns = clampInt(env["INDEX_BENCHMARK_WARMUP"], fallback: isFull ? 2 : 0, min: 0, max: 10)
+        let fileCount = clampInt(env["INDEX_BENCHMARK_FILES"], fallback: isFull ? 180 : 40, min: 10, max: 2_000)
         let phase = env["INDEX_BENCHMARK_PHASE"] ?? "adhoc"
 
         let workspace = try makeWorkspace(fileCount: fileCount)

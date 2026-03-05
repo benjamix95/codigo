@@ -171,6 +171,7 @@ extension ChatPanelView {
             unifiedToolRuntimeEnabled: unifiedToolRuntimeEnabled,
             agentsHardBlockEnabled: agentsHardBlockEnabled,
             mcpEditEnforcementEnabled: mcpEditEnforcementEnabled,
+            usePipelineOrchestrator: usePipelineOrchestrator,
             webSearchProvider: webSearchProvider,
             braveSearchApiKey: braveSearchApiKey,
             tavilyApiKey: tavilyApiKey,

@@ -21,6 +21,7 @@ struct CodigoApp: App {
     @StateObject var planHistoryStore = PlanHistoryStore()
     @StateObject var accountUsageDashboardStore = AccountUsageDashboardStore.shared
     @StateObject var appUpdateCenter = AppUpdateCenter()
+    @StateObject var pipelineIntegrationService = PipelineIntegrationService()
 
     @AppStorage("openai_api_key") var apiKey = ""
     @AppStorage("openai_model") var model = "gpt-4o-mini"
@@ -68,6 +69,7 @@ struct CodigoApp: App {
     @AppStorage("gemini_model_override") var geminiModelOverride = ""
     @AppStorage("grok_api_key") var grokApiKey = ""
     @AppStorage("grok_model") var grokModel = "grok-4-1-fast-reasoning"
+    @AppStorage("use_pipeline_orchestrator") var usePipelineOrchestrator = false
     @AppStorage("web_search_provider") var webSearchProvider = "duckduckgo"
     @AppStorage("brave_search_api_key") var braveSearchApiKey = ""
     @AppStorage("tavily_api_key") var tavilyApiKey = ""
@@ -94,6 +96,7 @@ struct CodigoApp: App {
                 .environmentObject(planHistoryStore)
                 .environmentObject(accountUsageDashboardStore)
                 .environmentObject(appUpdateCenter)
+                .environmentObject(pipelineIntegrationService)
                 .onAppear {
                     configureWindow()
                     Task { @MainActor in
@@ -108,6 +111,13 @@ struct CodigoApp: App {
                         CodexMCPHealthStore.shared.refresh()
                         await appUpdateCenter.checkForUpdates()
                         registerProviders()
+                        pipelineIntegrationService.configure(
+                            chatStore: chatStore,
+                            taskActivityStore: taskActivityStore,
+                            swarmProgressStore: swarmProgressStore,
+                            todoStore: todoStore,
+                            executionController: executionController
+                        )
                     }
                 }
         }

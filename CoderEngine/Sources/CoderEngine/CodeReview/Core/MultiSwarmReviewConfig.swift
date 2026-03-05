@@ -19,13 +19,16 @@ public struct MultiSwarmReviewConfig: Sendable {
     public let analysisBackend: String
     /// Backend for Phase 2 (fix execution)
     public let executionBackend: String
+    /// When true, uses the new pipeline orchestrator for the fix phase.
+    public let usePipelineOrchestrator: Bool
 
     public init(
         maxWorkers: Int = 6,
         enabledPhases: ReviewEnabledPhase = .analysisAndExecution,
         maxReviewRounds: Int = 3,
         analysisBackend: String = "codex",
-        executionBackend: String = "codex"
+        executionBackend: String = "codex",
+        usePipelineOrchestrator: Bool = false
     ) {
         let clampedWorkers = min(12, max(1, maxWorkers))
         let clampedRounds = min(10, max(1, maxReviewRounds))
@@ -42,5 +45,6 @@ public struct MultiSwarmReviewConfig: Sendable {
         self.maxReviewRounds = clampedRounds
         self.analysisBackend = analysisBackend.isEmpty ? "codex" : analysisBackend
         self.executionBackend = executionBackend.isEmpty ? "codex" : executionBackend
+        self.usePipelineOrchestrator = usePipelineOrchestrator
     }
 }
