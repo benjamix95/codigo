@@ -9,7 +9,7 @@ enum PlanOptionsParser {
     static let optionWithTitlePattern =
         #"(?i)^\s*(?:#{1,3}\s*)?(?:(?:Option|Approach)\s+(?:\d+|[A-Z])|Plan(?:\s+(?:\d+|[A-Z]))?)\s*[:\-\u{2013}\u{2014}]\s*.+$"#
     static let clarificationHeaderPattern =
-        #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions)\s*:?\s*$"#
+        #"(?im)^\s*#{1,3}\s*(?:Clarification\s*questions|Questions\s*to\s*clarify|Questions|Clarifications?\s*Needed|Need(?:ed)?\s*Clarifications?)\s*:?\s*$"#
     static let otherLikePrimaryTokens: Set<String> = [
         "other",
         "altro",
@@ -21,10 +21,13 @@ enum PlanOptionsParser {
     // Pre-compiled regexes for hot paths
     static let questionRegex = try? NSRegularExpression(pattern: #"^\s*(\d+)[.)]\s*(.+)$"#)
     static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
+    static let clarificationNumericOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?(\d{1,2})\)\s+(.+)$"#)
+    static let clarificationBulletOptionRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*(?:\[\s*[xX ]?\s*\]\s*)?(.+)$"#)
     /// Detects checkbox-style options: "- [ ] A) ..." or "- [x] B) ..."
     static let checkboxOptionPattern = #"^\s*[-*•]\s*\[\s*[xX ]?\s*\]"#
-    /// Detects multi-select markers in question text.
-    static let multiSelectPattern = #"(?i)\(\s*(?:select\s+(?:all\s+that\s+apply|multiple)|multi[-\s]?select|seleziona\s+(?:tutto|multiplo|piu))\s*\)"#
+    /// Detects multi-select markers in question text (parenthetical or inline).
+    static let multiSelectPattern =
+        #"(?i)(?:\(\s*)?(?:select\s+all\s+that\s+apply|select\s+multiple(?:\s+options)?|multi[-\s]?select|seleziona\s+(?:tutto(?:\s+quello\s+che\s+si\s+applica)?|multiplo|multiple|piu)(?:\s+opzioni)?)\s*(?:\))?"#
     static let numberedLineRegex = try? NSRegularExpression(pattern: #"^\s*\d+[.)]\s+(.+)$"#)
     static let bulletLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s+(.+)$"#)
     static let checklistLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#)

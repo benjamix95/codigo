@@ -15,7 +15,10 @@ extension ChatPanelView {
         // ========================
         let phase3StartContext = await MainActor.run { () -> (shouldStart: Bool, questionEpochBaseline: Int) in
             guard self.conversationId == conversationId else {
-                return (false, planQuestionToolRequestEpoch)
+                return (
+                    false,
+                    planQuestionToolEpoch(for: conversationId)
+                )
             }
             planFlowPhase = .generating
             let generationAssistantMessageId = UUID()
@@ -33,7 +36,10 @@ extension ChatPanelView {
                 in: conversationId,
                 persistImmediately: true
             )
-            return (true, planQuestionToolRequestEpoch)
+            return (
+                true,
+                planQuestionToolEpoch(for: conversationId)
+            )
         }
         let shouldStartPhase3 = phase3StartContext.shouldStart
         let questionToolEpochBaseline = phase3StartContext.questionEpochBaseline
@@ -74,15 +80,7 @@ extension ChatPanelView {
         }
 
         let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
-            guard shouldMutatePlanState(
-                targetConversationId: conversationId,
-                currentConversationId: self.conversationId
-            ) else { return false }
-            guard planQuestionToolRequestEpoch > questionToolEpochBaseline else { return false }
-            if case .awaitingClarification = planningState {
-                return true
-            }
-            return false
+            planQuestionToolEpoch(for: conversationId) > questionToolEpochBaseline
         }
         if didReceiveToolDrivenQuestionnaire {
             clearStreamingReasoning(for: conversationId)
@@ -102,9 +100,8 @@ extension ChatPanelView {
         // via a `## Clarifications Needed` section, route back to questioning instead
         // of producing a potentially incorrect plan.
         if planClarificationCycles < 2,
-           let clarRange = full.range(of: "## Clarifications Needed")
+           let clarificationsText = clarificationsNeededSection(from: full)
         {
-            let clarificationsText = String(full[clarRange.lowerBound...])
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
                 planClarificationCycles += 1

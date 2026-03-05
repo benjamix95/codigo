@@ -8,7 +8,6 @@ extension ChatPanelView {
         guard !incoming.isEmpty else { return }
         var current = attachedComposerAttachments
         var seenPaths = Set(current.map { $0.url.standardizedFileURL.path })
-
         for item in incoming {
             guard current.count < AttachmentIntakeService.maxAttachmentsPerMessage else { break }
             if let size = item.sizeBytes, size > AttachmentIntakeService.maxAttachmentSizeBytes {
@@ -21,7 +20,6 @@ extension ChatPanelView {
         }
         attachedComposerAttachments = current
     }
-
     internal func handleAttachmentSelection(result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -37,7 +35,6 @@ extension ChatPanelView {
             break
         }
     }
-
     internal func installPasteMonitor() {
         guard pasteMonitor == nil else { return }
         pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -85,7 +82,6 @@ extension ChatPanelView {
             return event
         }
     }
-
     internal func isShiftTab(_ event: NSEvent) -> Bool {
         isShiftTabShortcut(
             flags: event.modifierFlags,
@@ -140,14 +136,24 @@ extension ChatPanelView {
             planningState = .idle
             return
         }
-        // Preserve state only when this conversation is the active plan-build scope.
-        // Generic active tasks (non-plan) must not pin plan UI state across threads.
-        if isPlanBuildContext(
+        let isBuildScopedConversation = isPlanBuildContext(
             conversationId: conversationId,
             phase: planFlowPhase,
             activeBuildPlanConversationId: activeBuildPlanConversationId,
             activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        // Preserve state only when this conversation is the active plan-build scope.
+        // Generic active tasks (non-plan) must not pin plan UI state across threads.
+        if isBuildScopedConversation {
+            return
+        }
+        if let questionsMarkdown = clarificationQuestionsMarkdownForRestore(
+            planStreamingContentByConversation[conversationId] ?? "",
+            isBuildScopedConversation: isBuildScopedConversation
         ) {
+            planFlowPhase = .questioning
+            planningState = .awaitingClarification(questions: questionsMarkdown)
+            planStreamingContent = questionsMarkdown
             return
         }
         // No active flow — safe to reset per-flow context

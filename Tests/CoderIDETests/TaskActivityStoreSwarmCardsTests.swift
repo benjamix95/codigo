@@ -92,4 +92,82 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertNotNil(card)
         XCTAssertGreaterThanOrEqual(card?.recentEvents.count ?? 0, 2)
     }
+
+    func testAppendOrMergeBatchEventHardCapPreservesRunningActivities() {
+        let store = TaskActivityStore()
+        let running = TaskActivity(
+            type: "agent",
+            title: "Long running operation",
+            detail: "running",
+            payload: ["status": "running"],
+            phase: .planning,
+            isRunning: true,
+            groupId: "running-anchor"
+        )
+        store.appendOrMergeBatchEvent(running)
+
+        for index in 0...store.activitiesHardCap {
+            store.appendOrMergeBatchEvent(
+                TaskActivity(
+                    type: "batch_log",
+                    title: "Log \(index)",
+                    detail: "completed",
+                    payload: ["status": "completed"],
+                    phase: .planning,
+                    isRunning: false,
+                    groupId: "batch-\(index)"
+                )
+            )
+        }
+
+        XCTAssertEqual(store.activities.count, store.activitiesHardCap)
+        XCTAssertTrue(store.activities.contains(where: { $0.id == running.id }))
+    }
+
+    func testScopedSwarmCardStatesContainOnlyScopedConversationEvents() {
+        let store = TaskActivityStore()
+        let conversationA = UUID()
+        let conversationB = UUID()
+
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner A",
+                detail: "started",
+                payload: [
+                    "swarm_id": "planner",
+                    "group_id": "swarm-planner",
+                    "conversation_id": conversationA.uuidString.lowercased(),
+                ],
+                timestamp: Date(timeIntervalSince1970: 10),
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+        store.addActivity(
+            TaskActivity(
+                type: "agent",
+                title: "Planner B",
+                detail: "started",
+                payload: [
+                    "swarm_id": "planner",
+                    "group_id": "swarm-planner",
+                    "conversation_id": conversationB.uuidString.lowercased(),
+                ],
+                timestamp: Date(timeIntervalSince1970: 11),
+                phase: .planning,
+                isRunning: true,
+                groupId: "swarm-planner"
+            )
+        )
+        store.flushPending()
+
+        let scopedA = store.swarmCardStates(for: conversationA)
+        XCTAssertEqual(scopedA.count, 1)
+        XCTAssertEqual(scopedA[0].swarmId, "planner")
+        XCTAssertTrue(scopedA[0].recentEvents.allSatisfy {
+            canonicalConversationScope(from: $0.payload) == conversationA.uuidString.lowercased()
+        })
+    }
 }

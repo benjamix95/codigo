@@ -78,6 +78,73 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("invalid status"))
     }
 
+    func testPlanMutationsWithoutConversationIdFailWhenMultipleSnapshotsExist() {
+        let conversationA = UUID().uuidString.lowercased()
+        let conversationB = UUID().uuidString.lowercased()
+
+        _ = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationA,
+                "goal": "Plan A",
+                "steps": #"[{"step_id":"1","title":"A","status":"pending"}]"#,
+            ]
+        )
+        _ = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationB,
+                "goal": "Plan B",
+                "steps": #"[{"step_id":"1","title":"B","status":"pending"}]"#,
+            ]
+        )
+
+        let update = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_update",
+            args: [
+                "step_id": "1",
+                "status": "running",
+                "title": "Ambiguous"
+            ]
+        )
+
+        XCTAssertEqual(update.isError, true)
+        XCTAssertTrue(extractText(from: update).contains("unable to resolve target plan snapshot"))
+    }
+
+    func testPlanMutationsWithoutConversationIdUseUniqueExistingSnapshot() throws {
+        let conversationId = UUID().uuidString.lowercased()
+        _ = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_create",
+            args: [
+                "conversation_id": conversationId,
+                "goal": "Single plan context",
+                "steps": #"[{"step_id":"1","title":"Audit","status":"pending"}]"#,
+            ]
+        )
+
+        let update = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_step_update",
+            args: [
+                "step_id": "1",
+                "status": "running",
+                "title": "Audit"
+            ]
+        )
+        XCTAssertNil(update.isError)
+
+        let read = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "plan_read",
+            args: ["conversation_id": conversationId]
+        )
+        let json = extractText(from: read)
+        let object = try XCTUnwrap(parseJSONObject(json))
+        let snapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        let steps = try XCTUnwrap(snapshot["steps"] as? [[String: Any]])
+        let step = try XCTUnwrap(steps.first(where: { ($0["id"] as? String) == "1" }))
+        XCTAssertEqual(step["status"] as? String, "running")
+    }
+
     func testPlanStepBatchUpdateRejectsInvalidLinkedFilesShape() {
         let result = CoderIDEMCPServerApp.handleIDEStateTool(
             name: "plan_step_batch_update",

@@ -193,6 +193,14 @@ extension ProviderToolEventMapper {
             "tool": normalized,
         ]
 
+        func applyClearMarker() {
+            mapped["todos_json"] = "[]"
+            mapped["title"] = "__CODERIDE_CLEAR_TODOS__"
+            mapped["detail"] = "Todo list cleared"
+            mapped["clear_todos"] = "true"
+            mapped["count"] = "0"
+        }
+
         if let todosArray = payload["todos"] as? [[String: Any]], !todosArray.isEmpty {
             if let todosData = try? JSONSerialization.data(withJSONObject: todosArray),
                let todosJson = String(data: todosData, encoding: .utf8) {
@@ -206,22 +214,27 @@ extension ProviderToolEventMapper {
             } else {
                 mapped["title"] = "Update todo list"
             }
+        } else if let todosArray = payload["todos"] as? [Any], todosArray.isEmpty {
+            applyClearMarker()
         } else if let todosString = firstString(in: payload, keys: ["todos"]),
                   !todosString.isEmpty,
                   let data = todosString.data(using: .utf8),
-                  let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-                  !array.isEmpty {
-            if let todosData = try? JSONSerialization.data(withJSONObject: array),
-               let todosJson = String(data: todosData, encoding: .utf8) {
-                mapped["todos_json"] = todosJson
-            }
-            if let firstContent = (array.first?["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !firstContent.isEmpty {
-                mapped["title"] = "Todo • \(firstContent)"
-                mapped["detail"] = firstContent
-                mapped["count"] = "\(array.count)"
-            } else {
-                mapped["title"] = "Update todo list"
+                  let decoded = try? JSONSerialization.jsonObject(with: data) {
+            if let array = decoded as? [[String: Any]], !array.isEmpty {
+                if let todosData = try? JSONSerialization.data(withJSONObject: array),
+                   let todosJson = String(data: todosData, encoding: .utf8) {
+                    mapped["todos_json"] = todosJson
+                }
+                if let firstContent = (array.first?["content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !firstContent.isEmpty {
+                    mapped["title"] = "Todo • \(firstContent)"
+                    mapped["detail"] = firstContent
+                    mapped["count"] = "\(array.count)"
+                } else {
+                    mapped["title"] = "Update todo list"
+                }
+            } else if let array = decoded as? [Any], array.isEmpty {
+                applyClearMarker()
             }
         } else if let title = firstString(in: payload, keys: ["title", "content"]), !title.isEmpty {
             mapped["title"] = "Todo • \(title)"

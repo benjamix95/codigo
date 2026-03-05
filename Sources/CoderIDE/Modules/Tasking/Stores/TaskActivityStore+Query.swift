@@ -72,11 +72,6 @@ extension TaskActivityStore {
         -> [SwarmLiveCardState]
     {
         if let conversationId {
-            let scope = conversationId.uuidString.lowercased()
-            if limitEventsPerCard == defaultSwarmEventsLimit {
-                let scopedCards = swarmCards.values.filter { cardBelongsToConversation($0, scope: scope) }
-                return SwarmLiveReducer.sorted(states: Array(scopedCards))
-            }
             let reduced = SwarmLiveReducer.reduce(
                 activities: scopedActivities(for: conversationId),
                 limitRecentEvents: limitEventsPerCard
@@ -288,9 +283,6 @@ extension TaskActivityStore {
     }
 
     private func activityBelongsToConversation(_ activity: TaskActivity, scope: String) -> Bool {
-        let taggedScope = (activity.payload["conversation_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return taggedScope == scope
+        canonicalConversationScope(from: activity.payload) == scope
     }
 }

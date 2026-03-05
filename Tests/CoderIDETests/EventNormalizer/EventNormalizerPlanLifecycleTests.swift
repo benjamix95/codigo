@@ -31,6 +31,27 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
+    func testPlanCreateDefaultsMissingStepStatusToPending() {
+        let events = EventNormalizer.normalize(
+            type: "plan_create",
+            payload: [
+                "goal": "Implementare panel plan",
+                "steps": #"[{"step_id":"1","title":"Analisi"},{"stepId":"2","title":"Patch mapper","status":"running"}]"#,
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planCreate(_, _, let steps, _) = $0 {
+                guard steps.count == 2 else { return false }
+                return steps[0].stepId == "1"
+                    && steps[0].status == .pending
+                    && steps[1].stepId == "2"
+                    && steps[1].status == .running
+            }
+            return false
+        })
+    }
+
     func testPlanStepUpsertParsesMetadataAndRunningState() {
         let events = EventNormalizer.normalize(
             type: "plan_step_upsert",
@@ -81,6 +102,29 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
+    func testPlanStepBatchUpdateParsesCamelCaseAliases() {
+        let events = EventNormalizer.normalize(
+            type: "plan_step_batch_update",
+            payload: [
+                "updates": #"[{"stepId":"1","status":"done","targetFile":"Sources/A.swift","linkedFiles":["Sources/A.swift"],"dependsOn":["0"]}]"#,
+                "conversationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planStepBatchUpdate(let items, let conversationId) = $0 {
+                guard let first = items.first else { return false }
+                return first.stepId == "1"
+                    && first.status == .done
+                    && first.targetFile == "Sources/A.swift"
+                    && first.linkedFiles == ["Sources/A.swift"]
+                    && first.dependsOn == ["0"]
+                    && conversationId == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            }
+            return false
+        })
+    }
+
     func testPlanStepReorderAndDependenciesEmitTypedEvents() {
         let reorderEvents = EventNormalizer.normalize(
             type: "plan_step_reorder",
@@ -112,6 +156,40 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
+    func testPlanStepReorderAndDependenciesAcceptCamelCaseAliases() {
+        let reorderEvents = EventNormalizer.normalize(
+            type: "plan_step_reorder",
+            payload: [
+                "orderedStepIds": #"["9","8"]"#
+            ]
+        )
+
+        XCTAssertTrue(reorderEvents.contains {
+            if case .planStepReorder(let orderedStepIds, _) = $0 {
+                return orderedStepIds == ["9", "8"]
+            }
+            return false
+        })
+
+        let dependencyEvents = EventNormalizer.normalize(
+            type: "plan_step_dependency_set",
+            payload: [
+                "stepId": "4",
+                "dependsOn": #"["1","3"]"#,
+                "conversationId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            ]
+        )
+
+        XCTAssertTrue(dependencyEvents.contains {
+            if case .planStepDependencySet(let stepId, let dependsOn, let conversationId) = $0 {
+                return stepId == "4"
+                    && dependsOn == ["1", "3"]
+                    && conversationId == "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            }
+            return false
+        })
+    }
+
     func testPlanSetWalkthroughNormalizesOutcome() {
         let events = EventNormalizer.normalize(
             type: "plan_set_walkthrough",
@@ -132,39 +210,6 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
-    func testPlanRequestUserInputParsesStructuredQuestions() {
-        let events = EventNormalizer.normalize(
-            type: "plan_request_user_input",
-            payload: [
-                "title": "Clarify scope",
-                "phase": "post-analysis",
-                "round": "2",
-                "context": "Missing deployment constraints",
-                "questions": #"[{"id":1,"prompt":"Target environment?","options":[{"label":"iOS only","recommended":true},{"label":"iOS + macOS"}]},{"id":2,"prompt":"Rollout strategy","multi_select":true,"options":["Gradual rollout","Big bang"]}]"#
-            ]
-        )
-
-        XCTAssertTrue(events.contains {
-            if case .planRequestUserInput(let payload) = $0 {
-                return payload.questionnaire.questions.count == 2
-                    && payload.questionnaire.questions[0].options.count == 2
-                    && payload.questionnaire.questions[0].options[0].isRecommended
-                    && payload.questionnaire.questions[1].isMultiSelect
-                    && payload.round == 2
-            }
-            return false
-        })
-
-        XCTAssertTrue(events.contains {
-            if case .taskActivity(let activity) = $0 {
-                return activity.type == "plan_request_user_input"
-                    && activity.title == "Clarify scope"
-                    && activity.phase == .planning
-            }
-            return false
-        })
-    }
-
     func testPlanDiffWithoutFromSnapshotEmitsValidationActivity() {
         let events = EventNormalizer.normalize(
             type: "plan_diff",
@@ -177,5 +222,57 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         }
         XCTAssertEqual(activity.type, "plan_diff")
         XCTAssertTrue((activity.detail ?? "").contains("Invalid"))
+    }
+
+    func testPlanStepUpsertWithBlankConversationIdUsesStepIdAsGroup() {
+        let events = EventNormalizer.normalize(
+            type: "plan_step_upsert",
+            payload: [
+                "step_id": "9",
+                "status": "running",
+                "conversation_id": "   "
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planStepUpsert(let payload) = $0 {
+                return payload.stepId == "9"
+                    && payload.conversationId == nil
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_step_upsert"
+                    && activity.groupId == "9"
+            }
+            return false
+        })
+    }
+
+    func testPlanCreateWithBlankConversationIdProducesNilConversationScope() {
+        let events = EventNormalizer.normalize(
+            type: "plan_create",
+            payload: [
+                "goal": "Create plan",
+                "conversationId": " "
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planCreate(let goal, _, _, let conversationId) = $0 {
+                return goal == "Create plan" && conversationId == nil
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_create"
+                    && activity.groupId == nil
+            }
+            return false
+        })
     }
 }

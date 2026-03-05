@@ -22,7 +22,12 @@ enum ToolTraceEventCollapser {
     }
 
     static func collapseOperationKey(for event: ToolTraceEvent) -> String? {
-        if let toolCallId = nonEmpty(event.payload["tool_call_id"] ?? event.payload["call_id"]) {
+        if let toolCallId = nonEmpty(
+            event.payload["tool_call_id"]
+                ?? event.payload["toolCallId"]
+                ?? event.payload["call_id"]
+                ?? event.payload["callId"]
+        ) {
             return "tool_call_id:\(toolCallId)"
         }
 
@@ -34,7 +39,7 @@ enum ToolTraceEventCollapser {
             return "query_id:\(queryId)"
         }
 
-        if let groupId = nonEmpty(event.groupId ?? event.payload["group_id"]) {
+        if let groupId = nonEmpty(event.groupId ?? event.payload["group_id"] ?? event.payload["groupId"]) {
             // Avoid collapsing swarm lanes by bare group id; they represent
             // long-lived streams and collapsing would hide intermediate steps.
             if groupId.lowercased().hasPrefix("swarm-") {

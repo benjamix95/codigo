@@ -71,6 +71,57 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertEqual(todoPayload?["notes"], "critical")
     }
 
+    func testParseStreamJSONEventSynthesizesTodoWriteWithActiveFormAndFilesFromShorthand() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-todo-rich",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_todo_write",
+                    "arguments": #"{\"title\":\"Review PR\",\"status\":\"in_progress\",\"activeForm\":\"Reviewing PR\",\"linkedFiles\":[\"Sources/A.swift\",\"Sources/B.swift\"]}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let todoPayload = rawEvents.first(where: { $0.0 == "todo_write" })?.1
+
+        XCTAssertEqual(todoPayload?["title"], "Review PR")
+        XCTAssertEqual(todoPayload?["status"], "in_progress")
+        XCTAssertEqual(todoPayload?["activeForm"], "Reviewing PR")
+        XCTAssertEqual(todoPayload?["files"], #"["Sources/A.swift","Sources/B.swift"]"#)
+    }
+
+    func testParseStreamJSONEventSynthesizesTodoClearMarkerForEmptyTodosBatch() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-ide-todo-clear",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_todo_write",
+                    "arguments": #"{\"todos\":[]}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+        let todoPayload = rawEvents.first(where: { $0.0 == "todo_write" })?.1
+
+        XCTAssertEqual(todoPayload?["title"], "__CODERIDE_CLEAR_TODOS__")
+        XCTAssertEqual(todoPayload?["clear_todos"], "true")
+        XCTAssertEqual(todoPayload?["todos_json"], "[]")
+    }
+
     func testParseStreamJSONEventSynthesizesPlanAndSwarmSignalsFromMCPToolCallJSONArguments() {
         let parsed = runParser(events: [
             [

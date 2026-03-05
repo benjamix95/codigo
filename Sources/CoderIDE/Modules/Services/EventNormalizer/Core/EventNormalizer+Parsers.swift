@@ -1,6 +1,8 @@
 import Foundation
 
 extension EventNormalizer {
+    static let todoClearMarkerTitle = "__CODERIDE_CLEAR_TODOS__"
+
     static func parseTodoWrite(payload: [String: String]) -> TodoWritePayload? {
         let title = (
             payload["title"]
@@ -17,11 +19,8 @@ extension EventNormalizer {
         let status = normalizedTodoStatus(payload["status"])
         let priority = normalizedTodoPriority(payload["priority"])
         let notes = payload["notes"]
-        let activeForm = payload["activeForm"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let files = payload["files"]?
-            .split(separator: ",")
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
+        let activeForm = sanitizeTodoActiveForm(payload["activeForm"] ?? payload["active_form"])
+        let files = normalizeFileList(from: payload)
 
         return TodoWritePayload(
             id: id,
@@ -32,6 +31,35 @@ extension EventNormalizer {
             activeForm: activeForm,
             files: files
         )
+    }
+
+    static func normalizeFileList(from payload: [String: String]) -> [String] {
+        let keys = ["files", "linkedFiles", "linked_files"]
+        var merged: [String] = []
+        for key in keys {
+            guard let rawValue = payload[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawValue.isEmpty else {
+                continue
+            }
+            merged.append(contentsOf: parseStringArray(raw: rawValue))
+        }
+
+        var seen = Set<String>()
+        return merged
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
+    }
+
+    static func sanitizeTodoActiveForm(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+            return nil
+        }
+        return trimmed
     }
 
     static func normalizedTodoStatus(_ raw: String?) -> TodoStatus? {

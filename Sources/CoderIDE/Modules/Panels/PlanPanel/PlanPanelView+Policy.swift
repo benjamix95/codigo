@@ -72,6 +72,15 @@ func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
     hasPlanContext
 }
 
+func clarificationWizardIdentityKey(
+    for questionsMarkdown: String,
+    seed: Int = 0
+) -> String {
+    let normalized = questionsMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
+    let content = normalized.isEmpty ? questionsMarkdown : normalized
+    return "plan-clarification-wizard-\(max(0, seed))-\(content.count)-\(stablePlanSnapshotContentHash(content))"
+}
+
 func isPlanHistoryEntryCompatibleWithCurrentContext(
     entry: PlanHistoryEntry,
     currentConversationId: UUID?,
@@ -154,9 +163,6 @@ func filterPlanTraceActivitiesForConversation(
     guard let conversationId else { return activities }
     let scopedId = conversationId.uuidString.lowercased()
     return activities.filter { activity in
-        let payloadConversationId = activity.payload["conversation_id"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return payloadConversationId == scopedId
+        canonicalConversationScope(from: activity.payload) == scopedId
     }
 }

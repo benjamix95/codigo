@@ -2,7 +2,6 @@ import AppKit
 import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
-
 extension ChatPanelView {
     @MainActor
     internal func handleLegacyPlanStepUpdateEvent(
@@ -18,17 +17,20 @@ extension ChatPanelView {
             activeTaskConversationId: chatStore.activeTaskConversationId
         )
         chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: targetId)
-        if let sourcePlanId = activeBuildPlanConversationId, sourcePlanId != targetId {
+        if shouldMirrorLegacyPlanStepIntoActiveBuildPlan(
+            targetConversationId: targetId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        ), let sourcePlanId = activeBuildPlanConversationId {
             chatStore.upsertPlanStep(stepId: stepId, status: status, title: stepTitle, in: sourcePlanId)
         }
         syncCanonicalTodoFromPlanStep(
             title: stepTitle,
             status: status,
-            targetConversationId: targetId,
-            eventConversationId: conversationId
+            targetConversationId: targetId
         )
     }
-
     @MainActor
     internal func handlePlanCreateEvent(
         goal: String,
@@ -53,8 +55,7 @@ extension ChatPanelView {
                 syncCanonicalTodoFromPlanStep(
                     title: step.title,
                     status: step.status,
-                    targetConversationId: targetId,
-                    eventConversationId: fallbackConversationId
+                    targetConversationId: targetId
                 )
             }
         }
@@ -80,11 +81,9 @@ extension ChatPanelView {
         syncCanonicalTodoFromPlanStep(
             title: payload.title,
             status: payload.status,
-            targetConversationId: targetId,
-            eventConversationId: fallbackConversationId
+            targetConversationId: targetId
         )
     }
-
     @MainActor
     internal func handlePlanStepBatchUpdateEvent(
         items: [PlanStepBatchUpdateItemPayload],
@@ -110,12 +109,10 @@ extension ChatPanelView {
             syncCanonicalTodoFromPlanStep(
                 title: title,
                 status: item.status,
-                targetConversationId: targetId,
-                eventConversationId: fallbackConversationId
+                targetConversationId: targetId
             )
         }
     }
-
     @MainActor
     internal func handlePlanStepReorderEvent(
         orderedStepIds: [String],
@@ -178,28 +175,31 @@ extension ChatPanelView {
             return
         }
 
-        guard shouldMutatePlanState(
-            targetConversationId: targetConversationId,
-            currentConversationId: self.conversationId
-        ) else {
-            return
-        }
-
         let questionsMarkdown = PlanClarificationQuestionnaireMarkdown.render(
             questionnaire: payload.questionnaire
         )
-        planClarificationCycles += 1
-        planQuestionToolRequestEpoch += 1
-        planFlowPhase = .questioning
-        planningState = .awaitingClarification(questions: questionsMarkdown)
-        updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
-
         chatStore.updateLastAssistantMessage(
             content: "Questions ready — answer in the plan panel.",
             in: targetConversationId,
             persistImmediately: true
         )
         chatStore.setLastAssistantStreaming(false, in: targetConversationId)
+        _ = incrementPlanQuestionToolEpoch(
+            for: targetConversationId,
+            globalEpoch: &planQuestionToolRequestEpoch
+        )
+        guard shouldMutatePlanState(
+            targetConversationId: targetConversationId,
+            currentConversationId: self.conversationId
+        ) else {
+            planStreamingContentByConversation[targetConversationId] =
+                normalizedPlanStreamingSnapshot(questionsMarkdown)
+            return
+        }
+        planClarificationCycles += 1
+        planFlowPhase = .questioning
+        planningState = .awaitingClarification(questions: questionsMarkdown)
+        updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
 
         if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
             openPlanPanelForCurrentContext(
@@ -248,8 +248,7 @@ private extension ChatPanelView {
     func syncCanonicalTodoFromPlanStep(
         title: String?,
         status: PlanStepStatus,
-        targetConversationId: UUID?,
-        eventConversationId: UUID?
+        targetConversationId: UUID?
     ) {
         guard let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
             return
@@ -263,7 +262,18 @@ private extension ChatPanelView {
             }
         }()
         let stepActiveForm: String? = status == .running ? title : nil
-        let canonicalConversationId = activeBuildPlanConversationId ?? targetConversationId
+        let isBuildScoped = isPlanBuildContext(
+            conversationId: targetConversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
+        let canonicalConversationId = resolveCanonicalPlanTodoConversationId(
+            targetConversationId: targetConversationId,
+            phase: planFlowPhase,
+            activeBuildPlanConversationId: activeBuildPlanConversationId,
+            activeBuildAgentConversationId: activeBuildAgentConversationId
+        )
         let updated = todoStore.upsertCanonicalOnlyFromAgent(
             id: nil,
             title: title,
@@ -274,13 +284,7 @@ private extension ChatPanelView {
             linkedFiles: [],
             conversationId: canonicalConversationId
         )
-        if !updated,
-           !isPlanBuildContext(
-            conversationId: eventConversationId,
-            phase: planFlowPhase,
-            activeBuildPlanConversationId: activeBuildPlanConversationId,
-            activeBuildAgentConversationId: activeBuildAgentConversationId
-           ) {
+        if !updated, !isBuildScoped {
             todoStore.upsertFromAgent(
                 id: nil,
                 title: title,

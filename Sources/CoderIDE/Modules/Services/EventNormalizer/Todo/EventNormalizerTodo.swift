@@ -7,10 +7,6 @@ extension EventNormalizer {
         if let todosJson = payload["todos_json"] ?? payload["todos"],
            let todosData = todosJson.data(using: .utf8),
            let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]] {
-            // Empty array is valid — means "clear todos" or "no-op"; skip batch processing
-            guard !todosArray.isEmpty else {
-                return events
-            }
             var summaryParts: [String] = []
             for todoItem in todosArray {
                 let content = (
@@ -20,19 +16,14 @@ extension EventNormalizer {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !content.isEmpty else { continue }
                 let status = normalizedTodoStatus(todoItem["status"] as? String)
-                var activeForm = (todoItem["activeForm"] as? String)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                // Reject nested JSON objects accidentally passed as activeForm
-                if let af = activeForm, af.hasPrefix("{") || af.hasPrefix("[") {
-                    activeForm = nil
-                }
+                let activeForm = sanitizeTodoActiveForm(
+                    (todoItem["activeForm"] as? String)
+                        ?? (todoItem["active_form"] as? String)
+                )
                 let priority = normalizedTodoPriority(todoItem["priority"] as? String)
                 let notes = (todoItem["notes"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                let linkedFiles = (todoItem["linkedFiles"] as? [String])
-                    ?? (todoItem["files"] as? [String])
-                    ?? []
+                let linkedFiles = parseTodoLinkedFiles(todoItem)
                 events.append(.todoWrite(TodoWritePayload(
                     id: nil,
                     title: content,
@@ -64,12 +55,18 @@ extension EventNormalizer {
         }
 
         guard let todo = parseTodoWrite(payload: payload) else { return nil }
+        let detail: String = {
+            if todo.title == todoClearMarkerTitle {
+                return "Todo list cleared"
+            }
+            return todo.title
+        }()
         return [
             .todoWrite(todo),
             .taskActivity(TaskActivity(
                 type: "todo_write",
                 title: "Todo updated",
-                detail: todo.title,
+                detail: detail,
                 payload: payload,
                 timestamp: timestamp,
                 phase: .planning,
@@ -91,5 +88,19 @@ extension EventNormalizer {
                 isRunning: false
             ))
         ]
+    }
+
+    private static func parseTodoLinkedFiles(_ todoItem: [String: Any]) -> [String] {
+        let keys = ["linkedFiles", "linked_files", "files"]
+        var merged: [String] = []
+        for key in keys {
+            merged.append(contentsOf: parseStringArray(rawValue: todoItem[key]))
+        }
+
+        var seen = Set<String>()
+        return merged
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
     }
 }

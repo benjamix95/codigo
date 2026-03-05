@@ -220,4 +220,45 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertEqual(cards["planner"]?.recentEvents.count, 2,
                        "Events 600ms apart should not be deduplicated")
     }
+
+    func testDedupKeyIncludesConversationScope() {
+        let timestamp = Date(timeIntervalSince1970: 400.0)
+        let conversationA = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let conversationB = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+
+        let eventA = TaskActivity(
+            type: "agent",
+            title: "Planner",
+            detail: "started",
+            payload: [
+                "swarm_id": "planner",
+                "group_id": "swarm-planner",
+                "status": "started",
+                "conversation_id": conversationA.uuidString.lowercased(),
+            ],
+            timestamp: timestamp,
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-planner"
+        )
+
+        let eventB = TaskActivity(
+            type: "agent",
+            title: "Planner",
+            detail: "started",
+            payload: [
+                "swarm_id": "planner",
+                "group_id": "swarm-planner",
+                "status": "started",
+                "conversation_id": conversationB.uuidString.lowercased(),
+            ],
+            timestamp: timestamp,
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-planner"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [eventA, eventB], limitRecentEvents: 80)
+        XCTAssertEqual(cards["planner"]?.recentEvents.count, 2)
+    }
 }

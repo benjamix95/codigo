@@ -15,7 +15,7 @@ extension EventNormalizer {
                 timestamp: timestamp,
                 phase: .executing,
                 isRunning: false,
-                groupId: payload["group_id"] ?? "debug_phase_update"
+                groupId: debugGroupingId(payload: payload, defaultValue: "debug_phase_update")
             ))
         ]
     }
@@ -97,7 +97,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_log", payload: payload),
             isRunning: runningStateForType("debug_log", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -115,7 +115,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_hypothesize", payload: payload),
             isRunning: runningStateForType("debug_hypothesize", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -133,7 +133,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_mark", payload: payload),
             isRunning: runningStateForType("debug_mark", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -151,7 +151,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_instrument", payload: payload),
             isRunning: runningStateForType("debug_instrument", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -169,7 +169,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_clean", payload: payload),
             isRunning: runningStateForType("debug_clean", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -187,7 +187,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_session", payload: payload),
             isRunning: runningStateForType("debug_session", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -205,7 +205,7 @@ extension EventNormalizer {
             timestamp: timestamp,
             phase: phaseForType("debug_query", payload: payload),
             isRunning: runningStateForType("debug_query", payload: payload),
-            groupId: payload["group_id"] ?? payload["tool_call_id"]
+            groupId: debugGroupingId(payload: payload)
         )))
         return events
     }
@@ -240,5 +240,18 @@ extension EventNormalizer {
                 isRunning: false
             ))
         ]
+    }
+
+    private static func debugGroupingId(payload: [String: String], defaultValue: String? = nil) -> String? {
+        if let candidate = (payload["group_id"] ?? payload["groupId"] ?? payload["tool_call_id"] ?? payload["toolCallId"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !candidate.isEmpty {
+            return candidate
+        }
+        guard let defaultValue = defaultValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !defaultValue.isEmpty else {
+            return nil
+        }
+        return defaultValue
     }
 }

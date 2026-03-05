@@ -2,7 +2,6 @@ import AppKit
 import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
-
 func isPlanExecutionProviderIdAllowed(_ providerId: String) -> Bool {
     ProviderSupport.isUserSelectableRealProvider(id: providerId)
 }
@@ -84,6 +83,82 @@ func shouldMutatePlanState(
     targetConversationId == currentConversationId
 }
 
+private enum PlanQuestionToolEpochStore {
+    static let lock = NSLock()
+    static nonisolated(unsafe) var byConversation: [UUID: Int] = [:]
+
+    static func epoch(for conversationId: UUID) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return byConversation[conversationId] ?? 0
+    }
+
+    static func increment(for conversationId: UUID) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        let next = (byConversation[conversationId] ?? 0) + 1
+        byConversation[conversationId] = next
+        return next
+    }
+}
+
+func planQuestionToolEpoch(for conversationId: UUID) -> Int {
+    PlanQuestionToolEpochStore.epoch(for: conversationId)
+}
+
+@discardableResult
+func incrementPlanQuestionToolEpoch(
+    for conversationId: UUID,
+    globalEpoch: inout Int
+) -> Int {
+    globalEpoch += 1
+    return PlanQuestionToolEpochStore.increment(for: conversationId)
+}
+
+func normalizedPlanStreamingSnapshot(
+    _ raw: String,
+    maxLength: Int = 24_000
+) -> String {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    guard trimmed.count > maxLength else { return trimmed }
+    return String(trimmed.suffix(maxLength))
+}
+
+func clarificationQuestionsMarkdownFromSnapshot(_ raw: String) -> String? {
+    let normalized = normalizedPlanStreamingSnapshot(raw)
+    guard !normalized.isEmpty else { return nil }
+    guard PlanOptionsParser.parseClarificationQuestionnaire(from: normalized) != nil else {
+        return nil
+    }
+    return normalized
+}
+
+func clarificationQuestionsMarkdownForRestore(
+    _ raw: String,
+    isBuildScopedConversation: Bool
+) -> String? {
+    guard !isBuildScopedConversation else { return nil }
+    return clarificationQuestionsMarkdownFromSnapshot(raw)
+}
+
+func clarificationsNeededSection(from text: String) -> String? {
+    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return nil }
+    guard let regex = try? NSRegularExpression(
+        pattern: #"(?im)^\s*#{1,3}\s*clarifications?\s*needed\s*:?\s*$"#
+    ) else {
+        return nil
+    }
+    let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+    guard let match = regex.firstMatch(in: normalized, range: range),
+          let headerRange = Range(match.range, in: normalized) else {
+        return nil
+    }
+    let section = String(normalized[headerRange.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    return section.isEmpty ? nil : section
+}
+
 func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     switch phase {
     case .analyzing, .questioning, .generating, .building:
@@ -91,6 +166,15 @@ func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     case .idle, .proposalReady, .readyToBuild:
         return true
     }
+}
+
+func resolveClarificationIdentitySeed(
+    planClarificationCycles: Int,
+    planConversationId: UUID?,
+    globalEpoch: Int
+) -> Int {
+    let scopedEpoch = planConversationId.map { planQuestionToolEpoch(for: $0) } ?? globalEpoch
+    return max(planClarificationCycles, scopedEpoch)
 }
 
 func shouldDisablePlanToggleWhenPanelCloses(
@@ -185,4 +269,58 @@ func resolvePlanStepTargetConversationId(
     activeTaskConversationId: UUID?
 ) -> UUID? {
     eventConversationId ?? activeBuildPlanConversationId ?? activeTaskConversationId
+}
+
+func resolveTodoClearTargetConversationId(
+    eventConversationId: UUID?,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?,
+    activeTaskConversationId: UUID?,
+    selectedConversationId: UUID?
+) -> UUID? {
+    if let eventConversationId {
+        if let activeBuildAgentConversationId,
+           let activeBuildPlanConversationId,
+           eventConversationId == activeBuildAgentConversationId {
+            return activeBuildPlanConversationId
+        }
+        return eventConversationId
+    }
+
+    return activeBuildPlanConversationId
+        ?? activeTaskConversationId
+        ?? selectedConversationId
+}
+
+func shouldMirrorLegacyPlanStepIntoActiveBuildPlan(
+    targetConversationId: UUID?,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> Bool {
+    guard let activeBuildPlanConversationId else { return false }
+    guard targetConversationId != activeBuildPlanConversationId else { return false }
+    return isPlanBuildContext(
+        conversationId: targetConversationId,
+        phase: phase,
+        activeBuildPlanConversationId: activeBuildPlanConversationId,
+        activeBuildAgentConversationId: activeBuildAgentConversationId
+    )
+}
+
+func resolveCanonicalPlanTodoConversationId(
+    targetConversationId: UUID?,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> UUID? {
+    guard isPlanBuildContext(
+        conversationId: targetConversationId,
+        phase: phase,
+        activeBuildPlanConversationId: activeBuildPlanConversationId,
+        activeBuildAgentConversationId: activeBuildAgentConversationId
+    ) else {
+        return targetConversationId
+    }
+    return activeBuildPlanConversationId ?? targetConversationId
 }

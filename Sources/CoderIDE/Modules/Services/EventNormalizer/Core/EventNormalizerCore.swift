@@ -177,7 +177,14 @@ private extension EventNormalizer {
             timestamp: timestamp,
             phase: phase,
             isRunning: running,
-            groupId: payload["group_id"] ?? payload["queryId"] ?? payload["tool_call_id"]
+            groupId: payload["group_id"]
+                ?? payload["groupId"]
+                ?? payload["queryId"]
+                ?? payload["query_id"]
+                ?? payload["tool_call_id"]
+                ?? payload["toolCallId"]
+                ?? payload["call_id"]
+                ?? payload["callId"]
         )))
         return output
     }

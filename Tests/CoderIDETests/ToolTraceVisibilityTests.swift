@@ -70,6 +70,24 @@ final class ToolTraceVisibilityTests: XCTestCase {
         XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
     }
 
+    func testCamelCaseMCPMarkersAreIncludedAndDisplayed() {
+        let activity = TaskActivity(
+            type: "mcp_tool_call",
+            title: "MCP camelCase",
+            payload: [
+                "mcpTool": "mcp_list_resources",
+                "mcpServer": "local",
+                "isMcp": "true",
+            ],
+            phase: .executing,
+            isRunning: false
+        )
+
+        XCTAssertTrue(ToolTraceVisibility.shouldInclude(activity: activity))
+        let event = makeEvent(type: "mcp_tool_call", payload: activity.payload)
+        XCTAssertTrue(ToolTraceVisibility.shouldDisplay(event: event))
+    }
+
     func testMCPLikeToolNameWithoutMarkerIsFiltered() {
         let fakeMCP = TaskActivity(
             type: "mcp_tool_call",
@@ -159,6 +177,15 @@ final class ToolTraceVisibilityTests: XCTestCase {
                     "detail": "running",
                     "group_id": "swarm-coder",
                 ]
+            )
+        )
+    }
+
+    func testOperationalPayloadCamelCaseToolCallIdRequiresPolicyAck() {
+        XCTAssertTrue(
+            ToolTraceVisibility.requiresPolicyAck(
+                type: "custom_tool_event",
+                payload: ["toolCallId": "tc-camel-ops-1"]
             )
         )
     }

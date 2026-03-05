@@ -85,10 +85,7 @@ extension ChatPanelView {
         guard let targetConversationId else { return taskActivityStore.activities }
         let expected = targetConversationId.uuidString.lowercased()
         return taskActivityStore.activities.filter { activity in
-            let tagged = (activity.payload["conversation_id"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            return tagged == expected
+            canonicalConversationScope(from: activity.payload) == expected
         }
     }
 

@@ -214,4 +214,31 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
         let keyDone = makePlanRenderSnapshotCacheKey(content: content, canonicalTodos: [completedTodo])
         XCTAssertNotEqual(keyPending, keyDone)
     }
+
+    func testClarificationWizardIdentityKeyStableForEquivalentTrimmedContent() {
+        let a = "  ## Questions\n1. A?\nA) X\nB) Y\n  "
+        let b = "## Questions\n1. A?\nA) X\nB) Y"
+        XCTAssertEqual(
+            clarificationWizardIdentityKey(for: a),
+            clarificationWizardIdentityKey(for: b)
+        )
+    }
+
+    func testClarificationWizardIdentityKeyChangesForDifferentContentSameLength() {
+        let q1 = "## Questions\n1. A?\nA) X\nB) Y"
+        let q2 = "## Questions\n1. B?\nA) X\nB) Y"
+        XCTAssertEqual(q1.count, q2.count)
+        XCTAssertNotEqual(
+            clarificationWizardIdentityKey(for: q1),
+            clarificationWizardIdentityKey(for: q2)
+        )
+    }
+
+    func testClarificationWizardIdentityKeyChangesWhenSeedChanges() {
+        let questions = "## Questions\n1. Scope?\nA) API\nB) UI"
+        XCTAssertNotEqual(
+            clarificationWizardIdentityKey(for: questions, seed: 1),
+            clarificationWizardIdentityKey(for: questions, seed: 2)
+        )
+    }
 }

@@ -160,15 +160,27 @@ extension CoderIDEMCPServerApp {
 
     static func resolveConversationId(
         from args: [String: String],
-        createIfMissing: Bool
+        createIfMissing: Bool,
+        allowLatestFallback: Bool = true
     ) -> UUID? {
-        if let explicit = parseConversationId(args["conversation_id"]) {
+        let explicitRaw = args["conversation_id"] ?? args["conversationId"]
+        if let explicit = parseConversationId(explicitRaw) {
             return explicit
         }
-        if let latest = latestPlanConversationId() {
-            return latest
+        if allowLatestFallback {
+            if let latest = latestPlanConversationId() {
+                return latest
+            }
+            return createIfMissing ? UUID() : nil
         }
-        return createIfMissing ? UUID() : nil
+        let available = availablePlanConversationIds()
+        if available.count == 1 {
+            return available[0]
+        }
+        if available.isEmpty, createIfMissing {
+            return UUID()
+        }
+        return nil
     }
 
     static func latestPlanConversationId() -> UUID? {
@@ -177,6 +189,17 @@ extension CoderIDEMCPServerApp {
             return nil
         }
         return UUID(uuidString: id)
+    }
+
+    static func availablePlanConversationIds() -> [UUID] {
+        guard let data = try? Data(contentsOf: MCPSharedState.planStateFilePath),
+              let document = try? JSONDecoder().decode(MCPSharedPlanStateDocument.self, from: data) else {
+            return []
+        }
+
+        let ids = document.snapshotsByConversation.keys.compactMap { UUID(uuidString: $0) }
+        var seen = Set<UUID>()
+        return ids.filter { seen.insert($0).inserted }
     }
 
     static func loadMutableSnapshot(

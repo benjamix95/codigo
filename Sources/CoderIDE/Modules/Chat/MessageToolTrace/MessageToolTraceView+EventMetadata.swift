@@ -6,11 +6,11 @@ extension MessageToolTraceView {
     @ViewBuilder
     func toolIcon(for event: ToolTraceEvent) -> some View {
         let type = event.type.lowercased()
-        let mcpTool = (event.payload["mcp_tool"] ?? "").lowercased()
+        let mcpTool = (payloadValue(event.payload, keys: ["mcp_tool", "mcpTool"]) ?? "").lowercased()
         let tool = (
             type == "mcp_tool_call" && !mcpTool.isEmpty
                 ? mcpTool
-                : (event.payload["tool"] ?? event.payload["name"] ?? "")
+                : (payloadValue(event.payload, keys: ["tool", "name"]) ?? "")
         ).lowercased()
 
         if Self.isErrorType(event) {

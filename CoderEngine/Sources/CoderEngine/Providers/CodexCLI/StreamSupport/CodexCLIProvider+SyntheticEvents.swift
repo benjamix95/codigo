@@ -50,8 +50,8 @@ extension CodexCLIProvider {
         case "plan_create":
             var planPayload: [String: String] = [:]
             if let goal = firstString(in: arguments, keys: ["goal"]) { planPayload["goal"] = goal }
-            if let chosenPath = firstString(in: arguments, keys: ["chosen_path"]) { planPayload["chosen_path"] = chosenPath }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let chosenPath = firstString(in: arguments, keys: ["chosen_path", "chosenPath"]) { planPayload["chosen_path"] = chosenPath }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if let stepsJson = jsonStringArgument(in: arguments, keys: ["steps"]) {
                 planPayload["steps"] = stepsJson
             }
@@ -61,9 +61,9 @@ extension CodexCLIProvider {
 
         case "plan_read":
             var planPayload: [String: String] = [:]
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
-            if let includeHistory = firstString(in: arguments, keys: ["include_history"]) { planPayload["include_history"] = includeHistory }
-            if let historyLimit = firstString(in: arguments, keys: ["history_limit"]) { planPayload["history_limit"] = historyLimit }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
+            if let includeHistory = firstString(in: arguments, keys: ["include_history", "includeHistory"]) { planPayload["include_history"] = includeHistory }
+            if let historyLimit = firstString(in: arguments, keys: ["history_limit", "historyLimit"]) { planPayload["history_limit"] = historyLimit }
             if isFailureStatus { return failedToolCallEvent(for: "plan_read") }
             return [wrapped("plan_read", planPayload)]
 
@@ -75,7 +75,7 @@ extension CodexCLIProvider {
             if let description = firstString(in: arguments, keys: ["description"]) { planPayload["description"] = description }
             if let targetFile = firstString(in: arguments, keys: ["target_file", "targetFile"]) { planPayload["target_file"] = targetFile }
             if let notes = firstString(in: arguments, keys: ["notes"]) { planPayload["notes"] = notes }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if let linkedFiles = jsonStringArgument(in: arguments, keys: ["linked_files", "linkedFiles"]) {
                 planPayload["linked_files"] = linkedFiles
             }
@@ -91,28 +91,28 @@ extension CodexCLIProvider {
             if let updates = jsonStringArgument(in: arguments, keys: ["updates"]) {
                 planPayload["updates"] = updates
             }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_step_batch_update") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_batch_update", planPayload)]
 
         case "plan_step_reorder":
             var planPayload: [String: String] = [:]
-            if let ordered = jsonStringArgument(in: arguments, keys: ["ordered_step_ids"]) {
+            if let ordered = jsonStringArgument(in: arguments, keys: ["ordered_step_ids", "orderedStepIds"]) {
                 planPayload["ordered_step_ids"] = ordered
             }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_step_reorder") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_reorder", planPayload)]
 
         case "plan_step_dependency_set":
             var planPayload: [String: String] = [:]
-            if let stepId = firstString(in: arguments, keys: ["step_id"]) { planPayload["step_id"] = stepId }
-            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on"]) {
+            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) { planPayload["step_id"] = stepId }
+            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on", "dependsOn"]) {
                 planPayload["depends_on"] = dependsOn
             }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_step_dependency_set") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_step_dependency_set", planPayload)]
@@ -122,7 +122,7 @@ extension CodexCLIProvider {
             if let markdown = firstString(in: arguments, keys: ["markdown"]) { planPayload["markdown"] = markdown }
             if let summary = firstString(in: arguments, keys: ["summary"]) { planPayload["summary"] = summary }
             if let outcome = firstString(in: arguments, keys: ["outcome"]) { planPayload["outcome"] = outcome }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_set_walkthrough") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_set_walkthrough", planPayload)]
@@ -130,15 +130,15 @@ extension CodexCLIProvider {
         case "plan_history_read":
             var planPayload: [String: String] = [:]
             if let limit = firstString(in: arguments, keys: ["limit"]) { planPayload["limit"] = limit }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_history_read") }
             return [wrapped("plan_history_read", planPayload)]
 
         case "plan_diff":
             var planPayload: [String: String] = [:]
-            if let fromSnapshotId = firstString(in: arguments, keys: ["from_snapshot_id"]) { planPayload["from_snapshot_id"] = fromSnapshotId }
-            if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id"]) { planPayload["to_snapshot_id"] = toSnapshotId }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) { planPayload["conversation_id"] = conversationId }
+            if let fromSnapshotId = firstString(in: arguments, keys: ["from_snapshot_id", "fromSnapshotId"]) { planPayload["from_snapshot_id"] = fromSnapshotId }
+            if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id", "toSnapshotId"]) { planPayload["to_snapshot_id"] = toSnapshotId }
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
             if isFailureStatus { return failedToolCallEvent(for: "plan_diff") }
             guard !planPayload.isEmpty else { return [] }
             return [wrapped("plan_diff", planPayload)]
@@ -152,7 +152,7 @@ extension CodexCLIProvider {
             if let phase = firstString(in: arguments, keys: ["phase"]) { planPayload["phase"] = phase }
             if let round = firstString(in: arguments, keys: ["round"]) { planPayload["round"] = round }
             if let context = firstString(in: arguments, keys: ["context"]) { planPayload["context"] = context }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id"]) {
+            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) {
                 planPayload["conversation_id"] = conversationId
             }
             if isFailureStatus { return failedToolCallEvent(for: "plan_request_user_input") }
@@ -165,7 +165,11 @@ extension CodexCLIProvider {
                 let parsedTodos = parseTodoArrayArgument(arguments["todos"])
                 if let parsedTodos {
                     if parsedTodos.isEmpty {
-                        return []
+                        todoPayload["todos_json"] = "[]"
+                        todoPayload["title"] = "__CODERIDE_CLEAR_TODOS__"
+                        todoPayload["clear_todos"] = "true"
+                        if isFailureStatus { return failedToolCallEvent(for: "todo_write") }
+                        return [wrapped("todo_write", todoPayload)]
                     }
                     if let reEncoded = try? JSONSerialization.data(withJSONObject: parsedTodos),
                        let reString = String(data: reEncoded, encoding: .utf8) {
@@ -187,6 +191,12 @@ extension CodexCLIProvider {
                 if let s = firstString(in: arguments, keys: ["status"]) { todoPayload["status"] = s }
                 if let p = firstString(in: arguments, keys: ["priority"]) { todoPayload["priority"] = p }
                 if let n = firstString(in: arguments, keys: ["notes"]) { todoPayload["notes"] = n }
+                if let activeForm = firstString(in: arguments, keys: ["activeForm", "active_form"]) {
+                    todoPayload["activeForm"] = activeForm
+                }
+                if let files = jsonStringArgument(in: arguments, keys: ["linkedFiles", "linked_files", "files"]) {
+                    todoPayload["files"] = files
+                }
                 // Fallback from outer payload only for shorthand mode.
                 if todoPayload["title"] == nil, let t = payload["title"] { todoPayload["title"] = t }
                 if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
@@ -366,7 +376,7 @@ extension CodexCLIProvider {
         if let status = payload["status"], !status.isEmpty {
             metadata["status"] = status
         }
-        if let conversationId = firstString(in: arguments, keys: ["conversation_id"]), !conversationId.isEmpty {
+        if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]), !conversationId.isEmpty {
             metadata["conversation_id"] = conversationId
         }
         if let mcpTool = payload["mcp_tool"], !mcpTool.isEmpty {

@@ -64,7 +64,10 @@ extension UnifiedToolRuntime {
                     ])]
                 }
                 if parsedTodos.isEmpty {
-                    return []
+                    todoPayload["todos_json"] = "[]"
+                    todoPayload["title"] = "__CODERIDE_CLEAR_TODOS__"
+                    todoPayload["clear_todos"] = "true"
+                    return [wrapped("todo_write", todoPayload)]
                 }
                 if let todosData = try? JSONSerialization.data(withJSONObject: parsedTodos, options: [.sortedKeys]),
                    let todosJSON = String(data: todosData, encoding: .utf8) {
@@ -86,6 +89,9 @@ extension UnifiedToolRuntime {
                 }
                 if let activeForm = firstNonEmptyString(in: arguments, keys: ["activeForm", "active_form"]) {
                     todoPayload["activeForm"] = activeForm
+                }
+                if let files = jsonStringArgument(in: arguments, keys: ["linkedFiles", "linked_files", "files"]) {
+                    todoPayload["files"] = files
                 }
             }
             if todoPayload.isEmpty {

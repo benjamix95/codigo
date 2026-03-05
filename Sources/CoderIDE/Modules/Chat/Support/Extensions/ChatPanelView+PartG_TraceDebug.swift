@@ -54,8 +54,11 @@ extension ChatPanelView {
             return false
         }
         // Always accept updates when agent todos already exist (status changes, new items).
+        let runtimeScope = todoStore.runtimeScopeFilter(for: conversationId)
         let hasExistingAgentTodo = todoStore.todos.contains {
-            $0.source == .agent && !$0.isPlanCanonical
+            $0.source == .agent
+                && !$0.isPlanCanonical
+                && runtimeScope($0)
         }
         if hasExistingAgentTodo {
             return true
@@ -87,7 +90,14 @@ extension ChatPanelView {
         ) {
             return true
         }
-        guard todoStore.todos.contains(where: { $0.source == .agent || $0.isPlanCanonical }) else {
+        let isRuntimeInScope = todoStore.runtimeScopeFilter(for: conversationId)
+        let isCanonicalInScope = todoStore.canonicalScopeFilter(for: conversationId)
+        guard todoStore.todos.contains(where: { item in
+            if item.isPlanCanonical {
+                return isCanonicalInScope(item)
+            }
+            return item.source == .agent && isRuntimeInScope(item)
+        }) else {
             return false
         }
         return hasOperationalActivityInCurrentTurn(conversationId: conversationId)

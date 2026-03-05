@@ -29,7 +29,7 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.type, "plan_step_upsert")
         XCTAssertEqual(mapped?.payload["step_id"], "2")
         XCTAssertEqual(mapped?.payload["status"], "running")
-        XCTAssertEqual(mapped?.payload["title"], "Plan step upsert")
+        XCTAssertEqual(mapped?.payload["title"], "Patch mapper")
     }
 
     func testMCPCallLegacyPlanStepUpdateRemainsCompatible() {
@@ -73,6 +73,36 @@ extension ProviderToolEventMapperTests {
         XCTAssertEqual(mapped?.type, "plan_diff")
         XCTAssertEqual(mapped?.payload["from_snapshot_id"], "snap-1")
         XCTAssertEqual(mapped?.payload["to_snapshot_id"], "snap-2")
+    }
+
+    func testPlanLifecycleMapsCamelCaseAliases() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "plan_step_reorder",
+            payload: [
+                "conversationId": "11111111-1111-1111-1111-111111111111",
+                "orderedStepIds": #"["2","1"]"#,
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "plan_step_reorder")
+        XCTAssertEqual(mapped?.payload["conversation_id"], "11111111-1111-1111-1111-111111111111")
+        XCTAssertEqual(mapped?.payload["ordered_step_ids"], #"["2","1"]"#)
+    }
+
+    func testPlanDiffMapsCamelCaseSnapshotAliases() {
+        let mapped = ProviderToolEventMapper.map(
+            toolName: "plan_diff",
+            payload: [
+                "fromSnapshotId": "snap-10",
+                "toSnapshotId": "snap-11",
+                "conversationId": "22222222-2222-2222-2222-222222222222",
+            ]
+        )
+
+        XCTAssertEqual(mapped?.type, "plan_diff")
+        XCTAssertEqual(mapped?.payload["from_snapshot_id"], "snap-10")
+        XCTAssertEqual(mapped?.payload["to_snapshot_id"], "snap-11")
+        XCTAssertEqual(mapped?.payload["conversation_id"], "22222222-2222-2222-2222-222222222222")
     }
 
     func testPlanRequestUserInputMapsStructuredPayload() {

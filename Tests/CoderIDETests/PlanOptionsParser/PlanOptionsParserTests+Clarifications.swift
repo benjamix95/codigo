@@ -117,4 +117,89 @@ extension PlanOptionsParserTests {
         let parsed = PlanOptionsParser.parse(from: input)
         XCTAssertTrue(parsed.isEmpty)
     }
+
+    func testParseClarificationQuestionnaireDetectsInlineMultiSelectMarkerWithoutParentheses() {
+        let input = """
+        ## Questions
+        1. Seleziona i target select all that apply
+        A) iOS
+        B) macOS
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.prompt, "Seleziona i target")
+        XCTAssertEqual(questionnaire?.questions.first?.isMultiSelect, true)
+    }
+
+    func testQuestionnaireMarkdownRoundTripPreservesInlineMultiSelectPrompt() {
+        let questionnaire = PlanClarificationQuestionnaire(
+            questions: [
+                PlanClarificationQuestion(
+                    id: 1,
+                    prompt: "Scegli i moduli select all that apply",
+                    options: [
+                        PlanClarificationOption(id: "A", text: "Parser"),
+                        PlanClarificationOption(id: "B", text: "UI"),
+                    ],
+                    isMultiSelect: true
+                ),
+            ]
+        )
+
+        let markdown = PlanClarificationQuestionnaireMarkdown.render(questionnaire: questionnaire)
+        let parsed = PlanOptionsParser.parseClarificationQuestionnaire(from: markdown)
+        XCTAssertEqual(parsed?.questions.count, 1)
+        XCTAssertEqual(parsed?.questions.first?.isMultiSelect, true)
+        XCTAssertEqual(parsed?.questions.first?.prompt, "Scegli i moduli")
+    }
+
+    func testParseClarificationQuestionnaireSupportsNumericOptionIdentifiers() {
+        let input = """
+        ## Questions
+        1. Quale scope preferisci?
+        1) Solo fix critici
+        2) Fix + test
+        3) Refactor esteso
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.options.map(\.id), ["1", "2", "3"])
+        XCTAssertEqual(
+            questionnaire?.questions.first?.options.map(\.text),
+            ["Solo fix critici", "Fix + test", "Refactor esteso"]
+        )
+    }
+
+    func testParseClarificationQuestionnaireSupportsBulletOptionsWithoutExplicitIds() {
+        let input = """
+        ## Questions
+        1. Quale strategia vuoi seguire?
+        - Incrementale (Recommended)
+        - Other (specify)
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        let options = questionnaire?.questions.first?.options ?? []
+        XCTAssertEqual(options.count, 2)
+        XCTAssertEqual(options.map(\.id), ["A", "B"])
+        XCTAssertEqual(options.map(\.text), ["Incrementale", "Other (specify)"])
+        XCTAssertEqual(options.map(\.isRecommended), [true, false])
+    }
+
+    func testParseClarificationQuestionnaireSupportsClarificationsNeededHeader() {
+        let input = """
+        ## Clarifications Needed
+        1. Quale modulo deve avere priorita'?
+        A) Parser
+        B) Routing panel/chat
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.prompt, "Quale modulo deve avere priorita'?")
+        XCTAssertEqual(questionnaire?.questions.first?.options.map(\.id), ["A", "B"])
+    }
 }

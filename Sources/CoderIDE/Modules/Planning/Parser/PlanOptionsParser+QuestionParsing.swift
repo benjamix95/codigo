@@ -38,6 +38,35 @@ extension PlanOptionsParser {
 
         var currentHasCheckboxOptions = false
 
+        func fallbackOptionId(for existing: [PlanClarificationOption]) -> String {
+            let used = Set(existing.map { $0.id.uppercased() })
+            for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+                let candidate = String(letter)
+                if !used.contains(candidate) {
+                    return candidate
+                }
+            }
+            var numericIndex = max(1, existing.count + 1)
+            while used.contains(String(numericIndex)) {
+                numericIndex += 1
+            }
+            return String(numericIndex)
+        }
+
+        func normalizedOptionId(rawId: String?, existing: [PlanClarificationOption]) -> String {
+            if let rawId {
+                let trimmed = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    let candidate = trimmed.uppercased()
+                    let used = Set(existing.map { $0.id.uppercased() })
+                    if !used.contains(candidate) {
+                        return candidate
+                    }
+                }
+            }
+            return fallbackOptionId(for: existing)
+        }
+
         func flushQuestion() {
             guard let questionId = currentQuestionId else { return }
             var prompt = currentPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -54,7 +83,10 @@ extension PlanOptionsParser {
                     of: Self.multiSelectPattern,
                     with: "",
                     options: .regularExpression
-                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+                .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
+                .replacingOccurrences(of: #"\s+([?.!,:;])"#, with: "$1", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             parsedQuestions.append(
                 PlanClarificationQuestion(
@@ -77,7 +109,11 @@ extension PlanOptionsParser {
             if trimmed.hasPrefix("#") { break }
             if trimmed.isEmpty { continue }
 
-            if let qRegex = Self.questionRegex,
+            let looksLikeNumericOptionLine = currentQuestionId != nil
+                && trimmed.range(of: #"^\s*\d+\)\s+\S+"#, options: .regularExpression) != nil
+
+            if !looksLikeNumericOptionLine,
+               let qRegex = Self.questionRegex,
                let match = qRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
                let idRange = Range(match.range(at: 1), in: trimmed),
                let promptRange = Range(match.range(at: 2), in: trimmed),
@@ -92,40 +128,65 @@ extension PlanOptionsParser {
                 continue
             }
 
-            if let oRegex = Self.clarificationOptionRegex,
-               let match = oRegex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)),
-               let keyRange = Range(match.range(at: 1), in: trimmed),
-               let textRange = Range(match.range(at: 2), in: trimmed),
-               currentQuestionId != nil
-            {
-                let optionId = String(trimmed[keyRange]).uppercased()
-                var optionText = String(trimmed[textRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if optionText.isEmpty {
-                    isInvalidStructuredBlock = true
-                    return nil
+            if currentQuestionId != nil {
+                var rawOptionId: String?
+                var rawOptionText: String?
+                if let oRegex = Self.clarificationOptionRegex,
+                   let match = oRegex.firstMatch(
+                       in: trimmed,
+                       range: NSRange(trimmed.startIndex..., in: trimmed)
+                   ),
+                   let textRange = Range(match.range(at: 2), in: trimmed) {
+                    rawOptionId = Range(match.range(at: 1), in: trimmed).map { String(trimmed[$0]) }
+                    rawOptionText = String(trimmed[textRange])
+                } else if let numericRegex = Self.clarificationNumericOptionRegex,
+                          let match = numericRegex.firstMatch(
+                              in: trimmed,
+                              range: NSRange(trimmed.startIndex..., in: trimmed)
+                          ),
+                          let textRange = Range(match.range(at: 2), in: trimmed) {
+                    rawOptionId = Range(match.range(at: 1), in: trimmed).map { String(trimmed[$0]) }
+                    rawOptionText = String(trimmed[textRange])
+                } else if let bulletRegex = Self.clarificationBulletOptionRegex,
+                          let match = bulletRegex.firstMatch(
+                              in: trimmed,
+                              range: NSRange(trimmed.startIndex..., in: trimmed)
+                          ),
+                          let textRange = Range(match.range(at: 1), in: trimmed) {
+                    rawOptionText = String(trimmed[textRange])
                 }
-                // Detect and strip "(Recommended)" marker from option text.
-                let recommendedPattern = #"\s*\((?i:recommended|consigliato|consigliata)\)\s*$"#
-                let isRecommended = optionText.range(of: recommendedPattern, options: .regularExpression) != nil
-                if isRecommended {
-                    optionText = optionText.replacingOccurrences(
+                if let extractedOptionText = rawOptionText {
+                    var optionText = extractedOptionText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if optionText.isEmpty {
+                        isInvalidStructuredBlock = true
+                        return nil
+                    }
+                    // Detect and strip "(Recommended)" marker from option text.
+                    let recommendedPattern = #"\s*\((?i:recommended|consigliato|consigliata)\)\s*$"#
+                    let isRecommended = optionText.range(
                         of: recommendedPattern,
-                        with: "",
                         options: .regularExpression
-                    ).trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                // Detect checkbox-style options: "- [ ] A)" or "- [x] B)"
-                if trimmed.range(of: Self.checkboxOptionPattern, options: .regularExpression) != nil {
-                    currentHasCheckboxOptions = true
-                }
-                currentOptions.append(
-                    PlanClarificationOption(
-                        id: optionId,
-                        text: optionText,
-                        isRecommended: isRecommended
+                    ) != nil
+                    if isRecommended {
+                        optionText = optionText.replacingOccurrences(
+                            of: recommendedPattern,
+                            with: "",
+                            options: .regularExpression
+                        ).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    // Detect checkbox-style options: "- [ ] A)" or "- [x] B)".
+                    if trimmed.range(of: Self.checkboxOptionPattern, options: .regularExpression) != nil {
+                        currentHasCheckboxOptions = true
+                    }
+                    currentOptions.append(
+                        PlanClarificationOption(
+                            id: normalizedOptionId(rawId: rawOptionId, existing: currentOptions),
+                            text: optionText,
+                            isRecommended: isRecommended
+                        )
                     )
-                )
-                continue
+                    continue
+                }
             }
 
             if currentQuestionId == nil {

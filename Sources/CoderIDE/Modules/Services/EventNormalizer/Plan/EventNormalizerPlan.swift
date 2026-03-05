@@ -7,7 +7,7 @@ extension EventNormalizer {
         timestamp: Date
     ) -> [NormalizedEvent] {
         guard
-            let stepId = payload["step_id"],
+            let stepId = payload["step_id"] ?? payload["stepId"],
             let statusRaw = payload["status"]
         else {
             return [
@@ -48,7 +48,7 @@ extension EventNormalizer {
                 timestamp: timestamp,
                 phase: .planning,
                 isRunning: status == .running,
-                groupId: payload["group_id"] ?? stepId
+                groupId: payload["group_id"] ?? payload["groupId"] ?? stepId
             ))
         ]
     }
