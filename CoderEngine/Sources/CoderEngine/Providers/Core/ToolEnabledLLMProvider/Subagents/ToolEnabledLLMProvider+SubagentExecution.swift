@@ -23,11 +23,19 @@ private actor SubagentExecutionLimiter {
         await withCheckedContinuation { continuation in
             waiters.append(continuation)
         }
+        // Waiter resumed by release() — count the slot for this waiter.
+        // release() already kept `running` unchanged (didn't decrement) when
+        // resuming a waiter, so the slot is implicitly transferred. We still
+        // need to increment because release() didn't touch the counter.
+        running += 1
     }
 
     func release() {
         if !waiters.isEmpty {
             let next = waiters.removeFirst()
+            // Transfer the slot: decrement for the releaser, the resumed waiter
+            // will increment in acquire() after resumption.
+            running -= 1
             next.resume()
             return
         }

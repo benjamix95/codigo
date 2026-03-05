@@ -1,7 +1,17 @@
 import Foundation
 
 extension MCPSharedState {
+    /// Serial queue per garantire atomicità delle operazioni plan read-modify-write su disco.
+    static let planFileAccessQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.PlanFileAccess")
+
     static func readPlanDocument() -> MCPSharedPlanStateDocument {
+        planFileAccessQueue.sync {
+            _readPlanDocumentUnsafe()
+        }
+    }
+
+    /// Internal read without queue protection — caller must already be inside `planFileAccessQueue.sync`.
+    static func _readPlanDocumentUnsafe() -> MCPSharedPlanStateDocument {
         guard let data = try? Data(contentsOf: planStateFilePath),
               let decoded = try? JSONDecoder().decode(MCPSharedPlanStateDocument.self, from: data) else {
             return MCPSharedPlanStateDocument()
@@ -10,6 +20,13 @@ extension MCPSharedState {
     }
 
     static func writePlanDocument(_ document: MCPSharedPlanStateDocument) {
+        planFileAccessQueue.sync {
+            _writePlanDocumentUnsafe(document)
+        }
+    }
+
+    /// Internal write without queue protection — caller must already be inside `planFileAccessQueue.sync`.
+    static func _writePlanDocumentUnsafe(_ document: MCPSharedPlanStateDocument) {
         ensurePlanDirectory()
         guard let data = try? JSONEncoder().encode(document) else { return }
         try? data.write(to: planStateFilePath, options: .atomic)

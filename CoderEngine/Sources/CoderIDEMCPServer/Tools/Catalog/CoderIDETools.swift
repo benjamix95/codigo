@@ -21,7 +21,8 @@ struct CoderIDETools {
     static func runtimeToolName(from mcpName: String) -> String {
         var normalized = mcpName.trimmingCharacters(in: .whitespacesAndNewlines)
         if let slash = normalized.lastIndex(of: "/") {
-            normalized = String(normalized[normalized.index(after: slash)...])
+            let afterSlash = normalized[normalized.index(after: slash)...]
+            normalized = afterSlash.isEmpty ? normalized : String(afterSlash)
         }
         if normalized.hasPrefix("coderide_") {
             return String(normalized.dropFirst("coderide_".count))

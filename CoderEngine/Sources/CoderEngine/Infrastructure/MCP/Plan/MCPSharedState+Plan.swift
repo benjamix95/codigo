@@ -15,48 +15,50 @@ public extension MCPSharedState {
         outcome: String? = nil,
         maxHistoryPerConversation: Int = 50
     ) {
-        ensurePlanDirectory()
-        var document = readPlanDocument()
-        let now = isoTimestampNow()
-        let conversationKey = normalizedConversationId(conversationId)
-        let normalizedGoal = sanitizedText(goal, fallback: "Operational plan in progress")
-        let normalizedChosenPath = optionalSanitizedText(chosenPath)
-        let normalizedWalkthrough = optionalSanitizedText(walkthroughMarkdown)
-        let normalizedSummary = optionalSanitizedText(summary)
-        let normalizedOutcome = normalizeOutcome(outcome)
-        let normalizedSteps = canonicalizedPlanSteps(steps, now: now)
+        planFileAccessQueue.sync {
+            ensurePlanDirectory()
+            var document = _readPlanDocumentUnsafe()
+            let now = isoTimestampNow()
+            let conversationKey = normalizedConversationId(conversationId)
+            let normalizedGoal = sanitizedText(goal, fallback: "Operational plan in progress")
+            let normalizedChosenPath = optionalSanitizedText(chosenPath)
+            let normalizedWalkthrough = optionalSanitizedText(walkthroughMarkdown)
+            let normalizedSummary = optionalSanitizedText(summary)
+            let normalizedOutcome = normalizeOutcome(outcome)
+            let normalizedSteps = canonicalizedPlanSteps(steps, now: now)
 
-        var history = document.snapshotsByConversation[conversationKey] ?? []
-        let nextSnapshot = MCPSharedPlanSnapshot(
-            snapshotId: UUID().uuidString.lowercased(),
-            conversationId: conversationKey,
-            goal: normalizedGoal,
-            chosenPath: normalizedChosenPath,
-            steps: normalizedSteps,
-            walkthroughMarkdown: normalizedWalkthrough,
-            summary: normalizedSummary,
-            outcome: normalizedOutcome,
-            createdAt: now,
-            updatedAt: now
-        )
+            var history = document.snapshotsByConversation[conversationKey] ?? []
+            let nextSnapshot = MCPSharedPlanSnapshot(
+                snapshotId: UUID().uuidString.lowercased(),
+                conversationId: conversationKey,
+                goal: normalizedGoal,
+                chosenPath: normalizedChosenPath,
+                steps: normalizedSteps,
+                walkthroughMarkdown: normalizedWalkthrough,
+                summary: normalizedSummary,
+                outcome: normalizedOutcome,
+                createdAt: now,
+                updatedAt: now
+            )
 
-        let nextSignature = signature(for: nextSnapshot)
-        if let last = history.last, signature(for: last) == nextSignature {
-            var updated = last
-            updated.updatedAt = now
-            history[history.count - 1] = updated
-        } else {
-            history.append(nextSnapshot)
+            let nextSignature = signature(for: nextSnapshot)
+            if let last = history.last, signature(for: last) == nextSignature {
+                var updated = last
+                updated.updatedAt = now
+                history[history.count - 1] = updated
+            } else {
+                history.append(nextSnapshot)
+            }
+
+            let limit = max(1, maxHistoryPerConversation)
+            if history.count > limit {
+                history = Array(history.suffix(limit))
+            }
+
+            document.latestConversationId = conversationKey
+            document.snapshotsByConversation[conversationKey] = history
+            _writePlanDocumentUnsafe(document)
         }
-
-        let limit = max(1, maxHistoryPerConversation)
-        if history.count > limit {
-            history = Array(history.suffix(limit))
-        }
-
-        document.latestConversationId = conversationKey
-        document.snapshotsByConversation[conversationKey] = history
-        writePlanDocument(document)
     }
 
     static func readLatestPlanSnapshotJSONObject(

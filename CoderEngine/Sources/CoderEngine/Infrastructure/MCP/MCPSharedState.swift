@@ -32,7 +32,15 @@ public enum MCPSharedState {
     // MARK: - Todos
 
     /// Write the full todo list (authoritative). Called by the main IDE app.
+    /// Thread-safe: serialized through `fileAccessQueue` to prevent concurrent read/write races.
     public static func writeTodos(_ items: [[String: Any]]) {
+        fileAccessQueue.sync {
+            _writeTodosUnsafe(items)
+        }
+    }
+
+    /// Internal write without queue protection — caller must already be inside `fileAccessQueue.sync`.
+    private static func _writeTodosUnsafe(_ items: [[String: Any]]) {
         ensureDirectory()
         let canonical = canonicalizedTodos(items, defaultSource: "ide")
         guard let data = try? JSONSerialization.data(withJSONObject: canonical, options: [.prettyPrinted, .sortedKeys]) else {
@@ -62,7 +70,15 @@ public enum MCPSharedState {
     }
 
     /// Read the current todo list. Called by the MCP server for `todo_read`.
+    /// Thread-safe: serialized through `fileAccessQueue` to prevent torn reads during concurrent writes.
     public static func readTodos() -> [[String: Any]] {
+        fileAccessQueue.sync {
+            _readTodosUnsafe()
+        }
+    }
+
+    /// Internal read without queue protection — caller must already be inside `fileAccessQueue.sync`.
+    private static func _readTodosUnsafe() -> [[String: Any]] {
         guard let data = try? Data(contentsOf: todosFilePath),
               let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
             return []
@@ -83,7 +99,7 @@ public enum MCPSharedState {
         sourceServer: String? = nil
     ) {
         fileAccessQueue.sync {
-            var todos = readTodos()
+            var todos = _readTodosUnsafe()
             let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalizedTitle.isEmpty else { return }
 
@@ -117,14 +133,14 @@ public enum MCPSharedState {
                 ]
                 todos.append(item)
             }
-            writeTodos(todos)
+            _writeTodosUnsafe(todos)
         }
     }
 
     /// Batch-write todos from the MCP server (full replacement of todos_json).
     public static func batchWriteTodosFromMCP(_ todosArray: [[String: Any]]) {
         fileAccessQueue.sync {
-            var existing = readTodos()
+            var existing = _readTodosUnsafe()
             for todoItem in todosArray {
                 guard var canonicalItem = canonicalTodo(todoItem, defaultSource: "agent") else { continue }
                 let hasProvidedID = providedTodoID(in: todoItem) != nil
@@ -154,7 +170,7 @@ public enum MCPSharedState {
 
                 existing.append(canonicalItem)
             }
-            writeTodos(canonicalizedTodos(existing, defaultSource: "agent"))
+            _writeTodosUnsafe(canonicalizedTodos(existing, defaultSource: "agent"))
         }
     }
 
