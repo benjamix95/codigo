@@ -58,21 +58,14 @@ extension ChatPanelView {
 
 
     internal var chatHeader: some View {
-        ZStack {
-            // Center: Mode tabs — Agent / IDE
-            modeTabBar
-
-            // Leading: project + (optional) title, Trailing: rewind button
-            HStack(spacing: 8) {
-                projectButton
-                if shouldShowConversationTitle(headerWidth: chatHeaderWidth) {
-                    conversationTitleLabel
-                }
-                Spacer(minLength: 0)
+        modeTabBar
+            .frame(maxWidth: .infinity, alignment: .center)
+            .overlay(alignment: .leading) {
+                headerLeadingBar
+            }
+            .overlay(alignment: .trailing) {
                 rewindButton
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(height: 32)
@@ -87,6 +80,16 @@ extension ChatPanelView {
                     }
             }
         )
+    }
+
+    @ViewBuilder
+    internal var headerLeadingBar: some View {
+        HStack(spacing: 8) {
+            projectButton
+            if shouldShowConversationTitle(headerWidth: chatHeaderWidth) {
+                conversationTitleLabel
+            }
+        }
     }
 
     @ViewBuilder
@@ -189,8 +192,10 @@ extension ChatPanelView {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(isSelected ? color.opacity(0.12) : Color.clear)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("chat-mode-tab-\(mode.rawValue.lowercased())")
     }
 
     // MARK: - Messages Area
