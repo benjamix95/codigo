@@ -1,305 +1,394 @@
 import XCTest
 @testable import CoderEngine
 
-// MARK: - MockRollbackDelegate
+// MARK: - Mock Delegate
 
-final class MockRollbackDelegate: RollbackServiceDelegate, @unchecked Sendable {
-    var checksums: [String: String] = [:]
-    var existingFiles: Set<String> = []
+private actor MockRollbackDelegate: RollbackServiceDelegate {
     var createdBranches: [String] = []
     var deletedBranches: [String] = []
-    var restoredFromBranch: [(branch: String, file: String)] = []
+    var restoredFiles: [(branch: String, file: String)] = []
     var stashPushCalls: [(message: String, files: [String])] = []
     var stashPopCalls: [String] = []
     var stashDropCalls: [String] = []
-    var copiedSnapshots: [(source: String, dest: String)] = []
-    var restoredFromSnapshot: [(snapshot: String, file: String)] = []
+    var copiedSnapshots: [(files: [String], dir: String)] = []
+    var restoredSnapshots: [(dir: String, file: String)] = []
     var deletedDirs: [String] = []
-    var shouldFailChecksum = false
-    var shouldFailBranchCreate = false
-    var shouldFailStashPush = false
-    var shouldFailRestore = false
+    var checksums: [String: String] = [:]
+    var existingFiles: Set<String> = []
 
-    func computeChecksum(for file: String) async throws -> String {
-        if shouldFailChecksum { throw RollbackServiceError.checksumMismatch(file: file, expected: "", actual: "") }
-        return checksums[file] ?? "hash_\(file)"
+    var shouldFailOnApply = false
+    var shouldFailOnRestore = false
+    var checksumAfterRestore: [String: String] = [:]
+
+    func configure(
+        checksums: [String: String],
+        existingFiles: Set<String>
+    ) {
+        self.checksums = checksums
+        self.existingFiles = existingFiles
+        self.checksumAfterRestore = checksums
     }
 
-    func createGitBranch(name: String) async throws {
-        if shouldFailBranchCreate { throw RollbackServiceError.snapshotCreationFailed(reason: "branch create failed") }
+    func setChecksumAfterRestore(_ map: [String: String]) {
+        self.checksumAfterRestore = map
+    }
+
+    func setShouldFailOnRestore(_ val: Bool) {
+        self.shouldFailOnRestore = val
+    }
+
+    nonisolated func createBranch(name: String) async throws {
+        await _addCreatedBranch(name)
+    }
+
+    private func _addCreatedBranch(_ name: String) {
         createdBranches.append(name)
     }
 
-    func deleteGitBranch(name: String) async throws {
+    nonisolated func switchToBranch(name: String) async throws {}
+
+    nonisolated func deleteBranch(name: String) async throws {
+        await _addDeletedBranch(name)
+    }
+
+    private func _addDeletedBranch(_ name: String) {
         deletedBranches.append(name)
     }
 
-    func restoreFileFromBranch(branch: String, file: String) async throws {
-        if shouldFailRestore { throw RollbackServiceError.rollbackExecutionFailed(reason: "restore failed") }
-        restoredFromBranch.append((branch, file))
+    nonisolated func restoreFileFromBranch(
+        branch: String, file: String
+    ) async throws {
+        let fail = await _shouldFailOnRestore()
+        if fail { throw RollbackError.fileNotFound(file) }
+        await _addRestoredFile(branch: branch, file: file)
     }
 
-    func gitStashPush(message: String, files: [String]) async throws -> String {
-        if shouldFailStashPush { throw RollbackServiceError.snapshotCreationFailed(reason: "stash push failed") }
-        stashPushCalls.append((message, files))
+    private func _shouldFailOnRestore() -> Bool { shouldFailOnRestore }
+
+    private func _addRestoredFile(branch: String, file: String) {
+        restoredFiles.append((branch, file))
+    }
+
+    nonisolated func stashPush(
+        message: String, files: [String]
+    ) async throws -> String {
+        await _addStashPush(message: message, files: files)
         return "stash@{0}"
     }
 
-    func gitStashPop(stashId: String) async throws {
-        stashPopCalls.append(stashId)
+    private func _addStashPush(message: String, files: [String]) {
+        stashPushCalls.append((message, files))
     }
 
-    func gitStashDrop(stashId: String) async throws {
-        stashDropCalls.append(stashId)
+    nonisolated func stashPop(stashId: String) async throws {
+        await _addStashPop(stashId)
     }
 
-    func copyFileToSnapshot(source: String, destination: String) async throws {
-        copiedSnapshots.append((source, destination))
+    private func _addStashPop(_ id: String) {
+        stashPopCalls.append(id)
     }
 
-    func restoreFileFromSnapshot(snapshot: String, file: String) async throws {
-        if shouldFailRestore { throw RollbackServiceError.rollbackExecutionFailed(reason: "snapshot restore failed") }
-        restoredFromSnapshot.append((snapshot, file))
+    nonisolated func stashDrop(stashId: String) async throws {
+        await _addStashDrop(stashId)
     }
 
-    func deleteDirectory(_ path: String) async throws {
-        deletedDirs.append(path)
+    private func _addStashDrop(_ id: String) {
+        stashDropCalls.append(id)
     }
 
-    func fileExists(at path: String) async -> Bool {
+    nonisolated func copyFilesToSnapshot(
+        files: [String], dir: String
+    ) async throws {
+        await _addCopiedSnapshot(files: files, dir: dir)
+    }
+
+    private func _addCopiedSnapshot(files: [String], dir: String) {
+        copiedSnapshots.append((files, dir))
+    }
+
+    nonisolated func restoreFileFromSnapshot(
+        snapshotDir: String, file: String
+    ) async throws {
+        await _addRestoredSnapshot(dir: snapshotDir, file: file)
+    }
+
+    private func _addRestoredSnapshot(dir: String, file: String) {
+        restoredSnapshots.append((dir, file))
+    }
+
+    nonisolated func deleteDirectory(dir: String) async throws {
+        await _addDeletedDir(dir)
+    }
+
+    private func _addDeletedDir(_ dir: String) {
+        deletedDirs.append(dir)
+    }
+
+    nonisolated func computeChecksum(file: String) async throws -> String {
+        let cs = await _checksum(for: file)
+        return cs ?? "unknown"
+    }
+
+    private func _checksum(for file: String) -> String? {
+        checksumAfterRestore[file] ?? checksums[file]
+    }
+
+    nonisolated func fileExists(path: String) async -> Bool {
+        await _fileExists(path)
+    }
+
+    private func _fileExists(_ path: String) -> Bool {
         existingFiles.contains(path)
     }
 }
 
-// MARK: - RollbackServiceTests
+// MARK: - Tests
 
 final class RollbackServiceTests: XCTestCase {
 
-    var delegate: MockRollbackDelegate!
-
-    override func setUp() {
-        super.setUp()
-        delegate = MockRollbackDelegate()
-        delegate.existingFiles = ["a.swift", "b.swift"]
-        delegate.checksums = ["a.swift": "hash_a", "b.swift": "hash_b"]
-    }
-
-    private func makeService() -> RollbackService {
-        RollbackService(delegate: delegate, workspacePath: "/workspace")
+    private func makeService() -> (RollbackService, MockRollbackDelegate) {
+        let delegate = MockRollbackDelegate()
+        let service = RollbackService(delegate: delegate)
+        return (service, delegate)
     }
 
     // MARK: - Create Rollback Point
 
-    func testCreateGitBranchRollbackPoint() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "patch1",
-            files: ["a.swift", "b.swift"]
+    func testCreateRollbackPoint_gitBranch() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "abc123"],
+            existingFiles: ["a.swift"]
         )
-        XCTAssertEqual(ref.strategy, .gitBranch)
-        XCTAssertEqual(ref.files, ["a.swift", "b.swift"])
-        XCTAssertNotNil(ref.branchName)
-        XCTAssertTrue(ref.branchName?.contains("patch1") == true)
-        XCTAssertEqual(ref.checksums.count, 2)
-        XCTAssertEqual(delegate.createdBranches.count, 1)
-    }
 
-    func testCreateGitStashRollbackPoint() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitStash, patchId: "patch2",
+        let point = try await service.createRollbackPoint(
+            patchId: "p1",
+            strategy: .gitBranch,
             files: ["a.swift"]
         )
-        XCTAssertEqual(ref.strategy, .gitStash)
-        XCTAssertEqual(ref.stashId, "stash@{0}")
-        XCTAssertEqual(delegate.stashPushCalls.count, 1)
+
+        XCTAssertEqual(point.strategy, .gitBranch)
+        XCTAssertEqual(point.branchName, "rollback_p1")
+        XCTAssertEqual(point.files, ["a.swift"])
+        XCTAssertEqual(point.checksums["a.swift"], "abc123")
+        XCTAssertNil(point.stashId)
+        XCTAssertNil(point.snapshotDir)
+        let created = await service.totalRollbacksCreated
+        XCTAssertEqual(created, 1)
     }
 
-    func testCreateFilesystemSnapshotRollbackPoint() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .filesystemSnapshot, patchId: "patch3",
-            files: ["a.swift", "b.swift"]
+    func testCreateRollbackPoint_gitStash() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["b.swift": "def456"],
+            existingFiles: ["b.swift"]
         )
-        XCTAssertEqual(ref.strategy, .filesystemSnapshot)
-        XCTAssertNotNil(ref.snapshotDir)
-        XCTAssertTrue(ref.snapshotDir?.contains("patch3") == true)
-        XCTAssertEqual(delegate.copiedSnapshots.count, 2)
-    }
 
-    func testCreateRollbackPointEmptyFilesThrows() async {
-        let service = makeService()
-        do {
-            _ = try await service.createRollbackPoint(
-                strategy: .gitBranch, patchId: "p", files: []
-            )
-            XCTFail("Should throw for empty files")
-        } catch {
-            guard let err = error as? RollbackServiceError,
-                  case .noFilesToRollback = err else {
-                XCTFail("Wrong error type: \(error)")
-                return
-            }
-        }
-    }
-
-    func testCreateRollbackPointSkipsNonExistentFiles() async throws {
-        delegate.existingFiles = ["a.swift"]
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .filesystemSnapshot, patchId: "p",
-            files: ["a.swift", "nonexistent.swift"]
+        let point = try await service.createRollbackPoint(
+            patchId: "p2",
+            strategy: .gitStash,
+            files: ["b.swift"]
         )
-        XCTAssertEqual(delegate.copiedSnapshots.count, 1, "Only existing file gets snapshot")
-        XCTAssertEqual(ref.checksums.count, 1, "Only existing file has checksum")
+
+        XCTAssertEqual(point.strategy, .gitStash)
+        XCTAssertEqual(point.stashId, "stash@{0}")
+        XCTAssertNil(point.branchName)
     }
 
-    // MARK: - Execute Rollback
-
-    func testExecuteGitBranchRollback() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "p1",
-            files: ["a.swift", "b.swift"]
+    func testCreateRollbackPoint_filesystemSnapshot() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["c.swift": "ghi789"],
+            existingFiles: ["c.swift"]
         )
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p3",
+            strategy: .filesystemSnapshot,
+            files: ["c.swift"]
+        )
+
+        XCTAssertEqual(point.strategy, .filesystemSnapshot)
+        XCTAssertEqual(point.snapshotDir, "artifacts/rollback/p3")
+        XCTAssertNil(point.branchName)
+    }
+
+    // MARK: - Execute
+
+    func testExecute_gitBranch_success() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "abc"],
+            existingFiles: ["a.swift"]
+        )
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: ["a.swift"]
+        )
+
         let record = try await service.execute(
-            rollbackRef: ref, jobId: "j1", taskId: "t1"
+            rollbackPoint: point, jobId: "j1", taskId: "t1"
         )
+
         XCTAssertEqual(record.status, .success)
         XCTAssertTrue(record.verificationPassed)
-        XCTAssertEqual(record.filesRestored, ["a.swift", "b.swift"])
         XCTAssertEqual(record.strategy, .gitBranch)
-        XCTAssertEqual(delegate.restoredFromBranch.count, 2)
-        XCTAssertEqual(delegate.deletedBranches.count, 1)
+        XCTAssertEqual(record.filesRestored, ["a.swift"])
+        let executed = await service.totalRollbacksExecuted
+        XCTAssertEqual(executed, 1)
     }
 
-    func testExecuteGitStashRollback() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitStash, patchId: "p2",
-            files: ["a.swift"]
+    func testExecute_gitStash_success() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "abc"],
+            existingFiles: ["a.swift"]
         )
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitStash, files: ["a.swift"]
+        )
+
         let record = try await service.execute(
-            rollbackRef: ref, jobId: "j1", taskId: "t1"
+            rollbackPoint: point, jobId: "j1", taskId: "t1"
         )
+
         XCTAssertEqual(record.status, .success)
-        XCTAssertEqual(delegate.stashPopCalls.count, 1)
     }
 
-    func testExecuteFilesystemSnapshotRollback() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .filesystemSnapshot, patchId: "p3",
-            files: ["a.swift"]
+    func testExecute_filesystemSnapshot_success() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "abc"],
+            existingFiles: ["a.swift"]
         )
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .filesystemSnapshot, files: ["a.swift"]
+        )
+
         let record = try await service.execute(
-            rollbackRef: ref, jobId: "j1", taskId: "t1"
+            rollbackPoint: point, jobId: "j1", taskId: "t1"
         )
+
         XCTAssertEqual(record.status, .success)
-        XCTAssertEqual(delegate.restoredFromSnapshot.count, 1)
-        XCTAssertEqual(delegate.deletedDirs.count, 1)
     }
 
-    func testExecuteRollbackRecordsArePersisted() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "p",
-            files: ["a.swift"]
+    func testExecute_checksumMismatch_throws() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "original"],
+            existingFiles: ["a.swift"]
         )
-        _ = try await service.execute(
-            rollbackRef: ref, jobId: "j1", taskId: "t1"
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: ["a.swift"]
         )
-        let records = await service.allRecords
-        XCTAssertEqual(records.count, 1)
-        XCTAssertEqual(records.first?.jobId, "j1")
+
+        await delegate.setChecksumAfterRestore(["a.swift": "different"])
+
+        do {
+            _ = try await service.execute(
+                rollbackPoint: point, jobId: "j1", taskId: "t1"
+            )
+            XCTFail("Should have thrown")
+        } catch let error as RollbackError {
+            if case .checksumMismatch(let file, _, _) = error {
+                XCTAssertEqual(file, "a.swift")
+            } else {
+                XCTFail("Wrong error type: \(error)")
+            }
+        }
+
+        let failed = await service.totalRollbacksFailed
+        XCTAssertEqual(failed, 1)
+    }
+
+    func testExecute_restoreFailure_throws() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(
+            checksums: ["a.swift": "abc"],
+            existingFiles: ["a.swift"]
+        )
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: ["a.swift"]
+        )
+
+        await delegate.setShouldFailOnRestore(true)
+
+        do {
+            _ = try await service.execute(
+                rollbackPoint: point, jobId: "j1", taskId: "t1"
+            )
+            XCTFail("Should have thrown")
+        } catch {
+            let failed = await service.totalRollbacksFailed
+            XCTAssertEqual(failed, 1)
+        }
     }
 
     // MARK: - Cleanup
 
-    func testCleanupGitBranch() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "p",
-            files: ["a.swift"]
+    func testCleanup_gitBranch() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(checksums: [:], existingFiles: [])
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: []
         )
-        delegate.deletedBranches = []
-        try await service.cleanup(rollbackRef: ref)
-        XCTAssertEqual(delegate.deletedBranches.count, 1)
+
+        try await service.cleanup(rollbackPoint: point)
+
+        let cleanups = await service.totalCleanups
+        XCTAssertEqual(cleanups, 1)
+        let count = await service.activePointCount
+        XCTAssertEqual(count, 0)
     }
 
-    func testCleanupGitStash() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitStash, patchId: "p",
-            files: ["a.swift"]
+    func testCleanup_gitStash() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(checksums: [:], existingFiles: [])
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p2", strategy: .gitStash, files: []
         )
-        try await service.cleanup(rollbackRef: ref)
-        XCTAssertEqual(delegate.stashDropCalls.count, 1)
+
+        try await service.cleanup(rollbackPoint: point)
+
+        let cleanups = await service.totalCleanups
+        XCTAssertEqual(cleanups, 1)
     }
 
-    func testCleanupFilesystemSnapshot() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .filesystemSnapshot, patchId: "p",
-            files: ["a.swift"]
+    // MARK: - Active Points
+
+    func testActivePointTracking() async throws {
+        let (service, delegate) = makeService()
+        await delegate.configure(checksums: [:], existingFiles: [])
+
+        let p1 = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: []
         )
-        delegate.deletedDirs = []
-        try await service.cleanup(rollbackRef: ref)
-        XCTAssertEqual(delegate.deletedDirs.count, 1)
+        let _ = try await service.createRollbackPoint(
+            patchId: "p2", strategy: .gitBranch, files: []
+        )
+
+        let count = await service.activePointCount
+        XCTAssertEqual(count, 2)
+
+        let found = await service.activePoint(id: p1.rollbackId)
+        XCTAssertNotNil(found)
     }
 
-    // MARK: - Checksum Verification Failure
+    // MARK: - Non-existent file checksum
 
-    func testChecksumMismatchReturnsFailedRecord() async throws {
-        delegate.checksums = ["a.swift": "original"]
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "p",
-            files: ["a.swift"]
+    func testCreateRollbackPoint_skipChecksumForMissingFile() async throws {
+        let (service, _) = makeService()
+
+        let point = try await service.createRollbackPoint(
+            patchId: "p1", strategy: .gitBranch, files: ["nonexist.swift"]
         )
-        delegate.checksums = ["a.swift": "modified_after_rollback"]
-        do {
-            _ = try await service.execute(
-                rollbackRef: ref, jobId: "j1", taskId: "t1"
-            )
-            XCTFail("Should throw for checksum mismatch")
-        } catch {
-            let records = await service.allRecords
-            XCTAssertEqual(records.count, 1)
-            XCTAssertEqual(records.first?.status, .failed)
-            XCTAssertFalse(records.first?.verificationPassed ?? true)
-        }
-    }
 
-    // MARK: - Reset Records
-
-    func testResetRecords() async throws {
-        let service = makeService()
-        let ref = try await service.createRollbackPoint(
-            strategy: .gitBranch, patchId: "p",
-            files: ["a.swift"]
-        )
-        _ = try await service.execute(
-            rollbackRef: ref, jobId: "j1", taskId: "t1"
-        )
-        await service.resetRecords()
-        let records = await service.allRecords
-        XCTAssertTrue(records.isEmpty)
-    }
-
-    // MARK: - Branch Create Failure
-
-    func testBranchCreateFailureThrows() async {
-        delegate.shouldFailBranchCreate = true
-        let service = makeService()
-        do {
-            _ = try await service.createRollbackPoint(
-                strategy: .gitBranch, patchId: "p",
-                files: ["a.swift"]
-            )
-            XCTFail("Should throw")
-        } catch {
-            XCTAssertTrue(error is RollbackServiceError)
-        }
+        XCTAssertTrue(point.checksums.isEmpty)
     }
 }

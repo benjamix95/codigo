@@ -1,326 +1,460 @@
 import XCTest
 @testable import CoderEngine
 
-// MARK: - MockPatchEngine
+// MARK: - Mock PatchEngine
 
-final class MockPatchEngine: PatchEngineDelegate, @unchecked Sendable {
-    var dryRunResult = true
-    var applyResult = true
-    var verifyResult = true
-    var dryRunShouldThrow = false
-    var applyShouldThrow = false
-    var verifyShouldThrow = false
+private final class MockPatchEngine: PatchEngineProtocol, @unchecked Sendable {
+    var dryRunResult = PatchEngineResult(success: true)
+    var applyResult = PatchEngineResult(success: true)
     var dryRunCallCount = 0
     var applyCallCount = 0
-    var verifyCallCount = 0
+    var shouldThrowOnDryRun = false
+    var shouldThrowOnApply = false
 
-    func dryRun(patches: [PatchManifest]) async throws -> Bool {
+    func dryRun(patches: [PatchManifest]) async throws -> PatchEngineResult {
         dryRunCallCount += 1
-        if dryRunShouldThrow { throw ApplyTransactionError.dryRunFailed(reason: "mock") }
+        if shouldThrowOnDryRun {
+            throw NSError(
+                domain: "test", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "dry-run crash"]
+            )
+        }
         return dryRunResult
     }
 
-    func apply(patches: [PatchManifest]) async throws -> Bool {
+    func apply(patches: [PatchManifest]) async throws -> PatchEngineResult {
         applyCallCount += 1
-        if applyShouldThrow { throw ApplyTransactionError.applyFailed(reason: "mock") }
+        if shouldThrowOnApply {
+            throw NSError(
+                domain: "test", code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "apply crash"]
+            )
+        }
         return applyResult
-    }
-
-    func quickVerify(touchedFiles: [String], timeoutMs: Int) async throws -> Bool {
-        verifyCallCount += 1
-        if verifyShouldThrow { throw ApplyTransactionError.verifyFailed(reason: "mock") }
-        return verifyResult
     }
 }
 
-// MARK: - PatchApplyTransactionTests
+// MARK: - Mock QuickVerifier
+
+private final class MockVerifier: QuickVerifyProtocol, @unchecked Sendable {
+    var result = VerifyResult(success: true)
+    var callCount = 0
+    var shouldThrow = false
+
+    func verify(
+        files: [String], timeoutMs: Int
+    ) async throws -> VerifyResult {
+        callCount += 1
+        if shouldThrow {
+            throw NSError(
+                domain: "test", code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "verify crash"]
+            )
+        }
+        return result
+    }
+}
+
+// MARK: - Mock RollbackDelegate (minimal)
+
+private final class MinimalRollbackDelegate: RollbackServiceDelegate,
+    @unchecked Sendable
+{
+    var checksums: [String: String] = [:]
+
+    func createBranch(name: String) async throws {}
+    func switchToBranch(name: String) async throws {}
+    func deleteBranch(name: String) async throws {}
+    func restoreFileFromBranch(branch: String, file: String) async throws {}
+    func stashPush(
+        message: String, files: [String]
+    ) async throws -> String { "stash@{0}" }
+    func stashPop(stashId: String) async throws {}
+    func stashDrop(stashId: String) async throws {}
+    func copyFilesToSnapshot(files: [String], dir: String) async throws {}
+    func restoreFileFromSnapshot(
+        snapshotDir: String, file: String
+    ) async throws {}
+    func deleteDirectory(dir: String) async throws {}
+    func computeChecksum(file: String) async throws -> String {
+        checksums[file] ?? "checksum_\(file)"
+    }
+    func fileExists(path: String) async -> Bool { true }
+}
+
+// MARK: - Tests
 
 final class PatchApplyTransactionTests: XCTestCase {
 
-    var rollbackDelegate: MockRollbackDelegate!
-    var patchEngine: MockPatchEngine!
-    var lockManager: PipelineLockManager!
-    var rollbackService: RollbackService!
-
-    override func setUp() async throws {
-        rollbackDelegate = MockRollbackDelegate()
-        rollbackDelegate.existingFiles = ["a.swift", "b.swift", "c.swift"]
-        rollbackDelegate.checksums = [
-            "a.swift": "h1", "b.swift": "h2", "c.swift": "h3"
-        ]
-        patchEngine = MockPatchEngine()
-        lockManager = PipelineLockManager()
-        rollbackService = RollbackService(
-            delegate: rollbackDelegate, workspacePath: "/ws"
-        )
-    }
-
     private func makeJob() -> PipelineJob {
         PipelineJob(
-            jobId: "j1", workspace: "/ws", request: "test",
+            jobId: "j1",
+            workspace: "/test",
+            request: "test request",
             rollbackStrategy: .gitBranch
         )
     }
 
     private func makePatch(
-        files: [String] = ["a.swift", "b.swift"],
-        riskScore: Double = 0.3,
-        patchId: String = "p1"
+        patchId: String = "p1",
+        files: [String] = ["a.swift"],
+        riskScore: Double = 0.3
     ) -> PatchManifest {
         PatchManifest(
-            patchId: patchId, jobId: "j1", taskId: "t1",
-            provider: "test", agentRole: .coder,
-            touchedFiles: files, unifiedDiffPath: "/diff",
+            patchId: patchId,
+            jobId: "j1",
+            taskId: "t1",
+            provider: "gpt",
+            agentRole: .coder,
+            touchedFiles: files,
+            unifiedDiffPath: "diff.patch",
             riskScore: riskScore
         )
     }
 
-    private func makeTransaction() -> PatchApplyTransaction {
-        PatchApplyTransaction(
+    private func makeSystem() async -> (
+        PatchApplyTransaction, PipelineLockManager, MockPatchEngine,
+        MockVerifier
+    ) {
+        let lockManager = PipelineLockManager()
+        let rbDelegate = MinimalRollbackDelegate()
+        let rollbackService = RollbackService(delegate: rbDelegate)
+        let patchEngine = MockPatchEngine()
+        let verifier = MockVerifier()
+
+        let transaction = PatchApplyTransaction(
             lockManager: lockManager,
             rollbackService: rollbackService,
-            patchEngine: patchEngine
+            patchEngine: patchEngine,
+            verifier: verifier
         )
+
+        return (transaction, lockManager, patchEngine, verifier)
     }
 
-    private func acquireLocks(files: [String], taskId: String = "t1") async {
-        let scope = LockScope(files: Set(files))
-        await lockManager.acquire(scope: scope, taskId: taskId)
-    }
+    // MARK: - Success path
 
-    // MARK: - Success Path
+    func testFullSuccess() async {
+        let (tx, lockManager, engine, verifier) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
 
-    func testSuccessfulApply() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        let tx = makeTransaction()
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
+        )
+
         let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+            job: job, taskId: "t1", patches: [patch]
         )
-        guard case .success(let count) = result else {
-            XCTFail("Expected success, got \(result)"); return
+
+        if case .success(let count, let files) = result {
+            XCTAssertEqual(count, 1)
+            XCTAssertEqual(files, 1)
+        } else {
+            XCTFail("Expected success, got \(result)")
         }
-        XCTAssertEqual(count, 2)
-        XCTAssertEqual(patchEngine.dryRunCallCount, 1)
-        XCTAssertEqual(patchEngine.applyCallCount, 1)
-        XCTAssertEqual(patchEngine.verifyCallCount, 1)
+
+        XCTAssertEqual(engine.dryRunCallCount, 1)
+        XCTAssertEqual(engine.applyCallCount, 1)
+        XCTAssertEqual(verifier.callCount, 1)
+
+        let stats = await tx.stats
+        XCTAssertEqual(stats.total, 1)
+        XCTAssertEqual(stats.successes, 1)
     }
 
-    // MARK: - Empty Patch Set
+    // MARK: - Validation failure
 
-    func testEmptyPatchSetFails() async {
-        let tx = makeTransaction()
+    func testManifestValidationFailure() async {
+        let (tx, lockManager, _, _) = await makeSystem()
+        let job = makeJob()
+        let badPatch = PatchManifest(
+            patchId: "",
+            jobId: "j1",
+            taskId: "t1",
+            provider: "gpt",
+            agentRole: .coder,
+            touchedFiles: ["a.swift"],
+            unifiedDiffPath: "diff.patch"
+        )
+
         let result = await tx.execute(
-            patchSet: [], taskId: "t1", job: makeJob()
+            job: job, taskId: "t1", patches: [badPatch]
         )
-        guard case .applyFailed(let reason) = result else {
-            XCTFail("Expected applyFailed"); return
+
+        if case .applyFailed(let error) = result {
+            XCTAssertTrue(error.contains("validation"))
+        } else {
+            XCTFail("Expected applyFailed, got \(result)")
         }
-        XCTAssertTrue(reason.contains("Empty"))
     }
 
-    // MARK: - Risk Score Extra Review
+    // MARK: - Risk gate
 
-    func testHighRiskScoreRequiresExtraReview() async {
-        await acquireLocks(files: ["a.swift"])
-        let tx = makeTransaction()
-        let patch = makePatch(files: ["a.swift"], riskScore: 0.8)
+    func testRiskGateBlocked() async {
+        let (tx, lockManager, _, _) = await makeSystem()
+        let job = makeJob()
+        let riskyPatch = makePatch(riskScore: 0.85)
+
         let result = await tx.execute(
-            patchSet: [patch], taskId: "t1", job: makeJob()
+            job: job, taskId: "t1", patches: [riskyPatch]
         )
-        guard case .extraReviewRequired = result else {
-            XCTFail("Expected extraReviewRequired, got \(result)"); return
+
+        if case .riskGateBlocked(let pid, let score) = result {
+            XCTAssertEqual(pid, "p1")
+            XCTAssertEqual(score, 0.85)
+        } else {
+            XCTFail("Expected riskGateBlocked, got \(result)")
         }
     }
 
-    // MARK: - Blast Radius
+    // MARK: - Blast radius
 
     func testBlastRadiusManualApproval() async {
-        let files = Array(1...30).map { "file\($0).swift" }
-        await acquireLocks(files: files)
-        let tx = makeTransaction()
-        let patch = makePatch(files: files)
-        let result = await tx.execute(
-            patchSet: [patch], taskId: "t1", job: makeJob()
+        let (tx, _, _, _) = await makeSystem()
+        let job = makeJob()
+        let bigPatch = makePatch(
+            files: Array(1...26).map { "f\($0).swift" },
+            riskScore: 0.3
         )
-        guard case .awaitingApproval(let count) = result else {
-            XCTFail("Expected awaitingApproval, got \(result)"); return
-        }
-        XCTAssertEqual(count, 30)
-    }
 
-    func testBlastRadiusExtraReview() async {
-        let files = Array(1...15).map { "file\($0).swift" }
-        await acquireLocks(files: files)
-        let tx = makeTransaction()
-        let patch = makePatch(files: files)
         let result = await tx.execute(
-            patchSet: [patch], taskId: "t1", job: makeJob()
+            job: job, taskId: "t1", patches: [bigPatch]
         )
-        guard case .extraReviewRequired = result else {
-            XCTFail("Expected extraReviewRequired, got \(result)"); return
+
+        if case .awaitingApproval = result {
+            // ok
+        } else {
+            XCTFail("Expected awaitingApproval, got \(result)")
         }
     }
 
-    // MARK: - Lock Violation
+    // MARK: - Lock violation
 
     func testLockViolation() async {
-        let tx = makeTransaction()
+        let (tx, _, _, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
         let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+            job: job, taskId: "t1", patches: [patch]
         )
-        guard case .lockViolation = result else {
-            XCTFail("Expected lockViolation, got \(result)"); return
+
+        if case .lockViolation(let pid, _) = result {
+            XCTAssertEqual(pid, "p1")
+        } else {
+            XCTFail("Expected lockViolation, got \(result)")
         }
     }
 
-    // MARK: - Dry Run Failure
+    // MARK: - Dry-run failure
 
-    func testDryRunFailureReturnsPatchConflict() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.dryRunResult = false
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+    func testDryRunFailure() async {
+        let (tx, lockManager, engine, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
         )
-        guard case .patchConflict = result else {
-            XCTFail("Expected patchConflict, got \(result)"); return
+
+        engine.dryRunResult = PatchEngineResult(
+            success: false, details: "conflict in a.swift"
+        )
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .patchConflict(let details) = result {
+            XCTAssertTrue(details.contains("conflict"))
+        } else {
+            XCTFail("Expected patchConflict, got \(result)")
         }
     }
 
-    func testDryRunExceptionReturnsPatchConflict() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.dryRunShouldThrow = true
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+    func testDryRunThrows() async {
+        let (tx, lockManager, engine, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
         )
-        guard case .patchConflict = result else {
-            XCTFail("Expected patchConflict, got \(result)"); return
+
+        engine.shouldThrowOnDryRun = true
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .patchConflict = result {
+            // ok
+        } else {
+            XCTFail("Expected patchConflict, got \(result)")
         }
     }
 
-    // MARK: - Apply Failure → Rollback
+    // MARK: - Apply failure
 
-    func testApplyFailureTriggersRollback() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.applyResult = false
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+    func testApplyFailure() async {
+        let (tx, lockManager, engine, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
         )
-        guard case .rolledBack = result else {
-            XCTFail("Expected rolledBack, got \(result)"); return
+
+        engine.applyResult = PatchEngineResult(
+            success: false, details: "apply error"
+        )
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .applyFailed = result {
+            // ok
+        } else {
+            XCTFail("Expected applyFailed, got \(result)")
+        }
+
+        let stats = await tx.stats
+        XCTAssertEqual(stats.rollbacks, 1)
+    }
+
+    func testApplyThrows_triggersRollback() async {
+        let (tx, lockManager, engine, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
+        )
+
+        engine.shouldThrowOnApply = true
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .applyFailed = result {
+            // ok
+        } else {
+            XCTFail("Expected applyFailed, got \(result)")
+        }
+
+        let stats = await tx.stats
+        XCTAssertEqual(stats.rollbacks, 1)
+    }
+
+    // MARK: - Verify failure triggers rollback
+
+    func testVerifyFailure_triggersRollback() async {
+        let (tx, lockManager, _, verifier) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
+        )
+
+        verifier.result = VerifyResult(
+            success: false, details: "lint error"
+        )
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .rolledBack(let reason) = result {
+            XCTAssertTrue(reason.contains("lint"))
+        } else {
+            XCTFail("Expected rolledBack, got \(result)")
+        }
+
+        let stats = await tx.stats
+        XCTAssertEqual(stats.rollbacks, 1)
+    }
+
+    func testVerifyThrows_triggersRollback() async {
+        let (tx, lockManager, _, verifier) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
+        )
+
+        verifier.shouldThrow = true
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [patch]
+        )
+
+        if case .rolledBack = result {
+            // ok
+        } else {
+            XCTFail("Expected rolledBack, got \(result)")
         }
     }
 
-    func testApplyExceptionTriggersRollback() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.applyShouldThrow = true
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+    // MARK: - Multiple patches
+
+    func testMultiplePatches_success() async {
+        let (tx, lockManager, _, _) = await makeSystem()
+        let job = makeJob()
+        let p1 = makePatch(patchId: "p1", files: ["a.swift"])
+        let p2 = makePatch(patchId: "p2", files: ["b.swift"])
+
+        await lockManager.acquire(
+            scope: LockScope(files: ["a.swift", "b.swift"]),
+            taskId: "t1"
         )
-        guard case .rolledBack = result else {
-            XCTFail("Expected rolledBack, got \(result)"); return
+
+        let result = await tx.execute(
+            job: job, taskId: "t1", patches: [p1, p2]
+        )
+
+        if case .success(let count, let files) = result {
+            XCTAssertEqual(count, 2)
+            XCTAssertEqual(files, 2)
+        } else {
+            XCTFail("Expected success, got \(result)")
         }
     }
 
-    // MARK: - Verify Failure → Rollback
+    // MARK: - Stats accumulation
 
-    func testVerifyFailureTriggersRollback() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.verifyResult = false
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+    func testStatsAccumulate() async {
+        let (tx, lockManager, engine, _) = await makeSystem()
+        let job = makeJob()
+        let patch = makePatch()
+
+        await lockManager.acquire(
+            scope: LockScope(files: Set(patch.touchedFiles)),
+            taskId: "t1"
         )
-        guard case .verifyFailed(let record) = result else {
-            XCTFail("Expected verifyFailed, got \(result)"); return
-        }
-        XCTAssertEqual(record.strategy, .gitBranch)
-        XCTAssertTrue(record.verificationPassed)
-    }
 
-    func testVerifyExceptionTriggersRollback() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.verifyShouldThrow = true
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: makeJob()
+        _ = await tx.execute(job: job, taskId: "t1", patches: [patch])
+        _ = await tx.execute(job: job, taskId: "t1", patches: [patch])
+
+        engine.applyResult = PatchEngineResult(
+            success: false, details: "fail"
         )
-        switch result {
-        case .rolledBack, .verifyFailed, .applyFailed:
-            break
-        default:
-            XCTFail("Expected rollback-related result, got \(result)")
-        }
-    }
+        _ = await tx.execute(job: job, taskId: "t1", patches: [patch])
 
-    // MARK: - Manifest Validation Failure
-
-    func testInvalidManifestFails() async {
-        let badPatch = PatchManifest(
-            patchId: "", jobId: "j1", taskId: "t1",
-            provider: "test", agentRole: .coder,
-            touchedFiles: ["a.swift"], unifiedDiffPath: "/diff"
-        )
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [badPatch], taskId: "t1", job: makeJob()
-        )
-        guard case .applyFailed(let reason) = result else {
-            XCTFail("Expected applyFailed, got \(result)"); return
-        }
-        XCTAssertTrue(reason.contains("validation"))
-    }
-
-    // MARK: - Multiple Patches
-
-    func testMultiplePatchesDeduplicateFiles() async {
-        let files1 = ["a.swift", "b.swift"]
-        let files2 = ["b.swift", "c.swift"]
-        await acquireLocks(files: ["a.swift", "b.swift", "c.swift"])
-        let tx = makeTransaction()
-        let p1 = makePatch(files: files1, patchId: "p1")
-        let p2 = makePatch(files: files2, patchId: "p2")
-        let result = await tx.execute(
-            patchSet: [p1, p2], taskId: "t1", job: makeJob()
-        )
-        guard case .success(let count) = result else {
-            XCTFail("Expected success, got \(result)"); return
-        }
-        XCTAssertEqual(count, 3, "Unique files: a, b, c")
-    }
-
-    // MARK: - Different Rollback Strategies
-
-    func testGitStashStrategy() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.applyResult = false
-        var job = makeJob()
-        job.rollbackStrategy = .gitStash
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: job
-        )
-        guard case .rolledBack(let record) = result else {
-            XCTFail("Expected rolledBack, got \(result)"); return
-        }
-        XCTAssertEqual(record.strategy, .gitStash)
-    }
-
-    func testFilesystemSnapshotStrategy() async {
-        await acquireLocks(files: ["a.swift", "b.swift"])
-        patchEngine.applyResult = false
-        var job = makeJob()
-        job.rollbackStrategy = .filesystemSnapshot
-        let tx = makeTransaction()
-        let result = await tx.execute(
-            patchSet: [makePatch()], taskId: "t1", job: job
-        )
-        guard case .rolledBack(let record) = result else {
-            XCTFail("Expected rolledBack, got \(result)"); return
-        }
-        XCTAssertEqual(record.strategy, .filesystemSnapshot)
+        let stats = await tx.stats
+        XCTAssertEqual(stats.total, 3)
+        XCTAssertEqual(stats.successes, 2)
+        XCTAssertEqual(stats.failures, 1)
     }
 }

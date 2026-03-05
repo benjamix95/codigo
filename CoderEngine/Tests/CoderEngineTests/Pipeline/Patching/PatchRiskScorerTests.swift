@@ -3,192 +3,220 @@ import XCTest
 
 final class PatchRiskScorerTests: XCTestCase {
 
-    let scorer = PatchRiskScorer()
+    private let scorer = PatchRiskScorer()
 
-    // MARK: - Individual Factor Tests
+    // MARK: - filesChangedNormalized
 
-    func testFilesChangedNormalized() {
+    func testFilesChangedNormalized_zero() {
         XCTAssertEqual(scorer.filesChangedNormalized(0), 0)
+    }
+
+    func testFilesChangedNormalized_belowCap() {
         XCTAssertEqual(scorer.filesChangedNormalized(10), 0.5)
+    }
+
+    func testFilesChangedNormalized_atCap() {
         XCTAssertEqual(scorer.filesChangedNormalized(20), 1.0)
-        XCTAssertEqual(scorer.filesChangedNormalized(40), 1.0, "Clamps at 1.0")
-        XCTAssertEqual(scorer.filesChangedNormalized(-5), 0, "Negative treated as 0")
     }
 
-    func testLinesChangedNormalized() {
-        XCTAssertEqual(scorer.linesChangedNormalized(0), 0)
+    func testFilesChangedNormalized_aboveCap() {
+        XCTAssertEqual(scorer.filesChangedNormalized(40), 1.0)
+    }
+
+    func testFilesChangedNormalized_negative() {
+        XCTAssertEqual(scorer.filesChangedNormalized(-5), 0)
+    }
+
+    // MARK: - linesChangedNormalized
+
+    func testLinesChangedNormalized_belowCap() {
         XCTAssertEqual(scorer.linesChangedNormalized(250), 0.5)
+    }
+
+    func testLinesChangedNormalized_atCap() {
         XCTAssertEqual(scorer.linesChangedNormalized(500), 1.0)
-        XCTAssertEqual(scorer.linesChangedNormalized(1000), 1.0, "Clamps at 1.0")
     }
 
-    func testCoreModuleWeight() {
-        XCTAssertEqual(scorer.coreModuleWeight(isCoreModule: true), 1.0)
-        XCTAssertEqual(scorer.coreModuleWeight(isCoreModule: false), 0.3)
+    func testLinesChangedNormalized_aboveCap() {
+        XCTAssertEqual(scorer.linesChangedNormalized(1000), 1.0)
     }
 
-    func testProductionVsTestRatio() {
+    // MARK: - coreModuleScore
+
+    func testCoreModuleScore_core() {
+        XCTAssertEqual(scorer.coreModuleScore(true), 1.0)
+    }
+
+    func testCoreModuleScore_nonCore() {
+        XCTAssertEqual(scorer.coreModuleScore(false), 0.3)
+    }
+
+    // MARK: - productionVsTestRatio
+
+    func testProductionVsTestRatio_allProduction() {
         XCTAssertEqual(
-            scorer.productionVsTestRatio(productionLines: 80, totalLines: 100),
-            0.8
+            scorer.productionVsTestRatio(production: 100, test: 0),
+            1.0
         )
+    }
+
+    func testProductionVsTestRatio_allTest() {
         XCTAssertEqual(
-            scorer.productionVsTestRatio(productionLines: 0, totalLines: 100),
+            scorer.productionVsTestRatio(production: 0, test: 100),
             0.0
         )
+    }
+
+    func testProductionVsTestRatio_mixed() {
         XCTAssertEqual(
-            scorer.productionVsTestRatio(productionLines: 50, totalLines: 0),
-            0.0,
-            "Zero total lines returns 0"
+            scorer.productionVsTestRatio(production: 60, test: 40),
+            0.6
         )
+    }
+
+    func testProductionVsTestRatio_zeroTotal() {
         XCTAssertEqual(
-            scorer.productionVsTestRatio(productionLines: 200, totalLines: 100),
-            1.0,
-            "Clamps at 1.0"
+            scorer.productionVsTestRatio(production: 0, test: 0),
+            0.0
         )
     }
 
-    func testDependentsNormalized() {
-        XCTAssertEqual(scorer.dependentsNormalized(0), 0)
-        XCTAssertEqual(scorer.dependentsNormalized(5), 0.5)
-        XCTAssertEqual(scorer.dependentsNormalized(10), 1.0)
-        XCTAssertEqual(scorer.dependentsNormalized(20), 1.0)
+    // MARK: - dependentsCountNormalized
+
+    func testDependentsNormalized_belowCap() {
+        XCTAssertEqual(scorer.dependentsCountNormalized(5), 0.5)
     }
 
-    func testBugHistoryNormalized() {
-        XCTAssertEqual(scorer.bugHistoryNormalized(0), 0)
-        XCTAssertEqual(scorer.bugHistoryNormalized(3), 0.6)
-        XCTAssertEqual(scorer.bugHistoryNormalized(5), 1.0)
-        XCTAssertEqual(scorer.bugHistoryNormalized(10), 1.0)
+    func testDependentsNormalized_atCap() {
+        XCTAssertEqual(scorer.dependentsCountNormalized(10), 1.0)
     }
 
-    // MARK: - Composite Score Tests
+    // MARK: - fileBugHistoryScore
 
-    func testComputeScoreAllZero() {
-        let input = RiskScoringInput(
-            filesChanged: 0, linesChanged: 0, isCoreModule: false,
-            productionLines: 0, totalLines: 100,
-            dependentsCount: 0, bugCountLast90d: 0
-        )
-        let score = scorer.computeScore(from: input)
-        let expectedCoreContribution = 0.3 * PatchRiskScorer.coreWeight
-        XCTAssertEqual(score, expectedCoreContribution, accuracy: 0.001)
+    func testBugHistoryScore_zero() {
+        XCTAssertEqual(scorer.fileBugHistoryScore(0), 0)
     }
 
-    func testComputeScoreAllMax() {
-        let input = RiskScoringInput(
-            filesChanged: 50, linesChanged: 1000, isCoreModule: true,
-            productionLines: 100, totalLines: 100,
-            dependentsCount: 20, bugCountLast90d: 10
-        )
-        let score = scorer.computeScore(from: input)
-        XCTAssertEqual(score, 1.0, accuracy: 0.001, "All factors at max = 1.0")
+    func testBugHistoryScore_atCap() {
+        XCTAssertEqual(scorer.fileBugHistoryScore(5), 1.0)
     }
 
-    func testHighRiskCoreModule() {
-        let input = RiskScoringInput(
-            filesChanged: 2, linesChanged: 10, isCoreModule: true,
-            productionLines: 10, totalLines: 10,
-            dependentsCount: 12, bugCountLast90d: 5
-        )
-        let score = scorer.computeScore(from: input)
-        XCTAssertGreaterThan(score, 0.5, "Core module with many dependents and bugs should be high risk")
+    func testBugHistoryScore_aboveCap() {
+        XCTAssertEqual(scorer.fileBugHistoryScore(10), 1.0)
     }
 
-    func testLowRiskTestFiles() {
-        let input = RiskScoringInput(
-            filesChanged: 10, linesChanged: 200, isCoreModule: false,
-            productionLines: 0, totalLines: 200,
-            dependentsCount: 0, bugCountLast90d: 0
-        )
-        let score = scorer.computeScore(from: input)
-        XCTAssertLessThan(score, 0.3, "Pure test files with no dependents should be low risk")
+    // MARK: - score aggregato
+
+    func testScore_allZero() {
+        let input = PatchRiskInput(filesChanged: 0, linesChanged: 0)
+        let score = scorer.score(from: input)
+        // core_module_score(false) = 0.3, tutto il resto 0
+        // 0.3 * 0.15 = 0.045
+        XCTAssertEqual(score, 0.045, accuracy: 0.001)
     }
 
-    func testSpecExampleCoreVsTest() {
-        let coreInput = RiskScoringInput(
-            filesChanged: 1, linesChanged: 2, isCoreModule: true,
-            productionLines: 2, totalLines: 2,
-            dependentsCount: 12, bugCountLast90d: 5
+    func testScore_allMax() {
+        let input = PatchRiskInput(
+            filesChanged: 30,
+            linesChanged: 600,
+            isCoreModule: true,
+            productionLines: 100,
+            testLines: 0,
+            dependentsCount: 15,
+            bugCountLast90d: 10
         )
-        let testInput = RiskScoringInput(
-            filesChanged: 5, linesChanged: 200, isCoreModule: false,
-            productionLines: 0, totalLines: 200,
-            dependentsCount: 0, bugCountLast90d: 0
-        )
-        let coreScore = scorer.computeScore(from: coreInput)
-        let testScore = scorer.computeScore(from: testInput)
-        XCTAssertGreaterThan(
-            coreScore, testScore,
-            "2 lines in AuthManager (core, 5 bugs, 12 deps) MUST be higher risk than 200 test lines"
-        )
+        let score = scorer.score(from: input)
+        // Tutti i fattori a 1.0: 0.15 + 0.20 + 0.15 + 0.20 + 0.15 + 0.15 = 1.0
+        XCTAssertEqual(score, 1.0, accuracy: 0.001)
     }
 
-    // MARK: - Breakdown Tests
+    func testScore_highRiskAuthModule() {
+        let input = PatchRiskInput(
+            filesChanged: 2,
+            linesChanged: 10,
+            isCoreModule: true,
+            productionLines: 10,
+            testLines: 0,
+            dependentsCount: 12,
+            bugCountLast90d: 5
+        )
+        let score = scorer.score(from: input)
+        // files: 2/20=0.1, lines: 10/500=0.02, core:1.0, prod:1.0, deps:1.0, bugs:1.0
+        // 0.1*0.15 + 0.02*0.20 + 1.0*0.15 + 1.0*0.20 + 1.0*0.15 + 1.0*0.15
+        // = 0.015 + 0.004 + 0.15 + 0.20 + 0.15 + 0.15 = 0.669
+        XCTAssertEqual(score, 0.669, accuracy: 0.001)
+    }
 
-    func testComputeBreakdown() {
-        let input = RiskScoringInput(
-            filesChanged: 10, linesChanged: 250, isCoreModule: true,
-            productionLines: 80, totalLines: 100,
-            dependentsCount: 5, bugCountLast90d: 3
+    func testScore_lowRiskTestOnly() {
+        let input = PatchRiskInput(
+            filesChanged: 1,
+            linesChanged: 200,
+            isCoreModule: false,
+            productionLines: 0,
+            testLines: 200,
+            dependentsCount: 0,
+            bugCountLast90d: 0
+        )
+        let score = scorer.score(from: input)
+        // files: 1/20=0.05, lines: 200/500=0.4, core:0.3, prod:0.0, deps:0.0, bugs:0.0
+        // 0.05*0.15 + 0.4*0.20 + 0.3*0.15 + 0.0*0.20 + 0.0*0.15 + 0.0*0.15
+        // = 0.0075 + 0.08 + 0.045 + 0 + 0 + 0 = 0.1325
+        XCTAssertEqual(score, 0.1325, accuracy: 0.001)
+    }
+
+    // MARK: - requiresExtraReview
+
+    func testRequiresExtraReview_belowThreshold() {
+        XCTAssertFalse(scorer.requiresExtraReview(0.7))
+    }
+
+    func testRequiresExtraReview_aboveThreshold() {
+        XCTAssertTrue(scorer.requiresExtraReview(0.71))
+    }
+
+    // MARK: - computeBreakdown
+
+    func testComputeBreakdown_returnsCorrectValues() {
+        let input = PatchRiskInput(
+            filesChanged: 10,
+            linesChanged: 250,
+            isCoreModule: true,
+            productionLines: 80,
+            testLines: 20,
+            dependentsCount: 5,
+            bugCountLast90d: 3
         )
         let breakdown = scorer.computeBreakdown(from: input)
-        XCTAssertEqual(breakdown.filesChangedScore, 0.5, accuracy: 0.001)
-        XCTAssertEqual(breakdown.linesChangedScore, 0.5, accuracy: 0.001)
-        XCTAssertEqual(breakdown.coreModuleScore, 1.0, accuracy: 0.001)
-        XCTAssertEqual(breakdown.testVsProductionRatio, 0.8, accuracy: 0.001)
+        XCTAssertEqual(breakdown.filesChangedScore, 0.5)
+        XCTAssertEqual(breakdown.linesChangedScore, 0.5)
+        XCTAssertEqual(breakdown.coreModuleScore, 1.0)
+        XCTAssertEqual(breakdown.testVsProductionRatio, 0.8)
         XCTAssertEqual(breakdown.dependentsCount, 5)
-        XCTAssertEqual(breakdown.fileBugHistoryScore, 0.6, accuracy: 0.001)
+        XCTAssertEqual(breakdown.fileBugHistoryScore, 0.6)
     }
 
-    func testEvaluateReturnsScoreAndBreakdown() {
-        let input = RiskScoringInput(
-            filesChanged: 5, linesChanged: 100, isCoreModule: false,
-            productionLines: 50, totalLines: 100,
-            dependentsCount: 2, bugCountLast90d: 1
+    // MARK: - score from manifest
+
+    func testScoreFromManifest() {
+        let manifest = PatchManifest(
+            patchId: "p1",
+            jobId: "j1",
+            taskId: "t1",
+            provider: "gpt",
+            agentRole: .coder,
+            touchedFiles: ["a.swift", "b.swift", "c.swift"],
+            unifiedDiffPath: "diff.patch"
         )
-        let (score, breakdown) = scorer.evaluate(from: input)
+        let score = scorer.score(
+            manifest: manifest,
+            linesChanged: 100,
+            isCoreModule: false,
+            productionLines: 100,
+            testLines: 0,
+            dependentsCount: 2,
+            bugCountLast90d: 1
+        )
         XCTAssertGreaterThan(score, 0)
         XCTAssertLessThanOrEqual(score, 1.0)
-        XCTAssertEqual(breakdown.filesChangedScore, 0.25, accuracy: 0.001)
-    }
-
-    // MARK: - Extra Review Threshold
-
-    func testRequiresExtraReview() {
-        XCTAssertFalse(scorer.requiresExtraReview(score: 0.5))
-        XCTAssertFalse(scorer.requiresExtraReview(score: 0.7))
-        XCTAssertTrue(scorer.requiresExtraReview(score: 0.71))
-        XCTAssertTrue(scorer.requiresExtraReview(score: 1.0))
-    }
-
-    // MARK: - CoreModuleRegistry Tests
-
-    func testCoreModuleRegistryDefault() {
-        let registry = CoreModuleRegistry.default
-        XCTAssertTrue(registry.isCoreModule(filePath: "Sources/Auth/AuthManager.swift"))
-        XCTAssertTrue(registry.isCoreModule(filePath: "Payment/PaymentService.swift"))
-        XCTAssertTrue(registry.isCoreModule(filePath: "Core/Database/Schema.swift"))
-        XCTAssertFalse(registry.isCoreModule(filePath: "UI/Views/HomeView.swift"))
-        XCTAssertFalse(registry.isCoreModule(filePath: "Tests/SomeTest.swift"))
-    }
-
-    func testCoreModuleRegistryCustom() {
-        let custom = CoreModuleRegistry(patterns: ["billing", "api"])
-        XCTAssertTrue(custom.isCoreModule(filePath: "Services/Billing/Invoice.swift"))
-        XCTAssertTrue(custom.isCoreModule(filePath: "API/Router.swift"))
-        XCTAssertFalse(custom.isCoreModule(filePath: "UI/Dashboard.swift"))
-    }
-
-    // MARK: - Weight Sum Verification
-
-    func testWeightsSumToOne() {
-        let sum = PatchRiskScorer.filesWeight
-            + PatchRiskScorer.linesWeight
-            + PatchRiskScorer.coreWeight
-            + PatchRiskScorer.prodRatioWeight
-            + PatchRiskScorer.dependentsWeight
-            + PatchRiskScorer.bugHistoryWeight
-        XCTAssertEqual(sum, 1.0, accuracy: 0.0001, "All weights must sum to 1.0")
     }
 }

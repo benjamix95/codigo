@@ -2,100 +2,90 @@ import Foundation
 
 // MARK: - BlastRadiusResult
 
-/// Risultato del blast radius check (§13.3).
-public enum BlastRadiusResult: Sendable, Equatable {
-    /// Entro soglia: ≤12 file unici.
-    case normal(fileCount: Int)
-    /// Review extra obbligatoria: 13..25 file.
-    case extraReviewRequired(fileCount: Int)
-    /// Approvazione manuale obbligatoria: >25 file.
-    case manualApprovalRequired(fileCount: Int)
+/// Risultato del blast radius check su un set di patch (§13.3).
+public struct BlastRadiusResult: Sendable, Equatable {
+    public let totalUniqueFiles: Int
+    public let level: BlastRadiusLevel
+    public let requiresExtraReview: Bool
+    public let requiresManualApproval: Bool
 
-    public var fileCount: Int {
-        switch self {
-        case .normal(let c), .extraReviewRequired(let c),
-             .manualApprovalRequired(let c):
-            return c
-        }
-    }
-
-    public var isBlocked: Bool {
-        if case .manualApprovalRequired = self { return true }
-        return false
-    }
-
-    public var needsExtraReview: Bool {
-        switch self {
-        case .extraReviewRequired, .manualApprovalRequired: return true
-        case .normal: return false
-        }
-    }
-}
-
-// MARK: - BlastRadiusThresholds
-
-/// Soglie configurabili per il blast radius check.
-public struct BlastRadiusThresholds: Sendable, Equatable {
-    public let extraReviewThreshold: Int
-    public let manualApprovalThreshold: Int
-
-    public static let `default` = BlastRadiusThresholds(
-        extraReviewThreshold: 12,
-        manualApprovalThreshold: 25
-    )
-
-    public init(extraReviewThreshold: Int, manualApprovalThreshold: Int) {
-        self.extraReviewThreshold = extraReviewThreshold
-        self.manualApprovalThreshold = manualApprovalThreshold
+    public init(
+        totalUniqueFiles: Int,
+        level: BlastRadiusLevel,
+        requiresExtraReview: Bool,
+        requiresManualApproval: Bool
+    ) {
+        self.totalUniqueFiles = totalUniqueFiles
+        self.level = level
+        self.requiresExtraReview = requiresExtraReview
+        self.requiresManualApproval = requiresManualApproval
     }
 }
 
 // MARK: - BlastRadiusChecker
 
-/// Verifica il blast radius di un patch-set (§13.3).
+/// Verifica il blast radius di un patch set (§13.3).
 ///
-/// Regole:
-/// - patch > 12 file unici → review extra obbligatoria
-/// - patch > 25 file unici → approval manuale obbligatoria
+/// Soglie:
+/// - `> 12` file: review extra obbligatoria
+/// - `> 25` file: approval manuale obbligatoria
 public struct BlastRadiusChecker: Sendable {
 
-    public let thresholds: BlastRadiusThresholds
+    public static let extraReviewThreshold = 12
+    public static let manualApprovalThreshold = 25
 
-    public init(thresholds: BlastRadiusThresholds = .default) {
-        self.thresholds = thresholds
+    public init() {}
+
+    /// Esegue il blast radius check su un set di patch.
+    public func check(patches: [PatchManifest]) -> BlastRadiusResult {
+        let uniqueFiles = countUniqueFiles(patches: patches)
+        let level = classifyLevel(fileCount: uniqueFiles)
+
+        return BlastRadiusResult(
+            totalUniqueFiles: uniqueFiles,
+            level: level,
+            requiresExtraReview: level == .extraReview || level == .manualApproval,
+            requiresManualApproval: level == .manualApproval
+        )
     }
 
-    /// Controlla il blast radius per un singolo PatchManifest.
+    /// Check su una singola patch.
     public func check(patch: PatchManifest) -> BlastRadiusResult {
-        checkFileCount(patch.touchedFiles.count)
+        check(patches: [patch])
     }
 
-    /// Controlla il blast radius per un patch-set (più manifest).
-    /// I file unici vengono contati una volta sola anche se toccati
-    /// da più patch.
-    public func check(patchSet: [PatchManifest]) -> BlastRadiusResult {
-        let uniqueFiles = Set(patchSet.flatMap(\.touchedFiles))
-        return checkFileCount(uniqueFiles.count)
+    /// Check su un elenco esplicito di file.
+    public func check(files: [String]) -> BlastRadiusResult {
+        let uniqueCount = Set(files).count
+        let level = classifyLevel(fileCount: uniqueCount)
+
+        return BlastRadiusResult(
+            totalUniqueFiles: uniqueCount,
+            level: level,
+            requiresExtraReview: level == .extraReview || level == .manualApproval,
+            requiresManualApproval: level == .manualApproval
+        )
     }
 
-    /// Controlla dato un conteggio esplicito di file.
-    public func checkFileCount(_ count: Int) -> BlastRadiusResult {
-        if count > thresholds.manualApprovalThreshold {
-            return .manualApprovalRequired(fileCount: count)
-        } else if count > thresholds.extraReviewThreshold {
-            return .extraReviewRequired(fileCount: count)
-        } else {
-            return .normal(fileCount: count)
+    /// Conta i file unici toccati dall'intero patch set.
+    public func countUniqueFiles(patches: [PatchManifest]) -> Int {
+        var allFiles = Set<String>()
+        for patch in patches {
+            allFiles.formUnion(patch.touchedFiles)
         }
+        return allFiles.count
     }
 
-    /// Estrae la lista di file unici da un patch-set.
-    public func uniqueFiles(from patchSet: [PatchManifest]) -> Set<String> {
-        Set(patchSet.flatMap(\.touchedFiles))
+    /// Classifica il livello di blast radius dato il conteggio file.
+    public func classifyLevel(fileCount: Int) -> BlastRadiusLevel {
+        if fileCount > Self.manualApprovalThreshold { return .manualApproval }
+        if fileCount > Self.extraReviewThreshold { return .extraReview }
+        return .normal
     }
 
-    /// Conta i file unici in un patch-set.
-    public func uniqueFileCount(from patchSet: [PatchManifest]) -> Int {
-        uniqueFiles(from: patchSet).count
+    /// Ritorna `true` se il patch set può procedere senza blocchi.
+    /// Un patch set con `manualApproval` richiede gate esplicito.
+    public func canProceedWithoutGate(patches: [PatchManifest]) -> Bool {
+        check(patches: patches).level == .normal
     }
 }

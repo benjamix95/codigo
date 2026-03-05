@@ -2,248 +2,270 @@ import Foundation
 
 // MARK: - ApplyTransactionResult
 
-/// Risultato di un'apply transaction (§5.6).
+/// Risultato dell'apply transaction (§5.6).
 public enum ApplyTransactionResult: Sendable, Equatable {
-    case success(appliedFiles: Int)
-    case patchConflict(reason: String)
-    case lockViolation(file: String)
-    case blastRadiusBlocked(fileCount: Int)
-    case extraReviewRequired(reason: String)
-    case applyFailed(reason: String)
-    case verifyFailed(rollbackRecord: RollbackRecord)
-    case rolledBack(rollbackRecord: RollbackRecord)
-    case awaitingApproval(fileCount: Int)
+    case success(appliedPatches: Int, totalFiles: Int)
+    case awaitingApproval(reason: String)
+    case patchConflict(details: String)
+    case lockViolation(patchId: String, files: [String])
+    case applyFailed(error: String)
+    case rolledBack(reason: String)
+    case riskGateBlocked(patchId: String, riskScore: Double)
+}
 
-    public var isSuccess: Bool {
-        if case .success = self { return true }
-        return false
+// MARK: - PatchEngineProtocol
+
+/// Protocollo per l'engine di patch reale (dry-run + apply).
+public protocol PatchEngineProtocol: Sendable {
+    func dryRun(patches: [PatchManifest]) async throws -> PatchEngineResult
+    func apply(patches: [PatchManifest]) async throws -> PatchEngineResult
+}
+
+/// Risultato di un'operazione del patch engine.
+public struct PatchEngineResult: Sendable, Equatable {
+    public let success: Bool
+    public let details: String
+    public let appliedFiles: [String]
+
+    public init(
+        success: Bool,
+        details: String = "",
+        appliedFiles: [String] = []
+    ) {
+        self.success = success
+        self.details = details
+        self.appliedFiles = appliedFiles
     }
 }
 
-// MARK: - PatchEngineDelegate
+// MARK: - VerifyProtocol
 
-/// Delegate per operazioni di apply/dry-run delle patch.
-public protocol PatchEngineDelegate: Sendable {
-    func dryRun(patches: [PatchManifest]) async throws -> Bool
-    func apply(patches: [PatchManifest]) async throws -> Bool
-    func quickVerify(
-        touchedFiles: [String], timeoutMs: Int
-    ) async throws -> Bool
+/// Protocollo per la fase di verifica rapida post-apply (§8.9).
+public protocol QuickVerifyProtocol: Sendable {
+    func verify(
+        files: [String],
+        timeoutMs: Int
+    ) async throws -> VerifyResult
 }
 
-// MARK: - ApplyTransactionError
+/// Risultato della verifica post-apply.
+public struct VerifyResult: Sendable, Equatable {
+    public let success: Bool
+    public let details: String
 
-public enum ApplyTransactionError: Error, Sendable, Equatable {
-    case emptyPatchSet
-    case validationFailed(reason: String)
-    case lockVerificationFailed(taskId: String, file: String)
-    case dryRunFailed(reason: String)
-    case applyFailed(reason: String)
-    case verifyFailed(reason: String)
-    case rollbackTriggered(reason: String)
+    public init(success: Bool, details: String = "") {
+        self.success = success
+        self.details = details
+    }
 }
 
 // MARK: - PatchApplyTransaction
 
-/// Orchestratore della transazione di apply atomico (§5.6).
+/// Esegue il flusso apply atomico completo (§5.6, §13.2):
 ///
-/// Flusso completo (§13.2):
 /// 1. Validate manifest schema
-/// 2. Validate risk score → extra review se > 0.7
-/// 3. Blast radius check → extra review/manual approval
-/// 4. Lock verification
+/// 2. Validate risk score (§13.4)
+/// 3. Blast radius check (§13.3)
+/// 4. Verify lock ownership
 /// 5. Create rollback point (§13.1)
-/// 6. Dry-run
-/// 7. Apply
-/// 8. Quick verify
-/// 9. Cleanup o rollback
+/// 6. Dry-run patch
+/// 7. Apply transaction
+/// 8. Quick verify (§8.9)
+/// 9. Commit or rollback
+/// 10. Record rollback_record
+///
+/// Solo l'Orchestrator invoca questo componente.
 public actor PatchApplyTransaction {
 
     private let lockManager: PipelineLockManager
     private let rollbackService: RollbackService
+    private let patchEngine: PatchEngineProtocol
+    private let verifier: QuickVerifyProtocol
     private let riskScorer: PatchRiskScorer
-    private let blastRadiusChecker: BlastRadiusChecker
-    private let patchEngine: PatchEngineDelegate
-    private let verifyTimeoutMs: Int
+    private let blastChecker: BlastRadiusChecker
+
+    /// Timeout per verify post-apply (ms)
+    public static let verifyTimeoutMs = 30_000
+
+    private(set) var totalTransactions: Int = 0
+    private(set) var totalSuccesses: Int = 0
+    private(set) var totalFailures: Int = 0
+    private(set) var totalRollbacks: Int = 0
 
     public init(
         lockManager: PipelineLockManager,
         rollbackService: RollbackService,
+        patchEngine: PatchEngineProtocol,
+        verifier: QuickVerifyProtocol,
         riskScorer: PatchRiskScorer = PatchRiskScorer(),
-        blastRadiusChecker: BlastRadiusChecker = BlastRadiusChecker(),
-        patchEngine: PatchEngineDelegate,
-        verifyTimeoutMs: Int = 30_000
+        blastChecker: BlastRadiusChecker = BlastRadiusChecker()
     ) {
         self.lockManager = lockManager
         self.rollbackService = rollbackService
-        self.riskScorer = riskScorer
-        self.blastRadiusChecker = blastRadiusChecker
         self.patchEngine = patchEngine
-        self.verifyTimeoutMs = verifyTimeoutMs
+        self.verifier = verifier
+        self.riskScorer = riskScorer
+        self.blastChecker = blastChecker
     }
 
     // MARK: - Execute Transaction
 
-    /// Esegue la transazione di apply atomico (§5.6).
+    /// Esegue l'intero flusso apply_transaction (§5.6).
     public func execute(
-        patchSet: [PatchManifest],
+        job: PipelineJob,
         taskId: String,
-        job: PipelineJob
+        patches: [PatchManifest]
     ) async -> ApplyTransactionResult {
-        guard !patchSet.isEmpty else {
-            return .applyFailed(reason: "Empty patch set")
-        }
+        totalTransactions += 1
 
-        // Step 1: Validate manifests
-        for patch in patchSet {
+        // Step 1: Validate manifest schema
+        for patch in patches {
             do {
                 try patch.validate()
             } catch {
+                totalFailures += 1
                 return .applyFailed(
-                    reason: "Manifest validation failed: \(error.localizedDescription)"
+                    error: "Manifest validation failed: \(error)"
                 )
             }
         }
 
-        // Step 2: Risk check — extra review se qualche patch > 0.7
-        for patch in patchSet {
-            if patch.requiresExtraReview {
-                return .extraReviewRequired(
-                    reason: "Patch \(patch.patchId) risk_score \(patch.riskScore) > 0.7"
+        // Step 2: Validate risk score (§13.4)
+        for patch in patches {
+            if riskScorer.requiresExtraReview(patch.riskScore) {
+                totalFailures += 1
+                return .riskGateBlocked(
+                    patchId: patch.patchId,
+                    riskScore: patch.riskScore
                 )
             }
         }
 
-        // Step 3: Blast radius check
-        let radiusResult = blastRadiusChecker.check(patchSet: patchSet)
-        switch radiusResult {
-        case .manualApprovalRequired(let count):
-            return .awaitingApproval(fileCount: count)
-        case .extraReviewRequired:
-            return .extraReviewRequired(
-                reason: "Blast radius: \(radiusResult.fileCount) files > 12 threshold"
+        // Step 3: Blast radius check (§13.3)
+        let blastResult = blastChecker.check(patches: patches)
+        if blastResult.requiresManualApproval {
+            totalFailures += 1
+            return .awaitingApproval(
+                reason: "Blast radius: \(blastResult.totalUniqueFiles) file "
+                    + "(soglia \(BlastRadiusChecker.manualApprovalThreshold))"
             )
-        case .normal:
-            break
         }
 
-        // Step 4: Lock verification
-        let allFiles = blastRadiusChecker.uniqueFiles(from: patchSet)
-        let lockVerified = await lockManager.verifyOwnership(
-            files: allFiles, taskId: taskId
+        // Step 4: Verify lock ownership
+        let allTouchedFiles = Set(patches.flatMap(\.touchedFiles))
+        let ownsLock = await lockManager.verifyOwnership(
+            files: allTouchedFiles,
+            taskId: taskId
         )
-        if !lockVerified {
+        if !ownsLock {
+            totalFailures += 1
             return .lockViolation(
-                file: allFiles.first ?? "unknown"
+                patchId: patches.first?.patchId ?? "unknown",
+                files: Array(allTouchedFiles)
             )
         }
 
-        // Step 5: Rollback point
-        let rollbackRef: RollbackReference
+        // Step 5: Create rollback point (§13.1)
+        let rollbackPoint: RollbackPoint
         do {
-            rollbackRef = try await rollbackService.createRollbackPoint(
+            rollbackPoint = try await rollbackService.createRollbackPoint(
+                patchId: patches.first?.patchId ?? "batch",
                 strategy: job.rollbackStrategy,
-                patchId: patchSet.first?.patchId ?? taskId,
-                files: Array(allFiles)
+                files: Array(allTouchedFiles)
             )
         } catch {
+            totalFailures += 1
             return .applyFailed(
-                reason: "Failed to create rollback point: \(error)"
+                error: "Rollback point creation failed: \(error)"
             )
         }
 
-        // Step 6: Dry run
-        let dryRunSuccess: Bool
+        // Step 6: Dry-run patch
+        let dryRunResult: PatchEngineResult
         do {
-            dryRunSuccess = try await patchEngine.dryRun(patches: patchSet)
+            dryRunResult = try await patchEngine.dryRun(patches: patches)
         } catch {
-            try? await rollbackService.cleanup(rollbackRef: rollbackRef)
-            return .patchConflict(reason: "Dry-run exception: \(error)")
+            try? await rollbackService.cleanup(rollbackPoint: rollbackPoint)
+            totalFailures += 1
+            return .patchConflict(details: "Dry-run error: \(error)")
         }
-        if !dryRunSuccess {
-            try? await rollbackService.cleanup(rollbackRef: rollbackRef)
-            return .patchConflict(reason: "Dry-run detected conflicts")
+
+        if !dryRunResult.success {
+            try? await rollbackService.cleanup(rollbackPoint: rollbackPoint)
+            totalFailures += 1
+            return .patchConflict(details: dryRunResult.details)
         }
 
         // Step 7: Apply
-        let applySuccess: Bool
+        let applyResult: PatchEngineResult
         do {
-            applySuccess = try await patchEngine.apply(patches: patchSet)
+            applyResult = try await patchEngine.apply(patches: patches)
         } catch {
-            return await rollbackAndReturn(
-                ref: rollbackRef, jobId: job.jobId,
-                taskId: taskId, reason: "Apply exception: \(error)"
+            _ = try? await rollbackService.execute(
+                rollbackPoint: rollbackPoint,
+                jobId: job.jobId,
+                taskId: taskId
             )
-        }
-        if !applySuccess {
-            return await rollbackAndReturn(
-                ref: rollbackRef, jobId: job.jobId,
-                taskId: taskId, reason: "Apply returned false"
-            )
+            totalRollbacks += 1
+            totalFailures += 1
+            return .applyFailed(error: "Apply error: \(error)")
         }
 
-        // Step 8: Quick verify
-        let verifySuccess: Bool
+        if !applyResult.success {
+            _ = try? await rollbackService.execute(
+                rollbackPoint: rollbackPoint,
+                jobId: job.jobId,
+                taskId: taskId
+            )
+            totalRollbacks += 1
+            totalFailures += 1
+            return .applyFailed(error: applyResult.details)
+        }
+
+        // Step 8: Quick verify (§8.9)
+        let verifyResult: VerifyResult
         do {
-            verifySuccess = try await patchEngine.quickVerify(
-                touchedFiles: Array(allFiles),
-                timeoutMs: verifyTimeoutMs
+            verifyResult = try await verifier.verify(
+                files: Array(allTouchedFiles),
+                timeoutMs: Self.verifyTimeoutMs
             )
         } catch {
-            return await rollbackAndReturn(
-                ref: rollbackRef, jobId: job.jobId,
-                taskId: taskId,
-                reason: "Verify exception: \(error)"
+            _ = try? await rollbackService.execute(
+                rollbackPoint: rollbackPoint,
+                jobId: job.jobId,
+                taskId: taskId
             )
+            totalRollbacks += 1
+            totalFailures += 1
+            return .rolledBack(reason: "Verify error: \(error)")
         }
-        if !verifySuccess {
-            let record = await rollbackAndGetRecord(
-                ref: rollbackRef, jobId: job.jobId, taskId: taskId
+
+        if !verifyResult.success {
+            _ = try? await rollbackService.execute(
+                rollbackPoint: rollbackPoint,
+                jobId: job.jobId,
+                taskId: taskId
             )
-            if let record {
-                return .verifyFailed(rollbackRecord: record)
-            }
-            return .applyFailed(
-                reason: "Verify failed and rollback could not produce record"
-            )
+            totalRollbacks += 1
+            totalFailures += 1
+            return .rolledBack(reason: verifyResult.details)
         }
 
         // Step 9: Cleanup rollback point
-        try? await rollbackService.cleanup(rollbackRef: rollbackRef)
+        try? await rollbackService.cleanup(rollbackPoint: rollbackPoint)
 
-        return .success(appliedFiles: allFiles.count)
-    }
-
-    // MARK: - Private Helpers
-
-    private func rollbackAndReturn(
-        ref: RollbackReference,
-        jobId: String,
-        taskId: String,
-        reason: String
-    ) async -> ApplyTransactionResult {
-        let record = await rollbackAndGetRecord(
-            ref: ref, jobId: jobId, taskId: taskId
-        )
-        if let record {
-            return .rolledBack(rollbackRecord: record)
-        }
-        return .applyFailed(
-            reason: "\(reason) (rollback also failed)"
+        totalSuccesses += 1
+        return .success(
+            appliedPatches: patches.count,
+            totalFiles: allTouchedFiles.count
         )
     }
 
-    private func rollbackAndGetRecord(
-        ref: RollbackReference,
-        jobId: String,
-        taskId: String
-    ) async -> RollbackRecord? {
-        do {
-            return try await rollbackService.execute(
-                rollbackRef: ref, jobId: jobId, taskId: taskId
-            )
-        } catch {
-            return nil
-        }
+    // MARK: - Stats
+
+    public var stats: (
+        total: Int, successes: Int, failures: Int, rollbacks: Int
+    ) {
+        (totalTransactions, totalSuccesses, totalFailures, totalRollbacks)
     }
 }
