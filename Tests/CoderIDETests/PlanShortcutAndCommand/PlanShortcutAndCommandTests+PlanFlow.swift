@@ -241,4 +241,37 @@ extension PlanShortcutAndCommandTests {
             )
         )
     }
+
+    func testParsePlanScreeningDecisionDetectsExplicitDecisionMarkers() {
+        XCTAssertEqual(
+            parsePlanScreeningDecision(from: "This needs coordination.\nPLAN_NEEDED"),
+            .planNeeded
+        )
+        XCTAssertEqual(
+            parsePlanScreeningDecision(from: "Simple tweak\nNO_PLAN_NEEDED"),
+            .noPlanNeeded
+        )
+    }
+
+    func testParsePlanScreeningDecisionDoesNotMisclassifyNoPlanMarker() {
+        XCTAssertEqual(
+            parsePlanScreeningDecision(from: "NO_PLAN_NEEDED"),
+            .noPlanNeeded
+        )
+    }
+
+    func testPlanScreeningStatusMessageKeepsChatNeutral() {
+        XCTAssertEqual(
+            planScreeningStatusMessage(for: .planNeeded),
+            "Starting codebase analysis..."
+        )
+        XCTAssertEqual(
+            planScreeningStatusMessage(for: .unknown),
+            "Starting codebase analysis..."
+        )
+        XCTAssertEqual(
+            planScreeningStatusMessage(for: .noPlanNeeded),
+            "Request looks straightforward. Continuing..."
+        )
+    }
 }

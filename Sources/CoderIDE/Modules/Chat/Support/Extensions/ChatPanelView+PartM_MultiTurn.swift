@@ -13,18 +13,23 @@ extension ChatPanelView {
         skipScreening: Bool = false
     ) async throws {
         // ========================
-        // PHASE 0: Screening (shown in chat)
+        // PHASE 0: Screening (internal; chat shows only neutral status)
         // ========================
         if !skipScreening {
             let screeningPrompt = buildPhase0ScreeningPrompt(userRequest: planUserRequest)
+            await MainActor.run {
+                guard self.conversationId == conversationId else { return }
+                chatStore.updateLastAssistantMessage(
+                    content: planScreeningStatusMessage(for: .unknown),
+                    in: conversationId
+                )
+            }
             let screeningResult = try await flowCoordinator.runStream(
                 provider: provider,
                 prompt: screeningPrompt,
                 context: ctx,
                 attachments: attachmentsToSend,
-                onText: { [self] content in
-                    applyStreamingUpdate(content: content, conversationId: conversationId)
-                },
+                onText: { _ in },
                 onRaw: { [self] t, p, pid in
                     handleRawStreamEvent(type: t, payload: p, providerId: pid, conversationId: conversationId)
                 },
@@ -37,12 +42,14 @@ extension ChatPanelView {
             )
 
             let screeningText = screeningResult.trimmingCharacters(in: .whitespacesAndNewlines)
+            let screeningDecision = parsePlanScreeningDecision(from: screeningText)
+            let screeningStatus = planScreeningStatusMessage(for: screeningDecision)
 
             // Finalize screening in chat and open plan panel
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
                 chatStore.updateLastAssistantMessage(
-                    content: screeningText,
+                    content: screeningStatus,
                     in: conversationId,
                     persistImmediately: true
                 )
