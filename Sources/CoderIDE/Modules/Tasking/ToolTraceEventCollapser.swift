@@ -34,7 +34,7 @@ enum ToolTraceEventCollapser {
             return "query_id:\(queryId)"
         }
 
-        if let groupId = nonEmpty(event.groupId ?? event.payload["group_id"]) {
+        if let groupId = nonEmpty(event.groupId ?? event.payload["group_id"] ?? event.payload["groupId"]) {
             // Avoid collapsing swarm lanes by bare group id; they represent
             // long-lived streams and collapsing would hide intermediate steps.
             if groupId.lowercased().hasPrefix("swarm-") {

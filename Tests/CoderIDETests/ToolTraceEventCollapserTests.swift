@@ -92,6 +92,32 @@ final class ToolTraceEventCollapserTests: XCTestCase {
         XCTAssertEqual(collapsed.first?.payload["status"], "completed")
     }
 
+    func testCollapsesByCamelCaseGroupIdWhenTopLevelGroupIdIsMissing() {
+        let started = makeEvent(
+            sequence: 15,
+            type: "command_execution",
+            isRunning: true,
+            payload: [
+                "groupId": "cmd-group-camel",
+                "status": "started",
+            ]
+        )
+        let completed = makeEvent(
+            sequence: 16,
+            type: "command_execution",
+            isRunning: false,
+            payload: [
+                "groupId": "cmd-group-camel",
+                "status": "completed",
+            ]
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
+
+        XCTAssertEqual(collapsed.count, 1)
+        XCTAssertEqual(collapsed.first?.payload["status"], "completed")
+    }
+
     func testDoesNotCollapseWhenOnlySwarmGroupIdIsAvailable() {
         let started = makeEvent(
             sequence: 20,
@@ -112,6 +138,32 @@ final class ToolTraceEventCollapserTests: XCTestCase {
                 "status": "completed",
             ],
             groupId: "swarm-coder"
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
+
+        XCTAssertEqual(collapsed.count, 2)
+        XCTAssertEqual(collapsed.filter(\.isRunning).count, 1)
+    }
+
+    func testDoesNotCollapseWhenOnlySwarmCamelCaseGroupIdIsAvailable() {
+        let started = makeEvent(
+            sequence: 25,
+            type: "command_execution",
+            isRunning: true,
+            payload: [
+                "groupId": "swarm-coder",
+                "status": "started",
+            ]
+        )
+        let completed = makeEvent(
+            sequence: 26,
+            type: "command_execution",
+            isRunning: false,
+            payload: [
+                "groupId": "swarm-coder",
+                "status": "completed",
+            ]
         )
 
         let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
