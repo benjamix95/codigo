@@ -194,10 +194,18 @@ extension ContentView {
     @ViewBuilder
     private func ideModeContent(detailWidth: CGFloat) -> some View {
         let chatIsLeft = chatPanelPosition == "left"
-        let clampedChatW = min(CGFloat(chatPanelWidth), max(300, detailWidth * 0.45))
-        let maxChatW = max(300, detailWidth * 0.45)
-        let clampedBrowserW = min(CGFloat(browserPanelWidth), max(300, detailWidth * 0.55))
-        let maxBrowserW = max(300, detailWidth * 0.55)
+        let clampedChatW = ContentPanelWidthPolicy.clampedWidth(
+            storedWidth: chatPanelWidth,
+            detailWidth: detailWidth,
+            fraction: 0.45
+        )
+        let maxChatW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.45)
+        let clampedBrowserW = ContentPanelWidthPolicy.clampedWidth(
+            storedWidth: browserPanelWidth,
+            detailWidth: detailWidth,
+            fraction: 0.55
+        )
+        let maxBrowserW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.55)
 
         HStack(spacing: 0) {
             ActivityBarView(
@@ -237,8 +245,12 @@ extension ContentView {
 
     @ViewBuilder
     private func browserModeContent(detailWidth: CGFloat) -> some View {
-        let clampedBrowserW = min(CGFloat(browserPanelWidth), max(300, detailWidth * 0.65))
-        let maxBrowserW = max(300, detailWidth * 0.65)
+        let clampedBrowserW = ContentPanelWidthPolicy.clampedWidth(
+            storedWidth: browserPanelWidth,
+            detailWidth: detailWidth,
+            fraction: 0.65
+        )
+        let maxBrowserW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.65)
 
         HStack(spacing: 0) {
             chatPanel
