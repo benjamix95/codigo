@@ -156,7 +156,6 @@ extension ChatPanelView {
         HStack(spacing: 2) {
             modeTabButton("Agent", icon: "brain", mode: .agent, color: DesignSystem.Colors.agentColor)
             modeTabButton("IDE", icon: "sparkles", mode: .ide, color: DesignSystem.Colors.ideColor)
-            modeTabButton("Browser", icon: "globe", mode: .browser, color: DesignSystem.Colors.browserColor)
             if coderMode == .codeReviewMultiSwarm {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text.magnifyingglass")
