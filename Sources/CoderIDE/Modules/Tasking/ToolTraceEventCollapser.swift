@@ -22,7 +22,12 @@ enum ToolTraceEventCollapser {
     }
 
     static func collapseOperationKey(for event: ToolTraceEvent) -> String? {
-        if let toolCallId = nonEmpty(event.payload["tool_call_id"] ?? event.payload["call_id"]) {
+        if let toolCallId = nonEmpty(
+            event.payload["tool_call_id"]
+                ?? event.payload["toolCallId"]
+                ?? event.payload["call_id"]
+                ?? event.payload["callId"]
+        ) {
             return "tool_call_id:\(toolCallId)"
         }
 

@@ -62,6 +62,60 @@ final class ToolTraceEventCollapserTests: XCTestCase {
         XCTAssertEqual(collapsed.first?.isRunning, false)
     }
 
+    func testCollapsesByCamelCaseToolCallIdWhenSnakeCaseMissing() {
+        let started = makeEvent(
+            sequence: 3,
+            type: "mcp_tool_call",
+            isRunning: true,
+            payload: [
+                "toolCallId": "tc-camel-1",
+                "status": "started",
+            ]
+        )
+        let completed = makeEvent(
+            sequence: 4,
+            type: "mcp_tool_call",
+            isRunning: false,
+            payload: [
+                "toolCallId": "tc-camel-1",
+                "status": "completed",
+            ]
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
+
+        XCTAssertEqual(collapsed.count, 1)
+        XCTAssertEqual(collapsed.first?.payload["status"], "completed")
+        XCTAssertEqual(collapsed.first?.isRunning, false)
+    }
+
+    func testCollapsesByCamelCaseCallIdAliasWhenToolCallIdMissing() {
+        let started = makeEvent(
+            sequence: 5,
+            type: "mcp_tool_call",
+            isRunning: true,
+            payload: [
+                "callId": "call-camel-1",
+                "status": "started",
+            ]
+        )
+        let completed = makeEvent(
+            sequence: 6,
+            type: "mcp_tool_call",
+            isRunning: false,
+            payload: [
+                "callId": "call-camel-1",
+                "status": "completed",
+            ]
+        )
+
+        let collapsed = ToolTraceEventCollapser.collapseSupersededToolStates([started, completed])
+
+        XCTAssertEqual(collapsed.count, 1)
+        XCTAssertEqual(collapsed.first?.payload["status"], "completed")
+        XCTAssertEqual(collapsed.first?.isRunning, false)
+    }
+
     func testCollapsesByNonSwarmGroupIdFallback() {
         let started = makeEvent(
             sequence: 10,
