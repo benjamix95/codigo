@@ -142,6 +142,23 @@ func clarificationQuestionsMarkdownForRestore(
     return clarificationQuestionsMarkdownFromSnapshot(raw)
 }
 
+func clarificationsNeededSection(from text: String) -> String? {
+    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return nil }
+    guard let regex = try? NSRegularExpression(
+        pattern: #"(?im)^\s*#{1,3}\s*clarifications?\s*needed\s*:?\s*$"#
+    ) else {
+        return nil
+    }
+    let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+    guard let match = regex.firstMatch(in: normalized, range: range),
+          let headerRange = Range(match.range, in: normalized) else {
+        return nil
+    }
+    let section = String(normalized[headerRange.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    return section.isEmpty ? nil : section
+}
+
 func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     switch phase {
     case .analyzing, .questioning, .generating, .building:

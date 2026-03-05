@@ -100,9 +100,8 @@ extension ChatPanelView {
         // via a `## Clarifications Needed` section, route back to questioning instead
         // of producing a potentially incorrect plan.
         if planClarificationCycles < 2,
-           let clarRange = full.range(of: "## Clarifications Needed")
+           let clarificationsText = clarificationsNeededSection(from: full)
         {
-            let clarificationsText = String(full[clarRange.lowerBound...])
             await MainActor.run {
                 guard self.conversationId == conversationId else { return }
                 planClarificationCycles += 1

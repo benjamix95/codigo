@@ -116,4 +116,25 @@ extension PlanShortcutAndCommandTests {
         XCTAssertEqual(seed, 1)
         XCTAssertEqual(globalEpoch, 4)
     }
+
+    func testClarificationsNeededSectionSupportsHeaderVariants() {
+        let markdown = """
+        Intro line
+        ### clarificaTions needed
+        1. Quale provider vuoi usare?
+        A) OpenAI
+        B) Claude
+        """
+        let section = clarificationsNeededSection(from: markdown)
+        XCTAssertNotNil(section)
+        XCTAssertTrue(section?.hasPrefix("### clarificaTions needed") == true)
+    }
+
+    func testClarificationsNeededSectionReturnsNilWhenHeadingMissing() {
+        let markdown = """
+        ## Plan
+        Refactor parser e poi aggiungi test.
+        """
+        XCTAssertNil(clarificationsNeededSection(from: markdown))
+    }
 }
