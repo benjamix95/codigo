@@ -178,28 +178,28 @@ extension ChatPanelView {
             return
         }
 
-        guard shouldMutatePlanState(
-            targetConversationId: targetConversationId,
-            currentConversationId: self.conversationId
-        ) else {
-            return
-        }
-
         let questionsMarkdown = PlanClarificationQuestionnaireMarkdown.render(
             questionnaire: payload.questionnaire
         )
-        planClarificationCycles += 1
-        planQuestionToolRequestEpoch += 1
-        planFlowPhase = .questioning
-        planningState = .awaitingClarification(questions: questionsMarkdown)
-        updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
-
         chatStore.updateLastAssistantMessage(
             content: "Questions ready — answer in the plan panel.",
             in: targetConversationId,
             persistImmediately: true
         )
         chatStore.setLastAssistantStreaming(false, in: targetConversationId)
+        guard shouldMutatePlanState(
+            targetConversationId: targetConversationId,
+            currentConversationId: self.conversationId
+        ) else {
+            planStreamingContentByConversation[targetConversationId] =
+                normalizedPlanStreamingSnapshot(questionsMarkdown)
+            return
+        }
+        planClarificationCycles += 1
+        planQuestionToolRequestEpoch += 1
+        planFlowPhase = .questioning
+        planningState = .awaitingClarification(questions: questionsMarkdown)
+        updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
 
         if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
             openPlanPanelForCurrentContext(

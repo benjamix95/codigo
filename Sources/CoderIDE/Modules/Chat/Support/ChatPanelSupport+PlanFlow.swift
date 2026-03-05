@@ -84,6 +84,25 @@ func shouldMutatePlanState(
     targetConversationId == currentConversationId
 }
 
+func normalizedPlanStreamingSnapshot(
+    _ raw: String,
+    maxLength: Int = 24_000
+) -> String {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    guard trimmed.count > maxLength else { return trimmed }
+    return String(trimmed.suffix(maxLength))
+}
+
+func clarificationQuestionsMarkdownFromSnapshot(_ raw: String) -> String? {
+    let normalized = normalizedPlanStreamingSnapshot(raw)
+    guard !normalized.isEmpty else { return nil }
+    guard PlanOptionsParser.parseClarificationQuestionnaire(from: normalized) != nil else {
+        return nil
+    }
+    return normalized
+}
+
 func shouldAllowPlanToggleDeactivation(phase: PlanFlowPhase) -> Bool {
     switch phase {
     case .analyzing, .questioning, .generating, .building:

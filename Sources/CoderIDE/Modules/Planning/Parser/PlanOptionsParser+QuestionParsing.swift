@@ -54,7 +54,10 @@ extension PlanOptionsParser {
                     of: Self.multiSelectPattern,
                     with: "",
                     options: .regularExpression
-                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+                .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
+                .replacingOccurrences(of: #"\s+([?.!,:;])"#, with: "$1", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             parsedQuestions.append(
                 PlanClarificationQuestion(

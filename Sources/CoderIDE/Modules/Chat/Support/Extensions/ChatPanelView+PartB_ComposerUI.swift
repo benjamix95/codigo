@@ -140,6 +140,12 @@ extension ChatPanelView {
             planningState = .idle
             return
         }
+        if let questionsMarkdown = clarificationQuestionsMarkdownFromSnapshot(planStreamingContentByConversation[conversationId] ?? "") {
+            planFlowPhase = .questioning
+            planningState = .awaitingClarification(questions: questionsMarkdown)
+            planStreamingContent = questionsMarkdown
+            return
+        }
         // Preserve state only when this conversation is the active plan-build scope.
         // Generic active tasks (non-plan) must not pin plan UI state across threads.
         if isPlanBuildContext(

@@ -23,8 +23,9 @@ enum PlanOptionsParser {
     static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
     /// Detects checkbox-style options: "- [ ] A) ..." or "- [x] B) ..."
     static let checkboxOptionPattern = #"^\s*[-*•]\s*\[\s*[xX ]?\s*\]"#
-    /// Detects multi-select markers in question text.
-    static let multiSelectPattern = #"(?i)\(\s*(?:select\s+(?:all\s+that\s+apply|multiple)|multi[-\s]?select|seleziona\s+(?:tutto|multiplo|piu))\s*\)"#
+    /// Detects multi-select markers in question text (parenthetical or inline).
+    static let multiSelectPattern =
+        #"(?i)(?:\(\s*)?(?:select\s+all\s+that\s+apply|select\s+multiple(?:\s+options)?|multi[-\s]?select|seleziona\s+(?:tutto(?:\s+quello\s+che\s+si\s+applica)?|multiplo|multiple|piu)(?:\s+opzioni)?)\s*(?:\))?"#
     static let numberedLineRegex = try? NSRegularExpression(pattern: #"^\s*\d+[.)]\s+(.+)$"#)
     static let bulletLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s+(.+)$"#)
     static let checklistLineRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*\[\s*[xX ]\s*\]\s*(.+)$"#)

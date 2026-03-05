@@ -117,4 +117,40 @@ extension PlanOptionsParserTests {
         let parsed = PlanOptionsParser.parse(from: input)
         XCTAssertTrue(parsed.isEmpty)
     }
+
+    func testParseClarificationQuestionnaireDetectsInlineMultiSelectMarkerWithoutParentheses() {
+        let input = """
+        ## Questions
+        1. Seleziona i target select all that apply
+        A) iOS
+        B) macOS
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.prompt, "Seleziona i target")
+        XCTAssertEqual(questionnaire?.questions.first?.isMultiSelect, true)
+    }
+
+    func testQuestionnaireMarkdownRoundTripPreservesInlineMultiSelectPrompt() {
+        let questionnaire = PlanClarificationQuestionnaire(
+            questions: [
+                PlanClarificationQuestion(
+                    id: 1,
+                    prompt: "Scegli i moduli select all that apply",
+                    options: [
+                        PlanClarificationOption(id: "A", text: "Parser"),
+                        PlanClarificationOption(id: "B", text: "UI"),
+                    ],
+                    isMultiSelect: true
+                ),
+            ]
+        )
+
+        let markdown = PlanClarificationQuestionnaireMarkdown.render(questionnaire: questionnaire)
+        let parsed = PlanOptionsParser.parseClarificationQuestionnaire(from: markdown)
+        XCTAssertEqual(parsed?.questions.count, 1)
+        XCTAssertEqual(parsed?.questions.first?.isMultiSelect, true)
+        XCTAssertEqual(parsed?.questions.first?.prompt, "Scegli i moduli")
+    }
 }
