@@ -29,7 +29,6 @@ extension AppUpdateCenter {
         do {
             let request = URLRequest(url: manifestURL, cachePolicy: .reloadIgnoringCacheData, timeoutInterval: 8)
             let (data, response) = try await urlSession.data(for: request)
-            updateLastChecked()
 
             try validate(response: response)
 
@@ -63,6 +62,8 @@ extension AppUpdateCenter {
                 state = .upToDate
             }
 
+            // Persisti il timestamp solo su check validato e decodificato con successo.
+            updateLastChecked()
             userDefaults.set(manifest.version, forKey: Self.updateVersionKey)
             userDefaults.set(manifest.shortNotes, forKey: "\(Self.updateVersionKey)_last_notes")
         } catch {

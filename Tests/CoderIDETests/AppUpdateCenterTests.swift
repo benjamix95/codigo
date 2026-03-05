@@ -14,6 +14,7 @@ final class AppUpdateCenterTests: XCTestCase {
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
+        AppUpdateCenterURLProtocolStub.requestHandler = nil
         defaults = nil
         suiteName = nil
         super.tearDown()
@@ -125,4 +126,113 @@ final class AppUpdateCenterTests: XCTestCase {
 
         XCTAssertFalse(center.shouldCheckNow())
     }
+
+    @MainActor
+    func testCheckForUpdatesHTTPFailureDoesNotPersistLastCheckedAt() async {
+        let url = URL(string: "https://example.com/manifest.json")!
+        defaults.set(url.absoluteString, forKey: AppUpdateCenter.manifestURLKey)
+
+        AppUpdateCenterURLProtocolStub.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? url,
+                statusCode: 500,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{}".utf8))
+        }
+
+        let center = AppUpdateCenter(
+            userDefaults: defaults,
+            urlSession: makeStubbedURLSession()
+        )
+
+        await center.checkForUpdates(force: true)
+
+        XCTAssertNil(center.lastCheckedAt)
+        XCTAssertNil(defaults.object(forKey: AppUpdateCenter.lastCheckedKey))
+        if case .failed = center.state {
+            XCTAssertNotNil(center.lastError)
+        } else {
+            XCTFail("Expected failed state for HTTP 500 response")
+        }
+    }
+
+    @MainActor
+    func testCheckForUpdatesSuccessPersistsLastCheckedAt() async {
+        let url = URL(string: "https://example.com/manifest.json")!
+        defaults.set(url.absoluteString, forKey: AppUpdateCenter.manifestURLKey)
+
+        let manifestJSON = """
+        {
+          "schema": 1,
+          "version": "1.0.1",
+          "build": "2",
+          "minimum_system_version": "1.0"
+        }
+        """
+
+        AppUpdateCenterURLProtocolStub.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(manifestJSON.utf8))
+        }
+
+        let center = AppUpdateCenter(
+            userDefaults: defaults,
+            urlSession: makeStubbedURLSession()
+        )
+
+        await center.checkForUpdates(force: true)
+
+        guard let persistedDate = defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date else {
+            XCTFail("Expected persisted lastCheckedAt on successful update check")
+            return
+        }
+        XCTAssertNotNil(center.lastCheckedAt)
+        XCTAssertLessThanOrEqual(abs(persistedDate.timeIntervalSinceNow), 2.0)
+        if case .failed(let message) = center.state {
+            XCTFail("Unexpected failed state after successful response: \(message)")
+        }
+    }
+
+    private func makeStubbedURLSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [AppUpdateCenterURLProtocolStub.self]
+        return URLSession(configuration: config)
+    }
+}
+
+private final class AppUpdateCenterURLProtocolStub: URLProtocol {
+    static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
