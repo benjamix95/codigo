@@ -72,11 +72,6 @@ extension TaskActivityStore {
         -> [SwarmLiveCardState]
     {
         if let conversationId {
-            let scope = conversationId.uuidString.lowercased()
-            if limitEventsPerCard == defaultSwarmEventsLimit {
-                let scopedCards = swarmCards.values.filter { cardBelongsToConversation($0, scope: scope) }
-                return SwarmLiveReducer.sorted(states: Array(scopedCards))
-            }
             let reduced = SwarmLiveReducer.reduce(
                 activities: scopedActivities(for: conversationId),
                 limitRecentEvents: limitEventsPerCard

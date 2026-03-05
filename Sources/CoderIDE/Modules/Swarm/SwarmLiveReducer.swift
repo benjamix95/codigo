@@ -241,8 +241,9 @@ enum SwarmLiveReducer {
         let bucket = Int(activity.timestamp.timeIntervalSince1970 * 2)
         let status = (activity.payload["status"] ?? "").lowercased()
         let gid = activity.groupId ?? activity.payload["group_id"] ?? SwarmMetadata.canonicalGroupId(from: activity.payload) ?? "-"
+        let conversationScope = canonicalConversationScope(from: activity.payload) ?? "-"
         return [
-            owner, gid, activity.type, activity.title, status, "\(bucket)",
+            owner, conversationScope, gid, activity.type, activity.title, status, "\(bucket)",
         ].joined(separator: "|")
     }
 }
