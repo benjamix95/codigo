@@ -15,8 +15,23 @@ struct SwarmProgressView: View {
         store.steps(for: conversationId)
     }
 
+    private var pipelineSnapshot: PipelineConversationSnapshot? {
+        pipelineService.snapshot(for: conversationId)
+    }
+
     private var isPipelineRunningForConversation: Bool {
         pipelineService.isRunning(for: conversationId)
+    }
+
+    private var isLive: Bool {
+        isTaskRunning || isPipelineRunningForConversation
+    }
+
+    private var progressMetrics: SwarmProgressMetrics {
+        SwarmProgressMetrics(
+            steps: scopedSteps,
+            pipelineSnapshot: pipelineSnapshot
+        )
     }
 
     var liveSwarmCards: [SwarmLiveCardState] {
@@ -33,8 +48,7 @@ struct SwarmProgressView: View {
     }
 
     private var stepCountLabel: String {
-        let count = scopedSteps.count
-        return count == 1 ? "1 step" : "\(count) steps"
+        progressMetrics.progressLabel
     }
 
     private var activeAgentsLabel: String {
@@ -66,7 +80,7 @@ struct SwarmProgressView: View {
                         icon: "bolt.fill",
                         text: activeAgentsLabel,
                         tint: activeSubagentCount > 0 ? DesignSystem.Colors.swarmColor : .secondary,
-                        isLive: isTaskRunning,
+                        isLive: isLive,
                         accessorySymbol: liveSwarmCards.isEmpty ? nil : (showInlineLiveCards ? "chevron.up" : "chevron.down")
                     )
                 }
@@ -74,9 +88,14 @@ struct SwarmProgressView: View {
                 .help("Show/hide live subagent cards")
                 .disabled(liveSwarmCards.isEmpty)
 
-                metricPill(icon: "checklist", text: stepCountLabel, tint: .secondary)
+                metricPill(
+                    icon: "checklist",
+                    text: stepCountLabel,
+                    tint: progressMetrics.progressedSteps > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                    isLive: isLive
+                )
 
-                if isTaskRunning {
+                if isLive {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(DesignSystem.Colors.swarmColor)
@@ -85,16 +104,26 @@ struct SwarmProgressView: View {
             .padding(.horizontal, 12)
             .padding(.top, 10)
 
-            if scopedSteps.isEmpty {
-                Text("Waiting for subagent steps…")
+            if progressMetrics.totalSteps == 0 {
+                Text(isPipelineRunningForConversation ? "Waiting for pipeline steps…" : "Waiting for subagent steps…")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
             } else {
                 VStack(spacing: 6) {
-                    ForEach(scopedSteps) { step in
-                        SwarmStepRow(step: step)
+                    progressSummarySection
+
+                    if scopedSteps.isEmpty {
+                        stepSyncPlaceholder
+                    } else {
+                        ForEach(Array(scopedSteps.enumerated()), id: \.element.id) { index, step in
+                            SwarmStepRow(
+                                step: step,
+                                index: index,
+                                showsConnector: index < scopedSteps.count - 1
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal, 10)
@@ -120,7 +149,7 @@ struct SwarmProgressView: View {
                 .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 1)
         }
         .overlay {
-            if isTaskRunning {
+            if isLive {
                 ActivityShimmerTrail()
                     .opacity(0.18)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -141,6 +170,68 @@ struct SwarmProgressView: View {
             if newValue == 0 {
                 showInlineLiveCards = false
             }
+        }
+    }
+
+    private var progressSummarySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(progressMetrics.progressLabel)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.9))
+                Spacer(minLength: 8)
+                if let summaryLabel = progressMetrics.summaryLabel {
+                    Text(summaryLabel)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 0)
+                let fillWidth = width * progressMetrics.progressFraction
+
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    DesignSystem.Colors.swarmColor.opacity(0.92),
+                                    DesignSystem.Colors.success.opacity(0.88),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: fillWidth)
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+
+    private var stepSyncPlaceholder: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+            Text("Syncing pipeline step details…")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.78), lineWidth: 1)
         }
     }
 
@@ -191,63 +282,5 @@ struct SwarmProgressView: View {
         .padding(.horizontal, 7)
         .padding(.vertical, 4)
         .background(tint.opacity(0.12), in: Capsule())
-    }
-}
-
-private struct SwarmStepRow: View {
-    let step: SwarmStep
-
-    private var statusIcon: String {
-        switch step.status {
-        case .completed: return "checkmark.circle.fill"
-        case .inProgress: return "arrow.right.circle.fill"
-        case .pending: return "circle"
-        }
-    }
-
-    private var statusColor: Color {
-        switch step.status {
-        case .completed: return DesignSystem.Colors.success
-        case .inProgress: return DesignSystem.Colors.warning
-        case .pending: return DesignSystem.Colors.borderAccent
-        }
-    }
-
-    private var statusLabel: String {
-        switch step.status {
-        case .completed: return "done"
-        case .inProgress: return "running"
-        case .pending: return "pending"
-        }
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Image(systemName: statusIcon)
-                .font(.system(size: 12))
-                .foregroundStyle(statusColor)
-            Text(step.name)
-                .font(.system(size: 12, weight: step.status == .inProgress ? .medium : .regular))
-                .foregroundStyle(step.status == .completed ? .tertiary : .primary)
-                .strikethrough(step.status == .completed)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(statusLabel)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(statusColor)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(statusColor.opacity(0.12), in: Capsule())
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.8), lineWidth: 1)
-        }
     }
 }
