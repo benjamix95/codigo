@@ -106,8 +106,11 @@ extension MessageToolTraceView {
                 event.payload["file"],
                 event.payload["tool"],
                 event.payload["mcp_tool"],
+                event.payload["mcpTool"],
                 event.payload["mcp_server"],
+                event.payload["mcpServer"],
                 event.payload["server_id"],
+                event.payload["serverId"],
             ]
         }
         for candidate in candidates {

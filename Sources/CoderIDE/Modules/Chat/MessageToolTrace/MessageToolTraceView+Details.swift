@@ -31,19 +31,19 @@ extension MessageToolTraceView {
             if let tool = event.payload["tool"], !tool.isEmpty {
                 detailPill(label: "Tool", value: tool)
             }
-            if let server = event.payload["mcp_server"] ?? event.payload["server_id"], !server.isEmpty {
+            if let server = payloadValue(event.payload, keys: ["mcp_server", "mcpServer", "server_id", "serverId"]) {
                 detailPill(label: "MCP Server", value: server)
             }
-            if let mcpTool = event.payload["mcp_tool"], !mcpTool.isEmpty {
+            if let mcpTool = payloadValue(event.payload, keys: ["mcp_tool", "mcpTool"]) {
                 detailPill(label: "MCP Tool", value: mcpTool)
             }
-            if let latency = event.payload["mcp_latency_ms"], !latency.isEmpty {
+            if let latency = payloadValue(event.payload, keys: ["mcp_latency_ms", "mcpLatencyMs"]) {
                 detailPill(label: "Latency", value: "\(latency)ms")
             }
             if let uri = event.payload["uri"], !uri.isEmpty {
                 detailPill(label: "URI", value: uri)
             }
-            if let promptName = event.payload["prompt_name"], !promptName.isEmpty {
+            if let promptName = payloadValue(event.payload, keys: ["prompt_name", "promptName"]) {
                 detailPill(label: "Prompt", value: promptName)
             }
             if let output = event.payload["output"], !output.isEmpty {

@@ -1,6 +1,14 @@
 import SwiftUI
 
 extension MessageToolTraceView {
+    func payloadValue(_ payload: [String: String], keys: [String]) -> String? {
+        for key in keys {
+            if let value = nonEmpty(payload[key]) {
+                return value
+            }
+        }
+        return nil
+    }
 
     func compactDiffChunk(for change: ToolTraceFileChange) -> String? {
         if let payloadPreview = nonEmpty(change.diffPreview) {
