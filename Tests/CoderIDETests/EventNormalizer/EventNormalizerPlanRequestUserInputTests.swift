@@ -52,4 +52,63 @@ extension EventNormalizerPlanLifecycleTests {
             return false
         })
     }
+
+    func testPlanRequestUserInputParsesQuestionsWrapperObjectPayload() {
+        let events = EventNormalizer.normalize(
+            type: "plan_request_user_input",
+            payload: [
+                "questions": #"{"questions":[{"id":1,"prompt":"Ambiente target?","options":[{"id":"ios","label":"iOS"},{"id":"all","label":"Tutte le piattaforme"}]}]}"#,
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planRequestUserInput(let payload) = $0 {
+                guard payload.questionnaire.questions.count == 1 else { return false }
+                let question = payload.questionnaire.questions[0]
+                return question.prompt == "Ambiente target?"
+                    && question.options.map(\.id) == ["IOS", "ALL"]
+            }
+            return false
+        })
+    }
+
+    func testPlanRequestUserInputFallsBackToMarkdownQuestionnaire() {
+        let events = EventNormalizer.normalize(
+            type: "plan_request_user_input",
+            payload: [
+                "questions": """
+                ## Questions
+                1. Quale strategia?
+                A) Incrementale
+                B) Other (specify)
+                """,
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planRequestUserInput(let payload) = $0 {
+                guard payload.questionnaire.questions.count == 1 else { return false }
+                return payload.questionnaire.questions[0].options.count == 2
+            }
+            return false
+        })
+    }
+
+    func testPlanRequestUserInputDeduplicatesQuestionIdsWhenRepeated() {
+        let events = EventNormalizer.normalize(
+            type: "plan_request_user_input",
+            payload: [
+                "questions": #"[{"id":1,"prompt":"Q1","options":["A","B"]},{"id":1,"prompt":"Q2","options":["C","D"]}]"#,
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planRequestUserInput(let payload) = $0 {
+                guard payload.questionnaire.questions.count == 2 else { return false }
+                return payload.questionnaire.questions[0].id == 1
+                    && payload.questionnaire.questions[1].id == 2
+            }
+            return false
+        })
+    }
 }
