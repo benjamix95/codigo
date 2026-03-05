@@ -235,5 +235,8 @@ extension TaskActivityStore {
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
+        codeReviewFindings = []
+        codeReviewEvents = []
+        codeReviewPhase = .idle
     }
 }

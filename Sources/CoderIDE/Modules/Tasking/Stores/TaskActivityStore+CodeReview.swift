@@ -7,6 +7,14 @@ extension TaskActivityStore {
     /// Ingests a CodeReviewSessionSnapshot and publishes relevant activities
     /// for LiveCard display. Called from the `CodeReviewSessionState.onStateChange` callback.
     func ingestCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
+        // Update structured data for panel consumption
+        codeReviewFindings = snapshot.findings
+        codeReviewEvents = snapshot.events
+        codeReviewPhase = snapshot.phase
+
+        // Persist to disk for MCP server cross-process reads (review_status, review_findings)
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+
         let activity = TaskActivity(
             type: "code_review_update",
             title: codeReviewTitle(for: snapshot.phase),

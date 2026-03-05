@@ -125,11 +125,16 @@ extension CodeReviewSessionEvent {
 // MARK: - Payload Serialization
 
 extension CodeReviewSessionEvent {
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
+
     public func toPayload() -> [String: String] {
         var payload: [String: String] = [
             "id": id,
             "type": type.rawValue,
-            "timestamp": ISO8601DateFormatter().string(from: timestamp),
+            "timestamp": Self.iso8601Formatter.string(from: timestamp),
         ]
         if let detail { payload["detail"] = detail }
         for (key, value) in metadata {

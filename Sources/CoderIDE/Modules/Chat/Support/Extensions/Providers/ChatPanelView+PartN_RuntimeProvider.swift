@@ -23,6 +23,13 @@ extension ChatPanelView {
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths
             ) {
+                // Wire session state → TaskActivityStore bridge for LiveCard / panel
+                let store = taskActivityStore
+                Task {
+                    await multiSwarm.sessionState.setOnStateChange { snapshot in
+                        store.ingestCodeReviewSnapshot(snapshot)
+                    }
+                }
                 return multiSwarm
             }
             // Factory returned nil — surface the error in chat so the user knows.

@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 import MCP
 
@@ -43,9 +44,13 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
-        // Read-only: status is populated by the IDE event pipeline.
-        // Return a structured acknowledgment so the UI-side handler emits current state.
-        return reviewOK("OK — review status requested")
+        // Read real session state from shared disk file
+        let status = MCPSharedState.readCodeReviewStatus()
+        if status["phase"] == "idle" && status.count <= 2 {
+            return reviewOK("No active review session.")
+        }
+        let lines = status.sorted(by: { $0.key < $1.key }).map { "\($0.key): \($0.value)" }
+        return reviewOK(lines.joined(separator: "\n"))
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {

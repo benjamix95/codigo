@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 import MCP
 
@@ -32,7 +33,26 @@ extension CoderIDEMCPServerApp {
             }
         }
 
-        return reviewOK("OK — findings query accepted")
+        // Read real findings from shared disk file
+        let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
+        let findings = MCPSharedState.readCodeReviewFindings(
+            severity: severity.isEmpty ? nil : severity,
+            status: status.isEmpty ? nil : status,
+            file: args["file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+            limit: limitVal
+        )
+        if findings.isEmpty {
+            return reviewOK("No findings match the query.")
+        }
+        let lines = findings.enumerated().map { idx, f in
+            let id = f["id"] ?? "?"
+            let sev = f["severity"] ?? "?"
+            let file = f["file_path"] ?? "?"
+            let msg = f["message"] ?? ""
+            let st = f["status"] ?? "open"
+            return "[\(idx + 1)] [\(sev)] \(file) — \(msg) (status: \(st), id: \(id))"
+        }
+        return reviewOK("Findings (\(findings.count)):\n" + lines.joined(separator: "\n"))
     }
 
     static func handleReviewApplyFix(args: [String: String]) -> CallTool.Result {

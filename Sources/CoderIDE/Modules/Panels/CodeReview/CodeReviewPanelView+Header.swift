@@ -62,7 +62,7 @@ extension CodeReviewPanelView {
                     withAnimation(.snappy(duration: 0.15)) { selectedTab = tab }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: tab == .commands ? "terminal" : "gearshape")
+                        Image(systemName: tabIcon(tab))
                             .font(.system(size: 8.5, weight: .semibold))
                         Text(tab.rawValue)
                             .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .regular))
@@ -88,8 +88,23 @@ extension CodeReviewPanelView {
         switch selectedTab {
         case .commands:
             commandsTab(m)
+        case .findings:
+            findingsTab
+        case .timeline:
+            timelineTab
         case .config:
             configTab
+        }
+    }
+
+    // MARK: - Tab Icon
+
+    private func tabIcon(_ tab: CodeReviewTab) -> String {
+        switch tab {
+        case .commands: return "terminal"
+        case .findings: return "exclamationmark.triangle"
+        case .timeline: return "clock"
+        case .config: return "gearshape"
         }
     }
 }

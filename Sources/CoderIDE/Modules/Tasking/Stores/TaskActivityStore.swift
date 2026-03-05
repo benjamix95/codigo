@@ -1,6 +1,7 @@
 import Foundation
 import os
 import SwiftUI
+import CoderEngine
 
 @MainActor
 final class TaskActivityStore: ObservableObject {
@@ -13,6 +14,11 @@ final class TaskActivityStore: ObservableObject {
     @Published var swarmEventsReceivedCount: Int = 0
     @Published var swarmEventsAssignedCount: Int = 0
     @Published var swarmEventsFallbackCount: Int = 0
+
+    // Code review session data (structured, from CodeReviewSessionSnapshot)
+    @Published var codeReviewFindings: [CodeReviewFinding] = []
+    @Published var codeReviewEvents: [CodeReviewSessionEvent] = []
+    @Published var codeReviewPhase: ReviewSessionPhase = .idle
 
     let swarmLogger = Logger(subsystem: "com.codigo.app", category: "swarm")
     let defaultSwarmEventsLimit = SwarmLiveReducer.defaultRecentEventsLimit

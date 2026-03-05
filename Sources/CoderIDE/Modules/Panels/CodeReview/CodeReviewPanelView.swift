@@ -2,10 +2,8 @@ import SwiftUI
 import CoderEngine
 
 struct CodeReviewPanelView: View {
-    @ObservedObject var chatStore: ChatStore
     @ObservedObject var taskActivityStore: TaskActivityStore
     @ObservedObject var swarmProgressStore: SwarmProgressStore
-    @ObservedObject var todoStore: TodoStore
 
     let conversationId: UUID?
     let isTaskRunning: Bool
@@ -24,6 +22,7 @@ struct CodeReviewPanelView: View {
 
     @State var againstCommitRef = ""
     @State var selectedTab: CodeReviewTab = .commands
+    @State var selectedFindingId: String?
 
     var autofixEnabled: Bool { !codeReviewAnalysisOnly }
     func setAutofixEnabled(_ v: Bool) { codeReviewAnalysisOnly = !v }

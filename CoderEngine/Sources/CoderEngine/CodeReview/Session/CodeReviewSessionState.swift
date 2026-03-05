@@ -210,9 +210,22 @@ public actor CodeReviewSessionState {
 
     // MARK: - Private
 
+    /// Hard cap on events to prevent unbounded growth.
+    private let eventsHardCap = 500
+    /// Hard cap on findings to prevent unbounded growth.
+    private let findingsHardCap = 1000
+
     private func notifyChange() {
+        if events.count > eventsHardCap {
+            events = Array(events.suffix(eventsHardCap))
+        }
+        if findings.count > findingsHardCap {
+            findings = Array(findings.suffix(findingsHardCap))
+        }
         let snap = snapshot()
-        onStateChange?(snap)
+        if let handler = onStateChange {
+            Task { @MainActor in handler(snap) }
+        }
     }
 }
 
@@ -287,7 +300,7 @@ public struct SessionConfig: Sendable, Codable {
 // MARK: - CodeReviewSessionSnapshot
 
 /// Immutable snapshot of session state for cross-actor transfer.
-public struct CodeReviewSessionSnapshot: Sendable {
+public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let phase: ReviewSessionPhase
     public let findings: [CodeReviewFinding]
     public let events: [CodeReviewSessionEvent]

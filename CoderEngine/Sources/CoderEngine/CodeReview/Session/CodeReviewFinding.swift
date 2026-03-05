@@ -113,6 +113,7 @@ extension CodeReviewFinding {
         description: String,
         files: [String],
         severity severityStr: String,
+        category categoryStr: String? = nil,
         filePath: String? = nil,
         lineNumber: Int? = nil
     ) -> CodeReviewFinding {
@@ -128,15 +129,47 @@ extension CodeReviewFinding {
             severity = .warning
         }
 
+        let category: FindingCategory
+        if let raw = categoryStr?.lowercased(),
+           let parsed = FindingCategory(rawValue: raw) {
+            category = parsed
+        } else {
+            category = Self.inferCategory(from: description)
+        }
+
         return CodeReviewFinding(
             id: id,
             severity: severity,
-            category: .bug,
+            category: category,
             filePath: filePath ?? files.first ?? "unknown",
             lineNumber: lineNumber,
             message: description,
             suggestedFix: nil
         )
+    }
+
+    /// Infers finding category from the description text when no explicit category is provided.
+    private static func inferCategory(from description: String) -> FindingCategory {
+        let lower = description.lowercased()
+        if lower.contains("security") || lower.contains("vulnerability") || lower.contains("injection") {
+            return .security
+        }
+        if lower.contains("performance") || lower.contains("slow") || lower.contains("O(n") {
+            return .performance
+        }
+        if lower.contains("style") || lower.contains("naming") || lower.contains("format") {
+            return .style
+        }
+        if lower.contains("test") || lower.contains("coverage") {
+            return .testing
+        }
+        if lower.contains("architecture") || lower.contains("coupling") || lower.contains("refactor") {
+            return .architecture
+        }
+        if lower.contains("doc") || lower.contains("comment") {
+            return .documentation
+        }
+        return .bug
     }
 }
 

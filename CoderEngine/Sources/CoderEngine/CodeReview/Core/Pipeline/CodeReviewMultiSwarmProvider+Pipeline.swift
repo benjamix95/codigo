@@ -9,6 +9,7 @@ extension CodeReviewMultiSwarmProvider {
         executionProvider: any LLMProvider,
         execController: ExecutionController?,
         fileLockCoordinator: FileLockCoordinator,
+        sessionState: CodeReviewSessionState,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
         execController?.beginScope(.review)
@@ -31,6 +32,13 @@ extension CodeReviewMultiSwarmProvider {
         let workspacePath = context.workspacePath
 
         continuation.yield(.started)
+
+        // Wire session state: mark as analyzing
+        let resolvedScopeType: ReviewSessionScope.ScopeType = {
+            if againstRef != nil { return .againstRef }
+            let scope = explicitScope ?? Self.inferReviewScope(from: cleanPrompt) ?? .uncommitted
+            return scope == .staged ? .staged : .uncommitted
+        }()
 
         let filesToReview: [String]
         let resolvedScope = explicitScope ?? Self.inferReviewScope(from: cleanPrompt) ?? .uncommitted
@@ -65,6 +73,13 @@ extension CodeReviewMultiSwarmProvider {
                 return
             }
         }
+
+        // Wire session state: start session with resolved scope
+        await sessionState.start(scope: ReviewSessionScope(
+            type: resolvedScopeType,
+            files: filesToReview,
+            ref: againstRef
+        ))
 
         let analysisOutput = try await Self.runAnalysisPhase(
             cleanPrompt: cleanPrompt,
@@ -109,6 +124,21 @@ extension CodeReviewMultiSwarmProvider {
             tasks = []
         }
 
+        // Feed parsed tasks into session state as findings
+        let parsedFindings = tasks.map { task in
+            CodeReviewFinding.fromRawTask(
+                id: task.id,
+                description: task.description,
+                files: task.files,
+                severity: task.severity,
+                filePath: task.files.first,
+                lineNumber: nil
+            )
+        }
+        if !parsedFindings.isEmpty {
+            await sessionState.addFindings(parsedFindings)
+        }
+
         await Self.executeReviewLoop(
             tasks: tasks,
             extractionInconclusiveReason: extractionInconclusiveReason,
@@ -122,5 +152,8 @@ extension CodeReviewMultiSwarmProvider {
             isCancelled: isCancelled,
             waitWhilePaused: waitWhilePaused
         )
+
+        // Wire session state: mark completion
+        await sessionState.complete()
     }
 }

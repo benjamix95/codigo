@@ -5,6 +5,8 @@ import MCP
 /// Follows the IDE state tool pattern — pass-through validation with
 /// actual state management on the UI side via stream event pipeline.
 extension CoderIDEMCPServerApp {
+    /// Runtime-stripped tool names for routing (without `coderide_` prefix).
+    /// Tool definitions with full MCP schemas are in CoderIDETools+CodeReview.swift.
     static let codeReviewTools: Set<String> = [
         "review_start", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",

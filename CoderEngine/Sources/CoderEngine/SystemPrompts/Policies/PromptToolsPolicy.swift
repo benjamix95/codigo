@@ -131,5 +131,15 @@ enum PromptToolsPolicy {
       When in doubt, do NOT activate plan mode — just execute the task directly. Plan mode is for deliberate, complex work.
     - Emit mode events early, before you start the actual work — only when they apply per the rules above.
     - Format: emit a raw event with type "activate_plan_mode" or "activate_debug_mode" and payload {"reason": "brief explanation"}.
+
+    Code Review MCP tools — use these to interact with the code review system:
+    - `coderide_review_start` — Start a code review session. Args: scope (uncommitted/staged/against_ref), ref, max_workers (1-12), max_rounds (1-10), analysis_backend, execution_backend.
+    - `coderide_review_status` — Get current review session status: phase, progress, findings count, active workers, round info.
+    - `coderide_review_findings` — List findings with optional filters. Args: severity (critical/warning/suggestion/info), file (substring match), status (open/fix_applied/dismissed/wont_fix), limit (integer, default 50).
+    - `coderide_review_apply_fix` — Apply the suggested fix for a finding. Args: finding_id (required).
+    - `coderide_review_dismiss` — Dismiss a finding. Args: finding_id (required), reason (false_positive/wont_fix/by_design/duplicate).
+    - `coderide_review_configure` — Update runtime config. Args: max_workers, max_rounds, analysis_backend, execution_backend.
+    - `coderide_review_diff_summary` — Get diff summary for files in scope. Args: file (optional).
+    - `coderide_review_comment` — Add a comment to a finding. Args: finding_id (required), content (required), author (default: agent).
     """
 }

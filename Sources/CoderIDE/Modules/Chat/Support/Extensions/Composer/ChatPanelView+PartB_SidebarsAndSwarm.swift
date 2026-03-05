@@ -129,10 +129,8 @@ extension ChatPanelView {
 
     internal var codeReviewPanelSidebar: some View {
         CodeReviewPanelView(
-            chatStore: chatStore,
             taskActivityStore: taskActivityStore,
             swarmProgressStore: swarmProgressStore,
-            todoStore: todoStore,
             conversationId: conversationId,
             isTaskRunning: isLoadingForCurrentConversation,
             coderMode: coderMode,

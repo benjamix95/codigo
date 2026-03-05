@@ -35,16 +35,26 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private let executionController: ExecutionController?
     private let fileLockCoordinator = FileLockCoordinator()
 
+    /// Session state actor — tracks structured review state (findings, events, phase).
+    public let sessionState: CodeReviewSessionState
+
     public init(
         config: MultiSwarmReviewConfig,
         analysisProvider: any LLMProvider,
         executionProvider: any LLMProvider,
-        executionController: ExecutionController? = nil
+        executionController: ExecutionController? = nil,
+        sessionState: CodeReviewSessionState? = nil
     ) {
         self.config = config
         self.analysisProvider = analysisProvider
         self.executionProvider = executionProvider
         self.executionController = executionController
+        self.sessionState = sessionState ?? CodeReviewSessionState(
+            config: SessionConfig(
+                maxWorkers: config.maxWorkers,
+                maxRounds: config.maxReviewRounds
+            )
+        )
     }
 
     public func isAuthenticated() -> Bool {
@@ -74,6 +84,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let executionProvider = self.executionProvider
         let execController = self.executionController
         let fileLockCoordinator = self.fileLockCoordinator
+        let sessionState = self.sessionState
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -86,9 +97,11 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         executionProvider: executionProvider,
                         execController: execController,
                         fileLockCoordinator: fileLockCoordinator,
+                        sessionState: sessionState,
                         continuation: continuation
                     )
                 } catch {
+                    await sessionState.fail(error: error.localizedDescription)
                     continuation.yield(.error(error.localizedDescription))
                     continuation.finish(throwing: error)
                 }

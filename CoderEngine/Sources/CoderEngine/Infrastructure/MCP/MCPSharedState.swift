@@ -294,7 +294,7 @@ public enum MCPSharedState {
         return nil
     }
 
-    private static func ensureDirectory() {
+    static func ensureDirectory() {
         let dir = sharedDirectory
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

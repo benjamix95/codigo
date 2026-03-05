@@ -22,11 +22,11 @@ extension CoderIDETools {
                         "description": "Git ref to compare against (e.g. main, HEAD~3). Required when scope=against_ref.",
                     ]),
                     "max_workers": .object([
-                        "type": "string",
+                        "type": "integer",
                         "description": "Max parallel fix workers (1-12, default 6)",
                     ]),
                     "max_rounds": .object([
-                        "type": "string",
+                        "type": "integer",
                         "description": "Max review rounds (1-10, default 3)",
                     ]),
                     "analysis_backend": .object([
@@ -69,7 +69,7 @@ extension CoderIDETools {
                         "description": "Filter by status: open, fix_applied, dismissed, wont_fix",
                     ]),
                     "limit": .object([
-                        "type": "string",
+                        "type": "integer",
                         "description": "Max results (default: 50)",
                     ]),
                 ]),
@@ -117,11 +117,11 @@ extension CoderIDETools {
                 "type": "object",
                 "properties": .object([
                     "max_workers": .object([
-                        "type": "string",
+                        "type": "integer",
                         "description": "Max parallel fix workers (1-12)",
                     ]),
                     "max_rounds": .object([
-                        "type": "string",
+                        "type": "integer",
                         "description": "Max review rounds (1-10)",
                     ]),
                     "analysis_backend": .object([
