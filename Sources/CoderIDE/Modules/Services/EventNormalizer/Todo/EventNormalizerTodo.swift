@@ -16,16 +16,10 @@ extension EventNormalizer {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 guard !content.isEmpty else { continue }
                 let status = normalizedTodoStatus(todoItem["status"] as? String)
-                var activeForm = (
+                let activeForm = sanitizeTodoActiveForm(
                     (todoItem["activeForm"] as? String)
                         ?? (todoItem["active_form"] as? String)
-                )?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                // Reject nested JSON objects accidentally passed as activeForm
-                if let af = activeForm, af.hasPrefix("{") || af.hasPrefix("[") {
-                    activeForm = nil
-                }
+                )
                 let priority = normalizedTodoPriority(todoItem["priority"] as? String)
                 let notes = (todoItem["notes"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -97,24 +91,16 @@ extension EventNormalizer {
     }
 
     private static func parseTodoLinkedFiles(_ todoItem: [String: Any]) -> [String] {
-        if let linked = todoItem["linkedFiles"] as? [String] {
-            return linked.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let keys = ["linkedFiles", "linked_files", "files"]
+        var merged: [String] = []
+        for key in keys {
+            merged.append(contentsOf: parseStringArray(rawValue: todoItem[key]))
         }
-        if let linked = todoItem["linked_files"] as? [String] {
-            return linked.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        }
-        if let files = todoItem["files"] as? [String] {
-            return files.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        }
-        if let raw = todoItem["linkedFiles"] as? String {
-            return normalizeFileList(from: ["linkedFiles": raw])
-        }
-        if let raw = todoItem["linked_files"] as? String {
-            return normalizeFileList(from: ["linked_files": raw])
-        }
-        if let raw = todoItem["files"] as? String {
-            return normalizeFileList(from: ["files": raw])
-        }
-        return []
+
+        var seen = Set<String>()
+        return merged
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
     }
 }
