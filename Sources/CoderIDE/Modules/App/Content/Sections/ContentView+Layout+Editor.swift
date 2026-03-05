@@ -76,9 +76,9 @@ extension ContentView {
             return
         }
         guard selectedConversationId == nil else { return }
-        let defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+        let defaultContextId = projectContextStore.activeContextId
         let ctx = projectContextStore.context(id: defaultContextId)
-        let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+        let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
         if let contextId = defaultContextId,
            let lastId = projectContextStore.lastActiveConversationId(contextId: contextId, folderPath: folderScope),
            let lastConv = chatStore.conversation(for: lastId),

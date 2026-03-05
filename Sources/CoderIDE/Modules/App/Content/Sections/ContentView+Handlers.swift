@@ -17,7 +17,7 @@ extension ContentView {
         preferActiveContextForGlobalThread = true
         workspaceStore.syncActiveWorkspace(with: projectContextStore.context(id: contextId))
         let ctx = projectContextStore.context(id: contextId)
-        let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+        let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
         if let selectedId = selectedConversationId,
            let selected = chatStore.conversation(for: selectedId),
            !selected.isArchived,

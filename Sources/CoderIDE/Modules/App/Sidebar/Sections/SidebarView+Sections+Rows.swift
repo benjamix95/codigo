@@ -93,7 +93,7 @@ extension SidebarView {
 
                 if !regularThreads.isEmpty {
                     threadSubsectionTitle("Threads")
-                    if let context = currentContext, context.kind == .workspace {
+                    if let context = currentContext, context.folderPaths.count > 1 {
                         ForEach(groupedThreadsByFolder(from: regularThreads), id: \.folder) { group in
                             Text(group.folder.map { ($0 as NSString).lastPathComponent } ?? "General")
                                 .font(.system(size: 10, weight: .semibold))
@@ -182,7 +182,7 @@ extension SidebarView {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
-            if let context = currentContext, context.kind == .workspace, !context.folderPaths.isEmpty {
+            if let context = currentContext, context.folderPaths.count > 1 {
                 Menu {
                     Button("General") {
                         chatStore.setContextFolder(conversationId: conv.id, folderPath: nil)

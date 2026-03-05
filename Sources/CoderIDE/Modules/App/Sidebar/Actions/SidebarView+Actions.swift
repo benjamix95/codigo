@@ -64,7 +64,7 @@ extension SidebarView {
         projectContextStore.markAsRecentlyUsed(contextId: contextId)
         syncActiveWorkspaceIfNeeded(contextId: contextId)
         let context = projectContextStore.context(id: contextId)
-        let folderScope = (context?.kind == .workspace) ? context?.activeFolderPath : nil
+        let folderScope = scopedFolderPath(for: context)
         if let selectedId = selectedConversationId,
            let selected = chatStore.conversation(for: selectedId),
            !selected.isArchived,
@@ -114,7 +114,7 @@ extension SidebarView {
     func createThread(contextId: UUID?) {
         let effectiveContextId = contextId ?? selectedConversation?.contextId ?? projectContextStore.activeContextId
         let effectiveContext = projectContextStore.context(id: effectiveContextId)
-        let folderScope = (effectiveContext?.kind == .workspace) ? effectiveContext?.activeFolderPath : nil
+        let folderScope = scopedFolderPath(for: effectiveContext)
 
         // Reuse an existing empty thread (no user messages) with the same context
         // instead of creating duplicate blank threads.
@@ -157,10 +157,28 @@ extension SidebarView {
     }
 
     func handleAddFolderSelection(result: Result<[URL], Error>) {
-        guard let workspaceId = pendingAddFolderWorkspaceId else { return }
+        guard let contextId = pendingAddFolderWorkspaceId else { return }
         defer { pendingAddFolderWorkspaceId = nil }
         guard case .success(let urls) = result, let url = urls.first else { return }
-        workspaceStore.addFolder(to: workspaceId, path: url.path(percentEncoded: false))
-        projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+        let normalizedPath = workspaceStore.normalizedWorkspacePath(url.path(percentEncoded: false))
+        guard !normalizedPath.isEmpty else { return }
+        guard var context = projectContextStore.context(id: contextId) else { return }
+        guard !context.folderPaths.contains(where: { workspaceStore.normalizedWorkspacePath($0) == normalizedPath }) else { return }
+
+        context.folderPaths.append(normalizedPath)
+        context.lastActiveFolderPath = normalizedPath
+        context.updatedAt = .now
+        projectContextStore.upsert(context)
+        workspaceStore.syncActiveWorkspace(with: context)
+
+        if let selectedConversationId {
+            let folderScope = scopedFolderPath(for: context)
+            chatStore.setContextFolder(conversationId: selectedConversationId, folderPath: folderScope)
+        }
+    }
+
+    func scopedFolderPath(for context: ProjectContext?) -> String? {
+        guard let context else { return nil }
+        return context.folderPaths.count > 1 ? context.activeFolderPath : nil
     }
 }

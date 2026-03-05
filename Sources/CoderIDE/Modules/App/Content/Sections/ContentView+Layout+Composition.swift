@@ -82,12 +82,12 @@ extension ContentView {
                 }
                 let defaultContextId: UUID?
                 if preferActiveContextForGlobalThread {
-                    defaultContextId = projectContextStore.activeContextId ?? workspaceStore.activeWorkspaceId
+                    defaultContextId = projectContextStore.activeContextId
                 } else {
                     defaultContextId = nil
                 }
                 let ctx = projectContextStore.context(id: defaultContextId)
-                let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+                let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
                 let preferred = chatStore.conversations.first { conv in
                     !conv.isArchived
                         && conv.contextId == defaultContextId
@@ -98,7 +98,7 @@ extension ContentView {
         .onChange(of: projectContextStore.activeContextId) { _, newContextId in
             guard let newContextId else { return }
             let ctx = projectContextStore.context(id: newContextId)
-            let folderScope = (ctx?.kind == .workspace) ? ctx?.activeFolderPath : nil
+            let folderScope = (ctx?.folderPaths.count ?? 0) > 1 ? ctx?.activeFolderPath : nil
             if let selectedId = selectedConversationId,
                let selected = chatStore.conversation(for: selectedId),
                !selected.isArchived,

@@ -87,6 +87,14 @@ extension SidebarView {
         return result
     }
 
+    var currentContextSyncFingerprint: String {
+        guard let context = currentContext else { return "none" }
+        let folders = context.folderPaths.joined(separator: "|")
+        let exclusions = context.excludedPaths.joined(separator: "|")
+        let activeRoot = context.activeFolderPath ?? ""
+        return "\(context.id.uuidString)#\(folders)#\(exclusions)#\(activeRoot)"
+    }
+
     var sidebarContent: some View {
         VStack(spacing: 0) {
             ScrollView {
@@ -132,7 +140,13 @@ extension SidebarView {
             RenameConversationSheet(conversation: conv, onDismiss: { conversationToRename = nil })
                 .environmentObject(chatStore)
         }
-        .onAppear { projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces) }
+        .onAppear {
+            projectContextStore.ensureWorkspaceContexts(workspaceStore.workspaces)
+            workspaceStore.syncActiveWorkspace(with: currentContext)
+        }
+        .onChange(of: currentContextSyncFingerprint) { _, _ in
+            workspaceStore.syncActiveWorkspace(with: currentContext)
+        }
     }
 
     var quickActions: some View {
@@ -145,10 +159,6 @@ extension SidebarView {
                 isSelectingProjectFolders = true
             }
             .accessibilityLabel("Open project folder")
-            actionRow("New workspace", icon: "folder.badge.gearshape") {
-                showCreateWorkspace = true
-            }
-            .accessibilityLabel("Create new workspace")
 
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
