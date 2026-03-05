@@ -21,6 +21,8 @@ enum PlanOptionsParser {
     // Pre-compiled regexes for hot paths
     static let questionRegex = try? NSRegularExpression(pattern: #"^\s*(\d+)[.)]\s*(.+)$"#)
     static let clarificationOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?([A-Za-z])[.)]\s+(.+)$"#)
+    static let clarificationNumericOptionRegex = try? NSRegularExpression(pattern: #"^\s*(?:[-*•]\s*)?(?:\[\s*[xX ]?\s*\]\s*)?(\d{1,2})\)\s+(.+)$"#)
+    static let clarificationBulletOptionRegex = try? NSRegularExpression(pattern: #"^\s*[-*•]\s*(?:\[\s*[xX ]?\s*\]\s*)?(.+)$"#)
     /// Detects checkbox-style options: "- [ ] A) ..." or "- [x] B) ..."
     static let checkboxOptionPattern = #"^\s*[-*•]\s*\[\s*[xX ]?\s*\]"#
     /// Detects multi-select markers in question text (parenthetical or inline).

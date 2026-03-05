@@ -153,4 +153,39 @@ extension PlanOptionsParserTests {
         XCTAssertEqual(parsed?.questions.first?.isMultiSelect, true)
         XCTAssertEqual(parsed?.questions.first?.prompt, "Scegli i moduli")
     }
+
+    func testParseClarificationQuestionnaireSupportsNumericOptionIdentifiers() {
+        let input = """
+        ## Questions
+        1. Quale scope preferisci?
+        1) Solo fix critici
+        2) Fix + test
+        3) Refactor esteso
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        XCTAssertEqual(questionnaire?.questions.first?.options.map(\.id), ["1", "2", "3"])
+        XCTAssertEqual(
+            questionnaire?.questions.first?.options.map(\.text),
+            ["Solo fix critici", "Fix + test", "Refactor esteso"]
+        )
+    }
+
+    func testParseClarificationQuestionnaireSupportsBulletOptionsWithoutExplicitIds() {
+        let input = """
+        ## Questions
+        1. Quale strategia vuoi seguire?
+        - Incrementale (Recommended)
+        - Other (specify)
+        """
+
+        let questionnaire = PlanOptionsParser.parseClarificationQuestionnaire(from: input)
+        XCTAssertEqual(questionnaire?.questions.count, 1)
+        let options = questionnaire?.questions.first?.options ?? []
+        XCTAssertEqual(options.count, 2)
+        XCTAssertEqual(options.map(\.id), ["A", "B"])
+        XCTAssertEqual(options.map(\.text), ["Incrementale", "Other (specify)"])
+        XCTAssertEqual(options.map(\.isRecommended), [true, false])
+    }
 }

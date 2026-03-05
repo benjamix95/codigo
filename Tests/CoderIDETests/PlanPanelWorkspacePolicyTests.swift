@@ -233,4 +233,12 @@ final class PlanPanelWorkspacePolicyTests: XCTestCase {
             clarificationWizardIdentityKey(for: q2)
         )
     }
+
+    func testClarificationWizardIdentityKeyChangesWhenSeedChanges() {
+        let questions = "## Questions\n1. Scope?\nA) API\nB) UI"
+        XCTAssertNotEqual(
+            clarificationWizardIdentityKey(for: questions, seed: 1),
+            clarificationWizardIdentityKey(for: questions, seed: 2)
+        )
+    }
 }

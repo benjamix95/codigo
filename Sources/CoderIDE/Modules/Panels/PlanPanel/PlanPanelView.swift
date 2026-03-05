@@ -20,6 +20,8 @@ struct PlanPanelView: View {
     let planStreamingContent: String
     /// Whether the clarification questions phase was visited during this plan flow.
     let questionsWereVisited: Bool
+    /// Increases whenever a clarification round is emitted, forcing wizard state reset.
+    let clarificationIdentitySeed: Int
     let showHistorySection: Bool
     let workspaceSource: PlanPanelPresentationSource
     let onClose: () -> Void
@@ -92,7 +94,12 @@ struct PlanPanelView: View {
                                 planColor: planColor,
                                 onSubmit: onSubmitClarificationAnswers
                             )
-                            .id(clarificationWizardIdentityKey(for: questions))
+                            .id(
+                                clarificationWizardIdentityKey(
+                                    for: questions,
+                                    seed: clarificationIdentitySeed
+                                )
+                            )
                         } else {
                             PlanClarificationView(questions: questions, planColor: planColor)
                         }

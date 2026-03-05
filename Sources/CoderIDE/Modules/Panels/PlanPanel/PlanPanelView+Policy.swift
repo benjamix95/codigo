@@ -72,10 +72,13 @@ func shouldMirrorAssistantContentInPlanWorkspace(hasPlanContext: Bool) -> Bool {
     hasPlanContext
 }
 
-func clarificationWizardIdentityKey(for questionsMarkdown: String) -> String {
+func clarificationWizardIdentityKey(
+    for questionsMarkdown: String,
+    seed: Int = 0
+) -> String {
     let normalized = questionsMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
     let content = normalized.isEmpty ? questionsMarkdown : normalized
-    return "plan-clarification-wizard-\(content.count)-\(stablePlanSnapshotContentHash(content))"
+    return "plan-clarification-wizard-\(max(0, seed))-\(content.count)-\(stablePlanSnapshotContentHash(content))"
 }
 
 func isPlanHistoryEntryCompatibleWithCurrentContext(
