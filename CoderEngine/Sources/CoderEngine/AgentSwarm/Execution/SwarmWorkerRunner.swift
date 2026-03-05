@@ -5,6 +5,8 @@ private func systemPrompt(for role: AgentRole) -> String {
     switch role {
     case .planner:
         return "You are the Planner. Analyze the request and produce a structured plan with clear steps. Do not write code."
+    case .explorer:
+        return "You are the Explorer. Analyze the codebase, search for relevant context, navigate symbols and dependencies. Report findings without modifying files."
     case .coder:
         return "You are the Coder. Execute code changes according to the plan. Use the available tools (edit file, run command, etc)."
     case .debugger:
