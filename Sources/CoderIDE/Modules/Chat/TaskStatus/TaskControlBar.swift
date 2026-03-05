@@ -18,14 +18,18 @@ struct TaskControlBar: View {
     let activeModeColor: Color
     let onInterrupt: () -> Void
 
+    private var pipelineSnapshot: PipelineConversationSnapshot? {
+        pipelineService.snapshot(for: conversationId)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Rectangle()
                 .fill(Color.primary.opacity(0.06))
                 .frame(height: 0.5)
 
-            if pipelineService.isRunning {
-                pipelineStatusBar
+            if let snapshot = pipelineSnapshot, snapshot.isRunning {
+                pipelineStatusBar(snapshot: snapshot)
             } else if chatStore.isTaskActive(for: conversationId),
                let startDate = chatStore.taskStartDate(for: conversationId) {
                 taskTimerBar(startDate: startDate)
@@ -36,10 +40,10 @@ struct TaskControlBar: View {
     }
 
     @ViewBuilder
-    private var pipelineStatusBar: some View {
+    private func pipelineStatusBar(snapshot: PipelineConversationSnapshot) -> some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(pipelineService.circuitBreakerActive ? Color.orange : activeModeColor)
+                .fill(snapshot.circuitBreakerActive ? Color.orange : activeModeColor)
                 .frame(width: 6, height: 6)
                 .modifier(PulseModifier())
 
@@ -47,16 +51,16 @@ struct TaskControlBar: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.secondary)
 
-            Text("\(pipelineService.completedTasks)/\(pipelineService.totalTasks)")
+            Text("\(snapshot.completedTasks)/\(snapshot.totalTasks)")
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.primary)
 
-            Text(pipelineService.jobState.rawValue)
+            Text(snapshot.jobState.rawValue)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
 
-            if pipelineService.circuitBreakerActive {
+            if snapshot.circuitBreakerActive {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
@@ -65,7 +69,6 @@ struct TaskControlBar: View {
             Spacer()
 
             Button {
-                pipelineService.cancelCurrentJob()
                 onInterrupt()
             } label: {
                 HStack(spacing: 4) {

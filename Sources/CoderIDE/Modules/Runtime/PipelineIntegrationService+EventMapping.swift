@@ -5,85 +5,99 @@ import Foundation
 
 extension PipelineIntegrationService {
 
-    func handleEvent(_ event: PipelineUIEvent) async {
+    func handleEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
         switch event {
         case .jobStarted(let p):
-            handleJobStarted(p)
+            handleJobStarted(p, for: conversationId)
         case .jobCompleted(let p):
-            handleJobCompleted(p)
+            handleJobCompleted(p, for: conversationId)
         case .jobFailed(let p):
-            handleJobFailed(p)
+            handleJobFailed(p, for: conversationId)
         case .taskStarted(let p):
-            handleTaskStarted(p)
+            handleTaskStarted(p, for: conversationId)
         case .taskCompleted(let p):
-            handleTaskCompleted(p)
+            handleTaskCompleted(p, for: conversationId)
         case .taskFailed(let p):
-            handleTaskFailed(p)
+            handleTaskFailed(p, for: conversationId)
         case .textDelta(let p):
-            handleTextDelta(p)
+            handleTextDelta(p, for: conversationId)
         case .textReplace(let p):
-            handleTextReplace(p)
+            handleTextReplace(p, for: conversationId)
         case .rawEvent(let p):
-            handleRawEvent(p)
+            handleRawEvent(p, for: conversationId)
         case .patchApplied(let p):
-            handlePatchApplied(p)
+            handlePatchApplied(p, for: conversationId)
         case .rollbackTriggered(let p):
-            handleRollback(p)
+            handleRollback(p, for: conversationId)
         case .reviewFinding(let p):
-            handleReviewFinding(p)
+            handleReviewFinding(p, for: conversationId)
         case .progressUpdate(let p):
-            handleProgress(p)
+            handleProgress(p, for: conversationId)
         case .circuitBreakerTriggered(let p):
-            handleCircuitBreaker(p)
+            handleCircuitBreaker(p, for: conversationId)
         case .backpressureChanged(let p):
-            handleBackpressure(p)
+            handleBackpressure(p, for: conversationId)
         case .providerHealthChanged(let p):
-            handleProviderHealth(p)
+            handleProviderHealth(p, for: conversationId)
         case .errorBudgetLow(let p):
-            handleErrorBudget(p)
+            handleErrorBudget(p, for: conversationId)
         }
     }
 
     // MARK: - Job Events
 
-    private func handleJobStarted(_ p: JobStartedPayload) {
-        jobState = .intake
-        totalTasks = p.taskCount
-        completedTasks = 0
+    private func handleJobStarted(_ p: JobStartedPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.jobState = .intake
+        runtime.totalTasks = p.taskCount
+        runtime.completedTasks = 0
+        persistSnapshot(for: conversationId)
         chatStore?.setTaskStatus(
             "Pipeline started (\(p.taskCount) tasks, mode: \(p.mode.rawValue))",
             for: conversationId
         )
     }
 
-    private func handleJobCompleted(_ p: JobCompletedPayload) {
-        jobState = .finalized
-        completedTasks = p.completedTasks
+    private func handleJobCompleted(_ p: JobCompletedPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.jobState = .finalized
+        runtime.completedTasks = p.completedTasks
+        persistSnapshot(for: conversationId)
 
         let summary = "Pipeline completed: \(p.completedTasks)/\(p.totalTasks) tasks"
             + " in \(formatDuration(p.durationMs))"
-        appendToAssistantMessage(summary)
+        appendToAssistantMessage(summary, in: conversationId)
 
-        if isPlanBuild, let planId = planConversationId {
-            finalizePlanBuild(planConversationId: planId, durationMs: p.durationMs)
+        if let planId = runtime.planConversationId {
+            finalizePlanBuild(
+                agentConversationId: conversationId,
+                planConversationId: planId,
+                durationMs: p.durationMs,
+                completedTasks: p.completedTasks,
+                totalTasks: p.totalTasks
+            )
         }
 
         swarmProgressStore?.clear(conversationId: conversationId)
     }
 
-    private func handleJobFailed(_ p: JobFailedPayload) {
-        jobState = .failed
-        lastError = p.reason
+    private func handleJobFailed(_ p: JobFailedPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.jobState = .failed
+        runtime.lastError = p.reason
+        persistSnapshot(for: conversationId)
 
         let errorMsg = "\n\n[Pipeline Error: \(p.reason)]"
             + " (\(p.failedTasks) task(s) failed)"
-        appendToAssistantMessage(errorMsg)
+        appendToAssistantMessage(errorMsg, in: conversationId)
     }
 
     // MARK: - Task Events
 
-    private func handleTaskStarted(_ p: TaskStartedPayload) {
-        jobState = .executing
+    private func handleTaskStarted(_ p: TaskStartedPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.jobState = .executing
+        persistSnapshot(for: conversationId)
         swarmProgressStore?.markStarted(
             name: p.title,
             conversationId: conversationId
@@ -94,17 +108,19 @@ extension PipelineIntegrationService {
         )
     }
 
-    private func handleTaskCompleted(_ p: TaskCompletedPayload) {
-        completedTasks += 1
+    private func handleTaskCompleted(_ p: TaskCompletedPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.completedTasks += 1
+        persistSnapshot(for: conversationId)
 
         swarmProgressStore?.markCompleted(
             name: p.title,
             conversationId: conversationId
         )
 
-        guard let todoStore, let convId = conversationId else { return }
+        guard let todoStore else { return }
 
-        if isPlanBuild, let planId = planConversationId {
+        if let planId = runtime.planConversationId {
             if p.role == .coder || p.role == .docWriter {
                 var updated = todoStore.upsertCanonicalOnlyFromAgent(
                     id: nil,
@@ -144,23 +160,24 @@ extension PipelineIntegrationService {
                 priority: nil,
                 notes: nil,
                 linkedFiles: [],
-                conversationId: convId
+                conversationId: conversationId
             )
         }
     }
 
-    private func handleTaskFailed(_ p: TaskFailedPayload) {
+    private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {
         let errorLine = "\n[Task \(p.taskId) failed: \(p.error)]"
-        appendToAssistantMessage(errorLine)
+        appendToAssistantMessage(errorLine, in: conversationId)
     }
 
     // MARK: - Streaming Events
 
-    private func handleTextDelta(_ p: TextDeltaPayload) {
-        let current = accumulatedText[p.taskId, default: ""]
-        accumulatedText[p.taskId] = current + p.delta
+    private func handleTextDelta(_ p: TextDeltaPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        let current = runtime.accumulatedText[p.taskId, default: ""]
+        runtime.accumulatedText[p.taskId] = current + p.delta
 
-        let fullText = accumulatedText.values.joined()
+        let fullText = runtime.accumulatedText.values.joined()
         chatStore?.updateLastAssistantMessage(
             content: fullText,
             in: conversationId,
@@ -168,205 +185,15 @@ extension PipelineIntegrationService {
         )
     }
 
-    private func handleTextReplace(_ p: TextReplacePayload) {
-        accumulatedText[p.taskId] = p.replacement
+    private func handleTextReplace(_ p: TextReplacePayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.accumulatedText[p.taskId] = p.replacement
 
-        let fullText = accumulatedText.values.joined()
+        let fullText = runtime.accumulatedText.values.joined()
         chatStore?.updateLastAssistantMessage(
             content: fullText,
             in: conversationId,
             persistImmediately: false
         )
-    }
-
-    // MARK: - Raw Events
-
-    private func handleRawEvent(_ p: RawEventPayload) {
-        let rawType = p.rawType
-
-        if rawType == "todo_write" || p.payload.keys.contains(where: {
-            $0.hasPrefix("todo_")
-        }) {
-            handleRawTodoWrite(p)
-        } else if rawType == "plan_step" {
-            handleRawPlanStep(p)
-        } else if rawType == "show_task_panel" {
-            chatStore?.setTaskStatus(
-                p.payload["status"] ?? "Working...",
-                for: conversationId
-            )
-        }
-    }
-
-    private func handleRawTodoWrite(_ p: RawEventPayload) {
-        guard let todoStore, let convId = conversationId else { return }
-
-        let title = p.payload["title"] ?? p.taskId
-        let statusStr = p.payload["status"] ?? "in_progress"
-        let status: TodoStatus = statusStr == "done" ? .done
-            : statusStr == "pending" ? .pending : .inProgress
-
-        if isPlanBuild, let planId = planConversationId {
-            var updated = todoStore.upsertCanonicalOnlyFromAgent(
-                id: nil,
-                title: title,
-                status: status,
-                priority: nil,
-                notes: p.payload["notes"],
-                activeForm: nil,
-                linkedFiles: [],
-                conversationId: planId
-            )
-            if !updated {
-                updated = todoStore.upsertCanonicalFromExecutionFallback(
-                    status: status,
-                    priority: nil,
-                    notes: p.payload["notes"],
-                    activeForm: nil,
-                    linkedFiles: [],
-                    conversationId: planId
-                )
-            }
-            if updated, status == .done {
-                _ = todoStore.advanceNextCanonicalTodoIfNeeded(
-                    conversationId: planId
-                )
-                let canonicalTodos = todoStore.canonicalTodos(for: planId)
-                chatStore?.syncPlanStepsFromCanonicalTodos(
-                    canonicalTodos, in: planId
-                )
-            }
-        } else {
-            todoStore.upsertFromAgent(
-                id: nil,
-                title: title,
-                status: status,
-                priority: nil,
-                notes: p.payload["notes"],
-                linkedFiles: [],
-                conversationId: convId
-            )
-        }
-    }
-
-    private func handleRawPlanStep(_ p: RawEventPayload) {
-        guard isPlanBuild, let planId = planConversationId else { return }
-        guard let todoStore else { return }
-
-        let canonicalTodos = todoStore.canonicalTodos(for: planId)
-        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
-    }
-
-    // MARK: - Plan Build Finalization
-
-    private func finalizePlanBuild(
-        planConversationId planId: UUID,
-        durationMs: Int
-    ) {
-        guard let todoStore else { return }
-
-        let recap = buildPlanRecap(durationMs: durationMs)
-        appendToAssistantMessage(recap)
-
-        todoStore.upsertFromAgent(
-            id: nil,
-            title: "Code Review & Test",
-            status: .pending,
-            priority: .high,
-            notes: "Review all pipeline changes and run tests",
-            linkedFiles: [],
-            conversationId: planId
-        )
-
-        let canonicalTodos = todoStore.canonicalTodos(for: planId)
-        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
-    }
-
-    private func buildPlanRecap(durationMs: Int) -> String {
-        let duration = formatDuration(durationMs)
-        return "\n\n---\n**Plan Build Complete** (\(duration))"
-            + "\n\(completedTasks)/\(totalTasks) tasks completed."
-            + "\nPlease review the changes and run tests."
-    }
-
-    // MARK: - Patch & Rollback
-
-    private func handlePatchApplied(_ p: PatchAppliedPayload) {
-        let fileList = p.touchedFiles.prefix(5).joined(separator: ", ")
-        let suffix = p.touchedFiles.count > 5
-            ? " (+\(p.touchedFiles.count - 5) more)" : ""
-        let riskLabel = p.riskScore > 0.7 ? " [HIGH RISK]" : ""
-        let msg = "\nPatch applied: \(fileList)\(suffix)\(riskLabel)"
-        appendToAssistantMessage(msg)
-    }
-
-    private func handleRollback(_ p: RollbackPayload) {
-        let msg = "\n[Rollback triggered for task \(p.taskId): \(p.reason)]"
-        appendToAssistantMessage(msg)
-    }
-
-    // MARK: - Review
-
-    private func handleReviewFinding(_ p: ReviewFindingPayload) {
-        let severity = p.finding.severity.rawValue.uppercased()
-        let msg = "\n[\(severity)] \(p.finding.file): \(p.finding.message)"
-        appendToAssistantMessage(msg)
-    }
-
-    // MARK: - Progress
-
-    private func handleProgress(_ p: ProgressPayload) {
-        completedTasks = p.completedTasks
-        totalTasks = p.totalTasks
-        jobState = p.currentState
-    }
-
-    // MARK: - Diagnostics
-
-    private func handleCircuitBreaker(_ p: CircuitBreakerPayload) {
-        circuitBreakerActive = (p.phase == .open)
-        let msg = "\n[Circuit Breaker: \(p.phase.rawValue) — \(p.reason)]"
-        appendToAssistantMessage(msg)
-    }
-
-    private func handleBackpressure(_ p: BackpressurePayload) {
-        let status = p.active ? "active" : "cleared"
-        chatStore?.setTaskStatus(
-            "Backpressure \(status) (\(p.activeWorkers)/\(p.maxWorkers) workers)",
-            for: conversationId
-        )
-    }
-
-    private func handleProviderHealth(_ p: ProviderHealthPayload) {
-        if p.status == .unhealthy {
-            let msg = "\n[Provider \(p.providerId) unhealthy]"
-            appendToAssistantMessage(msg)
-        }
-    }
-
-    private func handleErrorBudget(_ p: ErrorBudgetPayload) {
-        let msg = "\n[Error budget low: \(p.failedPercent)%/\(p.maxPercent)%"
-            + ", \(p.consecutiveFailures) consecutive failures]"
-        appendToAssistantMessage(msg)
-    }
-
-    // MARK: - Helpers
-
-    private func appendToAssistantMessage(_ text: String) {
-        guard let convId = conversationId else { return }
-        let current = accumulatedText.values.joined()
-        chatStore?.updateLastAssistantMessage(
-            content: current + text,
-            in: convId
-        )
-    }
-
-    private func formatDuration(_ ms: Int) -> String {
-        if ms < 1000 { return "\(ms)ms" }
-        let seconds = Double(ms) / 1000.0
-        if seconds < 60 { return String(format: "%.1fs", seconds) }
-        let minutes = Int(seconds) / 60
-        let remaining = Int(seconds) % 60
-        return "\(minutes)m \(remaining)s"
     }
 }

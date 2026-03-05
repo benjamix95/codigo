@@ -15,6 +15,10 @@ struct SwarmProgressView: View {
         store.steps(for: conversationId)
     }
 
+    private var isPipelineRunningForConversation: Bool {
+        pipelineService.isRunning(for: conversationId)
+    }
+
     var liveSwarmCards: [SwarmLiveCardState] {
         let reduced = SwarmLiveReducer.reduce(activities: activities, limitRecentEvents: 12)
         return SwarmLiveReducer.sorted(states: Array(reduced.values))
@@ -43,11 +47,11 @@ struct SwarmProgressView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     swarmAntIcon
-                    Text(pipelineService.isRunning ? "PIPELINE" : "SUBAGENT")
+                    Text(isPipelineRunningForConversation ? "PIPELINE" : "SUBAGENT")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
-                        .textShimmer(active: isTaskRunning || pipelineService.isRunning)
+                        .textShimmer(active: isTaskRunning || isPipelineRunningForConversation)
                 }
 
                 Spacer(minLength: 8)

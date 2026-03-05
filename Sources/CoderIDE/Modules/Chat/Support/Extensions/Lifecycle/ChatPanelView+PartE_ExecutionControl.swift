@@ -3,11 +3,14 @@ import CoderEngine
 
 extension ChatPanelView {
     internal func interruptTask(for targetConversationId: UUID?) {
-        var didCancelTask = cancelRunTask(for: targetConversationId)
+        let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: targetConversationId)
+        var didCancelTask = didCancelPipeline || cancelRunTask(for: targetConversationId)
         if !didCancelTask, let target = targetConversationId,
            activeBuildPlanConversationId == target,
            let agentId = activeBuildAgentConversationId {
-            didCancelTask = cancelRunTask(for: agentId)
+            didCancelTask =
+                pipelineIntegrationService.cancelCurrentJob(for: agentId)
+                || cancelRunTask(for: agentId)
         }
         if !didCancelTask {
             let scope = executionScopeForActiveTask()

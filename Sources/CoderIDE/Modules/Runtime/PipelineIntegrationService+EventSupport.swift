@@ -1,0 +1,210 @@
+import CoderEngine
+import Foundation
+
+extension PipelineIntegrationService {
+
+    // MARK: - Raw Events
+
+    func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
+        let rawType = p.rawType
+
+        if rawType == "todo_write" || p.payload.keys.contains(where: {
+            $0.hasPrefix("todo_")
+        }) {
+            handleRawTodoWrite(p, for: conversationId)
+        } else if rawType == "plan_step" {
+            handleRawPlanStep(p, for: conversationId)
+        } else if rawType == "show_task_panel" {
+            chatStore?.setTaskStatus(
+                p.payload["status"] ?? "Working...",
+                for: conversationId
+            )
+        }
+    }
+
+    private func handleRawTodoWrite(_ p: RawEventPayload, for conversationId: UUID) {
+        guard let todoStore, let runtime = runtime(for: conversationId) else { return }
+
+        let title = p.payload["title"] ?? p.taskId
+        let statusStr = p.payload["status"] ?? "in_progress"
+        let status: TodoStatus = statusStr == "done" ? .done
+            : statusStr == "pending" ? .pending : .inProgress
+
+        if let planId = runtime.planConversationId {
+            var updated = todoStore.upsertCanonicalOnlyFromAgent(
+                id: nil,
+                title: title,
+                status: status,
+                priority: nil,
+                notes: p.payload["notes"],
+                activeForm: nil,
+                linkedFiles: [],
+                conversationId: planId
+            )
+            if !updated {
+                updated = todoStore.upsertCanonicalFromExecutionFallback(
+                    status: status,
+                    priority: nil,
+                    notes: p.payload["notes"],
+                    activeForm: nil,
+                    linkedFiles: [],
+                    conversationId: planId
+                )
+            }
+            if updated, status == .done {
+                _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                    conversationId: planId
+                )
+                let canonicalTodos = todoStore.canonicalTodos(for: planId)
+                chatStore?.syncPlanStepsFromCanonicalTodos(
+                    canonicalTodos,
+                    in: planId
+                )
+            }
+        } else {
+            todoStore.upsertFromAgent(
+                id: nil,
+                title: title,
+                status: status,
+                priority: nil,
+                notes: p.payload["notes"],
+                linkedFiles: [],
+                conversationId: conversationId
+            )
+        }
+    }
+
+    private func handleRawPlanStep(_ p: RawEventPayload, for conversationId: UUID) {
+        guard let planId = runtime(for: conversationId)?.planConversationId else { return }
+        guard let todoStore else { return }
+
+        let canonicalTodos = todoStore.canonicalTodos(for: planId)
+        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
+    }
+
+    // MARK: - Plan Build Finalization
+
+    func finalizePlanBuild(
+        agentConversationId: UUID,
+        planConversationId planId: UUID,
+        durationMs: Int,
+        completedTasks: Int,
+        totalTasks: Int
+    ) {
+        guard let todoStore else { return }
+
+        let recap = buildPlanRecap(
+            durationMs: durationMs,
+            completedTasks: completedTasks,
+            totalTasks: totalTasks
+        )
+        appendToAssistantMessage(recap, in: agentConversationId)
+
+        todoStore.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .pending,
+            priority: .high,
+            notes: "Review all pipeline changes and run tests",
+            linkedFiles: [],
+            conversationId: planId
+        )
+
+        let canonicalTodos = todoStore.canonicalTodos(for: planId)
+        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
+    }
+
+    private func buildPlanRecap(
+        durationMs: Int,
+        completedTasks: Int,
+        totalTasks: Int
+    ) -> String {
+        let duration = formatDuration(durationMs)
+        return "\n\n---\n**Plan Build Complete** (\(duration))"
+            + "\n\(completedTasks)/\(totalTasks) tasks completed."
+            + "\nPlease review the changes and run tests."
+    }
+
+    // MARK: - Patch & Rollback
+
+    func handlePatchApplied(_ p: PatchAppliedPayload, for conversationId: UUID) {
+        let fileList = p.touchedFiles.prefix(5).joined(separator: ", ")
+        let suffix = p.touchedFiles.count > 5
+            ? " (+\(p.touchedFiles.count - 5) more)" : ""
+        let riskLabel = p.riskScore > 0.7 ? " [HIGH RISK]" : ""
+        let msg = "\nPatch applied: \(fileList)\(suffix)\(riskLabel)"
+        appendToAssistantMessage(msg, in: conversationId)
+    }
+
+    func handleRollback(_ p: RollbackPayload, for conversationId: UUID) {
+        let msg = "\n[Rollback triggered for task \(p.taskId): \(p.reason)]"
+        appendToAssistantMessage(msg, in: conversationId)
+    }
+
+    // MARK: - Review & Progress
+
+    func handleReviewFinding(_ p: ReviewFindingPayload, for conversationId: UUID) {
+        let severity = p.finding.severity.rawValue.uppercased()
+        let msg = "\n[\(severity)] \(p.finding.file): \(p.finding.message)"
+        appendToAssistantMessage(msg, in: conversationId)
+    }
+
+    func handleProgress(_ p: ProgressPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.completedTasks = p.completedTasks
+        runtime.totalTasks = p.totalTasks
+        runtime.jobState = p.currentState
+        persistSnapshot(for: conversationId)
+    }
+
+    // MARK: - Diagnostics
+
+    func handleCircuitBreaker(_ p: CircuitBreakerPayload, for conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        runtime.circuitBreakerActive = (p.phase == .open)
+        persistSnapshot(for: conversationId)
+        let msg = "\n[Circuit Breaker: \(p.phase.rawValue) - \(p.reason)]"
+        appendToAssistantMessage(msg, in: conversationId)
+    }
+
+    func handleBackpressure(_ p: BackpressurePayload, for conversationId: UUID) {
+        let status = p.active ? "active" : "cleared"
+        chatStore?.setTaskStatus(
+            "Backpressure \(status) (\(p.activeWorkers)/\(p.maxWorkers) workers)",
+            for: conversationId
+        )
+    }
+
+    func handleProviderHealth(_ p: ProviderHealthPayload, for conversationId: UUID) {
+        if p.status == .unhealthy {
+            let msg = "\n[Provider \(p.providerId) unhealthy]"
+            appendToAssistantMessage(msg, in: conversationId)
+        }
+    }
+
+    func handleErrorBudget(_ p: ErrorBudgetPayload, for conversationId: UUID) {
+        let msg = "\n[Error budget low: \(p.failedPercent)%/\(p.maxPercent)%"
+            + ", \(p.consecutiveFailures) consecutive failures]"
+        appendToAssistantMessage(msg, in: conversationId)
+    }
+
+    // MARK: - Helpers
+
+    func appendToAssistantMessage(_ text: String, in conversationId: UUID) {
+        guard let runtime = runtime(for: conversationId) else { return }
+        let current = runtime.accumulatedText.values.joined()
+        chatStore?.updateLastAssistantMessage(
+            content: current + text,
+            in: conversationId
+        )
+    }
+
+    func formatDuration(_ ms: Int) -> String {
+        if ms < 1000 { return "\(ms)ms" }
+        let seconds = Double(ms) / 1000.0
+        if seconds < 60 { return String(format: "%.1fs", seconds) }
+        let minutes = Int(seconds) / 60
+        let remaining = Int(seconds) % 60
+        return "\(minutes)m \(remaining)s"
+    }
+}

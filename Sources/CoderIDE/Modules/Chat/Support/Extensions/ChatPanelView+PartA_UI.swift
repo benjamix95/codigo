@@ -44,7 +44,11 @@ extension ChatPanelView {
                 }
 
                 // Keep the legacy task bar only when the composer is not visible (e.g. Swarm).
-                if !shouldShowComposer(for: coderMode) && (isLoadingForCurrentConversation || isSummarizing || pipelineIntegrationService.isRunning) {
+                if !shouldShowComposer(for: coderMode)
+                    && (isLoadingForCurrentConversation
+                        || isSummarizing
+                        || pipelineIntegrationService.isRunning(for: conversationId))
+                {
                     TaskControlBar(
                         chatStore: chatStore,
                         taskActivityStore: taskActivityStore,

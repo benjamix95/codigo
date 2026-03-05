@@ -24,13 +24,7 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var currentJobId: String?
-    @Published var jobState: JobState = .intake
-    @Published var completedTasks: Int = 0
-    @Published var totalTasks: Int = 0
-    @Published var isRunning: Bool = false
-    @Published var lastError: String?
-    @Published var circuitBreakerActive: Bool = false
+    @Published private(set) var snapshotsByConversation: [UUID: PipelineConversationSnapshot] = [:]
 
     // MARK: - Dependencies
 
@@ -42,24 +36,13 @@ final class PipelineIntegrationService: ObservableObject {
 
     // MARK: - Internal State
 
-    var activeStreamTask: Task<Void, Never>?
-    var conversationId: UUID?
-    var assistantMessageId: UUID?
-    var planConversationId: UUID?
-    var accumulatedText: [String: String] = [:]
-    var onCompletion: ((PipelineCompletionContext) -> Void)?
-    private var jobStartTime: Date?
-
-    let facade: PipelineFacade
-
-    var isPlanBuild: Bool {
-        planConversationId != nil
-    }
+    private var runtimesByConversation: [UUID: PipelineConversationRuntime] = [:]
+    private let facadeConfig: PipelineFacadeConfig
 
     // MARK: - Init
 
     init(facadeConfig: PipelineFacadeConfig = PipelineFacadeConfig()) {
-        self.facade = PipelineFacade(config: facadeConfig)
+        self.facadeConfig = facadeConfig
     }
 
     // MARK: - Configuration
@@ -89,77 +72,111 @@ final class PipelineIntegrationService: ObservableObject {
         planConversationId: UUID? = nil,
         onCompletion: ((PipelineCompletionContext) -> Void)? = nil
     ) {
-        guard !isRunning else { return }
+        guard !isRunning(for: conversationId) else { return }
 
-        self.conversationId = conversationId
-        self.assistantMessageId = assistantMessageId
-        self.planConversationId = planConversationId
-        self.onCompletion = onCompletion
-        self.accumulatedText.removeAll()
-        self.lastError = nil
-        self.circuitBreakerActive = false
-        self.isRunning = true
-        self.currentJobId = job.jobId
-        self.jobStartTime = Date()
+        executionController?.clearSwarmStopRequested()
+
+        let runtime = PipelineConversationRuntime(
+            conversationId: conversationId,
+            facade: PipelineFacade(config: facadeConfig),
+            jobId: job.jobId,
+            assistantMessageId: assistantMessageId,
+            planConversationId: planConversationId,
+            onCompletion: onCompletion
+        )
+        runtimesByConversation[conversationId] = runtime
+        persistSnapshot(for: conversationId)
 
         let taskTitles = tasks.map(\.title)
         swarmProgressStore?.setSteps(taskTitles, conversationId: conversationId)
 
         chatStore?.beginTask(conversationId: conversationId)
 
-        activeStreamTask = Task {
+        let facade = runtime.facade
+        runtime.activeStreamTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             let stream = await facade.executeJob(
                 job, tasks: tasks, workerAdapter: workerAdapter
             )
             for await event in stream {
                 guard !Task.isCancelled else { break }
                 if executionController?.swarmStopRequested == true {
-                    await facade.cancel()
+                    self.cancelCurrentJob(for: conversationId)
                     break
                 }
-                await handleEvent(event)
+                self.handleEvent(event, for: conversationId)
             }
-            finalizeExecution()
+            self.finalizeExecution(for: conversationId)
         }
     }
 
     // MARK: - Cancel
 
-    func cancelCurrentJob() {
-        activeStreamTask?.cancel()
-        activeStreamTask = nil
-        Task { await facade.cancel() }
-        finalizeExecution()
+    @discardableResult
+    func cancelCurrentJob(for conversationId: UUID?) -> Bool {
+        guard let conversationId,
+              let runtime = runtimesByConversation[conversationId] else { return false }
+
+        runtime.wasCancelled = true
+        runtime.activeStreamTask?.cancel()
+        runtime.activeStreamTask = nil
+
+        Task { @MainActor in
+            await runtime.facade.cancel()
+            self.finalizeExecution(for: conversationId)
+        }
+        return true
     }
 
     // MARK: - Finalize
 
-    func finalizeExecution() {
-        let durationMs: Int
-        if let start = jobStartTime {
-            durationMs = Int(Date().timeIntervalSince(start) * 1000)
-        } else {
-            durationMs = 0
-        }
+    func finalizeExecution(for conversationId: UUID) {
+        guard let runtime = runtimesByConversation[conversationId] else { return }
+
+        runtime.isRunning = false
+        let durationMs = Int(Date().timeIntervalSince(runtime.jobStartTime) * 1000)
 
         let ctx = PipelineCompletionContext(
-            jobId: currentJobId ?? "",
-            planConversationId: planConversationId,
-            conversationId: conversationId ?? UUID(),
-            completedTasks: completedTasks,
-            totalTasks: totalTasks,
+            jobId: runtime.currentJobId,
+            planConversationId: runtime.planConversationId,
+            conversationId: conversationId,
+            completedTasks: runtime.completedTasks,
+            totalTasks: runtime.totalTasks,
             durationMs: durationMs,
-            success: lastError == nil
+            success: !runtime.wasCancelled && runtime.lastError == nil
         )
 
-        isRunning = false
         chatStore?.setLastAssistantStreaming(false, in: conversationId)
         chatStore?.endTask(conversationId: conversationId)
-        activeStreamTask = nil
+        runtime.activeStreamTask = nil
 
-        onCompletion?(ctx)
-        onCompletion = nil
-        planConversationId = nil
-        jobStartTime = nil
+        runtime.onCompletion?(ctx)
+        runtimesByConversation.removeValue(forKey: conversationId)
+        persistSnapshot(for: conversationId)
+    }
+
+    // MARK: - Queries
+
+    func snapshot(for conversationId: UUID?) -> PipelineConversationSnapshot? {
+        guard let conversationId else { return nil }
+        return snapshotsByConversation[conversationId]
+    }
+
+    func isRunning(for conversationId: UUID?) -> Bool {
+        snapshot(for: conversationId)?.isRunning == true
+    }
+
+    // MARK: - Runtime Helpers
+
+    func runtime(for conversationId: UUID) -> PipelineConversationRuntime? {
+        runtimesByConversation[conversationId]
+    }
+
+    func persistSnapshot(for conversationId: UUID) {
+        if let runtime = runtimesByConversation[conversationId] {
+            snapshotsByConversation[conversationId] = runtime.snapshot
+        } else {
+            snapshotsByConversation.removeValue(forKey: conversationId)
+        }
     }
 }
