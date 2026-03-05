@@ -23,6 +23,8 @@ extension PipelineIntegrationService {
             handleTextDelta(p)
         case .textReplace(let p):
             handleTextReplace(p)
+        case .rawEvent(let p):
+            handleRawEvent(p)
         case .patchApplied(let p):
             handlePatchApplied(p)
         case .rollbackTriggered(let p):
@@ -62,6 +64,10 @@ extension PipelineIntegrationService {
             + " in \(formatDuration(p.durationMs))"
         appendToAssistantMessage(summary)
 
+        if isPlanBuild, let planId = planConversationId {
+            finalizePlanBuild(planConversationId: planId, durationMs: p.durationMs)
+        }
+
         swarmProgressStore?.clear(conversationId: conversationId)
     }
 
@@ -90,17 +96,50 @@ extension PipelineIntegrationService {
 
     private func handleTaskCompleted(_ p: TaskCompletedPayload) {
         completedTasks += 1
-        let taskTitle = accumulatedText[p.taskId] != nil
-            ? p.taskId : p.agentName
+
         swarmProgressStore?.markCompleted(
-            name: taskTitle,
+            name: p.title,
             conversationId: conversationId
         )
 
-        if let todoStore, let convId = conversationId {
+        guard let todoStore, let convId = conversationId else { return }
+
+        if isPlanBuild, let planId = planConversationId {
+            if p.role == .coder || p.role == .docWriter {
+                var updated = todoStore.upsertCanonicalOnlyFromAgent(
+                    id: nil,
+                    title: p.title,
+                    status: .done,
+                    priority: nil,
+                    notes: nil,
+                    activeForm: nil,
+                    linkedFiles: [],
+                    conversationId: planId
+                )
+                if !updated {
+                    updated = todoStore.upsertCanonicalFromExecutionFallback(
+                        status: .done,
+                        priority: nil,
+                        notes: nil,
+                        activeForm: nil,
+                        linkedFiles: [],
+                        conversationId: planId
+                    )
+                }
+                if updated {
+                    _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                        conversationId: planId
+                    )
+                    let canonicalTodos = todoStore.canonicalTodos(for: planId)
+                    chatStore?.syncPlanStepsFromCanonicalTodos(
+                        canonicalTodos, in: planId
+                    )
+                }
+            }
+        } else {
             todoStore.upsertFromAgent(
                 id: nil,
-                title: p.agentName,
+                title: p.title.isEmpty ? p.agentName : p.title,
                 status: .done,
                 priority: nil,
                 notes: nil,
@@ -138,6 +177,116 @@ extension PipelineIntegrationService {
             in: conversationId,
             persistImmediately: false
         )
+    }
+
+    // MARK: - Raw Events
+
+    private func handleRawEvent(_ p: RawEventPayload) {
+        let rawType = p.rawType
+
+        if rawType == "todo_write" || p.payload.keys.contains(where: {
+            $0.hasPrefix("todo_")
+        }) {
+            handleRawTodoWrite(p)
+        } else if rawType == "plan_step" {
+            handleRawPlanStep(p)
+        } else if rawType == "show_task_panel" {
+            chatStore?.setTaskStatus(
+                p.payload["status"] ?? "Working...",
+                for: conversationId
+            )
+        }
+    }
+
+    private func handleRawTodoWrite(_ p: RawEventPayload) {
+        guard let todoStore, let convId = conversationId else { return }
+
+        let title = p.payload["title"] ?? p.taskId
+        let statusStr = p.payload["status"] ?? "in_progress"
+        let status: TodoStatus = statusStr == "done" ? .done
+            : statusStr == "pending" ? .pending : .inProgress
+
+        if isPlanBuild, let planId = planConversationId {
+            var updated = todoStore.upsertCanonicalOnlyFromAgent(
+                id: nil,
+                title: title,
+                status: status,
+                priority: nil,
+                notes: p.payload["notes"],
+                activeForm: nil,
+                linkedFiles: [],
+                conversationId: planId
+            )
+            if !updated {
+                updated = todoStore.upsertCanonicalFromExecutionFallback(
+                    status: status,
+                    priority: nil,
+                    notes: p.payload["notes"],
+                    activeForm: nil,
+                    linkedFiles: [],
+                    conversationId: planId
+                )
+            }
+            if updated, status == .done {
+                _ = todoStore.advanceNextCanonicalTodoIfNeeded(
+                    conversationId: planId
+                )
+                let canonicalTodos = todoStore.canonicalTodos(for: planId)
+                chatStore?.syncPlanStepsFromCanonicalTodos(
+                    canonicalTodos, in: planId
+                )
+            }
+        } else {
+            todoStore.upsertFromAgent(
+                id: nil,
+                title: title,
+                status: status,
+                priority: nil,
+                notes: p.payload["notes"],
+                linkedFiles: [],
+                conversationId: convId
+            )
+        }
+    }
+
+    private func handleRawPlanStep(_ p: RawEventPayload) {
+        guard isPlanBuild, let planId = planConversationId else { return }
+        guard let todoStore else { return }
+
+        let canonicalTodos = todoStore.canonicalTodos(for: planId)
+        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
+    }
+
+    // MARK: - Plan Build Finalization
+
+    private func finalizePlanBuild(
+        planConversationId planId: UUID,
+        durationMs: Int
+    ) {
+        guard let todoStore else { return }
+
+        let recap = buildPlanRecap(durationMs: durationMs)
+        appendToAssistantMessage(recap)
+
+        todoStore.upsertFromAgent(
+            id: nil,
+            title: "Code Review & Test",
+            status: .pending,
+            priority: .high,
+            notes: "Review all pipeline changes and run tests",
+            linkedFiles: [],
+            conversationId: planId
+        )
+
+        let canonicalTodos = todoStore.canonicalTodos(for: planId)
+        chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
+    }
+
+    private func buildPlanRecap(durationMs: Int) -> String {
+        let duration = formatDuration(durationMs)
+        return "\n\n---\n**Plan Build Complete** (\(duration))"
+            + "\n\(completedTasks)/\(totalTasks) tasks completed."
+            + "\nPlease review the changes and run tests."
     }
 
     // MARK: - Patch & Rollback

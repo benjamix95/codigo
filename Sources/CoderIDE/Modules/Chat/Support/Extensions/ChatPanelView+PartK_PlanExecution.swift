@@ -211,7 +211,19 @@ extension ChatPanelView {
             tasks: tasks,
             workerAdapter: workerAdapter,
             conversationId: agentConvId,
-            assistantMessageId: planBuildAssistantMessageId
+            assistantMessageId: planBuildAssistantMessageId,
+            planConversationId: planConversationId,
+            onCompletion: { ctx in
+                Task { @MainActor in
+                    self.activeBuildPlanConversationId = nil
+                    self.activeBuildAgentConversationId = nil
+                    if ctx.success {
+                        self.planFlowPhase = .proposalReady
+                    } else {
+                        self.planFlowPhase = .readyToBuild
+                    }
+                }
+            }
         )
     }
 

@@ -254,11 +254,14 @@ public actor PipelineFacade {
 
         case .taskCompleted:
             if let taskId = event.taskId {
+                let title = await scheduler.task(byId: taskId)?.title ?? ""
                 let agentName = event.payload["agent_name"] ?? ""
+                let roleName = event.payload["role"] ?? "coder"
+                let role = AgentRole(rawValue: roleName) ?? .coder
                 let durationMs = Int(event.payload["duration_ms"] ?? "0") ?? 0
                 results.append(.taskCompleted(TaskCompletedPayload(
-                    jobId: jobId, taskId: taskId,
-                    agentName: agentName, durationMs: durationMs
+                    jobId: jobId, taskId: taskId, title: title,
+                    agentName: agentName, role: role, durationMs: durationMs
                 )))
                 let completed = await scheduler.countByStatus(.completed)
                 let total = await scheduler.taskCount
@@ -328,7 +331,15 @@ public actor PipelineFacade {
             )))
 
         case .rawAgentEvent:
-            break
+            let taskId = event.taskId ?? event.payload["task_id"] ?? ""
+            let rawType = event.payload["raw_type"] ?? "unknown"
+            var filteredPayload = event.payload
+            filteredPayload.removeValue(forKey: "raw_type")
+            filteredPayload.removeValue(forKey: "task_id")
+            results.append(.rawEvent(RawEventPayload(
+                jobId: jobId, taskId: taskId,
+                rawType: rawType, payload: filteredPayload
+            )))
 
         default:
             break

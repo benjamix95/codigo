@@ -273,15 +273,28 @@ public actor OrchestratorMainLoop {
             type: .taskCompleted,
             jobId: job.jobId,
             taskId: result.taskId,
-            payload: ["agent_name": result.agentName]
+            payload: [
+                "agent_name": result.agentName,
+                "duration_ms": "\(result.durationMs)",
+                "role": result.agentRole.rawValue
+            ]
         )
+
+        if result.agentRole == .explorer {
+            await scheduler.markContextEnriched(result.taskId)
+        }
 
         let task = await scheduler.task(byId: result.taskId) ??
             TaskNode(taskId: result.taskId, title: "")
 
+        let completionData = Self.extractCompletionData(from: result)
+
         let action = completionHandler.handleSuccess(
             result: result,
-            task: task
+            task: task,
+            hasCriticalFindings: completionData.hasCriticalFindings,
+            testsPass: completionData.testsPass,
+            shouldInvokeDocWriter: completionData.shouldInvokeDocWriter
         )
 
         await applyAction(action, job: job)
@@ -366,6 +379,46 @@ public actor OrchestratorMainLoop {
     }
 
     // MARK: - Helpers
+
+    // MARK: - Completion Data Extraction
+
+    private struct CompletionData {
+        let hasCriticalFindings: Bool
+        let testsPass: Bool
+        let shouldInvokeDocWriter: Bool
+    }
+
+    private static func extractCompletionData(
+        from result: WorkerTaskResult
+    ) -> CompletionData {
+        guard let envelope = result.envelope else {
+            return CompletionData(
+                hasCriticalFindings: false,
+                testsPass: true,
+                shouldInvokeDocWriter: false
+            )
+        }
+
+        let summaries = envelope.actions.compactMap(\.summary).joined(separator: " ").lowercased()
+
+        let hasCritical = summaries.contains("critical")
+            || summaries.contains("security vulnerability")
+            || summaries.contains("blocking issue")
+
+        let testsFail = summaries.contains("tests fail")
+            || summaries.contains("test failure")
+            || summaries.contains("build error")
+
+        let needsDoc = envelope.actions.contains { $0.type == .docUpdate || $0.type == .docFlowUpdate }
+            || summaries.contains("documentation needed")
+            || summaries.contains("doc update")
+
+        return CompletionData(
+            hasCriticalFindings: hasCritical,
+            testsPass: !testsFail,
+            shouldInvokeDocWriter: needsDoc
+        )
+    }
 
     /// Determina il prossimo ruolo agente per un task (basato sul flusso §5.5).
     private func nextAgentRole(for task: TaskNode) -> AgentRole {

@@ -23,6 +23,10 @@ public enum PipelineUIEvent: Sendable {
     case textDelta(TextDeltaPayload)
     case textReplace(TextReplacePayload)
 
+    // MARK: Raw agent events
+
+    case rawEvent(RawEventPayload)
+
     // MARK: Patch & files
 
     case patchApplied(PatchAppliedPayload)
@@ -90,11 +94,16 @@ public struct TaskStartedPayload: Sendable {
 public struct TaskCompletedPayload: Sendable {
     public let jobId: String
     public let taskId: String
+    public let title: String
     public let agentName: String
+    public let role: AgentRole
     public let durationMs: Int
-    public init(jobId: String, taskId: String, agentName: String, durationMs: Int) {
-        self.jobId = jobId; self.taskId = taskId
-        self.agentName = agentName; self.durationMs = durationMs
+    public init(
+        jobId: String, taskId: String, title: String,
+        agentName: String, role: AgentRole, durationMs: Int
+    ) {
+        self.jobId = jobId; self.taskId = taskId; self.title = title
+        self.agentName = agentName; self.role = role; self.durationMs = durationMs
     }
 }
 
@@ -202,5 +211,19 @@ public struct ErrorBudgetPayload: Sendable {
     public init(jobId: String, failedPercent: Int, maxPercent: Int, consecutiveFailures: Int) {
         self.jobId = jobId; self.failedPercent = failedPercent
         self.maxPercent = maxPercent; self.consecutiveFailures = consecutiveFailures
+    }
+}
+
+public struct RawEventPayload: Sendable {
+    public let jobId: String
+    public let taskId: String
+    public let rawType: String
+    public let payload: [String: String]
+    public init(
+        jobId: String, taskId: String,
+        rawType: String, payload: [String: String]
+    ) {
+        self.jobId = jobId; self.taskId = taskId
+        self.rawType = rawType; self.payload = payload
     }
 }

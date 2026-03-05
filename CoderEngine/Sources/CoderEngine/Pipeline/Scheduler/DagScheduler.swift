@@ -63,6 +63,11 @@ public actor DagScheduler {
         tasks[taskId]?.waitingSince = Date()
     }
 
+    /// Segna un task come context-enriched (explorer completato).
+    public func markContextEnriched(_ taskId: String) {
+        tasks[taskId]?.contextEnriched = true
+    }
+
     // MARK: - Ready Tasks
 
     /// Restituisce i task pronti per l'esecuzione:

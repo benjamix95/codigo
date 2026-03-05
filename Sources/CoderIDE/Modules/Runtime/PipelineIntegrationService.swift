@@ -2,6 +2,18 @@ import CoderEngine
 import Foundation
 import SwiftUI
 
+// MARK: - PipelineCompletionContext
+
+struct PipelineCompletionContext {
+    let jobId: String
+    let planConversationId: UUID?
+    let conversationId: UUID
+    let completedTasks: Int
+    let totalTasks: Int
+    let durationMs: Int
+    let success: Bool
+}
+
 // MARK: - PipelineIntegrationService
 
 /// Service che collega la pipeline al layer UI di CoderIDE.
@@ -33,9 +45,16 @@ final class PipelineIntegrationService: ObservableObject {
     var activeStreamTask: Task<Void, Never>?
     var conversationId: UUID?
     var assistantMessageId: UUID?
+    var planConversationId: UUID?
     var accumulatedText: [String: String] = [:]
+    var onCompletion: ((PipelineCompletionContext) -> Void)?
+    private var jobStartTime: Date?
 
     let facade: PipelineFacade
+
+    var isPlanBuild: Bool {
+        planConversationId != nil
+    }
 
     // MARK: - Init
 
@@ -66,17 +85,22 @@ final class PipelineIntegrationService: ObservableObject {
         tasks: [TaskNode],
         workerAdapter: AgentWorkerAdapter,
         conversationId: UUID,
-        assistantMessageId: UUID
+        assistantMessageId: UUID,
+        planConversationId: UUID? = nil,
+        onCompletion: ((PipelineCompletionContext) -> Void)? = nil
     ) {
         guard !isRunning else { return }
 
         self.conversationId = conversationId
         self.assistantMessageId = assistantMessageId
+        self.planConversationId = planConversationId
+        self.onCompletion = onCompletion
         self.accumulatedText.removeAll()
         self.lastError = nil
         self.circuitBreakerActive = false
         self.isRunning = true
         self.currentJobId = job.jobId
+        self.jobStartTime = Date()
 
         let taskTitles = tasks.map(\.title)
         swarmProgressStore?.setSteps(taskTitles, conversationId: conversationId)
@@ -111,9 +135,31 @@ final class PipelineIntegrationService: ObservableObject {
     // MARK: - Finalize
 
     func finalizeExecution() {
+        let durationMs: Int
+        if let start = jobStartTime {
+            durationMs = Int(Date().timeIntervalSince(start) * 1000)
+        } else {
+            durationMs = 0
+        }
+
+        let ctx = PipelineCompletionContext(
+            jobId: currentJobId ?? "",
+            planConversationId: planConversationId,
+            conversationId: conversationId ?? UUID(),
+            completedTasks: completedTasks,
+            totalTasks: totalTasks,
+            durationMs: durationMs,
+            success: lastError == nil
+        )
+
         isRunning = false
         chatStore?.setLastAssistantStreaming(false, in: conversationId)
         chatStore?.endTask(conversationId: conversationId)
         activeStreamTask = nil
+
+        onCompletion?(ctx)
+        onCompletion = nil
+        planConversationId = nil
+        jobStartTime = nil
     }
 }

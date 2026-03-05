@@ -207,6 +207,9 @@ public actor AgentWorkerAdapter {
             ? ""
             : "\n\nFile scope: \(task.fileScope.joined(separator: ", "))"
 
+        let markerInstructions = markerUsageInstructions(for: role)
+        let workflowInstructions = planWorkflowInstructions(for: role, task: task)
+
         return """
         You are agent "\(agentName)" with role \(role.displayName).
         Job: \(jobId) | Task: \(task.taskId)
@@ -218,7 +221,13 @@ public actor AgentWorkerAdapter {
         ## Role Instructions
         \(roleInstructions)
 
+        \(workflowInstructions)
+
+        \(markerInstructions)
+
         Execute the task precisely. Be concise and focused.
+        When you complete this task, include a brief summary of what was done.
+        If tests fail or you find critical issues, mention them explicitly.
         """
     }
 
@@ -229,20 +238,69 @@ public actor AgentWorkerAdapter {
         case .planner:
             return "Analyze the request and produce a structured execution plan."
         case .explorer:
-            return "Explore the codebase to gather context needed for the task."
+            return """
+            Explore the codebase to gather context needed for the task.
+            Identify relevant files, dependencies, and patterns.
+            Report your findings so the next agent (Coder) can proceed.
+            """
         case .coder:
-            return "Implement the changes as described. Write clean, minimal code."
+            return """
+            Implement the changes as described. Write clean, minimal code.
+            After making changes, update the todo status to reflect progress.
+            Use [CODERIDE:todo_write|...] markers to report completion.
+            """
         case .debugger:
             return "Investigate and fix the issue. Explain root cause briefly."
         case .reviewer:
-            return "Review the code changes. Report findings as structured feedback."
+            return """
+            Review the code changes. Report findings as structured feedback.
+            If you find critical issues, include "critical" in your summary.
+            If all looks good, confirm the code is ready for testing.
+            """
         case .testWriter:
-            return "Write tests covering the changed functionality."
+            return """
+            Write tests covering the changed functionality.
+            Run the tests and report results.
+            If tests fail, include "tests fail" in your summary.
+            """
         case .docWriter:
-            return "Update documentation to reflect the changes made."
+            return """
+            Update documentation to reflect the changes made.
+            Include "documentation needed" in your summary if docs are required.
+            """
         case .securityAuditor:
-            return "Audit code for security vulnerabilities. Report findings."
+            return """
+            Audit code for security vulnerabilities. Report findings.
+            If you find critical vulnerabilities, include "security vulnerability" in your summary.
+            """
         }
+    }
+
+    private static func markerUsageInstructions(for role: AgentRole) -> String {
+        guard role == .coder || role == .debugger else { return "" }
+
+        return """
+        ## CoderIDE Markers
+        You can emit these markers in your output to interact with the IDE:
+        - [CODERIDE:todo_write|title=<title>|status=<done/in_progress/pending>] — Update a todo item
+        - [CODERIDE:plan_step|title=<title>|status=<done/in_progress>] — Update plan step status
+        - [CODERIDE:show_task_panel] — Show the task activity panel
+        """
+    }
+
+    private static func planWorkflowInstructions(
+        for role: AgentRole,
+        task: TaskNode
+    ) -> String {
+        guard role == .coder || role == .explorer else { return "" }
+
+        return """
+        ## Pipeline Workflow
+        This task is part of a plan build pipeline. Your work feeds into the next stage:
+        Explorer -> Coder -> Reviewer -> TestWriter -> DocWriter
+        Current task: "\(task.title)"
+        Stay focused on this specific task only. Do not attempt to complete other tasks.
+        """
     }
 
     private static func actionType(for role: AgentRole) -> ActionType {
