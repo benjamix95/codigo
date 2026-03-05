@@ -186,3 +186,36 @@ func resolvePlanStepTargetConversationId(
 ) -> UUID? {
     eventConversationId ?? activeBuildPlanConversationId ?? activeTaskConversationId
 }
+
+func shouldMirrorLegacyPlanStepIntoActiveBuildPlan(
+    targetConversationId: UUID?,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> Bool {
+    guard let activeBuildPlanConversationId else { return false }
+    guard targetConversationId != activeBuildPlanConversationId else { return false }
+    return isPlanBuildContext(
+        conversationId: targetConversationId,
+        phase: phase,
+        activeBuildPlanConversationId: activeBuildPlanConversationId,
+        activeBuildAgentConversationId: activeBuildAgentConversationId
+    )
+}
+
+func resolveCanonicalPlanTodoConversationId(
+    targetConversationId: UUID?,
+    phase: PlanFlowPhase,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?
+) -> UUID? {
+    guard isPlanBuildContext(
+        conversationId: targetConversationId,
+        phase: phase,
+        activeBuildPlanConversationId: activeBuildPlanConversationId,
+        activeBuildAgentConversationId: activeBuildAgentConversationId
+    ) else {
+        return targetConversationId
+    }
+    return activeBuildPlanConversationId ?? targetConversationId
+}
