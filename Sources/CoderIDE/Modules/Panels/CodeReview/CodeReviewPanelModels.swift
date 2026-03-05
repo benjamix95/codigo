@@ -2,6 +2,8 @@ import Foundation
 
 enum CodeReviewTab: String, CaseIterable {
     case commands = "Commands"
+    case findings = "Findings"
+    case timeline = "Timeline"
     case config = "Config"
 }
 

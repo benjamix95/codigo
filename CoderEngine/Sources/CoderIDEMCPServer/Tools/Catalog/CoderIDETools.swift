@@ -13,6 +13,7 @@ struct CoderIDETools {
         + planIntegrationTools
         + subagentTools
         + debugTools
+        + codeReviewTools
 
     /// Map MCP tool name → UnifiedToolRuntime tool name.
     /// Supports both plain names (`coderide_read`) and namespaced references

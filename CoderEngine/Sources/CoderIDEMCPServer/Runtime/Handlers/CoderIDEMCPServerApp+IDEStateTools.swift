@@ -15,6 +15,10 @@ extension CoderIDEMCPServerApp {
         "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
         "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
         "plan_history_read", "plan_diff", "plan_request_user_input",
+        // Code review tools
+        "review_start", "review_status", "review_findings",
+        "review_apply_fix", "review_dismiss", "review_configure",
+        "review_diff_summary", "review_comment",
     ]
 
     /// IDE state tools are pass-through. The MCP server acknowledges the call
@@ -24,6 +28,9 @@ extension CoderIDEMCPServerApp {
     static func handleIDEStateTool(name: String, args: [String: String]) -> CallTool.Result {
         if let planResult = handlePlanIDEStateTool(name: name, args: args) {
             return planResult
+        }
+        if let reviewResult = handleCodeReviewTool(name: name, args: args) {
+            return reviewResult
         }
 
         switch name {
