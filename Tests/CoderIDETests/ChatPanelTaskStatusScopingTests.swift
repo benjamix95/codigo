@@ -36,6 +36,18 @@ final class ChatPanelTaskStatusScopingTests: XCTestCase {
         XCTAssertEqual(resolved, fallbackConversationId)
     }
 
+    func testResolveTaskStatusConversationIdSupportsCamelCaseConversationKey() {
+        let payloadConversationId = UUID()
+        let fallbackConversationId = UUID()
+
+        let resolved = resolveTaskStatusConversationId(
+            activityPayload: ["conversationId": payloadConversationId.uuidString.lowercased()],
+            fallbackConversationId: fallbackConversationId
+        )
+
+        XCTAssertEqual(resolved, payloadConversationId)
+    }
+
     func testPayloadWithConversationScopeAddsScopeWhenMissing() {
         let conversationId = UUID()
         let payload = payloadWithConversationScope(
@@ -66,6 +78,19 @@ final class ChatPanelTaskStatusScopingTests: XCTestCase {
         let providedConversationId = UUID()
         let payload = payloadWithConversationScope(
             payload: ["conversation_id": providedConversationId.uuidString.lowercased()],
+            conversationId: UUID()
+        )
+
+        XCTAssertEqual(
+            payload["conversation_id"],
+            providedConversationId.uuidString.lowercased()
+        )
+    }
+
+    func testPayloadWithConversationScopePromotesCamelCaseConversationKey() {
+        let providedConversationId = UUID()
+        let payload = payloadWithConversationScope(
+            payload: ["conversationId": providedConversationId.uuidString],
             conversationId: UUID()
         )
 

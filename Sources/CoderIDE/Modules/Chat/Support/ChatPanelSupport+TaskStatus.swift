@@ -4,11 +4,8 @@ func resolveTaskStatusConversationId(
     activityPayload: [String: String],
     fallbackConversationId: UUID?
 ) -> UUID? {
-    if let rawConversationId = activityPayload["conversation_id"]?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-       !rawConversationId.isEmpty,
-       let parsedConversationId = UUID(uuidString: rawConversationId)
-    {
+    if let scope = canonicalConversationScope(from: activityPayload),
+       let parsedConversationId = UUID(uuidString: scope) {
         return parsedConversationId
     }
     return fallbackConversationId
@@ -18,11 +15,13 @@ func payloadWithConversationScope(
     payload: [String: String],
     conversationId: UUID?
 ) -> [String: String] {
-    guard let conversationId else { return payload }
     var updated = payload
-    let taggedConversationId = (updated["conversation_id"] ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    if taggedConversationId.isEmpty {
+    if let scopedConversationId = canonicalConversationScope(from: updated) {
+        updated["conversation_id"] = scopedConversationId
+        return updated
+    }
+    guard let conversationId else { return updated }
+    if canonicalConversationScopeValue(updated["conversation_id"]) == nil {
         updated["conversation_id"] = conversationId.uuidString.lowercased()
     }
     return updated

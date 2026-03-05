@@ -36,4 +36,30 @@ final class PlanPanelTraceScopingTests: XCTestCase {
 
         XCTAssertEqual(filtered.map(\.id), [first.id, second.id])
     }
+
+    func testFilterPlanTraceActivitiesForConversationSupportsCamelCaseConversationId() {
+        let targetConversationId = UUID()
+        let otherConversationId = UUID()
+        let matching = TaskActivity(
+            type: "command_execution",
+            title: "Run tests",
+            payload: ["conversationId": targetConversationId.uuidString],
+            phase: .executing,
+            isRunning: true
+        )
+        let other = TaskActivity(
+            type: "edit",
+            title: "Edit file",
+            payload: ["conversationId": otherConversationId.uuidString],
+            phase: .editing,
+            isRunning: true
+        )
+
+        let filtered = filterPlanTraceActivitiesForConversation(
+            [matching, other],
+            conversationId: targetConversationId
+        )
+
+        XCTAssertEqual(filtered.map(\.id), [matching.id])
+    }
 }

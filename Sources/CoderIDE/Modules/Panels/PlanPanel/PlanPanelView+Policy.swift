@@ -154,9 +154,6 @@ func filterPlanTraceActivitiesForConversation(
     guard let conversationId else { return activities }
     let scopedId = conversationId.uuidString.lowercased()
     return activities.filter { activity in
-        let payloadConversationId = activity.payload["conversation_id"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return payloadConversationId == scopedId
+        canonicalConversationScope(from: activity.payload) == scopedId
     }
 }

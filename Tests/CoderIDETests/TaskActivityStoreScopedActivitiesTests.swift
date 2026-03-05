@@ -31,12 +31,33 @@ final class TaskActivityStoreScopedActivitiesTests: XCTestCase {
         XCTAssertEqual(scoped.first?.payload["conversation_id"], firstConversationId.uuidString.lowercased())
     }
 
-    private func makeActivity(type: String, conversationId: UUID) -> TaskActivity {
-        TaskActivity(
+    func testActivitiesForConversationAcceptsCamelCaseConversationIdPayload() {
+        let store = TaskActivityStore()
+        let firstConversationId = UUID()
+        let secondConversationId = UUID()
+        store.addActivity(makeActivity(type: "command_execution", conversationId: firstConversationId, useCamelCaseKey: true))
+        store.addActivity(makeActivity(type: "command_execution", conversationId: secondConversationId, useCamelCaseKey: true))
+        store.flushPending()
+
+        let scoped = store.activities(for: firstConversationId)
+
+        XCTAssertEqual(scoped.count, 1)
+        XCTAssertEqual(scoped.first?.payload["conversationId"]?.lowercased(), firstConversationId.uuidString.lowercased())
+    }
+
+    private func makeActivity(
+        type: String,
+        conversationId: UUID,
+        useCamelCaseKey: Bool = false
+    ) -> TaskActivity {
+        let payload: [String: String] = useCamelCaseKey
+            ? ["conversationId": conversationId.uuidString]
+            : ["conversation_id": conversationId.uuidString.lowercased()]
+        return TaskActivity(
             type: type,
             title: type,
             detail: nil,
-            payload: ["conversation_id": conversationId.uuidString.lowercased()],
+            payload: payload,
             timestamp: Date(),
             phase: .planning,
             isRunning: false

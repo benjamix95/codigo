@@ -92,4 +92,35 @@ final class TaskActivityStoreSwarmCardsTests: XCTestCase {
         XCTAssertNotNil(card)
         XCTAssertGreaterThanOrEqual(card?.recentEvents.count ?? 0, 2)
     }
+
+    func testAppendOrMergeBatchEventHardCapPreservesRunningActivities() {
+        let store = TaskActivityStore()
+        let running = TaskActivity(
+            type: "agent",
+            title: "Long running operation",
+            detail: "running",
+            payload: ["status": "running"],
+            phase: .planning,
+            isRunning: true,
+            groupId: "running-anchor"
+        )
+        store.appendOrMergeBatchEvent(running)
+
+        for index in 0...store.activitiesHardCap {
+            store.appendOrMergeBatchEvent(
+                TaskActivity(
+                    type: "batch_log",
+                    title: "Log \(index)",
+                    detail: "completed",
+                    payload: ["status": "completed"],
+                    phase: .planning,
+                    isRunning: false,
+                    groupId: "batch-\(index)"
+                )
+            )
+        }
+
+        XCTAssertEqual(store.activities.count, store.activitiesHardCap)
+        XCTAssertTrue(store.activities.contains(where: { $0.id == running.id }))
+    }
 }

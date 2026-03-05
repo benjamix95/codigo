@@ -33,15 +33,7 @@ extension TaskActivityStore {
         pendingActivities.removeAll(keepingCapacity: true)
         activities.append(contentsOf: batch)
         pruneCompletedTerminalActivities()
-        if activities.count > activitiesHardCap {
-            let excess = activities.count - activitiesHardCap
-            var removed = 0
-            activities.removeAll { act in
-                guard removed < excess, !act.isRunning else { return false }
-                removed += 1
-                return true
-            }
-        }
+        trimActivitiesToHardCapPreservingRunning()
         recalcActiveOperations()
         for activity in batch {
             ingestSwarmCard(activity: activity)
@@ -104,10 +96,7 @@ extension TaskActivityStore {
             activities.append(activity)
         }
         pruneCompletedTerminalActivities()
-        if activities.count > activitiesHardCap {
-            let excess = activities.count - activitiesHardCap
-            activities.removeFirst(excess)
-        }
+        trimActivitiesToHardCapPreservingRunning()
         recalcActiveOperations()
         ingestSwarmCard(activity: activity)
     }
@@ -172,9 +161,7 @@ extension TaskActivityStore {
     }
 
     private func normalizedConversationId(_ activity: TaskActivity) -> String {
-        (activity.payload["conversation_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        canonicalConversationScope(from: activity.payload) ?? ""
     }
 
     private func isTerminalLike(_ activity: TaskActivity) -> Bool {
@@ -210,6 +197,21 @@ extension TaskActivityStore {
             .uuidString
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() ?? ""
+    }
+
+    private func trimActivitiesToHardCapPreservingRunning() {
+        guard activities.count > activitiesHardCap else { return }
+        var remainingToRemove = activities.count - activitiesHardCap
+
+        activities.removeAll { activity in
+            guard remainingToRemove > 0, !activity.isRunning else { return false }
+            remainingToRemove -= 1
+            return true
+        }
+
+        if remainingToRemove > 0 {
+            activities.removeFirst(min(remainingToRemove, activities.count))
+        }
     }
 
     private func pruneExpiredInstantGreps(referenceDate: Date) {

@@ -6,7 +6,7 @@ extension TaskActivityStore {
         guard let conversationId else { return activities }
         let scope = normalizedConversationScope(conversationId)
         return activities.filter { activity in
-            normalizedConversationScope(activity.payload["conversation_id"]) == scope
+            canonicalConversationScope(from: activity.payload) == scope
         }
     }
 
@@ -23,7 +23,7 @@ extension TaskActivityStore {
         guard let conversationId else { return recent }
         let scope = normalizedConversationScope(conversationId)
         return recent.filter { activity in
-            normalizedConversationScope(activity.payload["conversation_id"]) == scope
+            canonicalConversationScope(from: activity.payload) == scope
         }
     }
 

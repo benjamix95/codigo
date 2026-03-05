@@ -288,9 +288,6 @@ extension TaskActivityStore {
     }
 
     private func activityBelongsToConversation(_ activity: TaskActivity, scope: String) -> Bool {
-        let taggedScope = (activity.payload["conversation_id"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return taggedScope == scope
+        canonicalConversationScope(from: activity.payload) == scope
     }
 }

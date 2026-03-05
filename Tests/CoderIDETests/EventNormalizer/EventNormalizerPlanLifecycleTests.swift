@@ -256,4 +256,56 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         XCTAssertEqual(activity.type, "plan_diff")
         XCTAssertTrue((activity.detail ?? "").contains("Invalid"))
     }
+
+    func testPlanStepUpsertWithBlankConversationIdUsesStepIdAsGroup() {
+        let events = EventNormalizer.normalize(
+            type: "plan_step_upsert",
+            payload: [
+                "step_id": "9",
+                "status": "running",
+                "conversation_id": "   "
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planStepUpsert(let payload) = $0 {
+                return payload.stepId == "9"
+                    && payload.conversationId == nil
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_step_upsert"
+                    && activity.groupId == "9"
+            }
+            return false
+        })
+    }
+
+    func testPlanCreateWithBlankConversationIdProducesNilConversationScope() {
+        let events = EventNormalizer.normalize(
+            type: "plan_create",
+            payload: [
+                "goal": "Create plan",
+                "conversationId": " "
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planCreate(let goal, _, _, let conversationId) = $0 {
+                return goal == "Create plan" && conversationId == nil
+            }
+            return false
+        })
+
+        XCTAssertTrue(events.contains {
+            if case .taskActivity(let activity) = $0 {
+                return activity.type == "plan_create"
+                    && activity.groupId == nil
+            }
+            return false
+        })
+    }
 }

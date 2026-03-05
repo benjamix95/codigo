@@ -68,8 +68,8 @@ extension ChatPanelView {
         conversationId: UUID?,
         payload: [String: String]
     ) -> InstantGrepResult {
-        let payloadConversationId = payload["conversation_id"]
-            .flatMap { UUID(uuidString: $0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        let payloadConversationId = canonicalConversationScope(from: payload)
+            .flatMap { UUID(uuidString: $0) }
         let resolvedConversationId = grep.conversationId ?? conversationId ?? payloadConversationId
         if grep.conversationId == resolvedConversationId {
             return grep
