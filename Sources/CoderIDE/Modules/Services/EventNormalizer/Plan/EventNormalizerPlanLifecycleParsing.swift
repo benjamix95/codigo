@@ -26,10 +26,15 @@ extension EventNormalizer {
             return []
         }
         return objects.enumerated().compactMap { index, item in
-            let stepId = ((item["step_id"] as? String) ?? (item["stepId"] as? String) ?? (item["id"] as? String) ?? String(index + 1))
+            let stepId = (
+                scalarString(from: item["step_id"])
+                    ?? scalarString(from: item["stepId"])
+                    ?? scalarString(from: item["id"])
+                    ?? String(index + 1)
+            )
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !stepId.isEmpty else { return nil }
-            let status = normalizePlanStepStatus(item["status"] as? String) ?? .pending
+            let status = normalizePlanStepStatus(scalarString(from: item["status"])) ?? .pending
             return PlanStepUpsertPayload(
                 stepId: stepId,
                 status: status,
@@ -51,10 +56,10 @@ extension EventNormalizer {
             return []
         }
         return objects.compactMap { item in
-            let stepId = ((item["step_id"] as? String) ?? (item["stepId"] as? String))?
+            let stepId = (scalarString(from: item["step_id"]) ?? scalarString(from: item["stepId"]))?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !stepId.isEmpty,
-                  let status = normalizePlanStepStatus(item["status"] as? String) else { return nil }
+                  let status = normalizePlanStepStatus(scalarString(from: item["status"])) else { return nil }
             return PlanStepBatchUpdateItemPayload(
                 stepId: stepId,
                 status: status,
@@ -75,14 +80,81 @@ extension EventNormalizer {
 
     static func parseStringArray(rawValue: Any?) -> [String] {
         if let array = rawValue as? [String] {
-            return array.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            return normalizeStringArray(array)
         }
-        if let raw = rawValue as? String,
-           let data = raw.data(using: .utf8),
-           let array = try? JSONSerialization.jsonObject(with: data) as? [String] {
-            return array.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        if let array = rawValue as? [Any] {
+            return normalizeAnyArray(array)
+        }
+        if let raw = rawValue as? String {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return [] }
+            if trimmed.hasPrefix("["),
+               let data = trimmed.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) {
+                if let stringArray = parsed as? [String] {
+                    return normalizeStringArray(stringArray)
+                }
+                if let anyArray = parsed as? [Any] {
+                    return normalizeAnyArray(anyArray)
+                }
+            }
+            return normalizeStringArray(trimmed.split(separator: ",").map(String.init))
+        }
+        if let bool = rawValue as? Bool {
+            return [bool ? "true" : "false"]
+        }
+        if let number = rawValue as? NSNumber {
+            if isBooleanNSNumber(number) {
+                return [number.boolValue ? "true" : "false"]
+            }
+            return [number.stringValue]
         }
         return []
+    }
+
+    private static func normalizeStringArray(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
+    }
+
+    private static func normalizeAnyArray(_ values: [Any]) -> [String] {
+        var normalized: [String] = []
+        for value in values {
+            if let string = value as? String {
+                normalized.append(string)
+                continue
+            }
+            if let number = value as? NSNumber {
+                if isBooleanNSNumber(number) {
+                    normalized.append(number.boolValue ? "true" : "false")
+                } else {
+                    normalized.append(number.stringValue)
+                }
+            }
+        }
+        return normalizeStringArray(normalized)
+    }
+
+    private static func scalarString(from value: Any?) -> String? {
+        if let text = value as? String {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let number = value as? NSNumber {
+            if isBooleanNSNumber(number) {
+                return number.boolValue ? "true" : "false"
+            }
+            let text = number.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+        return nil
+    }
+
+    private static func isBooleanNSNumber(_ number: NSNumber) -> Bool {
+        CFGetTypeID(number) == CFBooleanGetTypeID()
     }
 
     static func normalizePlanStepStatus(_ raw: String?) -> PlanStepStatus? {
