@@ -110,4 +110,57 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertEqual(diffPayload?["from_snapshot_id"], "snap-a")
         XCTAssertEqual(diffPayload?["to_snapshot_id"], "snap-b")
     }
+
+    func testParseStreamJSONEventSynthesizesPlanLifecycleEventsFromCamelCaseAliases() {
+        let parsed = runParser(events: [
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-plan-camel-reorder-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_step_reorder",
+                    "arguments": #"{\"orderedStepIds\":[\"2\",\"1\"],\"conversationId\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-plan-camel-deps-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_step_dependency_set",
+                    "arguments": #"{\"stepId\":\"3\",\"dependsOn\":[\"1\",\"2\"],\"conversationId\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"}"#,
+                ],
+            ],
+            [
+                "type": "item.completed",
+                "item": [
+                    "id": "mcp-plan-camel-diff-1",
+                    "type": "mcp_tool_call",
+                    "tool": "functions.mcp_call",
+                    "mcp_tool": "coderide_plan_diff",
+                    "arguments": #"{\"fromSnapshotId\":\"snap-1\",\"toSnapshotId\":\"snap-2\"}"#,
+                ],
+            ],
+        ])
+
+        let rawEvents = parsed.compactMap { event -> (String, [String: String])? in
+            if case .raw(let type, let payload) = event { return (type, payload) }
+            return nil
+        }
+
+        let reorderPayload = rawEvents.first(where: { $0.0 == "plan_step_reorder" })?.1
+        XCTAssertEqual(reorderPayload?["ordered_step_ids"], #"["2","1"]"#)
+        XCTAssertEqual(reorderPayload?["conversation_id"], "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+
+        let depsPayload = rawEvents.first(where: { $0.0 == "plan_step_dependency_set" })?.1
+        XCTAssertEqual(depsPayload?["step_id"], "3")
+        XCTAssertEqual(depsPayload?["depends_on"], #"["1","2"]"#)
+        XCTAssertEqual(depsPayload?["conversation_id"], "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+
+        let diffPayload = rawEvents.first(where: { $0.0 == "plan_diff" })?.1
+        XCTAssertEqual(diffPayload?["from_snapshot_id"], "snap-1")
+        XCTAssertEqual(diffPayload?["to_snapshot_id"], "snap-2")
+    }
 }

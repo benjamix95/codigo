@@ -51,8 +51,8 @@ extension EventNormalizer {
 
     private static func normalizePlanCreate(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
         let goal = payload["goal"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Operational plan in progress"
-        let chosenPath = payload["chosen_path"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let chosenPath = (payload["chosen_path"] ?? payload["chosenPath"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         let steps = parsePlanStepUpserts(from: payload["steps"])
 
         return [
@@ -71,7 +71,7 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanRead(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         return [
             .planRead(conversationId: conversationId),
             .taskActivity(TaskActivity(
@@ -108,7 +108,7 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanStepBatchUpdate(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         let items = parseBatchUpdateItems(from: payload["updates"])
         guard !items.isEmpty else {
             return [invalidPlanPayloadActivity(type: "plan_step_batch_update", payload: payload, timestamp: timestamp)]
@@ -129,8 +129,8 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanStepReorder(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let orderedIds = parseStringArray(raw: payload["ordered_step_ids"])
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let orderedIds = parseStringArray(raw: payload["ordered_step_ids"] ?? payload["orderedStepIds"])
         guard !orderedIds.isEmpty else {
             return [invalidPlanPayloadActivity(type: "plan_step_reorder", payload: payload, timestamp: timestamp)]
         }
@@ -150,11 +150,11 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanStepDependencySet(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let stepId = payload["step_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !stepId.isEmpty else {
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let stepId = (payload["step_id"] ?? payload["stepId"])?.trimmingCharacters(in: .whitespacesAndNewlines), !stepId.isEmpty else {
             return [invalidPlanPayloadActivity(type: "plan_step_dependency_set", payload: payload, timestamp: timestamp)]
         }
-        let dependsOn = parseStringArray(raw: payload["depends_on"])
+        let dependsOn = parseStringArray(raw: payload["depends_on"] ?? payload["dependsOn"])
         return [
             .planStepDependencySet(stepId: stepId, dependsOn: dependsOn, conversationId: conversationId),
             .taskActivity(TaskActivity(
@@ -171,7 +171,7 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanSetWalkthrough(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let markdown = payload["markdown"]?.trimmingCharacters(in: .whitespacesAndNewlines), !markdown.isEmpty else {
             return [invalidPlanPayloadActivity(type: "plan_set_walkthrough", payload: payload, timestamp: timestamp)]
         }
@@ -193,7 +193,7 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanHistoryRead(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         let limit = Int(payload["limit"] ?? "")
         return [
             .planHistoryRead(conversationId: conversationId, limit: limit),
@@ -211,12 +211,12 @@ extension EventNormalizer {
     }
 
     private static func normalizePlanDiff(payload: [String: String], timestamp: Date) -> [NormalizedEvent] {
-        guard let fromSnapshotId = payload["from_snapshot_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let fromSnapshotId = (payload["from_snapshot_id"] ?? payload["fromSnapshotId"])?.trimmingCharacters(in: .whitespacesAndNewlines),
               !fromSnapshotId.isEmpty else {
             return [invalidPlanPayloadActivity(type: "plan_diff", payload: payload, timestamp: timestamp)]
         }
-        let toSnapshotId = payload["to_snapshot_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let toSnapshotId = (payload["to_snapshot_id"] ?? payload["toSnapshotId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         return [
             .planDiff(fromSnapshotId: fromSnapshotId, toSnapshotId: toSnapshotId, conversationId: conversationId),
             .taskActivity(TaskActivity(

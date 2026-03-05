@@ -81,6 +81,29 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         })
     }
 
+    func testPlanStepBatchUpdateParsesCamelCaseAliases() {
+        let events = EventNormalizer.normalize(
+            type: "plan_step_batch_update",
+            payload: [
+                "updates": #"[{"stepId":"1","status":"done","targetFile":"Sources/A.swift","linkedFiles":["Sources/A.swift"],"dependsOn":["0"]}]"#,
+                "conversationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            ]
+        )
+
+        XCTAssertTrue(events.contains {
+            if case .planStepBatchUpdate(let items, let conversationId) = $0 {
+                guard let first = items.first else { return false }
+                return first.stepId == "1"
+                    && first.status == .done
+                    && first.targetFile == "Sources/A.swift"
+                    && first.linkedFiles == ["Sources/A.swift"]
+                    && first.dependsOn == ["0"]
+                    && conversationId == "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            }
+            return false
+        })
+    }
+
     func testPlanStepReorderAndDependenciesEmitTypedEvents() {
         let reorderEvents = EventNormalizer.normalize(
             type: "plan_step_reorder",
@@ -107,6 +130,40 @@ final class EventNormalizerPlanLifecycleTests: XCTestCase {
         XCTAssertTrue(dependencyEvents.contains {
             if case .planStepDependencySet(let stepId, let dependsOn, _) = $0 {
                 return stepId == "3" && dependsOn == ["1", "2"]
+            }
+            return false
+        })
+    }
+
+    func testPlanStepReorderAndDependenciesAcceptCamelCaseAliases() {
+        let reorderEvents = EventNormalizer.normalize(
+            type: "plan_step_reorder",
+            payload: [
+                "orderedStepIds": #"["9","8"]"#
+            ]
+        )
+
+        XCTAssertTrue(reorderEvents.contains {
+            if case .planStepReorder(let orderedStepIds, _) = $0 {
+                return orderedStepIds == ["9", "8"]
+            }
+            return false
+        })
+
+        let dependencyEvents = EventNormalizer.normalize(
+            type: "plan_step_dependency_set",
+            payload: [
+                "stepId": "4",
+                "dependsOn": #"["1","3"]"#,
+                "conversationId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            ]
+        )
+
+        XCTAssertTrue(dependencyEvents.contains {
+            if case .planStepDependencySet(let stepId, let dependsOn, let conversationId) = $0 {
+                return stepId == "4"
+                    && dependsOn == ["1", "3"]
+                    && conversationId == "cccccccc-cccc-cccc-cccc-cccccccccccc"
             }
             return false
         })

@@ -1,6 +1,8 @@
 import Foundation
 
 extension EventNormalizer {
+    static let todoClearMarkerTitle = "__CODERIDE_CLEAR_TODOS__"
+
     static func parseTodoWrite(payload: [String: String]) -> TodoWritePayload? {
         let title = (
             payload["title"]
@@ -18,10 +20,7 @@ extension EventNormalizer {
         let priority = normalizedTodoPriority(payload["priority"])
         let notes = payload["notes"]
         let activeForm = payload["activeForm"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let files = payload["files"]?
-            .split(separator: ",")
-            .map { String($0).trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty } ?? []
+        let files = normalizeFileList(from: payload)
 
         return TodoWritePayload(
             id: id,
@@ -32,6 +31,33 @@ extension EventNormalizer {
             activeForm: activeForm,
             files: files
         )
+    }
+
+    static func normalizeFileList(from payload: [String: String]) -> [String] {
+        let keys = ["files", "linkedFiles", "linked_files"]
+        var merged: [String] = []
+        for key in keys {
+            guard let rawValue = payload[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawValue.isEmpty else {
+                continue
+            }
+
+            // Accept both JSON array strings and plain CSV values.
+            if rawValue.hasPrefix("["),
+               let data = rawValue.data(using: .utf8),
+               let decoded = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                merged.append(contentsOf: decoded)
+                continue
+            }
+
+            merged.append(contentsOf: rawValue.split(separator: ",").map(String.init))
+        }
+
+        var seen = Set<String>()
+        return merged
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { seen.insert($0).inserted }
     }
 
     static func normalizedTodoStatus(_ raw: String?) -> TodoStatus? {

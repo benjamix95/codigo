@@ -50,8 +50,8 @@ extension CoderIDEMCPServerApp {
                 }
                 guard let array = parsed as? [[String: Any]], !array.isEmpty else {
                     if parsed is [Any] {
-                        // Empty array — acknowledge but nothing to do
-                        return CallTool.Result(content: [.text("OK — empty todo list received, no changes")], isError: nil)
+                        // Empty array — treated as an explicit clear request by IDE event handlers.
+                        return CallTool.Result(content: [.text("OK — empty todo list received, clear request acknowledged")], isError: nil)
                     }
                     return CallTool.Result(
                         content: [.text("Error: 'todos' must be a JSON array of objects, not \(type(of: parsed))")],

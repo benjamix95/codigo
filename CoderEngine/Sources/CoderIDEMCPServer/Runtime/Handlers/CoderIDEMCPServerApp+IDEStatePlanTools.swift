@@ -58,7 +58,11 @@ extension CoderIDEMCPServerApp {
         guard let status = parsePlanStepStatus(args["status"]) else {
             return planError("Error: invalid status. Use: pending, running, done, failed")
         }
-        guard let conversationId = resolveConversationId(from: args, createIfMissing: true),
+        guard let conversationId = resolveConversationId(
+            from: args,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
@@ -83,7 +87,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'goal' parameter is required")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: true) else {
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ) else {
             return planError("Error: invalid conversation id")
         }
         guard let parsedIncomingSteps = parseJSONObjectArray(args["steps"]) else {
@@ -154,7 +162,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: invalid status. Use: pending, running, done, failed")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: true),
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
@@ -190,7 +202,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'updates' must be a non-empty JSON array")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: true),
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
@@ -243,7 +259,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'ordered_step_ids' must not contain duplicate ids")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: false),
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: false,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: false) else {
             return planError("Error: no plan snapshot found for reorder")
         }
@@ -286,7 +306,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'depends_on' must be a valid JSON string array")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: true),
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
             return planError("Error: unable to resolve target plan snapshot")
         }
@@ -315,7 +339,11 @@ extension CoderIDEMCPServerApp {
             return planError("Error: 'markdown' is required")
         }
         let normalizedArgs = normalizedConversationArgs(args)
-        guard let conversationId = resolveConversationId(from: normalizedArgs, createIfMissing: true),
+        guard let conversationId = resolveConversationId(
+            from: normalizedArgs,
+            createIfMissing: true,
+            allowLatestFallback: false
+        ),
               var snapshot = loadMutableSnapshot(conversationId: conversationId, createIfMissing: true) else {
             return planError("Error: unable to resolve target plan snapshot")
         }

@@ -7,10 +7,6 @@ extension EventNormalizer {
         if let todosJson = payload["todos_json"] ?? payload["todos"],
            let todosData = todosJson.data(using: .utf8),
            let todosArray = try? JSONSerialization.jsonObject(with: todosData) as? [[String: Any]] {
-            // Empty array is valid — means "clear todos" or "no-op"; skip batch processing
-            guard !todosArray.isEmpty else {
-                return events
-            }
             var summaryParts: [String] = []
             for todoItem in todosArray {
                 let content = (
@@ -30,9 +26,7 @@ extension EventNormalizer {
                 let priority = normalizedTodoPriority(todoItem["priority"] as? String)
                 let notes = (todoItem["notes"] as? String)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                let linkedFiles = (todoItem["linkedFiles"] as? [String])
-                    ?? (todoItem["files"] as? [String])
-                    ?? []
+                let linkedFiles = parseTodoLinkedFiles(todoItem)
                 events.append(.todoWrite(TodoWritePayload(
                     id: nil,
                     title: content,
@@ -64,12 +58,18 @@ extension EventNormalizer {
         }
 
         guard let todo = parseTodoWrite(payload: payload) else { return nil }
+        let detail: String = {
+            if todo.title == todoClearMarkerTitle {
+                return "Todo list cleared"
+            }
+            return todo.title
+        }()
         return [
             .todoWrite(todo),
             .taskActivity(TaskActivity(
                 type: "todo_write",
                 title: "Todo updated",
-                detail: todo.title,
+                detail: detail,
                 payload: payload,
                 timestamp: timestamp,
                 phase: .planning,
@@ -91,5 +91,27 @@ extension EventNormalizer {
                 isRunning: false
             ))
         ]
+    }
+
+    private static func parseTodoLinkedFiles(_ todoItem: [String: Any]) -> [String] {
+        if let linked = todoItem["linkedFiles"] as? [String] {
+            return linked.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        if let linked = todoItem["linked_files"] as? [String] {
+            return linked.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        if let files = todoItem["files"] as? [String] {
+            return files.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        if let raw = todoItem["linkedFiles"] as? String {
+            return normalizeFileList(from: ["linkedFiles": raw])
+        }
+        if let raw = todoItem["linked_files"] as? String {
+            return normalizeFileList(from: ["linked_files": raw])
+        }
+        if let raw = todoItem["files"] as? String {
+            return normalizeFileList(from: ["files": raw])
+        }
+        return []
     }
 }

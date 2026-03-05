@@ -2,7 +2,7 @@ import Foundation
 
 extension EventNormalizer {
     static func parseSinglePlanStepUpsert(payload: [String: String]) -> PlanStepUpsertPayload? {
-        guard let stepId = payload["step_id"]?.trimmingCharacters(in: .whitespacesAndNewlines), !stepId.isEmpty,
+        guard let stepId = (payload["step_id"] ?? payload["stepId"])?.trimmingCharacters(in: .whitespacesAndNewlines), !stepId.isEmpty,
               let status = normalizePlanStepStatus(payload["status"]) else {
             return nil
         }
@@ -11,11 +11,11 @@ extension EventNormalizer {
             status: status,
             title: payload["title"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             description: payload["description"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            targetFile: payload["target_file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            linkedFiles: parseStringArray(raw: payload["linked_files"]),
-            dependsOn: parseStringArray(raw: payload["depends_on"]),
+            targetFile: (payload["target_file"] ?? payload["targetFile"])?.trimmingCharacters(in: .whitespacesAndNewlines),
+            linkedFiles: parseStringArray(raw: payload["linked_files"] ?? payload["linkedFiles"]),
+            dependsOn: parseStringArray(raw: payload["depends_on"] ?? payload["dependsOn"]),
             notes: payload["notes"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-            conversationId: payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            conversationId: (payload["conversation_id"] ?? payload["conversationId"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
 
@@ -26,7 +26,7 @@ extension EventNormalizer {
             return []
         }
         return objects.enumerated().compactMap { index, item in
-            let stepId = ((item["step_id"] as? String) ?? (item["id"] as? String) ?? String(index + 1))
+            let stepId = ((item["step_id"] as? String) ?? (item["stepId"] as? String) ?? (item["id"] as? String) ?? String(index + 1))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !stepId.isEmpty,
                   let status = normalizePlanStepStatus(item["status"] as? String) else { return nil }
@@ -35,9 +35,9 @@ extension EventNormalizer {
                 status: status,
                 title: (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                 description: (item["description"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                targetFile: (item["target_file"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                linkedFiles: parseStringArray(rawValue: item["linked_files"]),
-                dependsOn: parseStringArray(rawValue: item["depends_on"]),
+                targetFile: ((item["target_file"] as? String) ?? (item["targetFile"] as? String))?.trimmingCharacters(in: .whitespacesAndNewlines),
+                linkedFiles: parseStringArray(rawValue: item["linked_files"] ?? item["linkedFiles"]),
+                dependsOn: parseStringArray(rawValue: item["depends_on"] ?? item["dependsOn"]),
                 notes: (item["notes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                 conversationId: nil
             )
@@ -51,7 +51,7 @@ extension EventNormalizer {
             return []
         }
         return objects.compactMap { item in
-            let stepId = (item["step_id"] as? String)?
+            let stepId = ((item["step_id"] as? String) ?? (item["stepId"] as? String))?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !stepId.isEmpty,
                   let status = normalizePlanStepStatus(item["status"] as? String) else { return nil }
@@ -60,9 +60,9 @@ extension EventNormalizer {
                 status: status,
                 title: (item["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                 description: (item["description"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                targetFile: (item["target_file"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                linkedFiles: parseStringArray(rawValue: item["linked_files"]),
-                dependsOn: parseStringArray(rawValue: item["depends_on"]),
+                targetFile: ((item["target_file"] as? String) ?? (item["targetFile"] as? String))?.trimmingCharacters(in: .whitespacesAndNewlines),
+                linkedFiles: parseStringArray(rawValue: item["linked_files"] ?? item["linkedFiles"]),
+                dependsOn: parseStringArray(rawValue: item["depends_on"] ?? item["dependsOn"]),
                 notes: (item["notes"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }

@@ -13,7 +13,8 @@ extension EventNormalizer {
         let phase = payload["phase"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let round = payload["round"].flatMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         let context = payload["context"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let conversationId = payload["conversation_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let conversationId = (payload["conversation_id"] ?? payload["conversationId"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return PlanRequestUserInputPayload(
             questionnaire: questionnaire,

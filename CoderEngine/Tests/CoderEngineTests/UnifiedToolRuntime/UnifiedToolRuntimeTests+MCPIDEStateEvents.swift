@@ -134,6 +134,99 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(rawEvents["tool_validation_error"]?["error_code"], "invalid_todos_payload")
     }
 
+    func testSyntheticIDEStateEventsFromMCPTodoWriteShorthandIncludesActiveFormAndFiles() {
+        let call = ToolCall(
+            id: "tc-todo-rich-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+                "title": "Review changes",
+                "status": "in_progress",
+                "active_form": "Reviewing changes",
+                "linkedFiles": #"["Sources/A.swift","Sources/B.swift"]"#,
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+        let todoPayload = rawEvents["todo_write"]
+
+        XCTAssertEqual(todoPayload?["title"], "Review changes")
+        XCTAssertEqual(todoPayload?["activeForm"], "Reviewing changes")
+        XCTAssertEqual(todoPayload?["files"], #"["Sources/A.swift","Sources/B.swift"]"#)
+    }
+
+    func testSyntheticIDEStateEventsFromMCPTodoWriteEmptyTodosProducesClearMarker() {
+        let call = ToolCall(
+            id: "tc-todo-clear-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+                "todos": "[]",
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+        let todoPayload = rawEvents["todo_write"]
+
+        XCTAssertEqual(todoPayload?["title"], "__CODERIDE_CLEAR_TODOS__")
+        XCTAssertEqual(todoPayload?["clear_todos"], "true")
+        XCTAssertEqual(todoPayload?["todos_json"], "[]")
+    }
+
+    func testSyntheticIDEStateEventsFromMCPPlanReorderSupportsCamelCaseAliases() {
+        let call = ToolCall(
+            id: "tc-plan-reorder-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_plan_step_reorder",
+                "orderedStepIds": #"["3","1","2"]"#,
+                "conversationId": "33333333-3333-3333-3333-333333333333",
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_plan_step_reorder",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+        let reorderPayload = rawEvents["plan_step_reorder"]
+
+        XCTAssertEqual(reorderPayload?["ordered_step_ids"], #"["3","1","2"]"#)
+        XCTAssertEqual(reorderPayload?["conversation_id"], "33333333-3333-3333-3333-333333333333")
+    }
+
     private func rawEventsByType(_ events: [StreamEvent]) -> [String: [String: String]] {
         var out: [String: [String: String]] = [:]
         for event in events {

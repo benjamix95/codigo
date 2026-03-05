@@ -54,8 +54,11 @@ extension ChatPanelView {
             return false
         }
         // Always accept updates when agent todos already exist (status changes, new items).
+        let runtimeScope = todoStore.runtimeScopeFilter(for: conversationId)
         let hasExistingAgentTodo = todoStore.todos.contains {
-            $0.source == .agent && !$0.isPlanCanonical
+            $0.source == .agent
+                && !$0.isPlanCanonical
+                && runtimeScope($0)
         }
         if hasExistingAgentTodo {
             return true
