@@ -32,6 +32,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
 
         let config = try String(contentsOf: profile.appendingPathComponent("config.toml"), encoding: .utf8)
         XCTAssertTrue(config.contains("sandbox_mode = \"danger-full-access\""))
+        XCTAssertTrue(config.contains("fast_mode = true"))
         XCTAssertTrue(config.contains("[sandbox_workspace_write]"))
         XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
         XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
@@ -88,6 +89,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
         let config = try String(contentsOf: configURL, encoding: .utf8)
         XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
         XCTAssertTrue(config.contains("command = \"\(fakeMCP.path)\""))
+        XCTAssertTrue(config.contains("fast_mode = true"))
     }
 
     func testCodexEnvironmentOverridesUpdatesExistingCoderIDEMCPPath() throws {
@@ -120,6 +122,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(config.contains("[mcp_servers.coderide]"))
         XCTAssertFalse(config.contains("command = \"\(oldMCP.path)\""))
         XCTAssertTrue(config.contains("command = \"\(newMCP.path)\""))
+        XCTAssertTrue(config.contains("fast_mode = true"))
     }
 
     func testClaudeEnvironmentOverridesIsolateHomePerProfile() throws {

@@ -185,10 +185,17 @@ extension SettingsView {
                         Text("Untrusted").tag("untrusted")
                     }.labelsHidden().pickerStyle(.segmented)
 
+                    fieldLabel("Speed")
+                    Picker("", selection: $codexFastMode) {
+                        Text("Standard").tag(false)
+                        Text("Fast").tag(true)
+                    }.labelsHidden().pickerStyle(.segmented)
+
                     Toggle("Prefer OpenAI Responses wire API", isOn: $codexPreferResponsesWireAPI)
                     hintBox(
                         "When enabled, Codex CLI runs with `model_providers.openai.wire_api=\"responses\"`."
                     )
+                    hintBox("Fast mode controls Codex CLI inference speed across threads, subagents, and compaction.")
 
                     Toggle("Network access", isOn: $codexNetworkAccess)
                     Toggle("Check for updates", isOn: $codexCheckUpdate)

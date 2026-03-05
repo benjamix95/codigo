@@ -36,6 +36,7 @@ struct ChatComposerView: View {
     let inputHint: String
     let providerNotReadyMessage: String
     let quickCommandPresets: [QuickCommandPreset]
+    let slashCommandPresets: [QuickCommandPreset]
     let showCodeReviewAutofixToggle: Bool
     let showPlanRequestIndicator: Bool
     let controlsRow: AnyView

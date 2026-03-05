@@ -152,6 +152,7 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
             codexAskForApproval: "never",
             codexModelOverride: "",
             codexReasoningEffort: "",
+            codexFastMode: true,
             codexModelProvider: "",
             codexPreferResponsesWireAPI: false,
             planModeBackend: "openai-api",

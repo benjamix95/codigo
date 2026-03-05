@@ -20,6 +20,7 @@ struct ProviderFactoryConfig {
     var codexAskForApproval: String
     var codexModelOverride: String
     var codexReasoningEffort: String
+    var codexFastMode: Bool
     var codexModelProvider: String
     var codexPreferResponsesWireAPI: Bool
     var planModeBackend: String

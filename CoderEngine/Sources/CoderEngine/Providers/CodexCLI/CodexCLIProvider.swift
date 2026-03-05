@@ -38,6 +38,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
     private let modelOverride: String?
     private let modelReasoningEffort: String?
     private let modelProviderOverride: String?
+    private let fastMode: Bool
     private let preferOpenAIResponsesWireAPI: Bool
     private let yoloMode: Bool
     private let askForApproval: String
@@ -51,6 +52,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         modelOverride: String? = nil,
         modelReasoningEffort: String? = nil,
         modelProviderOverride: String? = nil,
+        fastMode: Bool = true,
         preferOpenAIResponsesWireAPI: Bool = false,
         yoloMode: Bool = false,
         askForApproval: String? = nil,
@@ -71,6 +73,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
         self.modelProviderOverride = modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? modelProviderOverride?.trimmingCharacters(in: .whitespacesAndNewlines)
             : nil
+        self.fastMode = fastMode
         self.preferOpenAIResponsesWireAPI = preferOpenAIResponsesWireAPI
         self.yoloMode = yoloMode
         self.askForApproval = Self.normalizeAskForApproval(askForApproval)
@@ -143,6 +146,7 @@ public final class CodexCLIProvider: LLMProvider, @unchecked Sendable {
                         modelOverride: modelOverride,
                         modelReasoningEffort: modelReasoningEffort,
                         modelProviderOverride: modelProviderOverride,
+                        fastMode: fastMode,
                         preferOpenAIResponsesWireAPI: preferOpenAIResponsesWireAPI
                     )
                     

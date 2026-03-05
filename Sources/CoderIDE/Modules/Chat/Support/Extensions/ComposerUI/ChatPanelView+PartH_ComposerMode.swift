@@ -59,6 +59,21 @@ extension ChatPanelView {
         return defaults + customCodeReviewQuickPresets
     }
 
+    internal var composerSlashCommandPresets: [ChatComposerView.QuickCommandPreset] {
+        guard providerRegistry.selectedProviderId == "codex-cli" else { return [] }
+        let isFastModeEnabled = CodexFastModeStore.currentValue()
+        return [
+            .init(
+                id: "codex-fast-toggle",
+                slash: "/fast",
+                label: isFastModeEnabled
+                    ? "Turn off Fast mode and return to standard inference speed"
+                    : "Turn on Fast mode for faster inference across Codex runs",
+                prompt: ""
+            )
+        ]
+    }
+
     internal var customCodeReviewQuickPresets: [ChatComposerView.QuickCommandPreset] {
         struct CustomPreset: Decodable {
             let slash: String

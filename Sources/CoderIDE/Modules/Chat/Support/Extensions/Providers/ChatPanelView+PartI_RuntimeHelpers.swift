@@ -26,6 +26,7 @@ extension ChatPanelView {
     internal func persistCodexConfigToToml() {
         var cfg = CodexConfigLoader.load()
         cfg.sandboxMode = codexSandbox.isEmpty ? nil : codexSandbox
+        cfg.fastMode = CodexFastModeStore.currentValue()
         cfg.model = codexModelOverride.isEmpty ? nil : codexModelOverride
         cfg.modelReasoningEffort = codexReasoningEffort.isEmpty ? nil : codexReasoningEffort
         CodexConfigLoader.save(cfg)
@@ -151,6 +152,7 @@ extension ChatPanelView {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexFastMode: CodexFastModeStore.currentValue(),
             codexModelProvider: codexModelProvider,
             codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,

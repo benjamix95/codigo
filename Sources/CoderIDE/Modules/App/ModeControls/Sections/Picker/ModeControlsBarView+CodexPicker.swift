@@ -30,6 +30,10 @@ extension ModeControlsBarView {
             }
         } label: {
             HStack(spacing: 4) {
+                if CodexFastModeStore.currentValue() {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 10, weight: .bold))
+                }
                 Text(codexModelLabel).font(.caption).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }

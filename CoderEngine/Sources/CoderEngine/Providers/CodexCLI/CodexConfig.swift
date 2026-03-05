@@ -3,6 +3,7 @@ import Foundation
 /// Full config letta da ~/.codex/config.toml
 public struct CodexConfig: Sendable, Equatable {
     public var sandboxMode: String?
+    public var fastMode: Bool?
     public var model: String?
     public var modelProvider: String?
     public var modelReasoningEffort: String?
@@ -16,6 +17,7 @@ public struct CodexConfig: Sendable, Equatable {
 
     public init(
         sandboxMode: String? = nil,
+        fastMode: Bool? = nil,
         model: String? = nil,
         modelProvider: String? = nil,
         modelReasoningEffort: String? = nil,
@@ -28,6 +30,7 @@ public struct CodexConfig: Sendable, Equatable {
         checkForUpdateOnStartup: Bool? = nil
     ) {
         self.sandboxMode = sandboxMode
+        self.fastMode = fastMode
         self.model = model
         self.modelProvider = modelProvider
         self.modelReasoningEffort = modelReasoningEffort
@@ -105,6 +108,7 @@ public enum CodexConfigLoader {
             emit("personality", p)
         }
         emit("sandbox_mode", config.sandboxMode)
+        emitBool("fast_mode", config.fastMode)
         emitBool("check_for_update_on_startup", config.checkForUpdateOnStartup)
 
         if let di = config.developerInstructions, !di.isEmpty {
@@ -181,6 +185,7 @@ public enum CodexConfigLoader {
 
             switch key {
             case "sandbox_mode": config.sandboxMode = value
+            case "fast_mode": config.fastMode = parseBool(value)
             case "model": config.model = value
             case "model_provider": config.modelProvider = value
             case "model_reasoning_effort": config.modelReasoningEffort = value

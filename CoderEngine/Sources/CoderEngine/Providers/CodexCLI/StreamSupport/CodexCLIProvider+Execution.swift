@@ -22,6 +22,7 @@ extension CodexCLIProvider {
         modelOverride: String?,
         modelReasoningEffort: String?,
         modelProviderOverride: String?,
+        fastMode: Bool,
         preferOpenAIResponsesWireAPI: Bool
     ) -> [String] {
         var args: [String] = []
@@ -63,6 +64,7 @@ extension CodexCLIProvider {
            !provider.isEmpty {
             insertConfig("model_provider=\"\(escapedTomlString(provider))\"")
         }
+        insertConfig("fast_mode=\(fastMode ? "true" : "false")")
         if shouldInjectOpenAIResponsesWireAPI(
             modelProviderOverride: modelProviderOverride,
             preferOpenAIResponsesWireAPI: preferOpenAIResponsesWireAPI

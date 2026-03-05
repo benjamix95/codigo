@@ -39,6 +39,7 @@ struct SettingsView: View {
     @AppStorage("codex_ask_for_approval") var codexAskForApproval = "never"
     @AppStorage("codex_model_override") var codexModelOverride = ""
     @AppStorage("codex_reasoning_effort") var codexReasoningEffort = "low"
+    @AppStorage("codex_fast_mode") var codexFastMode = true
     @AppStorage("codex_model_provider") var codexModelProvider = ""
     @AppStorage("codex_prefer_responses_wire_api") var codexPreferResponsesWireAPI = false
     @AppStorage("codex_session_full_access") var codexSessionFullAccess = false
@@ -216,6 +217,7 @@ struct SettingsView: View {
             .onChange(of: codexSandbox) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexAskForApproval) { _, _ in syncCodex() }
             .onChange(of: codexModelOverride) { _, _ in syncCodex(); saveCodexToml() }
+            .onChange(of: codexFastMode) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexModelProvider) { _, _ in syncCodex(); saveCodexToml() }
             .onChange(of: codexPreferResponsesWireAPI) { _, _ in syncCodex() }
             .onChange(of: codexSessionFullAccess) { _, _ in syncCodex() }

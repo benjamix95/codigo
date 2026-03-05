@@ -147,6 +147,7 @@ extension CodigoApp {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexFastMode: CodexFastModeStore.currentValue(),
             codexModelProvider: codexModelProvider,
             codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,

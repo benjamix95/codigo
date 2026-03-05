@@ -187,6 +187,7 @@ extension SettingsView {
             codexAskForApproval: codexAskForApproval,
             codexModelOverride: codexModelOverride,
             codexReasoningEffort: codexReasoningEffort,
+            codexFastMode: codexFastMode,
             codexModelProvider: codexModelProvider,
             codexPreferResponsesWireAPI: codexPreferResponsesWireAPI,
             planModeBackend: planModeBackend,

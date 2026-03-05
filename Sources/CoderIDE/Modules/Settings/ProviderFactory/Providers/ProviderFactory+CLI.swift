@@ -18,6 +18,7 @@ extension ProviderFactory {
             modelReasoningEffort: config.codexReasoningEffort.isEmpty
                 ? nil : config.codexReasoningEffort,
             modelProviderOverride: config.codexModelProvider.isEmpty ? nil : config.codexModelProvider,
+            fastMode: config.codexFastMode,
             preferOpenAIResponsesWireAPI: config.codexPreferResponsesWireAPI,
             yoloMode: config.globalYolo,
             askForApproval: askForApproval(from: config),

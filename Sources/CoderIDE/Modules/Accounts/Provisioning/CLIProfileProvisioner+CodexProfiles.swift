@@ -19,6 +19,7 @@ extension CLIProfileProvisioner {
         var configLines = [
             "# CoderIDE Codex Profile — auto-generated",
             "sandbox_mode = \"danger-full-access\"",
+            "fast_mode = true",
             "",
             "[sandbox_workspace_write]",
             "network_access = true",
@@ -40,6 +41,7 @@ extension CLIProfileProvisioner {
         guard let existing = try? String(contentsOf: configURL, encoding: .utf8) else { return }
 
         var lines = existing.components(separatedBy: .newlines)
+        lines = upsertRootTomlAssignment(in: lines, key: "fast_mode", value: "true")
         if let mcpPath = mcpServerBinaryPath() {
             lines = upsertCoderideMCPSection(in: lines, binaryPath: mcpPath)
         }
@@ -97,6 +99,28 @@ extension CLIProfileProvisioner {
         let insertIndex = max(1, updated.count)
         updated.insert("\(key) = \(value)", at: insertIndex)
         return updated
+    }
+
+    static func upsertRootTomlAssignment(in lines: [String], key: String, value: String) -> [String] {
+        var output = lines
+        let firstSectionIndex = output.firstIndex(where: { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.hasPrefix("[") && trimmed.hasSuffix("]")
+        }) ?? output.count
+
+        if let lineIndex = output[..<firstSectionIndex].firstIndex(where: { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.hasPrefix("\(key)=")
+                || (trimmed.hasPrefix("\(key) ") && trimmed.contains("="))
+        }) {
+            let existingLine = output[lineIndex]
+            let leadingWhitespace = String(existingLine.prefix { $0 == " " || $0 == "\t" })
+            output[lineIndex] = "\(leadingWhitespace)\(key) = \(value)"
+            return output
+        }
+
+        output.insert("\(key) = \(value)", at: firstSectionIndex)
+        return output
     }
 
     static func coderideMCPSectionLines(binaryPath: String) -> [String] {

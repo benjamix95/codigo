@@ -23,9 +23,11 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             modelOverride: nil,
             modelReasoningEffort: nil,
             modelProviderOverride: nil,
+            fastMode: true,
             preferOpenAIResponsesWireAPI: false
         )
 
+        XCTAssertTrue(args.contains("fast_mode=true"))
         XCTAssertFalse(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
@@ -41,6 +43,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             modelOverride: nil,
             modelReasoningEffort: nil,
             modelProviderOverride: "openai",
+            fastMode: true,
             preferOpenAIResponsesWireAPI: true
         )
 
@@ -59,9 +62,11 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
             modelOverride: nil,
             modelReasoningEffort: nil,
             modelProviderOverride: "azure",
+            fastMode: false,
             preferOpenAIResponsesWireAPI: true
         )
 
+        XCTAssertTrue(args.contains("fast_mode=false"))
         XCTAssertFalse(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }

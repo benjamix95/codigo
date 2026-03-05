@@ -1,6 +1,14 @@
 import SwiftUI
 
 extension ChatComposerView {
+    internal var allSlashCommandPresets: [QuickCommandPreset] {
+        let combined = quickCommandPresets + slashCommandPresets
+        var seen: Set<String> = []
+        return combined.filter { preset in
+            seen.insert(preset.id).inserted
+        }
+    }
+
     internal var quickCommandsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 7) {
@@ -53,7 +61,7 @@ extension ChatComposerView {
         guard trimmed.hasPrefix("/") else { return [] }
         guard !trimmed.contains("\n") else { return [] }
         let query = trimmed.lowercased()
-        return quickCommandPresets.filter {
+        return allSlashCommandPresets.filter {
             $0.slash.lowercased().contains(query) || $0.label.lowercased().contains(query)
         }
         .prefix(6)

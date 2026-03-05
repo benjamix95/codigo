@@ -36,6 +36,7 @@ extension SettingsView {
         codexModelOverride = cfg.model ?? ""
         codexModelProvider = cfg.modelProvider ?? ""
         codexReasoningEffort = cfg.modelReasoningEffort ?? "low"
+        codexFastMode = CodexFastModeStore.hydrateFromConfig()
         codexReasoningSummary = cfg.modelReasoningSummary ?? "auto"
         codexVerbosity = cfg.modelVerbosity ?? "medium"
         let validPersonalities = ["none", "friendly", "pragmatic"]
@@ -51,6 +52,7 @@ extension SettingsView {
     func saveCodexToml() {
         var cfg = CodexConfigLoader.load()
         if !codexSandbox.isEmpty { cfg.sandboxMode = codexSandbox }
+        cfg.fastMode = codexFastMode
         if !codexModelOverride.isEmpty { cfg.model = codexModelOverride }
         if !codexModelProvider.isEmpty { cfg.modelProvider = codexModelProvider }
 

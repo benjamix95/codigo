@@ -141,6 +141,7 @@ extension ChatPanelView {
                 inputHint: inputHint,
                 providerNotReadyMessage: providerNotReadyMessage,
                 quickCommandPresets: composerQuickCommandPresets,
+                slashCommandPresets: composerSlashCommandPresets,
                 showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
                 showPlanRequestIndicator: showPlanRequestIndicator,
                 controlsRow: AnyView(modeControlsRow),
@@ -151,16 +152,13 @@ extension ChatPanelView {
                         codeReviewAnalysisOnly = !enabled
                     }
                 ),
-                onSend: sendMessage,
+                onSend: { handleComposerSend() },
                 onApplyQuickCommand: { text in
-                    inputText = text
-                    isInputFocused = true
+                    handleComposerQuickCommand(text, runImmediately: false)
                 },
                 onInputTextChanged: { _ in },
                 onRunQuickCommand: { text in
-                    inputText = text
-                    isInputFocused = true
-                    sendMessage()
+                    handleComposerQuickCommand(text, runImmediately: true)
                 },
                 onPauseResume: { pauseOrResumeActiveTask() },
                 onStop: {
