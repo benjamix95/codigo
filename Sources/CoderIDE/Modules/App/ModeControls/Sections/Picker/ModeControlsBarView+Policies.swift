@@ -5,7 +5,7 @@ extension ModeControlsBarView {
     // MARK: - Codex Reasoning Picker
     var codexReasoningPicker: some View {
         Menu {
-            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { e in
+            ForEach(["none", "low", "medium", "high", "xhigh"], id: \.self) { e in
                 Button {
                     codexReasoningEffort = e
                     onSyncCodexProvider()
@@ -29,6 +29,7 @@ extension ModeControlsBarView {
 
     func reasoningEffortDisplay(_ e: String) -> String {
         switch e.lowercased() {
+        case "none": return "None"
         case "low": return "Low"
         case "medium": return "Medium"
         case "high": return "High"

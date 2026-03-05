@@ -17,7 +17,7 @@ public struct CodexModel: Sendable {
 public enum CodexModelsCache {
     private static let injectedCustomModel = CodexModel(
         slug: "gpt-5.4",
-        displayName: "GPT-5.4 1M",
+        displayName: "GPT-5.4 (1M Codex)",
         reasoningLevels: ["low", "medium", "high", "xhigh"]
     )
 

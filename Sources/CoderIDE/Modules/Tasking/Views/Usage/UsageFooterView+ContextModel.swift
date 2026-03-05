@@ -1,7 +1,10 @@
 import Foundation
 import SwiftUI
+import CoderEngine
 
 extension UsageFooterView {
+    private static let codexGPT54DefaultWindow = 272_000
+
     var effectiveContextModel: String {
         let providerId = effectiveProviderId ?? ""
         switch providerId {
@@ -49,8 +52,14 @@ extension UsageFooterView {
 
     func resolvedContextWindowSize(providerId: String?, model: String) -> Int {
         let normalized = model.lowercased()
+        if providerId == "codex-cli", let configuredWindow = configuredCodexContextWindow() {
+            return configuredWindow
+        }
         if normalized.contains("gemini") {
             return 1_048_576
+        }
+        if providerId == "codex-cli", normalized == "gpt-5.4" {
+            return Self.codexGPT54DefaultWindow
         }
         if normalized.contains("gpt-5") || normalized.contains("codex") {
             return 200_000
@@ -59,5 +68,36 @@ extension UsageFooterView {
             return 200_000
         }
         return ContextEstimator.contextSize(for: providerId, model: model)
+    }
+
+    private func configuredCodexContextWindow() -> Int? {
+        let codexHome: String
+        if let activeCodexAccount = activeAccount(for: .codex) {
+            codexHome = activeCodexAccount.profilePath
+        } else {
+            codexHome = CodexConfigLoader.codexHome
+        }
+
+        let path = CodexConfigLoader.configPath(forCodexHome: codexHome)
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+
+        for line in content.components(separatedBy: CharacterSet.newlines) {
+            let trimmed = line.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            guard !trimmed.hasPrefix("#"),
+                  trimmed.hasPrefix("model_context_window"),
+                  let equalIndex = trimmed.firstIndex(of: "=") else {
+                continue
+            }
+
+            let rawValue = trimmed[trimmed.index(after: equalIndex)...]
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            if let parsed = Int(rawValue), parsed > 0 {
+                return parsed
+            }
+        }
+
+        return nil
     }
 }
