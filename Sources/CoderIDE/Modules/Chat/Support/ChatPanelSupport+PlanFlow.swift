@@ -2,7 +2,6 @@ import AppKit
 import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
-
 func isPlanExecutionProviderIdAllowed(_ providerId: String) -> Bool {
     ProviderSupport.isUserSelectableRealProvider(id: providerId)
 }
@@ -82,6 +81,38 @@ func shouldMutatePlanState(
     currentConversationId: UUID?
 ) -> Bool {
     targetConversationId == currentConversationId
+}
+
+private enum PlanQuestionToolEpochStore {
+    static let lock = NSLock()
+    static nonisolated(unsafe) var byConversation: [UUID: Int] = [:]
+
+    static func epoch(for conversationId: UUID) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return byConversation[conversationId] ?? 0
+    }
+
+    static func increment(for conversationId: UUID) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        let next = (byConversation[conversationId] ?? 0) + 1
+        byConversation[conversationId] = next
+        return next
+    }
+}
+
+func planQuestionToolEpoch(for conversationId: UUID) -> Int {
+    PlanQuestionToolEpochStore.epoch(for: conversationId)
+}
+
+@discardableResult
+func incrementPlanQuestionToolEpoch(
+    for conversationId: UUID,
+    globalEpoch: inout Int
+) -> Int {
+    globalEpoch += 1
+    return PlanQuestionToolEpochStore.increment(for: conversationId)
 }
 
 func normalizedPlanStreamingSnapshot(

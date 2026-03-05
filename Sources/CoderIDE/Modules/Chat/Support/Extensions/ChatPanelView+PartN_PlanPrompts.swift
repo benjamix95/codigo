@@ -126,7 +126,10 @@ extension ChatPanelView {
     ) async throws {
         let reanalysisStartContext = await MainActor.run { () -> (shouldStart: Bool, questionEpochBaseline: Int) in
             guard self.conversationId == conversationId else {
-                return (false, planQuestionToolRequestEpoch)
+                return (
+                    false,
+                    planQuestionToolEpoch(for: conversationId)
+                )
             }
             planFlowPhase = .analyzing
             clearPlanStreamingState()
@@ -140,7 +143,10 @@ extension ChatPanelView {
                 assistantMessageId: reanalysisAssistantMessageId,
                 providerId: provider.id
             )
-            return (true, planQuestionToolRequestEpoch)
+            return (
+                true,
+                planQuestionToolEpoch(for: conversationId)
+            )
         }
         let shouldStartReanalysis = reanalysisStartContext.shouldStart
         let questionToolEpochBaseline = reanalysisStartContext.questionEpochBaseline
@@ -176,15 +182,7 @@ extension ChatPanelView {
 
         let reAnalysisText = reAnalysisResult.trimmingCharacters(in: .whitespacesAndNewlines)
         let didReceiveToolDrivenQuestionnaire = await MainActor.run { () -> Bool in
-            guard shouldMutatePlanState(
-                targetConversationId: conversationId,
-                currentConversationId: self.conversationId
-            ) else { return false }
-            guard planQuestionToolRequestEpoch > questionToolEpochBaseline else { return false }
-            if case .awaitingClarification = planningState {
-                return true
-            }
-            return false
+            planQuestionToolEpoch(for: conversationId) > questionToolEpochBaseline
         }
         if didReceiveToolDrivenQuestionnaire {
             return

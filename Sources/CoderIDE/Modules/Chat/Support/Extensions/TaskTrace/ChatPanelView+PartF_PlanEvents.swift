@@ -31,7 +31,6 @@ extension ChatPanelView {
             targetConversationId: targetId
         )
     }
-
     @MainActor
     internal func handlePlanCreateEvent(
         goal: String,
@@ -85,7 +84,6 @@ extension ChatPanelView {
             targetConversationId: targetId
         )
     }
-
     @MainActor
     internal func handlePlanStepBatchUpdateEvent(
         items: [PlanStepBatchUpdateItemPayload],
@@ -115,7 +113,6 @@ extension ChatPanelView {
             )
         }
     }
-
     @MainActor
     internal func handlePlanStepReorderEvent(
         orderedStepIds: [String],
@@ -187,6 +184,10 @@ extension ChatPanelView {
             persistImmediately: true
         )
         chatStore.setLastAssistantStreaming(false, in: targetConversationId)
+        _ = incrementPlanQuestionToolEpoch(
+            for: targetConversationId,
+            globalEpoch: &planQuestionToolRequestEpoch
+        )
         guard shouldMutatePlanState(
             targetConversationId: targetConversationId,
             currentConversationId: self.conversationId
@@ -196,7 +197,6 @@ extension ChatPanelView {
             return
         }
         planClarificationCycles += 1
-        planQuestionToolRequestEpoch += 1
         planFlowPhase = .questioning
         planningState = .awaitingClarification(questions: questionsMarkdown)
         updatePlanStreamingContent(questionsMarkdown, conversationId: targetConversationId)
