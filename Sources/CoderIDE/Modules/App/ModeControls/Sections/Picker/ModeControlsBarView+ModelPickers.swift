@@ -73,7 +73,13 @@ extension ModeControlsBarView {
 
     // MARK: - OpenRouter Model Picker
     var openRouterModelPicker: some View {
-        Menu {
+        let freeModels = openRouterModelPickerStore.freeModels
+        let allModels = openRouterModelPickerStore.allModels
+        let popularSet = Set(openRouterPopularModels)
+        let freeSet = Set(freeModels)
+        let remainingModels = allModels.filter { !popularSet.contains($0) && !freeSet.contains($0) }
+
+        return Menu {
             if !openRouterPopularModels.isEmpty {
                 Section("Popular") {
                     ForEach(openRouterPopularModels, id: \.self) { model in
@@ -89,9 +95,9 @@ extension ModeControlsBarView {
                     }
                 }
             }
-            if !openRouterFreeModels.isEmpty {
+            if !freeModels.isEmpty {
                 Section("Free") {
-                    ForEach(openRouterFreeModels, id: \.self) { model in
+                    ForEach(freeModels, id: \.self) { model in
                         Button {
                             openrouterModel = model
                             onSyncOpenRouterProvider()
@@ -107,6 +113,21 @@ extension ModeControlsBarView {
                     }
                 }
             }
+            if !remainingModels.isEmpty {
+                Section("All") {
+                    ForEach(remainingModels, id: \.self) { model in
+                        Button {
+                            openrouterModel = model
+                            onSyncOpenRouterProvider()
+                        } label: {
+                            HStack {
+                                Text(model)
+                                if openrouterModel == model { Image(systemName: "checkmark") }
+                            }
+                        }
+                    }
+                }
+            }
         } label: {
             HStack(spacing: 4) {
                 Text(openRouterModelLabel).font(.caption).lineLimit(1)
@@ -116,6 +137,9 @@ extension ModeControlsBarView {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .task {
+            openRouterModelPickerStore.loadIfNeeded()
+        }
     }
 
     var openRouterModelLabel: String {
@@ -124,7 +148,7 @@ extension ModeControlsBarView {
             return "OpenRouter Model"
         }
         let display = trimmed.replacingOccurrences(of: ":free", with: "")
-        if trimmed.hasSuffix(":free") {
+        if trimmed.hasSuffix(":free") || openRouterModelPickerStore.isFree(trimmed) {
             return "\(display) · FREE"
         }
         return display

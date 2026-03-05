@@ -57,6 +57,7 @@ struct ModeControlsBarView: View {
     @Binding var browserToggleEnabled: Bool
     @State private var availableWidth: CGFloat = 900
     @State private var resolvedTier: ControlsTier = .full
+    @StateObject var openRouterModelPickerStore = OpenRouterModelPickerStore()
 
     // MARK: - Collapse Tiers
 
