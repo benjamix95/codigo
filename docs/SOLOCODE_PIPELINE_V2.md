@@ -82,13 +82,15 @@ Componenti logici:
 
 1. `Plan Manager`
 2. `Context Builder`
-3. `Task Graph Builder`
-4. `Scheduler`
-5. `Execution Layer`
-6. `Review Layer`
-7. `Validation Layer`
-8. `Apply Engine`
-9. `Memory & Observability`
+3. `Context Ranking Engine`
+4. `Task Graph Builder`
+5. `Scheduler`
+6. `Event Bus Interno`
+7. `Execution Layer`
+8. `Review Layer`
+9. `Validation Layer`
+10. `Apply Engine`
+11. `Memory & Observability`
 
 ## 5. State machine globale
 
@@ -240,6 +242,108 @@ Ogni evento MUST essere append-only:
 {"ts":"2026-03-05T15:01:10Z","job_id":"job_1","phase":"executing","event":"subagent_started","role":"explorer"}
 ```
 
+Vincoli aggiuntivi evento:
+
+1. ogni evento MUST includere `job_id`, `task_id`, `agent_id`, `correlation_id` quando applicabile;
+2. `correlation_id` MUST restare stabile lungo tutta la catena causale dello stesso step;
+3. eventi senza correlation metadata sono invalidi in produzione.
+
+## 6.8 `agent_action_envelope.json`
+
+Tutti gli agenti MUST restituire output JSON tipizzato.
+
+Schema base:
+
+```json
+{
+  "agent_id": "agent_coder_01",
+  "agent_role": "coder",
+  "job_id": "job_123",
+  "task_id": "T3",
+  "correlation_id": "corr_abc",
+  "actions": [
+    {
+      "type": "patch_proposal",
+      "file": "Sources/AuthManager.swift",
+      "diff": "unified diff"
+    }
+  ],
+  "confidence": 0.82,
+  "notes": "refactor parser locking"
+}
+```
+
+Campi obbligatori:
+
+1. `agent_id`
+2. `agent_role`
+3. `job_id`
+4. `task_id`
+5. `actions`
+
+Vincoli:
+
+1. `actions[].type` MUST essere enum noto (`patch_proposal`, `analysis_note`, `test_update`, `doc_update`);
+2. output free-text non tipizzato MUST essere rifiutato dal parser orchestrator;
+3. `confidence` fuori range `0..1` MUST invalidare il payload.
+
+## 6.9 `event_bus_event.json`
+
+Gli agenti NON comunicano direttamente tra loro.  
+Le comunicazioni passano da event bus orchestrato.
+
+Schema evento:
+
+```json
+{
+  "event_id": "evt_123",
+  "job_id": "job_123",
+  "task_id": "T3",
+  "agent_id": "agent_coder_01",
+  "correlation_id": "corr_abc",
+  "type": "patch_created",
+  "payload": {},
+  "timestamp": "2026-03-05T15:00:00Z"
+}
+```
+
+Tipi evento minimi:
+
+1. `task_started`
+2. `task_completed`
+3. `patch_created`
+4. `review_failed`
+5. `review_passed`
+6. `lock_acquired`
+7. `lock_released`
+
+## 6.10 `replay_snapshot.json`
+
+La pipeline MUST essere riproducibile.
+
+```json
+{
+  "job_snapshot_path": "artifacts/jobs/job_123.json",
+  "event_log_path": "artifacts/events/job_123.ndjson",
+  "provider_selection": [
+    {"phase":"planning","provider":"codex-cli"},
+    {"phase":"review","provider":"openai-api"}
+  ],
+  "seed": "deterministic-seed-1"
+}
+```
+
+Input replay minimi:
+
+1. job snapshot;
+2. event log;
+3. provider selection.
+
+Output replay atteso:
+
+1. riproduzione funzionale identica delle decisioni orchestrator;
+2. divergenze annotate con report diff.
+
 ## 7. Modalità operative
 
 ## 7.1 `strict` (default)
@@ -247,12 +351,14 @@ Ogni evento MUST essere append-only:
 1. i subagent write producono patch proposal;
 2. apply solo orchestrator;
 3. nessun commit finché non passano tutti i gate.
+4. agenti isolati in sandbox workspace, senza accesso diretto al repo principale.
 
 ## 7.2 `fast` (controllata)
 
 1. subagent write possono mutare in sandbox;
 2. review/test gate comunque obbligatori;
 3. orchestrator valida e consolida prima del commit.
+4. anche in fast mode ogni mutazione deve passare da manifest patch e gate finali.
 
 ## 8. Sequenza end-to-end della pipeline
 
@@ -309,7 +415,9 @@ Azioni:
 1. semantic search;
 2. symbol search;
 3. references;
-4. file outline.
+4. file outline;
+5. ranking deterministico del contesto;
+6. riduzione contesto per locality.
 
 Tool MCP:
 
@@ -325,18 +433,43 @@ Output:
 1. context bundle minimo per task;
 2. scope file definitivo.
 
+Ranking engine (MUST):
+
+```text
+context_score = semantic_score * 0.4
+              + call_graph_score * 0.3
+              + dependency_score * 0.2
+              + recency_score * 0.1
+```
+
+Pipeline ranking consigliata:
+
+1. semantic search
+2. AST graph
+3. import graph
+4. call graph
+5. edit locality
+
 ## 8.4 Fase D - Scheduling
 
 Azioni:
 
 1. calcolo ready nodes del DAG;
 2. policy priorità + retry budget;
-3. prenotazione lock file-set.
+3. prenotazione lock file-set;
+4. prevenzione starvation task a bassa priorità.
 
 Output:
 
 1. queue task eseguibili;
 2. lock map aggiornata.
+
+Formula priorità effettiva (MUST):
+
+```text
+effective_priority = base_priority + wait_time_factor
+wait_time_factor = waiting_seconds / 10
+```
 
 ## 8.5 Fase E - Execution
 
@@ -357,6 +490,7 @@ Output:
 
 1. patch manifest proposti;
 2. eventi attività.
+3. `agent_action_envelope` valido per ogni agente.
 
 ## 8.6 Fase F - Review
 
@@ -412,8 +546,9 @@ Azioni:
 
 1. valida patch manifest;
 2. verifica lock ownership;
-3. apply atomico patch-set;
-4. update stato patch.
+3. esegui patch blast radius check;
+4. apply atomico patch-set;
+5. update stato patch.
 
 Tool file ops (solo orchestrator):
 
@@ -425,6 +560,7 @@ Tool file ops (solo orchestrator):
 Vincolo:
 
 1. patch apply senza lock valido MUST fallire.
+2. patch oltre soglia blast radius MUST richiedere gate extra.
 
 ## 8.9 Fase I - Finalize
 
@@ -577,6 +713,7 @@ Subagent CLI constraints:
 Mandatory mutation rule:
 
 1. se il task ha mutato codice, reviewer + testWriter MUST risultare completati.
+2. dopo 3 round review con findings persistenti, il task MUST diventare `blocked`.
 
 ## 11. Scheduler deterministico
 
@@ -585,7 +722,9 @@ Pseudocodice:
 ```text
 while exists task not terminal:
   ready = tasks where status=pending and deps=done
-  ready = sort by priority desc, created_at asc
+  for task in ready:
+    effective_priority = base_priority + (waiting_seconds / 10)
+  ready = sort by effective_priority desc, created_at asc
   for task in ready:
     if lock_acquire(task.file_scope):
       dispatch(task)
@@ -608,6 +747,7 @@ Retry policy:
 1. exponential backoff con jitter;
 2. cap massimo retry per task;
 3. errore non retryable porta a `failed` immediato.
+4. starvation prevention MUST garantire esecuzione eventuale dei task pendenti.
 
 ## 12. Lock manager
 
@@ -617,7 +757,8 @@ Requisiti:
 2. fairness FIFO su overlap;
 3. lease timeout per lock stale;
 4. release all on cancel/error;
-5. no force-acquire distruttivo.
+5. no force-acquire distruttivo;
+6. supporto `symbol_scope` oltre a `file_scope`.
 
 Output lock events:
 
@@ -627,6 +768,15 @@ Output lock events:
 4. `lock_released`
 5. `lock_evicted_stale`
 
+Conflitto simbolico (MUST):
+
+1. se due task toccano simbolo comune (es. `AuthSession`) in file diversi, il lock deve confliggere;
+2. scope lock effettivo:
+
+```text
+lock_scope = file_scope + symbol_scope
+```
+
 ## 13. Patch system e apply engine
 
 Regole:
@@ -634,7 +784,8 @@ Regole:
 1. ogni modifica è rappresentata da unified diff;
 2. ogni patch ha manifest;
 3. apply è atomico per patch-set;
-4. rollback è atomico e tracciato.
+4. rollback è atomico e tracciato;
+5. ogni patch MUST avere risk score.
 
 Flusso apply:
 
@@ -644,6 +795,23 @@ Flusso apply:
 4. apply transaction;
 5. run quick verification;
 6. commit or rollback.
+
+Patch blast radius check (MUST):
+
+1. patch `> 12` file: review extra obbligatoria;
+2. patch `> 25` file: approval manuale obbligatoria.
+
+Patch risk scoring:
+
+```text
+risk = (files_changed * 0.3)
+     + (lines_changed * 0.4)
+     + (core_module_weight * 0.3)
+```
+
+Regola:
+
+1. patch con `risk > 0.7` richiede review extra.
 
 Error taxonomy:
 
@@ -671,6 +839,12 @@ Esempio:
 1. write subagent: `codex-cli -> openai-api(proposal-only) -> anthropic-api(proposal-only)`.
 2. read subagent: `codex-cli -> claude-cli -> gemini-cli -> api`.
 
+Regola deterministica fallback (MUST):
+
+1. retry con stesso provider fino a `max_attempts`;
+2. fallback a provider successivo solo dopo esaurimento retry;
+3. decisione fallback deve essere tracciata in event bus con stesso `correlation_id`.
+
 ## 14.3 Policy determinismo provider
 
 1. parametri modello fissati per fase;
@@ -692,6 +866,11 @@ Comportamento con findings:
 1. `critical`: MUST fix prima di apply;
 2. `warning`: SHOULD fix o motivare dismiss;
 3. `suggestion/info`: MAY differire con nota.
+
+Review convergence rule (MUST):
+
+1. se dopo 3 round persistono findings bloccanti, `status=blocked`;
+2. task in stato `blocked` richiede escalation manuale.
 
 ## 16. Pipeline iOS (regola dedicata)
 
@@ -722,6 +901,15 @@ Metriche obbligatorie:
 8. `provider_latency_ms`
 9. `provider_error_rate`
 10. `tokens_in/out`
+11. `context_size_tokens`
+12. `patch_size_lines`
+13. `agent_hallucination_rate`
+14. `edit_distance_per_patch`
+
+Tracing requirements:
+
+1. ogni evento e metrica devono includere `job_id`, `task_id`, `agent_id`, `correlation_id`;
+2. assenza di correlation identifiers rende il trace incompleto e non conforme.
 
 SLO iniziali:
 
@@ -737,6 +925,20 @@ SLO iniziali:
 3. niente comandi distruttivi git in automatico.
 4. segregazione read-only vs write roles obbligatoria.
 5. log sanitizzato, niente secret in chiaro.
+6. context injection guard obbligatoria prima di inviare contesto agli agenti.
+
+Context injection guard (MUST):
+
+1. sanitizzazione commenti con pattern prompt-like;
+2. rimozione istruzioni dinamiche non fidate;
+3. neutralizzazione marker di instruction override in codice/documentazione.
+
+Agent isolation rules (MUST):
+
+1. i subagent operano in sandbox workspace dedicata;
+2. nessun accesso diretto al repository principale senza orchestrator;
+3. write path consentito solo via patch proposal o apply orchestrator controllato;
+4. nessuna comunicazione laterale agent-to-agent fuori event bus.
 
 ## 19. CI policy e quality enforcement
 
@@ -755,6 +957,11 @@ LOC policy:
 2. warning: `301..500`;
 3. hard fail: `>500`.
 
+Function size policy:
+
+1. funzione `> 80` LOC: warning;
+2. funzione `> 120` LOC: creazione automatica `refactor task` bloccante.
+
 Script check esempio:
 
 ```bash
@@ -769,23 +976,29 @@ Layout proposto:
 1. `CoderEngine/Sources/CoderEngine/Pipeline/Orchestrator/`
 2. `CoderEngine/Sources/CoderEngine/Pipeline/Scheduler/`
 3. `CoderEngine/Sources/CoderEngine/Pipeline/Locking/`
-4. `CoderEngine/Sources/CoderEngine/Pipeline/Patching/`
-5. `CoderEngine/Sources/CoderEngine/Pipeline/Providers/`
-6. `CoderEngine/Sources/CoderEngine/Pipeline/Observability/`
-7. `CoderEngine/Sources/CoderEngine/Pipeline/Contracts/`
+4. `CoderEngine/Sources/CoderEngine/Pipeline/EventBus/`
+5. `CoderEngine/Sources/CoderEngine/Pipeline/Patching/`
+6. `CoderEngine/Sources/CoderEngine/Pipeline/Providers/`
+7. `CoderEngine/Sources/CoderEngine/Pipeline/Observability/`
+8. `CoderEngine/Sources/CoderEngine/Pipeline/Replay/`
+9. `CoderEngine/Sources/CoderEngine/Pipeline/Contracts/`
 
 File target (tutti `<300` LOC):
 
 1. `JobStateMachine.swift`
 2. `DagScheduler.swift`
 3. `TaskRetryPolicy.swift`
-4. `PatchManifest.swift`
-5. `PatchApplyTransaction.swift`
-6. `ProviderCapabilityMatrix.swift`
-7. `ProviderRouter.swift`
-8. `PipelineEventLogger.swift`
-9. `PipelineMetrics.swift`
-10. `ProjectMemoryStore.swift`
+4. `ContextRankingEngine.swift`
+5. `EventBus.swift`
+6. `EventEnvelope.swift`
+7. `PatchManifest.swift`
+8. `PatchApplyTransaction.swift`
+9. `ProviderCapabilityMatrix.swift`
+10. `ProviderRouter.swift`
+11. `PipelineEventLogger.swift`
+12. `PipelineMetrics.swift`
+13. `ReplayRunner.swift`
+14. `ProjectMemoryStore.swift`
 
 ## 21. Piano implementativo dettagliato
 
@@ -884,6 +1097,22 @@ Azioni:
 2. switch fallback chain;
 3. conserva idempotency key per evitare duplicazioni.
 
+## 22.5 Review non convergente
+
+Azioni:
+
+1. dopo round 3 con findings persistenti, imposta `status=blocked`;
+2. apri task escalation manuale con ownership esplicita;
+3. congela apply finché non chiuso il blocco.
+
+## 22.6 Replay pipeline
+
+Azioni:
+
+1. carica `replay_snapshot.json`;
+2. replay deterministico su log eventi e provider selection;
+3. genera report diff tra run originale e replay.
+
 ## 23. Definition of Done finale
 
 Pipeline dichiarata "super solida" quando tutti i punti sono veri:
@@ -894,7 +1123,9 @@ Pipeline dichiarata "super solida" quando tutti i punti sono veri:
 4. fallback provider non rompe determinismo;
 5. event log e metriche coprono tutto il ciclo;
 6. CI blocca violazioni qualità/struttura;
-7. regola iOS con `xcodebuildmcp` applicata sempre dove rilevante.
+7. regola iOS con `xcodebuildmcp` applicata sempre dove rilevante;
+8. replay del job possibile con stesso esito funzionale;
+9. event bus e agent protocol JSON validati in tutte le fasi.
 
 ## 24. Allegato A - Sequenze tool raccomandate
 
@@ -951,7 +1182,10 @@ Checklist tecnica:
 4. integrare `ProviderCapabilityMatrix`;
 5. aggiungere CI `LOC > 500` fail;
 6. aggiungere CI `301..500` warning report;
-7. consolidare runbook failure in docs.
+7. consolidare runbook failure in docs;
+8. aggiungere validator `agent_action_envelope`;
+9. aggiungere `EventBus` interno con schema evento;
+10. aggiungere replay runner deterministico.
 
 Checklist di adozione:
 
@@ -959,4 +1193,6 @@ Checklist di adozione:
 2. attivare event log persistente;
 3. attivare dashboard metriche minime;
 4. validare 10 task reali end-to-end;
-5. firmare ADR di adozione v2.1.
+5. validare soglie blast radius e risk score;
+6. validare review convergence rule (`blocked` round 3);
+7. firmare ADR di adozione v2.1.
