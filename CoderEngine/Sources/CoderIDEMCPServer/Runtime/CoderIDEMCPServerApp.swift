@@ -91,27 +91,6 @@ struct CoderIDEMCPServerApp {
                 return handleIDEStateTool(name: toolName, args: stringArgs)
             }
 
-            // Subagent tools — execute as a one-shot CLI subprocess.
-            if toolName.hasPrefix("subagent_") {
-                let task = stringArgs["task"] ?? ""
-                guard !task.isEmpty else {
-                    return CallTool.Result(
-                        content: [.text("Error: 'task' argument is required")],
-                        isError: true
-                    )
-                }
-
-                let result = await Self.executeSubagentViaCLI(
-                    role: toolName,
-                    task: task,
-                    workspacePath: workspacePath
-                )
-                return CallTool.Result(
-                    content: [.text(result.output)],
-                    isError: result.isError ? true : nil
-                )
-            }
-
             let call = ToolCall(
                 id: UUID().uuidString,
                 name: toolName,

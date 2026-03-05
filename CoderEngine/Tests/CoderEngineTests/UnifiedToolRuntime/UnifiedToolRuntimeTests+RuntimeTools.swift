@@ -174,4 +174,41 @@ extension UnifiedToolRuntimeTests {
         XCTAssertTrue(hasFileChange, "create_file should emit file_change event")
     }
 
+    func testSubagentStartEventUsesAgentTypeAndIdentity() async {
+        let runtime = UnifiedToolRuntime()
+        let call = ToolCall(
+            id: UUID().uuidString,
+            name: "subagent_explorer",
+            args: ["task": "Investigate session cache invalidation"],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+
+        let payload = runtime.buildBasePayload(call: call, normalizedName: "subagent_explorer")
+        XCTAssertEqual(runtime.startEventTypeForTool(name: "subagent_explorer", payload: payload), "agent")
+        XCTAssertEqual(payload["agent_name"], "InvestigateSessionCacheInvalidation-explorer")
+        XCTAssertEqual(payload["swarm_id"], "InvestigateSessionCacheInvalidation-explorer")
+    }
+
+    func testSubagentValidationFailsWithoutTask() async {
+        let runtime = UnifiedToolRuntime()
+        let workspace = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let ctx = ToolExecutionContext(workspaceContext: WorkspaceContext(workspacePath: workspace))
+        let call = ToolCall(
+            id: UUID().uuidString,
+            name: "subagent_explorer",
+            args: [:],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+
+        let events = await runtime.execute(call, context: ctx)
+        let completed = extractLastPayload(events)
+        XCTAssertEqual(completed?["status"], "failed")
+        XCTAssertEqual(completed?["error_code"], "validation")
+        XCTAssertTrue((completed?["detail"] ?? "").contains("'task' is required"))
+    }
+
 }

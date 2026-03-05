@@ -260,4 +260,42 @@ final class MCPSubagentPipelineTests: XCTestCase {
         XCTAssertTrue(prompt.contains("run the relevant test command"))
         XCTAssertTrue(prompt.contains("If tests fail, fix and re-run"))
     }
+
+    // MARK: - Backend routing
+
+    func testBackendResolverPrefersCodexForReadOnlyRole() {
+        let selection = SubagentBackendResolver.selectBackend(
+            for: .explorer,
+            discoveredCLIs: [
+                "claude": "/usr/local/bin/claude",
+                "codex": "/usr/local/bin/codex",
+            ]
+        )
+
+        XCTAssertEqual(selection?.providerID, "codex")
+        XCTAssertEqual(selection?.cliPath, "/usr/local/bin/codex")
+    }
+
+    func testBackendResolverFallsBackToClaudeForReadOnlyRole() {
+        let selection = SubagentBackendResolver.selectBackend(
+            for: .reviewer,
+            discoveredCLIs: [
+                "claude": "/usr/local/bin/claude",
+            ]
+        )
+
+        XCTAssertEqual(selection?.providerID, "claude")
+        XCTAssertEqual(selection?.cliPath, "/usr/local/bin/claude")
+    }
+
+    func testBackendResolverRejectsReadOnlyOnlyBackendsForWriteRole() {
+        let selection = SubagentBackendResolver.selectBackend(
+            for: .coder,
+            discoveredCLIs: [
+                "claude": "/usr/local/bin/claude",
+            ]
+        )
+
+        XCTAssertNil(selection)
+    }
 }

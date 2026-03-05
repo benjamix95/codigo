@@ -3,6 +3,12 @@ import Foundation
 extension UnifiedToolRuntime {
     func validate(call: ToolCall, normalizedName: String) throws {
         switch normalizedName {
+        case let name where SubagentRole.fromToolName(name) != nil:
+            let task = (call.args["task"] ?? call.args["prompt"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if task.isEmpty {
+                throw ToolRuntimeError.validation("'task' is required")
+            }
         case "read", "write", "edit", "read_range", "list_dir", "read_json", "write_json", "tail_log",
              "str_replace", "create_file":
             let path = call.args["path"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

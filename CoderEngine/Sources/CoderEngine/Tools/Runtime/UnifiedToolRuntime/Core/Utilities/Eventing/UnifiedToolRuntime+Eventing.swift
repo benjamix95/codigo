@@ -10,6 +10,20 @@ extension UnifiedToolRuntime {
             "tool": normalizedName,
             "status": "started"
         ]
+        if let role = SubagentRole.fromToolName(normalizedName) {
+            let task = (call.args["task"] ?? call.args["prompt"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let identity = SubagentExecutionIdentityBuilder.make(role: role, task: task)
+            payload["title"] = identity.agentName
+            payload["detail"] = identity.taskSummary.isEmpty ? "started" : identity.taskSummary
+            payload["agent_name"] = identity.agentName
+            payload["task_summary"] = identity.taskSummary
+            payload["subagent_id"] = identity.swarmId
+            payload["swarm_id"] = call.swarmId?.isEmpty == false ? call.swarmId : identity.swarmId
+            if let swarmID = payload["swarm_id"], !swarmID.isEmpty {
+                payload["group_id"] = "swarm-\(swarmID)"
+            }
+        }
         let mcpLikeInvocation = canFallbackToMCP(toolName: normalizedName, call: call)
         if mcpLikeInvocation {
             payload["is_mcp"] = "true"
@@ -49,6 +63,9 @@ extension UnifiedToolRuntime {
         if payload["is_mcp"] == "true" {
             return "mcp_tool_call"
         }
+        if SubagentRole.fromToolName(name) != nil {
+            return "agent"
+        }
         switch name {
         case "edit", "write", "str_replace", "create_file", "parallel_apply", "regex_replace",
              "rename_symbol", "find_and_replace_all", "undo_edit":
@@ -70,6 +87,9 @@ extension UnifiedToolRuntime {
     func eventTypeForTool(name: String, ok: Bool, payload: [String: String]) -> String {
         if payload["is_mcp"] == "true" {
             return ok ? "mcp_tool_call" : "tool_execution_error"
+        }
+        if SubagentRole.fromToolName(name) != nil {
+            return ok ? "tool_result" : "tool_execution_error"
         }
         switch name {
         case "read", "glob", "grep", "read_range", "list_dir", "git_diff", "search_symbols",
@@ -215,6 +235,64 @@ extension UnifiedToolRuntime {
         }
 
         return matches
+    }
+
+    func executeSubagentCall(
+        call: ToolCall,
+        context: ToolExecutionContext,
+        startDate: Date
+    ) async -> ToolResult {
+        guard let role = SubagentRole.fromToolName(call.name) else {
+            return ToolResult(
+                ok: false,
+                payload: [
+                    "title": "Unknown subagent",
+                    "detail": "No subagent role for '\(call.name)'",
+                    "status": "failed",
+                    "error_code": "validation"
+                ],
+                durationMs: Int(Date().timeIntervalSince(startDate) * 1000)
+            )
+        }
+
+        let task = (call.args["task"] ?? call.args["prompt"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let identity = SubagentExecutionIdentityBuilder.make(role: role, task: task)
+        let runResult = await SubagentCLIRunner.run(
+            role: role,
+            task: task,
+            workspacePath: context.workspaceContext.workspacePath.path
+        )
+
+        var payload: [String: String] = [
+            "title": runResult.isError
+                ? "\(identity.agentName) failed"
+                : "\(identity.agentName) completed",
+            "detail": runResult.isError
+                ? runResult.output
+                : "\(identity.agentName) completed in \(runResult.durationMs)ms",
+            "output": runResult.output,
+            "status": runResult.isError ? "failed" : "completed",
+            "subagent_id": identity.swarmId,
+            "swarm_id": identity.swarmId,
+            "group_id": "swarm-\(identity.swarmId)",
+            "agent_name": identity.agentName,
+            "task_summary": identity.taskSummary,
+            "role": role.rawValue,
+        ]
+        if let providerID = runResult.providerID, !providerID.isEmpty {
+            payload["provider_id"] = providerID
+            payload["backend"] = providerID
+        }
+        if let cliPath = runResult.cliPath, !cliPath.isEmpty {
+            payload["backend_path"] = cliPath
+        }
+
+        return ToolResult(
+            ok: !runResult.isError,
+            payload: payload,
+            durationMs: runResult.durationMs
+        )
     }
 
     }

@@ -99,3 +99,126 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
         allCases.map(\.toolName)
     }
 }
+
+public struct SubagentBackendSelection: Sendable, Equatable {
+    public let providerID: String
+    public let cliPath: String
+    public let timeoutSeconds: TimeInterval
+
+    public init(
+        providerID: String,
+        cliPath: String,
+        timeoutSeconds: TimeInterval
+    ) {
+        self.providerID = providerID
+        self.cliPath = cliPath
+        self.timeoutSeconds = timeoutSeconds
+    }
+}
+
+public enum SubagentBackendResolver {
+    public static func selectBackend(for role: SubagentRole) -> SubagentBackendSelection? {
+        selectBackend(for: role, discoveredCLIs: discoverAvailableCLIs())
+    }
+
+    static func selectBackend(
+        for role: SubagentRole,
+        discoveredCLIs: [String: String]
+    ) -> SubagentBackendSelection? {
+        let readOnly = SubagentCLIConfig.isReadOnly(role)
+        let compatibleCLIs = discoveredCLIs.filter { _, path in
+            SubagentCLIConfig.supportsSandboxExpectations(
+                cliPath: path,
+                readOnly: readOnly
+            )
+        }
+        guard !compatibleCLIs.isEmpty else { return nil }
+
+        let matrix = ProviderCapabilityMatrix(
+            providers: compatibleCLIs.keys.sorted().map { providerID in
+                capabilityEntry(for: providerID)
+            }
+        )
+        let preferredProviders = SubagentCLIConfig.preferredBackendNames(readOnly: readOnly)
+        let fallbackChain = preferredProviders
+            + compatibleCLIs.keys.sorted().filter { !preferredProviders.contains($0) }
+
+        let router = ProviderRouter()
+        let selection = router.selectWithFallback(
+            matrix: matrix,
+            role: role.agentRole,
+            fallbackChain: fallbackChain
+        )
+
+        guard case .success(let result) = selection,
+              let cliPath = compatibleCLIs[result.provider.providerId] else {
+            return nil
+        }
+
+        return SubagentBackendSelection(
+            providerID: result.provider.providerId,
+            cliPath: cliPath,
+            timeoutSeconds: SubagentCLIConfig.timeout(for: role)
+        )
+    }
+
+    static func discoverAvailableCLIs() -> [String: String] {
+        var discovered: [String: String] = [:]
+        for providerID in SubagentCLIConfig.knownProviderIDs {
+            if let path = PathFinder.find(executable: providerID) {
+                discovered[providerID] = path
+            }
+        }
+        return discovered
+    }
+
+    private static func capabilityEntry(for providerID: String) -> ProviderCapabilityEntry {
+        switch providerID {
+        case "codex":
+            return ProviderCapabilityEntry(
+                providerId: providerID,
+                supportsReadonlySubagent: true,
+                supportsWriteSubagent: true,
+                supportsWorkspaceSandbox: true,
+                supportsNativeTools: true
+            )
+        case "claude":
+            return ProviderCapabilityEntry(
+                providerId: providerID,
+                supportsReadonlySubagent: true,
+                supportsWriteSubagent: false,
+                supportsWorkspaceSandbox: false,
+                supportsNativeTools: true
+            )
+        default:
+            return ProviderCapabilityEntry(
+                providerId: providerID,
+                supportsReadonlySubagent: false,
+                supportsWriteSubagent: false,
+                supportsWorkspaceSandbox: false,
+                supportsNativeTools: false
+            )
+        }
+    }
+}
+
+private extension SubagentRole {
+    var agentRole: AgentRole {
+        switch self {
+        case .explorer:
+            return .explorer
+        case .coder:
+            return .coder
+        case .debugger:
+            return .debugger
+        case .reviewer:
+            return .reviewer
+        case .testWriter:
+            return .testWriter
+        case .docWriter:
+            return .docWriter
+        case .securityAuditor:
+            return .securityAuditor
+        }
+    }
+}

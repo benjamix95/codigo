@@ -87,6 +87,8 @@ extension UnifiedToolRuntime {
             switch normalizedName {
             case "read":
                 return try executeRead(call: call, context: context, startDate: startDate)
+            case _ where SubagentRole.fromToolName(normalizedName) != nil:
+                return await executeSubagentCall(call: call, context: context, startDate: startDate)
             case "read_range":
                 return try executeReadRange(call: call, context: context, startDate: startDate)
             case "list_dir":
@@ -296,4 +298,5 @@ extension UnifiedToolRuntime {
             return failure(error.localizedDescription, errorCode: "unknown", startDate: startDate, payload: mcpPayload)
         }
     }
+
 }
