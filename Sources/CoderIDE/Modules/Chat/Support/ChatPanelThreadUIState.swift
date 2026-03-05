@@ -17,6 +17,13 @@ struct ChatThreadUIState {
     let planPanelPresentationSource: PlanPanelPresentationSource
 }
 
+func shouldStartThreadWithCleanUIState(
+    hasPersistedUIState: Bool,
+    hasUserMessages: Bool
+) -> Bool {
+    !hasPersistedUIState && !hasUserMessages
+}
+
 extension ChatPanelView {
     @MainActor
     internal func persistThreadUIState(for conversationId: UUID?) {
@@ -46,16 +53,17 @@ extension ChatPanelView {
 
     @MainActor
     internal func defaultThreadUIState(for conversationId: UUID?) -> ChatThreadUIState {
-        guard conversationId != nil else {
-            return ChatThreadUIState(
-                activeInspectorPanel: nil,
-                planToggleEnabled: false,
-                debugToggleEnabled: false,
-                showBrowserPanel: false,
-                showGitPanel: false,
-                selectedSwarmId: nil,
-                planPanelPresentationSource: .manualDeepLink
-            )
+        guard let conversationId else {
+            return emptyThreadUIState()
+        }
+
+        let hasPersistedUIState = threadUIStateByConversation[conversationId] != nil
+        let hasUserMessages = chatStore.conversation(for: conversationId).map(chatStore.hasUserMessages) ?? false
+        if shouldStartThreadWithCleanUIState(
+            hasPersistedUIState: hasPersistedUIState,
+            hasUserMessages: hasUserMessages
+        ) {
+            return emptyThreadUIState()
         }
 
         let shouldShowDebug = coderMode == .debug || debugStore.phase.isActive
@@ -79,6 +87,19 @@ extension ChatPanelView {
             planToggleEnabled: shouldShowPlan,
             debugToggleEnabled: shouldShowDebug,
             showBrowserPanel: shouldShowBrowser,
+            showGitPanel: false,
+            selectedSwarmId: nil,
+            planPanelPresentationSource: .manualDeepLink
+        )
+    }
+
+    @MainActor
+    internal func emptyThreadUIState() -> ChatThreadUIState {
+        ChatThreadUIState(
+            activeInspectorPanel: nil,
+            planToggleEnabled: false,
+            debugToggleEnabled: false,
+            showBrowserPanel: false,
             showGitPanel: false,
             selectedSwarmId: nil,
             planPanelPresentationSource: .manualDeepLink
