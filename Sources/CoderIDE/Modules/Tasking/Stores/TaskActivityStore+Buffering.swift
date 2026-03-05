@@ -98,8 +98,11 @@ extension TaskActivityStore {
         pruneCompletedTerminalActivities()
         trimActivitiesToHardCapPreservingRunning()
         recalcActiveOperations()
-        // NOTE: NON chiamare ingestSwarmCard qui — l'ingestion avviene già in
-        // flushPendingActivities() e rebuildSwarmCards(). Duplicare causa contatori inflazionati.
+        // Path C scrive direttamente in activities[] senza passare per pendingActivities/
+        // flushPendingActivities(), quindi ingestSwarmCard non verrebbe mai chiamato.
+        // La deduplicazione in SwarmLiveReducer (chiavi composite + bucket 500ms)
+        // previene i contatori inflazionati.
+        ingestSwarmCard(activity: activity)
     }
 
     private func pruneCompletedTerminalActivities() {
