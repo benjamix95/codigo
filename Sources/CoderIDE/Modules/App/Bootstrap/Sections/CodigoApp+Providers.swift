@@ -4,12 +4,6 @@ import CoderEngine
 extension CodigoApp {
     func registerProviders() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         if providerRegistry.provider(for: "openai-api") == nil {
             let effort = OpenAIAPIProvider.isReasoningModel(model) ? "medium" : nil
             providerRegistry.register(
@@ -19,7 +13,13 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "openai-api",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
@@ -30,7 +30,13 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "anthropic-api",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
@@ -41,7 +47,13 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "google-api",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
@@ -52,7 +64,13 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "codex-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
@@ -63,7 +81,13 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "claude-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
@@ -74,13 +98,37 @@ extension CodigoApp {
                     executionController: executionController,
                     codebaseIndex: workspaceStore.codebaseIndex,
                     workspacePaths: workspaceStore.activeWorkspacePaths,
-                    subagentProviderFactory: subagentFactory
+                    subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                        "gemini-cli",
+                        config: cfg,
+                        executionController: executionController,
+                        codebaseIndex: workspaceStore.codebaseIndex,
+                        workspacePaths: workspaceStore.activeWorkspacePaths
+                    )
                 )
             )
         }
-        registerMiniMax(subagentFactory: subagentFactory)
-        registerOpenRouter(subagentFactory: subagentFactory)
-        registerGrok(subagentFactory: subagentFactory)
+        registerMiniMax(subagentFactory: ProviderFactory.subagentProviderFactoryForParent(
+            "minimax-api",
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        ))
+        registerOpenRouter(subagentFactory: ProviderFactory.subagentProviderFactoryForParent(
+            "openrouter-api",
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        ))
+        registerGrok(subagentFactory: ProviderFactory.subagentProviderFactoryForParent(
+            "grok-api",
+            config: cfg,
+            executionController: executionController,
+            codebaseIndex: workspaceStore.codebaseIndex,
+            workspacePaths: workspaceStore.activeWorkspacePaths
+        ))
         NotificationCenter.default.post(name: .providersDidRegister, object: nil)
     }
 

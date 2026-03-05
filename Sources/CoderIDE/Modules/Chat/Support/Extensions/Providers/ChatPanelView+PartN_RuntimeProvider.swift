@@ -74,7 +74,8 @@ extension ChatPanelView {
                         config: cfg,
                         executionController: executionController,
                         codebaseIndex: workspaceStore.codebaseIndex,
-                        workspacePaths: runtimeWorkspacePaths
+                        workspacePaths: runtimeWorkspacePaths,
+                        agentProviderId: selectedProviderId
                     )
                     switch kind {
                     case .codex:

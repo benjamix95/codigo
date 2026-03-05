@@ -123,6 +123,47 @@ final class ProviderFactoryRuntimeParityTests: XCTestCase {
         XCTAssertFalse(provider is ToolEnabledLLMProvider)
     }
 
+    func testSubagentFactoryInheritsParentProviderWhenWorkerBackendIsAuto() async throws {
+        var config = makeConfig()
+        config.swarmWorkerBackend = "auto"
+
+        let codexFactory = ProviderFactory.subagentProviderFactory(
+            config: config,
+            executionController: nil,
+            codebaseIndex: CodebaseIndex(),
+            workspacePaths: makeWorkspacePaths(),
+            agentProviderId: "codex-cli"
+        )
+        let claudeFactory = ProviderFactory.subagentProviderFactory(
+            config: config,
+            executionController: nil,
+            codebaseIndex: CodebaseIndex(),
+            workspacePaths: makeWorkspacePaths(),
+            agentProviderId: "claude-cli"
+        )
+
+        XCTAssertEqual(codexFactory?().id, "codex-cli")
+        XCTAssertEqual(codexFactory?().id, "codex-cli")
+        XCTAssertEqual(claudeFactory?().id, "claude-cli")
+        XCTAssertEqual(claudeFactory?().id, "claude-cli")
+    }
+
+    func testSubagentFactoryHonorsConfiguredWorkerBackendAndStaysDeterministic() async throws {
+        var config = makeConfig()
+        config.swarmWorkerBackend = "anthropic-api"
+
+        let factory = ProviderFactory.subagentProviderFactory(
+            config: config,
+            executionController: nil,
+            codebaseIndex: CodebaseIndex(),
+            workspacePaths: makeWorkspacePaths(),
+            agentProviderId: "codex-cli"
+        )
+
+        XCTAssertEqual(factory?().id, "anthropic-api")
+        XCTAssertEqual(factory?().id, "anthropic-api")
+    }
+
     private func makeWorkspacePaths() -> [URL] {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
             "provider-runtime-parity-\(UUID().uuidString)"

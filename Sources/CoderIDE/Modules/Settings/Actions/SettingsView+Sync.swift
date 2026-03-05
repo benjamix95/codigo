@@ -12,12 +12,6 @@ extension SettingsView {
     func syncCodeReview() {}
     func syncOpenAI() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         let effort = OpenAIAPIProvider.isReasoningModel(openaiModel) ? reasoningEffort : nil
         reregisterProviderPreservingSelection(id: "openai-api", provider:
             ProviderFactory.openAIAPIProvider(
@@ -26,144 +20,150 @@ extension SettingsView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "openai-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncAnthropic() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "anthropic-api", provider:
             ProviderFactory.anthropicAPIProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "anthropic-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncGoogle() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "google-api", provider:
             ProviderFactory.googleAPIProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "google-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncMiniMax() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "minimax-api", provider:
             ProviderFactory.miniMaxAPIProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "minimax-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncOpenRouter() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "openrouter-api", provider:
             ProviderFactory.openRouterAPIProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "openrouter-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncGrok() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "grok-api", provider:
             ProviderFactory.grokAPIProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "grok-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncCodex() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "codex-cli", provider:
             ProviderFactory.codexProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "codex-cli",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func syncClaude() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "claude-cli", provider:
             ProviderFactory.claudeProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "claude-cli",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
         syncSwarm(); syncPlanProvider()
     }
     func syncGemini() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: workspaceStore.activeWorkspacePaths
-        )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider:
             ProviderFactory.geminiProvider(
                 config: cfg,
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: workspaceStore.activeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "gemini-cli",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: workspaceStore.activeWorkspacePaths
+                )
             ))
     }
     func reregisterProviderPreservingSelection(id: String, provider: (any LLMProvider)?) {

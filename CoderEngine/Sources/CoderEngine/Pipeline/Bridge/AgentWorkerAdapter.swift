@@ -137,7 +137,7 @@ public actor AgentWorkerAdapter {
                     agentName: agentName,
                     agentRole: role,
                     success: false,
-                    error: error.localizedDescription,
+                    error: Self.readableErrorMessage(error),
                     durationMs: durationMs,
                     providerId: provider.id
                 )
@@ -311,6 +311,22 @@ public actor AgentWorkerAdapter {
         default: return .analysisNote
         }
     }
+
+    private static func readableErrorMessage(_ error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !description.isEmpty,
+           !description.hasPrefix("The operation couldn’t be completed. (CoderEngine.AgentWorkerError") {
+            return description
+        }
+
+        if let workerError = error as? AgentWorkerError,
+           let workerDescription = workerError.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !workerDescription.isEmpty {
+            return workerDescription
+        }
+
+        return String(describing: error)
+    }
 }
 
 // MARK: - AgentWorkerError
@@ -318,4 +334,16 @@ public actor AgentWorkerAdapter {
 public enum AgentWorkerError: Error, Sendable {
     case streamError(String)
     case timeout(taskId: String, elapsedMs: Int)
+}
+
+extension AgentWorkerError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .streamError(let message):
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "Il provider ha terminato lo stream senza dettagli di errore." : trimmed
+        case .timeout(let taskId, let elapsedMs):
+            return "Timeout del worker pipeline per \(taskId) dopo \(elapsedMs)ms."
+        }
+    }
 }

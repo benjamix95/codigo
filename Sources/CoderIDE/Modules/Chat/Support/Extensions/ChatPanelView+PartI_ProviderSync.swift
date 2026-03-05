@@ -83,7 +83,8 @@ extension ChatPanelView {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: runtimeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths,
+            agentProviderId: "codex-cli"
         )
         let p = ProviderFactory.codexProvider(
             config: cfg,
@@ -105,7 +106,8 @@ extension ChatPanelView {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: runtimeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths,
+            agentProviderId: "claude-cli"
         )
         let p = ProviderFactory.claudeProvider(
             config: cfg,
@@ -126,7 +128,8 @@ extension ChatPanelView {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: runtimeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths,
+            agentProviderId: "gemini-cli"
         )
         let p = ProviderFactory.geminiProvider(
             config: cfg,
@@ -145,7 +148,8 @@ extension ChatPanelView {
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: runtimeWorkspacePaths
+            workspacePaths: runtimeWorkspacePaths,
+            agentProviderId: "openrouter-api"
         )
         let p = ProviderFactory.openRouterAPIProvider(
             config: cfg,

@@ -48,58 +48,83 @@ extension ProviderFactory {
         return normalized
     }
 
-    /// Builds a thread-safe factory that returns subagent providers in round-robin order.
-    /// Each subagent can use a different backend across ALL configured providers (CLI + API).
-    /// Returns nil if no provider is configured.
+    /// Builds a subagent factory aligned with the unified swarm/backend routing.
+    /// When `backendIds` is omitted, the factory resolves the preferred worker backend
+    /// from settings and, for `auto`, inherits from the parent provider identity.
+    /// The returned factory is deterministic: it keeps using the same resolved backend
+    /// instead of round-robin cycling through unrelated providers.
     static func subagentProviderFactory(
         config: ProviderFactoryConfig,
         executionController: ExecutionController?,
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
+        agentProviderId: String? = nil,
         backendIds: [String]? = nil
     ) -> (@Sendable () -> any LLMProvider)? {
-        let ids = backendIds ?? allSubagentBackendIds
-        var providers: [any LLMProvider] = ids.compactMap { id in
+        let orderedBackendIds = preferredSubagentBackendIds(
+            config: config,
+            agentProviderId: agentProviderId,
+            backendIds: backendIds
+        )
+        let providers: [any LLMProvider] = orderedBackendIds.compactMap { backendId in
             resolveSwarmBackendProvider(
-                backendId: id,
+                backendId: backendId,
                 config: config,
                 executionController: executionController,
                 codebaseIndex: codebaseIndex,
                 workspacePaths: workspacePaths
             )
         }
-        if providers.isEmpty {
-            // Fallback: try defaults
-            for id in allSubagentBackendIds where !ids.contains(id) {
-                if let p = resolveSwarmBackendProvider(
-                    backendId: id,
-                    config: config,
-                    executionController: executionController,
-                    codebaseIndex: codebaseIndex,
-                    workspacePaths: workspacePaths
-                ) {
-                    providers = [p]
-                    break
-                }
-            }
-        }
         guard let first = providers.first else { return nil }
-        if providers.count == 1 {
-            return { first }
+        return { first }
+    }
+
+    static func subagentProviderFactoryForParent(
+        _ providerId: String,
+        config: ProviderFactoryConfig,
+        executionController: ExecutionController?,
+        codebaseIndex: CodebaseIndex? = nil,
+        workspacePaths: [URL] = []
+    ) -> (@Sendable () -> any LLMProvider)? {
+        subagentProviderFactory(
+            config: config,
+            executionController: executionController,
+            codebaseIndex: codebaseIndex,
+            workspacePaths: workspacePaths,
+            agentProviderId: providerId
+        )
+    }
+
+    static func preferredSubagentBackendIds(
+        config: ProviderFactoryConfig,
+        agentProviderId: String?,
+        backendIds: [String]? = nil
+    ) -> [String] {
+        let normalizedCandidates = (backendIds ?? [])
+            .map(normalizedBackendId)
+            .filter { !$0.isEmpty }
+
+        if !normalizedCandidates.isEmpty {
+            return deduplicatedBackendIds(normalizedCandidates)
         }
-        let providerList = providers
-        final class RoundRobinState: @unchecked Sendable {
-            var index = 0
+
+        let preferredBackend = resolveSwarmBackendId(
+            configuredBackendId: config.swarmWorkerBackend,
+            agentProviderId: agentProviderId
+        )
+        let fallbackBackends = allSubagentBackendIds
+            .map(normalizedBackendId)
+            .filter { $0 != preferredBackend }
+        return deduplicatedBackendIds([preferredBackend] + fallbackBackends)
+    }
+
+    private static func deduplicatedBackendIds(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for id in ids where seen.insert(id).inserted {
+            ordered.append(id)
         }
-        let state = RoundRobinState()
-        let queue = DispatchQueue(label: "subagent.factory.roundrobin")
-        return { @Sendable in
-            queue.sync {
-                let i = state.index % providerList.count
-                state.index += 1
-                return providerList[i]
-            }
-        }
+        return ordered
     }
 
     /// Resolve any backend identifier to a concrete LLMProvider.

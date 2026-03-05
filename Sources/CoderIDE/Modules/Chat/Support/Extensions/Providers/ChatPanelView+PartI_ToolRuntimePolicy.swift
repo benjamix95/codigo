@@ -24,18 +24,18 @@ extension ChatPanelView {
 
     internal func syncToolRuntimePolicy() {
         let cfg = providerFactoryConfig()
-        let subagentFactory = ProviderFactory.subagentProviderFactory(
-            config: cfg,
-            executionController: executionController,
-            codebaseIndex: workspaceStore.codebaseIndex,
-            workspacePaths: runtimeWorkspacePaths
-        )
         let codex = ProviderFactory.codexProvider(
             config: cfg,
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: runtimeWorkspacePaths,
-            subagentProviderFactory: subagentFactory
+            subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                "codex-cli",
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: runtimeWorkspacePaths
+            )
         )
         reregisterProviderPreservingSelection(id: "codex-cli", provider: codex)
         let claude = ProviderFactory.claudeProvider(
@@ -43,7 +43,13 @@ extension ChatPanelView {
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: runtimeWorkspacePaths,
-            subagentProviderFactory: subagentFactory
+            subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                "claude-cli",
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: runtimeWorkspacePaths
+            )
         )
         reregisterProviderPreservingSelection(id: "claude-cli", provider: claude)
         let gemini = ProviderFactory.geminiProvider(
@@ -51,7 +57,13 @@ extension ChatPanelView {
             executionController: executionController,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: runtimeWorkspacePaths,
-            subagentProviderFactory: subagentFactory
+            subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                "gemini-cli",
+                config: cfg,
+                executionController: executionController,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: runtimeWorkspacePaths
+            )
         )
         reregisterProviderPreservingSelection(id: "gemini-cli", provider: gemini)
 
@@ -61,7 +73,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "openrouter-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "openrouter-api", provider: p)
         }
@@ -71,7 +89,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "openai-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "openai-api", provider: p)
         }
@@ -81,7 +105,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "anthropic-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "anthropic-api", provider: p)
         }
@@ -91,7 +121,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "google-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "google-api", provider: p)
         }
@@ -101,7 +137,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "minimax-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "minimax-api", provider: p)
         }
@@ -111,7 +153,13 @@ extension ChatPanelView {
                 executionController: executionController,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                subagentProviderFactory: subagentFactory
+                subagentProviderFactory: ProviderFactory.subagentProviderFactoryForParent(
+                    "grok-api",
+                    config: cfg,
+                    executionController: executionController,
+                    codebaseIndex: workspaceStore.codebaseIndex,
+                    workspacePaths: runtimeWorkspacePaths
+                )
             )
             reregisterProviderPreservingSelection(id: "grok-api", provider: p)
         }
