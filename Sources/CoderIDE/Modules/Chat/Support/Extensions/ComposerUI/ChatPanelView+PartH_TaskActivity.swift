@@ -101,10 +101,10 @@ extension ChatPanelView {
         conversationId: UUID?
     ) -> TaskActivity {
         guard let conversationId else { return activity }
-        var payload = activity.payload
-        if payload["conversation_id"] == nil {
-            payload["conversation_id"] = conversationId.uuidString.lowercased()
-        }
+        let payload = payloadWithConversationScope(
+            payload: activity.payload,
+            conversationId: conversationId
+        )
         return TaskActivity(
             id: activity.id,
             type: activity.type,

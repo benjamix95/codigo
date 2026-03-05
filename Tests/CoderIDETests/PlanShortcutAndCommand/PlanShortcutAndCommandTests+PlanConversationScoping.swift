@@ -85,4 +85,76 @@ extension PlanShortcutAndCommandTests {
             buildAgentConversationId
         )
     }
+
+    func testResolveTodoClearTargetConversationIdPrefersExplicitEventConversation() {
+        let eventConversationId = UUID()
+        let buildPlanConversationId = UUID()
+        let buildAgentConversationId = UUID()
+
+        XCTAssertEqual(
+            resolveTodoClearTargetConversationId(
+                eventConversationId: eventConversationId,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId,
+                activeTaskConversationId: UUID(),
+                selectedConversationId: UUID()
+            ),
+            eventConversationId
+        )
+    }
+
+    func testResolveTodoClearTargetConversationIdMapsBuildAgentConversationToBuildPlanConversation() {
+        let buildPlanConversationId = UUID()
+        let buildAgentConversationId = UUID()
+
+        XCTAssertEqual(
+            resolveTodoClearTargetConversationId(
+                eventConversationId: buildAgentConversationId,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: buildAgentConversationId,
+                activeTaskConversationId: UUID(),
+                selectedConversationId: UUID()
+            ),
+            buildPlanConversationId
+        )
+    }
+
+    func testResolveTodoClearTargetConversationIdFallsBackByPriorityWhenEventConversationMissing() {
+        let buildPlanConversationId = UUID()
+        let activeTaskConversationId = UUID()
+        let selectedConversationId = UUID()
+
+        XCTAssertEqual(
+            resolveTodoClearTargetConversationId(
+                eventConversationId: nil,
+                activeBuildPlanConversationId: buildPlanConversationId,
+                activeBuildAgentConversationId: UUID(),
+                activeTaskConversationId: activeTaskConversationId,
+                selectedConversationId: selectedConversationId
+            ),
+            buildPlanConversationId
+        )
+
+        XCTAssertEqual(
+            resolveTodoClearTargetConversationId(
+                eventConversationId: nil,
+                activeBuildPlanConversationId: nil,
+                activeBuildAgentConversationId: UUID(),
+                activeTaskConversationId: activeTaskConversationId,
+                selectedConversationId: selectedConversationId
+            ),
+            activeTaskConversationId
+        )
+
+        XCTAssertEqual(
+            resolveTodoClearTargetConversationId(
+                eventConversationId: nil,
+                activeBuildPlanConversationId: nil,
+                activeBuildAgentConversationId: nil,
+                activeTaskConversationId: nil,
+                selectedConversationId: selectedConversationId
+            ),
+            selectedConversationId
+        )
+    }
 }

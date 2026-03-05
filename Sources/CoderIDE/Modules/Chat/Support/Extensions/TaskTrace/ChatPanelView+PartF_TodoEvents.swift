@@ -12,12 +12,13 @@ extension ChatPanelView {
     ) {
         if todo.title == EventNormalizer.todoClearMarkerTitle {
             enableTaskPanelIfNeeded()
-            let scopedConversationId =
-                activeBuildPlanConversationId
-                ?? conversationId
-                ?? activeBuildAgentConversationId
-                ?? chatStore.activeTaskConversationId
-                ?? self.conversationId
+            let scopedConversationId = resolveTodoClearTargetConversationId(
+                eventConversationId: conversationId,
+                activeBuildPlanConversationId: activeBuildPlanConversationId,
+                activeBuildAgentConversationId: activeBuildAgentConversationId,
+                activeTaskConversationId: chatStore.activeTaskConversationId,
+                selectedConversationId: self.conversationId
+            )
             guard let scopedConversationId else {
                 recordExplicitTodoWrite(providerId: providerId, conversationId: conversationId)
                 return

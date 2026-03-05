@@ -187,6 +187,27 @@ func resolvePlanStepTargetConversationId(
     eventConversationId ?? activeBuildPlanConversationId ?? activeTaskConversationId
 }
 
+func resolveTodoClearTargetConversationId(
+    eventConversationId: UUID?,
+    activeBuildPlanConversationId: UUID?,
+    activeBuildAgentConversationId: UUID?,
+    activeTaskConversationId: UUID?,
+    selectedConversationId: UUID?
+) -> UUID? {
+    if let eventConversationId {
+        if let activeBuildAgentConversationId,
+           let activeBuildPlanConversationId,
+           eventConversationId == activeBuildAgentConversationId {
+            return activeBuildPlanConversationId
+        }
+        return eventConversationId
+    }
+
+    return activeBuildPlanConversationId
+        ?? activeTaskConversationId
+        ?? selectedConversationId
+}
+
 func shouldMirrorLegacyPlanStepIntoActiveBuildPlan(
     targetConversationId: UUID?,
     phase: PlanFlowPhase,

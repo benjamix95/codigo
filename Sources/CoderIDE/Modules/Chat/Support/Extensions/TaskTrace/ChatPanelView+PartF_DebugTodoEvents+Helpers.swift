@@ -1,5 +1,30 @@
 import Foundation
 
+func buildAutoTodoTracePayload(
+    todoId: UUID,
+    title: String,
+    status: TodoStatus,
+    notes: String,
+    linkedFiles: [String],
+    conversationId: UUID?
+) -> [String: String] {
+    var payload: [String: String] = [
+        "id": todoId.uuidString,
+        "title": title,
+        "task": title,
+        "status": status.rawValue,
+        "priority": TodoPriority.medium.rawValue,
+        "notes": notes,
+    ]
+    if let conversationId {
+        payload["conversation_id"] = conversationId.uuidString.lowercased()
+    }
+    if !linkedFiles.isEmpty {
+        payload["files"] = linkedFiles.joined(separator: ",")
+    }
+    return payload
+}
+
 extension ChatPanelView {
     internal func emitAutoTodoTraceUpdate(
         todoId: UUID,
@@ -11,17 +36,14 @@ extension ChatPanelView {
         conversationId: UUID?,
         timestamp: Date
     ) {
-        var payload: [String: String] = [
-            "id": todoId.uuidString,
-            "title": title,
-            "task": title,
-            "status": status.rawValue,
-            "priority": TodoPriority.medium.rawValue,
-            "notes": notes,
-        ]
-        if !linkedFiles.isEmpty {
-            payload["files"] = linkedFiles.joined(separator: ",")
-        }
+        let payload = buildAutoTodoTracePayload(
+            todoId: todoId,
+            title: title,
+            status: status,
+            notes: notes,
+            linkedFiles: linkedFiles,
+            conversationId: conversationId
+        )
 
         let activity = TaskActivity(
             type: "todo_write",
