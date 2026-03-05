@@ -155,11 +155,19 @@ extension ToolEnabledLLMProvider {
                     toolName: name,
                     payload: args
                 )
+                let resolvedSubagent = Self.resolveSubagentInvocation(
+                    toolName: name,
+                    payload: args
+                )
+                let effectiveMarker = resolvedSubagent.map {
+                    Self.adaptedMarkerForResolvedSubagent(marker, resolved: $0)
+                } ?? marker
+                let effectiveName = resolvedSubagent?.toolName ?? name
 
                 if enforceSubagentFirstRound,
                    isFirstRound,
                    !localAcceptedSubagentInFirstRound,
-                   !name.hasPrefix("subagent_"),
+                   resolvedSubagent == nil,
                    !legacyInvokeSwarm,
                    !Self.isSubagentFirstRoundExemptTool(name)
                 {
@@ -188,7 +196,7 @@ extension ToolEnabledLLMProvider {
                 toolCallCountByKey[dedupeId] = count + 1
                 sawExecutableSuggestion = true
 
-                if isFirstRound, legacyInvokeSwarm {
+                if isFirstRound, (legacyInvokeSwarm || resolvedSubagent != nil) {
                     localAcceptedSubagentInFirstRound = true
                 }
                 if let hash = requiredPolicyHash,
@@ -201,14 +209,15 @@ extension ToolEnabledLLMProvider {
                     didEmitPolicyAck = true
                 }
 
-                if name.hasPrefix("subagent_") {
-                    if isFirstRound {
-                        localAcceptedSubagentInFirstRound = true
-                    }
-                    pendingSubagentCalls.append((marker: marker, name: name))
-                    let toolCallId = marker.payload["id"] ?? UUID().uuidString
+                if let resolvedSubagent {
+                    pendingSubagentCalls.append((marker: effectiveMarker, name: effectiveName))
+                    let toolCallId = effectiveMarker.payload["id"] ?? UUID().uuidString
+                    let queuedIdentity = SubagentExecutionIdentityBuilder.make(
+                        role: resolvedSubagent.role,
+                        task: effectiveMarker.payload["task"] ?? effectiveMarker.payload["prompt"] ?? ""
+                    )
                     continuation.yield(.raw(type: "agent", payload: [
-                        "title": SubagentRole.fromToolName(name)?.displayName ?? name,
+                        "title": queuedIdentity.agentName,
                         "detail": "queued",
                         "swarm_id": "queued-\(toolCallId)",
                         "tool_call_id": toolCallId,
@@ -216,7 +225,7 @@ extension ToolEnabledLLMProvider {
                     ]))
                 } else {
                     toolCallsThisRound += 1
-                    let produced = await events(for: marker, context: context)
+                    let produced = await events(for: effectiveMarker, context: context)
                     for e in produced {
                         if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {
                             sawCodeMutationDuringTask = true

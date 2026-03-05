@@ -3,14 +3,13 @@ import Foundation
 extension ToolEnabledLLMProvider {
     /// Resolve a tool call (from native tool_call_suggested) into stream events.
     /// IDE-state tools are emitted as raw events; everything else goes through UnifiedToolRuntime.
-    /// `preEmittedSubagentIds` maps tool_call_id → subagent_id for subagents whose "started"
-    /// event was already emitted by the caller (parallel batch execution).
+    /// `preAssignedSubagentIdentities` maps tool_call_id → subagent identity chosen by the caller.
     /// `onLiveSubagentEvent` is called for intermediate subagent events during execution,
     /// enabling real-time card updates before the subagent fully completes.
     func events(
         for marker: CoderIDEMarker,
         context: WorkspaceContext,
-        preEmittedSubagentIds: [String: String]? = nil,
+        preAssignedSubagentIdentities: [String: SubagentExecutionIdentity]? = nil,
         onLiveSubagentEvent: (@Sendable (StreamEvent) -> Void)? = nil
     ) async -> [StreamEvent] {
         guard marker.kind == "tool_call" else { return [] }
@@ -31,6 +30,25 @@ extension ToolEnabledLLMProvider {
             context: context
         ) {
             return enforcementEvents
+        }
+
+        if let resolvedSubagent = Self.resolveSubagentInvocation(
+            toolName: toolName,
+            payload: marker.payload
+        ) {
+            let adaptedMarker = Self.adaptedMarkerForResolvedSubagent(
+                marker,
+                resolved: resolvedSubagent
+            )
+            let toolCallId = adaptedMarker.payload["id"].flatMap({ $0.isEmpty ? nil : $0 }) ?? UUID().uuidString
+            let preAssignedIdentity = preAssignedSubagentIdentities?[toolCallId]
+            return await executeSubagentTool(
+                toolName: resolvedSubagent.toolName,
+                marker: adaptedMarker,
+                context: context,
+                preAssignedIdentity: preAssignedIdentity,
+                onLiveEvent: onLiveSubagentEvent
+            )
         }
 
         // IDE state tools — pass-through as raw events, not executed through runtime
@@ -94,12 +112,12 @@ extension ToolEnabledLLMProvider {
         // Subagent tools — execute inline during the agent's streaming loop.
         if toolName.hasPrefix("subagent_") {
             let toolCallId = marker.payload["id"].flatMap({ $0.isEmpty ? nil : $0 }) ?? UUID().uuidString
-            let preAssignedId = preEmittedSubagentIds?[toolCallId]
+            let preAssignedIdentity = preAssignedSubagentIdentities?[toolCallId]
             return await executeSubagentTool(
                 toolName: toolName,
                 marker: marker,
                 context: context,
-                preAssignedSubagentId: preAssignedId,
+                preAssignedIdentity: preAssignedIdentity,
                 onLiveEvent: onLiveSubagentEvent
             )
         }

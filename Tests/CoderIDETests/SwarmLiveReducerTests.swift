@@ -167,6 +167,47 @@ final class SwarmLiveReducerTests: XCTestCase {
         XCTAssertNil(cards["queued-tc123"], "Queued placeholder cards should be filtered out")
     }
 
+    func testAgentNamePayloadPersistsAsDisplayName() {
+        let started = TaskActivity(
+            type: "agent",
+            title: "Explorer",
+            detail: "Investigate auth refresh flow",
+            payload: [
+                "swarm_id": "InvestigateAuthRefresh-explorer",
+                "group_id": "swarm-InvestigateAuthRefresh-explorer",
+                "agent_name": "InvestigateAuthRefresh-explorer",
+                "status": "started",
+            ],
+            timestamp: Date(timeIntervalSince1970: 301),
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-InvestigateAuthRefresh-explorer"
+        )
+        let toolEvent = TaskActivity(
+            type: "read_batch_started",
+            title: "Read session manager",
+            detail: "/Sources/Auth/SessionManager.swift",
+            payload: [
+                "swarm_id": "InvestigateAuthRefresh-explorer",
+                "group_id": "swarm-InvestigateAuthRefresh-explorer",
+                "status": "started",
+            ],
+            timestamp: Date(timeIntervalSince1970: 302),
+            phase: .searching,
+            isRunning: true,
+            groupId: "swarm-InvestigateAuthRefresh-explorer"
+        )
+
+        let cards = SwarmLiveReducer.reduce(
+            activities: [started, toolEvent],
+            limitRecentEvents: 80
+        )
+        XCTAssertEqual(
+            cards["InvestigateAuthRefresh-explorer"]?.displayName,
+            "InvestigateAuthRefresh-explorer"
+        )
+    }
+
     func testActiveOpsCountDecrementsOnNonRunningEvent() {
         let started = TaskActivity(
             type: "agent",

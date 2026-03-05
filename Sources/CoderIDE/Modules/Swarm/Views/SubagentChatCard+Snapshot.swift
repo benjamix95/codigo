@@ -123,7 +123,9 @@ extension SubagentChatCardView {
     }
 
     var title: String {
-        SubagentChatCardHelpers.roleDisplayName(from: card.swarmId)
+        card.displayName.isEmpty
+            ? SubagentChatCardHelpers.roleDisplayName(from: card.swarmId)
+            : card.displayName
     }
 
     var subtitle: String {
@@ -222,6 +224,18 @@ extension SubagentChatCardView {
     }
 
     func liveRunningSubtitle() -> String? {
+        let liveDriven = SubagentChatCardHelpers.runningSubtitle(
+            detail: card.currentDetail,
+            liveText: card.liveText,
+            fallback: ""
+        )
+        if !liveDriven.isEmpty {
+            let lower = liveDriven.lowercased()
+            if lower != "working..." && lower != "started" {
+                return liveDriven
+            }
+        }
+
         let candidates: [String?] = [
             card.currentDetail,
             card.recentEvents.last?.detail,

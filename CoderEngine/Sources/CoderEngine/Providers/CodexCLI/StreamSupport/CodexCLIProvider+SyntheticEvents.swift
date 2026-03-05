@@ -295,17 +295,14 @@ extension CodexCLIProvider {
             return [wrapped("coderide_show_swarm_panel", [:])]
 
         case let t where t.hasPrefix("subagent_"):
-            let role = String(t.dropFirst("subagent_".count))
             let task = firstString(in: arguments, keys: ["task"]) ?? ""
+            guard let role = SubagentRole.fromToolName(t) else { return [] }
+            let identity = SubagentExecutionIdentityBuilder.make(role: role, task: task)
             let status = (metadata["status"] ?? payload["status"] ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
             let isTerminalStatus = isTerminalMCPToolStatus(status)
             let isFailureStatus = isFailureMCPToolStatus(status)
-            let fallbackToken = (metadata["tool_call_id"] ?? metadata["id"] ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-                .replacingOccurrences(of: #"[^a-z0-9_-]"#, with: "", options: .regularExpression)
             let explicitSwarmId = (
                 firstString(in: arguments, keys: ["swarm_id"])
                 ?? payload["swarm_id"]
@@ -316,29 +313,28 @@ extension CodexCLIProvider {
                 if !explicitSwarmId.isEmpty {
                     return explicitSwarmId
                 }
-                if fallbackToken.isEmpty {
-                    return role
-                }
-                return "\(role)-\(String(fallbackToken.prefix(8)))"
+                return identity.swarmId
             }()
             var events: [(type: String, payload: [String: String])] = []
             let output = firstString(in: arguments, keys: ["output"]) ?? payload["output"] ?? ""
             if isTerminalStatus {
-                let detail = !output.isEmpty ? output : task
+                let detail = !output.isEmpty ? output : identity.taskSummary
                 events.append(wrapped("agent", [
                     "swarm_id": subagentId,
-                    "role": role,
+                    "role": role.rawValue,
                     "status": isFailureStatus ? "failed" : "completed",
-                    "title": "Subagent \(role.capitalized) \(isFailureStatus ? "failed" : "completed")",
+                    "title": identity.agentName,
+                    "agent_name": identity.agentName,
                     "detail": detail,
                 ]))
             } else {
                 events.append(wrapped("agent", [
                     "swarm_id": subagentId,
-                    "role": role,
+                    "role": role.rawValue,
                     "status": status.isEmpty ? "started" : status,
-                    "title": "Subagent \(role.capitalized) started",
-                    "detail": task,
+                    "title": identity.agentName,
+                    "agent_name": identity.agentName,
+                    "detail": identity.taskSummary.isEmpty ? task : identity.taskSummary,
                 ]))
             }
             return events

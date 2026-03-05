@@ -9,6 +9,7 @@ enum SwarmCardStatus: String, Codable, Sendable {
 
 struct SwarmLiveCardState: Identifiable, Sendable {
     let swarmId: String
+    var displayName: String
     var status: SwarmCardStatus
     var startedAt: Date?
     var lastEventAt: Date?
@@ -31,6 +32,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
 
     init(
         swarmId: String,
+        displayName: String = "",
         status: SwarmCardStatus = .idle,
         startedAt: Date? = nil,
         lastEventAt: Date? = nil,
@@ -47,6 +49,7 @@ struct SwarmLiveCardState: Identifiable, Sendable {
         liveText: String = ""
     ) {
         self.swarmId = swarmId
+        self.displayName = displayName
         self.status = status
         self.startedAt = startedAt
         self.lastEventAt = lastEventAt

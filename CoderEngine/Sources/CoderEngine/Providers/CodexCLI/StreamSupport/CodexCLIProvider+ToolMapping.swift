@@ -100,10 +100,32 @@ extension CodexCLIProvider {
         }
         guard let role = resolvedRole else { return }
 
+        let arguments = decodedJSONObject(from: item["arguments"])
+            ?? decodedJSONObject(from: item["input"])
+            ?? [:]
+        let task = (
+            firstString(in: arguments, keys: ["task", "prompt"])
+            ?? payload["detail"]
+            ?? ""
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let derivedIdentity = SubagentExecutionIdentityBuilder.make(role: role, task: task)
+
         let existingSwarmId = (payload["swarm_id"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let swarmId = existingSwarmId.isEmpty ? role.rawValue : existingSwarmId
+        let swarmId: String
+        if existingSwarmId.isEmpty || existingSwarmId == role.rawValue {
+            swarmId = derivedIdentity.swarmId
+        } else {
+            swarmId = existingSwarmId
+        }
         payload["swarm_id"] = swarmId
+        if (payload["agent_name"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            payload["agent_name"] = derivedIdentity.agentName
+        }
+        if (payload["task_summary"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !derivedIdentity.taskSummary.isEmpty {
+            payload["task_summary"] = derivedIdentity.taskSummary
+        }
 
         let currentGroupId = (payload["group_id"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)

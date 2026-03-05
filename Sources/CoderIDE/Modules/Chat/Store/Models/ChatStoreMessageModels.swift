@@ -23,7 +23,7 @@ struct SubagentCardSnapshot: Codable, Identifiable, Equatable {
     init(from card: SwarmLiveCardState) {
         self.swarmId = card.swarmId
         self.status = card.status
-        self.title = card.currentStepTitle
+        self.title = card.displayName.isEmpty ? card.currentStepTitle : card.displayName
         self.detail = card.currentDetail
         self.summary = card.summary
         self.errorCount = card.errorCount

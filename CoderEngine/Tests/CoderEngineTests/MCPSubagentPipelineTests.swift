@@ -206,6 +206,35 @@ final class MCPSubagentPipelineTests: XCTestCase {
         XCTAssertNil(SubagentRole.fromToolName("explorer"))
     }
 
+    func testCoderideAliasResolvesToSubagentRole() {
+        XCTAssertEqual(
+            SubagentRole.fromToolName("coderide_subagent_explorer"),
+            .explorer
+        )
+        XCTAssertEqual(
+            SubagentRole.fromToolName("coderide_subagent_testWriter"),
+            .testWriter
+        )
+    }
+
+    func testNamespacedCoderideAliasResolvesToSubagentRole() {
+        XCTAssertEqual(
+            SubagentRole.fromToolName("functions.mcp__coderide__coderide_subagent_reviewer"),
+            .reviewer
+        )
+    }
+
+    func testExecutionIdentityUsesTaskDerivedAgentName() {
+        let identity = SubagentExecutionIdentityBuilder.make(
+            role: .explorer,
+            task: "Investigate the auth token refresh flow and session invalidation"
+        )
+
+        XCTAssertEqual(identity.agentName, "InvestigateTheAuthTokenRefresh-explorer")
+        XCTAssertEqual(identity.swarmId, identity.agentName)
+        XCTAssertTrue(identity.taskSummary.contains("auth token refresh flow"))
+    }
+
     // MARK: - SubagentPromptBuilder produces non-empty prompts
 
     func testPromptBuilderProducesNonEmptyForAllRoles() {

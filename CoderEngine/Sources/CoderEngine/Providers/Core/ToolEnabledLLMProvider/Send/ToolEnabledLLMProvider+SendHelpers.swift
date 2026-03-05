@@ -39,27 +39,44 @@ extension ToolEnabledLLMProvider {
         var anyFailed = false
         var completedRolesInBatch = Set<String>()
 
-        var subagentIdByCallId: [String: String] = [:]
+        var subagentIdentityByCallId: [String: SubagentExecutionIdentity] = [:]
+        var identityCountsByBaseName: [String: Int] = [:]
         if emitStartedEvents {
             for call in calls {
                 let toolCallId = call.marker.payload["id"] ?? UUID().uuidString
                 let role = SubagentRole.fromToolName(call.name)
-                // Use "queued-<toolCallId>" as swarm_id to correlate with the
-                // "queued" event emitted in SendRoundProcessing, avoiding orphaned UI entries.
-                let subagentId = "queued-\(toolCallId)"
-                subagentIdByCallId[toolCallId] = subagentId
+                let task = call.marker.payload["task"] ?? call.marker.payload["prompt"] ?? ""
+                let identity: SubagentExecutionIdentity
+                if let role {
+                    let baseName = SubagentExecutionIdentityBuilder.baseName(role: role, task: task)
+                    let nextCount = (identityCountsByBaseName[baseName] ?? 0) + 1
+                    identityCountsByBaseName[baseName] = nextCount
+                    identity = SubagentExecutionIdentityBuilder.make(
+                        role: role,
+                        task: task,
+                        collisionIndex: nextCount > 1 ? nextCount : nil
+                    )
+                } else {
+                    identity = SubagentExecutionIdentity(
+                        swarmId: toolCallId,
+                        agentName: call.name,
+                        taskSummary: SubagentExecutionIdentityBuilder.taskSummary(from: task)
+                    )
+                }
+                subagentIdentityByCallId[toolCallId] = identity
                 continuation.yield(.raw(type: "agent", payload: [
-                    "title": role?.displayName ?? call.name,
-                    "detail": "started",
-                    "swarm_id": subagentId,
-                    "group_id": "swarm-\(subagentId)",
+                    "title": identity.agentName,
+                    "detail": "queued",
+                    "swarm_id": "queued-\(toolCallId)",
+                    "group_id": "swarm-queued-\(toolCallId)",
+                    "agent_name": identity.agentName,
                     "tool_call_id": toolCallId,
-                    "status": "started"
+                    "status": "queued"
                 ]))
             }
         }
         let capturedContext = context
-        let capturedSubagentIds = subagentIdByCallId
+        let capturedIdentities = subagentIdentityByCallId
 
         await withTaskGroup(of: (events: [StreamEvent], marker: CoderIDEMarker).self) { group in
             for call in calls {
@@ -68,7 +85,7 @@ extension ToolEnabledLLMProvider {
                     let produced = await self.events(
                         for: marker,
                         context: capturedContext,
-                        preEmittedSubagentIds: capturedSubagentIds,
+                        preAssignedSubagentIdentities: capturedIdentities,
                         onLiveSubagentEvent: { liveEvent in
                             continuation.yield(liveEvent)
                         }

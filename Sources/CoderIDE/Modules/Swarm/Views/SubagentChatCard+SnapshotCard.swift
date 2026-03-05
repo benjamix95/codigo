@@ -7,7 +7,9 @@ struct SubagentSnapshotCardView: View {
     @State private var isHovered = false
 
     var title: String {
-        SubagentChatCardHelpers.roleDisplayName(from: snapshot.swarmId)
+        snapshot.title.isEmpty
+            ? SubagentChatCardHelpers.roleDisplayName(from: snapshot.swarmId)
+            : snapshot.title
     }
 
     var subtitle: String {

@@ -52,15 +52,15 @@ private actor SubagentExecutionLimiter {
 extension ToolEnabledLLMProvider {
     /// The subagent runs to completion using its own ToolEnabledLLMProvider instance,
     /// then returns the result as tool output events.
-    /// When `preAssignedSubagentId` is provided, the "started" event was already emitted
-    /// by the caller and will not be duplicated here.
+    /// When `preAssignedIdentity` is provided, the caller already selected the
+    /// stable swarm/card identity that must be reused for all subagent events.
     /// `onLiveEvent` is called for every intermediate event during execution, enabling
     /// real-time streaming of subagent activity to the UI (card subtitle updates, etc.).
     func executeSubagentTool(
         toolName: String,
         marker: CoderIDEMarker,
         context: WorkspaceContext,
-        preAssignedSubagentId: String? = nil,
+        preAssignedIdentity: SubagentExecutionIdentity? = nil,
         onLiveEvent: (@Sendable (StreamEvent) -> Void)? = nil
     ) async -> [StreamEvent] {
         guard let role = SubagentRole.fromToolName(toolName) else {
@@ -93,7 +93,7 @@ extension ToolEnabledLLMProvider {
                 task: task,
                 marker: marker,
                 context: context,
-                preAssignedSubagentId: preAssignedSubagentId,
+                preAssignedIdentity: preAssignedIdentity,
                 onLiveEvent: onLiveEvent
             )
         }
@@ -105,25 +105,24 @@ extension ToolEnabledLLMProvider {
         task: String,
         marker: CoderIDEMarker,
         context: WorkspaceContext,
-        preAssignedSubagentId: String?,
+        preAssignedIdentity: SubagentExecutionIdentity?,
         onLiveEvent: (@Sendable (StreamEvent) -> Void)?
     ) async -> [StreamEvent] {
-        let subagentId = preAssignedSubagentId ?? "\(role.rawValue)-\(UUID().uuidString.prefix(8))"
+        let identity = preAssignedIdentity ?? SubagentExecutionIdentityBuilder.make(role: role, task: task)
+        let subagentId = identity.swarmId
         let toolCallId = marker.payload["id"] ?? UUID().uuidString
         var events: [StreamEvent] = []
 
-        // Only emit "started" if it wasn't already emitted by the caller
-        // (parallel batch pre-emits started events for immediate UI feedback).
-        if preAssignedSubagentId == nil {
-            events.append(.raw(type: "agent", payload: [
-                "title": role.displayName,
-                "detail": "started",
-                "swarm_id": subagentId,
-                "group_id": "swarm-\(subagentId)",
-                "tool_call_id": toolCallId,
-                "status": "started"
-            ]))
-        }
+        events.append(.raw(type: "agent", payload: [
+            "title": identity.agentName,
+            "detail": identity.taskSummary.isEmpty ? "started" : identity.taskSummary,
+            "swarm_id": subagentId,
+            "group_id": "swarm-\(subagentId)",
+            "tool_call_id": toolCallId,
+            "agent_name": identity.agentName,
+            "task_summary": identity.taskSummary,
+            "status": "started"
+        ]))
 
         let startDate = Date()
 
@@ -186,6 +185,7 @@ extension ToolEnabledLLMProvider {
                 onLiveEvent?(.raw(type: "subagent_text", payload: [
                     "swarm_id": subagentId,
                     "group_id": "swarm-\(subagentId)",
+                    "agent_name": identity.agentName,
                     "text": String(liveTextBuffer.prefix(1200)),
                     "_live_emitted": "1"
                 ]))
@@ -218,6 +218,10 @@ extension ToolEnabledLLMProvider {
                             emitBufferedLiveTextIfNeeded(force: true)
                             payload["swarm_id"] = subagentId
                             payload["group_id"] = "swarm-\(subagentId)"
+                            payload["agent_name"] = identity.agentName
+                            if payload["task_summary"] == nil, !identity.taskSummary.isEmpty {
+                                payload["task_summary"] = identity.taskSummary
+                            }
                             if hasLiveCallback {
                                 payload["_live_emitted"] = "1"
                             }
@@ -243,11 +247,12 @@ extension ToolEnabledLLMProvider {
 
             // Emit completed event
             events.append(.raw(type: "agent", payload: [
-                "title": role.displayName,
+                "title": identity.agentName,
                 "detail": "completed",
                 "swarm_id": subagentId,
                 "group_id": "swarm-\(subagentId)",
                 "tool_call_id": toolCallId,
+                "agent_name": identity.agentName,
                 "status": "completed",
                 "duration_ms": "\(durationMs)"
             ]))
@@ -256,11 +261,12 @@ extension ToolEnabledLLMProvider {
             events.append(.raw(type: "tool_result", payload: [
                 "id": toolCallId,
                 "name": toolName,
-                "title": "\(role.displayName) completed",
-                "detail": "\(role.displayName) subagent completed in \(durationMs)ms",
+                "title": "\(identity.agentName) completed",
+                "detail": "\(identity.agentName) completed in \(durationMs)ms",
                 "output": output,
                 "status": "completed",
                 "subagent_id": subagentId,
+                "agent_name": identity.agentName,
                 "role": role.rawValue,
                 "duration_ms": "\(durationMs)"
             ]))
@@ -269,22 +275,24 @@ extension ToolEnabledLLMProvider {
             let durationMs = Int(Date().timeIntervalSince(startDate) * 1000)
 
             events.append(.raw(type: "agent", payload: [
-                "title": role.displayName,
+                "title": identity.agentName,
                 "detail": "failed",
                 "swarm_id": subagentId,
                 "group_id": "swarm-\(subagentId)",
                 "tool_call_id": toolCallId,
+                "agent_name": identity.agentName,
                 "status": "failed"
             ]))
 
             events.append(.raw(type: "tool_result", payload: [
                 "id": toolCallId,
                 "name": toolName,
-                "title": "\(role.displayName) failed",
+                "title": "\(identity.agentName) failed",
                 "detail": error.localizedDescription,
-                "output": "Subagent \(role.displayName) failed: \(error.localizedDescription)",
+                "output": "Subagent \(identity.agentName) failed: \(error.localizedDescription)",
                 "status": "failed",
                 "subagent_id": subagentId,
+                "agent_name": identity.agentName,
                 "duration_ms": "\(durationMs)"
             ]))
         }

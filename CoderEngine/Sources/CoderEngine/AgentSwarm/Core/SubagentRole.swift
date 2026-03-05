@@ -54,10 +54,21 @@ public enum SubagentRole: String, CaseIterable, Codable, Sendable {
 
     /// Resolve a `SubagentRole` from a tool name like `subagent_explorer`.
     public static func fromToolName(_ name: String) -> SubagentRole? {
-        let normalized = name
+        var normalized = name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "-", with: "_")
             .lowercased()
+
+        let wrapperPrefixes = [
+            "functions.mcp__coderide__coderide_",
+            "mcp__coderide__coderide_",
+            "coderide_",
+        ]
+        for prefix in wrapperPrefixes where normalized.hasPrefix(prefix) {
+            normalized = String(normalized.dropFirst(prefix.count))
+            break
+        }
+
         guard normalized.hasPrefix("subagent_") else { return nil }
         let suffix = String(normalized.dropFirst("subagent_".count))
 

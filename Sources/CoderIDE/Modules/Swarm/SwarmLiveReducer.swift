@@ -34,6 +34,17 @@ enum SwarmLiveReducer {
         if owner.hasPrefix("queued-") { return }
 
         var card = cards[owner] ?? SwarmLiveCardState(swarmId: owner)
+        if let agentName = activity.payload["agent_name"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !agentName.isEmpty {
+            card.displayName = agentName
+        } else if card.displayName.isEmpty,
+                  let displayName = bestDisplayName(for: activity),
+                  !displayName.isEmpty {
+            card.displayName = displayName
+        } else if card.displayName.isEmpty {
+            card.displayName = owner
+        }
         let dedupeKey = dedupeKey(for: activity, owner: owner)
         var ownerKeys = dedupeKeys[owner] ?? Set<String>()
         let isDuplicate = ownerKeys.contains(dedupeKey)
@@ -218,6 +229,7 @@ enum SwarmLiveReducer {
     private static func bestDetail(for activity: TaskActivity) -> String? {
         let candidates = [
             activity.detail,
+            activity.payload["task_summary"],
             activity.payload["detail"],
             activity.payload["summary"],
             activity.payload["query"],
@@ -233,6 +245,14 @@ enum SwarmLiveReducer {
             if !text.isEmpty { return text }
         }
         return nil
+    }
+
+    private static func bestDisplayName(for activity: TaskActivity) -> String? {
+        let text = activity.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.lowercased() != activity.type.lowercased() else {
+            return nil
+        }
+        return text
     }
 
     private static func dedupeKey(for activity: TaskActivity, owner: String) -> String {

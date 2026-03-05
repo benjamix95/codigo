@@ -25,6 +25,9 @@ extension ToolEnabledLLMProvider {
     /// Maps a tool name to the event type used for its "started" trace event.
     /// These types must pass ToolTraceVisibility and have isRunning == true.
     static func toolStartEventType(for toolName: String) -> String {
+        if resolveSubagentInvocation(toolName: toolName, payload: [:]) != nil {
+            return "agent"
+        }
         switch toolName {
         case "bash":
             return "command_execution"
@@ -137,6 +140,16 @@ extension ToolEnabledLLMProvider {
             payload["swarm_id"] = swarmId
             payload["group_id"] = "swarm-\(swarmId)"
         }
+        if let resolvedSubagent = resolveSubagentInvocation(toolName: toolName, payload: args) {
+            let identity = SubagentExecutionIdentityBuilder.make(
+                role: resolvedSubagent.role,
+                task: args["task"] ?? args["prompt"] ?? ""
+            )
+            payload["agent_name"] = identity.agentName
+            if payload["title"] == nil || payload["title"]?.isEmpty == true {
+                payload["title"] = identity.agentName
+            }
+        }
         if toolName == "skill", let skillName = args["skill"] ?? args["name"], !skillName.isEmpty {
             payload["skill"] = skillName
         }
@@ -147,6 +160,12 @@ extension ToolEnabledLLMProvider {
     }
 
     static func toolStartTitle(for toolName: String, args: [String: String]) -> String {
+        if let resolvedSubagent = resolveSubagentInvocation(toolName: toolName, payload: args) {
+            return SubagentExecutionIdentityBuilder.make(
+                role: resolvedSubagent.role,
+                task: args["task"] ?? args["prompt"] ?? ""
+            ).agentName
+        }
         let pathComponent = { (key: String) -> String in
             ((args[key] ?? "") as NSString).lastPathComponent
         }
@@ -190,9 +209,8 @@ extension ToolEnabledLLMProvider {
             let name = args["skill"] ?? args["name"] ?? ""
             return name.isEmpty ? "Skill" : "Skill • \(name)"
         default:
-            if toolName.hasPrefix("subagent_") {
-                let role = SubagentRole.fromToolName(toolName)
-                return role.map { "\($0.displayName) subagent" } ?? toolName
+            if let role = SubagentRole.fromToolName(toolName) {
+                return "\(role.displayName) subagent"
             }
             return toolName.replacingOccurrences(of: "_", with: " ").capitalized
         }
