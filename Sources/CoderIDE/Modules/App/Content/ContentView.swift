@@ -55,11 +55,16 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
+            .onAppear(perform: publishWorkbenchSidebarChromeState)
             .onChange(of: activeActivityItem) { _, item in
                 rememberLastVisibleSidebar(item)
+                publishWorkbenchSidebarChromeState()
             }
-            .toolbar {
-                windowToolbarContent
+            .onChange(of: coderMode) { _, _ in
+                publishWorkbenchSidebarChromeState()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .workbenchSidebarToggleRequested)) { _ in
+                toggleWorkbenchSidebarFromWindowChrome()
             }
     }
 }

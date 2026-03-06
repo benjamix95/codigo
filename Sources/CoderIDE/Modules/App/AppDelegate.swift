@@ -165,5 +165,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.styleMask.insert(.fullSizeContentView)
         window.isMovableByWindowBackground = false
         window.toolbar?.showsBaselineSeparator = false
+        WindowSidebarToggleController.installIfNeeded(on: window)
     }
 }
