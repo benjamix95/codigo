@@ -16,7 +16,7 @@ extension CoderIDEMCPServerApp {
         "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
         "plan_history_read", "plan_diff", "plan_request_user_input",
         // Code review tools
-        "review_start", "review_status", "review_findings",
+        "review_start", "review_list_sessions", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",
         "review_diff_summary", "review_comment",
     ]

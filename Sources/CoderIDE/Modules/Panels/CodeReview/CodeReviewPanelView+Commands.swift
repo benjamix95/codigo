@@ -101,14 +101,7 @@ extension CodeReviewPanelView {
 
             ForEach(slashCommands, id: \.id) { cmd in
                 Button {
-                    if coderMode != .codeReviewMultiSwarm {
-                        onSelectMode(.codeReviewMultiSwarm)
-                        Task { @MainActor in
-                            onRunSlashCommand(cmd.prompt)
-                        }
-                    } else {
-                        onRunSlashCommand(cmd.prompt)
-                    }
+                    onDispatchAction(.quickCommand(id: cmd.id))
                 } label: {
                     HStack(spacing: 0) {
                         RoundedRectangle(cornerRadius: 1.5)

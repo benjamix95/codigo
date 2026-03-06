@@ -6,17 +6,29 @@ extension CodeReviewPanelView {
 
     @ViewBuilder
     var findingsTab: some View {
-        let findings = taskActivityStore.codeReviewFindings(for: conversationId)
+        let sessionId = taskActivityStore.selectedCodeReviewSessionId(for: conversationId)
+        let findings = taskActivityStore.codeReviewSnapshot(
+            sessionId: sessionId,
+            conversationId: conversationId
+        )?.findings ?? taskActivityStore.codeReviewFindings(for: conversationId)
 
         if let selectedId = selectedFindingId,
            let finding = findings.first(where: { $0.id == selectedId }) {
             findingDetailView(
                 finding,
                 onApplyFix: { id in
-                    runCodeReviewCommand("Apply the suggested fix for finding \(id)")
+                    guard let sessionId else { return }
+                    onDispatchAction(.applyFix(sessionId: sessionId, findingId: id))
                 },
                 onDismiss: { id in
-                    runCodeReviewCommand("Dismiss finding \(id)")
+                    guard let sessionId else { return }
+                    onDispatchAction(
+                        .dismissFinding(
+                            sessionId: sessionId,
+                            findingId: id,
+                            reason: "dismissed"
+                        )
+                    )
                 },
                 onOpenFile: { path in
                     onOpenFile(path)
@@ -34,16 +46,32 @@ extension CodeReviewPanelView {
                     reviewActionsBar(
                         findings: findings,
                         onApplyAll: {
-                            runCodeReviewCommand("Apply all suggested fixes for open findings")
+                            guard let sessionId else { return }
+                            let findingIds = findings
+                                .filter { $0.status == .open && $0.suggestedFix != nil }
+                                .map(\.id)
+                            onDispatchAction(.applyAllFixes(sessionId: sessionId, findingIds: findingIds))
                         },
                         onDismissAll: {
-                            runCodeReviewCommand("Dismiss all open findings")
+                            guard let sessionId else { return }
+                            let findingIds = findings
+                                .filter { $0.status == .open }
+                                .map(\.id)
+                            onDispatchAction(
+                                .dismissAll(
+                                    sessionId: sessionId,
+                                    findingIds: findingIds,
+                                    reason: "dismissed"
+                                )
+                            )
                         },
                         onReReview: {
-                            runCodeReviewCommand("/review-uncommitted")
+                            guard let sessionId else { return }
+                            onDispatchAction(.rerunSession(sessionId: sessionId))
                         },
                         onExport: {
-                            runCodeReviewCommand("Export all code review findings as a markdown summary")
+                            guard let sessionId else { return }
+                            onDispatchAction(.exportSummary(sessionId: sessionId))
                         }
                     )
                 }
@@ -54,13 +82,10 @@ extension CodeReviewPanelView {
     // MARK: - Timeline Tab
 
     var timelineTab: some View {
-        timelineView(taskActivityStore.codeReviewEvents(for: conversationId))
-    }
-
-    private func runCodeReviewCommand(_ command: String) {
-        if coderMode != .codeReviewMultiSwarm {
-            onSelectMode(.codeReviewMultiSwarm)
-        }
-        onRunSlashCommand(command)
+        let events = taskActivityStore.codeReviewSnapshot(
+            sessionId: taskActivityStore.selectedCodeReviewSessionId(for: conversationId),
+            conversationId: conversationId
+        )?.events ?? taskActivityStore.codeReviewEvents(for: conversationId)
+        return timelineView(events)
     }
 }

@@ -36,6 +36,12 @@ extension CodeReviewMultiSwarmProviderTests {
         XCTAssertEqual(state, "issues")
     }
 
+    func testFindingsContainIssues_previousFixPhrase_doesNotFalsePositive() {
+        let text = "The previous fix was applied correctly and no remaining issues were found."
+        let state = CodeReviewMultiSwarmProvider.findingsStateDebugLabel(for: text)
+        XCTAssertEqual(state, "clean")
+    }
+
     // MARK: - worker ordering
 
     func testSortedWorkerTaskIDsForDisplay_usesNaturalOrdering() {

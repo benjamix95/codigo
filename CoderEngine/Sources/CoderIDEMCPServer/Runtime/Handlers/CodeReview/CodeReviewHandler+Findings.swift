@@ -4,6 +4,9 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleReviewFindings(args: [String: String]) -> CallTool.Result {
+        if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
+            return reviewError("Error: 'conversation_id' must be a valid UUID")
+        }
         // Validate optional filters
         let severity = sanitizedReviewArg(args, key: "severity").lowercased()
         if !severity.isEmpty {
@@ -33,9 +36,17 @@ extension CoderIDEMCPServerApp {
             }
         }
 
-        // Read real findings from shared disk file
+        let resolved = resolveReviewSessionId(args: args, requireExplicitWhenAmbiguous: true)
+        if let message = resolved.error {
+            return reviewError(message)
+        }
+        guard let sessionId = resolved.sessionId else {
+            return reviewError("No active review session.")
+        }
+
         let limitVal = Int(args["limit"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 50
         let findings = MCPSharedState.readCodeReviewFindings(
+            sessionId: sessionId,
             severity: severity.isEmpty ? nil : severity,
             status: status.isEmpty ? nil : status,
             file: args["file"]?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -60,7 +71,14 @@ extension CoderIDEMCPServerApp {
         if findingId.isEmpty {
             return reviewError("Error: 'finding_id' parameter is required")
         }
-        return reviewOK("OK — fix applied for finding \(findingId)")
+        let sessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        guard !sessionId.isEmpty else {
+            return reviewError("Error: 'session_id' parameter is required")
+        }
+        return reviewCommandQueued(action: "apply_fix", sessionId: sessionId, args: args)
     }
 
     static func handleReviewDismiss(args: [String: String]) -> CallTool.Result {
@@ -80,7 +98,16 @@ extension CoderIDEMCPServerApp {
         }
 
         let effectiveReason = reason.isEmpty ? "dismissed" : reason
-        return reviewOK("OK — finding \(findingId) dismissed (\(effectiveReason))")
+        let sessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        guard !sessionId.isEmpty else {
+            return reviewError("Error: 'session_id' parameter is required")
+        }
+        var payload = args
+        payload["reason"] = effectiveReason
+        return reviewCommandQueued(action: "dismiss", sessionId: sessionId, args: payload)
     }
 
     static func handleReviewConfigure(args: [String: String]) -> CallTool.Result {
@@ -106,11 +133,17 @@ extension CoderIDEMCPServerApp {
 
         if let backend = args["analysis_backend"],
            !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                return reviewError("Error: invalid analysis_backend '\(backend)'")
+            }
             updates.append("analysis_backend=\(backend.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
 
         if let backend = args["execution_backend"],
            !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                return reviewError("Error: invalid execution_backend '\(backend)'")
+            }
             updates.append("execution_backend=\(backend.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
 
@@ -118,7 +151,15 @@ extension CoderIDEMCPServerApp {
             return reviewError("Error: at least one configuration parameter is required")
         }
 
-        return reviewOK("OK — review config updated: \(updates.joined(separator: ", "))")
+        let sessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        guard !sessionId.isEmpty else {
+            return reviewError("Error: 'session_id' parameter is required")
+        }
+
+        return reviewCommandQueued(action: "configure", sessionId: sessionId, args: args)
     }
 
     static func handleReviewComment(args: [String: String]) -> CallTool.Result {
@@ -132,6 +173,14 @@ extension CoderIDEMCPServerApp {
             return reviewError("Error: 'content' parameter is required")
         }
 
-        return reviewOK("OK — comment added to finding \(findingId)")
+        let sessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        guard !sessionId.isEmpty else {
+            return reviewError("Error: 'session_id' parameter is required")
+        }
+
+        return reviewCommandQueued(action: "comment", sessionId: sessionId, args: args)
     }
 }

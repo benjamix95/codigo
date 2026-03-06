@@ -1,0 +1,81 @@
+import Foundation
+
+extension CodeReviewSessionState {
+    public func addFinding(_ finding: CodeReviewFinding) {
+        findings.append(finding)
+        events.append(.findingAdded(
+            findingId: finding.id,
+            severity: finding.severity.rawValue,
+            filePath: finding.filePath
+        ))
+        notifyChange()
+    }
+
+    public func addFindings(_ newFindings: [CodeReviewFinding]) {
+        for finding in newFindings {
+            findings.append(finding)
+            events.append(.findingAdded(
+                findingId: finding.id,
+                severity: finding.severity.rawValue,
+                filePath: finding.filePath
+            ))
+        }
+        notifyChange()
+    }
+
+    public func applyFix(findingId: String) -> Bool {
+        guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
+            return false
+        }
+        findings[idx].status = .fixApplied
+        events.append(.findingFixApplied(findingId: findingId))
+        notifyChange()
+        return true
+    }
+
+    public func dismissFinding(
+        findingId: String,
+        reason: String = "dismissed"
+    ) -> Bool {
+        guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
+            return false
+        }
+        findings[idx].status = .dismissed
+        events.append(.findingDismissed(findingId: findingId, reason: reason))
+        notifyChange()
+        return true
+    }
+
+    public func addComment(
+        findingId: String,
+        comment: FindingComment
+    ) -> Bool {
+        guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
+            return false
+        }
+        findings[idx].comments.append(comment)
+        events.append(CodeReviewSessionEvent(
+            type: .findingCommented,
+            detail: "Comment added to \(findingId)",
+            metadata: [
+                "finding_id": findingId,
+                "comment_id": comment.id,
+            ]
+        ))
+        notifyChange()
+        return true
+    }
+
+    public func finding(byId id: String) -> CodeReviewFinding? {
+        findings.first { $0.id == id }
+    }
+
+    public func updateConfig(_ newConfig: SessionConfig) {
+        config = newConfig
+        events.append(CodeReviewSessionEvent(
+            type: .configUpdated,
+            detail: "Config updated"
+        ))
+        notifyChange()
+    }
+}

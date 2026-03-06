@@ -22,6 +22,7 @@ struct CodigoApp: App {
     @StateObject var accountUsageDashboardStore = AccountUsageDashboardStore.shared
     @StateObject var appUpdateCenter = AppUpdateCenter()
     @StateObject var pipelineIntegrationService = PipelineIntegrationService()
+    @State private var didStartCodeReviewCommandLoop = false
 
     @AppStorage("openai_api_key") var apiKey = ""
     @AppStorage("openai_model") var model = "gpt-4o-mini"
@@ -117,6 +118,12 @@ struct CodigoApp: App {
                             todoStore: todoStore,
                             executionController: executionController
                         )
+                        if !didStartCodeReviewCommandLoop {
+                            didStartCodeReviewCommandLoop = true
+                            Task {
+                                await processCodeReviewCommandLoop()
+                            }
+                        }
                     }
                 }
         }

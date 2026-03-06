@@ -80,7 +80,7 @@ extension CodeReviewPanelView {
         HStack(spacing: 8) {
             if coderMode != .codeReviewMultiSwarm {
                 Button {
-                    onSelectMode(.codeReviewMultiSwarm)
+                    onDispatchAction(.quickCommand(id: "review-uncommitted"))
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.right.circle")
@@ -108,12 +108,9 @@ extension CodeReviewPanelView {
 
             if coderMode == .codeReviewMultiSwarm && !isTaskRunning {
                 Button {
-                    onRunSlashCommand("""
-                        Stage ONLY the files that were modified as part of this review session \
-                        (do NOT use `git add -A` or `git add .`). \
-                        Create a clean atomic commit with a descriptive commit message. \
-                        Then push to the remote. Requirements: green build/tests before committing.
-                        """)
+                    if let sessionId = taskActivityStore.selectedCodeReviewSessionId(for: conversationId) {
+                        onDispatchAction(.exportSummary(sessionId: sessionId))
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.circle.fill")
@@ -127,7 +124,7 @@ extension CodeReviewPanelView {
                     .background(accent, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help("Commit fixes and push to remote")
+                .help("Export the selected review summary")
             }
 
             if isTaskRunning && coderMode == .codeReviewMultiSwarm {

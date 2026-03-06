@@ -89,7 +89,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await Self.runReviewPipelineOrchestrated(
+                    try await ReviewPipelineCoordinator.shared.run(
                         prompt: prompt,
                         context: context,
                         config: config,

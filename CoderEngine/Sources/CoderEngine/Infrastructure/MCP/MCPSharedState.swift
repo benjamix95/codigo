@@ -24,7 +24,7 @@ public enum MCPSharedState {
     }
 
     /// Serial queue per garantire atomicità delle operazioni read-modify-write su disco.
-    private static let fileAccessQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.FileAccess")
+    static let fileAccessQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.FileAccess")
 
     private static let legacyWarningQueue = DispatchQueue(label: "CoderEngine.MCPSharedState.LegacyWarnings")
     private static var legacyWarningKeys: Set<String> = []

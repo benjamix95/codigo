@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 extension CodeReviewPanelView {
@@ -40,10 +41,11 @@ extension CodeReviewPanelView {
                 .components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
+            let resolvedSeverity = FindingSeverity(rawValue: sev.lowercased()) ?? .warning
             return ReviewWorkerRow(
                 id: wid,
                 description: desc,
-                severity: sev,
+                severity: resolvedSeverity,
                 fileCount: fileCount,
                 files: rawFiles,
                 filesSummary: summary

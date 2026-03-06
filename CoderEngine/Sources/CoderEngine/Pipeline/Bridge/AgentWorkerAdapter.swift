@@ -277,6 +277,17 @@ public actor AgentWorkerAdapter {
            !fullPrompt.isEmpty {
             return fullPrompt
         }
+        if let reviewDescription = task.metadata["review_description"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !reviewDescription.isEmpty {
+            let severity = task.metadata["review_severity"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "warning"
+            return """
+            Review finding cluster: \(reviewDescription)
+            Severity: \(severity)
+            Fix only the issues described for the files in scope.
+            """
+        }
         return task.title
     }
 

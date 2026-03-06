@@ -20,6 +20,9 @@ enum IDEStateSyntheticEventFactory {
         "policy_ack", "mermaid_render",
         "activate_plan_mode", "activate_debug_mode",
         "show_task_panel", "show_swarm_panel",
+        "review_start", "review_list_sessions", "review_status",
+        "review_findings", "review_apply_fix", "review_dismiss",
+        "review_configure", "review_diff_summary", "review_comment",
     ]
 
     static let legacyRemovedTools: Set<String> = [
@@ -240,6 +243,70 @@ enum IDEStateSyntheticEventFactory {
                 return [wrapped("coderide_show_swarm_panel", ["swarm_id": swarmID])]
             }
             return [wrapped("coderide_show_swarm_panel", [:])]
+
+        case "review_start":
+            var payload: [String: String] = [:]
+            for key in [
+                "scope", "ref", "max_workers", "max_rounds",
+                "analysis_backend", "execution_backend",
+                "session_id", "conversation_id",
+            ] {
+                if let value = firstNonEmptyString(in: arguments, keys: [key]) {
+                    payload[key] = value
+                }
+            }
+            return [wrapped("review_start", payload)]
+
+        case "review_apply_fix":
+            var payload: [String: String] = [:]
+            if let findingId = firstNonEmptyString(in: arguments, keys: ["finding_id"]) {
+                payload["finding_id"] = findingId
+            }
+            if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
+                payload["session_id"] = sessionId
+            }
+            return payload.isEmpty ? [] : [wrapped("review_apply_fix", payload)]
+
+        case "review_dismiss":
+            var payload: [String: String] = [:]
+            if let findingId = firstNonEmptyString(in: arguments, keys: ["finding_id"]) {
+                payload["finding_id"] = findingId
+            }
+            if let reason = firstNonEmptyString(in: arguments, keys: ["reason"]) {
+                payload["reason"] = reason
+            }
+            if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
+                payload["session_id"] = sessionId
+            }
+            return payload.isEmpty ? [] : [wrapped("review_dismiss", payload)]
+
+        case "review_comment":
+            var payload: [String: String] = [:]
+            if let findingId = firstNonEmptyString(in: arguments, keys: ["finding_id"]) {
+                payload["finding_id"] = findingId
+            }
+            if let content = firstNonEmptyString(in: arguments, keys: ["content"]) {
+                payload["content"] = content
+            }
+            if let author = firstNonEmptyString(in: arguments, keys: ["author"]) {
+                payload["author"] = author
+            }
+            if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
+                payload["session_id"] = sessionId
+            }
+            return payload.isEmpty ? [] : [wrapped("review_comment", payload)]
+
+        case "review_configure":
+            var payload: [String: String] = [:]
+            for key in [
+                "session_id", "max_workers", "max_rounds",
+                "analysis_backend", "execution_backend",
+            ] {
+                if let value = firstNonEmptyString(in: arguments, keys: [key]) {
+                    payload[key] = value
+                }
+            }
+            return payload.isEmpty ? [] : [wrapped("review_configure", payload)]
 
         default:
             return []

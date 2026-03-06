@@ -4,6 +4,9 @@ import MCP
 
 extension CoderIDEMCPServerApp {
     static func handleReviewStart(args: [String: String]) -> CallTool.Result {
+        if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
+            return reviewError("Error: 'conversation_id' must be a valid UUID")
+        }
         let scope = sanitizedReviewArg(args, key: "scope").lowercased()
         let validScopes: Set<String> = ["uncommitted", "staged", "against_ref"]
 
@@ -40,13 +43,39 @@ extension CoderIDEMCPServerApp {
             }
         }
 
-        return reviewOK("OK — code review started with scope: \(effectiveScope)")
+        let requestedSessionId = sanitizedReviewArg(
+            args,
+            key: args["session_id"] != nil ? "session_id" : "sessionId"
+        )
+        let sessionId = requestedSessionId.isEmpty
+            ? UUID().uuidString.lowercased()
+            : requestedSessionId
+        var commandPayload = args
+        commandPayload["scope"] = effectiveScope
+        commandPayload["session_id"] = sessionId
+        if commandPayload["conversation_id"] == nil,
+           let conversationId = resolveReviewConversationId(args) {
+            commandPayload["conversation_id"] = conversationId.uuidString.lowercased()
+        }
+        _ = MCPSharedState.enqueueCodeReviewCommand(
+            action: "start",
+            sessionId: sessionId,
+            conversationId: resolveReviewConversationId(args),
+            payload: commandPayload
+        )
+        return reviewOK("OK — code review start queued (session_id=\(sessionId), scope=\(effectiveScope))")
     }
 
     static func handleReviewStatus(args: [String: String]) -> CallTool.Result {
-        // Read real session state from shared disk file
-        let status = MCPSharedState.readCodeReviewStatus()
-        if status["phase"] == "idle" && status.count <= 2 {
+        let resolved = resolveReviewSessionId(
+            args: args,
+            requireExplicitWhenAmbiguous: true
+        )
+        if let message = resolved.error {
+            return reviewOK(message == "No active review session." ? message : message)
+        }
+        guard let sessionId = resolved.sessionId,
+              let status = MCPSharedState.readCodeReviewStatus(sessionId: sessionId) else {
             return reviewOK("No active review session.")
         }
         let lines = status.sorted(by: { $0.key < $1.key }).map { "\($0.key): \($0.value)" }
@@ -54,7 +83,41 @@ extension CoderIDEMCPServerApp {
     }
 
     static func handleReviewDiffSummary(args: [String: String]) -> CallTool.Result {
-        // Read-only: diff summary is computed on the UI side from git state.
-        return reviewOK("OK — diff summary requested")
+        let resolved = resolveReviewSessionId(
+            args: args,
+            requireExplicitWhenAmbiguous: true
+        )
+        if let message = resolved.error {
+            return reviewError(message)
+        }
+        guard let sessionId = resolved.sessionId,
+              let snapshot = MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) else {
+            return reviewError("Error: unable to load the requested review session")
+        }
+        let fileFilter = sanitizedReviewArg(args, key: "file")
+        let workspacePath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let rendered = ReviewDiffSummaryService.renderSummary(
+            snapshot: snapshot,
+            workspacePath: workspacePath,
+            fileFilter: fileFilter.isEmpty ? nil : fileFilter
+        )
+        return reviewOK(rendered)
+    }
+
+    static func handleReviewListSessions(args: [String: String]) -> CallTool.Result {
+        if hasInvalidConversationIdArgument(args["conversation_id"] ?? args["conversationId"]) {
+            return reviewError("Error: 'conversation_id' must be a valid UUID")
+        }
+        let snapshots = MCPSharedState.readCodeReviewSnapshots(
+            conversationId: resolveReviewConversationId(args)
+        )
+        guard !snapshots.isEmpty else {
+            return reviewOK("No review sessions found.")
+        }
+        let lines = snapshots.map { snapshot in
+            let scope = snapshot.scope?.type.rawValue ?? "unknown"
+            return "\(snapshot.sessionId) | phase=\(snapshot.phase.rawValue) | stage=\(snapshot.stage.rawValue) | scope=\(scope) | findings=\(snapshot.findings.count)"
+        }
+        return reviewOK(lines.joined(separator: "\n"))
     }
 }

@@ -114,10 +114,19 @@ extension CodeReviewMultiSwarmProvider {
         let wordBoundaryIndicators = ["leak", "exception", "permission", "authorization", "authentication"]
         let hasWordBoundaryIssueIndicator = wordBoundaryIndicators.contains { containsWord(issueScanText, word: $0) }
 
-        let weakWordBoundaryIndicators = ["bug", "fix", "warning", "error", "issue", "severity"]
+        let weakWordBoundaryIndicators = ["bug", "warning", "error", "issue", "severity"]
         let hasWeakWordBoundaryIssueIndicator = weakWordBoundaryIndicators.contains { containsWord(issueScanText, word: $0) }
+        let fixActionIndicators = [
+            "fix required",
+            "requires a fix",
+            "needs a fix",
+            "must be fixed",
+            "should be fixed",
+            "remaining fix",
+        ]
+        let hasFixActionIndicator = fixActionIndicators.contains { issueScanText.contains($0) }
 
-        if hasStrictIssueIndicator || hasWordBoundaryIssueIndicator || hasWeakWordBoundaryIssueIndicator {
+        if hasStrictIssueIndicator || hasWordBoundaryIssueIndicator || hasWeakWordBoundaryIssueIndicator || hasFixActionIndicator {
             return .issues
         }
 
@@ -130,14 +139,6 @@ extension CodeReviewMultiSwarmProvider {
         }
 
         return .inconclusive(reason: "No robust issue indicators found in re-review output.")
-    }
-
-    static func findingsStateDebugLabel(for text: String) -> String {
-        switch findingsContainIssues(text) {
-        case .issues: return "issues"
-        case .clean: return "clean"
-        case .inconclusive: return "inconclusive"
-        }
     }
 
     private static let wordRegexCache: [String: NSRegularExpression] = {
@@ -165,14 +166,6 @@ extension CodeReviewMultiSwarmProvider {
             regex = compiled
         }
         return regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
-    }
-
-    static func sortedWorkerTaskIDsForDisplay(_ ids: [String]) -> [String] {
-        ids.sorted(by: sortWorkerTaskIDForDisplay(_:_:))
-    }
-
-    static func sortWorkerTaskIDForDisplay(_ lhs: String, _ rhs: String) -> Bool {
-        lhs.localizedStandardCompare(rhs) == .orderedAscending
     }
 
     static func runTests(
@@ -272,7 +265,7 @@ extension CodeReviewMultiSwarmProvider {
         return .failed
     }
 
-    private static func hasTestFailureSignal(in lowercasedOutput: String) -> Bool {
+    static func hasTestFailureSignal(in lowercasedOutput: String) -> Bool {
         if lowercasedOutput.contains("test failed")
             || lowercasedOutput.contains("tests failed")
             || lowercasedOutput.contains("assertion failed")
@@ -289,12 +282,9 @@ extension CodeReviewMultiSwarmProvider {
             #"(?m)^=+.*\b\d+\s+failed\b.*=+$"#,
             #"(?m)^\s*test result:\s*failed\b"#,
         ]
-        for pattern in regexPatterns {
-            if lowercasedOutput.range(of: pattern, options: .regularExpression) != nil {
-                return true
-            }
+        return regexPatterns.contains {
+            lowercasedOutput.range(of: $0, options: .regularExpression) != nil
         }
-        return false
     }
 
     static func outputSignalsTestFailure(_ output: String) -> Bool {

@@ -27,25 +27,38 @@ extension ChatPanelView {
             preferredOverride: preferCodeReviewRuntimeProvider
         ) {
             let cfg = providerFactoryConfig()
+            let store = taskActivityStore
+            let reviewConversationId = conversationId
+            let sessionState = CodeReviewSessionState(
+                conversationId: reviewConversationId,
+                config: SessionConfig(
+                    maxWorkers: cfg.codeReviewPartitions,
+                    maxRounds: cfg.codeReviewMaxRounds,
+                    analysisBackend: cfg.codeReviewAnalysisBackend,
+                    executionBackend: cfg.codeReviewExecutionBackend
+                ),
+                onStateChange: { snapshot in
+                    Task {
+                        await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
+                    }
+                    Task { @MainActor in
+                        store.ingestCodeReviewSnapshot(
+                            snapshot,
+                            conversationId: reviewConversationId
+                        )
+                    }
+                }
+            )
             if let multiSwarm = ProviderFactory.codeReviewMultiSwarmProvider(
                 config: cfg,
                 executionController: executionController,
                 agentProviderId: providerRegistry.selectedProviderId,
                 codebaseIndex: workspaceStore.codebaseIndex,
-                workspacePaths: runtimeWorkspacePaths
+                workspacePaths: runtimeWorkspacePaths,
+                sessionState: sessionState
             ) {
-                // Wire session state → TaskActivityStore bridge for LiveCard / panel
-                let store = taskActivityStore
-                let reviewConversationId = conversationId
                 Task {
-                    await multiSwarm.sessionState.setOnStateChange { snapshot in
-                        Task { @MainActor in
-                            store.ingestCodeReviewSnapshot(
-                                snapshot,
-                                conversationId: reviewConversationId
-                            )
-                        }
-                    }
+                    await ReviewSessionRegistry.shared.register(sessionState)
                 }
                 return multiSwarm
             }

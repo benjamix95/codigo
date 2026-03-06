@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
-    internal func sendMessage() {
+    internal func sendMessage(preferCodeReviewRuntimeProvider: Bool? = nil) {
         let parsedInput = parsePlanCommandInput(inputText)
         let text = parsedInput.llmPromptInput
         let displayedInput = parsedInput.displayedInput
@@ -103,7 +103,8 @@ extension ChatPanelView {
             let runtimeProvider = resolveRuntimeProvider(
                 selectedProvider: selectedProvider,
                 shouldRunPlanInline: shouldRunPlanInline,
-                forcePlanInline: forcePlanInline
+                forcePlanInline: forcePlanInline,
+                preferCodeReviewRuntimeProvider: preferCodeReviewRuntimeProvider
             )
         else {
             resetPlanFlowAfterPreflightFailureIfNeeded()

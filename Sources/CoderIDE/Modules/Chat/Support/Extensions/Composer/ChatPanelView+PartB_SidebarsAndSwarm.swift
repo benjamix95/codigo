@@ -161,7 +161,6 @@ extension ChatPanelView {
     internal var codeReviewPanelSidebar: some View {
         CodeReviewPanelView(
             taskActivityStore: taskActivityStore,
-            swarmProgressStore: swarmProgressStore,
             conversationId: conversationId,
             isTaskRunning: isLoadingForCurrentConversation,
             coderMode: coderMode,
@@ -174,13 +173,8 @@ extension ChatPanelView {
                 showCodeReviewPanel = false
             },
             onOpenFile: { openFilesStore.openFile($0) },
-            onRunSlashCommand: { command in
-                inputText = command
-                isInputFocused = true
-                sendMessage()
-            },
-            onSelectMode: { mode in
-                selectMode(mode)
+            onDispatchAction: { action in
+                handleCodeReviewPanelAction(action)
             }
         )
         .frame(width: CGFloat(codeReviewPanelWidthStorage))

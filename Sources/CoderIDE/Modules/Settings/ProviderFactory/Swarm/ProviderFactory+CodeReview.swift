@@ -7,7 +7,8 @@ extension ProviderFactory {
         executionController: ExecutionController?,
         agentProviderId: String?,
         codebaseIndex: CodebaseIndex? = nil,
-        workspacePaths: [URL] = []
+        workspacePaths: [URL] = [],
+        sessionState: CodeReviewSessionState? = nil
     ) -> CodeReviewMultiSwarmProvider? {
         let resolvedAnalysisId = resolveSwarmBackendId(
             configuredBackendId: config.codeReviewAnalysisBackend,
@@ -49,7 +50,8 @@ extension ProviderFactory {
             config: reviewConfig,
             analysisProvider: analysisProvider,
             executionProvider: executionProvider,
-            executionController: executionController
+            executionController: executionController,
+            sessionState: sessionState
         )
     }
 }

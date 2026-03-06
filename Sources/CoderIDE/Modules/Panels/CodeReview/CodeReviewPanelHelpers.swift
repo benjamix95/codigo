@@ -46,7 +46,7 @@ func reviewCardBelongsToConversation(
     conversationId: UUID?
 ) -> Bool {
     guard conversationId != nil else { return true }
-    guard !card.recentEvents.isEmpty else { return false }
+    guard !card.recentEvents.isEmpty else { return card.swarmId.hasPrefix("review-") }
     return !scopedTaskActivitiesForConversation(card.recentEvents, conversationId: conversationId).isEmpty
 }
 

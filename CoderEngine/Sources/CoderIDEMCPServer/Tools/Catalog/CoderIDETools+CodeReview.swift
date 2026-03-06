@@ -37,16 +37,47 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "Backend for execution phase (default: codex)",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "Optional session id to reuse for this review start request.",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Optional conversation UUID used to scope concurrent review sessions.",
+                    ]),
                 ]),
             ]),
             annotations: .init(title: "Review Start", readOnlyHint: false)
+        ),
+        Tool(
+            name: "coderide_review_list_sessions",
+            description: "List code review sessions for the current conversation or across the workspace.",
+            inputSchema: .object([
+                "type": "object",
+                "properties": .object([
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Optional conversation UUID used to filter review sessions.",
+                    ]),
+                ]),
+            ]),
+            annotations: .init(title: "Review Sessions", readOnlyHint: true, idempotentHint: true)
         ),
         Tool(
             name: "coderide_review_status",
             description: "Get the current status of the active code review session: phase, progress, active workers, round info.",
             inputSchema: .object([
                 "type": "object",
-                "properties": .object([:]),
+                "properties": .object([
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "Optional session id to read. Required when multiple sessions are active.",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Optional conversation UUID used to resolve the active session.",
+                    ]),
+                ]),
             ]),
             annotations: .init(title: "Review Status", readOnlyHint: true, idempotentHint: true)
         ),
@@ -72,6 +103,14 @@ extension CoderIDETools {
                         "type": "integer",
                         "description": "Max results (default: 50)",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "Optional session id to read. Required when multiple sessions are active.",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Optional conversation UUID used to resolve the active session.",
+                    ]),
                 ]),
             ]),
             annotations: .init(title: "Review Findings", readOnlyHint: true, idempotentHint: true)
@@ -86,8 +125,12 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "The ID of the finding to apply the fix for",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "The review session id that owns the finding",
+                    ]),
                 ]),
-                "required": .array([.string("finding_id")]),
+                "required": .array([.string("finding_id"), .string("session_id")]),
             ]),
             annotations: .init(title: "Review Apply Fix", readOnlyHint: false)
         ),
@@ -105,8 +148,12 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "Reason for dismissal (e.g. false_positive, wont_fix, by_design)",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "The review session id that owns the finding",
+                    ]),
                 ]),
-                "required": .array([.string("finding_id")]),
+                "required": .array([.string("finding_id"), .string("session_id")]),
             ]),
             annotations: .init(title: "Review Dismiss", readOnlyHint: false)
         ),
@@ -132,7 +179,12 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "Backend for execution phase",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "The review session id to update",
+                    ]),
                 ]),
+                "required": .array([.string("session_id")]),
             ]),
             annotations: .init(title: "Review Configure", readOnlyHint: false)
         ),
@@ -145,6 +197,14 @@ extension CoderIDETools {
                     "file": .object([
                         "type": "string",
                         "description": "Optional specific file to get diff for. Returns all files if omitted.",
+                    ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "Optional session id to read. Required when multiple sessions are active.",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Optional conversation UUID used to resolve the active session.",
                     ]),
                 ]),
             ]),
@@ -168,8 +228,12 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "Comment author (default: agent)",
                     ]),
+                    "session_id": .object([
+                        "type": "string",
+                        "description": "The review session id that owns the finding",
+                    ]),
                 ]),
-                "required": .array([.string("finding_id"), .string("content")]),
+                "required": .array([.string("finding_id"), .string("content"), .string("session_id")]),
             ]),
             annotations: .init(title: "Review Comment", readOnlyHint: false)
         ),

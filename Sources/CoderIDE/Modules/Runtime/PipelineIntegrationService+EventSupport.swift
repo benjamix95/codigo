@@ -288,7 +288,7 @@ extension PipelineIntegrationService {
                     source: "pipeline",
                     kind: .toolTraceArtifact,
                     payload: [
-                        "artifact_id": "review-finding-\(p.taskId)",
+                        "artifact_id": "review-finding-\(p.jobId)-\(p.taskId)-\(p.finding.findingId)",
                         "title": "Review finding",
                         "detail": "[\(p.finding.severity.rawValue.uppercased())] \(p.finding.file): \(p.finding.message)",
                     ]

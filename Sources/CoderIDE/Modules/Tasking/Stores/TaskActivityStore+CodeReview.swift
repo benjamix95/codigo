@@ -10,11 +10,25 @@ extension TaskActivityStore {
         _ snapshot: CodeReviewSessionSnapshot,
         conversationId: UUID? = nil
     ) {
+        codeReviewSnapshotsBySession[snapshot.sessionId] = snapshot
+
+        let resolvedConversationId = conversationId ?? snapshot.conversationId
+        if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
+            var sessionIds = codeReviewSessionIdsByConversation[conversationScope] ?? []
+            sessionIds.removeAll { $0 == snapshot.sessionId }
+            sessionIds.insert(snapshot.sessionId, at: 0)
+            codeReviewSessionIdsByConversation[conversationScope] = sessionIds
+            if selectedCodeReviewSessionIdByConversation[conversationScope] == nil {
+                selectedCodeReviewSessionIdByConversation[conversationScope] = snapshot.sessionId
+            }
+        }
+
         // Update structured data for panel consumption
         codeReviewFindings = snapshot.findings
         codeReviewEvents = snapshot.events
         codeReviewPhase = snapshot.phase
-        if let conversationScope = codeReviewConversationScope(conversationId) {
+        codeReviewStage = snapshot.stage
+        if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
             codeReviewFindingsByConversation[conversationScope] = snapshot.findings
             codeReviewEventsByConversation[conversationScope] = snapshot.events
             codeReviewPhaseByConversation[conversationScope] = snapshot.phase
@@ -27,7 +41,7 @@ extension TaskActivityStore {
             type: "code_review_update",
             title: codeReviewTitle(for: snapshot.phase),
             detail: snapshot.statusSummary,
-            payload: codeReviewPayload(snapshot, conversationId: conversationId),
+            payload: codeReviewPayload(snapshot, conversationId: resolvedConversationId),
             phase: codeReviewActivityPhase(snapshot.phase),
             isRunning: snapshot.phase.isActive,
             groupId: "code-review"
@@ -35,7 +49,46 @@ extension TaskActivityStore {
         addActivity(activity)
     }
 
+    func codeReviewSnapshots(for conversationId: UUID?) -> [CodeReviewSessionSnapshot] {
+        guard let conversationScope = codeReviewConversationScope(conversationId) else {
+            return codeReviewSnapshotsBySession.values.sorted(by: sortReviewSnapshots)
+        }
+        let sessionIds = codeReviewSessionIdsByConversation[conversationScope] ?? []
+        return sessionIds.compactMap { codeReviewSnapshotsBySession[$0] }
+            .sorted(by: sortReviewSnapshots)
+    }
+
+    func selectedCodeReviewSessionId(for conversationId: UUID?) -> String? {
+        guard let conversationScope = codeReviewConversationScope(conversationId) else {
+            return codeReviewSnapshotsBySession.values.sorted(by: sortReviewSnapshots).first?.sessionId
+        }
+        return selectedCodeReviewSessionIdByConversation[conversationScope]
+            ?? codeReviewSessionIdsByConversation[conversationScope]?.first
+    }
+
+    func setSelectedCodeReviewSessionId(_ sessionId: String?, for conversationId: UUID?) {
+        guard let conversationScope = codeReviewConversationScope(conversationId) else { return }
+        selectedCodeReviewSessionIdByConversation[conversationScope] = sessionId
+    }
+
+    func codeReviewSnapshot(
+        sessionId: String?,
+        conversationId: UUID?
+    ) -> CodeReviewSessionSnapshot? {
+        if let sessionId,
+           let snapshot = codeReviewSnapshotsBySession[sessionId] {
+            return snapshot
+        }
+        guard let selectedId = selectedCodeReviewSessionId(for: conversationId) else {
+            return nil
+        }
+        return codeReviewSnapshotsBySession[selectedId]
+    }
+
     func codeReviewFindings(for conversationId: UUID?) -> [CodeReviewFinding] {
+        if let snapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId) {
+            return snapshot.findings
+        }
         guard let conversationScope = codeReviewConversationScope(conversationId) else {
             return codeReviewFindings
         }
@@ -43,6 +96,9 @@ extension TaskActivityStore {
     }
 
     func codeReviewEvents(for conversationId: UUID?) -> [CodeReviewSessionEvent] {
+        if let snapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId) {
+            return snapshot.events
+        }
         guard let conversationScope = codeReviewConversationScope(conversationId) else {
             return codeReviewEvents
         }
@@ -50,6 +106,9 @@ extension TaskActivityStore {
     }
 
     func codeReviewPhase(for conversationId: UUID?) -> ReviewSessionPhase {
+        if let snapshot = codeReviewSnapshot(sessionId: nil, conversationId: conversationId) {
+            return snapshot.phase
+        }
         guard let conversationScope = codeReviewConversationScope(conversationId) else {
             return codeReviewPhase
         }
@@ -119,11 +178,23 @@ extension TaskActivityStore {
         if let conversationScope = codeReviewConversationScope(conversationId) {
             payload["conversation_id"] = conversationScope
         }
+        payload["session_id"] = snapshot.sessionId
+        payload["stage"] = snapshot.stage.rawValue
         return payload
     }
 
     private func codeReviewConversationScope(_ conversationId: UUID?) -> String? {
         conversationId?.uuidString.lowercased()
+    }
+
+    private func sortReviewSnapshots(
+        _ lhs: CodeReviewSessionSnapshot,
+        _ rhs: CodeReviewSessionSnapshot
+    ) -> Bool {
+        if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
+            return lhs.lastUpdatedAt > rhs.lastUpdatedAt
+        }
+        return lhs.sessionId > rhs.sessionId
     }
 
     private func codeReviewEventTitle(

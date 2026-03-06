@@ -3,7 +3,6 @@ import CoderEngine
 
 struct CodeReviewPanelView: View {
     @ObservedObject var taskActivityStore: TaskActivityStore
-    @ObservedObject var swarmProgressStore: SwarmProgressStore
 
     let conversationId: UUID?
     let isTaskRunning: Bool
@@ -17,12 +16,12 @@ struct CodeReviewPanelView: View {
 
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
-    let onRunSlashCommand: (String) -> Void
-    let onSelectMode: (CoderMode) -> Void
+    let onDispatchAction: (CodeReviewPanelAction) -> Void
 
     @State var againstCommitRef = ""
     @State var selectedTab: CodeReviewTab = .commands
     @State var selectedFindingId: String?
+    @State var sessionBrowserExpanded = false
 
     var autofixEnabled: Bool { !codeReviewAnalysisOnly }
     func setAutofixEnabled(_ v: Bool) { codeReviewAnalysisOnly = !v }
@@ -35,6 +34,7 @@ struct CodeReviewPanelView: View {
         VStack(spacing: 0) {
             Color.clear.frame(height: topInteractiveInset).allowsHitTesting(false)
             topBar(m)
+            sessionBrowserCard
             Divider().opacity(0.3)
             tabSelector
             Divider().opacity(0.2)

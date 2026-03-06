@@ -16,124 +16,17 @@ extension CodeReviewMultiSwarmProvider {
         sessionState: CodeReviewSessionState,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
-        execController?.beginScope(.review)
-        defer { execController?.endScope(.review) }
-        execController?.clearSwarmStopRequested()
-        execController?.clearSwarmPauseRequested()
-
-        let isCancelled: @Sendable () -> Bool = {
-            Task.isCancelled || execController?.swarmStopRequested == true
-        }
-        let waitWhilePaused: @Sendable () async -> Void = {
-            while execController?.swarmPauseRequested == true {
-                if isCancelled() { break }
-                try? await Task.sleep(nanoseconds: 120_000_000)
-            }
-        }
-
-        let (promptWithoutScope, explicitScope) = Self.parseReviewScope(from: prompt)
-        let (cleanPrompt, againstRef) = Self.parseAgainstRef(from: promptWithoutScope)
-        let workspacePath = context.workspacePath
-
-        continuation.yield(.started)
-
-        let filesToReview: [String]
-        let resolvedScope = explicitScope
-            ?? Self.inferReviewScope(from: cleanPrompt) ?? .uncommitted
-        if let ref = againstRef {
-            guard Self.isValidAgainstRefFormat(ref) else {
-                continuation.yield(.textDelta(
-                    "Invalid AGAINST ref `\(ref)`.\n"
-                ))
-                continuation.yield(.completed); continuation.finish()
-                return
-            }
-            let (diffFiles, diffError) = Self.gitDiffFiles(
-                ref: ref, workspacePath: workspacePath,
-                excludedPaths: context.excludedPaths
-            )
-            filesToReview = diffFiles
-            if filesToReview.isEmpty {
-                continuation.yield(.textDelta(
-                    "\(diffError ?? "No changed files") against `\(ref)`.\n"
-                ))
-                continuation.yield(.completed); continuation.finish()
-                return
-            }
-        } else {
-            filesToReview = Self.resolveFiles(context: context, scope: resolvedScope)
-            if filesToReview.isEmpty {
-                let msg = resolvedScope == .staged
-                    ? "No staged source files found.\n"
-                    : "No uncommitted source files found.\n"
-                continuation.yield(.textDelta(msg))
-                continuation.yield(.completed); continuation.finish()
-                return
-            }
-        }
-
-        let scopeType: ReviewSessionScope.ScopeType = {
-            if againstRef != nil { return .againstRef }
-            return resolvedScope == .staged ? .staged : .uncommitted
-        }()
-        await sessionState.start(scope: ReviewSessionScope(
-            type: scopeType, files: filesToReview, ref: againstRef
-        ))
-
-        _ = try await Self.runAnalysisPhase(
-            cleanPrompt: cleanPrompt,
-            againstRef: againstRef,
-            filesToReview, config.maxWorkers,
+        try await ReviewPipelineCoordinator.shared.run(
+            prompt: prompt,
             context: context,
+            config: config,
             analysisProvider: analysisProvider,
-            continuation: continuation,
-            isCancelled: isCancelled,
-            waitWhilePaused: waitWhilePaused
+            executionProvider: executionProvider,
+            execController: execController,
+            fileLockCoordinator: fileLockCoordinator,
+            sessionState: sessionState,
+            continuation: continuation
         )
-
-        if isCancelled() {
-            continuation.yield(.textDelta("\n**Review cancelled.**\n"))
-            continuation.yield(.completed); continuation.finish()
-            return
-        }
-
-        let pipelineScope: ReviewScope = againstRef != nil
-            ? .againstRef
-            : (resolvedScope == .staged ? .staged : .uncommitted)
-
-        let (job, tasks) = PipelineJobFactory.fromCodeReview(
-            scope: pipelineScope,
-            filesToReview: filesToReview,
-            workspace: workspacePath.path,
-            analysisProviderId: analysisProvider.id,
-            executionProviderId: executionProvider.id,
-            maxWorkers: config.maxWorkers,
-            maxRounds: config.maxReviewRounds
-        )
-
-        let facade = PipelineFacade()
-        let adapter = AgentWorkerAdapter(
-            provider: executionProvider,
-            context: context,
-            jobId: job.jobId
-        )
-
-        continuation.yield(.textDelta(
-            "\nStarting pipeline-orchestrated fix phase "
-            + "(\(filesToReview.count) files, \(config.maxWorkers) workers)...\n"
-        ))
-
-        let stream = await facade.executeJob(job, tasks: tasks, workerAdapter: adapter)
-        for await event in stream {
-            if isCancelled() {
-                await facade.cancel()
-                break
-            }
-            await waitWhilePaused()
-            bridgeEventToStreamContinuation(event, continuation: continuation)
-        }
-
-        await sessionState.complete()
     }
 
     /// Mappa PipelineUIEvent in StreamEvent per il continuation della review.

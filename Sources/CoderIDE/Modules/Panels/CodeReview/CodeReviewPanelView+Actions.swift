@@ -19,20 +19,13 @@ extension CodeReviewPanelView {
     func runAgainstCommitReview() {
         let ref = againstCommitRef.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ref.isEmpty else { return }
-        let prompt = CodeReviewQuickCommands.againstPrompt(
-            ref: ref,
-            autofixEnabled: autofixEnabled,
-            maxRounds: codeReviewMaxRounds
+        onDispatchAction(
+            .againstCommit(
+                ref: ref,
+                autofixEnabled: autofixEnabled,
+                maxRounds: codeReviewMaxRounds
+            )
         )
-
-        if coderMode != .codeReviewMultiSwarm {
-            onSelectMode(.codeReviewMultiSwarm)
-            Task { @MainActor in
-                onRunSlashCommand(prompt)
-            }
-        } else {
-            onRunSlashCommand(prompt)
-        }
     }
 
     func isValidGitRef(_ ref: String) -> Bool {

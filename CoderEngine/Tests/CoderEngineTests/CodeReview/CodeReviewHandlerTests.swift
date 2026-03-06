@@ -1,8 +1,18 @@
 import XCTest
 import MCP
+import CoderEngine
 @testable import CoderIDEMCPServer
 
 final class CodeReviewHandlerTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: MCPSharedState.codeReviewDirectoryPath)
+        super.tearDown()
+    }
 
     // MARK: - review_start
 
@@ -66,16 +76,19 @@ final class CodeReviewHandlerTests: XCTestCase {
             args: [:]
         )
         XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("No active review session."))
     }
 
     // MARK: - review_findings
 
     func testReviewFindingsNoFilters() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_findings",
-            args: [:]
+            args: ["session_id": snapshot.sessionId]
         )
         XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains("Findings"))
     }
 
     func testReviewFindingsInvalidSeverity() {
@@ -105,12 +118,13 @@ final class CodeReviewHandlerTests: XCTestCase {
     }
 
     func testReviewApplyFixWithId() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_apply_fix",
-            args: ["finding_id": "f123"]
+            args: ["finding_id": "f123", "session_id": snapshot.sessionId]
         )
         XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("f123"))
+        XCTAssertTrue(textContent(result).contains("queued"))
     }
 
     // MARK: - review_dismiss
@@ -124,9 +138,14 @@ final class CodeReviewHandlerTests: XCTestCase {
     }
 
     func testReviewDismissWithValidReason() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_dismiss",
-            args: ["finding_id": "f1", "reason": "false_positive"]
+            args: [
+                "finding_id": "f1",
+                "reason": "false_positive",
+                "session_id": snapshot.sessionId,
+            ]
         )
         XCTAssertNil(result?.isError)
     }
@@ -150,20 +169,26 @@ final class CodeReviewHandlerTests: XCTestCase {
     }
 
     func testReviewConfigureValidParams() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_configure",
-            args: ["max_workers": "8", "max_rounds": "5"]
+            args: [
+                "session_id": snapshot.sessionId,
+                "max_workers": "8",
+                "max_rounds": "5",
+            ]
         )
         XCTAssertNil(result?.isError)
-        XCTAssertTrue(textContent(result).contains("max_workers=8"))
+        XCTAssertTrue(textContent(result).contains("queued"))
     }
 
     // MARK: - review_diff_summary
 
     func testReviewDiffSummary() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_diff_summary",
-            args: [:]
+            args: ["session_id": snapshot.sessionId]
         )
         XCTAssertNil(result?.isError)
     }
@@ -185,11 +210,26 @@ final class CodeReviewHandlerTests: XCTestCase {
     }
 
     func testReviewCommentSuccess() {
+        let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_comment",
-            args: ["finding_id": "f1", "content": "Looks good"]
+            args: [
+                "finding_id": "f1",
+                "content": "Looks good",
+                "session_id": snapshot.sessionId,
+            ]
         )
         XCTAssertNil(result?.isError)
+    }
+
+    func testReviewListSessions() {
+        let snapshot = seedSnapshot()
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_list_sessions",
+            args: ["conversation_id": snapshot.conversationId?.uuidString.lowercased() ?? ""]
+        )
+        XCTAssertNil(result?.isError)
+        XCTAssertTrue(textContent(result).contains(snapshot.sessionId))
     }
 
     // MARK: - Unknown tool
@@ -210,5 +250,40 @@ final class CodeReviewHandlerTests: XCTestCase {
             return text
         }
         return ""
+    }
+
+    private func seedSnapshot() -> CodeReviewSessionSnapshot {
+        let conversationId = UUID()
+        let snapshot = CodeReviewSessionSnapshot(
+            sessionId: "session-1",
+            conversationId: conversationId,
+            phase: .fixing,
+            stage: .fixing,
+            findings: [
+                CodeReviewFinding(
+                    id: "f123",
+                    severity: .warning,
+                    category: .bug,
+                    filePath: "Package.swift",
+                    message: "Test finding"
+                )
+            ],
+            events: [
+                .sessionStarted(scope: "uncommitted changes", fileCount: 1)
+            ],
+            config: .default,
+            scope: ReviewSessionScope(type: .uncommitted, files: ["Package.swift"]),
+            currentRound: 1,
+            activeWorkerCount: 1,
+            startedAt: Date(),
+            completedAt: nil,
+            analysisCompletedAt: Date(),
+            lastError: nil,
+            currentJobId: "job-1",
+            lastTestStatus: .passed,
+            lastUpdatedAt: Date()
+        )
+        MCPSharedState.writeCodeReviewSnapshot(snapshot)
+        return snapshot
     }
 }

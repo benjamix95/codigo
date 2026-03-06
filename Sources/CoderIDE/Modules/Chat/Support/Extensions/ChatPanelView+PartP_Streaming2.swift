@@ -45,6 +45,11 @@ extension ChatPanelView {
             emitMCPEditRequiredViolation(payload: enriched, conversationId: convId)
             return
         }
+        _ = handleSyntheticCodeReviewToolEvent(
+            type: t,
+            payload: p,
+            conversationId: convId
+        )
         if t == "turn_started" {
             streamingSegmentTurnIndex += 1
             resetReasoningMessageState(for: convId)

@@ -1,3 +1,4 @@
+import CoderEngine
 import SwiftUI
 
 extension CodeReviewPanelView {
@@ -88,17 +89,17 @@ extension CodeReviewPanelView {
         }
     }
 
-    func severityColor(_ s: String) -> Color {
-        switch s.lowercased() {
-        case "critical": return DesignSystem.Colors.error
-        case "warning": return DesignSystem.Colors.warning
-        default: return DesignSystem.Colors.info
+    func severityColor(_ severity: FindingSeverity) -> Color {
+        switch severity {
+        case .critical: return DesignSystem.Colors.error
+        case .warning: return DesignSystem.Colors.warning
+        case .suggestion, .info: return DesignSystem.Colors.info
         }
     }
 
-    func severityBadge(_ s: String) -> some View {
-        let c = severityColor(s)
-        return Text(s.capitalized)
+    func severityBadge(_ severity: FindingSeverity) -> some View {
+        let c = severityColor(severity)
+        return Text(severity.rawValue.capitalized)
             .font(.system(size: 8.5, weight: .bold))
             .foregroundStyle(c)
             .padding(.horizontal, 5)

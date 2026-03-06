@@ -159,6 +159,53 @@ public enum PipelineJobFactory {
         return (job, tasks)
     }
 
+    /// Crea un job + task DAG per una fix stage di code review già analizzata.
+    /// Ogni task corrisponde a un finding cluster o review task strutturato.
+    static func fromCodeReviewTasks(
+        scope: ReviewScope,
+        reviewTasks: [CodeReviewMultiSwarmProvider.ReviewTask],
+        workspace: String,
+        providerId: String,
+        sessionId: String,
+        round: Int,
+        maxWorkers: Int = 4
+    ) -> (job: PipelineJob, tasks: [TaskNode]) {
+        let jobId = "review_fix_\(UUID().uuidString.prefix(8))"
+        let job = PipelineJob(
+            jobId: jobId,
+            workspace: workspace,
+            request: "Code Review Fix Stage (\(reviewTasks.count) tasks, scope: \(scope.rawValue), session: \(sessionId), round: \(round))",
+            mode: .strict,
+            selectedProviderProfile: providerId,
+            jobTimeoutMs: 1_200_000,
+            maxConcurrentWorkers: maxWorkers
+        )
+
+        let tasks = reviewTasks.enumerated().map { index, reviewTask in
+            var node = TaskNode(
+                taskId: reviewTask.id,
+                title: reviewTask.description,
+                priority: max(0, 90 - index),
+                risk: reviewTask.severity == "critical" ? .high : .medium,
+                taskType: .bugfix,
+                executionStyle: .multiAgentFlow,
+                fileScope: reviewTask.files,
+                metadata: [
+                    "review_session_id": sessionId,
+                    "review_round": String(round),
+                    "review_severity": reviewTask.severity,
+                    "review_description": reviewTask.description,
+                ],
+                status: .pending,
+                timeoutMs: 180_000
+            )
+            node.deriveTaskLabel()
+            return node
+        }
+
+        return (job, tasks)
+    }
+
     // MARK: - Private Helpers
 
     private static func sanitizeForId(_ text: String) -> String {

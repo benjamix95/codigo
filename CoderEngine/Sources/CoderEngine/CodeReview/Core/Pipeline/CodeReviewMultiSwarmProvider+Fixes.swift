@@ -142,7 +142,9 @@ extension CodeReviewMultiSwarmProvider {
             return results
         }
 
-        let sorted = workerResults.sorted { sortWorkerTaskIDForDisplay($0.taskId, $1.taskId) }
+        let sorted = workerResults.sorted {
+            $0.taskId.localizedStandardCompare($1.taskId) == .orderedAscending
+        }
         for (taskId, events) in sorted {
             await waitWhilePaused()
             if isCancelled() { break }

@@ -10,7 +10,7 @@ extension CoderIDEMCPServerApp {
     static let codeReviewTools: Set<String> = [
         "review_start", "review_status", "review_findings",
         "review_apply_fix", "review_dismiss", "review_configure",
-        "review_diff_summary", "review_comment",
+        "review_diff_summary", "review_comment", "review_list_sessions",
     ]
 
     static func handleCodeReviewTool(
@@ -36,6 +36,8 @@ extension CoderIDEMCPServerApp {
             return handleReviewDiffSummary(args: args)
         case "review_comment":
             return handleReviewComment(args: args)
+        case "review_list_sessions":
+            return handleReviewListSessions(args: args)
         default:
             return reviewError("Unknown code review tool: \(name)")
         }

@@ -1,3 +1,4 @@
+import CoderEngine
 import Foundation
 
 enum CodeReviewTab: String, CaseIterable {
@@ -10,7 +11,7 @@ enum CodeReviewTab: String, CaseIterable {
 struct ReviewWorkerRow: Identifiable {
     let id: String
     let description: String
-    let severity: String
+    let severity: FindingSeverity
     let fileCount: Int
     let files: [String]
     let filesSummary: String
@@ -21,6 +22,17 @@ struct CodeReviewMetrics {
     let activeCount: Int
     let workers: [ReviewWorkerRow]
     let roundInfo: (round: String, maxRounds: String)?
+}
+
+enum CodeReviewPanelAction {
+    case quickCommand(id: String)
+    case againstCommit(ref: String, autofixEnabled: Bool, maxRounds: Int)
+    case rerunSession(sessionId: String)
+    case applyFix(sessionId: String, findingId: String)
+    case dismissFinding(sessionId: String, findingId: String, reason: String)
+    case applyAllFixes(sessionId: String, findingIds: [String])
+    case dismissAll(sessionId: String, findingIds: [String], reason: String)
+    case exportSummary(sessionId: String)
 }
 
 func shouldDisplayCodeReviewMetrics(coderMode: CoderMode, hasReviewArtifacts: Bool) -> Bool {
