@@ -169,14 +169,18 @@ extension ChatPanelView {
     // MARK: - Handle Raw Stream Events
 
     internal func isCodexProvider(_ providerId: String) -> Bool {
-        let normalized = providerId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalized.isEmpty else { return false }
-        return normalized.contains("codex")
+        ChatReasoningPresentationPolicy.isCodexProvider(providerId)
+    }
+
+    internal func reasoningPresentationMode(providerId: String) -> ChatReasoningPresentationMode {
+        ChatReasoningPresentationPolicy.mode(
+            providerId: providerId,
+            separateCodexThinkingMessagesEnabled: separateCodexThinkingMessagesEnabled
+        )
     }
 
     internal func shouldSplitThinkingMessages(providerId: String) -> Bool {
-        guard separateCodexThinkingMessagesEnabled else { return false }
-        return isCodexProvider(providerId)
+        reasoningPresentationMode(providerId: providerId) == .separateMessages
     }
 
     internal func shouldUseLinearChat(providerId: String) -> Bool {

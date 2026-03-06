@@ -53,13 +53,7 @@ extension ChatPanelView {
             }
         }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
-            if shouldUseLinearChat(providerId: pid) {
-                // For Codex linear chat, reasoning is shown only as streaming
-                // status/detail text, never as an inline thinking box.
-                if convId == self.conversationId {
-                    codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-            } else if shouldSplitThinkingMessages(providerId: pid) {
+            if shouldSplitThinkingMessages(providerId: pid) {
                 let groupId = p["group_id"] ?? "reasoning-stream"
                 upsertSeparateThinkingMessage(
                     output: output,
@@ -78,32 +72,30 @@ extension ChatPanelView {
                     }
                 }
             } else {
+                if shouldUseLinearChat(providerId: pid), convId == self.conversationId {
+                    codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
                 let groupId = p["group_id"] ?? "reasoning-stream"
                 if streamingReasoningConversationId != convId {
                     streamingReasoningBlocks = []
                     streamingSegments = []
                     streamingSegmentTurnIndex = 0
                 }
-                if let idx = streamingReasoningBlocks.firstIndex(where: { $0.id == groupId }) {
-                    streamingReasoningBlocks[idx].text = Self.mergeReasoningText(
-                        existing: streamingReasoningBlocks[idx].text,
-                        incoming: output
-                    )
-                } else {
-                    streamingReasoningBlocks.append(ReasoningBlock(id: groupId, text: output))
-                }
-                streamingReasoningText = streamingReasoningBlocks.map(\.text).joined(separator: "\n\n")
+                let reducedState = ChatReasoningStreamReducer.apply(
+                    output: output,
+                    groupId: groupId,
+                    state: .init(
+                        blocks: streamingReasoningBlocks,
+                        text: streamingReasoningText,
+                        segments: streamingSegments
+                    ),
+                    sequentialStreamingLayoutEnabled: sequentialStreamingLayoutEnabled,
+                    streamingSegmentTurnIndex: streamingSegmentTurnIndex
+                )
+                streamingReasoningBlocks = reducedState.blocks
+                streamingReasoningText = reducedState.text
+                streamingSegments = reducedState.segments
                 streamingReasoningConversationId = convId
-
-                if sequentialStreamingLayoutEnabled {
-                    let segId = "reasoning-\(streamingSegmentTurnIndex)"
-                    let currentBlockText = streamingReasoningBlocks.last(where: { $0.id == groupId })?.text ?? output
-                    if let segIdx = streamingSegments.firstIndex(where: { $0.id == segId }) {
-                        streamingSegments[segIdx].kind = .reasoning(currentBlockText)
-                    } else {
-                        streamingSegments.append(MessageSegment(id: segId, kind: .reasoning(currentBlockText)))
-                    }
-                }
             }
         }
         if t == "coderide_show_task_panel" { enableTaskPanelIfNeeded() }
