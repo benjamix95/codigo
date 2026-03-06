@@ -29,6 +29,19 @@ enum DebugProjectionEventConsumer {
         case .debugPhaseUpdate(let phase, let detail):
             effects.shouldEnableDebugMode = true
             effects.shouldRevealDebugPanel = true
+            if debugStore.phase == .idle,
+               phase != .describing,
+               phase != .resolved {
+                debugStore.startDebugSession(
+                    errorContext: detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                )
+                switch phase {
+                case .instrumenting, .verifying:
+                    debugStore.setPhase(.fixing)
+                default:
+                    break
+                }
+            }
             let previousPhase = debugStore.phase
             debugStore.setPhase(phase)
             let shouldClearQuestions = phase == .fixing

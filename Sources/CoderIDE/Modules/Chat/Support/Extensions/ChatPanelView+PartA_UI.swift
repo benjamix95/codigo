@@ -159,7 +159,7 @@ extension ChatPanelView {
             restoreDebugState(for: newId)
             applyPendingDebugEvents(for: newId)
             if let newId {
-                pipelineIntegrationService.registerDebugStore(debugStore, for: newId)
+                bindRuntimeDebugProjection(for: newId)
             }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
@@ -185,7 +185,7 @@ extension ChatPanelView {
             restoreThreadUIState(for: selectedConversationId)
             wireTodoPlanBidirectionalSync()
             if let selectedConversationId {
-                pipelineIntegrationService.registerDebugStore(debugStore, for: selectedConversationId)
+                bindRuntimeDebugProjection(for: selectedConversationId)
             }
             requestInitialComposerFocusIfNeeded()
         }

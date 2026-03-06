@@ -32,27 +32,28 @@ enum DebugPipelineIntent {
 
 extension ChatPanelView {
     @MainActor
-    internal func executeDebugPipelineIntent(_ intent: DebugPipelineIntent) {
+    @discardableResult
+    internal func executeDebugPipelineIntent(_ intent: DebugPipelineIntent) -> Bool {
         guard let targetConversationId = conversationId else {
             appendTechnicalErrorMessage(
                 "[Debug] Nessuna conversazione selezionata per avviare la pipeline debug.",
                 in: nil
             )
-            return
+            return false
         }
         guard !pipelineIntegrationService.isRunning(for: targetConversationId) else {
             appendTechnicalErrorMessage(
                 "[Debug] Una pipeline e' gia' in esecuzione per questa conversazione.",
                 in: targetConversationId
             )
-            return
+            return false
         }
         guard let selectedProvider = providerRegistry.selectedProvider else {
             appendTechnicalErrorMessage(
                 "[Debug] Nessun provider selezionato. Configura un provider in Settings.",
                 in: targetConversationId
             )
-            return
+            return false
         }
         guard let runtimeProvider = resolveRuntimeProvider(
             selectedProvider: selectedProvider,
@@ -64,14 +65,14 @@ extension ChatPanelView {
                 "[Debug] Impossibile risolvere il provider runtime per la pipeline debug.",
                 in: targetConversationId
             )
-            return
+            return false
         }
         guard runtimeProvider.isAuthenticated() else {
             appendTechnicalErrorMessage(
                 "[Debug] Provider \(runtimeProvider.displayName) non autenticato.",
                 in: targetConversationId
             )
-            return
+            return false
         }
 
         if coderMode != .debug {
@@ -97,7 +98,7 @@ extension ChatPanelView {
                 "[Debug checkpoint error: \(error.localizedDescription)]",
                 in: targetConversationId
             )
-            return
+            return false
         }
 
         let userMessage = intent.userFacingMessage
@@ -154,6 +155,7 @@ extension ChatPanelView {
             )
         )
 
+        pipelineIntegrationService.resumeDebugProjection(for: targetConversationId)
         pipelineIntegrationService.executeJob(
             job,
             tasks: tasks,
@@ -161,6 +163,7 @@ extension ChatPanelView {
             conversationId: targetConversationId,
             assistantMessageId: assistantMessageId
         )
+        return true
     }
 
     @MainActor

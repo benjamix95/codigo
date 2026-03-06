@@ -51,6 +51,19 @@ extension DebugStore {
         return files
     }
 
+    func cancelPendingMarkFixed(reason: String? = nil) {
+        guard awaitingDebugClean || pendingResolutionAfterClean != nil else { return }
+        awaitingDebugClean = false
+        pendingResolutionAfterClean = nil
+        addLog(
+            severity: .warning,
+            source: "debug_session",
+            message: "Mark Fixed aborted before cleanup started",
+            detail: reason,
+            category: "system"
+        )
+    }
+
     func resetLogFilters() {
         severityFilter = Set(DebugEntrySeverity.allCases)
         categoryFilter = nil

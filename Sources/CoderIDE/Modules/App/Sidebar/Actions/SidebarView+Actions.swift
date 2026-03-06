@@ -24,39 +24,38 @@ extension SidebarView {
 
     func deleteAllVisibleThreads() {
         let toDelete = visibleThreads
-        let deletedIds = Set(toDelete.map(\.id))
-        let wasSelectingOne = deletedIds.contains(selectedConversationId ?? UUID())
+        guard !toDelete.isEmpty else { return }
+        let fallbackContextId = currentContext?.id
+        let fallbackFolderPath = scopedFolderPath(for: currentContext)
+        var autoCreatedConversationId: UUID?
         for conv in toDelete {
             cleanupConversationData(for: conv)
-            chatStore.deleteConversation(id: conv.id)
+            let deletionOutcome = chatStore.deleteConversation(id: conv.id)
+            if let replacementId = deletionOutcome.autoCreatedReplacementId {
+                autoCreatedConversationId = replacementId
+            }
         }
-        if wasSelectingOne {
-            // Pick the best remaining thread in the same context, not just any thread.
-            let contextId = currentContext?.id
-            selectedConversationId = chatStore.conversations.first(where: {
-                !$0.isArchived && $0.contextId == contextId && !deletedIds.contains($0.id)
-            })?.id ?? chatStore.conversations.first(where: { !deletedIds.contains($0.id) })?.id
-        }
+        selectedConversationId = resolveAndApplySidebarThreadDeletionFallback(
+            fallbackContextId: fallbackContextId,
+            fallbackFolderPath: fallbackFolderPath,
+            autoCreatedConversationId: autoCreatedConversationId
+        )
     }
 
-    func nextConversationSelectionAfterDelete(deletedConversation: Conversation) -> UUID? {
+    func nextConversationSelectionAfterDelete(
+        deletedConversation: Conversation,
+        autoCreatedConversationId: UUID? = nil
+    ) -> UUID? {
         // Keep focus in the same context/folder when possible.
         if let replacement = visibleThreads.first(where: { $0.id != deletedConversation.id }) {
             return replacement.id
         }
 
-        // Fallback: most recent non-archived thread in the same context.
-        if let sameContext = chatStore.conversations.first(where: {
-            !$0.isArchived
-                && $0.id != deletedConversation.id
-                && $0.contextId == deletedConversation.contextId
-                && $0.contextFolderPath == deletedConversation.contextFolderPath
-        }) {
-            return sameContext.id
-        }
-
-        // Last fallback: first available thread.
-        return chatStore.conversations.first?.id
+        return resolveAndApplySidebarThreadDeletionFallback(
+            fallbackContextId: deletedConversation.contextId,
+            fallbackFolderPath: deletedConversation.contextFolderPath,
+            autoCreatedConversationId: autoCreatedConversationId
+        )
     }
 
     func attachConversation(to contextId: UUID) {

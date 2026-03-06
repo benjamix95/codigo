@@ -40,6 +40,7 @@ final class PipelineIntegrationService: ObservableObject {
     private var runtimesByConversation: [UUID: PipelineConversationRuntime] = [:]
     var debugStoresByConversation: [UUID: DebugProjectionStoreBinding] = [:]
     var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
+    var suppressedDebugProjectionConversationIds: Set<UUID> = []
     private let facadeConfig: PipelineFacadeConfig
 
     var onRawStreamEvent: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)?
@@ -194,27 +195,6 @@ final class PipelineIntegrationService: ObservableObject {
             snapshotsByConversation[conversationId] = runtime.snapshot
         } else {
             snapshotsByConversation.removeValue(forKey: conversationId)
-        }
-    }
-
-    // MARK: - Debug Projection Binding
-
-    func registerDebugStore(_ debugStore: DebugStore, for conversationId: UUID) {
-        debugStoresByConversation[conversationId] = DebugProjectionStoreBinding(store: debugStore)
-        flushPendingDebugEvents(for: conversationId, into: debugStore)
-    }
-
-    func unregisterDebugStore(for conversationId: UUID?) {
-        guard let conversationId else { return }
-        debugStoresByConversation.removeValue(forKey: conversationId)
-    }
-
-    func flushPendingDebugEvents(for conversationId: UUID, into debugStore: DebugStore) {
-        guard let pending = pendingDebugEventsByConversation.removeValue(forKey: conversationId) else {
-            return
-        }
-        for event in pending {
-            _ = DebugProjectionEventConsumer.apply(event, to: debugStore)
         }
     }
 

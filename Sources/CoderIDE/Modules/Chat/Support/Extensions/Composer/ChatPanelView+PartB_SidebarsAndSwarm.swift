@@ -80,9 +80,11 @@ extension ChatPanelView {
                 executeDebugPipelineIntent(.startSession(summary: question))
             },
             onStop: {
+                suspendRuntimeDebugProjection(for: conversationId)
                 lastTaskEndedByManualStop = true
                 interruptTask()
                 debugStore.resetSession()
+                persistDebugState(for: conversationId)
             },
             onProceed: {
                 executeDebugPipelineIntent(.continueInvestigation)
@@ -90,7 +92,13 @@ extension ChatPanelView {
             onFixed: {
                 let summary = debugStore.resolutionSummary
                 _ = debugStore.beginMarkFixed(summary: summary)
-                executeDebugPipelineIntent(.resolveAfterFix(summary: summary))
+                guard executeDebugPipelineIntent(.resolveAfterFix(summary: summary)) else {
+                    debugStore.cancelPendingMarkFixed(
+                        reason: "Debug pipeline resolve preflight failed."
+                    )
+                    persistDebugState(for: conversationId)
+                    return
+                }
             },
             onNativeStart: {
                 executeDebugNativePipelineIntent(.start)

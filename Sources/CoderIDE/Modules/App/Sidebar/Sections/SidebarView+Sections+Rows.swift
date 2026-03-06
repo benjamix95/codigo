@@ -213,9 +213,12 @@ extension SidebarView {
             Button {
                 let wasSelected = selectedConversationId == conv.id
                 cleanupConversationData(for: conv)
-                chatStore.deleteConversation(id: conv.id)
+                let deletionOutcome = chatStore.deleteConversation(id: conv.id)
                 if wasSelected {
-                    selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
+                    selectedConversationId = nextConversationSelectionAfterDelete(
+                        deletedConversation: conv,
+                        autoCreatedConversationId: deletionOutcome.autoCreatedReplacementId
+                    )
                 }
             } label: {
                 Image(systemName: "trash")
@@ -258,9 +261,12 @@ extension SidebarView {
             Button(role: .destructive) {
                 let wasSelected = selectedConversationId == conv.id
                 cleanupConversationData(for: conv)
-                chatStore.deleteConversation(id: conv.id)
+                let deletionOutcome = chatStore.deleteConversation(id: conv.id)
                 if wasSelected {
-                    selectedConversationId = nextConversationSelectionAfterDelete(deletedConversation: conv)
+                    selectedConversationId = nextConversationSelectionAfterDelete(
+                        deletedConversation: conv,
+                        autoCreatedConversationId: deletionOutcome.autoCreatedReplacementId
+                    )
                 }
             } label: {
                 Label("Delete thread", systemImage: "trash")

@@ -154,15 +154,6 @@ extension PipelineIntegrationService {
         }
     }
 
-    private func applyOrBufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
-        if let binding = debugStoresByConversation[conversationId],
-           let store = binding.store {
-            _ = DebugProjectionEventConsumer.apply(event, to: store)
-            return
-        }
-        pendingDebugEventsByConversation[conversationId, default: []].append(event)
-    }
-
     private func scopedTaskActivity(
         _ activity: TaskActivity,
         conversationId: UUID

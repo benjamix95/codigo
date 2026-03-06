@@ -61,7 +61,8 @@ extension ChatStore {
         return createConversation(workspaceId: workspaceId, adHocFolderPaths: adHocFolderPaths, mode: mode)
     }
 
-    func deleteConversation(id: UUID) {
+    @discardableResult
+    func deleteConversation(id: UUID) -> ChatStoreConversationDeletionOutcome {
         conversations.removeAll { $0.id == id }
         planBoards.removeValue(forKey: id)
         planSharedSyncSignatureByConversation.removeValue(forKey: id)
@@ -69,9 +70,21 @@ extension ChatStore {
         activeTaskConversationIds.remove(id)
         taskStartDates.removeValue(forKey: id)
         taskStatusTexts.removeValue(forKey: id)
-        if conversations.isEmpty { createConversation(contextId: nil, contextFolderPath: nil, mode: nil) }
+        let autoCreatedReplacementId: UUID?
+        if conversations.isEmpty {
+            autoCreatedReplacementId = createConversation(
+                contextId: nil,
+                contextFolderPath: nil,
+                mode: nil
+            )
+        } else {
+            autoCreatedReplacementId = nil
+        }
         saveConversations()
         savePlanBoards()
+        return ChatStoreConversationDeletionOutcome(
+            autoCreatedReplacementId: autoCreatedReplacementId
+        )
     }
 
     func setPinned(conversationId: UUID, pinned: Bool) {

@@ -131,6 +131,7 @@ extension ChatPanelView {
             )
         )
 
+        pipelineIntegrationService.resumeDebugProjection(for: targetConversationId)
         pipelineIntegrationService.executeJob(
             job,
             tasks: tasks,

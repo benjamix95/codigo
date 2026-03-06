@@ -69,6 +69,23 @@ final class DebugStoreTests: XCTestCase {
         XCTAssertTrue(store.instrumentationPoints.isEmpty)
     }
 
+    func testCancelPendingMarkFixedRestoresCleanupWaitState() {
+        let store = DebugStore()
+        store.startDebugSession(errorContext: "boom")
+        store.phase = .verifying
+        _ = store.beginMarkFixed(summary: "Fixed crash")
+
+        store.cancelPendingMarkFixed(reason: "preflight failed")
+
+        XCTAssertFalse(store.awaitingDebugClean)
+        XCTAssertNil(store.pendingResolutionAfterClean)
+        XCTAssertEqual(store.phase, .verifying)
+        XCTAssertEqual(
+            store.logs.last?.message,
+            "Mark Fixed aborted before cleanup started"
+        )
+    }
+
     func testApplyDebugCleanFailureKeepsSessionVerifying() {
         let store = DebugStore()
         store.startDebugSession(errorContext: "boom")

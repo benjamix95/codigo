@@ -113,6 +113,21 @@ final class ChatStoreTaskOwnershipTests: XCTestCase {
         XCTAssertTrue(store.isLoading)
     }
 
+    func testDeleteLastConversationAutoCreatesReplacementThread() throws {
+        let store = ChatStore()
+        let onlyConversationId = try XCTUnwrap(store.conversations.first?.id)
+
+        let deletionOutcome = store.deleteConversation(id: onlyConversationId)
+
+        XCTAssertEqual(store.conversations.count, 1)
+        let replacement = try XCTUnwrap(store.conversations.first)
+        XCTAssertNotEqual(replacement.id, onlyConversationId)
+        XCTAssertTrue(replacement.messages.isEmpty)
+        XCTAssertNil(replacement.contextId)
+        XCTAssertNil(replacement.contextFolderPath)
+        XCTAssertEqual(deletionOutcome.autoCreatedReplacementId, replacement.id)
+    }
+
     private func makePlanBoard(updatedAt: Date) -> PlanBoard {
         PlanBoard(
             goal: "Goal",
