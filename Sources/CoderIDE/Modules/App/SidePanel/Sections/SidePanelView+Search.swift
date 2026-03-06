@@ -4,14 +4,14 @@ import Foundation
 
 extension SidePanelView {
     var searchPanelContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.tertiary)
-                TextField("Search files...", text: $searchQuery)
+                TextField("Search in workspace…", text: $searchQuery)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(.system(size: 12.5))
                     .onSubmit { performSearch() }
                 if !searchQuery.isEmpty {
                     Button {
@@ -26,47 +26,68 @@ extension SidePanelView {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(DesignSystem.Colors.backgroundSecondary)
-
-            Divider().opacity(0.2)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.82))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+            )
 
             if searchResults.isEmpty && !searchQuery.isEmpty {
                 VStack(spacing: 6) {
-                    Text("No results")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                    Text("Nessun risultato")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 40)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 1) {
+                    LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(searchResults.prefix(200).enumerated()), id: \.offset) { _, result in
                             Button {
                                 openFilesStore.openFile(result.path)
                             } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text((result.path as NSString).lastPathComponent)
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: "doc.text.magnifyingglass")
                                         .font(.system(size: 11, weight: .medium))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    Text("L\(result.line): \(result.text)")
-                                        .font(.system(size: 10, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                        .foregroundStyle(DesignSystem.Colors.info)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text((result.path as NSString).lastPathComponent)
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Text(EditorPathResolver.displayPath(result.path, roots: context?.folderPaths ?? []))
+                                            .font(.system(size: 9.5, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                        Text("L\(result.line)  \(result.text)")
+                                            .font(.system(size: 10.5, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
+                                .padding(.vertical, 10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.68))
+                                )
                             }
                             .buttonStyle(.plain)
+                            .hoverHighlight(Color.white.opacity(0.03))
                         }
                     }
                 }
             }
         }
+        .padding(10)
     }
 
     private func performSearch() {

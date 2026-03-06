@@ -3,35 +3,45 @@ import CoderEngine
 
 extension SidePanelView {
     var sourceControlPanelContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             if gitPanelStore.isOpen {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Source Control", systemImage: "arrow.triangle.branch")
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Source Control pronto", systemImage: "arrow.triangle.branch")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text("Il pannello Git è già disponibile. Usa questa sezione come hub veloce.")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.7))
+                )
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.system(size: 26, weight: .light))
+                        .foregroundStyle(DesignSystem.Colors.reviewColor)
+                    Text("Apri il pannello Git")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.primary)
-                    Text("Git panel is open on the right")
+                    Text("Qui vedrai un accesso rapido a branch, stato file e azioni principali.")
                         .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-            } else {
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 24, weight: .ultraLight))
-                        .foregroundStyle(.tertiary)
-                    Text("Open Git panel to view changes")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                     Button {
                         gitPanelStore.isOpen = true
                     } label: {
-                        Text("Open Git Panel")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 5))
+                        Text("Apri Git Panel")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(DesignSystem.Colors.reviewColor.opacity(0.16))
+                            )
                     }
                     .buttonStyle(.plain)
                 }
@@ -40,5 +50,6 @@ extension SidePanelView {
             }
             Spacer()
         }
+        .padding(10)
     }
 }

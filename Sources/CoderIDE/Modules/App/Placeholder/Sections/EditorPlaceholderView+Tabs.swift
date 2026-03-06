@@ -1,22 +1,29 @@
 import SwiftUI
 
 extension EditorPlaceholderView {
-    // MARK: - Tab Bar (Cursor style)
     @ViewBuilder
     var tabBar: some View {
         if !openFilesStore.openPaths.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+                HStack(spacing: 6) {
                     ForEach(openFilesStore.openPaths, id: \.self) { tabPath in
                         cursorTab(path: tabPath)
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
             }
-            .frame(height: 34)
-            .background(DesignSystem.Colors.backgroundPrimary)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(DesignSystem.Colors.border.opacity(0.5)).frame(height: 0.5)
-            }
+            .frame(height: 52)
+            .background(
+                LinearGradient(
+                    colors: [
+                        DesignSystem.Colors.backgroundPrimary.opacity(0.96),
+                        DesignSystem.Colors.backgroundSecondary.opacity(0.86)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
         }
     }
 
@@ -25,19 +32,19 @@ extension EditorPlaceholderView {
         let isDirty = openFilesStore.isDirty(path: path)
         let name = (path as NSString).lastPathComponent
 
-        return HStack(spacing: 6) {
+        return HStack(spacing: 8) {
             Image(systemName: tabFileIcon(name))
                 .font(.system(size: 10))
                 .foregroundStyle(tabIconColor(name))
 
             Text(name)
-                .font(.system(size: 11.5, weight: isActive ? .medium : .regular))
+                .font(.system(size: 11.5, weight: isActive ? .semibold : .medium))
                 .foregroundStyle(isActive ? .primary : .secondary)
                 .lineLimit(1)
 
             if isDirty {
                 Circle()
-                    .fill(.white.opacity(0.5))
+                    .fill(DesignSystem.Colors.warning)
                     .frame(width: 6, height: 6)
             }
 
@@ -53,18 +60,18 @@ extension EditorPlaceholderView {
             .opacity(isActive ? 1 : 0)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(isActive ? DesignSystem.Colors.backgroundDeep : .clear)
-        .overlay(alignment: .bottom) {
-            if isActive {
-                Rectangle().fill(Color.accentColor).frame(height: 1.5)
-            }
-        }
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(DesignSystem.Colors.border.opacity(0.3))
-                .frame(width: 0.5)
-        }
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isActive ? Color.white.opacity(0.06) : Color.white.opacity(0.015))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    isActive ? Color.accentColor.opacity(0.35) : DesignSystem.Colors.borderSubtle.opacity(0.45),
+                    lineWidth: 0.6
+                )
+        )
         .contentShape(Rectangle())
         .onTapGesture { openFilesStore.openFile(path) }
         .contextMenu {
@@ -123,7 +130,7 @@ extension EditorPlaceholderView {
         case "json": return .yellow.opacity(0.7)
         case "md": return .cyan
         case "html", "htm": return .orange.opacity(0.7)
-        case "css", "scss": return .purple
+        case "css", "scss": return .mint
         case "rs": return .orange.opacity(0.8)
         case "go": return .cyan
         default: return .secondary

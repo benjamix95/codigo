@@ -1,81 +1,116 @@
 import SwiftUI
 
 extension EditorPlaceholderView {
-    // MARK: - Placeholder
     var placeholderView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "curlybraces")
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(DesignSystem.Colors.border)
+        ZStack {
+            LinearGradient(
+                colors: [
+                    DesignSystem.Colors.backgroundDeep,
+                    DesignSystem.Colors.backgroundPrimary.opacity(0.9)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-            VStack(spacing: 10) {
-                Text("Codigo")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.primary.opacity(0.7))
-
-                if displayPath.isEmpty {
-                    Text("Open a project to get started")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                } else {
-                    VStack(spacing: 8) {
-                        Text("WORKSPACE")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.quaternary)
-                            .tracking(1.2)
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "folder.fill")
-                                .foregroundStyle(Color.accentColor.opacity(0.5))
-                            Text(folderPaths.count > 1
-                                 ? folderPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
-                                 : displayPath)
-                                .codeFont(
-                                    size: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code),
-                                    family: uiCodeFontFamily
-                                )
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2).multilineTextAlignment(.center)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        .background(
-                            DesignSystem.Colors.backgroundSecondary,
-                            in: RoundedRectangle(cornerRadius: 8)
+            VStack(spacing: 26) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.08),
+                                    Color.white.opacity(0.02)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5)
+                        .frame(width: 84, height: 84)
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.41, green: 0.70, blue: 0.98),
+                                    Color(red: 0.36, green: 0.84, blue: 0.74)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
+                }
+
+                VStack(spacing: 10) {
+                    Text("Your workspace is ready")
+                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
+                    Text(displayPath.isEmpty ? "Open a project to start editing with the IDE workbench." : "Jump into files, search, terminal and chat from one place.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                if !displayPath.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "folder.fill")
+                            .foregroundStyle(DesignSystem.Colors.info)
+                        Text(folderPaths.count > 1
+                             ? folderPaths.map { ($0 as NSString).lastPathComponent }.joined(separator: "  •  ")
+                             : displayPath)
+                            .codeFont(
+                                size: FontPreferences.sanitizeSize(uiCodeFontSize, kind: .code),
+                                family: uiCodeFontFamily
+                            )
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white.opacity(0.04))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+                    )
+                }
+
+                if !displayPath.isEmpty {
+                    HStack(spacing: 18) {
+                        shortcutHint("Explorer", "sidebar.left", "Cmd+B")
+                        shortcutHint("Terminal", "terminal", "Ctrl+`")
+                        shortcutHint("Chat", "bubble.left", "Cmd+L")
                     }
                 }
             }
-
-            if !displayPath.isEmpty {
-                HStack(spacing: 20) {
-                    shortcutHint("Explorer", "sidebar.left", "Cmd+B")
-                    shortcutHint("Terminal", "terminal", "Ctrl+`")
-                    shortcutHint("Chat", "bubble.left", "Cmd+L")
-                }
-            }
         }
-        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DesignSystem.Colors.backgroundDeep)
+        .padding(36)
     }
 
     private func shortcutHint(_ title: String, _ icon: String, _ shortcut: String) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .light))
-                .foregroundStyle(.quaternary)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
             Text(title)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.9))
             Text(shortcut)
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.quaternary)
         }
-        .padding(12)
-        .background(DesignSystem.Colors.backgroundSecondary, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+        )
     }
 }

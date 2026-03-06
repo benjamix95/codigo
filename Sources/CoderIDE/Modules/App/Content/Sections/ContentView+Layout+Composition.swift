@@ -193,6 +193,12 @@ extension ContentView {
 
     @ViewBuilder
     private func ideModeContent(detailWidth: CGFloat) -> some View {
+        let ctx = effectiveContext(
+            for: selectedConversationId,
+            chatStore: chatStore,
+            projectContextStore: projectContextStore,
+            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+        )
         let chatIsLeft = chatPanelPosition == "left"
         let clampedChatW = ContentPanelWidthPolicy.clampedWidth(
             storedWidth: chatPanelWidth,
@@ -206,39 +212,48 @@ extension ContentView {
             fraction: 0.55
         )
         let maxBrowserW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.55)
+        let clampedSidePanelW = max(240, min(CGFloat(sidePanelWidth), 380))
 
-        HStack(spacing: 0) {
-            ActivityBarView(
-                selectedItem: $activeActivityItem,
-                showSettings: $showSettings
-            )
+        ZStack {
+            ideBackdrop
 
-            if showChatPanel && chatIsLeft {
-                chatPanel
-                    .frame(width: clampedChatW)
-                chatPanelLeadingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
+            HStack(spacing: 12) {
+                if showChatPanel && chatIsLeft {
+                    ideSurface(tint: DesignSystem.Colors.agentColor) {
+                        chatPanel
+                            .frame(width: clampedChatW)
+                    }
+                    chatPanelLeadingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
+                }
+
+                ideWorkbenchColumn(ctx: ctx, sidePanelWidth: clampedSidePanelW)
+
+                if activeActivityItem != nil && activeActivityItem != .settings {
+                    sidePanelResizeHandle
+                }
+
+                ideSurface(tint: DesignSystem.Colors.info) {
+                    editorArea
+                        .layoutPriority(1)
+                }
+
+                if showBrowserPanel {
+                    browserResizeHandle(clampedWidth: clampedBrowserW, maxWidth: maxBrowserW)
+                    ideSurface(tint: DesignSystem.Colors.browserColor) {
+                        BrowserPanelView(tabManager: browserTabManager)
+                            .frame(width: clampedBrowserW)
+                    }
+                }
+
+                if showChatPanel && !chatIsLeft {
+                    chatPanelTrailingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
+                    ideSurface(tint: DesignSystem.Colors.agentColor) {
+                        chatPanel
+                            .frame(width: clampedChatW)
+                    }
+                }
             }
-
-            if let item = activeActivityItem, item != .settings {
-                sidePanelContent(for: item)
-                    .frame(width: max(180, min(CGFloat(sidePanelWidth), 400)))
-                sidePanelResizeHandle
-            }
-
-            editorArea
-                .layoutPriority(1)
-
-            if showBrowserPanel {
-                browserResizeHandle(clampedWidth: clampedBrowserW, maxWidth: maxBrowserW)
-                BrowserPanelView(tabManager: browserTabManager)
-                    .frame(width: clampedBrowserW)
-            }
-
-            if showChatPanel && !chatIsLeft {
-                chatPanelTrailingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
-                chatPanel
-                    .frame(width: clampedChatW)
-            }
+            .padding(14)
         }
         .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
     }
@@ -270,23 +285,5 @@ extension ContentView {
         chatPanel
             .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
     }
-
-    @ViewBuilder
-    private func sidePanelContent(for item: ActivityBarItem) -> some View {
-        let ctx = effectiveContext(
-            for: selectedConversationId,
-            chatStore: chatStore,
-            projectContextStore: projectContextStore,
-            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
-        )
-        SidePanelView(
-            activeItem: item,
-            context: projectContextStore.context(id: ctx.contextId)
-        )
-        .environmentObject(openFilesStore)
-        .environmentObject(projectContextStore)
-        .environmentObject(gitPanelStore)
-    }
-
 
 }

@@ -119,9 +119,8 @@ extension ContentView {
             preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
         )
 
-        return VStack(spacing: 0) {
+        return VStack(spacing: 10) {
             editorTopBar(ctx: ctx)
-            Divider().opacity(0.2)
 
             EditorPlaceholderView(folderPaths: ctx.folderPaths)
                 .environmentObject(openFilesStore)
@@ -133,15 +132,33 @@ extension ContentView {
                 .environmentObject(editorCommandDispatchStore)
                 .environmentObject(editorNavigationDispatchStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(DesignSystem.Colors.backgroundDeep.opacity(0.94))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             if showTerminal {
-                Divider().opacity(0.2)
                 TerminalPanelView(workingDirectory: ctx.primaryPath)
                     .environmentObject(terminalSessionStore)
                     .frame(height: terminalHeight)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.86))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         }
-        .background(DesignSystem.Colors.backgroundDeep)
+        .padding(10)
+        .background(Color.clear)
     }
 
 }

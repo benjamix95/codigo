@@ -28,21 +28,23 @@ extension EditorPlaceholderView {
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
 
-            Button(editorOptions.wordWrap ? "Wrap On" : "Wrap Off") {
+            footerToggle(
+                title: editorOptions.wordWrap ? "Wrap On" : "Wrap Off",
+                isActive: editorOptions.wordWrap
+            ) {
                 editorOptions.wordWrap.toggle()
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 10, weight: .medium))
 
-            Button(editorOptions.minimapEnabled ? "Minimap On" : "Minimap Off") {
+            footerToggle(
+                title: editorOptions.minimapEnabled ? "Minimap On" : "Minimap Off",
+                isActive: editorOptions.minimapEnabled
+            ) {
                 editorOptions.minimapEnabled.toggle()
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 10, weight: .medium))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.75))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.82))
     }
 
     private var activeLanguageLabel: String {
@@ -62,5 +64,24 @@ extension EditorPlaceholderView {
         case "yml", "yaml": return "yaml"
         default: return ext.isEmpty ? "plain" : ext
         }
+    }
+
+    private func footerToggle(
+        title: String,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(isActive ? Color.accentColor : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isActive ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.03))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

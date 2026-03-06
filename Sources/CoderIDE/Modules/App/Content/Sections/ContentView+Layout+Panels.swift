@@ -5,134 +5,195 @@ import CoderEngine
 
 extension ContentView {
     func editorTopBar(ctx: EffectiveContext) -> some View {
-        HStack(spacing: 8) {
-            if let path = openFilesStore.openFilePath, !path.isEmpty {
-                breadcrumb(path: path, ctx: ctx)
+        let activePath = editorSplitStore.filePath(primaryPath: openFilesStore.openFilePath)
+        let diagnostics = editorDiagnosticsStore.summary(for: activePath)
+
+        return HStack(spacing: 12) {
+            workspaceBadge(ctx: ctx)
+
+            if let path = activePath, !path.isEmpty {
+                activeFileBadge(path: path, ctx: ctx)
             } else {
-                Image(systemName: "rectangle.split.2x1")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Text("Editor")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
+                emptyEditorBadge()
             }
 
             Spacer()
 
-            Button {
-                withAnimation(.snappy(duration: 0.2)) { showTerminal.toggle() }
-            } label: {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(showTerminal ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .padding(4)
-                    .background(
-                        showTerminal ? Color.accentColor.opacity(0.12) : .clear,
-                        in: RoundedRectangle(cornerRadius: 4)
-                    )
+            if diagnostics.errors > 0 || diagnostics.warnings > 0 {
+                statusBadge(
+                    icon: diagnostics.errors > 0 ? "xmark.octagon.fill" : "exclamationmark.triangle.fill",
+                    title: diagnostics.errors > 0 ? "\(diagnostics.errors) errors" : "\(diagnostics.warnings) warnings",
+                    tint: diagnostics.errors > 0 ? DesignSystem.Colors.error : DesignSystem.Colors.warning
+                )
             }
-            .buttonStyle(.plain)
-            .help("Toggle terminal")
 
-            Button {
-                withAnimation(.snappy(duration: 0.2)) { showBrowserPanel.toggle() }
-            } label: {
-                Image(systemName: "globe")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(showBrowserPanel ? DesignSystem.Colors.browserColor : Color.secondary.opacity(0.5))
-                    .padding(4)
-                    .background(
-                        showBrowserPanel ? DesignSystem.Colors.browserColor.opacity(0.12) : .clear,
-                        in: RoundedRectangle(cornerRadius: 4)
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("Toggle browser")
+            statusBadge(
+                icon: editorSplitStore.isSplitVisible ? "rectangle.split.2x1.fill" : "rectangle",
+                title: editorSplitStore.isSplitVisible ? "Split editor" : "Single editor",
+                tint: DesignSystem.Colors.info
+            )
 
-            Button {
-                withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
-            } label: {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(showChatPanel ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .padding(4)
-                    .background(
-                        showChatPanel ? Color.accentColor.opacity(0.12) : .clear,
-                        in: RoundedRectangle(cornerRadius: 4)
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("Toggle chat panel")
-
-            Button {
-                gitPanelStore.isOpen.toggle()
-            } label: {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(gitPanelStore.isOpen ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .padding(4)
-                    .background(
-                        gitPanelStore.isOpen ? Color.accentColor.opacity(0.12) : .clear,
-                        in: RoundedRectangle(cornerRadius: 4)
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("Toggle git panel")
-
-            Button {
-                NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .padding(4)
-            }
-            .buttonStyle(.plain)
-            .help("Quick open")
-
-            Button {
-                NotificationCenter.default.post(name: .editorToggleSplit, object: nil)
-            } label: {
-                Image(systemName: "rectangle.split.2x1")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .padding(4)
-            }
-            .buttonStyle(.plain)
-            .help("Toggle split editor")
-
-            Button {
-                NotificationCenter.default.post(name: .editorShowProblems, object: nil)
-            } label: {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.7))
-                    .padding(4)
-            }
-            .buttonStyle(.plain)
-            .help("Show problems")
-
-            Button {
-                withAnimation(.snappy(duration: 0.2)) {
-                    chatPanelPosition = chatPanelPosition == "left" ? "right" : "left"
+            HStack(spacing: 8) {
+                toolbarActionButton(
+                    icon: "magnifyingglass",
+                    title: "Quick Open",
+                    isActive: false
+                ) {
+                    NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
                 }
-            } label: {
-                Image(systemName: chatPanelPosition == "left" ? "sidebar.left" : "sidebar.right")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(0.5))
-                    .padding(4)
+
+                toolbarActionButton(
+                    icon: "rectangle.split.2x1",
+                    title: "Split",
+                    isActive: editorSplitStore.isSplitVisible
+                ) {
+                    NotificationCenter.default.post(name: .editorToggleSplit, object: nil)
+                }
+
+                toolbarActionButton(
+                    icon: "list.bullet.rectangle.portrait",
+                    title: "Outline",
+                    isActive: false
+                ) {
+                    NotificationCenter.default.post(name: .editorShowOutline, object: nil)
+                }
+
+                toolbarActionButton(
+                    icon: "exclamationmark.triangle",
+                    title: "Problems",
+                    isActive: diagnostics.errors > 0 || diagnostics.warnings > 0
+                ) {
+                    NotificationCenter.default.post(name: .editorShowProblems, object: nil)
+                }
             }
-            .buttonStyle(.plain)
-            .help(chatPanelPosition == "left" ? "Move chat to right" : "Move chat to left")
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.04))
+            )
+
+            HStack(spacing: 8) {
+                toolbarActionButton(
+                    icon: "terminal",
+                    title: "Terminal",
+                    isActive: showTerminal
+                ) {
+                    withAnimation(.snappy(duration: 0.2)) { showTerminal.toggle() }
+                }
+
+                toolbarActionButton(
+                    icon: "globe",
+                    title: "Browser",
+                    isActive: showBrowserPanel,
+                    tint: DesignSystem.Colors.browserColor
+                ) {
+                    withAnimation(.snappy(duration: 0.2)) { showBrowserPanel.toggle() }
+                }
+
+                toolbarActionButton(
+                    icon: "arrow.triangle.branch",
+                    title: "Git",
+                    isActive: gitPanelStore.isOpen,
+                    tint: ActivityBarItem.sourceControl.tint
+                ) {
+                    gitPanelStore.isOpen.toggle()
+                }
+
+                toolbarActionButton(
+                    icon: "bubble.left.and.bubble.right",
+                    title: "Chat",
+                    isActive: showChatPanel
+                ) {
+                    withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
+                }
+
+                toolbarActionButton(
+                    icon: chatPanelPosition == "left" ? "sidebar.right" : "sidebar.left",
+                    title: "Swap",
+                    isActive: false,
+                    tint: DesignSystem.Colors.info
+                ) {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        chatPanelPosition = chatPanelPosition == "left" ? "right" : "left"
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white.opacity(0.04))
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.03),
+                    Color.clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    private func workspaceBadge(ctx: EffectiveContext) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(DesignSystem.Colors.info.opacity(0.16))
+                    .frame(width: 34, height: 34)
+                Image(systemName: "sidebar.leading")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.info)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ctx.displayLabel)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(ctx.activeRootPath.map { ($0 as NSString).lastPathComponent } ?? "No workspace")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.5))
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+    }
+
+    private func activeFileBadge(path: String, ctx: EffectiveContext) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.accentColor)
+                Text((path as NSString).lastPathComponent)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            breadcrumb(path: path, ctx: ctx)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
     }
 
     private func breadcrumb(path: String, ctx: EffectiveContext) -> some View {
         let components = breadcrumbComponents(path: path, rootPaths: ctx.folderPaths)
-        return HStack(spacing: 2) {
+        return HStack(spacing: 4) {
             ForEach(Array(components.enumerated()), id: \.offset) { idx, component in
                 if idx > 0 {
                     Image(systemName: "chevron.right")
@@ -140,7 +201,7 @@ extension ContentView {
                         .foregroundStyle(.quaternary)
                 }
                 Text(component)
-                    .font(.system(size: 11, weight: idx == components.count - 1 ? .medium : .regular))
+                    .font(.system(size: 10.5, weight: idx == components.count - 1 ? .medium : .regular))
                     .foregroundStyle(idx == components.count - 1 ? .primary : .secondary)
                     .lineLimit(1)
             }

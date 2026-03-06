@@ -4,7 +4,7 @@ import CoderEngine
 extension SidePanelView {
     var explorerPanelContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 if let ctx = context {
                     if ctx.folderPaths.count > 1 {
                         explorerRootTabs(ctx)
@@ -16,34 +16,39 @@ extension SidePanelView {
                     emptyExplorer
                 }
             }
-            .padding(.vertical, 4)
+            .padding(10)
         }
     }
 
     private func explorerRootTabs(_ ctx: ProjectContext) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 ForEach(ctx.folderPaths, id: \.self) { root in
                     let active = ctx.activeFolderPath == root
                     Button {
                         projectContextStore.setActiveRoot(contextId: ctx.id, rootPath: root)
                         expandedFolders.insert("root::\(root)")
                     } label: {
-                        Text((root as NSString).lastPathComponent)
-                            .font(.system(size: 10, weight: active ? .semibold : .regular))
-                            .foregroundStyle(active ? Color.accentColor : .secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                active ? Color.accentColor.opacity(0.12) : .clear,
-                                in: RoundedRectangle(cornerRadius: 4)
-                            )
+                        HStack(spacing: 6) {
+                            Image(systemName: active ? "folder.fill" : "folder")
+                                .font(.system(size: 10, weight: .medium))
+                            Text((root as NSString).lastPathComponent)
+                                .font(.system(size: 10.5, weight: active ? .semibold : .medium))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(active ? Color.accentColor : .secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(active ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.03))
+                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 2)
         }
     }
 
@@ -55,29 +60,43 @@ extension SidePanelView {
                 toggleExpandedState(key)
                 projectContextStore.setActiveRoot(contextId: ctx.id, rootPath: root)
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 8) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.tertiary)
                         .frame(width: 10)
                     Image(systemName: "folder.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.accentColor.opacity(0.9))
                     Text((root as NSString).lastPathComponent)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(.primary)
                     Spacer()
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.035))
+            )
 
             if expanded {
                 AnyView(folderItems(ctx, root: root, atPath: root, depth: 1))
+                    .padding(.top, 6)
             }
         }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.66))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
+        )
     }
 
     private func folderItems(_ ctx: ProjectContext, root: String, atPath: String, depth: Int) -> some View {
@@ -98,26 +117,31 @@ extension SidePanelView {
                         openFilesStore.openFile(fullPath)
                     }
                 } label: {
-                    HStack(spacing: 5) {
-                        Spacer().frame(width: CGFloat(depth) * 12 + 10)
+                    HStack(spacing: 6) {
+                        Spacer().frame(width: CGFloat(depth - 1) * 14 + 10)
                         Image(systemName: fileIcon(for: item.name, isDirectory: isDir, expanded: expanded))
                             .font(.system(size: isDir ? 8 : 10, weight: isDir ? .bold : .regular))
                             .foregroundStyle(isDir ? Color.secondary.opacity(0.5) : fileIconColor(for: item.name))
-                            .frame(width: 12)
+                        .frame(width: 12)
                         Text(item.name)
-                            .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                            .font(.system(size: 12, weight: selected ? .semibold : .medium))
                             .foregroundStyle(selected ? Color.accentColor : .primary)
                             .lineLimit(1)
                         Spacer()
                         if openFilesStore.isDirty(path: fullPath) {
-                            Circle().fill(DesignSystem.Colors.warning).frame(width: 5, height: 5)
+                            Circle().fill(DesignSystem.Colors.warning).frame(width: 6, height: 6)
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .background(selected ? Color.accentColor.opacity(0.1) : Color.clear)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                )
+                .hoverHighlight(Color.white.opacity(0.03))
 
                 if isDir, expanded {
                     AnyView(folderItems(ctx, root: root, atPath: fullPath, depth: depth + 1))
@@ -129,11 +153,11 @@ extension SidePanelView {
     private var emptyExplorer: some View {
         VStack(spacing: 8) {
             Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 24, weight: .ultraLight))
+                .font(.system(size: 24, weight: .light))
                 .foregroundStyle(.tertiary)
-            Text("No project open")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+            Text("Nessun progetto aperto")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 60)
