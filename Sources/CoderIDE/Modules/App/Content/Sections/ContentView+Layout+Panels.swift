@@ -4,6 +4,46 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 extension ContentView {
+    private var titlebarChatInfo: WindowTitlebarChatInfo? {
+        guard selectedConversationId != nil else { return nil }
+        let context = effectiveContext(
+            for: selectedConversationId,
+            chatStore: chatStore,
+            projectContextStore: projectContextStore,
+            preferActiveContextForGlobalThread: preferActiveContextForGlobalThread
+        )
+        let rawTitle = chatStore.conversation(for: selectedConversationId)?
+            .title
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = rawTitle.isEmpty || rawTitle == "New conversation" ? "New thread" : rawTitle
+        let projectName = context.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProjectName =
+            projectName.isEmpty
+            || projectName.compare("codigo", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            ? nil
+            : projectName
+        return WindowTitlebarChatInfo(
+            title: title,
+            projectName: resolvedProjectName,
+            projectPath: context.primaryPath
+        )
+    }
+
+    private var titlebarChatInfoFingerprint: String {
+        let info = titlebarChatInfo
+        return [
+            selectedConversationId?.uuidString ?? "nil",
+            showChatPanel ? "shown" : "hidden",
+            info?.title ?? "",
+            info?.projectName ?? "",
+            info?.projectPath ?? "",
+        ].joined(separator: "|")
+    }
+
+    private func publishTitlebarChatInfo() {
+        WindowTitlebarChatAccessoryBridge.post(info: showChatPanel ? titlebarChatInfo : nil)
+    }
+
     func editorTopBar(ctx: EffectiveContext) -> some View {
         let activePath = editorSplitStore.filePath(primaryPath: openFilesStore.openFilePath)
         let diagnostics = editorDiagnosticsStore.summary(for: activePath)
@@ -32,16 +72,6 @@ extension ContentView {
             )
 
             HStack(spacing: 4) {
-                compactToolbarButton(
-                    icon: "sidebar.left",
-                    title: "Toggle Sidebar",
-                    isActive: activeActivityItem != nil,
-                    tint: DesignSystem.Colors.info
-                ) {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        activeActivityItem = activeActivityItem == nil ? .explorer : nil
-                    }
-                }
                 compactToolbarButton(icon: "magnifyingglass", title: "Quick Open") {
                     NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
                 }
@@ -220,5 +250,8 @@ extension ContentView {
             style: ChatBackgroundStyle.from(raw: chatBackgroundStyle),
             cornerRadius: 14
         )
+        .onAppear { publishTitlebarChatInfo() }
+        .onDisappear { WindowTitlebarChatAccessoryBridge.post(info: nil) }
+        .onChange(of: titlebarChatInfoFingerprint) { _, _ in publishTitlebarChatInfo() }
     }
 }

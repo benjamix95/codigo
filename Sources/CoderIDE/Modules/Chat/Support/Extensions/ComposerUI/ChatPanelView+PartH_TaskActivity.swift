@@ -158,6 +158,7 @@ extension ChatPanelView {
                 runtimeTaskStartDate: composerRuntimeStartDate,
                 frozenTimerText: composerFrozenTimerText,
                 frozenTimerDismissible: composerFrozenTimerDismissible,
+                isIDEStyle: coderMode == .ide,
                 activeModeColor: activeModeColor,
                 activeModeGradient: activeModeGradient,
                 inputHint: inputHint,
@@ -166,7 +167,7 @@ extension ChatPanelView {
                 slashCommandPresets: composerSlashCommandPresets,
                 showCodeReviewAutofixToggle: coderMode == .codeReviewMultiSwarm,
                 showPlanRequestIndicator: showPlanRequestIndicator,
-                controlsRow: AnyView(modeControlsRow),
+                controlsRow: AnyView(composerControlsRow),
                 voiceState: voiceInputController.state,
                 codeReviewAutofixEnabled: Binding(
                     get: { !codeReviewAnalysisOnly },
@@ -193,9 +194,9 @@ extension ChatPanelView {
                 isOptimizingPrompt: isOptimizingPrompt
             )
         }
-        .frame(maxWidth: chatColumnMaxWidth)
+        .frame(maxWidth: coderMode == .ide ? 760 : chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, coderMode == .ide ? 14 : 20)
         .popover(isPresented: $showPromptOptimizerPopup, arrowEdge: .bottom) {
             PromptOptimizerPopup(
                 originalPrompt: inputText,
@@ -215,6 +216,10 @@ extension ChatPanelView {
         } message: {
             Text(rateLimitAlertText)
         }
+    }
+
+    internal var composerControlsRow: some View {
+        coderMode == .ide ? AnyView(ideModeControlsRow) : AnyView(modeControlsRow)
     }
 
     @ViewBuilder
@@ -275,7 +280,67 @@ extension ChatPanelView {
                         selectMode(.agent)
                     }
                 }
-            )
+            ),
+            forcedTier: nil
+        )
+    }
+
+    @ViewBuilder
+    internal var ideModeControlsRow: some View {
+        ModeControlsBarView(
+            providerRegistry: providerRegistry,
+            chatStore: chatStore,
+            coderMode: coderMode,
+            conversationId: conversationId,
+            isAnyAgentProviderReady: isAnyAgentProviderReady,
+            codexModelOverride: $codexModelOverride,
+            codexReasoningEffort: $codexReasoningEffort,
+            codexSandbox: $codexSandbox,
+            geminiModelOverride: $geminiModelOverride,
+            swarmOrchestrator: $swarmOrchestrator,
+            taskPanelEnabled: $taskPanelEnabled,
+            showSwarmHelp: $showSwarmHelp,
+            inputText: $inputText,
+            planModeBackend: $planModeBackend,
+            swarmWorkerBackend: $swarmWorkerBackend,
+            openaiModel: $openaiModel,
+            claudeModel: $claudeModel,
+            openrouterModel: $openrouterModel,
+            codexModels: codexModels,
+            geminiModels: geminiModels,
+            onSyncCodexProvider: syncCodexProvider,
+            onSyncClaudeProvider: syncClaudeProvider,
+            onSyncGeminiProvider: syncGeminiProvider,
+            onSyncSwarmProvider: syncSwarmProvider,
+            onSyncPlanProvider: syncPlanProvider,
+            onSyncOpenRouterProvider: syncOpenRouterProvider,
+            onSyncToolRuntimePolicy: syncToolRuntimePolicy,
+            onUserSelectedProvider: { suppressModeSyncForNextProviderChange = true },
+            onDelegateToAgent: delegateToAgent,
+            attachedImageURLs: attachedComposerAttachments
+                .filter { $0.kind == .image }
+                .map(\.url),
+            planToggleEnabled: $planToggleEnabled,
+            debugToggleEnabled: $debugToggleEnabled,
+            swarmToggleEnabled: Binding(
+                get: { showSwarmPanel },
+                set: { newValue in showSwarmPanel = newValue }
+            ),
+            codeReviewToggleEnabled: Binding(
+                get: { showCodeReviewPanel },
+                set: { newValue in showCodeReviewPanel = newValue }
+            ),
+            browserToggleEnabled: Binding(
+                get: { coderMode == .browser },
+                set: { newValue in
+                    if newValue {
+                        selectMode(.browser)
+                    } else if coderMode == .browser {
+                        selectMode(.agent)
+                    }
+                }
+            ),
+            forcedTier: .compact
         )
     }
 

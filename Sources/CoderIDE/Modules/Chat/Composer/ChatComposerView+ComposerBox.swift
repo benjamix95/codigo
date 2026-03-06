@@ -11,36 +11,20 @@ extension ChatComposerView {
                 attachedAttachmentsRow
             }
 
-            ZStack(alignment: .topLeading) {
-                if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(inputHint)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary.opacity(0.9))
-                        .padding(.top, 2)
-                }
-
-                ComposerTextView(
-                    text: $inputText,
-                    isFocused: $isInputFocused,
-                    minHeight: 22,
-                    maxHeight: 140,
-                    onSubmit: onSend
-                )
+            if isIDEStyle {
+                ideComposerContent
+            } else {
+                standardComposerContent
             }
-            .onChange(of: inputText) { _, newValue in
-                onInputTextChanged(newValue)
-            }
-
-            bottomControlsRow
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, isIDEStyle ? 12 : 14)
+        .padding(.vertical, isIDEStyle ? 8 : 10)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
                 .fill(composerSurfaceGradient)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: isIDEStyle ? 16 : 20, style: .continuous)
                 .strokeBorder(
                     isComposerDropTargeted
                         ? Color.white.opacity(0.35)
@@ -50,7 +34,7 @@ extension ChatComposerView {
                     lineWidth: isComposerDropTargeted ? 1.2 : 0.8
                 )
         )
-        .shadow(color: Color.black.opacity(0.25), radius: 12, y: 3)
+        .shadow(color: Color.black.opacity(isIDEStyle ? 0.14 : 0.25), radius: isIDEStyle ? 6 : 12, y: isIDEStyle ? 1 : 3)
         .animation(.easeOut(duration: 0.2), value: isInputFocused)
         .onDrop(
             of: [.item, .fileURL, .image, .png, .jpeg, .gif, .pdf],
@@ -71,7 +55,7 @@ extension ChatComposerView {
         }
         .overlay {
             if isConvertingHeic {
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                RoundedRectangle(cornerRadius: isIDEStyle ? 18 : 26, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay {
                         VStack(spacing: 8) {
@@ -85,8 +69,87 @@ extension ChatComposerView {
         }
     }
 
+    internal var standardComposerContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            inputEditorArea(
+                minHeight: 22,
+                maxHeight: 140,
+                placeholderFontSize: 13
+            )
+            bottomControlsRow
+        }
+    }
+
+    internal var ideComposerContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
+                imageAttachButton
+                    .frame(width: 28, height: 28)
+
+                inputEditorArea(
+                    minHeight: 18,
+                    maxHeight: 72,
+                    placeholderFontSize: 12
+                )
+                .frame(maxWidth: .infinity)
+
+                if isLoading {
+                    runtimeControls
+                } else {
+                    HStack(spacing: 4) {
+                        optimizePromptButton
+                        microphoneButton
+                        sendButton
+                    }
+                }
+            }
+
+            Divider().overlay(Color.white.opacity(0.08))
+
+            HStack(spacing: 8) {
+                controlsRow
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !isLoading {
+                    if frozenTimerText != nil {
+                        runtimeTimerLabel
+                    }
+                    if showPlanRequestIndicator {
+                        planRequestBadge
+                    }
+                }
+            }
+        }
+    }
+
+    internal func inputEditorArea(
+        minHeight: CGFloat,
+        maxHeight: CGFloat,
+        placeholderFontSize: CGFloat
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(inputHint)
+                    .font(.system(size: placeholderFontSize))
+                    .foregroundStyle(.secondary.opacity(0.9))
+                    .padding(.top, 2)
+            }
+
+            ComposerTextView(
+                text: $inputText,
+                isFocused: $isInputFocused,
+                minHeight: minHeight,
+                maxHeight: maxHeight,
+                onSubmit: onSend
+            )
+        }
+        .onChange(of: inputText) { _, newValue in
+            onInputTextChanged(newValue)
+        }
+    }
+
     internal var bottomControlsRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: isIDEStyle ? 6 : 8) {
             imageAttachButton
 
             controlsRow

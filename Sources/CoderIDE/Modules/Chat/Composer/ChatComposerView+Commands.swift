@@ -177,8 +177,8 @@ extension ChatComposerView {
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, isIDEStyle ? 12 : 16)
+        .padding(.vertical, isIDEStyle ? 6 : 8)
         .background(Color.orange.opacity(0.08))
     }
 }

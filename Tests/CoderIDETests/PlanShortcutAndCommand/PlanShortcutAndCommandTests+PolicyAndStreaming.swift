@@ -140,9 +140,13 @@ extension PlanShortcutAndCommandTests {
         XCTAssertTrue(shouldShowUsageFooter(for: .agent))
     }
 
-    func testUsageFooterVisibleInEveryMode() {
+    func testUsageFooterHiddenInIDEModeOnly() {
         for mode in CoderMode.allCases {
-            XCTAssertTrue(shouldShowUsageFooter(for: mode), "Footer usage should be visible in \\(mode.rawValue)")
+            if mode == .ide {
+                XCTAssertFalse(shouldShowUsageFooter(for: mode))
+            } else {
+                XCTAssertTrue(shouldShowUsageFooter(for: mode), "Footer usage should be visible in \\(mode.rawValue)")
+            }
         }
     }
 

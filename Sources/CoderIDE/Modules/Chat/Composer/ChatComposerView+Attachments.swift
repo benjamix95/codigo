@@ -73,7 +73,7 @@ extension ChatComposerView {
             isSelectingImage = true
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .light))
+                .font(.system(size: isIDEStyle ? 18 : 22, weight: .light))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, height: 24)
         }
@@ -100,7 +100,7 @@ extension ChatComposerView {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 32, height: 32)
+            .frame(width: isIDEStyle ? 28 : 32, height: isIDEStyle ? 28 : 32)
             .background(
                 voiceState == .listening
                     ? Color(red: 1, green: 0.94, blue: 0.94)
@@ -138,7 +138,7 @@ extension ChatComposerView {
                         .foregroundStyle(canOptimize ? .yellow : .secondary.opacity(0.5))
                 }
             }
-            .frame(width: 32, height: 32)
+            .frame(width: isIDEStyle ? 28 : 32, height: isIDEStyle ? 28 : 32)
         }
         .buttonStyle(.plain)
         .disabled(!canOptimize)
@@ -156,9 +156,9 @@ extension ChatComposerView {
 
         return Button(action: onSend) {
             Image(systemName: "arrow.up")
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: isIDEStyle ? 15 : 17, weight: .medium))
                 .foregroundStyle(canSend ? .black.opacity(0.9) : .secondary)
-                .frame(width: 38, height: 38)
+                .frame(width: isIDEStyle ? 34 : 38, height: isIDEStyle ? 34 : 38)
                 .background(
                     Circle().fill(
                         canSend ? Color.white : Color.white.opacity(0.24)

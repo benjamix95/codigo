@@ -35,9 +35,6 @@ extension SidebarView {
         HStack(spacing: 8) {
             ProfileSwitcherView()
 
-            Label("Codigo", systemImage: "command")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
             Spacer()
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape")

@@ -31,6 +31,7 @@ struct ChatComposerView: View {
     let runtimeTaskStartDate: Date?
     let frozenTimerText: String?
     let frozenTimerDismissible: Bool
+    let isIDEStyle: Bool
     let activeModeColor: Color
     let activeModeGradient: LinearGradient
     let inputHint: String
@@ -63,7 +64,7 @@ struct ChatComposerView: View {
                 providerNotReadyBanner
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: isIDEStyle ? 6 : 8) {
                 composerBox
                 if !slashMatches.isEmpty {
                     slashAutocompletePanel
@@ -75,7 +76,7 @@ struct ChatComposerView: View {
                     codeReviewAutofixToggleRow
                 }
             }
-            .padding(12)
+            .padding(isIDEStyle ? 8 : 12)
         }
     }
 }

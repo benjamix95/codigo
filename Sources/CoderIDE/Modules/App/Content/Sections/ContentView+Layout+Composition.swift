@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 extension ContentView {
+    var workbenchTopInteractiveInset: CGFloat { 28 }
+
     @ViewBuilder
     private var detailBackground: some View {
         switch coderMode {
@@ -22,13 +24,28 @@ extension ContentView {
         return "\(context.id.uuidString)#\(folders)#\(exclusions)#\(activeRoot)"
     }
 
-    var configuredContent: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            configuredSidebar
-        } detail: {
+    /// In IDE/browser mode we skip NavigationSplitView entirely so macOS never
+    /// injects a native sidebar-toggle button into the titlebar.
+    @ViewBuilder
+    private var contentRoot: some View {
+        if coderMode == .ide || coderMode == .browser {
             configuredDetailContent
+        } else {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                configuredSidebar
+            } detail: {
+                configuredDetailContent
+            }
+            .navigationSplitViewStyle(.prominentDetail)
+            .toolbar(removing: .sidebarToggle)
+            .toolbar(.hidden, for: .windowToolbar)
+            .toolbar(.hidden, for: .automatic)
         }
-            .onAppear(perform: configureInitialConversationSelection)
+    }
+
+    var configuredContent: some View {
+        contentRoot
+        .onAppear(perform: configureInitialConversationSelection)
         .onAppear {
             configureDefaultProviderSelection()
         }
@@ -90,11 +107,23 @@ extension ContentView {
                 WindowResizeHelper.adjustWidth(by: -panelWidth, animate: false)
             }
         }
-        .navigationSplitViewStyle(.prominentDetail)
-        .toolbar(removing: .sidebarToggle)
         .onChange(of: coderMode) { _, newMode in
             withAnimation(.snappy(duration: 0.2)) {
                 columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .all
+            }
+            // Re-apply window style after mode change to strip any sidebar toggle
+            // that SwiftUI re-adds when columnVisibility changes, and clear the title.
+            DispatchQueue.main.async {
+                for window in NSApplication.shared.windows where window.canBecomeMain {
+                    AppDelegate.applyMainWindowStyle(window)
+                }
+            }
+            for extraDelay in [0.3, 0.6, 1.0, 1.5, 2.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + extraDelay) {
+                    for window in NSApplication.shared.windows where window.canBecomeMain {
+                        AppDelegate.applyMainWindowStyle(window)
+                    }
+                }
             }
         }
         .onChange(of: chatStore.conversations.map(\.id)) { _, conversationIds in

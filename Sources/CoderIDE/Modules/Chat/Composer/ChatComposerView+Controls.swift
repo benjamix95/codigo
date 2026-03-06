@@ -3,7 +3,7 @@ import SwiftUI
 extension ChatComposerView {
     internal var attachedAttachmentsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: isIDEStyle ? 6 : 8) {
                 ForEach(Array(attachedAttachments.enumerated()), id: \.element.id) { index, item in
                     if item.kind == .image {
                         ZStack(alignment: .topTrailing) {
@@ -54,14 +54,14 @@ extension ChatComposerView {
                             }
                             .buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, isIDEStyle ? 7 : 8)
+                        .padding(.vertical, isIDEStyle ? 5 : 6)
                         .background(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: isIDEStyle ? 12 : 16, style: .continuous)
                                 .fill(Color.white.opacity(0.06))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            RoundedRectangle(cornerRadius: isIDEStyle ? 12 : 16, style: .continuous)
                                 .strokeBorder(Color.white.opacity(0.11), lineWidth: 0.6)
                         )
                     }
@@ -71,7 +71,9 @@ extension ChatComposerView {
     }
 
     internal var composerSurfaceGradient: LinearGradient {
-        let gray = Color(red: 42 / 255, green: 42 / 255, blue: 42 / 255)
+        let gray = isIDEStyle
+            ? Color(red: 34 / 255, green: 34 / 255, blue: 36 / 255)
+            : Color(red: 42 / 255, green: 42 / 255, blue: 42 / 255)
         return LinearGradient(
             stops: [
                 .init(color: gray.opacity(0.98), location: 0.0),

@@ -4,30 +4,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 extension ChatPanelView {
-    @ViewBuilder
+    internal var shouldShowMessagesAreaEmptyState: Bool {
+        messagesAreaIsEmpty && !isLoadingForCurrentConversation
+    }
+
     internal var messagesAreaEmptyStateOverlay: some View {
-        if messagesAreaIsEmpty && !isLoadingForCurrentConversation {
-            VStack(spacing: 20) {
-                if let url = RuntimeResourceLocator.appLogoURL(),
-                   let icon = NSImage(contentsOf: url) {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 56, height: 56)
-                        .cornerRadius(13)
-                        .saturation(0)
-                        .opacity(0.3)
-                }
-                VStack(spacing: 6) {
-                    Text("Ask anything, build anything")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(.tertiary)
-                }
-            }
+        Text("Ask anything, build anything")
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .offset(y: -40)
             .allowsHitTesting(false)
-        }
     }
 
     internal var messagesAreaIsEmpty: Bool {

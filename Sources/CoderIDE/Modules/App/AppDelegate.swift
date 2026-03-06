@@ -160,11 +160,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func applyMainWindowStyle(_ window: NSWindow) {
         guard window.canBecomeMain else { return }
         window.title = ""
+        window.subtitle = ""
+        window.representedURL = nil
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.styleMask.insert(.fullSizeContentView)
         window.isMovableByWindowBackground = false
-        window.toolbar?.showsBaselineSeparator = false
+        // Completely strip the toolbar and any sidebar toggle items SwiftUI may re-add
+        if let toolbar = window.toolbar {
+            toolbar.showsBaselineSeparator = false
+            toolbar.isVisible = false
+            for i in stride(from: toolbar.items.count - 1, through: 0, by: -1) {
+                toolbar.removeItem(at: i)
+            }
+        }
+        // Remove the toolbar entirely to prevent SwiftUI from re-adding sidebar toggle items
+        window.toolbar = nil
         WindowSidebarToggleController.installIfNeeded(on: window)
     }
 }

@@ -172,7 +172,7 @@ func shouldShowComposer(for mode: CoderMode) -> Bool {
 }
 
 func shouldShowUsageFooter(for mode: CoderMode) -> Bool {
-    true
+    mode != .ide
 }
 
 func shouldEnableTaskPanelForMode(_ mode: CoderMode) -> Bool {

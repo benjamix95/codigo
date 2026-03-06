@@ -84,53 +84,7 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var headerLeadingBar: some View {
-        HStack(spacing: 8) {
-            if !shouldHideProjectLabelInHeader {
-                projectButton
-            }
-            if shouldShowConversationTitle(headerWidth: chatHeaderWidth) {
-                conversationTitleLabel
-            }
-        }
-    }
-
-    internal var shouldHideProjectLabelInHeader: Bool {
-        effectiveContext.displayLabel
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .compare("codigo", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-    }
-
-    @ViewBuilder
-    internal var projectButton: some View {
-        if let path = effectiveContext.primaryPath {
-            Button {
-                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-            } label: {
-                Text(effectiveContext.displayLabel)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            .buttonStyle(.plain)
-            .help("Open folder \(path)")
-        }
-    }
-
-    internal var conversationTitleLabel: some View {
-        Text(chatStore.conversation(for: conversationId)?.title ?? "New conversation")
-            .font(.system(size: 12.5, weight: .medium))
-            .foregroundStyle(.primary.opacity(0.7))
-            .lineLimit(1)
-            .fixedSize()
-    }
-
-    internal func shouldShowConversationTitle(headerWidth: CGFloat) -> Bool {
-        guard headerWidth >= 760 else { return false }
-        let title = chatStore.conversation(for: conversationId)?
-            .title
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return !title.isEmpty && title != "New conversation"
+        EmptyView()
     }
 
     internal var rewindButton: some View {
@@ -208,7 +162,12 @@ extension ChatPanelView {
     // MARK: - Messages Area
     internal var messagesArea: some View {
         ScrollViewReader { proxy in
-            messagesAreaScrollView(using: proxy)
+            ZStack {
+                messagesAreaScrollView(using: proxy)
+                if shouldShowMessagesAreaEmptyState {
+                    messagesAreaEmptyStateOverlay
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -223,7 +182,6 @@ extension ChatPanelView {
         .frame(maxWidth: chatColumnMaxWidth)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 24)
-        .overlay(messagesAreaEmptyStateOverlay)
         .onChange(of: streamContentVersion) { _, _ in
             guard isFollowingLive || isLoadingForCurrentConversation else { return }
             handleStreamContentVersionChange(proxy: proxy)

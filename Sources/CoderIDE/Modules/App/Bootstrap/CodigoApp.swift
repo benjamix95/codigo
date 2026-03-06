@@ -76,7 +76,7 @@ struct CodigoApp: App {
     @AppStorage("serper_api_key") var serperApiKey = ""
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("") {
             ContentView()
                 .preferredColorScheme(colorScheme)
                 .environment(\.font, resolvedSansFont)

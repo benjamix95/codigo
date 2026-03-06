@@ -55,6 +55,7 @@ struct ModeControlsBarView: View {
     @Binding var swarmToggleEnabled: Bool
     @Binding var codeReviewToggleEnabled: Bool
     @Binding var browserToggleEnabled: Bool
+    let forcedTier: ControlsTier?
     @State private var availableWidth: CGFloat = 900
     @State private var resolvedTier: ControlsTier = .full
     @StateObject var openRouterModelPickerStore = OpenRouterModelPickerStore()
@@ -70,7 +71,7 @@ struct ModeControlsBarView: View {
     // MARK: - Body
 
     var body: some View {
-        controlsHStack(tier: resolvedTier)
+        controlsHStack(tier: forcedTier ?? resolvedTier)
             .background {
                 GeometryReader { proxy in
                     Color.clear

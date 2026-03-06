@@ -40,7 +40,7 @@ extension ChatPanelView {
                 "Code Review: analysis → dynamic worker tasks → parallel fix → test → re-review loop"
         case .debug: return "Debug mode: MCP-first phase flow + structured debug tools"
         case .plan: return "Plan with options + custom response"
-        case .ide: return "IDE mode: API chat + manual editing in the editor"
+        case .ide: return "Ask about code or describe an edit"
         case .browser: return "Browser mode: agent can navigate, test, and capture screenshots"
         case .mcpServer: return "Send to configured MCP server"
         }
