@@ -70,4 +70,20 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
         XCTAssertFalse(args.contains("model_providers.openai.name=\"openai\""))
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
+
+    func testRepairedCodexConfigContentReEnablesDisabledCoderIDEMCPServer() {
+        let original = """
+        model = "gpt-5.4"
+
+        [mcp_servers.coderide]
+        command = "/tmp/coderide-mcp-server"
+        args = [ "--workspace", "." ]
+        enabled = false
+        """
+
+        let repaired = CodexCLIProvider.repairedCodexConfigContentIfNeeded(original)
+
+        XCTAssertTrue(repaired.contains("enabled = true"))
+        XCTAssertFalse(repaired.contains("enabled = false"))
+    }
 }

@@ -139,6 +139,9 @@ final class CodexMCPHealthStore: ObservableObject {
         guard let command = parseCoderideCommand(from: content), !command.isEmpty else {
             return "coderide command missing"
         }
+        if parseCoderideEnabled(from: content) == false {
+            return "coderide MCP disabled"
+        }
         guard FileManager.default.isExecutableFile(atPath: command) else {
             return "coderide command not executable"
         }
@@ -146,6 +149,29 @@ final class CodexMCPHealthStore: ObservableObject {
     }
 
     nonisolated private static func parseCoderideCommand(from config: String) -> String? {
+        parseCoderideSectionValue(from: config, key: "command")
+    }
+
+    nonisolated private static func parseCoderideEnabled(from config: String) -> Bool? {
+        guard let raw = parseCoderideSectionValue(from: config, key: "enabled")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return nil
+        }
+        switch raw {
+        case "true":
+            return true
+        case "false":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    nonisolated private static func parseCoderideSectionValue(
+        from config: String,
+        key: String
+    ) -> String? {
         let lines = config.components(separatedBy: .newlines)
         var inSection = false
         for line in lines {
@@ -155,7 +181,7 @@ final class CodexMCPHealthStore: ObservableObject {
                 continue
             }
             guard inSection else { continue }
-            guard trimmed.hasPrefix("command") else { continue }
+            guard trimmed.hasPrefix(key) else { continue }
             guard let eq = trimmed.firstIndex(of: "=") else { continue }
             let raw = trimmed[trimmed.index(after: eq)...].trimmingCharacters(in: .whitespacesAndNewlines)
             if raw.hasPrefix("\""), raw.hasSuffix("\""), raw.count >= 2 {

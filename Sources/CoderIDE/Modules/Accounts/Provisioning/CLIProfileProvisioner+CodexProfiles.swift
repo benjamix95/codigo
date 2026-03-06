@@ -33,7 +33,7 @@ extension CLIProfileProvisioner {
 
         var lines = existing.components(separatedBy: .newlines)
         lines = upsertRootTomlAssignment(in: lines, key: "fast_mode", value: "true")
-        lines = upsertCoderideMCPSection(in: lines, binaryPath: binaryPath, includeEnabled: false)
+        lines = upsertCoderideMCPSection(in: lines, binaryPath: binaryPath, includeEnabled: true)
         lines = upsertExperimentalFeaturesSection(in: lines)
         let normalizedExisting = existing.hasSuffix("\n") ? existing : existing + "\n"
         let normalizedUpdated = lines.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n"
@@ -59,7 +59,7 @@ extension CLIProfileProvisioner {
             section = upsertTomlAssignment(in: section, key: "command", value: "\"\(binaryPath)\"")
             section = upsertTomlAssignment(in: section, key: "args", value: "[ \"--workspace\", \".\" ]")
             if includeEnabled {
-                section = upsertTomlAssignment(in: section, key: "enabled", value: "false")
+                section = upsertTomlAssignment(in: section, key: "enabled", value: "true")
             }
             output.replaceSubrange(start..<end, with: section)
             return output
@@ -122,7 +122,7 @@ extension CLIProfileProvisioner {
             "args = [ \"--workspace\", \".\" ]",
         ]
         if includeEnabled {
-            lines.append("enabled = false")
+            lines.append("enabled = true")
         }
         return lines
     }

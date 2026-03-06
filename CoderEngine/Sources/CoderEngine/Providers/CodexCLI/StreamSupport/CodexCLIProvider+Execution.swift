@@ -120,6 +120,20 @@ extension CodexCLIProvider {
         let lines = content.components(separatedBy: .newlines)
         guard !lines.isEmpty else { return content }
 
+        var updated = repairOpenAIProviderSection(in: lines)
+        updated = repairCoderideMCPSection(in: updated)
+
+        let normalizedUpdated = updated.joined(separator: "\n")
+        guard normalizedUpdated != content.trimmingCharacters(in: .newlines) else {
+            return content
+        }
+        if content.hasSuffix("\n") {
+            return normalizedUpdated + "\n"
+        }
+        return normalizedUpdated
+    }
+
+    private static func repairOpenAIProviderSection(in lines: [String]) -> [String] {
         let normalizedSectionHeaders: Set<String> = [
             "[model_providers.openai]",
             "[model_providers.\"openai\"]"
@@ -133,7 +147,7 @@ extension CodexCLIProvider {
                 break
             }
         }
-        guard let sectionStart = startIndex else { return content }
+        guard let sectionStart = startIndex else { return lines }
 
         var sectionEnd = lines.count
         if sectionStart + 1 < lines.count {
@@ -151,16 +165,43 @@ extension CodexCLIProvider {
             if trimmed.hasPrefix("name")
                 && (trimmed.dropFirst(4).trimmingCharacters(in: .whitespaces).hasPrefix("=") || trimmed == "name")
             {
-                return content
+                return lines
             }
         }
 
         var updated = lines
         updated.insert("name = \"openai\"", at: sectionStart + 1)
-        let normalizedUpdated = updated.joined(separator: "\n")
-        if content.hasSuffix("\n") {
-            return normalizedUpdated + "\n"
+        return updated
+    }
+
+    private static func repairCoderideMCPSection(in lines: [String]) -> [String] {
+        let sectionHeader = "[mcp_servers.coderide]"
+        guard let sectionStart = lines.firstIndex(where: {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == sectionHeader
+        }) else {
+            return lines
         }
-        return normalizedUpdated
+
+        var sectionEnd = lines.count
+        if sectionStart + 1 < lines.count {
+            for idx in (sectionStart + 1)..<lines.count {
+                let trimmed = lines[idx].trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
+                    sectionEnd = idx
+                    break
+                }
+            }
+        }
+
+        var updated = lines
+        for idx in (sectionStart + 1)..<sectionEnd {
+            let trimmed = updated[idx].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard trimmed.hasPrefix("enabled") else { continue }
+            updated[idx] = "enabled = true"
+            return updated
+        }
+
+        updated.insert("enabled = true", at: min(sectionStart + 3, updated.count))
+        return updated
     }
 }

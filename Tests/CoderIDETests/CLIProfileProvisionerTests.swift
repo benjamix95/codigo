@@ -118,6 +118,35 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(config.contains("fast_mode = true"))
     }
 
+    func testCodexEnvironmentOverridesReEnablesDisabledCoderIDEMCPSection() throws {
+        let profile = try makeTemporaryProfileDirectory()
+        let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
+        let configURL = profile.appendingPathComponent("config.toml")
+
+        try """
+        # Existing profile
+        sandbox_mode = "danger-full-access"
+        fast_mode = true
+
+        [mcp_servers.coderide]
+        command = "\(fakeMCP.path)"
+        args = [ "--workspace", "." ]
+        enabled = false
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        _ = withMCPServerPathOverride(fakeMCP.path) {
+            CLIProfileProvisioner.environmentOverrides(
+                provider: .codex,
+                profilePath: profile.path,
+                secret: nil
+            )
+        }
+
+        let config = try String(contentsOf: configURL, encoding: .utf8)
+        XCTAssertTrue(config.contains("enabled = true"))
+        XCTAssertFalse(config.contains("enabled = false"))
+    }
+
     func testCodexEnvironmentOverridesRepairsLegacyManagedConfigToCurrentTemplate() throws {
         let profile = try makeTemporaryProfileDirectory()
         let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
