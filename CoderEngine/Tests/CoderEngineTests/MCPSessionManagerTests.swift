@@ -135,6 +135,96 @@ final class MCPSessionManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(metrics[0].totalCalls, 1)
     }
 
+    func testReconnectClearsNativeToolRegistry() async throws {
+        guard let binaryPath = locateCoderideMCPServerBinary() else {
+            throw XCTSkip("coderide-mcp-server binary not found in .build")
+        }
+
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-reconnect-registry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-reconnect-registry.json",
+            name: "coderide",
+            command: binaryPath,
+            args: ["--workspace", workspace.path]
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        defer {
+            Task {
+                await manager.shutdownAll()
+                MCPNativeToolRegistry.shared.clear()
+            }
+        }
+
+        _ = try await manager.listTools(serverId: server.id, idleTTLSeconds: 0)
+
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        XCTAssertTrue(registry.register(tools: [
+            MCPToolDescriptor(
+                name: "coderide_subagent_explorer",
+                description: "stale",
+                schema: #"{"type":"object","properties":{}}"#,
+                serverId: server.id,
+                serverName: server.name
+            )
+        ]))
+        XCTAssertTrue(registry.hasTools())
+
+        try await manager.reconnect(serverId: server.id)
+        XCTAssertFalse(registry.hasTools())
+    }
+
+    func testRestartServerClearsNativeToolRegistry() async throws {
+        guard let binaryPath = locateCoderideMCPServerBinary() else {
+            throw XCTSkip("coderide-mcp-server binary not found in .build")
+        }
+
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mcp-restart-registry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+
+        let server = makeServer(
+            source: "test",
+            origin: "manual",
+            path: "/tmp/mcp-restart-registry.json",
+            name: "coderide",
+            command: binaryPath,
+            args: ["--workspace", workspace.path]
+        )
+        let manager = MCPSessionManager(serverResolver: { [server] })
+        defer {
+            Task {
+                await manager.shutdownAll()
+                MCPNativeToolRegistry.shared.clear()
+            }
+        }
+
+        _ = try await manager.listTools(serverId: server.id, idleTTLSeconds: 0)
+
+        let registry = MCPNativeToolRegistry.shared
+        registry.clear()
+        XCTAssertTrue(registry.register(tools: [
+            MCPToolDescriptor(
+                name: "coderide_subagent_explorer",
+                description: "stale",
+                schema: #"{"type":"object","properties":{}}"#,
+                serverId: server.id,
+                serverName: server.name
+            )
+        ]))
+        XCTAssertTrue(registry.hasTools())
+
+        try await manager.restartServer(serverId: server.id)
+        XCTAssertFalse(registry.hasTools())
+    }
+
     private func makeServer(
         source: String,
         origin: String,

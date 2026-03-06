@@ -59,7 +59,7 @@ extension SubagentChatCardView {
 
     @ViewBuilder
     var compactSnapshotSection: some View {
-        if !isExpanded, let preview = completedResultPreview {
+        if !isExpanded, let preview = compactPreviewText {
             Divider().opacity(0.1).padding(.horizontal, 12)
             Text(preview)
                 .font(.system(size: 11, weight: .regular))
@@ -140,6 +140,18 @@ extension SubagentChatCardView {
         }
         if card.status == .failed { return "Failed" }
         return "Idle"
+    }
+
+    var compactPreviewText: String? {
+        if card.status == .running {
+            let text = card.liveText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let lines = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            return lines.suffix(4).joined(separator: "\n")
+        }
+        return completedResultPreview
     }
 
     var completedResultPreview: String? {

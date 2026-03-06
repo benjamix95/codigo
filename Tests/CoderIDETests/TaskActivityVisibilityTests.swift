@@ -23,6 +23,7 @@ final class TaskActivityVisibilityTests: XCTestCase {
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("plan_request_user_input"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("process_paused"))
         XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("debug_log"))
+        XCTAssertTrue(TaskActivityStore.isConcreteVisibleEventType("subagent_text"))
     }
 
     func testStreamingStatusAndDetailIgnoreGenericEvents() {

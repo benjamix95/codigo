@@ -87,6 +87,11 @@ extension ToolEnabledLLMProvider {
                         context: capturedContext,
                         preAssignedSubagentIdentities: capturedIdentities,
                         onLiveSubagentEvent: { liveEvent in
+                            if case .raw(let type, let payload) = liveEvent {
+                                SubagentPipelineLogger.log(
+                                    "parent_receive_live type=\(type) swarm=\(payload["swarm_id"] ?? "-") stage=\(payload["subagent_stage"] ?? "-") detail=\(payload["detail"] ?? "-")"
+                                )
+                            }
                             continuation.yield(liveEvent)
                         }
                     )

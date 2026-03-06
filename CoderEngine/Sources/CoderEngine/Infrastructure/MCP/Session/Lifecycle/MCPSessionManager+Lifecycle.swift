@@ -27,6 +27,7 @@ extension MCPSessionManager {
             throw ToolRuntimeError.mcpUnavailable("MCP server not found: \(serverId)")
         }
         try await resetSession(cfg.id)
+        invalidateNativeToolRegistry()
         _ = try await session(for: cfg)
     }
 
@@ -43,6 +44,7 @@ extension MCPSessionManager {
             }
             sessions.removeValue(forKey: cfg.id)
         }
+        invalidateNativeToolRegistry()
         _ = try await session(for: cfg)
     }
 
@@ -205,6 +207,10 @@ extension MCPSessionManager {
             }
             sessions.removeValue(forKey: id)
         }
+    }
+
+    func invalidateNativeToolRegistry() {
+        MCPNativeToolRegistry.shared.clear()
     }
 
     func shouldBypassToolCache(for cfg: MCPConfigLoader.DetectedServer) -> Bool {

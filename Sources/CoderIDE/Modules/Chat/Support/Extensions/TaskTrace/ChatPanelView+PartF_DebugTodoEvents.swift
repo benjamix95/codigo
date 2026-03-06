@@ -11,6 +11,19 @@ extension ChatPanelView {
         providerId: String,
         conversationId: UUID?
     ) {
+        if SwarmMetadata.isSwarmEvent(payload)
+            || type == "subagent_text"
+            || type == "agent"
+        {
+            NSLog(
+                "[SubagentPipe] normalize type=%@ swarm=%@ stage=%@ conv=%@ detail=%@",
+                type,
+                payload["swarm_id"] ?? payload["group_id"] ?? "-",
+                payload["subagent_stage"] ?? "-",
+                conversationId?.uuidString.lowercased() ?? "-",
+                payload["detail"] ?? "-"
+            )
+        }
         cancelFallbackTurnStartEvent()
         let envelope = flowCoordinator.normalizeRawEvent(
             providerId: providerId, type: type, payload: payload)

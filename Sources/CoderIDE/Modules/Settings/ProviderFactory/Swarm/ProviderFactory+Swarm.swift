@@ -76,7 +76,12 @@ extension ProviderFactory {
             )
         }
         guard let first = providers.first else { return nil }
-        return { first }
+        return {
+            if let authenticated = providers.first(where: { $0.isAuthenticated() }) {
+                return authenticated
+            }
+            return first
+        }
     }
 
     static func subagentProviderFactoryForParent(

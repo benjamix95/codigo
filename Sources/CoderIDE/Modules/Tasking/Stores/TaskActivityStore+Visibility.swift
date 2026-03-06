@@ -85,6 +85,7 @@ extension TaskActivityStore {
         "debug_context",
         "debug_native_session",
         "skill_invocation",
+        "subagent_text",
     ]
 
     static func isConcreteVisibleEventType(_ type: String) -> Bool {
@@ -192,6 +193,10 @@ extension TaskActivityStore {
             case "mcp_health": return "Checking MCP health"
             default: return "Calling MCP tool"
             }
+        }
+        if normalizedType == "subagent_text" {
+            let source = (last.payload["source"] ?? "").lowercased()
+            return source == "reasoning" ? "Subagent thinking" : "Subagent output"
         }
         if normalizedType.contains("web_search") {
             return "Searching web"

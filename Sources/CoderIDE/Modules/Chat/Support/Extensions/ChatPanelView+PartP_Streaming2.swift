@@ -52,6 +52,22 @@ extension ChatPanelView {
                 splitStreamingMessageForNewTurn(conversationId: convId, providerId: pid)
             }
         }
+        let isSwarmReasoning = t == "reasoning" && SwarmMetadata.isSwarmEvent(p)
+        if isSwarmReasoning, let output = p["output"], !output.isEmpty {
+            var reasoningPayload = p
+            reasoningPayload["title"] = reasoningPayload["title"] ?? "Thinking"
+            reasoningPayload["detail"] = String(output.prefix(120))
+            reasoningPayload["text"] = output
+            reasoningPayload["status"] = reasoningPayload["status"] ?? "running"
+            reasoningPayload["phase"] = "thinking"
+            recordTaskActivity(
+                type: "subagent_text",
+                payload: reasoningPayload,
+                providerId: pid,
+                conversationId: convId
+            )
+            return
+        }
         if t == "reasoning", let output = p["output"], !output.isEmpty {
             if shouldSplitThinkingMessages(providerId: pid) {
                 let groupId = p["group_id"] ?? "reasoning-stream"

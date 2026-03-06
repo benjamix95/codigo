@@ -18,7 +18,7 @@ extension TaskActivityStore {
         } else if let o = owner {
             swarmEventsAssignedCount += 1
             swarmLogger.debug(
-                "Swarm event assigned to subagent '\(o)' type=\(activity.type) title=\(activity.title)"
+                "Swarm event assigned to subagent '\(o)' type=\(activity.type) stage=\(activity.payload["subagent_stage"] ?? "-") title=\(activity.title) detail=\(activity.detail ?? "-")"
             )
         }
         SwarmLiveReducer.apply(

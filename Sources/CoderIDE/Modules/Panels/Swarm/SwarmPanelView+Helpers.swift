@@ -82,6 +82,11 @@ extension SwarmPanelView {
 
     func rawDetail(for activity: TaskActivity) -> String {
         var lines: [String] = []
+        if let backend = activity.payload["backend_display_name"], !backend.isEmpty {
+            lines.append("backend: \(backend)")
+        } else if let backendId = activity.payload["backend_provider_id"], !backendId.isEmpty {
+            lines.append("backend: \(backendId)")
+        }
         if let cwd = activity.payload["cwd"], !cwd.isEmpty { lines.append("cwd: \(cwd)") }
         if let output = activity.payload["output"], !output.isEmpty {
             lines.append(String(output.prefix(4096)))
@@ -93,5 +98,16 @@ extension SwarmPanelView {
             lines.append("diff:\n\(String(diff.prefix(2048)))")
         }
         return lines.joined(separator: "\n\n")
+    }
+
+    func backendLabel(for card: SwarmLiveCardState) -> String? {
+        for activity in card.recentEvents.reversed() {
+            let backend = (activity.payload["backend_display_name"] ?? activity.payload["backend_provider_id"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !backend.isEmpty {
+                return backend
+            }
+        }
+        return nil
     }
 }

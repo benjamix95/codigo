@@ -6,6 +6,7 @@ extension SwarmPanelView {
     func detailView(for card: SwarmLiveCardState) -> some View {
         let cardAccent = panelStatusAccent(for: card.status)
         let name = panelRoleDisplayName(from: card.swarmId)
+        let backend = backendLabel(for: card)
 
         let headerSubtitle: String = {
             if card.status == .running {
@@ -38,6 +39,13 @@ extension SwarmPanelView {
                             .foregroundStyle(.primary.opacity(0.7))
                             .lineLimit(2)
 
+                        if let backend, !backend.isEmpty {
+                            Text(backend)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+
                         Text(headerSubtitle)
                             .font(.system(size: 12, weight: .regular))
                             .foregroundStyle(.secondary.opacity(0.6))
@@ -66,6 +74,26 @@ extension SwarmPanelView {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .fill(Color(nsColor: .controlBackgroundColor).opacity(0.2))
                             )
+                    }
+
+                    let liveOutput = card.liveText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !liveOutput.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(card.status == .running ? "LIVE OUTPUT" : "OUTPUT")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                                .tracking(0.8)
+                            Text(String(liveOutput.suffix(4000)))
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(.primary.opacity(0.78))
+                                .textSelection(.enabled)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.2))
+                        )
                     }
 
                     let events = card.recentEvents

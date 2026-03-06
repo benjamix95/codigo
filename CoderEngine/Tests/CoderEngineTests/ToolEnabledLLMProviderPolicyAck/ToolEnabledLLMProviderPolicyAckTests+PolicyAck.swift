@@ -89,6 +89,61 @@ extension ToolEnabledLLMProviderPolicyAckTests {
             }
         }
     }
+
+    final class DelayedTextOnlyProvider: LLMProvider, @unchecked Sendable {
+        let id = "subagent-delayed-text"
+        let displayName = "Subagent Delayed Text"
+        private let delayNs: UInt64
+
+        init(delayMs: UInt64) {
+            self.delayNs = delayMs * 1_000_000
+        }
+
+        func isAuthenticated() -> Bool { true }
+
+        func send(
+            prompt _: String,
+            context _: WorkspaceContext,
+            imageURLs _: [URL]?
+        ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+            AsyncThrowingStream { continuation in
+                Task {
+                    continuation.yield(.started)
+                    try? await Task.sleep(nanoseconds: delayNs)
+                    continuation.yield(.textDelta("Delayed subagent output"))
+                    continuation.yield(.completed)
+                    continuation.finish()
+                }
+            }
+        }
+    }
+
+    final class SilentSubagentProvider: LLMProvider, @unchecked Sendable {
+        let id = "subagent-silent"
+        let displayName = "Subagent Silent"
+        private let delayNs: UInt64
+
+        init(delayMs: UInt64) {
+            self.delayNs = delayMs * 1_000_000
+        }
+
+        func isAuthenticated() -> Bool { true }
+
+        func send(
+            prompt _: String,
+            context _: WorkspaceContext,
+            imageURLs _: [URL]?
+        ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+            AsyncThrowingStream { continuation in
+                Task {
+                    continuation.yield(.started)
+                    try? await Task.sleep(nanoseconds: delayNs)
+                    continuation.yield(.completed)
+                    continuation.finish()
+                }
+            }
+        }
+    }
     func testInjectsSyntheticPolicyAckBeforeOperationalToolEvent() async throws {
         let workspace = FileManager.default.temporaryDirectory
             .appendingPathComponent("policy-ack-inject-\(UUID().uuidString)", isDirectory: true)

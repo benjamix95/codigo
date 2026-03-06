@@ -93,12 +93,25 @@ extension EventNormalizer {
         return last
     }
 
-    static func phaseForType(_ type: String, payload _: [String: String]) -> ActivityPhase {
+    static func phaseForType(_ type: String, payload: [String: String]) -> ActivityPhase {
         switch type {
         case "command_execution", "bash":
             return .executing
         case "mcp_tool_call":
             return .executing
+        case "agent":
+            switch (payload["phase"] ?? "").lowercased() {
+            case "thinking":
+                return .thinking
+            case "editing":
+                return .editing
+            case "searching":
+                return .searching
+            case "planning":
+                return .planning
+            default:
+                return .executing
+            }
         case "semantic_search":
             return .searching
         case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_native_session",
@@ -108,6 +121,9 @@ extension EventNormalizer {
             return .executing
         case "debug_mark", "debug_clean", "debug_instrument":
             return .editing
+        case "subagent_text":
+            let source = (payload["source"] ?? "").lowercased()
+            return source == "reasoning" ? .thinking : .executing
         case "file_change", "edit",
              "str_replace", "regex_replace", "write", "create_file", "delete_file",
              "parallel_apply", "rename_symbol", "find_and_replace_all", "undo_edit",
@@ -164,6 +180,10 @@ extension EventNormalizer {
         case "debug_phase_update":
             let normalizedPhase = (payload["phase"] ?? "").lowercased()
             return normalizedPhase != "resolved"
+        case "subagent_text":
+            let status = (payload["status"] ?? "").lowercased()
+            if status.isEmpty { return true }
+            return status == "started" || status == "running" || status == "in_progress"
         case "plan_step", "plan_step_update", "plan_step_upsert":
             let normalizedStatus = (payload["status"] ?? "").lowercased()
             return normalizedStatus == "running" || normalizedStatus == "in_progress" || normalizedStatus == "started"

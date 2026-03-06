@@ -324,4 +324,32 @@ final class SwarmLiveReducerTests: XCTestCase {
         let cards = SwarmLiveReducer.reduce(activities: [started], limitRecentEvents: 80)
         XCTAssertEqual(cards["Explorer-AuthFlow"]?.currentDetail, "launching explorer")
     }
+
+    func testSubagentTextUpdatesLiveTextAndDetail() {
+        let activity = TaskActivity(
+            type: "subagent_text",
+            title: "Live output",
+            detail: "reading Sources/CoderIDE/Modules/Swarm/SwarmLiveReducer.swift",
+            payload: [
+                "swarm_id": "Explorer-Live",
+                "group_id": "swarm-Explorer-Live",
+                "status": "running",
+                "text": "reading Sources/CoderIDE/Modules/Swarm/SwarmLiveReducer.swift",
+            ],
+            timestamp: Date(timeIntervalSince1970: 510),
+            phase: .executing,
+            isRunning: true,
+            groupId: "swarm-Explorer-Live"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [activity], limitRecentEvents: 80)
+        XCTAssertEqual(
+            cards["Explorer-Live"]?.currentDetail,
+            "reading Sources/CoderIDE/Modules/Swarm/SwarmLiveReducer.swift"
+        )
+        XCTAssertEqual(
+            cards["Explorer-Live"]?.liveText,
+            "reading Sources/CoderIDE/Modules/Swarm/SwarmLiveReducer.swift"
+        )
+    }
 }
