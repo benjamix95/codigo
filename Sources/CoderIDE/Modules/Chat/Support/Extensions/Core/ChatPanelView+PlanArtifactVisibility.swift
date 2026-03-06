@@ -63,9 +63,9 @@ extension ChatPanelView {
         message: ChatMessage,
         conversationId: UUID?
     ) -> Bool {
-        guard message.role == .assistant else { return false }
-        guard hasActivePlanContext(for: conversationId) else { return false }
-        return looksLikePlanPayload(message.content)
+        _ = message
+        _ = conversationId
+        return false
     }
 
     func chatDisplayMessage(

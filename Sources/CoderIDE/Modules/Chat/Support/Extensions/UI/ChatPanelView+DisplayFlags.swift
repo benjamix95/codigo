@@ -13,7 +13,7 @@ extension ChatPanelView {
     }
 
     var shouldRoutePlanStreamingToPanel: Bool {
-        hasActivePlanContext
+        false
     }
 
     var shouldShowPlanBoardInChat: Bool {

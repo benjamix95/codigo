@@ -148,9 +148,30 @@ extension ChatPanelView {
             case .activatePlanMode(let reason):
                 handleAutoActivatePlanMode(reason: reason)
             case .mermaidRender(let code, let title):
-                let titlePrefix = title.map { "**\($0)**\n\n" } ?? ""
-                let mermaidMarkdown = "\(titlePrefix)```mermaid\n\(code)\n```"
+                if let target = currentAssistantPipelineTarget(for: conversationId),
+                   let conversationId
+                {
+                    applyChatPipelineEvent(
+                        ChatPipelineEvent(
+                            conversationId: conversationId,
+                            assistantMessageId: target.messageId,
+                            turnId: target.turnId,
+                            sequence: 0,
+                            source: providerId,
+                            kind: .mermaidArtifact,
+                            payload: [
+                                "artifact_id": "mermaid-\(abs(code.hashValue))",
+                                "code": code,
+                                "title": title ?? "Diagram",
+                                "provider_id": providerId,
+                            ]
+                        ),
+                        persistImmediately: true
+                    )
+                }
                 if shouldRoutePlanStream(to: conversationId) {
+                    let titlePrefix = title.map { "**\($0)**\n\n" } ?? ""
+                    let mermaidMarkdown = "\(titlePrefix)```mermaid\n\(code)\n```"
                     appendPlanStreamingContent(
                         mermaidMarkdown,
                         conversationId: conversationId
@@ -161,13 +182,6 @@ extension ChatPanelView {
                             source: .automaticFlow
                         )
                     }
-                } else {
-                    // Non-plan flows keep the diagram in chat.
-                    chatStore.updateLastAssistantMessage(
-                        content: mermaidMarkdown,
-                        in: conversationId,
-                        persistImmediately: true
-                    )
                 }
             default:
                 break

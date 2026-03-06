@@ -31,7 +31,8 @@ final class PipelineConversationRuntime {
     var lastError: String?
     var circuitBreakerActive: Bool
     var wasCancelled: Bool
-    var accumulatedText: [String: String]
+    var chatTurnState: ChatTurnState
+    var nextPipelineSequence: Int
     var activeStreamTask: Task<Void, Never>?
     let jobStartTime: Date
 
@@ -56,7 +57,13 @@ final class PipelineConversationRuntime {
         self.lastError = nil
         self.circuitBreakerActive = false
         self.wasCancelled = false
-        self.accumulatedText = [:]
+        self.chatTurnState = ChatTurnState(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: assistantMessageId.uuidString,
+            providerId: nil
+        )
+        self.nextPipelineSequence = 1
         self.jobStartTime = Date()
     }
 

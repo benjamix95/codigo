@@ -46,9 +46,16 @@ extension ChatPanelView {
         let initialChatContent = shouldHidePlanMarkdown
             ? "Processing plan output in Plan Panel..."
             : full
-        chatStore.updateLastAssistantMessage(
+        applyLegacyStreamSnapshot(
             content: initialChatContent,
-            in: streamConversationId,
+            conversationId: streamConversationId,
+            providerId: providerRegistry.selectedProviderId ?? "unknown"
+        )
+        applyLegacyLifecycleEvent(
+            kind: .turnCompleted,
+            conversationId: streamConversationId,
+            providerId: providerRegistry.selectedProviderId ?? "unknown",
+            status: "completed",
             persistImmediately: true
         )
         chatStore.setLastAssistantStreaming(false, in: streamConversationId)
@@ -80,7 +87,11 @@ extension ChatPanelView {
                 }
                 if case .awaitingClarification = classificationState {
                     let summaryContent = "Clarifications needed to proceed with the plan. Open the Planning panel to answer the questions."
-                    chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
+                    applyLegacyStreamSnapshot(
+                        content: summaryContent,
+                        conversationId: streamConversationId,
+                        providerId: providerRegistry.selectedProviderId ?? "unknown"
+                    )
                     await MainActor.run {
                         if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
                             openPlanPanelForCurrentContext(
@@ -96,7 +107,11 @@ extension ChatPanelView {
                     let currentConv = chatStore.conversation(for: streamConversationId)
                     let parsedSummary = PlanOptionsParser.extractDisplaySummary(from: full)
                     let summaryContent = "Plan ready in Plan Panel: \(parsedSummary.title)"
-                    chatStore.updateLastAssistantMessage(content: summaryContent, in: streamConversationId, persistImmediately: true)
+                    applyLegacyStreamSnapshot(
+                        content: summaryContent,
+                        conversationId: streamConversationId,
+                        providerId: providerRegistry.selectedProviderId ?? "unknown"
+                    )
                     _ = planHistoryStore.createEntry(
                         conversationId: streamConversationId,
                         contextId: currentConv?.contextId,

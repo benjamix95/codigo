@@ -80,6 +80,9 @@ struct ChatMessage: Identifiable, Codable {
     var id: UUID
     var role: Role
     var content: String
+    var primaryTextSnapshot: String?
+    var blocks: [PersistedChatTimelineBlock]?
+    var turnMetadata: ChatTurnMetadata?
     var isStreaming: Bool
     var imagePaths: [String]?
     var attachments: [ChatAttachment]?
@@ -96,6 +99,9 @@ struct ChatMessage: Identifiable, Codable {
         id: UUID = UUID(),
         role: Role,
         content: String,
+        primaryTextSnapshot: String? = nil,
+        blocks: [PersistedChatTimelineBlock]? = nil,
+        turnMetadata: ChatTurnMetadata? = nil,
         isStreaming: Bool = false,
         imagePaths: [String]? = nil,
         attachments: [ChatAttachment]? = nil,
@@ -104,6 +110,9 @@ struct ChatMessage: Identifiable, Codable {
         self.id = id
         self.role = role
         self.content = content
+        self.primaryTextSnapshot = primaryTextSnapshot ?? content
+        self.blocks = blocks
+        self.turnMetadata = turnMetadata
         self.isStreaming = isStreaming
         self.imagePaths = imagePaths
         if let attachments {
@@ -124,7 +133,7 @@ struct ChatMessage: Identifiable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, role, content, isStreaming, imagePaths, attachments, planAttachment, reasoningText, subagentCards
+        case id, role, content, primaryTextSnapshot, blocks, turnMetadata, isStreaming, imagePaths, attachments, planAttachment, reasoningText, subagentCards
     }
 
     init(from decoder: Decoder) throws {
@@ -132,6 +141,9 @@ struct ChatMessage: Identifiable, Codable {
         id = try c.decode(UUID.self, forKey: .id)
         role = try c.decode(Role.self, forKey: .role)
         content = try c.decode(String.self, forKey: .content)
+        primaryTextSnapshot = try? c.decode(String.self, forKey: .primaryTextSnapshot)
+        blocks = try? c.decode([PersistedChatTimelineBlock].self, forKey: .blocks)
+        turnMetadata = try? c.decode(ChatTurnMetadata.self, forKey: .turnMetadata)
         isStreaming = (try? c.decode(Bool.self, forKey: .isStreaming)) ?? false
         imagePaths = try? c.decode([String].self, forKey: .imagePaths)
         let decodedAttachments = try? c.decode([ChatAttachment].self, forKey: .attachments)
@@ -159,6 +171,9 @@ struct ChatMessage: Identifiable, Codable {
         try c.encode(id, forKey: .id)
         try c.encode(role, forKey: .role)
         try c.encode(content, forKey: .content)
+        try c.encodeIfPresent(primaryTextSnapshot, forKey: .primaryTextSnapshot)
+        try c.encodeIfPresent(blocks, forKey: .blocks)
+        try c.encodeIfPresent(turnMetadata, forKey: .turnMetadata)
         try c.encode(isStreaming, forKey: .isStreaming)
         try c.encodeIfPresent(planAttachment, forKey: .planAttachment)
         try c.encodeIfPresent(attachments, forKey: .attachments)

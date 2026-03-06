@@ -49,20 +49,18 @@ func targetAssistantMessageIndex(conversationIndex: Int) -> Int? {
 func updateLastAssistantMessage(content: String, in conversationId: UUID?, persistImmediately: Bool = true) {
     guard let idx = conversations.firstIndex(where: { $0.id == conversationId }) else { return }
     guard let lastIdx = targetAssistantMessageIndex(conversationIndex: idx) else { return }
+    let targetMessageId = conversations[idx].messages[lastIdx].id
     let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-    if conversations[idx].messages[lastIdx].content == resolvedContent {
+    if conversations[idx].messages[lastIdx].content == resolvedContent,
+       conversations[idx].messages[lastIdx].primaryTextSnapshot == resolvedContent {
         return
     }
-    conversations[idx].messages[lastIdx].content = resolvedContent
-    if persistImmediately {
-        saveConversations()
-    } else {
-        let now = Date()
-        if now.timeIntervalSince(lastStreamingSaveAt) >= 3.0 {
-            lastStreamingSaveAt = now
-            saveConversations()
-        }
-    }
+    syncLegacyAssistantContent(
+        messageId: targetMessageId,
+        content: resolvedContent,
+        in: conversationId,
+        persistImmediately: persistImmediately
+    )
 }
 
 func updateAssistantMessage(
@@ -76,19 +74,16 @@ func updateAssistantMessage(
         $0.id == messageId && $0.role == .assistant
     }) else { return }
     let resolvedContent = Self.stripCoderideMarkers(content, aggressive: false)
-    if conversations[idx].messages[messageIdx].content == resolvedContent {
+    if conversations[idx].messages[messageIdx].content == resolvedContent,
+       conversations[idx].messages[messageIdx].primaryTextSnapshot == resolvedContent {
         return
     }
-    conversations[idx].messages[messageIdx].content = resolvedContent
-    if persistImmediately {
-        saveConversations()
-    } else {
-        let now = Date()
-        if now.timeIntervalSince(lastStreamingSaveAt) >= 3.0 {
-            lastStreamingSaveAt = now
-            saveConversations()
-        }
-    }
+    syncLegacyAssistantContent(
+        messageId: messageId,
+        content: resolvedContent,
+        in: conversationId,
+        persistImmediately: persistImmediately
+    )
 }
 
 func insertMessage(_ message: ChatMessage, before messageId: UUID, in conversationId: UUID?) {
@@ -142,6 +137,22 @@ func saveReasoningToLastAssistant(reasoning: String, in conversationId: UUID?) {
     let trimmed = reasoning.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return }
     conversations[idx].messages[lastIdx].reasoningText = trimmed
+    var blocks = conversations[idx].messages[lastIdx].blocks ?? []
+    if let reasoningIdx = blocks.firstIndex(where: { $0.kind == .reasoning }) {
+        blocks[reasoningIdx].text = trimmed
+    } else {
+        blocks.append(
+            PersistedChatTimelineBlock(
+                id: "reasoning",
+                kind: .reasoning,
+                title: "Thinking",
+                text: trimmed,
+                isCollapsible: true,
+                isCollapsedByDefault: true
+            )
+        )
+    }
+    conversations[idx].messages[lastIdx].blocks = blocks
     saveConversations()
 }
 
@@ -152,7 +163,7 @@ func removeAssistantMessageIfEmpty(messageId: UUID, in conversationId: UUID?) {
     }
     let message = conversations[idx].messages[midx]
     guard message.role == .assistant else { return }
-    let trimmed = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmed = message.resolvedPrimaryText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.isEmpty else { return }
     removeMessage(messageId: messageId, in: conversationId)
 }

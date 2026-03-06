@@ -37,9 +37,9 @@ extension ChatPanelView {
 
     internal func enableTaskPanelIfNeeded() {
         guard shouldEnableTaskPanelForMode(coderMode) else { return }
-        if !taskPanelEnabled {
-            taskPanelEnabled = true
-        }
+        // Task Activity is now a secondary surface. Keep the user choice sticky
+        // instead of auto-opening it during execution.
+        _ = taskPanelEnabled
     }
 
     internal func scheduleFallbackTurnStartEvent(conversationId: UUID, providerId: String) {

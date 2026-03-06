@@ -111,6 +111,14 @@ extension ChatPanelView {
                     }
                     return
                 } else {
+                    await MainActor.run {
+                        applyLegacyLifecycleEvent(
+                            kind: .turnStarted,
+                            conversationId: targetConversationId,
+                            providerId: effectiveRuntimeProvider.id,
+                            status: "streaming"
+                        )
+                    }
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,
                         prompt: prompt,
@@ -132,9 +140,10 @@ extension ChatPanelView {
                         },
                         onError: { content in
                             Task { @MainActor in
-                                chatStore.updateLastAssistantMessage(
+                                applyLegacyStreamSnapshot(
                                     content: content,
-                                    in: targetConversationId
+                                    conversationId: targetConversationId,
+                                    providerId: effectiveRuntimeProvider.id
                                 )
                             }
                         },
@@ -169,9 +178,18 @@ extension ChatPanelView {
                     }
                 } else {
                     traceOutcome = .failed
-                    chatStore.updateLastAssistantMessage(
+                    applyLegacyStreamSnapshot(
                         content: userFacingStreamError(error),
-                        in: targetConversationId
+                        conversationId: targetConversationId,
+                        providerId: effectiveRuntimeProvider.id
+                    )
+                    applyLegacyLifecycleEvent(
+                        kind: .turnFailed,
+                        conversationId: targetConversationId,
+                        providerId: effectiveRuntimeProvider.id,
+                        status: "failed",
+                        detail: userFacingStreamError(error),
+                        persistImmediately: true
                     )
                     await MainActor.run {
                         applyFlowCoordinatorState(for: targetConversationId) { $0.fail() }

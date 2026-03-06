@@ -65,6 +65,50 @@ final class ChatStoreExportMarkdownTests: XCTestCase {
         XCTAssertTrue(markdown.contains("## Assistant"))
     }
 
+    func testExportIncludesPipelineBlocksWhenPresent() throws {
+        let store = ChatStore()
+        let conversationId = try XCTUnwrap(store.conversations.first?.id)
+
+        let assistant = ChatMessage(
+            role: .assistant,
+            content: "",
+            primaryTextSnapshot: "Primary response",
+            blocks: [
+                PersistedChatTimelineBlock(
+                    id: "primary-text",
+                    kind: .primaryText,
+                    text: "Primary response"
+                ),
+                PersistedChatTimelineBlock(
+                    id: "mermaid-1",
+                    kind: .mermaid,
+                    title: "Flow",
+                    text: "graph TD; A-->B;",
+                    isCollapsible: true
+                ),
+                PersistedChatTimelineBlock(
+                    id: "commands",
+                    kind: .commands,
+                    title: "Commands executed",
+                    items: ["swift test"],
+                    isCollapsible: true,
+                    isCollapsedByDefault: true
+                ),
+            ]
+        )
+
+        store.conversations[0] = Conversation(
+            id: conversationId,
+            title: "Pipeline Export",
+            messages: [assistant]
+        )
+
+        let markdown = try XCTUnwrap(store.exportConversationMarkdown(conversationId: conversationId))
+        XCTAssertTrue(markdown.contains("Primary response"))
+        XCTAssertTrue(markdown.contains("```mermaid"))
+        XCTAssertTrue(markdown.contains("swift test"))
+    }
+
     func testDefaultMarkdownFilenameSanitizesTitle() throws {
         let store = ChatStore()
         let conversationId = try XCTUnwrap(store.conversations.first?.id)

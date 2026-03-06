@@ -86,6 +86,7 @@ extension PipelineIntegrationService {
             "Pipeline started (\(p.taskCount) tasks, mode: \(p.mode.rawValue))",
             for: conversationId
         )
+        consumePipelineUIEvent(.jobStarted(p), for: conversationId)
     }
 
     private func handleJobCompleted(_ p: JobCompletedPayload, for conversationId: UUID) {
@@ -93,10 +94,7 @@ extension PipelineIntegrationService {
         runtime.jobState = .finalized
         runtime.completedTasks = p.completedTasks
         persistSnapshot(for: conversationId)
-
-        let summary = "Pipeline completed: \(p.completedTasks)/\(p.totalTasks) tasks"
-            + " in \(formatDuration(p.durationMs))"
-        appendToAssistantMessage(summary, in: conversationId)
+        consumePipelineUIEvent(.jobCompleted(p), for: conversationId)
 
         if let planId = runtime.planConversationId {
             finalizePlanBuild(
@@ -116,10 +114,7 @@ extension PipelineIntegrationService {
         runtime.jobState = .failed
         runtime.lastError = p.reason
         persistSnapshot(for: conversationId)
-
-        let errorMsg = "\n\n[Pipeline Error: \(p.reason)]"
-            + " (\(p.failedTasks) task(s) failed)"
-        appendToAssistantMessage(errorMsg, in: conversationId)
+        consumePipelineUIEvent(.jobFailed(p), for: conversationId)
     }
 
     // MARK: - Task Events
@@ -213,34 +208,16 @@ extension PipelineIntegrationService {
     }
 
     private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {
-        let errorLine = "\n[Task \(p.taskId) failed: \(p.error)]"
-        appendToAssistantMessage(errorLine, in: conversationId)
+        consumePipelineUIEvent(.taskFailed(p), for: conversationId)
     }
 
     // MARK: - Streaming Events
 
     private func handleTextDelta(_ p: TextDeltaPayload, for conversationId: UUID) {
-        guard let runtime = runtime(for: conversationId) else { return }
-        let current = runtime.accumulatedText[p.taskId, default: ""]
-        runtime.accumulatedText[p.taskId] = current + p.delta
-
-        let fullText = runtime.accumulatedText.values.joined()
-        chatStore?.updateLastAssistantMessage(
-            content: fullText,
-            in: conversationId,
-            persistImmediately: false
-        )
+        consumePipelineUIEvent(.textDelta(p), for: conversationId)
     }
 
     private func handleTextReplace(_ p: TextReplacePayload, for conversationId: UUID) {
-        guard let runtime = runtime(for: conversationId) else { return }
-        runtime.accumulatedText[p.taskId] = p.replacement
-
-        let fullText = runtime.accumulatedText.values.joined()
-        chatStore?.updateLastAssistantMessage(
-            content: fullText,
-            in: conversationId,
-            persistImmediately: false
-        )
+        consumePipelineUIEvent(.textReplace(p), for: conversationId)
     }
 }

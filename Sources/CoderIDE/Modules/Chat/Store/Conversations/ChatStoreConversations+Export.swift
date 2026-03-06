@@ -15,7 +15,7 @@ extension ChatStore {
         lines.append("")
 
         for message in conversation.messages {
-            let content = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let content = message.exportMarkdownContent.trimmingCharacters(in: .whitespacesAndNewlines)
             let nonImageAttachments = (message.attachments ?? []).filter { $0.kind != .image }
             if content.isEmpty, nonImageAttachments.isEmpty { continue }
 
@@ -58,6 +58,9 @@ extension ChatStore {
                 id: UUID(),
                 role: message.role,
                 content: message.content,
+                primaryTextSnapshot: message.primaryTextSnapshot,
+                blocks: message.blocks,
+                turnMetadata: message.turnMetadata,
                 isStreaming: false,
                 imagePaths: message.imagePaths,
                 attachments: message.attachments,

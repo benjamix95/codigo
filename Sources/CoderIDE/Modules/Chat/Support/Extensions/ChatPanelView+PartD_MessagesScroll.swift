@@ -133,21 +133,6 @@ extension ChatPanelView {
                         }
                     )
                 } else {
-                    let isLiveReasoningTarget = conversationId == streamingReasoningConversationId
-                        && isLastAssistant
-                        && message.isStreaming
-                    let effectiveReasoning: String? = {
-                        if isLiveReasoningTarget {
-                            return streamingReasoningText
-                        }
-                        return message.reasoningText
-                    }()
-                    let effectiveReasoningBlocks: [ReasoningBlock] = {
-                        if isLiveReasoningTarget {
-                            return streamingReasoningBlocks
-                        }
-                        return []
-                    }()
                     let suppressPlanArtifacts = shouldSuppressPlanArtifactsInChat(
                         message: message,
                         conversationId: conversationId
@@ -161,191 +146,38 @@ extension ChatPanelView {
                         && lastMsg?.role == .assistant
                         && (lastMsg?.isStreaming ?? false)
                         && isLoadingForCurrentConversation
-                    let useSequentialLayout =
-                        sequentialStreamingLayoutEnabled
-                        && isLiveReasoningTarget
-                        && !streamingSegments.isEmpty
-                    VStack(alignment: .leading, spacing: 10) {
-                        if useSequentialLayout {
-                            sequentialSegmentedContent(
-                                message: displayMessage,
-                                segments: streamingSegments,
-                                effectiveContext: effectiveContext,
-                                suppressPlanArtifacts: suppressPlanArtifacts,
-                                shouldHideStreamingBar: shouldHideStreamingBarOnPreviousAssistant,
-                                restoreAction: restoreAction,
-                                replyAction: replyAction,
-                                deleteAction: deleteAction,
-                                canRewindFromMessage: canRewindFromMessage,
-                                hasCheckpointForMessage: hasCheckpointForMessage,
-                                needsDivider: needsDivider,
-                                latestAssistantMessageId: latestAssistantMessageId,
-                                conversationId: conversationId
-                            )
-                        } else {
-                            MessageRow(
-                                message: displayMessage,
-                                context: effectiveContext.context,
-                                modeColor: activeModeColor,
-                                isActuallyLoading: isLoadingForCurrentConversation,
-                                streamingStatusText: streamingStatusText(for: displayMessage),
-                                streamingDetailText: streamingDetailText(for: displayMessage, conversationId: conversationId),
-                                streamingReasoningText: effectiveReasoning,
-                                streamingReasoningBlocks: effectiveReasoningBlocks,
-                                showStreamingBar: !shouldHideStreamingBarOnPreviousAssistant,
-                                onFileClicked: { openFilesStore.openFile($0) },
-                                onRestoreCheckpoint: restoreAction,
-                                onReply: replyAction,
-                                onDelete: deleteAction,
-                                canRewind: canRewindFromMessage,
-                                hasCheckpointForRestore: hasCheckpointForMessage,
-                                showTopDivider: needsDivider
-                            )
-                            if message.role == .assistant {
-                                if shouldShowPlanTodosInChat,
-                                   !todoStore.displayTodosForChat(for: conversationId).isEmpty,
-                                   message.id == latestAssistantMessageId
-                                {
-                                    TodoLiveInlineCard(
-                                        store: todoStore,
-                                        conversationId: conversationId,
-                                        onOpenFile: { openFilesStore.openFile($0) }
-                                    )
-                                    .padding(.horizontal, 2)
-                                }
-                                let traceEvents = toolTraceStore.events(
-                                    conversationId: conversationId,
-                                    assistantMessageId: message.id
-                                )
-                                if !traceEvents.isEmpty {
-                                    messageTraceView(
-                                        traceEvents: traceEvents,
-                                        effectiveContext: effectiveContext
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    let traceEvents = message.role == .assistant
+                        ? toolTraceStore.events(
+                            conversationId: conversationId,
+                            assistantMessageId: message.id
+                        )
+                        : []
+                    ChatTimelineView(
+                        message: displayMessage,
+                        context: effectiveContext.context,
+                        modeColor: activeModeColor,
+                        isActuallyLoading: isLoadingForCurrentConversation,
+                        streamingStatusText: shouldHideStreamingBarOnPreviousAssistant ? "" : streamingStatusText(for: displayMessage),
+                        streamingDetailText: shouldHideStreamingBarOnPreviousAssistant ? nil : streamingDetailText(for: displayMessage, conversationId: conversationId),
+                        traceEvents: traceEvents,
+                        todoStore: todoStore,
+                        conversationId: conversationId,
+                        shouldShowTodo: message.role == .assistant
+                            && shouldShowPlanTodosInChat
+                            && !todoStore.displayTodosForChat(for: conversationId).isEmpty
+                            && message.id == latestAssistantMessageId,
+                        onFileClicked: { openFilesStore.openFile($0) },
+                        onRestoreCheckpoint: restoreAction,
+                        onReply: replyAction,
+                        onDelete: deleteAction,
+                        canRewind: canRewindFromMessage,
+                        hasCheckpointForRestore: hasCheckpointForMessage,
+                        showTopDivider: needsDivider
+                    )
                 }
                 if message.role == .assistant { Spacer(minLength: 0) }
             }
             .id(message.id)
         }
     }
-
-    @ViewBuilder
-    internal func sequentialSegmentedContent(
-        message: ChatMessage,
-        segments: [MessageSegment],
-        effectiveContext: EffectiveContext,
-        suppressPlanArtifacts: Bool,
-        shouldHideStreamingBar: Bool,
-        restoreAction: (() -> Void)?,
-        replyAction: (() -> Void)?,
-        deleteAction: (() -> Void)?,
-        canRewindFromMessage: Bool,
-        hasCheckpointForMessage: Bool,
-        needsDivider: Bool,
-        latestAssistantMessageId: UUID?,
-        conversationId: UUID
-    ) -> some View {
-        let contentMaxWidth: CGFloat = 800
-        let isStreaming = message.isStreaming && isLoadingForCurrentConversation
-
-        if needsDivider {
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.primary.opacity(0.0),
-                            Color.primary.opacity(0.06),
-                            Color.primary.opacity(0.06),
-                            Color.primary.opacity(0.0),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 0.5)
-                .frame(maxWidth: 860)
-                .padding(.bottom, 20)
-        }
-
-        HStack(spacing: 5) {
-            Circle()
-                .fill(activeModeColor.opacity(0.6))
-                .frame(width: 5.5, height: 5.5)
-            Text("Codigo")
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .tracking(0.3)
-            Spacer(minLength: 0)
-        }
-        .padding(.leading, 2)
-        .padding(.bottom, 5)
-
-        ForEach(segments) { segment in
-            switch segment.kind {
-            case .reasoning(let text):
-                ThinkingBlockView(text: text, isLiveStreaming: isStreaming)
-                    .padding(.bottom, 4)
-            case .text(let content):
-                if !content.isEmpty {
-                    MarkdownContentView(
-                        content: content,
-                        context: effectiveContext.context,
-                        onFileClicked: { openFilesStore.openFile($0) },
-                        textAlignment: .leading,
-                        isStreaming: isStreaming
-                    )
-                    .frame(maxWidth: contentMaxWidth, alignment: .leading)
-                    .padding(.vertical, 4)
-                }
-            case .toolTrace(let events):
-                if !events.isEmpty {
-                    messageTraceView(
-                        traceEvents: events,
-                        effectiveContext: effectiveContext
-                    )
-                }
-            }
-        }
-
-        if isStreaming, !shouldHideStreamingBar {
-            let status = streamingStatusText(for: message).isEmpty ? "Thinking" : streamingStatusText(for: message)
-            HStack(spacing: 6) {
-                Text(status)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .textShimmer(active: true)
-                if status != "Planning next move",
-                   let detail = streamingDetailText(for: message, conversationId: conversationId),
-                   !detail.isEmpty
-                {
-                    Text("·")
-                        .foregroundStyle(.secondary)
-                    Text(detail)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .textShimmer(active: true)
-                }
-                Spacer()
-            }
-            .padding(.top, 2)
-        }
-
-        if shouldShowPlanTodosInChat,
-           !todoStore.displayTodosForChat(for: conversationId).isEmpty,
-           message.id == latestAssistantMessageId
-        {
-            TodoLiveInlineCard(
-                store: todoStore,
-                conversationId: conversationId,
-                onOpenFile: { openFilesStore.openFile($0) }
-            )
-            .padding(.horizontal, 2)
-        }
-    }
-
 }

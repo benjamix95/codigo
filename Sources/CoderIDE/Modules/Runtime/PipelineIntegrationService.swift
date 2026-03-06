@@ -101,6 +101,7 @@ final class PipelineIntegrationService: ObservableObject {
             planConversationId: planConversationId,
             onCompletion: onCompletion
         )
+        runtime.chatTurnState.orderedTextStreamIds = tasks.map(\.taskId)
         runtimesByConversation[conversationId] = runtime
         persistSnapshot(for: conversationId)
 

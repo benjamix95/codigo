@@ -70,7 +70,7 @@ struct ChatPanelView: View {
     @State  var codexModels: [CodexModel] = []
     @State  var geminiModels: [GeminiModel] = []
     @State  var showSwarmHelp = false
-    @AppStorage("task_panel_enabled")  var taskPanelEnabled = true
+    @AppStorage("task_panel_enabled")  var taskPanelEnabled = false
     @AppStorage("plan_mode_backend")  var planModeBackend = "codex"
     @AppStorage("claude_path")  var claudePath = ""
     @AppStorage("claude_model")  var claudeModel = "claude-sonnet-4-6"
@@ -168,6 +168,10 @@ struct ChatPanelView: View {
     @State  var lastAutoScrollAt: Date = .distantPast
     @State  var fallbackTurnStartWorkItem: DispatchWorkItem?
     @State  var streamContentVersion: Int = 0
+    @State  var activeTurnStateByConversation: [UUID: ChatTurnState] = [:]
+    @State  var renderSnapshotByConversation: [UUID: ChatTurnState] = [:]
+    @State  var collapsedArtifactsByTurn: [String: Set<String>] = [:]
+    @State  var pipelineEventSequenceByConversation: [UUID: Int] = [:]
     @State  var streamingReasoningText: String?
     @State  var streamingReasoningConversationId: UUID?
     @State  var streamingReasoningBlocks: [ReasoningBlock] = []

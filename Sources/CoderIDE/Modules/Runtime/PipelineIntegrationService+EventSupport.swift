@@ -12,6 +12,7 @@ extension PipelineIntegrationService {
         if let callback = onRawStreamEvent {
             callback(rawType, p.payload, providerId, conversationId)
         }
+        consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)
 
         if rawType == "todo_write" || p.payload.keys.contains(where: {
             $0.hasPrefix("todo_")
@@ -184,12 +185,28 @@ extension PipelineIntegrationService {
     ) {
         guard let todoStore else { return }
 
-        let recap = buildPlanRecap(
-            durationMs: durationMs,
-            completedTasks: completedTasks,
-            totalTasks: totalTasks
+        consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: agentConversationId,
+                    assistantMessageId: runtime(for: agentConversationId)?.assistantMessageId ?? UUID(),
+                    turnId: runtime(for: agentConversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    sequence: 0,
+                    source: "pipeline",
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "plan-build-summary",
+                        "title": "Plan build complete",
+                        "detail": buildPlanRecap(
+                            durationMs: durationMs,
+                            completedTasks: completedTasks,
+                            totalTasks: totalTasks
+                        ),
+                    ]
+                ),
+            ],
+            for: agentConversationId
         )
-        appendToAssistantMessage(recap, in: agentConversationId)
 
         todoStore.upsertFromAgent(
             id: nil,
@@ -219,25 +236,66 @@ extension PipelineIntegrationService {
     // MARK: - Patch & Rollback
 
     func handlePatchApplied(_ p: PatchAppliedPayload, for conversationId: UUID) {
-        let fileList = p.touchedFiles.prefix(5).joined(separator: ", ")
-        let suffix = p.touchedFiles.count > 5
-            ? " (+\(p.touchedFiles.count - 5) more)" : ""
-        let riskLabel = p.riskScore > 0.7 ? " [HIGH RISK]" : ""
-        let msg = "\nPatch applied: \(fileList)\(suffix)\(riskLabel)"
-        appendToAssistantMessage(msg, in: conversationId)
+        for file in p.touchedFiles {
+            consumePipelineEvents(
+                [
+                    ChatPipelineEvent(
+                        conversationId: conversationId,
+                        assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
+                        turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                        sequence: 0,
+                        source: "pipeline",
+                        kind: .filesArtifact,
+                        payload: ["path": file]
+                    ),
+                ],
+                for: conversationId
+            )
+        }
     }
 
     func handleRollback(_ p: RollbackPayload, for conversationId: UUID) {
-        let msg = "\n[Rollback triggered for task \(p.taskId): \(p.reason)]"
-        appendToAssistantMessage(msg, in: conversationId)
+        consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
+                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    sequence: 0,
+                    source: "pipeline",
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "rollback-\(p.taskId)",
+                        "title": "Rollback triggered",
+                        "detail": p.reason,
+                    ]
+                ),
+            ],
+            for: conversationId
+        )
     }
 
     // MARK: - Review & Progress
 
     func handleReviewFinding(_ p: ReviewFindingPayload, for conversationId: UUID) {
-        let severity = p.finding.severity.rawValue.uppercased()
-        let msg = "\n[\(severity)] \(p.finding.file): \(p.finding.message)"
-        appendToAssistantMessage(msg, in: conversationId)
+        consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
+                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    sequence: 0,
+                    source: "pipeline",
+                    kind: .toolTraceArtifact,
+                    payload: [
+                        "artifact_id": "review-finding-\(p.taskId)",
+                        "title": "Review finding",
+                        "detail": "[\(p.finding.severity.rawValue.uppercased())] \(p.finding.file): \(p.finding.message)",
+                    ]
+                ),
+            ],
+            for: conversationId
+        )
     }
 
     func handleProgress(_ p: ProgressPayload, for conversationId: UUID) {
@@ -254,8 +312,24 @@ extension PipelineIntegrationService {
         guard let runtime = runtime(for: conversationId) else { return }
         runtime.circuitBreakerActive = (p.phase == .open)
         persistSnapshot(for: conversationId)
-        let msg = "\n[Circuit Breaker: \(p.phase.rawValue) - \(p.reason)]"
-        appendToAssistantMessage(msg, in: conversationId)
+        consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: runtime.assistantMessageId,
+                    turnId: runtime.chatTurnState.turnId,
+                    sequence: 0,
+                    source: "pipeline",
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "circuit-breaker",
+                        "title": "Circuit breaker",
+                        "detail": "\(p.phase.rawValue) - \(p.reason)",
+                    ]
+                ),
+            ],
+            for: conversationId
+        )
     }
 
     func handleBackpressure(_ p: BackpressurePayload, for conversationId: UUID) {
@@ -268,25 +342,45 @@ extension PipelineIntegrationService {
 
     func handleProviderHealth(_ p: ProviderHealthPayload, for conversationId: UUID) {
         if p.status == .unhealthy {
-            let msg = "\n[Provider \(p.providerId) unhealthy]"
-            appendToAssistantMessage(msg, in: conversationId)
+            consumePipelineEvents(
+                [
+                    ChatPipelineEvent(
+                        conversationId: conversationId,
+                        assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
+                        turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                        sequence: 0,
+                        source: "pipeline",
+                        kind: .statusBadge,
+                        payload: [
+                            "artifact_id": "provider-health-\(p.providerId)",
+                            "title": "Provider unhealthy",
+                            "detail": p.providerId,
+                        ]
+                    ),
+                ],
+                for: conversationId
+            )
         }
     }
 
     func handleErrorBudget(_ p: ErrorBudgetPayload, for conversationId: UUID) {
-        let msg = "\n[Error budget low: \(p.failedPercent)%/\(p.maxPercent)%"
-            + ", \(p.consecutiveFailures) consecutive failures]"
-        appendToAssistantMessage(msg, in: conversationId)
-    }
-
-    // MARK: - Helpers
-
-    func appendToAssistantMessage(_ text: String, in conversationId: UUID) {
-        guard let runtime = runtime(for: conversationId) else { return }
-        let current = runtime.accumulatedText.values.joined()
-        chatStore?.updateLastAssistantMessage(
-            content: current + text,
-            in: conversationId
+        consumePipelineEvents(
+            [
+                ChatPipelineEvent(
+                    conversationId: conversationId,
+                    assistantMessageId: runtime(for: conversationId)?.assistantMessageId ?? UUID(),
+                    turnId: runtime(for: conversationId)?.chatTurnState.turnId ?? UUID().uuidString,
+                    sequence: 0,
+                    source: "pipeline",
+                    kind: .statusBadge,
+                    payload: [
+                        "artifact_id": "error-budget",
+                        "title": "Error budget low",
+                        "detail": "\(p.failedPercent)%/\(p.maxPercent)%, \(p.consecutiveFailures) consecutive failures",
+                    ]
+                ),
+            ],
+            for: conversationId
         )
     }
 

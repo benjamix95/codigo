@@ -52,6 +52,22 @@ extension ChatPanelView {
                 splitStreamingMessageForNewTurn(conversationId: convId, providerId: pid)
             }
         }
+        let pipelineConversationId = convId ?? conversationId
+        if let pipelineTarget = currentAssistantPipelineTarget(for: pipelineConversationId),
+           let pipelineConversationId
+        {
+            let pipelineEvents = RawArtifactEventAdapter.events(
+                rawType: t,
+                payload: p,
+                conversationId: pipelineConversationId,
+                assistantMessageId: pipelineTarget.messageId,
+                turnId: pipelineTarget.turnId,
+                providerId: pid
+            )
+            if !pipelineEvents.isEmpty {
+                applyChatPipelineEvents(pipelineEvents)
+            }
+        }
         let isSwarmReasoning = t == "reasoning" && SwarmMetadata.isSwarmEvent(p)
         if isSwarmReasoning, let output = p["output"], !output.isEmpty {
             var reasoningPayload = p
