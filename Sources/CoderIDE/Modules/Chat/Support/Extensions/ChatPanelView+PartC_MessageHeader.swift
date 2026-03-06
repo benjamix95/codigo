@@ -85,11 +85,19 @@ extension ChatPanelView {
     @ViewBuilder
     internal var headerLeadingBar: some View {
         HStack(spacing: 8) {
-            projectButton
+            if !shouldHideProjectLabelInHeader {
+                projectButton
+            }
             if shouldShowConversationTitle(headerWidth: chatHeaderWidth) {
                 conversationTitleLabel
             }
         }
+    }
+
+    internal var shouldHideProjectLabelInHeader: Bool {
+        effectiveContext.displayLabel
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .compare("codigo", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
     }
 
     @ViewBuilder

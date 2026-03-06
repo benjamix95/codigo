@@ -4,7 +4,15 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 extension ContentView {
-    private var workbenchTopInteractiveInset: CGFloat { 28 }
+    @ViewBuilder
+    private var detailBackground: some View {
+        switch coderMode {
+        case .ide, .browser:
+            ideBackdrop
+        default:
+            DesignSystem.Colors.backgroundDeep
+        }
+    }
 
     var activeContextSyncFingerprint: String {
         guard let context = projectContextStore.activeContext else { return "none" }
@@ -174,15 +182,10 @@ extension ContentView {
     @ViewBuilder
     private var configuredDetailContent: some View {
         GeometryReader { geo in
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: workbenchTopInteractiveInset)
-                    .allowsHitTesting(false)
-                configuredModeContent(detailWidth: geo.size.width)
-            }
+            configuredModeContent(detailWidth: geo.size.width)
         }
         .frame(minWidth: 720)
-        .background(DesignSystem.Colors.backgroundDeep)
+        .background(detailBackground)
         .ignoresSafeArea(.container, edges: .top)
     }
 
