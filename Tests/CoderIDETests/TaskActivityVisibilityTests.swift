@@ -79,6 +79,38 @@ final class TaskActivityVisibilityTests: XCTestCase {
         XCTAssertNil(detail)
     }
 
+    func testAssistantUpdateTextPrefersLatestOperationalDetail() {
+        let activities = [
+            TaskActivity(
+                type: "assistant_update",
+                title: "Working",
+                detail: "Analizzo il pannello debug",
+                phase: .executing,
+                isRunning: true
+            ),
+            TaskActivity(
+                type: "assistant_update",
+                title: "Working",
+                detail: "Verifico lo stato del consumer eventi",
+                phase: .executing,
+                isRunning: true
+            ),
+        ]
+
+        XCTAssertEqual(
+            TaskActivityStore.assistantUpdateText(in: activities),
+            "Verifico lo stato del consumer eventi"
+        )
+    }
+
+    func testAssistantUpdateTextReturnsNilWhenAbsent() {
+        let activities = [
+            TaskActivity(type: "command_execution", title: "Run tests", phase: .executing, isRunning: true),
+        ]
+
+        XCTAssertNil(TaskActivityStore.assistantUpdateText(in: activities))
+    }
+
     func testHiddenGenericEventRemainsInvisibleEvenWithOperationalPayload() {
         let hidden = TaskActivity(
             type: "thinking",

@@ -58,6 +58,9 @@ extension ChatPanelView {
     internal func streamingDetailText(for message: ChatMessage, conversationId convId: UUID?) -> String? {
         guard message.isStreaming, message.role == .assistant else { return nil }
         let scopedActivities = scopedTaskActivities(for: convId)
+        if let assistantUpdate = TaskActivityStore.assistantUpdateText(in: scopedActivities) {
+            return assistantUpdate
+        }
         if let fromActivities = TaskActivityStore.streamingDetailText(
             activities: scopedActivities,
             activeOperationsCount: scopedActiveOperationsCount(for: convId)

@@ -257,6 +257,25 @@ extension TaskActivityStore {
         )
     }
 
+    static func assistantUpdateText(in activities: [TaskActivity]) -> String? {
+        guard let latest = activities.last(where: {
+            normalizedEventType($0.type) == "assistant_update"
+        }) else {
+            return nil
+        }
+
+        let raw = latest.detail
+            ?? latest.payload["detail"]
+            ?? latest.payload["output"]
+            ?? latest.title
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.count > 120 {
+            return String(trimmed.prefix(117)) + "..."
+        }
+        return trimmed
+    }
+
     private static func normalizedEventType(_ type: String) -> String {
         type
             .trimmingCharacters(in: .whitespacesAndNewlines)

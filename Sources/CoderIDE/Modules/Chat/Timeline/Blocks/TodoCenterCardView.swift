@@ -4,6 +4,8 @@ struct TodoCenterCardView: View {
     @ObservedObject var store: TodoStore
     let conversationId: UUID?
     let traceEvents: [ToolTraceEvent]
+    let microStatusText: String?
+    let isStreaming: Bool
     let onReviewChanges: () -> Void
 
     var body: some View {
@@ -14,6 +16,8 @@ struct TodoCenterCardView: View {
             ChatTodoExecutionCardView(
                 items: items,
                 fileChanges: fileChanges,
+                microStatusText: microStatusText,
+                isStreaming: isStreaming,
                 onReviewChanges: onReviewChanges
             )
             Spacer(minLength: 0)

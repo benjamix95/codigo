@@ -3,6 +3,8 @@ import SwiftUI
 struct ChatTodoExecutionCardView: View {
     let items: [TodoItem]
     let fileChanges: [ToolTraceFileChange]
+    let microStatusText: String?
+    let isStreaming: Bool
     let onReviewChanges: () -> Void
 
     @State private var isExpanded = false
@@ -27,18 +29,19 @@ struct ChatTodoExecutionCardView: View {
         if !orderedItems.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 header
-
-                if isExpanded {
+                if let microStatusText, !microStatusText.isEmpty {
                     Divider()
                         .overlay(Color.primary.opacity(0.08))
+                    microStatusRow(text: microStatusText)
+                }
+                if metrics.fileCount > 0 {
+                    Divider()
+                        .overlay(Color.primary.opacity(0.08))
+                    footer
+                }
 
+                if isExpanded {
                     checklistSection
-
-                    if metrics.fileCount > 0 {
-                        Divider()
-                            .overlay(Color.primary.opacity(0.08))
-                        footer
-                    }
                 }
             }
             .frame(maxWidth: 800, alignment: .leading)
@@ -102,6 +105,22 @@ struct ChatTodoExecutionCardView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
+    }
+
+    private func microStatusRow(text: String) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(DesignSystem.Colors.planColor.opacity(0.75))
+                .frame(width: 6, height: 6)
+            Text(text)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .textShimmer(active: isStreaming)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private var footer: some View {

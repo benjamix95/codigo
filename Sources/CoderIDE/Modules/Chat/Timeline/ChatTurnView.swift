@@ -50,6 +50,8 @@ struct ChatTurnView: View {
                     store: todoStore,
                     conversationId: conversationId,
                     traceEvents: traceEvents,
+                    microStatusText: streamingDetailText,
+                    isStreaming: message.isStreaming && isActuallyLoading,
                     onReviewChanges: onReviewChanges
                 )
             }
@@ -68,7 +70,7 @@ struct ChatTurnView: View {
                     onOpenFile: onFileClicked
                 )
             }
-            if message.isStreaming && isActuallyLoading {
+            if message.isStreaming && isActuallyLoading && !shouldShowTodo {
                 streamingFooter
             }
             actions
