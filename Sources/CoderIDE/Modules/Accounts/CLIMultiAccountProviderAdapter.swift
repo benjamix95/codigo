@@ -2,6 +2,8 @@ import Foundation
 import CoderEngine
 
 final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
+    private static let accountsStorageKey = "CoderIDE.cliAccounts"
+
     let id: String
     let displayName: String
 
@@ -27,11 +29,10 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
     }
 
     func isAuthenticated() -> Bool {
-        guard let data = UserDefaults.standard.data(forKey: "CoderIDE.cliAccounts"),
-              let decoded = try? JSONDecoder().decode([CLIAccount].self, from: data) else {
-            return false
-        }
-        return decoded.contains { $0.provider == providerKind && $0.isEnabled }
+        Self.hasAuthenticatedAvailableAccount(
+            providerKind: providerKind,
+            userDefaults: .standard
+        )
     }
 
     func send(prompt: String, context: WorkspaceContext, imageURLs: [URL]?) async throws -> AsyncThrowingStream<StreamEvent, Error> {
@@ -109,5 +110,55 @@ final class CLIMultiAccountProviderAdapter: LLMProvider, @unchecked Sendable {
                 continuation.finish(throwing: CoderEngineError.notAuthenticated)
             }
         }
+    }
+
+    static func hasAuthenticatedAvailableAccount(
+        providerKind: CLIProviderKind,
+        userDefaults: UserDefaults
+    ) -> Bool {
+        guard let data = userDefaults.data(forKey: accountsStorageKey),
+              let decoded = try? JSONDecoder().decode([CLIAccount].self, from: data) else {
+            return false
+        }
+
+        let executable = providerExecutablePath(
+            for: providerKind,
+            userDefaults: userDefaults
+        )
+
+        return decoded.contains { account in
+            guard account.provider == providerKind, account.isEnabled else {
+                return false
+            }
+            guard !account.health.isExhaustedLocally else {
+                return false
+            }
+            if let cooldownUntil = account.health.cooldownUntil, cooldownUntil > Date() {
+                return false
+            }
+            return CLIAccountAuthDetector.detect(
+                account: account,
+                providerPath: executable
+            ).isLoggedIn
+        }
+    }
+
+    private static func providerExecutablePath(
+        for provider: CLIProviderKind,
+        userDefaults: UserDefaults
+    ) -> String? {
+        let customPath: String?
+        switch provider {
+        case .codex:
+            customPath = userDefaults.string(forKey: "codex_path")
+        case .claude:
+            customPath = userDefaults.string(forKey: "claude_path")
+        case .gemini:
+            customPath = userDefaults.string(forKey: "gemini_cli_path")
+        }
+        return CLIAccountAuthDetector.resolveExecutable(
+            provider: provider,
+            providerPath: customPath
+        )
     }
 }
