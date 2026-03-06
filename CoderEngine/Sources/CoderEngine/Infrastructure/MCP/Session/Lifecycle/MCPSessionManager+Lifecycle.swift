@@ -133,7 +133,7 @@ extension MCPSessionManager {
 
     public func tools(for cfg: MCPConfigLoader.DetectedServer) async throws -> [MCPToolDescriptor] {
         var s = try await session(for: cfg)
-        if !s.cachedTools.isEmpty {
+        if !shouldBypassToolCache(for: cfg), !s.cachedTools.isEmpty {
             if let ts = s.cachedToolsTimestamp, Date().timeIntervalSince(ts) < toolCacheTTL {
                 s.lastUsedAt = Date()
                 sessions[cfg.id] = s
@@ -205,5 +205,16 @@ extension MCPSessionManager {
             }
             sessions.removeValue(forKey: id)
         }
+    }
+
+    func shouldBypassToolCache(for cfg: MCPConfigLoader.DetectedServer) -> Bool {
+        let normalizedId = cfg.id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedName = cfg.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedCommand = cfg.command.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if normalizedId == "coderide" || normalizedName == "coderide" || normalizedName == "coderide-tools" {
+            return true
+        }
+        return normalizedCommand.contains("coderide-mcp-server")
     }
 }
