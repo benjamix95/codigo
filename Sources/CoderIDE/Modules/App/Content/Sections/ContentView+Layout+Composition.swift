@@ -226,16 +226,7 @@ extension ContentView {
                     chatPanelLeadingResizeHandle(clampedWidth: clampedChatW, maxWidth: maxChatW)
                 }
 
-                ideWorkbenchColumn(ctx: ctx, sidePanelWidth: clampedSidePanelW)
-
-                if activeActivityItem != nil && activeActivityItem != .settings {
-                    sidePanelResizeHandle
-                }
-
-                ideSurface(tint: DesignSystem.Colors.info) {
-                    editorArea
-                        .layoutPriority(1)
-                }
+                ideUnifiedWorkspace(ctx: ctx, sidePanelWidth: clampedSidePanelW)
 
                 if showBrowserPanel {
                     browserResizeHandle(clampedWidth: clampedBrowserW, maxWidth: maxBrowserW)

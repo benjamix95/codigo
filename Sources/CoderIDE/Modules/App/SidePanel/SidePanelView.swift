@@ -34,12 +34,7 @@ struct SidePanelView: View {
             }
         }
         .frame(maxHeight: .infinity)
-        .background(DesignSystem.Colors.backgroundSecondary.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
-        )
+        .background(Color.clear)
     }
 
     private var panelHeader: some View {
@@ -73,7 +68,7 @@ struct SidePanelView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.82))
+        .background(DesignSystem.Colors.backgroundPrimary.opacity(0.58))
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(DesignSystem.Colors.borderSubtle)

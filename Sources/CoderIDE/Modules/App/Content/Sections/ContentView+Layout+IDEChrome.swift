@@ -2,15 +2,21 @@ import SwiftUI
 
 extension ContentView {
     @ViewBuilder
-    func ideWorkbenchColumn(ctx: EffectiveContext, sidePanelWidth: CGFloat) -> some View {
-        HStack(spacing: 8) {
+    func ideUnifiedWorkspace(ctx: EffectiveContext, sidePanelWidth: CGFloat) -> some View {
+        HStack(spacing: 0) {
             ActivityBarView(
                 selectedItem: $activeActivityItem,
                 showSettings: $showSettings
             )
             .frame(width: 60)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 10)
 
             if let item = activeActivityItem, item != .settings {
+                Divider()
+                    .overlay(DesignSystem.Colors.borderSubtle.opacity(0.8))
+                    .padding(.vertical, 12)
+
                 SidePanelView(
                     activeItem: item,
                     context: projectContextStore.context(id: ctx.contextId)
@@ -20,10 +26,20 @@ extension ContentView {
                 .environmentObject(gitPanelStore)
                 .frame(width: sidePanelWidth)
                 .transition(.move(edge: .leading).combined(with: .opacity))
+
+                sidePanelResizeHandle
+                    .padding(.vertical, 12)
             }
+
+            Divider()
+                .overlay(DesignSystem.Colors.borderSubtle.opacity(0.75))
+                .padding(.vertical, 12)
+
+            editorArea
+                .layoutPriority(1)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .frame(maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
