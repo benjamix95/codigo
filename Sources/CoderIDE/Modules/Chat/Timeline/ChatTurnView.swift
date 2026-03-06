@@ -83,10 +83,6 @@ struct ChatTurnView: View {
             Circle()
                 .fill(modeColor.opacity(0.6))
                 .frame(width: 5.5, height: 5.5)
-            Text("Codigo")
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .tracking(0.3)
             Spacer(minLength: 0)
         }
     }
