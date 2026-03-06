@@ -91,6 +91,7 @@ extension ContentView {
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .toolbar(removing: .sidebarToggle)
         .onChange(of: coderMode) { _, newMode in
             withAnimation(.snappy(duration: 0.2)) {
                 columnVisibility = (newMode == .ide || newMode == .browser) ? .detailOnly : .all

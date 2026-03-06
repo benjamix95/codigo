@@ -32,6 +32,16 @@ extension ContentView {
             )
 
             HStack(spacing: 4) {
+                compactToolbarButton(
+                    icon: "sidebar.left",
+                    title: "Toggle Sidebar",
+                    isActive: activeActivityItem != nil,
+                    tint: DesignSystem.Colors.info
+                ) {
+                    withAnimation(.snappy(duration: 0.2)) {
+                        activeActivityItem = activeActivityItem == nil ? .explorer : nil
+                    }
+                }
                 compactToolbarButton(icon: "magnifyingglass", title: "Quick Open") {
                     NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
                 }

@@ -21,14 +21,12 @@ final class WindowSidebarToggleController {
     private weak var window: NSWindow?
     private let button = NSButton()
     private var observers: [NSObjectProtocol] = []
-    private var chromeState = WorkbenchSidebarChromeState(isAvailable: false, isVisible: false)
 
     private init(window: NSWindow) {
         self.window = window
         configureButton()
         installObservers(for: window)
         attachButtonIfNeeded()
-        updateAppearance()
         updateLayout()
     }
 
@@ -38,7 +36,7 @@ final class WindowSidebarToggleController {
 
     @objc
     private func handleButtonTap() {
-        NotificationCenter.default.post(name: .workbenchSidebarToggleRequested, object: nil)
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: button)
     }
 
     private func configureButton() {
@@ -53,9 +51,11 @@ final class WindowSidebarToggleController {
         button.action = #selector(handleButtonTap)
         button.toolTip = "Toggle Sidebar"
         button.image = NSImage(
-            systemSymbolName: "sidebar.left",
+            systemSymbolName: "sidebar.leading",
             accessibilityDescription: "Toggle Sidebar"
         )?.withSymbolConfiguration(.init(pointSize: 15, weight: .medium))
+        button.contentTintColor = NSColor.white.withAlphaComponent(0.88)
+        button.alphaValue = 1
     }
 
     private func installObservers(for window: NSWindow) {
@@ -74,20 +74,6 @@ final class WindowSidebarToggleController {
                 self?.updateLayout()
             }
         }
-
-        observers.append(
-            center.addObserver(
-                forName: .workbenchSidebarChromeStateDidChange,
-                object: nil,
-                queue: .main
-            ) { [weak self] notification in
-                guard let self else { return }
-                guard let state = WorkbenchSidebarChromeState(userInfo: notification.userInfo) else { return }
-                self.chromeState = state
-                self.updateAppearance()
-                self.updateLayout()
-            }
-        )
 
         observers.append(
             center.addObserver(
@@ -116,13 +102,6 @@ final class WindowSidebarToggleController {
         }
     }
 
-    private func updateAppearance() {
-        button.isHidden = !chromeState.isAvailable
-        button.alphaValue = chromeState.isVisible ? 1.0 : 0.92
-        button.contentTintColor = NSColor.white.withAlphaComponent(chromeState.isVisible ? 0.9 : 0.82)
-        button.toolTip = chromeState.isVisible ? "Hide Sidebar" : "Show Sidebar"
-    }
-
     private func updateLayout() {
         guard
             let window,
@@ -131,7 +110,7 @@ final class WindowSidebarToggleController {
             return
         }
 
-        let buttonSize = NSSize(width: 20, height: 18)
+        let buttonSize = NSSize(width: 18, height: 18)
         let x = zoomButton.frame.maxX + 12
         let y = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: x, y: y), size: buttonSize)
