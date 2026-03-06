@@ -9,7 +9,24 @@ extension ChatPanelView {
         let messages = conv.messages
         let lastMsg = messages.last
         let hasPersistentPlanCard = messages.contains { $0.planAttachment != nil }
-        let latestAssistantMessageId = messages.last(where: { $0.role == .assistant })?.id
+        let latestVisibleAssistantMessageId = messages.last(where: {
+            $0.role == .assistant && !shouldHideBuildKickoffMessage($0, in: convId)
+        })?.id
+        let latestAssistantMessageIdWithTrace = messages.last(where: { message in
+            guard message.role == .assistant else { return false }
+            guard !shouldHideBuildKickoffMessage(message, in: convId) else { return false }
+            return toolTraceStore.hasTrace(
+                conversationId: convId,
+                assistantMessageId: message.id
+            )
+        })?.id
+        let todoCardAssistantMessageId = resolveTodoCardAssistantMessageId(
+            messages: messages,
+            activeAssistantMessageId: activeToolTraceTurnsByConversation[convId]?.assistantMessageId,
+            latestAssistantMessageIdWithTrace: latestAssistantMessageIdWithTrace,
+            pipelineAssistantMessageId: currentAssistantPipelineTarget(for: convId)?.messageId,
+            latestVisibleAssistantMessageId: latestVisibleAssistantMessageId
+        )
         let messageIndexById: [UUID: Int] = Dictionary(
             uniqueKeysWithValues: messages.enumerated().map { ($0.element.id, $0.offset) }
         )
@@ -23,7 +40,7 @@ extension ChatPanelView {
                     message: message,
                     index: index,
                     lastMsg: lastMsg,
-                    latestAssistantMessageId: latestAssistantMessageId,
+                    todoCardAssistantMessageId: todoCardAssistantMessageId,
                     conversationId: convId
                 )
             }
@@ -70,7 +87,7 @@ extension ChatPanelView {
         message: ChatMessage,
         index: Int,
         lastMsg: ChatMessage?,
-        latestAssistantMessageId: UUID?,
+        todoCardAssistantMessageId: UUID?,
         conversationId: UUID
     ) -> some View {
         let isLast = message.id == lastMsg?.id
@@ -165,7 +182,7 @@ extension ChatPanelView {
                         shouldShowTodo: message.role == .assistant
                             && shouldShowPlanTodosInChat
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
-                            && message.id == latestAssistantMessageId,
+                            && message.id == todoCardAssistantMessageId,
                         onFileClicked: { openFilesStore.openFile($0) },
                         onReviewChanges: {
                             gitPanelStore.isOpen = true
