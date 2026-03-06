@@ -41,6 +41,7 @@ struct ContentView: View {
     @State var pendingAppUpdate: AppUpdateCenter.AppUpdateManifest?
     @State var isSelectingProjectFolders = false
     @State var activeActivityItem: ActivityBarItem? = .explorer
+    @State var lastSidebarActivityItem: ActivityBarItem = .explorer
     @State var showChatPanel = true
     @State var coderMode: CoderMode = .agent
 
@@ -54,5 +55,11 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
+            .onChange(of: activeActivityItem) { _, item in
+                rememberLastVisibleSidebar(item)
+            }
+            .toolbar {
+                windowToolbarContent
+            }
     }
 }
