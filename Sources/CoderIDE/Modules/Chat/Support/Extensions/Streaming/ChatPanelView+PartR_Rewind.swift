@@ -16,7 +16,19 @@ extension ChatPanelView {
 
         Task {
             await MainActor.run {
-                if isLoadingForCurrentConversation {
+                let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: convId)
+                var didCancelTask = didCancelPipeline || cancelRunTask(for: convId)
+                if !didCancelTask,
+                   activeBuildPlanConversationId == convId,
+                   let agentId = activeBuildAgentConversationId {
+                    didCancelTask =
+                        pipelineIntegrationService.cancelCurrentJob(for: agentId)
+                        || cancelRunTask(for: agentId)
+                }
+                let hasActiveExecution = didCancelTask
+                    || chatStore.isTaskActive(for: convId)
+                    || pipelineIntegrationService.isRunning(for: convId)
+                if hasActiveExecution {
                     switch coderMode {
                     case .codeReviewMultiSwarm:
                         executionController.terminate(scope: .review)
@@ -136,7 +148,19 @@ extension ChatPanelView {
 
         Task {
             await MainActor.run {
-                if isLoadingForCurrentConversation {
+                let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: conversationId)
+                var didCancelTask = didCancelPipeline || cancelRunTask(for: conversationId)
+                if !didCancelTask,
+                   activeBuildPlanConversationId == conversationId,
+                   let agentId = activeBuildAgentConversationId {
+                    didCancelTask =
+                        pipelineIntegrationService.cancelCurrentJob(for: agentId)
+                        || cancelRunTask(for: agentId)
+                }
+                let hasActiveExecution = didCancelTask
+                    || chatStore.isTaskActive(for: conversationId)
+                    || pipelineIntegrationService.isRunning(for: conversationId)
+                if hasActiveExecution {
                     switch coderMode {
                     case .codeReviewMultiSwarm:
                         executionController.terminate(scope: .review)

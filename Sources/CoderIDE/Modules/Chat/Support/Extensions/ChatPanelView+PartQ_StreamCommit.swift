@@ -79,9 +79,17 @@ extension ChatPanelView {
     }
 
     internal func flushStreamingContent() {
+        flushStreamingContent(conversationId: nil)
+    }
+
+    internal func flushStreamingContent(conversationId targetConversationId: UUID?) {
         streamThrottleTask?.cancel()
         streamThrottleTask = nil
         guard let content = pendingStreamContent else { return }
+        if let targetConversationId,
+           pendingStreamConversationId != targetConversationId {
+            return
+        }
         pendingStreamContent = nil
         let shouldSanitizePending = isPlanBuildContext(
             conversationId: pendingStreamConversationId,

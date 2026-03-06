@@ -249,11 +249,11 @@ extension ChatPanelView {
     ) {
         // Flush any pending streamed content so the assistant message is up-to-date
         // before we attach subagent cards or end the task.
-        flushStreamingContent()
+        flushStreamingContent(conversationId: targetConversationId)
 
         // Flush pending task activities so subagent swarm cards are fully
         // populated before we snapshot them into the assistant message.
-        flushPendingTaskActivities()
+        flushPendingTaskActivities(conversationId: targetConversationId)
         taskActivityStore.flushPending()
 
         // Transition any cards still stuck in .running to .completed

@@ -46,6 +46,15 @@ func toolTraceTurnOutcome(for flowState: ConversationFlowCoordinator.State) -> T
     }
 }
 
+func toolTraceTurnOutcome(
+    pipelineSuccess: Bool,
+    pipelineWasCancelled: Bool
+) -> ToolTraceTurnOutcome {
+    if pipelineSuccess { return .success }
+    if pipelineWasCancelled { return .aborted }
+    return .failed
+}
+
 func autoTodoFinalStatus(for outcome: ToolTraceTurnOutcome) -> TodoStatus {
     switch outcome {
     case .success:

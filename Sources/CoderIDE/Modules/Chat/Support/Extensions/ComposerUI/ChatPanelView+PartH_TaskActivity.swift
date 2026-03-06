@@ -36,14 +36,36 @@ extension ChatPanelView {
 
     @MainActor
     internal func flushPendingTaskActivities() {
+        flushPendingTaskActivities(conversationId: nil)
+    }
+
+    @MainActor
+    internal func flushPendingTaskActivities(conversationId targetConversationId: UUID?) {
         let backlogBefore = pendingTaskActivities.count + pendingInstantGreps.count
         guard backlogBefore > 0 else { return }
         logTaskBacklogIfNeeded(context: "flush_start")
 
-        let activities = pendingTaskActivities
-        let greps = pendingInstantGreps
-        pendingTaskActivities.removeAll(keepingCapacity: true)
-        pendingInstantGreps.removeAll(keepingCapacity: true)
+        let activities: [TaskActivity]
+        let greps: [InstantGrepResult]
+        if let targetConversationId {
+            activities = pendingTaskActivities.filter {
+                canonicalConversationScopeValue(
+                    $0.payload["conversation_id"] ?? $0.payload["conversationId"]
+                ) == targetConversationId.uuidString.lowercased()
+            }
+            greps = pendingInstantGreps.filter { $0.conversationId == targetConversationId }
+            pendingTaskActivities.removeAll {
+                canonicalConversationScopeValue(
+                    $0.payload["conversation_id"] ?? $0.payload["conversationId"]
+                ) == targetConversationId.uuidString.lowercased()
+            }
+            pendingInstantGreps.removeAll { $0.conversationId == targetConversationId }
+        } else {
+            activities = pendingTaskActivities
+            greps = pendingInstantGreps
+            pendingTaskActivities.removeAll(keepingCapacity: true)
+            pendingInstantGreps.removeAll(keepingCapacity: true)
+        }
 
         for activity in activities {
             if activity.type == "read_batch_started" || activity.type == "read_batch_completed"

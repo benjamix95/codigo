@@ -216,6 +216,19 @@ extension ChatPanelView {
             planConversationId: planConversationId,
             onCompletion: { ctx in
                 Task { @MainActor in
+                    let pipelineOutcome = toolTraceTurnOutcome(
+                        pipelineSuccess: ctx.success,
+                        pipelineWasCancelled: ctx.wasCancelled
+                    )
+                    self.finalizeToolTraceTurn(
+                        conversationId: agentConvId,
+                        outcome: pipelineOutcome
+                    )
+                    self.snapshotSubagentCardsAndEndTask(
+                        conversationId: agentConvId,
+                        outcome: pipelineOutcome,
+                        shouldEndTask: false
+                    )
                     self.activeBuildPlanConversationId = nil
                     self.activeBuildAgentConversationId = nil
                     if ctx.success {
