@@ -4,7 +4,7 @@ import Foundation
 
 extension SidePanelView {
     var searchPanelContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 12, weight: .medium))
@@ -29,7 +29,7 @@ extension SidePanelView {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.82))
+                    .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.78))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -46,7 +46,7 @@ extension SidePanelView {
                 .padding(.top, 40)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 6) {
+                    LazyVStack(alignment: .leading, spacing: 4) {
                         ForEach(Array(searchResults.prefix(200).enumerated()), id: \.offset) { _, result in
                             Button {
                                 openFilesStore.openFile(result.path)
@@ -72,12 +72,12 @@ extension SidePanelView {
                                     Spacer()
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
+                                .padding(.vertical, 8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                                 .background(
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.68))
+                                        .fill(Color.white.opacity(0.03))
                                 )
                             }
                             .buttonStyle(.plain)

@@ -8,7 +8,7 @@ extension ContentView {
         let activePath = editorSplitStore.filePath(primaryPath: openFilesStore.openFilePath)
         let diagnostics = editorDiagnosticsStore.summary(for: activePath)
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: 10) {
             workspaceBadge(ctx: ctx)
 
             if let path = activePath, !path.isEmpty {
@@ -17,72 +17,49 @@ extension ContentView {
                 emptyEditorBadge()
             }
 
-            Spacer()
+            Spacer(minLength: 10)
 
             if diagnostics.errors > 0 || diagnostics.warnings > 0 {
-                statusBadge(
+                compactStatusIndicator(
                     icon: diagnostics.errors > 0 ? "xmark.octagon.fill" : "exclamationmark.triangle.fill",
-                    title: diagnostics.errors > 0 ? "\(diagnostics.errors) errors" : "\(diagnostics.warnings) warnings",
                     tint: diagnostics.errors > 0 ? DesignSystem.Colors.error : DesignSystem.Colors.warning
                 )
             }
 
-            statusBadge(
+            compactStatusIndicator(
                 icon: editorSplitStore.isSplitVisible ? "rectangle.split.2x1.fill" : "rectangle",
-                title: editorSplitStore.isSplitVisible ? "Split editor" : "Single editor",
                 tint: DesignSystem.Colors.info
             )
 
-            HStack(spacing: 8) {
-                toolbarActionButton(
-                    icon: "magnifyingglass",
-                    title: "Quick Open",
-                    isActive: false
-                ) {
+            HStack(spacing: 4) {
+                compactToolbarButton(icon: "magnifyingglass", title: "Quick Open") {
                     NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "rectangle.split.2x1",
                     title: "Split",
                     isActive: editorSplitStore.isSplitVisible
                 ) {
                     NotificationCenter.default.post(name: .editorToggleSplit, object: nil)
                 }
-
-                toolbarActionButton(
-                    icon: "list.bullet.rectangle.portrait",
-                    title: "Outline",
-                    isActive: false
-                ) {
+                compactToolbarButton(icon: "list.bullet.rectangle.portrait", title: "Outline") {
                     NotificationCenter.default.post(name: .editorShowOutline, object: nil)
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "exclamationmark.triangle",
                     title: "Problems",
                     isActive: diagnostics.errors > 0 || diagnostics.warnings > 0
                 ) {
                     NotificationCenter.default.post(name: .editorShowProblems, object: nil)
                 }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
-            )
-
-            HStack(spacing: 8) {
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "terminal",
                     title: "Terminal",
                     isActive: showTerminal
                 ) {
                     withAnimation(.snappy(duration: 0.2)) { showTerminal.toggle() }
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "globe",
                     title: "Browser",
                     isActive: showBrowserPanel,
@@ -90,8 +67,7 @@ extension ContentView {
                 ) {
                     withAnimation(.snappy(duration: 0.2)) { showBrowserPanel.toggle() }
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "arrow.triangle.branch",
                     title: "Git",
                     isActive: gitPanelStore.isOpen,
@@ -99,19 +75,16 @@ extension ContentView {
                 ) {
                     gitPanelStore.isOpen.toggle()
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: "bubble.left.and.bubble.right",
                     title: "Chat",
                     isActive: showChatPanel
                 ) {
                     withAnimation(.snappy(duration: 0.2)) { showChatPanel.toggle() }
                 }
-
-                toolbarActionButton(
+                compactToolbarButton(
                     icon: chatPanelPosition == "left" ? "sidebar.right" : "sidebar.left",
                     title: "Swap",
-                    isActive: false,
                     tint: DesignSystem.Colors.info
                 ) {
                     withAnimation(.snappy(duration: 0.2)) {
@@ -119,25 +92,16 @@ extension ContentView {
                     }
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.035))
             )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.03),
-                    Color.clear
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.clear)
     }
 
     private func workspaceBadge(ctx: EffectiveContext) -> some View {
@@ -153,20 +117,20 @@ extension ContentView {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(ctx.displayLabel)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Text(ctx.activeRootPath.map { ($0 as NSString).lastPathComponent } ?? "No workspace")
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.035))
         )
     }
 
@@ -177,17 +141,17 @@ extension ContentView {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.accentColor)
                 Text((path as NSString).lastPathComponent)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
             breadcrumb(path: path, ctx: ctx)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.035))
         )
     }
 
@@ -201,7 +165,7 @@ extension ContentView {
                         .foregroundStyle(.quaternary)
                 }
                 Text(component)
-                    .font(.system(size: 10.5, weight: idx == components.count - 1 ? .medium : .regular))
+                    .font(.system(size: 10, weight: idx == components.count - 1 ? .medium : .regular))
                     .foregroundStyle(idx == components.count - 1 ? .primary : .secondary)
                     .lineLimit(1)
             }

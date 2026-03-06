@@ -4,7 +4,7 @@ import CoderEngine
 extension SidePanelView {
     var explorerPanelContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 10) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 if let ctx = context {
                     if ctx.folderPaths.count > 1 {
                         explorerRootTabs(ctx)
@@ -38,7 +38,7 @@ extension SidePanelView {
                         }
                         .foregroundStyle(active ? Color.accentColor : .secondary)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
+                        .padding(.vertical, 6)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(active ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.03))
@@ -78,25 +78,13 @@ extension SidePanelView {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.035))
-            )
 
             if expanded {
                 AnyView(folderItems(ctx, root: root, atPath: root, depth: 1))
                     .padding(.top, 6)
             }
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.66))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
-        )
+        .padding(.horizontal, 6)
     }
 
     private func folderItems(_ ctx: ProjectContext, root: String, atPath: String, depth: Int) -> some View {
@@ -133,13 +121,13 @@ extension SidePanelView {
                         }
                     }
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 5)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                        .fill(selected ? Color.accentColor.opacity(0.11) : Color.clear)
                 )
                 .hoverHighlight(Color.white.opacity(0.03))
 

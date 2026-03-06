@@ -3,31 +3,24 @@ import SwiftUI
 extension EditorPlaceholderView {
     var placeholderView: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    DesignSystem.Colors.backgroundDeep,
-                    DesignSystem.Colors.backgroundPrimary.opacity(0.9)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            DesignSystem.Colors.backgroundDeep
 
-            VStack(spacing: 26) {
+            VStack(spacing: 22) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(0.08),
+                                    Color.white.opacity(0.06),
                                     Color.white.opacity(0.02)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 84, height: 84)
+                        .frame(width: 72, height: 72)
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.system(size: 26, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [
@@ -42,13 +35,14 @@ extension EditorPlaceholderView {
 
                 VStack(spacing: 10) {
                     Text("Your workspace is ready")
-                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                     Text(displayPath.isEmpty ? "Open a project to start editing with the IDE workbench." : "Jump into files, search, terminal and chat from one place.")
-                        .font(.system(size: 12.5))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
+                .frame(maxWidth: 460)
 
                 if !displayPath.isEmpty {
                     HStack(spacing: 8) {
@@ -65,16 +59,17 @@ extension EditorPlaceholderView {
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.white.opacity(0.035))
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
                     )
+                    .frame(maxWidth: 520)
                 }
 
                 if !displayPath.isEmpty {
@@ -87,7 +82,7 @@ extension EditorPlaceholderView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(36)
+        .padding(28)
     }
 
     private func shortcutHint(_ title: String, _ icon: String, _ shortcut: String) -> some View {
@@ -103,13 +98,13 @@ extension EditorPlaceholderView {
                 .foregroundStyle(.quaternary)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 16)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color.white.opacity(0.04))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
         )
     }

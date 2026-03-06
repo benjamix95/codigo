@@ -10,52 +10,44 @@ extension ContentView {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.03))
-        )
-    }
-
-    func statusBadge(icon: String, title: String, tint: Color) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-            Text(title)
-                .font(.system(size: 10.5, weight: .semibold))
-        }
-        .foregroundStyle(tint)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.03))
+        )
+    }
+
+    func compactStatusIndicator(icon: String, tint: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(tint.opacity(0.12))
         )
     }
 
-    func toolbarActionButton(
+    func compactToolbarButton(
         icon: String,
         title: String,
-        isActive: Bool,
+        isActive: Bool = false,
         tint: Color = Color.accentColor,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 10.5, weight: .medium))
-            }
-            .foregroundStyle(isActive ? tint : Color.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isActive ? tint.opacity(0.14) : Color.clear)
-            )
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isActive ? tint : Color.secondary)
+                .frame(width: 30, height: 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isActive ? tint.opacity(0.14) : Color.clear)
+                )
         }
         .buttonStyle(.plain)
+        .help(title)
     }
 }

@@ -212,12 +212,12 @@ extension ContentView {
             fraction: 0.55
         )
         let maxBrowserW = ContentPanelWidthPolicy.maxWidth(detailWidth: detailWidth, fraction: 0.55)
-        let clampedSidePanelW = max(240, min(CGFloat(sidePanelWidth), 380))
+        let clampedSidePanelW = max(220, min(CGFloat(sidePanelWidth), 320))
 
         ZStack {
             ideBackdrop
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 if showChatPanel && chatIsLeft {
                     ideSurface(tint: DesignSystem.Colors.agentColor) {
                         chatPanel
@@ -253,7 +253,7 @@ extension ContentView {
                     }
                 }
             }
-            .padding(14)
+            .padding(10)
         }
         .frame(maxWidth: CGFloat.infinity, maxHeight: CGFloat.infinity)
     }

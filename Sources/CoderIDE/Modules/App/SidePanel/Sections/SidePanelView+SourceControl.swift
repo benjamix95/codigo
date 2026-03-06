@@ -16,7 +16,7 @@ extension SidePanelView {
                 .padding(14)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.7))
+                        .fill(Color.white.opacity(0.03))
                 )
             } else {
                 VStack(spacing: 10) {
@@ -50,6 +50,6 @@ extension SidePanelView {
             }
             Spacer()
         }
-        .padding(10)
+        .padding(12)
     }
 }

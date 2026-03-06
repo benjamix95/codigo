@@ -3,13 +3,12 @@ import SwiftUI
 extension ContentView {
     @ViewBuilder
     func ideWorkbenchColumn(ctx: EffectiveContext, sidePanelWidth: CGFloat) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ActivityBarView(
                 selectedItem: $activeActivityItem,
-                showSettings: $showSettings,
-                workspaceTitle: ctx.displayLabel
+                showSettings: $showSettings
             )
-            .frame(width: 84)
+            .frame(width: 60)
 
             if let item = activeActivityItem, item != .settings {
                 SidePanelView(
@@ -23,26 +22,18 @@ extension ContentView {
                 .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .padding(12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
         .frame(maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            DesignSystem.Colors.backgroundPrimary.opacity(0.96),
-                            DesignSystem.Colors.backgroundSecondary.opacity(0.84)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.95))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.borderAccent.opacity(0.8), lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(DesignSystem.Colors.borderSubtle.opacity(0.7), lineWidth: 0.6)
         )
-        .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
         .animation(.smooth, value: activeActivityItem)
     }
 
@@ -53,29 +44,20 @@ extension ContentView {
     ) -> some View {
         content()
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                DesignSystem.Colors.backgroundPrimary.opacity(0.96),
-                                DesignSystem.Colors.backgroundSecondary.opacity(0.86)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(DesignSystem.Colors.backgroundPrimary.opacity(0.96))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .strokeBorder(
                         tint == .clear
-                        ? DesignSystem.Colors.borderAccent.opacity(0.72)
-                        : tint.opacity(0.18),
-                        lineWidth: 0.7
+                        ? DesignSystem.Colors.borderSubtle.opacity(0.72)
+                        : tint.opacity(0.16),
+                        lineWidth: 0.6
                     )
             )
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
     }
 
     var ideBackdrop: some View {

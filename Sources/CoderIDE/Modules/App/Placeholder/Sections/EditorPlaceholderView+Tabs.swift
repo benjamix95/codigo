@@ -11,18 +11,11 @@ extension EditorPlaceholderView {
                     }
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
             }
-            .frame(height: 52)
+            .frame(height: 44)
             .background(
-                LinearGradient(
-                    colors: [
-                        DesignSystem.Colors.backgroundPrimary.opacity(0.96),
-                        DesignSystem.Colors.backgroundSecondary.opacity(0.86)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                DesignSystem.Colors.backgroundPrimary.opacity(0.92)
             )
         }
     }
@@ -60,7 +53,7 @@ extension EditorPlaceholderView {
             .opacity(isActive ? 1 : 0)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 9)
+        .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isActive ? Color.white.opacity(0.06) : Color.white.opacity(0.015))

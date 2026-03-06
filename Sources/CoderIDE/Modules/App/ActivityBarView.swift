@@ -48,53 +48,44 @@ enum ActivityBarItem: String, CaseIterable, Identifiable {
 struct ActivityBarView: View {
     @Binding var selectedItem: ActivityBarItem?
     @Binding var showSettings: Bool
-    let workspaceTitle: String
 
-    private let barWidth: CGFloat = 84
+    private let barWidth: CGFloat = 60
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             railBrand
 
-            VStack(spacing: 10) {
+            VStack(spacing: 6) {
                 ForEach(ActivityBarItem.allCases.filter { $0 != .settings }) { item in
                     activityButton(item)
                 }
             }
-            .padding(8)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(DesignSystem.Colors.backgroundSecondary.opacity(0.86))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(DesignSystem.Colors.borderSubtle, lineWidth: 0.5)
-            )
 
             Spacer()
 
             footerButton
         }
+        .padding(.vertical, 10)
         .frame(width: barWidth)
     }
 
     private var railBrand: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.08),
-                                Color.white.opacity(0.02)
+                                Color.white.opacity(0.06),
+                                Color.white.opacity(0.015)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 52, height: 52)
+                    .frame(width: 42, height: 42)
                 Image(systemName: "square.stack.3d.up.fill")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
@@ -106,21 +97,8 @@ struct ActivityBarView: View {
                         )
                     )
             }
-
-            VStack(spacing: 3) {
-                Text(workspaceTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                Text("WORKBENCH")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.tertiary)
-                    .tracking(1.0)
-            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
     }
 
     private func activityButton(_ item: ActivityBarItem) -> some View {
@@ -135,30 +113,24 @@ struct ActivityBarView: View {
                 }
             }
         } label: {
-            VStack(spacing: 7) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(
-                            isActive
-                            ? item.tint.opacity(0.18)
-                            : Color.white.opacity(0.02)
-                        )
-                        .frame(width: 44, height: 38)
-                    Image(systemName: item.icon)
-                        .font(.system(size: 15, weight: isActive ? .semibold : .medium))
-                        .foregroundStyle(isActive ? item.tint : Color.secondary.opacity(0.78))
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isActive ? item.tint.opacity(0.16) : Color.clear)
+                    .frame(width: 44, height: 44)
+
+                if isActive {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(item.tint)
+                        .frame(width: 3, height: 18)
+                        .offset(x: -22)
                 }
 
-                Text(item.shortTitle)
-                    .font(.system(size: 9.5, weight: isActive ? .semibold : .medium))
-                    .foregroundStyle(isActive ? .primary : .secondary)
+                Image(systemName: item.icon)
+                    .font(.system(size: 15, weight: isActive ? .semibold : .medium))
+                    .foregroundStyle(isActive ? item.tint : Color.secondary.opacity(0.78))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isActive ? Color.white.opacity(0.04) : Color.clear)
-            )
+            .frame(height: 46)
         }
         .buttonStyle(.plain)
         .help(item.tooltip)
@@ -168,21 +140,16 @@ struct ActivityBarView: View {
         Button {
             showSettings = true
         } label: {
-            VStack(spacing: 7) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white.opacity(0.03))
-                        .frame(width: 44, height: 38)
-                    Image(systemName: ActivityBarItem.settings.icon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.secondary.opacity(0.78))
-                }
-                Text(ActivityBarItem.settings.shortTitle)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(.secondary)
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.03))
+                    .frame(width: 44, height: 44)
+                Image(systemName: ActivityBarItem.settings.icon)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.78))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .frame(height: 46)
         }
         .buttonStyle(.plain)
         .help(ActivityBarItem.settings.tooltip)
