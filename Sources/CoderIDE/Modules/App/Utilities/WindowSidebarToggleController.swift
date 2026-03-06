@@ -20,15 +20,7 @@ final class WindowSidebarToggleController {
 
     private weak var window: NSWindow?
     private let button = NSButton()
-    private let sidebarlessToolbarDelegate = SidebarlessToolbarDelegate()
     private var observers: [NSObjectProtocol] = []
-    private lazy var sidebarlessToolbar: NSToolbar = {
-        let toolbar = NSToolbar(identifier: "CodigoSidebarlessWindowToolbar")
-        toolbar.delegate = sidebarlessToolbarDelegate
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-        return toolbar
-    }()
 
     private init(window: NSWindow) {
         self.window = window
@@ -108,7 +100,11 @@ final class WindowSidebarToggleController {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
         }
-        installSidebarlessToolbarIfNeeded(on: window)
+        stripAutomaticSidebarToolbarItems(from: window)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window else { return }
+            self.stripAutomaticSidebarToolbarItems(from: window)
+        }
     }
 
     private func updateLayout() {
@@ -123,35 +119,30 @@ final class WindowSidebarToggleController {
         let x = zoomButton.frame.maxX + 12
         let y = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: x, y: y), size: buttonSize)
-        installSidebarlessToolbarIfNeeded(on: window)
+        stripAutomaticSidebarToolbarItems(from: window)
     }
 
-    private func installSidebarlessToolbarIfNeeded(on window: NSWindow) {
-        let removableIdentifiers: Set<NSToolbarItem.Identifier> = [
+    private func stripAutomaticSidebarToolbarItems(from window: NSWindow) {
+        guard let toolbar = window.toolbar else { return }
+
+        let removableIdentifiers: [NSToolbarItem.Identifier] = [
             .toggleSidebar,
             .sidebarTrackingSeparator,
+            .init("com.apple.SwiftUI.navigationSplitView.toggleSidebar"),
+            .init("com.apple.SwiftUI.splitViewSeparator-0"),
         ]
 
-        let currentIdentifiers = Set(window.toolbar?.items.map(\.itemIdentifier) ?? [])
-        guard currentIdentifiers.isEmpty == false else { return }
-        guard currentIdentifiers.intersection(removableIdentifiers).isEmpty == false else { return }
-
-        if window.toolbar !== sidebarlessToolbar {
-            window.toolbar = sidebarlessToolbar
+        let indices = toolbar.items.enumerated().compactMap { index, item -> Int? in
+            let identifier = item.itemIdentifier
+            let rawValue = identifier.rawValue
+            if removableIdentifiers.contains(identifier) { return index }
+            if rawValue.hasPrefix("com.apple.SwiftUI.splitViewSeparator-") { return index }
+            if rawValue.contains("navigationSplitView.toggleSidebar") { return index }
+            return nil
         }
-    }
-}
 
-private final class SidebarlessToolbarDelegate: NSObject, NSToolbarDelegate {
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        []
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        []
-    }
-
-    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        []
+        for index in indices.reversed() {
+            toolbar.removeItem(at: index)
+        }
     }
 }
