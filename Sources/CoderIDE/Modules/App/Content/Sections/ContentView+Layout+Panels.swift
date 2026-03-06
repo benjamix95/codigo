@@ -33,7 +33,7 @@ extension ContentView {
 
             HStack(spacing: 4) {
                 compactToolbarButton(
-                    icon: activeActivityItem == nil ? "sidebar.left" : "sidebar.left.inset.filled",
+                    icon: "sidebar.left",
                     title: "Toggle Sidebar",
                     isActive: activeActivityItem != nil,
                     tint: DesignSystem.Colors.info
