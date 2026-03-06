@@ -76,6 +76,7 @@ extension ChatPanelView {
             )
             let hasRunningOperations = previousEvents.contains { $0.isRunning }
             let rolloverOutcome: ToolTraceTurnOutcome = hasRunningOperations ? .aborted : .success
+            let previousPolicySatisfied = policyAckStateByMessage[previous.assistantMessageId]?.isSatisfied == true
             finalizeAutoTodoIfNeeded(
                 messageId: previous.assistantMessageId,
                 outcome: rolloverOutcome,
@@ -92,15 +93,21 @@ extension ChatPanelView {
             policyAckStateByMessage.removeValue(forKey: previous.assistantMessageId)
             // Flush any remaining blocked events before discarding the queue
             if let remainingQueued = policyAckBlockedQueue.removeValue(forKey: previous.assistantMessageId), !remainingQueued.isEmpty {
-                if !policyAckFailedMessages.contains(previous.assistantMessageId) {
+                if previousPolicySatisfied {
                     for event in remainingQueued {
-                        recordTaskActivity(
+                        handleRawStreamEvent(
                             type: event.type,
                             payload: event.payload,
                             providerId: event.providerId,
-                            conversationId: event.conversationId
+                            conversationId: event.conversationId,
+                            shouldApplyPipelineArtifacts: event.shouldApplyPipelineArtifacts
                         )
                     }
+                } else {
+                    appendTechnicalErrorMessage(
+                        "[Policy error] Required AGENTS/SKILL acknowledgment did not arrive before the turn was closed.",
+                        in: previous.conversationId
+                    )
                 }
             }
             policyAckFailedMessages.remove(previous.assistantMessageId)

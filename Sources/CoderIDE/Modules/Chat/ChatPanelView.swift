@@ -207,7 +207,7 @@ struct ChatPanelView: View {
     /// Assistant message ids that already triggered a policy-ack violation.
     @State  var policyAckFailedMessages: Set<UUID> = []
     /// Events queued while waiting for policy_ack, keyed by assistant message id.
-    @State  var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?)]] = [:]
+    @State  var policyAckBlockedQueue: [UUID: [(type: String, payload: [String: String], providerId: String, conversationId: UUID?, shouldApplyPipelineArtifacts: Bool)]] = [:]
     /// Per-conversation debug state snapshots (prevents cross-thread contamination).
     @State  var debugStateByConversation: [UUID: DebugStore.SessionSnapshot] = [:]
     /// Debug events received while another conversation is selected.

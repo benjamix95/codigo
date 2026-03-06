@@ -29,7 +29,7 @@ extension CLIProfileProvisioner {
         lines.append("[sandbox_workspace_write]")
         lines.append("network_access = true")
         lines.append("")
-        lines.append(contentsOf: coderideMCPSectionLines(binaryPath: binaryPath, includeEnabled: true))
+        lines.append(contentsOf: coderideMCPSectionLines(binaryPath: binaryPath, includeEnabled: false))
         lines.append("")
         lines.append(contentsOf: codexExperimentalFeaturesLines())
         return lines

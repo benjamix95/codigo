@@ -24,11 +24,13 @@ extension ChatPanelView {
 
         if receivedHash == state.expectedHash {
             state.acknowledgedHash = receivedHash
+            state.violationEmitted = false
             policyAckFailedMessages.remove(turn.assistantMessageId)
             enriched["status"] = "acknowledged"
             enriched["title"] = payload["title"] ?? "Policy acknowledged"
             enriched["detail"] = payload["detail"] ?? "Policy hash accepted"
         } else {
+            policyAckFailedMessages.insert(turn.assistantMessageId)
             enriched["status"] = "invalid"
             enriched["title"] = payload["title"] ?? "Policy acknowledgment invalid"
             enriched["detail"] = payload["detail"] ?? "Expected hash \(state.expectedHash)"
@@ -52,25 +54,17 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return false
         }
-        if policyAckFailedMessages.contains(turn.assistantMessageId) {
-            return true
-        }
         guard var state = policyAckStateByMessage[turn.assistantMessageId] else {
             return false
         }
         if state.isSatisfied { return false }
         if state.violationEmitted { return true }
 
+        // Hold operational events until the required policy_ack arrives.
+        // ToolEnabledLLMProvider emits the ack synthetically, so this path mostly
+        // protects against event reordering instead of representing a hard failure.
         state.violationEmitted = true
         policyAckStateByMessage[turn.assistantMessageId] = state
-        policyAckFailedMessages.insert(turn.assistantMessageId)
-        policyAckBlockedQueue.removeValue(forKey: turn.assistantMessageId)
-        emitPolicyAckViolation(
-            expectedHash: state.expectedHash,
-            incomingType: type,
-            providerId: providerId,
-            conversationId: conversationId
-        )
         return true
     }
 
@@ -144,16 +138,20 @@ extension ChatPanelView {
         guard let turn = resolveToolTraceTurn(conversationId: conversationId, providerId: providerId) else {
             return
         }
+        guard policyAckStateByMessage[turn.assistantMessageId]?.isSatisfied == true else {
+            return
+        }
         let messageId = turn.assistantMessageId
         guard let queued = policyAckBlockedQueue.removeValue(forKey: messageId), !queued.isEmpty else {
             return
         }
         for event in queued {
-            recordTaskActivity(
+            handleRawStreamEvent(
                 type: event.type,
                 payload: event.payload,
                 providerId: event.providerId,
-                conversationId: event.conversationId
+                conversationId: event.conversationId,
+                shouldApplyPipelineArtifacts: event.shouldApplyPipelineArtifacts
             )
         }
     }

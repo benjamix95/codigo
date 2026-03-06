@@ -39,4 +39,27 @@ final class ChatReasoningStreamReducerTests: XCTestCase {
         XCTAssertEqual(afterSecondChunk.blocks.first?.text, "Planning next move\nReading files")
         XCTAssertEqual(afterSecondChunk.text, "Planning next move\nReading files")
     }
+
+    func testInlineReasoningUpdatesOnlyForSelectedConversation() {
+        let selectedConversationId = UUID()
+
+        XCTAssertTrue(
+            shouldUpdateInlineReasoningState(
+                eventConversationId: selectedConversationId,
+                selectedConversationId: selectedConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldUpdateInlineReasoningState(
+                eventConversationId: UUID(),
+                selectedConversationId: selectedConversationId
+            )
+        )
+        XCTAssertFalse(
+            shouldUpdateInlineReasoningState(
+                eventConversationId: nil,
+                selectedConversationId: selectedConversationId
+            )
+        )
+    }
 }

@@ -19,8 +19,7 @@ extension ToolEnabledLLMProvider {
                 // Only accept success if no failure was seen (failure-wins precedence)
                 summary["status"] = "completed"
                 summary["detail"] = payload["detail"] ?? payload["title"] ?? "ok"
-                let name = (summary["name"] ?? "").lowercased()
-                if let output = payload["output"], !output.isEmpty, name != "bash" && name != "command_execution" {
+                if let output = payload["output"], !output.isEmpty {
                     summary["output"] = String(output.prefix(8000))
                 }
                 if let path = payload["path"] ?? payload["file"], !path.isEmpty {
@@ -50,13 +49,7 @@ extension ToolEnabledLLMProvider {
                 let status = result["status"] ?? "unknown"
                 let detail = result["detail"] ?? ""
                 let path = result["path"].map { "\npath: \($0)" } ?? ""
-                let nameLower = name.lowercased()
-                let output: String
-                if nameLower == "bash" || nameLower == "command_execution" {
-                    output = ""
-                } else {
-                    output = result["output"].map { "\noutput:\n\($0)" } ?? ""
-                }
+                let output = result["output"].map { "\noutput:\n\($0)" } ?? ""
                 return "- tool_call id=\(id), name=\(name), status=\(status)\n  detail: \(detail)\(path)\(output)"
             }.joined(separator: "\n")
             resultsSection = """

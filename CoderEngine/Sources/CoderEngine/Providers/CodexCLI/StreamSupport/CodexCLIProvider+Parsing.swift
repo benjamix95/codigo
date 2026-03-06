@@ -29,6 +29,7 @@ extension CodexCLIProvider {
         mutating func resetTurn() {
             turn = TurnState()
             scrubCarry = ""
+            emittedRawKeys.removeAll(keepingCapacity: true)
         }
     }
 

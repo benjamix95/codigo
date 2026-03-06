@@ -3,6 +3,7 @@ import Foundation
 
 struct PipelineConversationSnapshot {
     let currentJobId: String
+    let providerId: String
     let assistantMessageId: UUID
     let planConversationId: UUID?
     let jobState: JobState
@@ -19,11 +20,13 @@ struct PipelineConversationSnapshot {
 final class PipelineConversationRuntime {
     let conversationId: UUID
     let facade: PipelineFacade
-    let assistantMessageId: UUID
+    var assistantMessageId: UUID
     let planConversationId: UUID?
     let onCompletion: ((PipelineCompletionContext) -> Void)?
+    let rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)?
 
     var currentJobId: String
+    let providerId: String
     var jobState: JobState
     var completedTasks: Int
     var totalTasks: Int
@@ -40,16 +43,20 @@ final class PipelineConversationRuntime {
         conversationId: UUID,
         facade: PipelineFacade,
         jobId: String,
+        providerId: String,
         assistantMessageId: UUID,
         planConversationId: UUID?,
-        onCompletion: ((PipelineCompletionContext) -> Void)?
+        onCompletion: ((PipelineCompletionContext) -> Void)?,
+        rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)?
     ) {
         self.conversationId = conversationId
         self.facade = facade
         self.currentJobId = jobId
+        self.providerId = providerId
         self.assistantMessageId = assistantMessageId
         self.planConversationId = planConversationId
         self.onCompletion = onCompletion
+        self.rawEventHandler = rawEventHandler
         self.jobState = .intake
         self.completedTasks = 0
         self.totalTasks = 0
@@ -61,7 +68,7 @@ final class PipelineConversationRuntime {
             conversationId: conversationId,
             assistantMessageId: assistantMessageId,
             turnId: assistantMessageId.uuidString,
-            providerId: nil
+            providerId: providerId
         )
         self.nextPipelineSequence = 1
         self.jobStartTime = Date()
@@ -70,6 +77,7 @@ final class PipelineConversationRuntime {
     var snapshot: PipelineConversationSnapshot {
         PipelineConversationSnapshot(
             currentJobId: currentJobId,
+            providerId: providerId,
             assistantMessageId: assistantMessageId,
             planConversationId: planConversationId,
             jobState: jobState,
@@ -80,5 +88,19 @@ final class PipelineConversationRuntime {
             circuitBreakerActive: circuitBreakerActive,
             jobStartTime: jobStartTime
         )
+    }
+
+    func retargetAssistantMessage(
+        assistantMessageId: UUID,
+        turnId: String
+    ) {
+        self.assistantMessageId = assistantMessageId
+        self.chatTurnState = ChatTurnState(
+            conversationId: conversationId,
+            assistantMessageId: assistantMessageId,
+            turnId: turnId,
+            providerId: providerId
+        )
+        self.nextPipelineSequence = 1
     }
 }

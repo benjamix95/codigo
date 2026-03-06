@@ -160,6 +160,7 @@ extension ChatPanelView {
             job,
             tasks: tasks,
             workerAdapter: workerAdapter,
+            providerId: runtimeProvider.id,
             conversationId: targetConversationId,
             assistantMessageId: assistantMessageId
         )

@@ -8,8 +8,8 @@ extension PipelineIntegrationService {
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
         let rawType = p.rawType
 
-        let providerId = runtime(for: conversationId)?.currentJobId ?? "pipeline"
-        if let callback = onRawStreamEvent {
+        let providerId = runtime(for: conversationId)?.providerId ?? "pipeline"
+        if let callback = runtime(for: conversationId)?.rawEventHandler {
             callback(rawType, p.payload, providerId, conversationId)
         }
         consumeRawPipelineArtifacts(rawType: rawType, payload: p.payload, for: conversationId)

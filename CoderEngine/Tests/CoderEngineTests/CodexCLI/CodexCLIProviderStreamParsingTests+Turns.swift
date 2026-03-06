@@ -123,4 +123,26 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertTrue(intermediateReasoning[0]["output"]?.contains("Turn 1") == true)
         XCTAssertTrue(intermediateReasoning[1]["output"]?.contains("Turn 2") == true)
     }
+
+    func testRawDedupKeyDiffersWhenOnlyLongPayloadSuffixChanges() {
+        let longPrefix = String(repeating: "a", count: 320)
+        let lhs = CodexCLIProvider.rawDedupKey(
+            type: "assistant_update",
+            payload: [
+                "id": "assistant-1",
+                "status": "in_progress",
+                "output": longPrefix + "lhs",
+            ]
+        )
+        let rhs = CodexCLIProvider.rawDedupKey(
+            type: "assistant_update",
+            payload: [
+                "id": "assistant-1",
+                "status": "in_progress",
+                "output": longPrefix + "rhs",
+            ]
+        )
+
+        XCTAssertNotEqual(lhs, rhs)
+    }
 }

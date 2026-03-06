@@ -8,9 +8,21 @@ extension ChatPanelView {
         _ active: ToolTraceTurnContext,
         outcome: ToolTraceTurnOutcome
     ) {
+        let finalOutcome: ToolTraceTurnOutcome = {
+            let pendingPolicyQueue = policyAckBlockedQueue[active.assistantMessageId] ?? []
+            let policySatisfied = policyAckStateByMessage[active.assistantMessageId]?.isSatisfied == true
+            if !pendingPolicyQueue.isEmpty, !policySatisfied {
+                appendTechnicalErrorMessage(
+                    "[Policy error] Required AGENTS/SKILL acknowledgment did not arrive before queued operational events could be applied.",
+                    in: active.conversationId
+                )
+                return .failed
+            }
+            return outcome
+        }()
         finalizeAutoTodoIfNeeded(
             messageId: active.assistantMessageId,
-            outcome: outcome,
+            outcome: finalOutcome,
             providerId: active.providerId,
             conversationId: active.conversationId
         )
@@ -65,13 +77,22 @@ extension ChatPanelView {
 
     @MainActor
     internal func resolveToolTraceTurn(conversationId: UUID?, providerId: String) -> ToolTraceTurnContext? {
-        let activeTarget = conversationId.flatMap { id in
-            activeToolTraceTurnsByConversation[id].map {
-                ToolTraceBindingTarget(
-                    conversationId: $0.conversationId,
-                    assistantMessageId: $0.assistantMessageId
-                )
-            }
+        let activeTurn = conversationId.flatMap { activeToolTraceTurnsByConversation[$0] }
+        if let activeTurn,
+           activeTurn.providerId != providerId,
+           !isSwarmPolicyAckExemptProvider(providerId) {
+            return nil
+        }
+        let activeTarget = activeTurn.map {
+            ToolTraceBindingTarget(
+                conversationId: $0.conversationId,
+                assistantMessageId: $0.assistantMessageId
+            )
+        }
+        if activeTarget == nil,
+           let conversationId,
+           !chatStore.isTaskActive(for: conversationId) {
+            return nil
         }
         let fallbackAssistantMessageId = conversationId.flatMap { id in
             chatStore.conversation(for: id)?

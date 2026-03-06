@@ -70,16 +70,18 @@ extension CodexCLIProvider {
     }
 
     static func payloadFingerprint(_ payload: [String: String], excluding ignored: Set<String>) -> String {
-        let entries = payload.keys.sorted().compactMap { key -> String? in
-            guard !ignored.contains(key) else { return nil }
-            let value = String((payload[key] ?? "").prefix(256))
-            return "\(key)=\(value)"
-        }
-        guard !entries.isEmpty else { return "" }
         var hasher = Hasher()
-        for entry in entries {
-            hasher.combine(entry)
+        var didHashAnyEntry = false
+        for key in payload.keys.sorted() {
+            guard !ignored.contains(key) else { continue }
+            let value = payload[key] ?? ""
+            didHashAnyEntry = true
+            hasher.combine(key)
+            hasher.combine(value.count)
+            hasher.combine(String(value.prefix(256)))
+            hasher.combine(String(value.suffix(256)))
         }
+        guard didHashAnyEntry else { return "" }
         return String(hasher.finalize(), radix: 16)
     }
 

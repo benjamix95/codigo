@@ -71,7 +71,7 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
         XCTAssertFalse(args.contains("model_providers.openai.wire_api=\"responses\""))
     }
 
-    func testRepairedCodexConfigContentReEnablesDisabledCoderIDEMCPServer() {
+    func testRepairedCodexConfigContentLeavesUnsupportedCoderIDEEnabledFlagUntouched() {
         let original = """
         model = "gpt-5.4"
 
@@ -83,7 +83,6 @@ final class CodexCLIProviderInvocationTests: XCTestCase {
 
         let repaired = CodexCLIProvider.repairedCodexConfigContentIfNeeded(original)
 
-        XCTAssertTrue(repaired.contains("enabled = true"))
-        XCTAssertFalse(repaired.contains("enabled = false"))
+        XCTAssertEqual(repaired, original)
     }
 }

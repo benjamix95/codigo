@@ -49,12 +49,12 @@ extension ChatPanelView {
         applyLegacyStreamSnapshot(
             content: initialChatContent,
             conversationId: streamConversationId,
-            providerId: providerRegistry.selectedProviderId ?? "unknown"
+            providerId: resolvedTurnProviderId(for: streamConversationId)
         )
         applyLegacyLifecycleEvent(
             kind: .turnCompleted,
             conversationId: streamConversationId,
-            providerId: providerRegistry.selectedProviderId ?? "unknown",
+            providerId: resolvedTurnProviderId(for: streamConversationId),
             status: "completed",
             persistImmediately: true
         )
@@ -90,7 +90,7 @@ extension ChatPanelView {
                     applyLegacyStreamSnapshot(
                         content: summaryContent,
                         conversationId: streamConversationId,
-                        providerId: providerRegistry.selectedProviderId ?? "unknown"
+                        providerId: resolvedTurnProviderId(for: streamConversationId)
                     )
                     await MainActor.run {
                         if shouldAutoOpenPlanPanel(trigger: .awaitingClarification), !showPlanPanel {
@@ -110,7 +110,7 @@ extension ChatPanelView {
                     applyLegacyStreamSnapshot(
                         content: summaryContent,
                         conversationId: streamConversationId,
-                        providerId: providerRegistry.selectedProviderId ?? "unknown"
+                        providerId: resolvedTurnProviderId(for: streamConversationId)
                     )
                     _ = planHistoryStore.createEntry(
                         conversationId: streamConversationId,

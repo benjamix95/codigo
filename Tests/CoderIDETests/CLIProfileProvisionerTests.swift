@@ -118,7 +118,7 @@ final class CLIProfileProvisionerTests: XCTestCase {
         XCTAssertTrue(config.contains("fast_mode = true"))
     }
 
-    func testCodexEnvironmentOverridesReEnablesDisabledCoderIDEMCPSection() throws {
+    func testCodexEnvironmentOverridesRemovesUnsupportedCoderIDEMCPEnabledFlag() throws {
         let profile = try makeTemporaryProfileDirectory()
         let fakeMCP = try makeTemporaryExecutable(named: "coderide-mcp-server")
         let configURL = profile.appendingPathComponent("config.toml")
@@ -143,8 +143,8 @@ final class CLIProfileProvisionerTests: XCTestCase {
         }
 
         let config = try String(contentsOf: configURL, encoding: .utf8)
-        XCTAssertTrue(config.contains("enabled = true"))
         XCTAssertFalse(config.contains("enabled = false"))
+        XCTAssertFalse(config.contains("enabled = true"))
     }
 
     func testCodexEnvironmentOverridesRepairsLegacyManagedConfigToCurrentTemplate() throws {

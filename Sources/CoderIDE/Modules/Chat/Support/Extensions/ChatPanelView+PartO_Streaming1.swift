@@ -271,6 +271,11 @@ extension ChatPanelView {
             to: conversationId
         )
         startToolTraceTurn(conversationId: conversationId, assistantMessageId: newId, providerId: providerId)
+        pipelineIntegrationService.retargetAssistantMessage(
+            for: conversationId,
+            assistantMessageId: newId,
+            turnId: newId.uuidString
+        )
         codexLastReasoningLine = nil
 
         if conversationId == self.conversationId {

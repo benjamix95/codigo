@@ -62,9 +62,14 @@ extension ToolEnabledLLMProvider {
                 }
 
             case .textReplace(let replacement):
-                roundTextParts = replacement.isEmpty ? [] : [replacement]
-                roundTextLength = replacement.count
-                continuation.yield(.textReplace(replacement))
+                let visibleReplacement = sanitizeVisibleDelta(replacement)
+                roundTextParts = visibleReplacement.isEmpty ? [] : [visibleReplacement]
+                roundTextLength = visibleReplacement.count
+                continuation.yield(.textReplace(visibleReplacement))
+                visibleTextLength = visibleReplacement.count
+                if isMeaningfulAssistantCompletion(visibleReplacement) {
+                    didEmitMeaningfulText = true
+                }
 
             case .started:
                 if isFirstRound {

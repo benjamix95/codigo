@@ -6,12 +6,24 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func handleRawStreamEvent(
         type t: String, payload p: [String: String], providerId pid: String,
-        conversationId convId: UUID?
+        conversationId convId: UUID?,
+        shouldApplyPipelineArtifacts: Bool = true
     ) {
         if t == "policy_ack" {
             let enriched = processPolicyAckEvent(payload: p, providerId: pid, conversationId: convId)
             recordTaskActivity(type: t, payload: enriched, providerId: pid, conversationId: convId)
-            flushPolicyAckBlockedQueue(providerId: pid, conversationId: convId)
+            let normalizedStatus = (enriched["status"] ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if normalizedStatus == "acknowledged" {
+                flushPolicyAckBlockedQueue(providerId: pid, conversationId: convId)
+            } else {
+                appendTechnicalErrorMessage(
+                    "[Policy error] Invalid AGENTS/SKILL acknowledgment received. Expected hash \(enriched["expected_hash"] ?? "?").",
+                    in: convId
+                )
+                stopTaskForPolicyViolation(conversationId: convId)
+            }
             return
         }
         if shouldHardBlockForMissingPolicyAck(
@@ -23,11 +35,15 @@ extension ChatPanelView {
             // Queue the event instead of silently dropping it.
             // It will be flushed when the policy_ack arrives.
             if let turn = resolveToolTraceTurn(conversationId: convId, providerId: pid) {
-                if !policyAckFailedMessages.contains(turn.assistantMessageId) {
-                    policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
-                        (type: t, payload: p, providerId: pid, conversationId: convId)
+                policyAckBlockedQueue[turn.assistantMessageId, default: []].append(
+                    (
+                        type: t,
+                        payload: p,
+                        providerId: pid,
+                        conversationId: convId,
+                        shouldApplyPipelineArtifacts: shouldApplyPipelineArtifacts
                     )
-                }
+                )
             }
             return
         }
@@ -58,7 +74,8 @@ extension ChatPanelView {
             }
         }
         let pipelineConversationId = convId ?? conversationId
-        if let pipelineTarget = currentAssistantPipelineTarget(for: pipelineConversationId),
+        if shouldApplyPipelineArtifacts,
+           let pipelineTarget = currentAssistantPipelineTarget(for: pipelineConversationId),
            let pipelineConversationId
         {
             let pipelineEvents = RawArtifactEventAdapter.events(
@@ -109,8 +126,16 @@ extension ChatPanelView {
                     }
                 }
             } else {
-                if shouldUseLinearChat(providerId: pid), convId == self.conversationId {
+                let shouldUpdateVisibleReasoning = shouldUpdateInlineReasoningState(
+                    eventConversationId: convId,
+                    selectedConversationId: self.conversationId
+                )
+                if shouldUseLinearChat(providerId: pid), shouldUpdateVisibleReasoning {
                     codexLastReasoningLine = output.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                guard shouldUpdateVisibleReasoning else {
+                    recordTaskActivity(type: t, payload: p, providerId: pid, conversationId: convId)
+                    return
                 }
                 let groupId = p["group_id"] ?? "reasoning-stream"
                 if streamingReasoningConversationId != convId {

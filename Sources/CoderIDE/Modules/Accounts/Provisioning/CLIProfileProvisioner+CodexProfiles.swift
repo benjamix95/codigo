@@ -33,7 +33,7 @@ extension CLIProfileProvisioner {
 
         var lines = existing.components(separatedBy: .newlines)
         lines = upsertRootTomlAssignment(in: lines, key: "fast_mode", value: "true")
-        lines = upsertCoderideMCPSection(in: lines, binaryPath: binaryPath, includeEnabled: true)
+        lines = upsertCoderideMCPSection(in: lines, binaryPath: binaryPath, includeEnabled: false)
         lines = upsertExperimentalFeaturesSection(in: lines)
         let normalizedExisting = existing.hasSuffix("\n") ? existing : existing + "\n"
         let normalizedUpdated = lines.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n"
@@ -58,9 +58,7 @@ extension CLIProfileProvisioner {
             var section = Array(output[start..<end])
             section = upsertTomlAssignment(in: section, key: "command", value: "\"\(binaryPath)\"")
             section = upsertTomlAssignment(in: section, key: "args", value: "[ \"--workspace\", \".\" ]")
-            if includeEnabled {
-                section = upsertTomlAssignment(in: section, key: "enabled", value: "true")
-            }
+            section = removeTomlAssignment(in: section, key: "enabled")
             output.replaceSubrange(start..<end, with: section)
             return output
         }
@@ -91,6 +89,14 @@ extension CLIProfileProvisioner {
         let insertIndex = max(1, updated.count)
         updated.insert("\(key) = \(value)", at: insertIndex)
         return updated
+    }
+
+    static func removeTomlAssignment(in sectionLines: [String], key: String) -> [String] {
+        sectionLines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !(trimmed.hasPrefix("\(key)=")
+                || (trimmed.hasPrefix("\(key) ") && trimmed.contains("=")))
+        }
     }
 
     static func upsertRootTomlAssignment(in lines: [String], key: String, value: String) -> [String] {

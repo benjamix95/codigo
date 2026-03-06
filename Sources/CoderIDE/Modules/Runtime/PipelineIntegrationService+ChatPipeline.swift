@@ -4,7 +4,7 @@ import Foundation
 extension PipelineIntegrationService {
     func consumePipelineUIEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
         guard let runtime = runtime(for: conversationId) else { return }
-        let providerId = runtime.chatTurnState.providerId ?? runtime.currentJobId
+        let providerId = runtime.chatTurnState.providerId ?? runtime.providerId
         let adapted = PipelineUIEventAdapter.events(
             from: event,
             conversationId: conversationId,
@@ -21,7 +21,7 @@ extension PipelineIntegrationService {
         for conversationId: UUID
     ) {
         guard let runtime = runtime(for: conversationId) else { return }
-        let providerId = runtime.chatTurnState.providerId ?? runtime.currentJobId
+        let providerId = runtime.chatTurnState.providerId ?? runtime.providerId
         let adapted = RawArtifactEventAdapter.events(
             rawType: rawType,
             payload: payload,

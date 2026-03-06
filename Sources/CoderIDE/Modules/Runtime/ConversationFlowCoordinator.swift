@@ -4,6 +4,17 @@ import CoderEngine
 /// Legacy flow coordinator: handles direct LLM streaming.
 /// Retained for: chat simple (no tool), plan multi-turn analysis phases.
 final class ConversationFlowCoordinator: ObservableObject {
+    enum StreamExecutionError: LocalizedError {
+        case providerError(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .providerError(let message):
+                return message
+            }
+        }
+    }
+
     private let initialEventTimeoutOverride: Int?
     private let activityTimeoutOverride: Int?
     private let initialRetryOverride: Int?
@@ -200,6 +211,8 @@ final class ConversationFlowCoordinator: ObservableObject {
                 await MainActor.run {
                     onError(snapshot)
                 }
+                await setState(.error)
+                throw StreamExecutionError.providerError(e)
             case .raw(let t, let p):
                 await MainActor.run {
                     onRaw(t, p, provider.id)

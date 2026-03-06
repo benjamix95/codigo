@@ -272,6 +272,122 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertFalse(chatStore.isTaskActive(for: secondConversationId))
     }
 
+    func testExecuteJobScopesRawCallbacksPerConversation() {
+        let suiteName = "PipelineIntegrationServiceTests.raw-callbacks.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let firstConversationId = chatStore.conversations[0].id
+        let secondConversationId = chatStore.createConversation(
+            contextId: nil,
+            contextFolderPath: nil,
+            mode: nil
+        )
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: firstConversationId
+        )
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: secondConversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        var firstProviderIds: [String] = []
+        var secondProviderIds: [String] = []
+
+        service.executeJob(
+            makeJob(id: "job-raw-1"),
+            tasks: [TaskNode(taskId: "task-raw-1", title: "First raw task")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-raw-1",
+                    text: "uno",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-raw-1"
+            ),
+            providerId: "provider-raw-1",
+            conversationId: firstConversationId,
+            assistantMessageId: UUID(),
+            rawEventHandler: { _, _, providerId, _ in
+                firstProviderIds.append(providerId)
+            }
+        )
+
+        service.executeJob(
+            makeJob(id: "job-raw-2"),
+            tasks: [TaskNode(taskId: "task-raw-2", title: "Second raw task")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-raw-2",
+                    text: "due",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-raw-2"
+            ),
+            providerId: "provider-raw-2",
+            conversationId: secondConversationId,
+            assistantMessageId: UUID(),
+            rawEventHandler: { _, _, providerId, _ in
+                secondProviderIds.append(providerId)
+            }
+        )
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-raw-1",
+                taskId: "task-raw-1",
+                rawType: "reasoning",
+                payload: [
+                    "output": "First reasoning",
+                    "group_id": "reasoning-first",
+                ]
+            ),
+            for: firstConversationId
+        )
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-raw-2",
+                taskId: "task-raw-2",
+                rawType: "reasoning",
+                payload: [
+                    "output": "Second reasoning",
+                    "group_id": "reasoning-second",
+                ]
+            ),
+            for: secondConversationId
+        )
+
+        XCTAssertEqual(firstProviderIds, ["provider-raw-1"])
+        XCTAssertEqual(secondProviderIds, ["provider-raw-2"])
+        XCTAssertEqual(service.providerId(for: firstConversationId), "provider-raw-1")
+        XCTAssertEqual(service.providerId(for: secondConversationId), "provider-raw-2")
+
+        XCTAssertTrue(service.cancelCurrentJob(for: firstConversationId))
+        XCTAssertTrue(service.cancelCurrentJob(for: secondConversationId))
+    }
+
     func testHandleRawDebugNativeSessionProjectsStateIntoDebugStore() throws {
         let suiteName = "PipelineIntegrationServiceTests.native.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

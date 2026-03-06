@@ -96,6 +96,36 @@ final class ConversationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.0, "ok")
         XCTAssertEqual(result.1, .completed)
     }
+
+    func testRunStreamFailsWhenProviderEmitsErrorEvent() async {
+        let provider = MockStreamingProvider(events: [
+            .started,
+            .textDelta("partial"),
+            .error("boom"),
+            .completed,
+        ])
+        let coordinator = ConversationFlowCoordinator()
+        let ctx = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+
+        var snapshots: [String] = []
+        do {
+            _ = try await coordinator.runStream(
+                provider: provider,
+                prompt: "test",
+                context: ctx,
+                attachments: nil,
+                onText: { _ in },
+                onRaw: { _, _, _ in },
+                onError: { snapshots.append($0) }
+            )
+            XCTFail("Expected provider error to fail the stream")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("boom"))
+        }
+
+        XCTAssertEqual(coordinator.state, .error)
+        XCTAssertEqual(snapshots.last, "partial\n\n[Error: boom]")
+    }
 }
 
 private final class MockStreamingProvider: LLMProvider, @unchecked Sendable {

@@ -5,6 +5,16 @@ enum ChatReasoningPresentationMode {
     case separateMessages
 }
 
+func shouldUpdateInlineReasoningState(
+    eventConversationId: UUID?,
+    selectedConversationId: UUID?
+) -> Bool {
+    guard let eventConversationId, let selectedConversationId else {
+        return false
+    }
+    return eventConversationId == selectedConversationId
+}
+
 enum ChatReasoningPresentationPolicy {
     static func isCodexProvider(_ providerId: String) -> Bool {
         let normalized = providerId

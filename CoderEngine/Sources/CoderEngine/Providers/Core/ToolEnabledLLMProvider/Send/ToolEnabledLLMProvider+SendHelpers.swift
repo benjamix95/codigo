@@ -206,6 +206,11 @@ extension ToolEnabledLLMProvider {
                             forcedTextLength += visible.count
                         }
                     }
+                case .textReplace(let replacement):
+                    let visible = sanitizeVisibleDelta(replacement)
+                    continuation.yield(.textReplace(visible))
+                    forcedTextParts = visible.isEmpty ? [] : [visible]
+                    forcedTextLength = visible.count
                 default:
                     break
                 }

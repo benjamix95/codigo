@@ -210,6 +210,7 @@ extension ChatPanelView {
             job,
             tasks: tasks,
             workerAdapter: workerAdapter,
+            providerId: provider.id,
             conversationId: agentConvId,
             assistantMessageId: planBuildAssistantMessageId,
             planConversationId: planConversationId,

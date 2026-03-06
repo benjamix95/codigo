@@ -42,7 +42,7 @@ extension ChatPanelView {
             applyLegacyStreamSnapshot(
                 content: sanitizedContent,
                 conversationId: conversationId,
-                providerId: providerRegistry.selectedProviderId ?? "unknown"
+                providerId: resolvedTurnProviderId(for: conversationId)
             )
             return
         }
@@ -71,7 +71,7 @@ extension ChatPanelView {
                 applyLegacyStreamSnapshot(
                     content: shouldSanitizePending ? stripPlanCheckboxes(pending) : pending,
                     conversationId: pendingStreamConversationId,
-                    providerId: providerRegistry.selectedProviderId ?? "unknown"
+                    providerId: resolvedTurnProviderId(for: pendingStreamConversationId)
                 )
                 streamContentVersion &+= 1
             }
@@ -93,7 +93,7 @@ extension ChatPanelView {
         applyLegacyStreamSnapshot(
             content: sanitizedContent,
             conversationId: pendingStreamConversationId,
-            providerId: providerRegistry.selectedProviderId ?? "unknown"
+            providerId: resolvedTurnProviderId(for: pendingStreamConversationId)
         )
         streamContentVersion &+= 1
     }

@@ -43,7 +43,6 @@ final class PipelineIntegrationService: ObservableObject {
     var suppressedDebugProjectionConversationIds: Set<UUID> = []
     private let facadeConfig: PipelineFacadeConfig
 
-    var onRawStreamEvent: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)?
     // #region agent log
     static var _eventCounter = 0
     // #endregion
@@ -76,10 +75,12 @@ final class PipelineIntegrationService: ObservableObject {
         _ job: PipelineJob,
         tasks: [TaskNode],
         workerAdapter: AgentWorkerAdapter,
+        providerId: String,
         conversationId: UUID,
         assistantMessageId: UUID,
         planConversationId: UUID? = nil,
-        onCompletion: ((PipelineCompletionContext) -> Void)? = nil
+        onCompletion: ((PipelineCompletionContext) -> Void)? = nil,
+        rawEventHandler: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)? = nil
     ) {
         // #region agent log
         Self.debugLog("H1", "PipelineIntegrationService.executeJob", ["isRunning": isRunning(for: conversationId), "conversationId": conversationId.uuidString, "jobId": job.jobId, "taskCount": tasks.count])
@@ -97,9 +98,11 @@ final class PipelineIntegrationService: ObservableObject {
             conversationId: conversationId,
             facade: PipelineFacade(config: facadeConfig),
             jobId: job.jobId,
+            providerId: providerId,
             assistantMessageId: assistantMessageId,
             planConversationId: planConversationId,
-            onCompletion: onCompletion
+            onCompletion: onCompletion,
+            rawEventHandler: rawEventHandler
         )
         runtime.chatTurnState.orderedTextStreamIds = tasks.map(\.taskId)
         runtimesByConversation[conversationId] = runtime
@@ -189,6 +192,25 @@ final class PipelineIntegrationService: ObservableObject {
 
     func runtime(for conversationId: UUID) -> PipelineConversationRuntime? {
         runtimesByConversation[conversationId]
+    }
+
+    func providerId(for conversationId: UUID?) -> String? {
+        guard let conversationId else { return nil }
+        return runtimesByConversation[conversationId]?.providerId
+            ?? snapshotsByConversation[conversationId]?.providerId
+    }
+
+    func retargetAssistantMessage(
+        for conversationId: UUID,
+        assistantMessageId: UUID,
+        turnId: String
+    ) {
+        guard let runtime = runtimesByConversation[conversationId] else { return }
+        runtime.retargetAssistantMessage(
+            assistantMessageId: assistantMessageId,
+            turnId: turnId
+        )
+        persistSnapshot(for: conversationId)
     }
 
     func persistSnapshot(for conversationId: UUID) {
