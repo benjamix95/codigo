@@ -57,12 +57,13 @@ public enum PipelineJobFactory {
     // MARK: - Chat Message (single task)
 
     /// Crea un job con un singolo task per un messaggio chat in modalita' agent.
+    /// Timeout 2 h per task lunghi (code review, analisi pipeline, refactoring, ecc.).
     public static func fromChatMessage(
         prompt: String,
         workspace: String,
         providerId: String,
         mode: PipelineMode = .fast,
-        jobTimeoutMs: Int = 600_000
+        jobTimeoutMs: Int = 7_200_000
     ) -> (job: PipelineJob, tasks: [TaskNode]) {
         let jobId = "chat_\(UUID().uuidString.prefix(8))"
 

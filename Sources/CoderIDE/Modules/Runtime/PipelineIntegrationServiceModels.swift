@@ -11,6 +11,8 @@ struct PipelineConversationSnapshot {
     let isRunning: Bool
     let lastError: String?
     let circuitBreakerActive: Bool
+    /// Start time of the job, for elapsed timer display.
+    let jobStartTime: Date
 }
 
 @MainActor
@@ -68,7 +70,8 @@ final class PipelineConversationRuntime {
             totalTasks: totalTasks,
             isRunning: isRunning,
             lastError: lastError,
-            circuitBreakerActive: circuitBreakerActive
+            circuitBreakerActive: circuitBreakerActive,
+            jobStartTime: jobStartTime
         )
     }
 }

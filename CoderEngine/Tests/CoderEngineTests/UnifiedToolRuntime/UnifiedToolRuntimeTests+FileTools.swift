@@ -6,7 +6,7 @@ extension UnifiedToolRuntimeTests {
 
     func testToolRuntimePolicyDefaults() {
         let policy = ToolRuntimePolicy()
-        XCTAssertEqual(policy.maxToolCallsPerRound, 15)
+        XCTAssertEqual(policy.maxToolCallsPerRound, 50)
         XCTAssertEqual(policy.maxRepeatedSameToolPerRound, 8)
         XCTAssertEqual(policy.maxBashOutputBytes, 128_000)
         XCTAssertEqual(policy.maxReadBytesPerFile, 256_000)

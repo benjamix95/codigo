@@ -30,7 +30,8 @@ final class SwarmProgressMetricsTests: XCTestCase {
             totalTasks: 5,
             isRunning: true,
             lastError: nil,
-            circuitBreakerActive: false
+            circuitBreakerActive: false,
+            jobStartTime: Date()
         )
 
         let metrics = SwarmProgressMetrics(
@@ -44,5 +45,28 @@ final class SwarmProgressMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.pendingSteps, 2)
         XCTAssertEqual(metrics.progressLabel, "3/5 steps")
         XCTAssertEqual(metrics.summaryLabel, "2 done • 1 running • 2 pending")
+    }
+
+    func testInternalSingleTaskPhaseHidesStepCount() {
+        let snapshot = PipelineConversationSnapshot(
+            currentJobId: "chat-1",
+            assistantMessageId: UUID(),
+            planConversationId: nil,
+            jobState: .executing,
+            completedTasks: 0,
+            totalTasks: 1,
+            isRunning: true,
+            lastError: nil,
+            circuitBreakerActive: false,
+            jobStartTime: Date()
+        )
+
+        let metrics = SwarmProgressMetrics(
+            steps: [],
+            pipelineSnapshot: snapshot
+        )
+
+        XCTAssertTrue(metrics.isInternalSingleTaskPhase)
+        XCTAssertEqual(metrics.progressLabel, "Running…")
     }
 }

@@ -13,3 +13,6 @@ Codigo.app
 
 # Release artifacts
 dist/
+
+# CodexCustomModel cached/generated images (not for bundle)
+Sources/CoderIDE/Modules/Settings/CodexCustomModel/image/

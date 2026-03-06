@@ -47,13 +47,22 @@ struct TaskControlBar: View {
                 .frame(width: 6, height: 6)
                 .modifier(PulseModifier())
 
-            Text("Pipeline")
+            Text("Task")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.secondary)
 
-            Text("\(snapshot.completedTasks)/\(snapshot.totalTasks)")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.primary)
+            ElapsedTimerView(startDate: snapshot.jobStartTime) { elapsed in
+                Text(formatElapsed(elapsed))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 38, alignment: .trailing)
+            }
+
+            if snapshot.totalTasks > 1 {
+                Text("\(snapshot.completedTasks)/\(snapshot.totalTasks)")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.primary)
+            }
 
             Text(snapshot.jobState.rawValue)
                 .font(.system(size: 10, weight: .medium))

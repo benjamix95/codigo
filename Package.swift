@@ -20,7 +20,10 @@ let package = Package(
                 .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
             path: "Sources/CoderIDE",
-            exclude: ["Info.plist"],
+            exclude: [
+                "Info.plist",
+                "Modules/Settings/CodexCustomModel/image"
+            ],
             resources: [
                 .process("Resources")
             ],

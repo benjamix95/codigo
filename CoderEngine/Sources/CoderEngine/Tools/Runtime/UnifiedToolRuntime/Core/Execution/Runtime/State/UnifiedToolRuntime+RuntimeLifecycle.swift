@@ -113,6 +113,13 @@ extension UnifiedToolRuntime {
         "apply_diff", "debug_mark", "debug_clean",
     ]
 
+    /// Read-only file tools exempt from per-round repetition limit.
+    /// Allows parallel reads of many files without hitting maxRepeatedSameToolPerRound.
+    static let readOnlyFileToolsExemptFromRepetitionLimit: Set<String> = [
+        "read", "read_range", "read_json", "batch_read",
+        "coderide_read", "coderide/read", "coderide_read_range", "coderide/read_range",
+    ]
+
     /// Resets per-round budget counters. Call at the beginning of each tool round.
     public func resetRoundCounters() {
         toolCallsInCurrentRound = 0

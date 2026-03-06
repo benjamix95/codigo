@@ -16,8 +16,9 @@ extension UnifiedToolRuntime {
                 "error_code": "budget_exceeded"
             ])]
         }
+        let exemptFromRepetitionLimit = Self.readOnlyFileToolsExemptFromRepetitionLimit.contains(normalizedName)
         let nameCount = toolCallCountByName[normalizedName, default: 0]
-        if nameCount >= policy.maxRepeatedSameToolPerRound {
+        if !exemptFromRepetitionLimit, nameCount >= policy.maxRepeatedSameToolPerRound {
             return [.raw(type: "tool_execution_error", payload: [
                 "tool_call_id": call.id,
                 "tool": normalizedName,
@@ -28,7 +29,9 @@ extension UnifiedToolRuntime {
             ])]
         }
         toolCallsInCurrentRound += 1
-        toolCallCountByName[normalizedName, default: 0] += 1
+        if !exemptFromRepetitionLimit {
+            toolCallCountByName[normalizedName, default: 0] += 1
+        }
 
         let start = Date()
         let basePayload = buildBasePayload(call: call, normalizedName: normalizedName)
@@ -232,6 +235,8 @@ extension UnifiedToolRuntime {
                  "dependency_graph", "list_types", "list_tests", "index_status", "reindex":
                 return await executeIndexTool(name: normalizedName, call: call, context: context, startDate: startDate)
 
+            case "skill":
+                return await executeSkill(call: call, context: context, startDate: startDate)
             case "mcp", "mcp_call":
                 return await executeMCPCall(call: call, context: context, startDate: startDate)
             case "mcp_list_tools":

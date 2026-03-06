@@ -5,6 +5,8 @@ struct SwarmProgressMetrics {
     let completedSteps: Int
     let runningSteps: Int
     let pendingSteps: Int
+    /// True when pipeline has a single internal task (explorer/todo) — step count should be hidden.
+    let isInternalSingleTaskPhase: Bool
 
     init(steps: [SwarmStep], pipelineSnapshot: PipelineConversationSnapshot?) {
         let stepCompleted = steps.filter { $0.status == .completed }.count
@@ -26,6 +28,7 @@ struct SwarmProgressMetrics {
 
         runningSteps = min(max(totalSteps - completedSteps, 0), inferredRunning)
         pendingSteps = max(totalSteps - completedSteps - runningSteps, 0)
+        isInternalSingleTaskPhase = steps.isEmpty && snapshotTotal == 1 && (pipelineSnapshot?.isRunning == true)
     }
 
     var progressedSteps: Int {
@@ -38,6 +41,7 @@ struct SwarmProgressMetrics {
     }
 
     var progressLabel: String {
+        if isInternalSingleTaskPhase { return "Running…" }
         let noun = totalSteps == 1 ? "step" : "steps"
         return "\(progressedSteps)/\(max(totalSteps, 1)) \(noun)"
     }

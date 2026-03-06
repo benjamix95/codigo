@@ -87,7 +87,7 @@ public struct ToolRuntimePolicy: Sendable {
         sandboxMode: String = "workspace-write",
         askForApproval: String = "never",
         timeoutMs: Int = 60_000,
-        maxToolCallsPerRound: Int = 15,
+        maxToolCallsPerRound: Int = 50,
         maxRepeatedSameToolPerRound: Int = 8,
         maxBashOutputBytes: Int = 128_000,
         maxReadBytesPerFile: Int = 256_000,

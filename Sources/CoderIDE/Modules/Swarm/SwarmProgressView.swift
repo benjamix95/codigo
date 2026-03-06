@@ -62,7 +62,7 @@ struct SwarmProgressView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     swarmAntIcon
-                    Text(isPipelineRunningForConversation ? "PIPELINE" : "SUBAGENT")
+                    Text(isPipelineRunningForConversation ? "TASK" : "SUBAGENT")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
@@ -89,12 +89,14 @@ struct SwarmProgressView: View {
                 .help("Show/hide live subagent cards")
                 .disabled(liveSwarmCards.isEmpty)
 
-                metricPill(
-                    icon: "checklist",
-                    text: stepCountLabel,
-                    tint: progressMetrics.progressedSteps > 0 ? DesignSystem.Colors.swarmColor : .secondary,
-                    isLive: isLive
-                )
+                if !progressMetrics.isInternalSingleTaskPhase {
+                    metricPill(
+                        icon: "checklist",
+                        text: stepCountLabel,
+                        tint: progressMetrics.progressedSteps > 0 ? DesignSystem.Colors.swarmColor : .secondary,
+                        isLive: isLive
+                    )
+                }
 
                 Button {
                     withAnimation(.snappy(duration: 0.22)) {
@@ -121,7 +123,7 @@ struct SwarmProgressView: View {
 
             if isExpanded {
                 if progressMetrics.totalSteps == 0 {
-                    Text(isPipelineRunningForConversation ? "Waiting for pipeline steps…" : "Waiting for subagent steps…")
+                    Text(isPipelineRunningForConversation ? "Waiting for task steps…" : "Waiting for subagent steps…")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 12)
