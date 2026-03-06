@@ -84,6 +84,7 @@ extension CodexCLIProviderStreamParsingTests {
         XCTAssertEqual(rawTurnEvents, ["turn_started", "turn_completed"])
     }
 
+
     func testReasoningUsesSwarmGroupIdWhenSwarmIdPresent() {
         let events = runParser(events: [
             [

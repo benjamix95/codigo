@@ -143,6 +143,16 @@ extension CodexCLIProvider {
             }
         }
 
+        captureAssistantUpdateState(from: json, state: &state)
+        if let assistantUpdatePayload = extractAssistantUpdatePayload(from: json) {
+            appendRawEvent(
+                type: "assistant_update",
+                payload: assistantUpdatePayload,
+                state: &state,
+                events: &events
+            )
+        }
+
         if !state.emittedContextCompacted, containsCompactionSignal(json: json) {
             state.emittedContextCompacted = true
             appendRawEvent(

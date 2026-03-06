@@ -85,11 +85,13 @@ extension CodexCLIProvider {
 
     static func extractAgentMessageChunk(from json: [String: Any]) -> (text: String, isDelta: Bool)? {
         let eventType = (json["type"] as? String) ?? ""
+        let finalLikeItemTypes: Set<String> = ["assistant_message", "final_answer", "message", "text"]
+        let finalLikeEventTypes: Set<String> = ["assistant_message", "final_answer", "message", "text"]
 
         if eventType.hasPrefix("item."),
            let item = json["item"] as? [String: Any],
            let itemType = item["type"] as? String,
-           itemType == "agent_message" {
+           finalLikeItemTypes.contains(itemType) {
             if let delta = firstString(in: item, keys: ["delta", "text_delta"]), !delta.isEmpty {
                 return (delta, true)
             }
@@ -99,13 +101,67 @@ extension CodexCLIProvider {
             return nil
         }
 
-        if eventType == "agent_message" {
+        if finalLikeEventTypes.contains(eventType) {
             if let text = extractTextPayload(from: json), !text.isEmpty {
                 return (text, false)
             }
         }
 
         return nil
+    }
+
+    static func extractAssistantUpdatePayload(from json: [String: Any]) -> [String: String]? {
+        let eventType = (json["type"] as? String) ?? ""
+        let item = (json["item"] as? [String: Any]) ?? json
+        let itemType = (item["type"] as? String) ?? eventType
+        guard itemType == "agent_message" || eventType == "agent_message" else {
+            return nil
+        }
+        guard let rawText = extractTextPayload(from: item) ?? extractTextPayload(from: json) else {
+            return nil
+        }
+        let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var payload: [String: String] = [
+            "title": "Working",
+            "detail": String(
+                trimmed
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                    .prefix(240)
+            ),
+            "output": String(rawText.prefix(6_000)),
+            "status": "in_progress",
+        ]
+        if let itemId = firstString(in: item, keys: ["id"]), !itemId.isEmpty {
+            payload["id"] = itemId
+            payload["group_id"] = itemId
+        }
+        return payload
+    }
+
+    static func captureAssistantUpdateState(
+        from json: [String: Any],
+        state: inout CodexStreamParserState
+    ) {
+        let eventType = (json["type"] as? String) ?? ""
+        let item = (json["item"] as? [String: Any]) ?? json
+        let itemType = (item["type"] as? String) ?? eventType
+        guard itemType == "agent_message" || eventType == "agent_message" else {
+            return
+        }
+
+        if let delta = firstString(in: item, keys: ["delta", "text_delta"]), !delta.isEmpty {
+            state.turn.lastObservedAgentText += delta
+            state.turn.lastValidAgentMessage = state.turn.lastObservedAgentText
+            return
+        }
+
+        if let text = extractTextPayload(from: item) ?? extractTextPayload(from: json),
+           !text.isEmpty {
+            state.turn.lastObservedAgentText = text
+            state.turn.lastValidAgentMessage = text
+        }
     }
 
     static func extractTextPayload(from obj: Any) -> String? {
