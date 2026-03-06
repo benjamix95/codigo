@@ -48,7 +48,7 @@ extension CodeReviewPanelView {
                         onApplyAll: {
                             guard let sessionId else { return }
                             let findingIds = findings
-                                .filter { $0.status == .open && $0.suggestedFix != nil }
+                                .filter { $0.status == .open }
                                 .map(\.id)
                             onDispatchAction(.applyAllFixes(sessionId: sessionId, findingIds: findingIds))
                         },

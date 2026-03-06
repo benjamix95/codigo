@@ -12,16 +12,10 @@ extension CodigoApp {
 
     @MainActor
     func processPendingCodeReviewCommandsOnce() async {
-        let commands = MCPSharedState.readPendingCodeReviewCommands()
+        let commands = MCPSharedState.claimPendingCodeReviewCommands()
         guard !commands.isEmpty else { return }
 
         for command in commands {
-            MCPSharedState.markCodeReviewCommand(
-                id: command.id,
-                status: .processing,
-                resultMessage: nil
-            )
-
             let outcome = await handleCodeReviewCommand(command)
             MCPSharedState.markCodeReviewCommand(
                 id: command.id,
@@ -76,6 +70,21 @@ extension CodigoApp {
                 analysisBackend: command.payload["analysis_backend"] ?? snapshot.config.analysisBackend,
                 executionBackend: command.payload["execution_backend"] ?? snapshot.config.executionBackend
             )
+            let cfg = providerFactoryConfig()
+            guard ProviderFactory.codeReviewMultiSwarmProvider(
+                config: cfg,
+                executionController: executionController,
+                agentProviderId: providerRegistry.selectedProviderId,
+                codebaseIndex: workspaceStore.codebaseIndex,
+                workspacePaths: workspaceStore.activeWorkspacePaths,
+                initialSessionConfig: updatedConfig
+            ) != nil else {
+                return (false, "Updated review configuration could not be resolved with the current providers")
+            }
+            if let liveState = await ReviewSessionRegistry.shared.state(sessionId: sessionId) {
+                await liveState.updateConfig(updatedConfig)
+                return (true, "Live review configuration updated")
+            }
             return await persistReviewSnapshotMutation(sessionId: sessionId) { snapshot in
                 CodeReviewSessionSnapshot(
                     sessionId: snapshot.sessionId,
@@ -88,6 +97,7 @@ extension CodigoApp {
                     ],
                     config: updatedConfig,
                     scope: snapshot.scope,
+                    workspacePath: snapshot.workspacePath,
                     currentRound: snapshot.currentRound,
                     activeWorkerCount: snapshot.activeWorkerCount,
                     startedAt: snapshot.startedAt,
@@ -143,7 +153,8 @@ extension CodigoApp {
             agentProviderId: providerRegistry.selectedProviderId,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths,
-            sessionState: sessionState
+            sessionState: sessionState,
+            initialSessionConfig: sessionConfig
         ) else {
             return (false, "Unable to create code review provider")
         }
@@ -191,10 +202,11 @@ extension CodigoApp {
         case "against_ref":
             let ref = command.payload["ref"] ?? "HEAD~1"
             let analysisOnly = parseBoolValue(command.payload["analysis_only"]) ?? codeReviewAnalysisOnly
+            let configuredMaxRounds = Int(command.payload["max_rounds"] ?? "") ?? codeReviewMaxRounds
             return CodeReviewQuickCommands.againstPrompt(
                 ref: ref,
                 autofixEnabled: !analysisOnly,
-                maxRounds: Int(command.payload["max_rounds"] ?? "") ?? codeReviewMaxRounds
+                maxRounds: configuredMaxRounds
             )
         default:
             return """

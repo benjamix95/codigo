@@ -29,14 +29,16 @@ extension ChatPanelView {
             let cfg = providerFactoryConfig()
             let store = taskActivityStore
             let reviewConversationId = conversationId
-            let sessionState = CodeReviewSessionState(
-                conversationId: reviewConversationId,
-                config: SessionConfig(
+            let initialReviewSessionConfig = pendingCodeReviewSessionConfigOverride
+                ?? SessionConfig(
                     maxWorkers: cfg.codeReviewPartitions,
                     maxRounds: cfg.codeReviewMaxRounds,
                     analysisBackend: cfg.codeReviewAnalysisBackend,
                     executionBackend: cfg.codeReviewExecutionBackend
-                ),
+                )
+            let sessionState = CodeReviewSessionState(
+                conversationId: reviewConversationId,
+                config: initialReviewSessionConfig,
                 onStateChange: { snapshot in
                     Task {
                         await ReviewSessionRegistry.shared.recordSnapshot(snapshot)
@@ -55,8 +57,10 @@ extension ChatPanelView {
                 agentProviderId: providerRegistry.selectedProviderId,
                 codebaseIndex: workspaceStore.codebaseIndex,
                 workspacePaths: runtimeWorkspacePaths,
-                sessionState: sessionState
+                sessionState: sessionState,
+                initialSessionConfig: initialReviewSessionConfig
             ) {
+                pendingCodeReviewSessionConfigOverride = nil
                 Task {
                     await ReviewSessionRegistry.shared.register(sessionState)
                 }
@@ -64,10 +68,11 @@ extension ChatPanelView {
             }
             // Factory returned nil — surface the error in chat so the user knows.
             // Common cause: API key missing for the selected backend.
-            let analysisBackend = cfg.codeReviewAnalysisBackend
-            let executionBackend = cfg.codeReviewExecutionBackend
+            let analysisBackend = initialReviewSessionConfig.analysisBackend
+            let executionBackend = initialReviewSessionConfig.executionBackend
             let msg = "[Code Review] Failed to create multi-swarm provider (analysis: \(analysisBackend), execution: \(executionBackend)). Check your API keys in Settings."
             print("[CodeReview] WARNING: \(msg)")
+            pendingCodeReviewSessionConfigOverride = nil
             appendTechnicalErrorMessage(msg, in: conversationId)
             return nil
         }

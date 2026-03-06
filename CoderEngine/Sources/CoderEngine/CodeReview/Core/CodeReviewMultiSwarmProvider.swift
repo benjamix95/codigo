@@ -34,6 +34,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
     private let executionProvider: any LLMProvider
     private let executionController: ExecutionController?
     private let fileLockCoordinator = FileLockCoordinator()
+    private let runtimeResolver: CodeReviewRuntimeResolver?
 
     /// Session state actor — tracks structured review state (findings, events, phase).
     public let sessionState: CodeReviewSessionState
@@ -43,12 +44,14 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         analysisProvider: any LLMProvider,
         executionProvider: any LLMProvider,
         executionController: ExecutionController? = nil,
-        sessionState: CodeReviewSessionState? = nil
+        sessionState: CodeReviewSessionState? = nil,
+        runtimeResolver: CodeReviewRuntimeResolver? = nil
     ) {
         self.config = config
         self.analysisProvider = analysisProvider
         self.executionProvider = executionProvider
         self.executionController = executionController
+        self.runtimeResolver = runtimeResolver
         self.sessionState = sessionState ?? CodeReviewSessionState(
             config: SessionConfig(
                 maxWorkers: config.maxWorkers,
@@ -85,6 +88,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         let execController = self.executionController
         let fileLockCoordinator = self.fileLockCoordinator
         let sessionState = self.sessionState
+        let runtimeResolver = self.runtimeResolver
 
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -95,6 +99,7 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
                         config: config,
                         analysisProvider: analysisProvider,
                         executionProvider: executionProvider,
+                        runtimeResolver: runtimeResolver,
                         execController: execController,
                         fileLockCoordinator: fileLockCoordinator,
                         sessionState: sessionState,

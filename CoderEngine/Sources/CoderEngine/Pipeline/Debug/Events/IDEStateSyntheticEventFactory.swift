@@ -265,6 +265,9 @@ enum IDEStateSyntheticEventFactory {
             if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
                 payload["session_id"] = sessionId
             }
+            if let conversationId = firstNonEmptyString(in: arguments, keys: ["conversation_id", "conversationId"]) {
+                payload["conversation_id"] = conversationId
+            }
             return payload.isEmpty ? [] : [wrapped("review_apply_fix", payload)]
 
         case "review_dismiss":
@@ -277,6 +280,9 @@ enum IDEStateSyntheticEventFactory {
             }
             if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
                 payload["session_id"] = sessionId
+            }
+            if let conversationId = firstNonEmptyString(in: arguments, keys: ["conversation_id", "conversationId"]) {
+                payload["conversation_id"] = conversationId
             }
             return payload.isEmpty ? [] : [wrapped("review_dismiss", payload)]
 
@@ -294,12 +300,15 @@ enum IDEStateSyntheticEventFactory {
             if let sessionId = firstNonEmptyString(in: arguments, keys: ["session_id"]) {
                 payload["session_id"] = sessionId
             }
+            if let conversationId = firstNonEmptyString(in: arguments, keys: ["conversation_id", "conversationId"]) {
+                payload["conversation_id"] = conversationId
+            }
             return payload.isEmpty ? [] : [wrapped("review_comment", payload)]
 
         case "review_configure":
             var payload: [String: String] = [:]
             for key in [
-                "session_id", "max_workers", "max_rounds",
+                "session_id", "conversation_id", "max_workers", "max_rounds",
                 "analysis_backend", "execution_backend",
             ] {
                 if let value = firstNonEmptyString(in: arguments, keys: [key]) {

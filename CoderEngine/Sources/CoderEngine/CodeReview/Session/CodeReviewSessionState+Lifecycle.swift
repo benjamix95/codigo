@@ -1,10 +1,14 @@
 import Foundation
 
 extension CodeReviewSessionState {
-    public func start(scope: ReviewSessionScope) {
+    public func start(
+        scope: ReviewSessionScope,
+        workspacePath: String? = nil
+    ) {
         self.phase = .analyzing
         self.stage = .analysis
         self.scope = scope
+        self.workspacePath = workspacePath
         self.findings = []
         self.events = []
         self.currentRound = 0
@@ -46,6 +50,7 @@ extension CodeReviewSessionState {
         findings = []
         events = []
         scope = nil
+        workspacePath = nil
         currentRound = 0
         activeWorkerCount = 0
         startedAt = nil

@@ -8,8 +8,9 @@ extension ReviewPipelineCoordinator {
         config: MultiSwarmReviewConfig,
         againstRef: String?,
         resolvedScope: CodeReviewMultiSwarmProvider.ReviewFileScope,
-        executionProvider: any LLMProvider,
-        analysisProvider: any LLMProvider,
+        staticAnalysisProvider: any LLMProvider,
+        staticExecutionProvider: any LLMProvider,
+        runtimeResolver: CodeReviewRuntimeResolver?,
         execController: ExecutionController?,
         fileLockCoordinator: FileLockCoordinator,
         sessionState: CodeReviewSessionState,
@@ -26,7 +27,9 @@ extension ReviewPipelineCoordinator {
             }
             return await runTerminalTestOnly(
                 context: context,
-                executionProvider: executionProvider,
+                staticConfig: config,
+                staticExecutionProvider: staticExecutionProvider,
+                runtimeResolver: runtimeResolver,
                 continuation: continuation,
                 execController: execController,
                 sessionState: sessionState,
@@ -42,7 +45,18 @@ extension ReviewPipelineCoordinator {
             reason: "No test rounds executed."
         )
 
-        reviewLoop: while reviewRound < config.maxReviewRounds {
+        reviewLoop: while true {
+            let runtimeResources = await currentRuntimeResources(
+                staticConfig: config,
+                staticAnalysisProvider: staticAnalysisProvider,
+                staticExecutionProvider: staticExecutionProvider,
+                runtimeResolver: runtimeResolver,
+                sessionState: sessionState
+            )
+            let runtimeConfig = runtimeResources.config
+            guard reviewRound < runtimeConfig.maxReviewRounds else {
+                break reviewLoop
+            }
             if isCancelled() { break reviewLoop }
             await waitWhilePaused()
             reviewRound += 1
@@ -62,15 +76,15 @@ extension ReviewPipelineCoordinator {
             }
             continuation.yield(.raw(type: "review-fix-round", payload: [
                 "round": "\(reviewRound)",
-                "maxRounds": "\(config.maxReviewRounds)",
+                "maxRounds": "\(runtimeConfig.maxReviewRounds)",
                 "session_id": sessionId,
             ]))
 
             let fixSucceeded = await runPipelineFixStage(
                 tasks: currentTasks,
                 context: context,
-                executionProvider: executionProvider,
-                config: config,
+                executionProvider: runtimeResources.executionProvider,
+                config: runtimeConfig,
                 againstRef: againstRef,
                 resolvedScope: resolvedScope,
                 round: reviewRound,
@@ -85,7 +99,7 @@ extension ReviewPipelineCoordinator {
             await sessionState.markTestingStarted()
             lastTestResult = await CodeReviewMultiSwarmProvider.runTests(
                 context: context,
-                executionProvider: executionProvider,
+                executionProvider: runtimeResources.executionProvider,
                 continuation: continuation,
                 execController: execController,
                 isCancelled: isCancelled,
@@ -100,11 +114,14 @@ extension ReviewPipelineCoordinator {
                 await sessionState.markTestResult(.inconclusive, detail: reason)
             }
 
-            let modifiedFiles = WorkspaceScanner.listUncommittedSourceFiles(
+            let allowedScopeFiles = Set((await sessionState.snapshot().scope?.files) ?? [])
+            let modifiedFiles = scopedModifiedFilesForReReview(
                 workspacePath: context.workspacePath,
-                excludedPaths: context.excludedPaths
+                excludedPaths: context.excludedPaths,
+                allowedScopeFiles: allowedScopeFiles
             )
             if modifiedFiles.isEmpty {
+                await sessionState.markAllOpenFindingsAsFixApplied()
                 finalReviewState = .clean
                 break reviewLoop
             }
@@ -114,8 +131,8 @@ extension ReviewPipelineCoordinator {
                 modifiedFiles: modifiedFiles,
                 round: reviewRound,
                 context: context,
-                analysisProvider: analysisProvider,
-                maxWorkers: config.maxWorkers,
+                analysisProvider: runtimeResources.analysisProvider,
+                maxWorkers: runtimeConfig.maxWorkers,
                 continuation: continuation,
                 isCancelled: isCancelled,
                 waitWhilePaused: waitWhilePaused
@@ -123,6 +140,7 @@ extension ReviewPipelineCoordinator {
 
             switch reReviewOutcome.findings {
             case .clean:
+                await sessionState.markAllOpenFindingsAsFixApplied()
                 finalReviewState = .clean
                 break reviewLoop
             case .inconclusive(let reason):
@@ -130,7 +148,7 @@ extension ReviewPipelineCoordinator {
                 break reviewLoop
             case .issues:
                 finalReviewState = .issues
-                if reviewRound >= config.maxReviewRounds {
+                if reviewRound >= runtimeConfig.maxReviewRounds {
                     break reviewLoop
                 }
             }
@@ -138,27 +156,28 @@ extension ReviewPipelineCoordinator {
             let nextRoundTasks = CodeReviewMultiSwarmProvider.parseReviewTasks(
                 from: reReviewOutcome.text,
                 filesToReview: modifiedFiles,
-                maxWorkers: config.maxWorkers
+                maxWorkers: runtimeConfig.maxWorkers
             )
             switch nextRoundTasks {
             case .tasks(let tasks) where !tasks.isEmpty:
                 currentTasks = tasks
                 let findings = tasks.map { task in
                     CodeReviewFinding.fromRawTask(
-                        id: task.id,
+                        id: nextFindingID(taskID: task.id, round: reviewRound),
                         description: task.description,
                         files: task.files,
                         severity: task.severity,
                         filePath: task.files.first
                     )
                 }
-                await sessionState.addFindings(findings)
+                await sessionState.replaceOpenFindings(with: findings)
             default:
                 break reviewLoop
             }
         }
 
         if isCancelled() {
+            await sessionState.fail(error: "Review cancelled.")
             continuation.yield(.textDelta("\n**Review cancelled.**\n"))
         } else {
             let testVerdict: String = switch lastTestResult {
@@ -181,17 +200,26 @@ extension ReviewPipelineCoordinator {
 
     func runTerminalTestOnly(
         context: WorkspaceContext,
-        executionProvider: any LLMProvider,
+        staticConfig: MultiSwarmReviewConfig,
+        staticExecutionProvider: any LLMProvider,
+        runtimeResolver: CodeReviewRuntimeResolver?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation,
         execController: ExecutionController?,
         sessionState: CodeReviewSessionState,
         isCancelled: @escaping @Sendable () -> Bool,
         waitWhilePaused: @escaping @Sendable () async -> Void
     ) async -> Bool {
+        let runtimeResources = await currentRuntimeResources(
+            staticConfig: staticConfig,
+            staticAnalysisProvider: staticExecutionProvider,
+            staticExecutionProvider: staticExecutionProvider,
+            runtimeResolver: runtimeResolver,
+            sessionState: sessionState
+        )
         await sessionState.markTestingStarted()
         let testResult = await CodeReviewMultiSwarmProvider.runTests(
             context: context,
-            executionProvider: executionProvider,
+            executionProvider: runtimeResources.executionProvider,
             continuation: continuation,
             execController: execController,
             isCancelled: isCancelled,
@@ -208,5 +236,22 @@ extension ReviewPipelineCoordinator {
         continuation.yield(.completed)
         continuation.finish()
         return true
+    }
+
+    private func scopedModifiedFilesForReReview(
+        workspacePath: URL,
+        excludedPaths: [String],
+        allowedScopeFiles: Set<String>
+    ) -> [String] {
+        let modifiedFiles = WorkspaceScanner.listUncommittedSourceFiles(
+            workspacePath: workspacePath,
+            excludedPaths: excludedPaths
+        )
+        guard !allowedScopeFiles.isEmpty else { return modifiedFiles }
+        return modifiedFiles.filter { allowedScopeFiles.contains($0) }
+    }
+
+    private func nextFindingID(taskID: String, round: Int) -> String {
+        "r\(round)-\(taskID)"
     }
 }

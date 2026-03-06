@@ -15,10 +15,11 @@ extension TaskActivityStore {
         let resolvedConversationId = conversationId ?? snapshot.conversationId
         if let conversationScope = codeReviewConversationScope(resolvedConversationId) {
             var sessionIds = codeReviewSessionIdsByConversation[conversationScope] ?? []
+            let isNewSession = !sessionIds.contains(snapshot.sessionId)
             sessionIds.removeAll { $0 == snapshot.sessionId }
             sessionIds.insert(snapshot.sessionId, at: 0)
             codeReviewSessionIdsByConversation[conversationScope] = sessionIds
-            if selectedCodeReviewSessionIdByConversation[conversationScope] == nil {
+            if isNewSession || selectedCodeReviewSessionIdByConversation[conversationScope] == nil {
                 selectedCodeReviewSessionIdByConversation[conversationScope] = snapshot.sessionId
             }
         }

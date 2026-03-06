@@ -20,6 +20,8 @@ public struct MCPSharedCodeReviewCommand: Codable, Sendable {
 }
 
 extension MCPSharedState {
+    private static let staleCodeReviewCommandTimeout: TimeInterval = 120
+
     public static var codeReviewCommandsFilePath: URL {
         codeReviewDirectoryPath.appendingPathComponent("commands.json")
     }
@@ -30,8 +32,7 @@ extension MCPSharedState {
         conversationId: UUID?,
         payload: [String: String]
     ) -> MCPSharedCodeReviewCommand {
-        fileAccessQueue.sync {
-            ensureDirectory()
+        withCodeReviewFileLock {
             let normalizedPayload = payload.filter { !$0.key.isEmpty }
             let command = MCPSharedCodeReviewCommand(
                 id: UUID().uuidString.lowercased(),
@@ -52,8 +53,34 @@ extension MCPSharedState {
     }
 
     public static func readPendingCodeReviewCommands() -> [MCPSharedCodeReviewCommand] {
-        fileAccessQueue.sync {
+        withCodeReviewFileLock {
             _readCodeReviewCommandsUnsafe().filter { $0.status == .pending }
+        }
+    }
+
+    public static func claimPendingCodeReviewCommands() -> [MCPSharedCodeReviewCommand] {
+        withCodeReviewFileLock {
+            let now = Date()
+            var commands = _readCodeReviewCommandsUnsafe()
+            var claimed: [MCPSharedCodeReviewCommand] = []
+
+            for index in commands.indices {
+                let command = commands[index]
+                let isPending = command.status == .pending
+                let isStaleProcessing = command.status == .processing
+                    && now.timeIntervalSince(command.updatedAt) >= staleCodeReviewCommandTimeout
+                guard isPending || isStaleProcessing else { continue }
+                commands[index].status = .processing
+                commands[index].updatedAt = now
+                commands[index].resultMessage = nil
+                claimed.append(commands[index])
+            }
+
+            if !claimed.isEmpty {
+                _writeCodeReviewCommandsUnsafe(commands)
+            }
+
+            return claimed.sorted(by: sortCodeReviewCommandsForProcessing)
         }
     }
 
@@ -62,7 +89,7 @@ extension MCPSharedState {
         status: MCPSharedCodeReviewCommand.Status,
         resultMessage: String?
     ) {
-        fileAccessQueue.sync {
+        withCodeReviewFileLock {
             var commands = _readCodeReviewCommandsUnsafe()
             guard let index = commands.firstIndex(where: { $0.id == id }) else { return }
             commands[index].status = status
@@ -96,5 +123,15 @@ extension MCPSharedState {
         } catch {
             print("[MCPSharedState] ⚠️ Failed to write code review commands: \(error.localizedDescription)")
         }
+    }
+
+    private static func sortCodeReviewCommandsForProcessing(
+        _ lhs: MCPSharedCodeReviewCommand,
+        _ rhs: MCPSharedCodeReviewCommand
+    ) -> Bool {
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt < rhs.createdAt
+        }
+        return lhs.id < rhs.id
     }
 }

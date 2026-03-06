@@ -184,7 +184,7 @@ extension CodeReviewPanelView {
         onDismiss: @escaping (String) -> Void
     ) -> some View {
         HStack(spacing: 8) {
-            if finding.suggestedFix != nil && finding.status == .open {
+            if finding.status == .open {
                 Button {
                     onApplyFix(finding.id)
                 } label: {
@@ -209,5 +209,7 @@ extension CodeReviewPanelView {
 
             Spacer()
         }
+        .disabled(isTaskRunning)
+        .opacity(isTaskRunning ? 0.72 : 1)
     }
 }

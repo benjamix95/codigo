@@ -129,6 +129,10 @@ extension CoderIDETools {
                         "type": "string",
                         "description": "The review session id that owns the finding",
                     ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Required for conversation-scoped sessions.",
+                    ]),
                 ]),
                 "required": .array([.string("finding_id"), .string("session_id")]),
             ]),
@@ -151,6 +155,10 @@ extension CoderIDETools {
                     "session_id": .object([
                         "type": "string",
                         "description": "The review session id that owns the finding",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Required for conversation-scoped sessions.",
                     ]),
                 ]),
                 "required": .array([.string("finding_id"), .string("session_id")]),
@@ -182,6 +190,10 @@ extension CoderIDETools {
                     "session_id": .object([
                         "type": "string",
                         "description": "The review session id to update",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Required for conversation-scoped sessions.",
                     ]),
                 ]),
                 "required": .array([.string("session_id")]),
@@ -231,6 +243,10 @@ extension CoderIDETools {
                     "session_id": .object([
                         "type": "string",
                         "description": "The review session id that owns the finding",
+                    ]),
+                    "conversation_id": .object([
+                        "type": "string",
+                        "description": "Required for conversation-scoped sessions.",
                     ]),
                 ]),
                 "required": .array([.string("finding_id"), .string("content"), .string("session_id")]),

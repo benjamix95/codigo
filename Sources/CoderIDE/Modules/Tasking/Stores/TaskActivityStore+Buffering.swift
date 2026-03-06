@@ -223,7 +223,7 @@ extension TaskActivityStore {
         instantGreps.removeAll { $0.createdAt < cutoff }
     }
 
-    func clear() {
+    func clear(preservingCodeReviewState: Bool = false) {
         flushTask?.cancel()
         flushTask = nil
         pendingActivities.removeAll(keepingCapacity: true)
@@ -239,6 +239,7 @@ extension TaskActivityStore {
         swarmEventsReceivedCount = 0
         swarmEventsAssignedCount = 0
         swarmEventsFallbackCount = 0
+        guard !preservingCodeReviewState else { return }
         codeReviewFindings = []
         codeReviewEvents = []
         codeReviewPhase = .idle

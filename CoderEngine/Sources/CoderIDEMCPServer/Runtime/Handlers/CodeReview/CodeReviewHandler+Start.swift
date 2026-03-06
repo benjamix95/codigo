@@ -43,6 +43,18 @@ extension CoderIDEMCPServerApp {
             }
         }
 
+        if let backend = args["analysis_backend"],
+           !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return reviewError("Error: invalid analysis_backend '\(backend)'")
+        }
+
+        if let backend = args["execution_backend"],
+           !backend.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !validateReviewBackend(backend.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return reviewError("Error: invalid execution_backend '\(backend)'")
+        }
+
         let requestedSessionId = sanitizedReviewArg(
             args,
             key: args["session_id"] != nil ? "session_id" : "sessionId"
@@ -72,7 +84,9 @@ extension CoderIDEMCPServerApp {
             requireExplicitWhenAmbiguous: true
         )
         if let message = resolved.error {
-            return reviewOK(message == "No active review session." ? message : message)
+            return message == "No active review session."
+                ? reviewOK(message)
+                : reviewError(message)
         }
         guard let sessionId = resolved.sessionId,
               let status = MCPSharedState.readCodeReviewStatus(sessionId: sessionId) else {
@@ -95,7 +109,7 @@ extension CoderIDEMCPServerApp {
             return reviewError("Error: unable to load the requested review session")
         }
         let fileFilter = sanitizedReviewArg(args, key: "file")
-        let workspacePath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let workspacePath = URL(fileURLWithPath: snapshot.workspacePath ?? FileManager.default.currentDirectoryPath)
         let rendered = ReviewDiffSummaryService.renderSummary(
             snapshot: snapshot,
             workspacePath: workspacePath,
@@ -111,10 +125,13 @@ extension CoderIDEMCPServerApp {
         let snapshots = MCPSharedState.readCodeReviewSnapshots(
             conversationId: resolveReviewConversationId(args)
         )
-        guard !snapshots.isEmpty else {
+        let filteredSnapshots = resolveReviewConversationId(args) == nil
+            ? snapshots.filter { $0.conversationId == nil }
+            : snapshots
+        guard !filteredSnapshots.isEmpty else {
             return reviewOK("No review sessions found.")
         }
-        let lines = snapshots.map { snapshot in
+        let lines = filteredSnapshots.map { snapshot in
             let scope = snapshot.scope?.type.rawValue ?? "unknown"
             return "\(snapshot.sessionId) | phase=\(snapshot.phase.rawValue) | stage=\(snapshot.stage.rawValue) | scope=\(scope) | findings=\(snapshot.findings.count)"
         }

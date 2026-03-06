@@ -59,6 +59,7 @@ struct ChatPanelView: View {
     @AppStorage("code_review_execution_backend")  var codeReviewExecutionBackend = "auto"
     @AppStorage("code_review_quick_commands_custom_json")
      var codeReviewQuickCommandsCustomJSON = ""
+    @State  var pendingCodeReviewSessionConfigOverride: SessionConfig?
     @AppStorage("openai_api_key")  var openaiApiKey = ""
     @AppStorage("openai_model")  var openaiModel = "gpt-4o-mini"
     @AppStorage("anthropic_api_key")  var anthropicApiKey = ""

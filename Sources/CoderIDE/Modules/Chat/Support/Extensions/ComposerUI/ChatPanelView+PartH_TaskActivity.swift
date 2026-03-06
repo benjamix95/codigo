@@ -115,7 +115,7 @@ extension ChatPanelView {
         taskFlushTask = nil
         pendingTaskActivities.removeAll(keepingCapacity: true)
         pendingInstantGreps.removeAll(keepingCapacity: true)
-        taskActivityStore.clear()
+        taskActivityStore.clear(preservingCodeReviewState: true)
     }
 
     internal func activityWithConversationContext(

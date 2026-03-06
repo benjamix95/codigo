@@ -17,6 +17,7 @@ public actor CodeReviewSessionState {
     var events: [CodeReviewSessionEvent] = []
     var config: SessionConfig
     var scope: ReviewSessionScope?
+    var workspacePath: String?
     var currentRound: Int = 0
     var activeWorkerCount: Int = 0
     var startedAt: Date?
@@ -63,6 +64,7 @@ public actor CodeReviewSessionState {
             events: events,
             config: config,
             scope: scope,
+            workspacePath: workspacePath,
             currentRound: currentRound,
             activeWorkerCount: activeWorkerCount,
             startedAt: startedAt,

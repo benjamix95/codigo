@@ -23,20 +23,20 @@ extension ChatPanelView {
 
         case .rerunSession(let sessionId):
             guard let snapshot = selectedCodeReviewSnapshot(sessionId: sessionId) else { return }
-            dispatchCodeReviewPrompt(reReviewPrompt(for: snapshot))
+            dispatchCodeReviewPrompt(
+                reReviewPrompt(for: snapshot),
+                sessionConfigOverride: snapshot.config
+            )
 
         case .applyFix(let sessionId, let findingId):
             guard let snapshot = selectedCodeReviewSnapshot(sessionId: sessionId),
                   let finding = snapshot.findings.first(where: { $0.id == findingId }) else {
                 return
             }
-            Task {
-                _ = await ReviewSessionRegistry.shared.applyFix(
-                    sessionId: sessionId,
-                    findingId: findingId
-                )
-            }
-            dispatchCodeReviewPrompt(targetedFixPrompt(for: snapshot, findings: [finding]))
+            dispatchCodeReviewPrompt(
+                targetedFixPrompt(for: snapshot, findings: [finding]),
+                sessionConfigOverride: snapshot.config
+            )
 
         case .dismissFinding(let sessionId, let findingId, let reason):
             Task {
@@ -51,15 +51,10 @@ extension ChatPanelView {
             guard let snapshot = selectedCodeReviewSnapshot(sessionId: sessionId) else { return }
             let findings = snapshot.findings.filter { findingIds.contains($0.id) }
             guard !findings.isEmpty else { return }
-            Task {
-                for findingId in findingIds {
-                    _ = await ReviewSessionRegistry.shared.applyFix(
-                        sessionId: sessionId,
-                        findingId: findingId
-                    )
-                }
-            }
-            dispatchCodeReviewPrompt(targetedFixPrompt(for: snapshot, findings: findings))
+            dispatchCodeReviewPrompt(
+                targetedFixPrompt(for: snapshot, findings: findings),
+                sessionConfigOverride: snapshot.config
+            )
 
         case .dismissAll(let sessionId, let findingIds, let reason):
             Task {
@@ -79,81 +74,11 @@ extension ChatPanelView {
 
     @MainActor
     internal func handleSyntheticCodeReviewToolEvent(
-        type: String,
-        payload: [String: String],
-        conversationId: UUID?
+        type _: String,
+        payload _: [String: String],
+        conversationId _: UUID?
     ) -> Bool {
-        let targetConversationId = conversationId ?? self.conversationId
-        switch type {
-        case "review_apply_fix":
-            guard let sessionId = payload["session_id"],
-                  let findingId = payload["finding_id"] else {
-                return false
-            }
-            Task {
-                _ = await ReviewSessionRegistry.shared.applyFix(
-                    sessionId: sessionId,
-                    findingId: findingId
-                )
-            }
-            return true
-
-        case "review_dismiss":
-            guard let sessionId = payload["session_id"],
-                  let findingId = payload["finding_id"] else {
-                return false
-            }
-            let reason = payload["reason"] ?? "dismissed"
-            Task {
-                _ = await ReviewSessionRegistry.shared.dismissFinding(
-                    sessionId: sessionId,
-                    findingId: findingId,
-                    reason: reason
-                )
-            }
-            return true
-
-        case "review_comment":
-            guard let sessionId = payload["session_id"],
-                  let findingId = payload["finding_id"],
-                  let content = payload["content"] else {
-                return false
-            }
-            let author = payload["author"] ?? "agent"
-            Task {
-                _ = await ReviewSessionRegistry.shared.addComment(
-                    sessionId: sessionId,
-                    findingId: findingId,
-                    comment: FindingComment(author: author, content: content)
-                )
-            }
-            return true
-
-        case "review_configure":
-            guard let sessionId = payload["session_id"] else { return false }
-            guard let snapshot = taskActivityStore.codeReviewSnapshot(
-                sessionId: sessionId,
-                conversationId: targetConversationId
-            ) else {
-                return false
-            }
-            let config = SessionConfig(
-                maxWorkers: Int(payload["max_workers"] ?? "") ?? snapshot.config.maxWorkers,
-                maxRounds: Int(payload["max_rounds"] ?? "") ?? snapshot.config.maxRounds,
-                analysisBackend: payload["analysis_backend"] ?? snapshot.config.analysisBackend,
-                executionBackend: payload["execution_backend"] ?? snapshot.config.executionBackend
-            )
-            Task {
-                _ = await ReviewSessionRegistry.shared.updateConfig(
-                    sessionId: sessionId,
-                    config: config
-                )
-            }
-            return true
-
-        default:
-            return false
-        }
+        false
     }
 }
 
@@ -167,7 +92,11 @@ private extension ChatPanelView {
     }
 
     @MainActor
-    func dispatchCodeReviewPrompt(_ prompt: String) {
+    func dispatchCodeReviewPrompt(
+        _ prompt: String,
+        sessionConfigOverride: SessionConfig? = nil
+    ) {
+        pendingCodeReviewSessionConfigOverride = sessionConfigOverride
         inputText = prompt
         isInputFocused = true
         if coderMode != .codeReviewMultiSwarm {
@@ -182,7 +111,7 @@ private extension ChatPanelView {
             return CodeReviewQuickCommands.againstPrompt(
                 ref: snapshot.scope?.ref ?? "HEAD~1",
                 autofixEnabled: !codeReviewAnalysisOnly,
-                maxRounds: codeReviewMaxRounds
+                maxRounds: snapshot.config.maxRounds
             )
         case .staged:
             return """

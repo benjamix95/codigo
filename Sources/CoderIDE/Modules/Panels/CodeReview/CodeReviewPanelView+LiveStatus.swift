@@ -85,7 +85,7 @@ extension CodeReviewPanelView {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.right.circle")
                             .font(.system(size: 9))
-                        Text("Activate Review Mode")
+                        Text("Start Review")
                             .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundStyle(accent)
@@ -115,7 +115,7 @@ extension CodeReviewPanelView {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 9))
-                        Text("Commit & Push")
+                        Text("Export Summary")
                             .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundStyle(.white)

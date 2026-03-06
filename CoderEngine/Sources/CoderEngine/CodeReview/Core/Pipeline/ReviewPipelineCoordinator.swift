@@ -11,6 +11,7 @@ public actor ReviewPipelineCoordinator {
         config: MultiSwarmReviewConfig,
         analysisProvider: any LLMProvider,
         executionProvider: any LLMProvider,
+        runtimeResolver: CodeReviewRuntimeResolver?,
         execController: ExecutionController?,
         fileLockCoordinator: FileLockCoordinator,
         sessionState: CodeReviewSessionState,
@@ -39,6 +40,14 @@ public actor ReviewPipelineCoordinator {
             ?? CodeReviewMultiSwarmProvider.inferReviewScope(from: cleanPrompt)
             ?? .uncommitted
         let workspacePath = context.workspacePath
+        let initialRuntimeResources = await currentRuntimeResources(
+            staticConfig: config,
+            staticAnalysisProvider: analysisProvider,
+            staticExecutionProvider: executionProvider,
+            runtimeResolver: runtimeResolver,
+            sessionState: sessionState
+        )
+        let initialConfig = initialRuntimeResources.config
 
         continuation.yield(.started)
 
@@ -63,22 +72,26 @@ public actor ReviewPipelineCoordinator {
             type: scopeType,
             files: filesToReview,
             ref: againstRef
-        ))
+        ), workspacePath: workspacePath.path)
         await sessionState.markAnalysisStarted()
 
         let analysisText = try await CodeReviewMultiSwarmProvider.runAnalysisPhase(
             cleanPrompt: cleanPrompt,
-            againstRef: againstRef,
+            scopeDescription: reviewScopeDescription(
+                scope: resolvedScope,
+                againstRef: againstRef
+            ),
             filesToReview,
-            config.maxWorkers,
+            initialConfig.maxWorkers,
             context: context,
-            analysisProvider: analysisProvider,
+            analysisProvider: initialRuntimeResources.analysisProvider,
             continuation: continuation,
             isCancelled: isCancelled,
             waitWhilePaused: waitWhilePaused
         )
 
         if isCancelled() {
+            await sessionState.fail(error: "Review cancelled.")
             continuation.yield(.textDelta("\n**Review cancelled.**\n"))
             continuation.yield(.completed)
             continuation.finish()
@@ -89,7 +102,7 @@ public actor ReviewPipelineCoordinator {
         let taskExtraction = CodeReviewMultiSwarmProvider.parseReviewTasks(
             from: analysisText,
             filesToReview: filesToReview,
-            maxWorkers: config.maxWorkers
+            maxWorkers: initialConfig.maxWorkers
         )
 
         let initialTasks: [CodeReviewMultiSwarmProvider.ReviewTask]
@@ -114,7 +127,7 @@ public actor ReviewPipelineCoordinator {
         if !initialTasks.isEmpty {
             let findings = initialTasks.map { task in
                 CodeReviewFinding.fromRawTask(
-                    id: task.id,
+                    id: "r0-\(task.id)",
                     description: task.description,
                     files: task.files,
                     severity: task.severity,
@@ -139,8 +152,9 @@ public actor ReviewPipelineCoordinator {
             config: config,
             againstRef: againstRef,
             resolvedScope: resolvedScope,
-            executionProvider: executionProvider,
-            analysisProvider: analysisProvider,
+            staticAnalysisProvider: analysisProvider,
+            staticExecutionProvider: executionProvider,
+            runtimeResolver: runtimeResolver,
             execController: execController,
             fileLockCoordinator: fileLockCoordinator,
             sessionState: sessionState,
@@ -153,6 +167,40 @@ public actor ReviewPipelineCoordinator {
             await sessionState.complete()
         } else if (await sessionState.snapshot()).phase != .failed {
             await sessionState.fail(error: "Review pipeline did not complete successfully.")
+        }
+    }
+
+    func currentRuntimeResources(
+        staticConfig: MultiSwarmReviewConfig,
+        staticAnalysisProvider: any LLMProvider,
+        staticExecutionProvider: any LLMProvider,
+        runtimeResolver: CodeReviewRuntimeResolver?,
+        sessionState: CodeReviewSessionState
+    ) async -> CodeReviewRuntimeResources {
+        let sessionConfig = await sessionState.snapshot().config
+        if let runtimeResolver,
+           let resolved = runtimeResolver(sessionConfig) {
+            return resolved
+        }
+        return CodeReviewRuntimeResources(
+            config: staticConfig,
+            analysisProvider: staticAnalysisProvider,
+            executionProvider: staticExecutionProvider
+        )
+    }
+
+    private func reviewScopeDescription(
+        scope: CodeReviewMultiSwarmProvider.ReviewFileScope,
+        againstRef: String?
+    ) -> String {
+        if let againstRef {
+            return "Changes against `\(againstRef)`"
+        }
+        switch scope {
+        case .staged:
+            return "Staged changes"
+        case .uncommitted:
+            return "Uncommitted changes"
         }
     }
 

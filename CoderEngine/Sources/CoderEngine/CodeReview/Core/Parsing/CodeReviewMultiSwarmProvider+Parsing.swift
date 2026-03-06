@@ -7,7 +7,7 @@ extension CodeReviewMultiSwarmProvider {
     /// Returns the collected full analysis text.
     static func runAnalysisPhase(
         cleanPrompt: String,
-        againstRef: String?,
+        scopeDescription: String,
         _ filesToReview: [String],
         _ maxWorkers: Int,
         context: WorkspaceContext,
@@ -17,13 +17,12 @@ extension CodeReviewMultiSwarmProvider {
         waitWhilePaused: @Sendable @escaping () async -> Void
     ) async throws -> String {
         let fileList = filesToReview.joined(separator: "\n")
-        let scopeDesc = againstRef.map { "Changes against `\($0)`" } ?? "Uncommitted changes"
 
         let analysisPrompt = """
         You are a senior code reviewer performing a thorough analysis.
 
         ## Scope
-        \(scopeDesc) — \(filesToReview.count) files:
+        \(scopeDescription) — \(filesToReview.count) files:
         \(fileList)
 
         ## User Instructions

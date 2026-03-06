@@ -13,7 +13,7 @@ extension CodeReviewPanelView {
         onExport: @escaping () -> Void
     ) -> some View {
         let openFindings = findings.filter { $0.status == .open }
-        let hasFixableFindings = openFindings.contains { $0.suggestedFix != nil }
+        let hasFixableFindings = !openFindings.isEmpty
 
         VStack(spacing: 6) {
             // Stats row
@@ -58,6 +58,8 @@ extension CodeReviewPanelView {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        .disabled(isTaskRunning)
+        .opacity(isTaskRunning ? 0.72 : 1)
     }
 
     // MARK: - Stats Row

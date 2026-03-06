@@ -23,6 +23,19 @@ extension CodeReviewSessionState {
         notifyChange()
     }
 
+    public func replaceOpenFindings(with newFindings: [CodeReviewFinding]) {
+        findings.removeAll { $0.status == .open }
+        for finding in newFindings {
+            findings.append(finding)
+            events.append(.findingAdded(
+                findingId: finding.id,
+                severity: finding.severity.rawValue,
+                filePath: finding.filePath
+            ))
+        }
+        notifyChange()
+    }
+
     public func applyFix(findingId: String) -> Bool {
         guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
             return false
@@ -40,7 +53,10 @@ extension CodeReviewSessionState {
         guard let idx = findings.firstIndex(where: { $0.id == findingId }) else {
             return false
         }
-        findings[idx].status = .dismissed
+        findings[idx].status = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() == FindingStatus.wontFix.rawValue
+            ? .wontFix
+            : .dismissed
         events.append(.findingDismissed(findingId: findingId, reason: reason))
         notifyChange()
         return true
@@ -77,5 +93,19 @@ extension CodeReviewSessionState {
             detail: "Config updated"
         ))
         notifyChange()
+    }
+
+    public func markAllOpenFindingsAsFixApplied() {
+        var changedFindingIDs: [String] = []
+        for index in findings.indices where findings[index].status == .open {
+            findings[index].status = .fixApplied
+            changedFindingIDs.append(findings[index].id)
+        }
+        for findingId in changedFindingIDs {
+            events.append(.findingFixApplied(findingId: findingId))
+        }
+        if !changedFindingIDs.isEmpty {
+            notifyChange()
+        }
     }
 }

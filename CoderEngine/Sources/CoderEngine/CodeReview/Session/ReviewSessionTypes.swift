@@ -92,6 +92,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
     public let events: [CodeReviewSessionEvent]
     public let config: SessionConfig
     public let scope: ReviewSessionScope?
+    public let workspacePath: String?
     public let currentRound: Int
     public let activeWorkerCount: Int
     public let startedAt: Date?
@@ -111,6 +112,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         events: [CodeReviewSessionEvent],
         config: SessionConfig,
         scope: ReviewSessionScope?,
+        workspacePath: String? = nil,
         currentRound: Int,
         activeWorkerCount: Int,
         startedAt: Date?,
@@ -129,6 +131,7 @@ public struct CodeReviewSessionSnapshot: Sendable, Codable {
         self.events = events
         self.config = config
         self.scope = scope
+        self.workspacePath = workspacePath
         self.currentRound = currentRound
         self.activeWorkerCount = activeWorkerCount
         self.startedAt = startedAt

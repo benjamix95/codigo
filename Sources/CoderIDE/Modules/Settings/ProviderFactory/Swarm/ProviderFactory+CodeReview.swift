@@ -8,30 +8,82 @@ extension ProviderFactory {
         agentProviderId: String?,
         codebaseIndex: CodebaseIndex? = nil,
         workspacePaths: [URL] = [],
-        sessionState: CodeReviewSessionState? = nil
+        sessionState: CodeReviewSessionState? = nil,
+        initialSessionConfig: SessionConfig? = nil
     ) -> CodeReviewMultiSwarmProvider? {
+        let fallbackSessionConfig = SessionConfig(
+            maxWorkers: config.codeReviewPartitions,
+            maxRounds: config.codeReviewMaxRounds,
+            analysisBackend: config.codeReviewAnalysisBackend,
+            executionBackend: config.codeReviewExecutionBackend
+        )
+        let bootSessionConfig = initialSessionConfig ?? fallbackSessionConfig
+        guard let initialResources = makeCodeReviewRuntimeResources(
+            baseConfig: config,
+            sessionConfig: bootSessionConfig,
+            executionController: executionController,
+            agentProviderId: agentProviderId,
+            codebaseIndex: codebaseIndex,
+            workspacePaths: workspacePaths
+        ) else {
+            return nil
+        }
+
+        return CodeReviewMultiSwarmProvider(
+            config: initialResources.config,
+            analysisProvider: initialResources.analysisProvider,
+            executionProvider: initialResources.executionProvider,
+            executionController: executionController,
+            sessionState: sessionState,
+            runtimeResolver: { sessionConfig in
+                makeCodeReviewRuntimeResources(
+                    baseConfig: config,
+                    sessionConfig: sessionConfig,
+                    executionController: executionController,
+                    agentProviderId: agentProviderId,
+                    codebaseIndex: codebaseIndex,
+                    workspacePaths: workspacePaths
+                )
+            }
+        )
+    }
+
+    private static func makeCodeReviewRuntimeResources(
+        baseConfig: ProviderFactoryConfig,
+        sessionConfig: SessionConfig,
+        executionController: ExecutionController?,
+        agentProviderId: String?,
+        codebaseIndex: CodebaseIndex?,
+        workspacePaths: [URL]
+    ) -> CodeReviewRuntimeResources? {
+        var effectiveConfig = baseConfig
+        effectiveConfig.codeReviewPartitions = sessionConfig.maxWorkers
+        effectiveConfig.codeReviewMaxRounds = sessionConfig.maxRounds
+        effectiveConfig.codeReviewAnalysisBackend = sessionConfig.analysisBackend
+        effectiveConfig.codeReviewExecutionBackend = sessionConfig.executionBackend
+
         let resolvedAnalysisId = resolveSwarmBackendId(
-            configuredBackendId: config.codeReviewAnalysisBackend,
+            configuredBackendId: effectiveConfig.codeReviewAnalysisBackend,
             agentProviderId: agentProviderId
         )
         let resolvedExecutionId = resolveSwarmBackendId(
-            configuredBackendId: config.codeReviewExecutionBackend,
+            configuredBackendId: effectiveConfig.codeReviewExecutionBackend,
             agentProviderId: agentProviderId
         )
 
         guard let analysisProvider = resolveSwarmBackendProvider(
             backendId: resolvedAnalysisId,
-            config: config,
+            config: effectiveConfig,
             executionController: executionController,
             executionScope: .review,
-            toolPolicyOverride: toolRuntimeReadOnlyPolicy(from: config),
+            toolPolicyOverride: toolRuntimeReadOnlyPolicy(from: effectiveConfig),
             codebaseIndex: codebaseIndex,
             workspacePaths: workspacePaths
         ) else { return nil }
 
         guard let executionProvider = resolveSwarmBackendProvider(
             backendId: resolvedExecutionId,
-            config: config,
+            config: effectiveConfig,
             executionController: executionController,
             executionScope: .review,
             codebaseIndex: codebaseIndex,
@@ -39,19 +91,17 @@ extension ProviderFactory {
         ) else { return nil }
 
         let reviewConfig = MultiSwarmReviewConfig(
-            maxWorkers: config.codeReviewPartitions,
-            enabledPhases: config.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
-            maxReviewRounds: config.codeReviewMaxRounds,
+            maxWorkers: effectiveConfig.codeReviewPartitions,
+            enabledPhases: effectiveConfig.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
+            maxReviewRounds: effectiveConfig.codeReviewMaxRounds,
             analysisBackend: resolvedAnalysisId,
             executionBackend: resolvedExecutionId
         )
 
-        return CodeReviewMultiSwarmProvider(
+        return CodeReviewRuntimeResources(
             config: reviewConfig,
             analysisProvider: analysisProvider,
-            executionProvider: executionProvider,
-            executionController: executionController,
-            sessionState: sessionState
+            executionProvider: executionProvider
         )
     }
 }

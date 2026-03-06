@@ -147,6 +147,23 @@ final class CodeReviewSessionStateTests: XCTestCase {
         XCTAssertEqual(snap.findings.first?.status, .dismissed)
     }
 
+    func testDismissFindingMarksWontFixStatus() async {
+        let state = CodeReviewSessionState()
+        let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
+        await state.start(scope: scope)
+
+        let finding = CodeReviewFinding(
+            id: "f2", severity: .suggestion, category: .style,
+            filePath: "a.swift", message: "naming"
+        )
+        await state.addFinding(finding)
+        let result = await state.dismissFinding(findingId: "f2", reason: "wont_fix")
+
+        XCTAssertTrue(result)
+        let snap = await state.snapshot()
+        XCTAssertEqual(snap.findings.first?.status, .wontFix)
+    }
+
     func testAddComment() async {
         let state = CodeReviewSessionState()
         let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
@@ -198,6 +215,38 @@ final class CodeReviewSessionStateTests: XCTestCase {
         XCTAssertEqual(snap.config.maxRounds, 5)
     }
 
+    func testReplaceOpenFindingsKeepsClosedEntries() async {
+        let state = CodeReviewSessionState()
+        let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
+        await state.start(scope: scope)
+        await state.addFindings([
+            CodeReviewFinding(id: "open-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old open"),
+            CodeReviewFinding(id: "fixed-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old fixed", status: .fixApplied),
+        ])
+
+        await state.replaceOpenFindings(with: [
+            CodeReviewFinding(id: "open-2", severity: .critical, category: .security, filePath: "a.swift", message: "new open")
+        ])
+
+        let snap = await state.snapshot()
+        XCTAssertEqual(snap.findings.map(\.id).sorted(), ["fixed-1", "open-2"])
+    }
+
+    func testMarkAllOpenFindingsAsFixApplied() async {
+        let state = CodeReviewSessionState()
+        let scope = ReviewSessionScope(type: .uncommitted, files: ["a.swift"])
+        await state.start(scope: scope)
+        await state.addFindings([
+            CodeReviewFinding(id: "open-1", severity: .warning, category: .bug, filePath: "a.swift", message: "old open"),
+            CodeReviewFinding(id: "open-2", severity: .critical, category: .security, filePath: "a.swift", message: "old open 2"),
+        ])
+
+        await state.markAllOpenFindingsAsFixApplied()
+
+        let snap = await state.snapshot()
+        XCTAssertTrue(snap.findings.allSatisfy { $0.status == .fixApplied })
+    }
+
     // MARK: - Snapshot Computed Properties
 
     func testSnapshotGroupedProperties() async {
@@ -210,7 +259,7 @@ final class CodeReviewSessionStateTests: XCTestCase {
             CodeReviewFinding(id: "2", severity: .warning, category: .style, filePath: "a.swift", message: "naming"),
             CodeReviewFinding(id: "3", severity: .critical, category: .security, filePath: "b.swift", message: "xss"),
         ])
-        await state.applyFix(findingId: "1")
+        _ = await state.applyFix(findingId: "1")
 
         let snap = await state.snapshot()
 

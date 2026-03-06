@@ -85,7 +85,7 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_findings",
-            args: ["session_id": snapshot.sessionId]
+            args: reviewSessionArgs(snapshot)
         )
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains("Findings"))
@@ -121,7 +121,7 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_apply_fix",
-            args: ["finding_id": "f123", "session_id": snapshot.sessionId]
+            args: reviewSessionArgs(snapshot, extras: ["finding_id": "f123"])
         )
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains("queued"))
@@ -141,11 +141,10 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_dismiss",
-            args: [
+            args: reviewSessionArgs(snapshot, extras: [
                 "finding_id": "f1",
                 "reason": "false_positive",
-                "session_id": snapshot.sessionId,
-            ]
+            ])
         )
         XCTAssertNil(result?.isError)
     }
@@ -172,11 +171,10 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_configure",
-            args: [
-                "session_id": snapshot.sessionId,
+            args: reviewSessionArgs(snapshot, extras: [
                 "max_workers": "8",
                 "max_rounds": "5",
-            ]
+            ])
         )
         XCTAssertNil(result?.isError)
         XCTAssertTrue(textContent(result).contains("queued"))
@@ -188,7 +186,7 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_diff_summary",
-            args: ["session_id": snapshot.sessionId]
+            args: reviewSessionArgs(snapshot)
         )
         XCTAssertNil(result?.isError)
     }
@@ -213,13 +211,22 @@ final class CodeReviewHandlerTests: XCTestCase {
         let snapshot = seedSnapshot()
         let result = CoderIDEMCPServerApp.handleCodeReviewTool(
             name: "review_comment",
-            args: [
+            args: reviewSessionArgs(snapshot, extras: [
                 "finding_id": "f1",
                 "content": "Looks good",
-                "session_id": snapshot.sessionId,
-            ]
+            ])
         )
         XCTAssertNil(result?.isError)
+    }
+
+    func testConversationScopedSessionRequiresConversationId() {
+        let snapshot = seedSnapshot()
+        let result = CoderIDEMCPServerApp.handleCodeReviewTool(
+            name: "review_findings",
+            args: ["session_id": snapshot.sessionId]
+        )
+        XCTAssertEqual(result?.isError, true)
+        XCTAssertTrue(textContent(result).contains("conversation_id"))
     }
 
     func testReviewListSessions() {
@@ -252,6 +259,18 @@ final class CodeReviewHandlerTests: XCTestCase {
         return ""
     }
 
+    private func reviewSessionArgs(
+        _ snapshot: CodeReviewSessionSnapshot,
+        extras: [String: String] = [:]
+    ) -> [String: String] {
+        var args = extras
+        args["session_id"] = snapshot.sessionId
+        if let conversationId = snapshot.conversationId?.uuidString.lowercased() {
+            args["conversation_id"] = conversationId
+        }
+        return args
+    }
+
     private func seedSnapshot() -> CodeReviewSessionSnapshot {
         let conversationId = UUID()
         let snapshot = CodeReviewSessionSnapshot(
@@ -273,6 +292,7 @@ final class CodeReviewHandlerTests: XCTestCase {
             ],
             config: .default,
             scope: ReviewSessionScope(type: .uncommitted, files: ["Package.swift"]),
+            workspacePath: FileManager.default.currentDirectoryPath,
             currentRound: 1,
             activeWorkerCount: 1,
             startedAt: Date(),

@@ -50,19 +50,19 @@ extension MCPSharedState {
     }
 
     public static func writeCodeReviewSnapshot(_ snapshot: CodeReviewSessionSnapshot) {
-        fileAccessQueue.sync {
+        withCodeReviewFileLock {
             _writeCodeReviewSnapshotUnsafe(snapshot)
         }
     }
 
     public static func readCodeReviewIndex() -> MCPSharedCodeReviewIndex {
-        fileAccessQueue.sync {
-            _readCodeReviewIndexUnsafe()
+        withCodeReviewFileLock {
+            rebuiltCodeReviewIndexUnsafe()
         }
     }
 
     public static func readCodeReviewSnapshot(sessionId: String) -> CodeReviewSessionSnapshot? {
-        fileAccessQueue.sync {
+        withCodeReviewFileLock {
             _readCodeReviewSnapshotUnsafe(sessionId: sessionId)
         }
     }
@@ -70,28 +70,21 @@ extension MCPSharedState {
     public static func readCodeReviewSnapshots(
         conversationId: UUID? = nil
     ) -> [CodeReviewSessionSnapshot] {
-        fileAccessQueue.sync {
+        withCodeReviewFileLock {
             let normalizedConversationId = conversationId?.uuidString.lowercased()
-            let records = _readCodeReviewIndexUnsafe().sessions.filter { record in
-                guard let normalizedConversationId else { return true }
-                return record.conversationId == normalizedConversationId
-            }
-            return records
-                .sorted(by: sortCodeReviewRecords)
-                .compactMap { _readCodeReviewSnapshotUnsafe(sessionId: $0.sessionId) }
+            return allCodeReviewSnapshotsUnsafe()
+                .filter { snapshot in
+                    guard let normalizedConversationId else { return true }
+                    return snapshot.conversationId?.uuidString.lowercased() == normalizedConversationId
+                }
+                .sorted(by: sortCodeReviewSnapshots)
         }
     }
 
     public static func latestCodeReviewSessionId(
         conversationId: UUID? = nil
     ) -> String? {
-        fileAccessQueue.sync {
-            let index = _readCodeReviewIndexUnsafe()
-            if let conversationId {
-                return index.latestSessionIdByConversation[conversationId.uuidString.lowercased()]
-            }
-            return index.latestSessionId
-        }
+        readCodeReviewSnapshots(conversationId: conversationId).first?.sessionId
     }
 
     public static func readCodeReviewFindings(
@@ -137,7 +130,12 @@ extension MCPSharedState {
         if let scope = snapshot.scope {
             payload["scope"] = scope.type.rawValue
             payload["scope_files"] = String(scope.files.count)
-            if let ref = scope.ref { payload["scope_ref"] = ref }
+            if let ref = scope.ref {
+                payload["scope_ref"] = ref
+            }
+        }
+        if let workspacePath = snapshot.workspacePath {
+            payload["workspace_path"] = workspacePath
         }
         if let jobId = snapshot.currentJobId {
             payload["job_id"] = jobId
@@ -165,42 +163,10 @@ extension MCPSharedState {
                 to: codeReviewSessionFilePath(sessionId: snapshot.sessionId),
                 options: .atomic
             )
-            var index = _readCodeReviewIndexUnsafe()
-            let record = MCPSharedCodeReviewSessionRecord(
-                sessionId: snapshot.sessionId,
-                conversationId: snapshot.conversationId?.uuidString.lowercased(),
-                phase: snapshot.phase.rawValue,
-                stage: snapshot.stage.rawValue,
-                findingsCount: snapshot.findings.count,
-                openFindingsCount: snapshot.openFindings.count,
-                currentRound: snapshot.currentRound,
-                activeWorkerCount: snapshot.activeWorkerCount,
-                scopeType: snapshot.scope?.type.rawValue,
-                scopeRef: snapshot.scope?.ref,
-                startedAt: snapshot.startedAt,
-                updatedAt: snapshot.lastUpdatedAt,
-                isActive: snapshot.isActive
-            )
-            index.sessions.removeAll { $0.sessionId == snapshot.sessionId }
-            index.sessions.insert(record, at: 0)
-            index.latestSessionId = snapshot.sessionId
-            if let conversationId = record.conversationId {
-                index.latestSessionIdByConversation[conversationId] = snapshot.sessionId
-            }
-            _writeCodeReviewIndexUnsafe(index)
+            _writeCodeReviewIndexUnsafe(rebuiltCodeReviewIndexUnsafe())
         } catch {
             print("[MCPSharedState] ⚠️ Failed to write code review snapshot: \(error.localizedDescription)")
         }
-    }
-
-    private static func _readCodeReviewIndexUnsafe() -> MCPSharedCodeReviewIndex {
-        guard let data = try? Data(contentsOf: codeReviewIndexFilePath) else {
-            return MCPSharedCodeReviewIndex()
-        }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode(MCPSharedCodeReviewIndex.self, from: data))
-            ?? MCPSharedCodeReviewIndex()
     }
 
     private static func _writeCodeReviewIndexUnsafe(_ index: MCPSharedCodeReviewIndex) {
@@ -230,6 +196,58 @@ extension MCPSharedState {
         return try? decoder.decode(CodeReviewSessionSnapshot.self, from: data)
     }
 
+    private static func allCodeReviewSnapshotsUnsafe() -> [CodeReviewSessionSnapshot] {
+        ensureCodeReviewDirectories()
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: codeReviewSessionsDirectoryPath,
+            includingPropertiesForKeys: nil
+        ) else {
+            return []
+        }
+        return urls
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url in
+                let sessionId = url.deletingPathExtension().lastPathComponent
+                return _readCodeReviewSnapshotUnsafe(sessionId: sessionId)
+            }
+    }
+
+    private static func rebuiltCodeReviewIndexUnsafe() -> MCPSharedCodeReviewIndex {
+        let snapshots = allCodeReviewSnapshotsUnsafe().sorted(by: sortCodeReviewSnapshots)
+        let records = snapshots.map { snapshot in
+            MCPSharedCodeReviewSessionRecord(
+                sessionId: snapshot.sessionId,
+                conversationId: snapshot.conversationId?.uuidString.lowercased(),
+                phase: snapshot.phase.rawValue,
+                stage: snapshot.stage.rawValue,
+                findingsCount: snapshot.findings.count,
+                openFindingsCount: snapshot.openFindings.count,
+                currentRound: snapshot.currentRound,
+                activeWorkerCount: snapshot.activeWorkerCount,
+                scopeType: snapshot.scope?.type.rawValue,
+                scopeRef: snapshot.scope?.ref,
+                startedAt: snapshot.startedAt,
+                updatedAt: snapshot.lastUpdatedAt,
+                isActive: snapshot.isActive
+            )
+        }
+
+        var latestSessionIdByConversation: [String: String] = [:]
+        for snapshot in snapshots {
+            guard let conversationId = snapshot.conversationId?.uuidString.lowercased(),
+                  latestSessionIdByConversation[conversationId] == nil else {
+                continue
+            }
+            latestSessionIdByConversation[conversationId] = snapshot.sessionId
+        }
+
+        return MCPSharedCodeReviewIndex(
+            latestSessionId: snapshots.first?.sessionId,
+            latestSessionIdByConversation: latestSessionIdByConversation,
+            sessions: records
+        )
+    }
+
     private static func ensureCodeReviewDirectories() {
         ensureDirectory()
         let directories = [codeReviewDirectoryPath, codeReviewSessionsDirectoryPath]
@@ -238,12 +256,12 @@ extension MCPSharedState {
         }
     }
 
-    private static func sortCodeReviewRecords(
-        _ lhs: MCPSharedCodeReviewSessionRecord,
-        _ rhs: MCPSharedCodeReviewSessionRecord
+    private static func sortCodeReviewSnapshots(
+        _ lhs: CodeReviewSessionSnapshot,
+        _ rhs: CodeReviewSessionSnapshot
     ) -> Bool {
-        if lhs.updatedAt != rhs.updatedAt {
-            return lhs.updatedAt > rhs.updatedAt
+        if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
+            return lhs.lastUpdatedAt > rhs.lastUpdatedAt
         }
         return lhs.sessionId > rhs.sessionId
     }

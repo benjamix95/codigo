@@ -22,6 +22,7 @@ extension CodeReviewMultiSwarmProvider {
             config: config,
             analysisProvider: analysisProvider,
             executionProvider: executionProvider,
+            runtimeResolver: nil,
             execController: execController,
             fileLockCoordinator: fileLockCoordinator,
             sessionState: sessionState,

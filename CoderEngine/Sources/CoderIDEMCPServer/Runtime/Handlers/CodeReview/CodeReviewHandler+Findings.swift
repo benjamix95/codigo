@@ -78,6 +78,9 @@ extension CoderIDEMCPServerApp {
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")
         }
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return reviewError(accessError)
+        }
         return reviewCommandQueued(action: "apply_fix", sessionId: sessionId, args: args)
     }
 
@@ -107,6 +110,9 @@ extension CoderIDEMCPServerApp {
         }
         var payload = args
         payload["reason"] = effectiveReason
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: payload) {
+            return reviewError(accessError)
+        }
         return reviewCommandQueued(action: "dismiss", sessionId: sessionId, args: payload)
     }
 
@@ -158,6 +164,9 @@ extension CoderIDEMCPServerApp {
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")
         }
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return reviewError(accessError)
+        }
 
         return reviewCommandQueued(action: "configure", sessionId: sessionId, args: args)
     }
@@ -179,6 +188,9 @@ extension CoderIDEMCPServerApp {
         )
         guard !sessionId.isEmpty else {
             return reviewError("Error: 'session_id' parameter is required")
+        }
+        if let accessError = validateReviewSessionAccess(sessionId: sessionId, args: args) {
+            return reviewError(accessError)
         }
 
         return reviewCommandQueued(action: "comment", sessionId: sessionId, args: args)

@@ -61,7 +61,10 @@ extension CodigoApp {
                 return nil
             }
             let reason = command.payload["reason"] ?? "dismissed"
-            findings[index].status = .dismissed
+            findings[index].status = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased() == FindingStatus.wontFix.rawValue
+                ? .wontFix
+                : .dismissed
             events.append(.findingDismissed(findingId: findingId, reason: reason))
         case "comment":
             guard let findingId = command.payload["finding_id"],
@@ -90,6 +93,7 @@ extension CodigoApp {
             events: events,
             config: snapshot.config,
             scope: snapshot.scope,
+            workspacePath: snapshot.workspacePath,
             currentRound: snapshot.currentRound,
             activeWorkerCount: snapshot.activeWorkerCount,
             startedAt: snapshot.startedAt,
