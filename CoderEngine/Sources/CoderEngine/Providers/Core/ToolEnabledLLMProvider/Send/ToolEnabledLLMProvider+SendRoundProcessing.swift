@@ -109,7 +109,10 @@ extension ToolEnabledLLMProvider {
                 let name = inferredToolName(from: payload)
                 if name.isEmpty { continue }
 
-                if toolCallsThisRound >= policy.maxToolCallsPerRound {
+                let exemptFromRoundBudget = UnifiedToolRuntime.readOnlyFileToolsExemptFromRoundBudget.contains(name)
+                let exemptFromRepetitionLimit = UnifiedToolRuntime.readOnlyFileToolsExemptFromRepetitionLimit.contains(name)
+
+                if !exemptFromRoundBudget, toolCallsThisRound >= policy.maxToolCallsPerRound {
                     if !didEmitToolBudgetExceededThisRound {
                         didEmitToolBudgetExceededThisRound = true
                         continuation.yield(.raw(type: "tool_execution_error", payload: [
@@ -183,7 +186,7 @@ extension ToolEnabledLLMProvider {
 
                 let dedupeId = markerDedupeKey(marker)
                 let count = toolCallCountByKey[dedupeId, default: 0]
-                if count >= policy.maxRepeatedSameToolPerRound {
+                if !exemptFromRepetitionLimit, count >= policy.maxRepeatedSameToolPerRound {
                     continuation.yield(.raw(type: "tool_execution_error", payload: [
                         "title": "Repeated tool call dropped",
                         "detail": "Tool '\(name)' exceeded per-round repetition limit (\(policy.maxRepeatedSameToolPerRound)). Try a different approach.",
@@ -224,7 +227,9 @@ extension ToolEnabledLLMProvider {
                         "status": "queued"
                     ]))
                 } else {
-                    toolCallsThisRound += 1
+                    if !exemptFromRoundBudget {
+                        toolCallsThisRound += 1
+                    }
                     let produced = await events(for: effectiveMarker, context: context)
                     for e in produced {
                         if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {

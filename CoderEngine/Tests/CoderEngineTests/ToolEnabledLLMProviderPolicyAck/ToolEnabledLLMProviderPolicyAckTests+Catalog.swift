@@ -85,38 +85,29 @@ extension ToolEnabledLLMProviderPolicyAckTests {
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workspace) }
 
-        let first = workspace.appendingPathComponent("First.swift")
-        let second = workspace.appendingPathComponent("Second.swift")
-        let third = workspace.appendingPathComponent("Third.swift")
-        let fourth = workspace.appendingPathComponent("Fourth.swift")
-        try "let first = 1\n".write(to: first, atomically: true, encoding: .utf8)
-        try "let second = 2\n".write(to: second, atomically: true, encoding: .utf8)
-        try "let third = 3\n".write(to: third, atomically: true, encoding: .utf8)
-        try "let fourth = 4\n".write(to: fourth, atomically: true, encoding: .utf8)
-
         let base = SequencedEventProvider(events: [
             .raw(type: "tool_call_suggested", payload: [
                 "id": "tc-budget-1",
-                "name": "read",
-                "path": first.path,
+                "name": "bash",
+                "command": "echo first",
                 "is_partial": "false",
             ]),
             .raw(type: "tool_call_suggested", payload: [
                 "id": "tc-budget-2",
-                "name": "read",
-                "path": second.path,
+                "name": "bash",
+                "command": "echo second",
                 "is_partial": "false",
             ]),
             .raw(type: "tool_call_suggested", payload: [
                 "id": "tc-budget-3",
-                "name": "read",
-                "path": third.path,
+                "name": "bash",
+                "command": "echo third",
                 "is_partial": "false",
             ]),
             .raw(type: "tool_call_suggested", payload: [
                 "id": "tc-budget-4",
-                "name": "read",
-                "path": fourth.path,
+                "name": "bash",
+                "command": "echo fourth",
                 "is_partial": "false",
             ]),
         ])
