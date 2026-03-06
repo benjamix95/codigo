@@ -132,7 +132,7 @@ public actor OrchestratorMainLoop {
         if allDone {
             let failedCount = await scheduler.countByStatus(.failed)
             if failedCount == 0 {
-                _ = try? await stateMachine.transition(to: .finalized, reason: "All tasks completed")
+                await advanceToFinalized()
             } else {
                 _ = try? await stateMachine.transition(to: .failed, reason: "\(failedCount) tasks failed")
                 _ = try? await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
@@ -147,6 +147,9 @@ public actor OrchestratorMainLoop {
     public func run() async {
         isRunning = true
 
+        // Avanza attraverso gli stati iniziali prima di entrare nel loop
+        await advanceToExecution()
+
         while isRunning {
             let shouldContinue = await tick()
             guard shouldContinue else { break }
@@ -156,6 +159,38 @@ public actor OrchestratorMainLoop {
         }
 
         isRunning = false
+    }
+
+    /// Avanza la state machine attraverso gli stati pre-esecuzione:
+    /// intake → planning → contextReady → scheduled → executing.
+    private func advanceToExecution() async {
+        let targets: [JobState] = [
+            .planning, .contextReady, .scheduled, .executing
+        ]
+        for target in targets {
+            let current = await stateMachine.currentState
+            guard !current.isTerminal, current.canTransition(to: target) else { break }
+            _ = try? await stateMachine.transition(
+                to: target,
+                reason: "Pipeline bootstrap"
+            )
+        }
+    }
+
+    /// Avanza la state machine attraverso gli stati post-esecuzione:
+    /// executing → reviewing → validating → applying → verifying → finalized.
+    private func advanceToFinalized() async {
+        let targets: [JobState] = [
+            .reviewing, .validating, .applying, .verifying, .finalized
+        ]
+        for target in targets {
+            let current = await stateMachine.currentState
+            guard !current.isTerminal, current.canTransition(to: target) else { break }
+            _ = try? await stateMachine.transition(
+                to: target,
+                reason: "All tasks completed"
+            )
+        }
     }
 
     /// Ferma il loop.

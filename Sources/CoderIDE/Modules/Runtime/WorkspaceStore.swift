@@ -32,6 +32,9 @@ final class WorkspaceStore: ObservableObject {
     /// Progress polling task
     private var progressPollingTask: Task<Void, Never>?
 
+    /// Active indexing/reset task for the current epoch.
+    private var indexingTask: Task<Void, Never>?
+
     init() {
         load()
     }
@@ -92,13 +95,22 @@ final class WorkspaceStore: ObservableObject {
 
         guard isAutomaticIndexingEnabled, !paths.isEmpty else {
             let index = codebaseIndex
-            Task.detached(priority: .utility) {
+            indexingTask = Task(priority: .utility) { [weak self] in
+                defer {
+                    Task { @MainActor [weak self] in
+                        guard self?.indexingEpoch == activeToken else { return }
+                        self?.indexingTask = nil
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                let isCurrentEpoch = await MainActor.run { self?.indexingEpoch == activeToken }
+                guard isCurrentEpoch else { return }
                 await index.clear()
             }
             return
         }
 
-        let excluded = effectiveExcludedPaths
+        let excluded = indexerExcludedPaths(for: paths, excludedPaths: effectiveExcludedPaths)
         let filePatterns = globalExcludedFilePatterns
         let gitignore = isRespectGitignoreEnabled
         let index = codebaseIndex
@@ -106,7 +118,16 @@ final class WorkspaceStore: ObservableObject {
         // Start progress polling
         startProgressPolling(activeToken: activeToken)
 
-        Task.detached(priority: .utility) {
+        indexingTask = Task(priority: .utility) { [weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    guard self?.indexingEpoch == activeToken else { return }
+                    self?.indexingTask = nil
+                }
+            }
+            guard !Task.isCancelled else { return }
+            let isCurrentEpoch = await MainActor.run { self?.indexingEpoch == activeToken }
+            guard isCurrentEpoch else { return }
             let _ = await index.indexWorkspace(
                 paths: paths,
                 excludedPaths: excluded,
@@ -114,8 +135,9 @@ final class WorkspaceStore: ObservableObject {
                 respectGitignore: gitignore
             )
 
-            let isCurrentEpoch = await MainActor.run { self.indexingEpoch == activeToken }
-            guard isCurrentEpoch else { return }
+            guard !Task.isCancelled else { return }
+            let stillCurrentEpoch = await MainActor.run { self?.indexingEpoch == activeToken }
+            guard stillCurrentEpoch else { return }
 
             // Start file watcher for real-time updates
             let watcher = FileWatcher(index: index, workspacePaths: paths)
@@ -152,6 +174,8 @@ final class WorkspaceStore: ObservableObject {
     /// This avoids stale async tasks from previous workspaces mutating new state.
     private func resetIndexingInfrastructure() -> UUID {
         indexingEpoch = UUID()
+        indexingTask?.cancel()
+        indexingTask = nil
         if let watcher = fileWatcher {
             Task { await watcher.stop() }
         }
@@ -260,6 +284,7 @@ final class WorkspaceStore: ObservableObject {
         let activeWorkspaceId: UUID?
         let hasWatcher: Bool
         let hasProgressPollingTask: Bool
+        let hasIndexingTask: Bool
         let indexingEpoch: UUID
     }
 
@@ -268,6 +293,7 @@ final class WorkspaceStore: ObservableObject {
             activeWorkspaceId: activeWorkspaceId,
             hasWatcher: fileWatcher != nil,
             hasProgressPollingTask: progressPollingTask != nil,
+            hasIndexingTask: indexingTask != nil,
             indexingEpoch: indexingEpoch
         )
     }

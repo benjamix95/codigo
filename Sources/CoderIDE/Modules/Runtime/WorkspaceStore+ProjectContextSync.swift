@@ -11,18 +11,19 @@ extension WorkspaceStore {
             return
         }
 
-        let normalizedFolderPaths = normalizeContextFolderPaths(context.folderPaths)
+        let desiredWorkspace = normalizedWorkspace(
+            Workspace(
+                id: context.id,
+                name: context.name,
+                folderPaths: context.folderPaths,
+                excludedPaths: context.excludedPaths
+            )
+        )
+        let normalizedFolderPaths = desiredWorkspace.folderPaths
         guard !normalizedFolderPaths.isEmpty else {
             setActive(id: nil)
             return
         }
-
-        let desiredWorkspace = Workspace(
-            id: context.id,
-            name: context.name,
-            folderPaths: normalizedFolderPaths,
-            excludedPaths: context.excludedPaths
-        )
 
         if let existingIndex = workspaces.firstIndex(where: { $0.id == context.id }) {
             let existing = workspaces[existingIndex]
@@ -38,13 +39,5 @@ extension WorkspaceStore {
         }
 
         setActive(id: context.id)
-    }
-
-    private func normalizeContextFolderPaths(_ rawPaths: [String]) -> [String] {
-        var seen = Set<String>()
-        return rawPaths
-            .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
-            .filter { !$0.isEmpty }
-            .filter { seen.insert($0).inserted }
     }
 }

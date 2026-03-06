@@ -99,10 +99,10 @@ extension ChatPanelView {
         } else if ProviderSupport.isAgentCompatibleProvider(id: providerRegistry.selectedProviderId) {
                 let baseInstructions = """
                     **Todo Workflow (use only when truly needed):**
-                    1. Start with analysis (read/search) first. Do NOT create todos before understanding the task.
+                    1. Start with analysis (read/search) first. Initial codebase analysis is allowed before any todo creation.
                     2. If the task is simple (single action or <=2 concrete operations), do NOT emit todo markers.
                     3. If the task is genuinely multi-step, create ONE coherent todo list after analysis with only concrete, executable steps.
-                    3b. For multi-step execution, emit the first \(CoderIDEMarkers.todoWritePrefix) update BEFORE the first command/edit/tool action.
+                    3b. For multi-step execution, emit the first \(CoderIDEMarkers.todoWritePrefix) update AFTER analysis but BEFORE any implementation, file modification, command that changes state, or other operational tool action.
                     4. Never create placeholder todos (forbidden examples: "Task", "Analysis", "Step 1", "Setup task panel", "Todo update").
                     5. Emit \(CoderIDEMarkers.showTaskPanel) only when a real todo list exists or when the user explicitly asks.
                     6. During execution, update status only for real todos: in_progress before work, done after completion.

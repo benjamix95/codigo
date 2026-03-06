@@ -242,5 +242,8 @@ extension TaskActivityStore {
         codeReviewFindings = []
         codeReviewEvents = []
         codeReviewPhase = .idle
+        codeReviewFindingsByConversation.removeAll()
+        codeReviewEventsByConversation.removeAll()
+        codeReviewPhaseByConversation.removeAll()
     }
 }

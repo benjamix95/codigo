@@ -28,10 +28,10 @@ public enum JobState: String, Codable, Sendable, Equatable, CaseIterable {
     /// Transizioni valide dalla state machine (§5.3).
     public var validTransitions: Set<JobState> {
         switch self {
-        case .intake:        [.planning]
-        case .planning:      [.contextReady]
-        case .contextReady:  [.scheduled]
-        case .scheduled:     [.executing]
+        case .intake:        [.planning, .failed]
+        case .planning:      [.contextReady, .failed]
+        case .contextReady:  [.scheduled, .failed]
+        case .scheduled:     [.executing, .failed]
         case .executing:     [.reviewing, .failed]
         case .reviewing:     [.validating, .failed]
         case .validating:    [.applying, .failed]

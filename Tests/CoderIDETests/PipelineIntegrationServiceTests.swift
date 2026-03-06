@@ -4,6 +4,93 @@ import CoderEngine
 
 @MainActor
 final class PipelineIntegrationServiceTests: XCTestCase {
+    func testHandleTaskCompletedMarksCanonicalTodoDoneForReviewerAndTestWriter() async {
+        for role in [AgentRole.reviewer, .testWriter] {
+            let suiteName = "PipelineIntegrationServiceTests.review.\(role.rawValue).\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suiteName)!
+            defaults.removePersistentDomain(forName: suiteName)
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+
+            let chatStore = ChatStore(userDefaults: defaults)
+            let todoStore = TodoStore(
+                storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+                userDefaults: defaults
+            )
+            let taskActivityStore = TaskActivityStore()
+            let swarmProgressStore = SwarmProgressStore()
+            let executionController = ExecutionController()
+            let service = PipelineIntegrationService(
+                facadeConfig: PipelineFacadeConfig(
+                    tickIntervalMs: 10,
+                    completionTimeoutMs: 200,
+                    maxDeliveryAttempts: 1,
+                    dlqCapacity: 32
+                )
+            )
+            service.configure(
+                chatStore: chatStore,
+                taskActivityStore: taskActivityStore,
+                swarmProgressStore: swarmProgressStore,
+                todoStore: todoStore,
+                executionController: executionController
+            )
+
+            let agentConversationId = chatStore.conversations[0].id
+            let planConversationId = chatStore.createConversation(
+                contextId: nil,
+                contextFolderPath: nil,
+                mode: .plan
+            )
+            chatStore.addMessage(
+                ChatMessage(role: .assistant, content: "", isStreaming: true),
+                to: agentConversationId
+            )
+
+            todoStore.upsertCanonicalPlanTodos(
+                ["Code Review & Test"],
+                conversationId: planConversationId
+            )
+
+            let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+            service.executeJob(
+                makeJob(id: "job-\(role.rawValue)"),
+                tasks: [TaskNode(taskId: "task-\(role.rawValue)", title: "Code Review & Test")],
+                workerAdapter: AgentWorkerAdapter(
+                    provider: DelayedMockPipelineProvider(
+                        id: "provider-\(role.rawValue)",
+                        text: role.rawValue,
+                        delayNanoseconds: 500_000_000
+                    ),
+                    context: context,
+                    jobId: "job-\(role.rawValue)"
+                ),
+                conversationId: agentConversationId,
+                assistantMessageId: UUID(),
+                planConversationId: planConversationId
+            )
+
+            service.handleEvent(
+                .taskCompleted(
+                    TaskCompletedPayload(
+                        jobId: "job-\(role.rawValue)",
+                        taskId: "task-\(role.rawValue)",
+                        title: "Code Review & Test",
+                        agentName: role.displayName,
+                        role: role,
+                        durationMs: 42
+                    )
+                ),
+                for: agentConversationId
+            )
+
+            let canonicalTodo = todoStore.canonicalTodos(for: planConversationId).first
+            XCTAssertEqual(canonicalTodo?.status, .done, "Il ruolo \(role.rawValue) deve completare il todo canonico finale")
+
+            XCTAssertTrue(service.cancelCurrentJob(for: agentConversationId))
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+    }
+
     func testExecuteJobTracksIndependentPipelineStatePerConversation() async throws {
         let suiteName = "PipelineIntegrationServiceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

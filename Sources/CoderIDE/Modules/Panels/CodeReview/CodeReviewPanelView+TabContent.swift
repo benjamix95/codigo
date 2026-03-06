@@ -6,17 +6,17 @@ extension CodeReviewPanelView {
 
     @ViewBuilder
     var findingsTab: some View {
-        let findings = taskActivityStore.codeReviewFindings
+        let findings = taskActivityStore.codeReviewFindings(for: conversationId)
 
         if let selectedId = selectedFindingId,
            let finding = findings.first(where: { $0.id == selectedId }) {
             findingDetailView(
                 finding,
                 onApplyFix: { id in
-                    onRunSlashCommand("Apply the suggested fix for finding \(id)")
+                    runCodeReviewCommand("Apply the suggested fix for finding \(id)")
                 },
                 onDismiss: { id in
-                    onRunSlashCommand("Dismiss finding \(id)")
+                    runCodeReviewCommand("Dismiss finding \(id)")
                 },
                 onOpenFile: { path in
                     onOpenFile(path)
@@ -34,16 +34,16 @@ extension CodeReviewPanelView {
                     reviewActionsBar(
                         findings: findings,
                         onApplyAll: {
-                            onRunSlashCommand("Apply all suggested fixes for open findings")
+                            runCodeReviewCommand("Apply all suggested fixes for open findings")
                         },
                         onDismissAll: {
-                            onRunSlashCommand("Dismiss all open findings")
+                            runCodeReviewCommand("Dismiss all open findings")
                         },
                         onReReview: {
-                            onRunSlashCommand("/review-uncommitted")
+                            runCodeReviewCommand("/review-uncommitted")
                         },
                         onExport: {
-                            onRunSlashCommand("Export all code review findings as a markdown summary")
+                            runCodeReviewCommand("Export all code review findings as a markdown summary")
                         }
                     )
                 }
@@ -54,6 +54,13 @@ extension CodeReviewPanelView {
     // MARK: - Timeline Tab
 
     var timelineTab: some View {
-        timelineView(taskActivityStore.codeReviewEvents)
+        timelineView(taskActivityStore.codeReviewEvents(for: conversationId))
+    }
+
+    private func runCodeReviewCommand(_ command: String) {
+        if coderMode != .codeReviewMultiSwarm {
+            onSelectMode(.codeReviewMultiSwarm)
+        }
+        onRunSlashCommand(command)
     }
 }

@@ -17,10 +17,23 @@ final class AppUpdateCenter: ObservableObject {
     let logger = Logger(subsystem: "com.codigo.app", category: "update")
     let userDefaults: UserDefaults
     let urlSession: URLSession
+    private let currentVersionProvider: @MainActor () -> String
+    private let currentBuildProvider: @MainActor () -> String
 
-    init(userDefaults: UserDefaults = .standard, urlSession: URLSession = .shared) {
+    init(
+        userDefaults: UserDefaults = .standard,
+        urlSession: URLSession = .shared,
+        currentVersionProvider: @escaping @MainActor () -> String = {
+            Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        },
+        currentBuildProvider: @escaping @MainActor () -> String = {
+            Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        }
+    ) {
         self.userDefaults = userDefaults
         self.urlSession = urlSession
+        self.currentVersionProvider = currentVersionProvider
+        self.currentBuildProvider = currentBuildProvider
         self.lastCheckedAt = userDefaults.object(forKey: Self.lastCheckedKey) as? Date
     }
 
@@ -78,10 +91,10 @@ final class AppUpdateCenter: ObservableObject {
     }
 
     func currentVersion() -> String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        currentVersionProvider()
     }
 
     func currentBuild() -> String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0"
+        currentBuildProvider()
     }
 }

@@ -77,6 +77,25 @@ final class AppUpdateCenterTests: XCTestCase {
         XCTAssertFalse(AppUpdateCenter.shouldUpdate(localVersion: local, localBuild: "20", manifest: manifest))
     }
 
+    func testShouldNotUpdateWhenVersionAndBuildAreEqual() {
+        let manifest = AppUpdateCenter.AppUpdateManifest(
+            schema: 1,
+            version: "1.4.0",
+            build: "20",
+            minimumSystemVersion: "14.0",
+            releaseDate: nil,
+            required: false,
+            downloadURL: nil,
+            releaseNotes: nil,
+            releaseNotesURL: nil,
+            changelogURL: nil,
+            notes: nil,
+            changelog: nil
+        )
+
+        XCTAssertFalse(AppUpdateCenter.shouldUpdate(localVersion: "1.4.0", localBuild: "20", manifest: manifest))
+    }
+
     func testManifestDecodesSnakeCaseJSON() throws {
         let json = """
         {
@@ -128,9 +147,39 @@ final class AppUpdateCenterTests: XCTestCase {
     }
 
     @MainActor
+    func testShouldCheckNowUsesUserDefaultsFallbackWhenLastCheckedAtMissing() {
+        let recentDate = Date().addingTimeInterval(-(AppUpdateCenter.checkInterval / 2))
+        defaults.set(recentDate, forKey: AppUpdateCenter.lastCheckedKey)
+        let center = AppUpdateCenter(userDefaults: defaults)
+        center.lastCheckedAt = nil
+
+        XCTAssertFalse(center.shouldCheckNow())
+    }
+
+    @MainActor
+    func testShouldCheckNowHealsFutureDateFromUserDefaultsFallback() {
+        let futureDate = Date().addingTimeInterval(60 * 30)
+        defaults.set(futureDate, forKey: AppUpdateCenter.lastCheckedKey)
+        let center = AppUpdateCenter(userDefaults: defaults)
+        center.lastCheckedAt = nil
+
+        XCTAssertTrue(center.shouldCheckNow())
+        guard let healedDate = defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date else {
+            XCTFail("Expected healed lastCheckedAt date in UserDefaults")
+            return
+        }
+        let expectedHealedDate = Date().addingTimeInterval(-AppUpdateCenter.checkInterval)
+        XCTAssertLessThanOrEqual(abs(healedDate.timeIntervalSince(expectedHealedDate)), 2.0)
+        XCTAssertNotNil(center.lastCheckedAt)
+        XCTAssertLessThanOrEqual(abs((center.lastCheckedAt ?? .distantFuture).timeIntervalSince(expectedHealedDate)), 2.0)
+    }
+
+    @MainActor
     func testCheckForUpdatesHTTPFailureDoesNotPersistLastCheckedAt() async {
         let url = URL(string: "https://example.com/manifest.json")!
         defaults.set(url.absoluteString, forKey: AppUpdateCenter.manifestURLKey)
+        let previousDate = Date(timeIntervalSince1970: 1_700_000_000)
+        defaults.set(previousDate, forKey: AppUpdateCenter.lastCheckedKey)
 
         AppUpdateCenterURLProtocolStub.requestHandler = { request in
             let response = HTTPURLResponse(
@@ -146,20 +195,22 @@ final class AppUpdateCenterTests: XCTestCase {
             userDefaults: defaults,
             urlSession: makeStubbedURLSession()
         )
+        center.lastCheckedAt = previousDate
 
         await center.checkForUpdates(force: true)
 
-        XCTAssertNil(center.lastCheckedAt)
-        XCTAssertNil(defaults.object(forKey: AppUpdateCenter.lastCheckedKey))
-        if case .failed = center.state {
-            XCTAssertNotNil(center.lastError)
+        XCTAssertEqual(center.lastCheckedAt, previousDate)
+        XCTAssertEqual(defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date, previousDate)
+        if case .failed(let message) = center.state {
+            XCTAssertEqual(message, "Errore server: 500.")
+            XCTAssertEqual(center.lastError, "Errore server: 500.")
         } else {
             XCTFail("Expected failed state for HTTP 500 response")
         }
     }
 
     @MainActor
-    func testCheckForUpdatesSuccessPersistsLastCheckedAt() async {
+    func testCheckForUpdatesSuccessPersistsLastCheckedAtAndPublishesAvailableUpdate() async {
         let url = URL(string: "https://example.com/manifest.json")!
         defaults.set(url.absoluteString, forKey: AppUpdateCenter.manifestURLKey)
 
@@ -184,7 +235,9 @@ final class AppUpdateCenterTests: XCTestCase {
 
         let center = AppUpdateCenter(
             userDefaults: defaults,
-            urlSession: makeStubbedURLSession()
+            urlSession: makeStubbedURLSession(),
+            currentVersionProvider: { "1.0.0" },
+            currentBuildProvider: { "1" }
         )
 
         await center.checkForUpdates(force: true)
@@ -195,9 +248,54 @@ final class AppUpdateCenterTests: XCTestCase {
         }
         XCTAssertNotNil(center.lastCheckedAt)
         XCTAssertLessThanOrEqual(abs(persistedDate.timeIntervalSinceNow), 2.0)
-        if case .failed(let message) = center.state {
-            XCTFail("Unexpected failed state after successful response: \(message)")
+        guard case .available(let manifest) = center.state else {
+            XCTFail("Expected available state after successful response")
+            return
         }
+        XCTAssertEqual(manifest.version, "1.0.1")
+        XCTAssertEqual(manifest.build, "2")
+        XCTAssertEqual(center.availableUpdate?.version, "1.0.1")
+        XCTAssertEqual(center.availableUpdate?.build, "2")
+        XCTAssertNil(center.lastError)
+    }
+
+    @MainActor
+    func testCheckForUpdatesSuccessPersistsLastCheckedAtAndMarksUpToDateWhenVersionsMatch() async {
+        let url = URL(string: "https://example.com/manifest.json")!
+        defaults.set(url.absoluteString, forKey: AppUpdateCenter.manifestURLKey)
+
+        let manifestJSON = """
+        {
+          "schema": 1,
+          "version": "1.0.1",
+          "build": "2",
+          "minimum_system_version": "1.0"
+        }
+        """
+
+        AppUpdateCenterURLProtocolStub.requestHandler = { request in
+            let response = HTTPURLResponse(
+                url: request.url ?? url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(manifestJSON.utf8))
+        }
+
+        let center = AppUpdateCenter(
+            userDefaults: defaults,
+            urlSession: makeStubbedURLSession(),
+            currentVersionProvider: { "1.0.1" },
+            currentBuildProvider: { "2" }
+        )
+
+        await center.checkForUpdates(force: true)
+
+        XCTAssertNotNil(defaults.object(forKey: AppUpdateCenter.lastCheckedKey) as? Date)
+        XCTAssertEqual(center.availableUpdate, nil)
+        XCTAssertEqual(center.lastError, nil)
+        XCTAssertEqual(center.state, .upToDate)
     }
 
     private func makeStubbedURLSession() -> URLSession {

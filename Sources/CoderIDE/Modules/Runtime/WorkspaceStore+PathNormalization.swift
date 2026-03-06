@@ -75,6 +75,39 @@ extension WorkspaceStore {
         normalizedUniqueWorkspacePaths(rawPaths)
     }
 
+    func indexerExcludedPaths(for workspacePaths: [URL], excludedPaths: [String]) -> [String] {
+        let normalizedRoots = workspacePaths.map {
+            (url: $0, path: normalizedWorkspacePath($0.path), rootName: $0.lastPathComponent)
+        }
+        var seen = Set<String>()
+        var relativeExclusions: [String] = []
+
+        for rawExcludedPath in excludedPaths {
+            let normalizedExcludedPath = normalizedWorkspacePath(rawExcludedPath)
+            guard !normalizedExcludedPath.isEmpty else { continue }
+
+            for root in normalizedRoots {
+                if normalizedExcludedPath == root.path {
+                    guard seen.insert(root.rootName).inserted else { break }
+                    relativeExclusions.append(root.rootName)
+                    break
+                }
+
+                let rootPrefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+                guard normalizedExcludedPath.hasPrefix(rootPrefix) else { continue }
+
+                let suffix = String(normalizedExcludedPath.dropFirst(rootPrefix.count))
+                guard !suffix.isEmpty else { continue }
+                let relativePath = "\(root.rootName)/\(suffix)"
+                guard seen.insert(relativePath).inserted else { break }
+                relativeExclusions.append(relativePath)
+                break
+            }
+        }
+
+        return relativeExclusions
+    }
+
     private func normalizedUniqueWorkspacePaths(_ rawPaths: [String]) -> [String] {
         var seen = Set<String>()
         var normalized: [String] = []

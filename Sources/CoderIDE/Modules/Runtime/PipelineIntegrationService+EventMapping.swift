@@ -4,6 +4,12 @@ import Foundation
 // MARK: - Event Mapping
 
 extension PipelineIntegrationService {
+    private static let canonicalTodoCompletionRoles: Set<AgentRole> = [
+        .coder,
+        .docWriter,
+        .reviewer,
+        .testWriter,
+    ]
 
     func handleEvent(_ event: PipelineUIEvent, for conversationId: UUID) {
         switch event {
@@ -121,7 +127,7 @@ extension PipelineIntegrationService {
         guard let todoStore else { return }
 
         if let planId = runtime.planConversationId {
-            if p.role == .coder || p.role == .docWriter {
+            if Self.canonicalTodoCompletionRoles.contains(p.role) {
                 var updated = todoStore.upsertCanonicalOnlyFromAgent(
                     id: nil,
                     title: p.title,

@@ -198,6 +198,78 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
         )
     }
 
+    func testIndexerExcludedPathsConvertsAbsolutePathsToWorkspaceRelativePaths() {
+        let store = WorkspaceStore()
+        let base = canonicalPath("/tmp/ws-\(UUID().uuidString)/project")
+        let other = canonicalPath("/tmp/ws-\(UUID().uuidString)/other")
+
+        let relative = store.indexerExcludedPaths(
+            for: [URL(fileURLWithPath: base), URL(fileURLWithPath: other)],
+            excludedPaths: [
+                "\(base)/.build/",
+                "\(base)/Sources/Generated",
+                other,
+                "/tmp/outside-scope"
+            ]
+        )
+
+        XCTAssertEqual(
+            relative,
+            [
+                "project/.build",
+                "project/Sources/Generated",
+                "other"
+            ]
+        )
+    }
+
+    func testIndexActiveWorkspaceCancelsStaleIndexingTaskBeforeClear() async throws {
+        let workspaceRoot = URL(fileURLWithPath: canonicalPath("/tmp/ws-\(UUID().uuidString)/project"), isDirectory: true)
+        try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+
+        for index in 0..<400 {
+            let fileURL = workspaceRoot.appendingPathComponent("File\(index).swift")
+            try "struct Type\(index) { let value = \(index) }\n".write(
+                to: fileURL,
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let defaults = UserDefaults.standard
+        defaults.set(true, forKey: "codebase_index_enabled")
+
+        let workspaceId = UUID()
+        let store = WorkspaceStore()
+        store.workspaces = [
+            Workspace(
+                id: workspaceId,
+                name: "WS",
+                folderPaths: [workspaceRoot.path(percentEncoded: false)],
+                excludedPaths: []
+            )
+        ]
+        store.activeWorkspaceId = workspaceId
+
+        store.indexActiveWorkspace()
+        defaults.set(false, forKey: "codebase_index_enabled")
+        store.indexActiveWorkspace()
+
+        for _ in 0..<40 {
+            if !store.debugIndexingState().hasIndexingTask {
+                break
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+
+        let status = await store.codebaseIndex.status()
+        XCTAssertEqual(status.status, .idle)
+        XCTAssertTrue(status.workspacePaths.isEmpty)
+        XCTAssertEqual(status.totalSourceFiles, 0)
+        XCTAssertFalse(store.debugIndexingState().hasWatcher)
+    }
+
     private func canonicalPath(_ rawPath: String) -> String {
         URL(fileURLWithPath: rawPath)
             .standardizedFileURL

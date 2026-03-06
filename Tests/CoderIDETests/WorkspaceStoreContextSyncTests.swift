@@ -64,6 +64,40 @@ final class WorkspaceStoreContextSyncTests: XCTestCase {
         XCTAssertEqual(store.activeWorkspace?.excludedPaths, ["/tmp/b/.build"])
     }
 
+    func testSyncActiveWorkspaceNormalizesFoldersAndExcludedPathsWithDuplicates() {
+        let store = WorkspaceStore()
+        let contextId = UUID()
+        let home = NSHomeDirectory()
+        let suffix = "tmp/context-\(UUID().uuidString)"
+        let rawBase = "\(home)/\(suffix)"
+        let canonicalBase = canonicalPath(rawBase)
+
+        let initial = ProjectContext(
+            id: contextId,
+            kind: .singleProject,
+            name: "Ctx",
+            folderPaths: ["~/\(suffix)/", "~/\(suffix)/Sources/.."],
+            excludedPaths: [],
+            isPinned: false
+        )
+
+        let updated = ProjectContext(
+            id: contextId,
+            kind: .singleProject,
+            name: "Ctx",
+            folderPaths: ["\(rawBase)/", "\(rawBase)/Sources/.."],
+            excludedPaths: ["\(rawBase)/.build/", "\(rawBase)/.build/../.build", "  "],
+            isPinned: false
+        )
+
+        store.syncActiveWorkspace(with: initial)
+        store.syncActiveWorkspace(with: updated)
+
+        XCTAssertEqual(store.activeWorkspaceId, contextId)
+        XCTAssertEqual(store.activeWorkspace?.folderPaths, [canonicalBase])
+        XCTAssertEqual(store.activeWorkspace?.excludedPaths, [canonicalPath("\(rawBase)/.build")])
+    }
+
     func testSyncActiveWorkspaceClearsActiveWorkspaceWhenContextIsNil() {
         let store = WorkspaceStore()
         let context = ProjectContext(

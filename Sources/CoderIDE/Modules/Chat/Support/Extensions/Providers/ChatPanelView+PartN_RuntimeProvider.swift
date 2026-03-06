@@ -36,10 +36,14 @@ extension ChatPanelView {
             ) {
                 // Wire session state → TaskActivityStore bridge for LiveCard / panel
                 let store = taskActivityStore
+                let reviewConversationId = conversationId
                 Task {
                     await multiSwarm.sessionState.setOnStateChange { snapshot in
                         Task { @MainActor in
-                            store.ingestCodeReviewSnapshot(snapshot)
+                            store.ingestCodeReviewSnapshot(
+                                snapshot,
+                                conversationId: reviewConversationId
+                            )
                         }
                     }
                 }

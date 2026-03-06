@@ -27,29 +27,32 @@ extension PipelineIntegrationService {
     private func handleRawTodoWrite(_ p: RawEventPayload, for conversationId: UUID) {
         guard let todoStore, let runtime = runtime(for: conversationId) else { return }
 
-        let title = p.payload["title"] ?? p.taskId
-        let statusStr = p.payload["status"] ?? "in_progress"
-        let status: TodoStatus = statusStr == "done" ? .done
-            : statusStr == "pending" ? .pending : .inProgress
+        let parsedTodo = EventNormalizer.parseTodoWrite(payload: p.payload)
+        let title = parsedTodo?.title ?? p.payload["title"] ?? p.taskId
+        let status = parsedTodo?.status ?? .inProgress
+        let todoId = resolvedRawTodoID(from: p, parsedTodo: parsedTodo)
+        let priority = parsedTodo?.priority
+        let activeForm = parsedTodo?.activeForm
+        let linkedFiles = parsedTodo?.files ?? []
 
         if let planId = runtime.planConversationId {
             var updated = todoStore.upsertCanonicalOnlyFromAgent(
-                id: nil,
+                id: todoId,
                 title: title,
                 status: status,
-                priority: nil,
+                priority: priority,
                 notes: p.payload["notes"],
-                activeForm: nil,
-                linkedFiles: [],
+                activeForm: activeForm,
+                linkedFiles: linkedFiles,
                 conversationId: planId
             )
             if !updated {
                 updated = todoStore.upsertCanonicalFromExecutionFallback(
                     status: status,
-                    priority: nil,
+                    priority: priority,
                     notes: p.payload["notes"],
-                    activeForm: nil,
-                    linkedFiles: [],
+                    activeForm: activeForm,
+                    linkedFiles: linkedFiles,
                     conversationId: planId
                 )
             }
@@ -65,15 +68,26 @@ extension PipelineIntegrationService {
             }
         } else {
             todoStore.upsertFromAgent(
-                id: nil,
+                id: todoId,
                 title: title,
                 status: status,
-                priority: nil,
+                priority: priority,
                 notes: p.payload["notes"],
-                linkedFiles: [],
+                activeForm: activeForm,
+                linkedFiles: linkedFiles,
                 conversationId: conversationId
             )
         }
+    }
+
+    private func resolvedRawTodoID(
+        from payload: RawEventPayload,
+        parsedTodo: TodoWritePayload?
+    ) -> UUID? {
+        if let direct = parsedTodo?.id {
+            return direct
+        }
+        return UUID(uuidString: payload.taskId)
     }
 
     private func handleRawPlanStep(_ p: RawEventPayload, for conversationId: UUID) {
