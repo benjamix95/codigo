@@ -100,6 +100,13 @@ final class WindowSidebarToggleController {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
         }
+
+        suppressAutomaticSidebarToggleIfPresent(
+            in: titlebarView,
+            closeButton: window.standardWindowButton(.closeButton),
+            miniaturizeButton: window.standardWindowButton(.miniaturizeButton),
+            zoomButton: zoomButton
+        )
     }
 
     private func updateLayout() {
@@ -114,5 +121,38 @@ final class WindowSidebarToggleController {
         let x = zoomButton.frame.maxX + 12
         let y = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: x, y: y), size: buttonSize)
+
+        if let titlebarView = zoomButton.superview {
+            suppressAutomaticSidebarToggleIfPresent(
+                in: titlebarView,
+                closeButton: window.standardWindowButton(.closeButton),
+                miniaturizeButton: window.standardWindowButton(.miniaturizeButton),
+                zoomButton: zoomButton
+            )
+        }
+    }
+
+    private func suppressAutomaticSidebarToggleIfPresent(
+        in titlebarView: NSView,
+        closeButton: NSButton?,
+        miniaturizeButton: NSButton?,
+        zoomButton: NSButton
+    ) {
+        let protectedButtons = [closeButton, miniaturizeButton, zoomButton, button].compactMap { $0 }
+
+        for case let candidate as NSButton in titlebarView.subviews {
+            guard protectedButtons.contains(where: { $0 === candidate }) == false else { continue }
+
+            let isSidebarSized = candidate.bounds.width >= 18
+                && candidate.bounds.width <= 42
+                && candidate.bounds.height >= 18
+                && candidate.bounds.height <= 42
+            let isRightOfTrafficLights = candidate.frame.minX > zoomButton.frame.maxX + 20
+            let isOnTitlebarRow = abs(candidate.frame.midY - zoomButton.frame.midY) <= 8
+
+            guard isSidebarSized, isRightOfTrafficLights, isOnTitlebarRow else { continue }
+            candidate.isHidden = true
+            candidate.alphaValue = 0
+        }
     }
 }

@@ -54,5 +54,6 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
+            .toolbar(removing: .sidebarToggle)
     }
 }
