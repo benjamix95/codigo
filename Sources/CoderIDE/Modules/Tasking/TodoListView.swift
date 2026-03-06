@@ -199,79 +199,11 @@ struct TodoLiveInlineCard: View {
     }
 
     var body: some View {
-        let items = displayedTodos
-        let doneCount = items.filter { $0.status == .done }.count
-        let total = items.count
-
-        if !items.isEmpty {
-            VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack(spacing: 5) {
-                    Text("\(doneCount) of \(total)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                    Text(doneCount == total ? "Completed" : "To-dos")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.bottom, 8)
-
-                // Items
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(items) { todo in
-                        todoRow(todo)
-                    }
-                }
-                .animation(.easeOut(duration: 0.2), value: items.map { "\($0.id)-\($0.status.rawValue)" })
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .frame(maxWidth: 520, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.3))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-            )
-        }
-    }
-
-    private func todoRow(_ todo: TodoItem) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            switch todo.status {
-            case .inProgress:
-                Image(systemName: "circle.inset.filled")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.primary.opacity(0.55))
-                    .frame(width: 14)
-            case .done:
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 14)
-            case .pending:
-                Image(systemName: "circle")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.primary.opacity(0.2))
-                    .frame(width: 14)
-            case .blocked:
-                Image(systemName: "exclamationmark.circle")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.orange.opacity(0.6))
-                    .frame(width: 14)
-            }
-
-            Text(todo.title)
-                .font(.system(size: 11.5))
-                .foregroundStyle(todo.status == .done ? .tertiary : .primary)
-                .strikethrough(todo.status == .done, color: .primary.opacity(0.25))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 3)
+        let _ = onOpenFile
+        TodoSummaryCardView(
+            items: displayedTodos,
+            maxItems: 8,
+            maxWidth: 520
+        )
     }
 }
