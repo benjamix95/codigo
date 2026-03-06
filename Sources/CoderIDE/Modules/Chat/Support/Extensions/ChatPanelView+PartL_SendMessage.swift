@@ -256,6 +256,7 @@ extension ChatPanelView {
             assistantMessageId: standardAssistantMessageId,
             effectiveRuntimeProvider: effectiveRuntimeProvider,
             prompt: prompt,
+            taskRequestLabel: text.isEmpty ? contentToStore : text,
             shouldRunPlanInline: shouldRunPlanInline,
             ctx: ctx,
             attachmentsToSend: attachmentsToSend

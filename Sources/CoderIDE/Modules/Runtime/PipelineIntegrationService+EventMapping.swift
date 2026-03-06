@@ -182,7 +182,10 @@ extension PipelineIntegrationService {
                     )
                 }
             }
-        } else {
+        } else if shouldPersistRuntimeTaskAsTodo(
+            title: p.title.isEmpty ? p.agentName : p.title,
+            runtime: runtime
+        ) {
             todoStore.upsertFromAgent(
                 id: nil,
                 title: p.title.isEmpty ? p.agentName : p.title,
@@ -193,6 +196,20 @@ extension PipelineIntegrationService {
                 conversationId: conversationId
             )
         }
+    }
+
+    private func shouldPersistRuntimeTaskAsTodo(
+        title: String,
+        runtime: PipelineConversationRuntime
+    ) -> Bool {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTitle.isEmpty else { return false }
+        // Generic agent chat jobs always use a single implicit pipeline task.
+        // Persisting that as a todo duplicates the task card and leaks it into chat.
+        if runtime.planConversationId == nil && max(runtime.totalTasks, 1) <= 1 {
+            return false
+        }
+        return true
     }
 
     private func handleTaskFailed(_ p: TaskFailedPayload, for conversationId: UUID) {

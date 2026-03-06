@@ -9,6 +9,7 @@ extension ChatPanelView {
         assistantMessageId: UUID,
         effectiveRuntimeProvider: any LLMProvider,
         prompt: String,
+        taskRequestLabel: String,
         shouldRunPlanInline: Bool,
         ctx: WorkspaceContext,
         attachmentsToSend: [LLMAttachment]?
@@ -66,6 +67,7 @@ extension ChatPanelView {
                     await MainActor.run {
                         let (job, tasks) = PipelineJobFactory.fromChatMessage(
                             prompt: prompt,
+                            displayRequest: taskRequestLabel,
                             workspace: ctx.workspacePath.path,
                             providerId: effectiveRuntimeProvider.id
                         )
@@ -86,9 +88,28 @@ extension ChatPanelView {
                             tasks: tasks,
                             workerAdapter: adapter,
                             conversationId: targetConversationId,
-                            assistantMessageId: assistantMessageId
+                            assistantMessageId: assistantMessageId,
+                            onCompletion: { ctx in
+                                Task { @MainActor in
+                                    let pipelineOutcome: ToolTraceTurnOutcome = {
+                                        if ctx.success { return .success }
+                                        if ctx.wasCancelled { return .aborted }
+                                        return .failed
+                                    }()
+                                    self.finalizeToolTraceTurn(
+                                        conversationId: targetConversationId,
+                                        outcome: pipelineOutcome
+                                    )
+                                    self.snapshotSubagentCardsAndEndTask(
+                                        conversationId: targetConversationId,
+                                        outcome: pipelineOutcome,
+                                        shouldEndTask: false
+                                    )
+                                }
+                            }
                         )
                     }
+                    return
                 } else {
                     let streamResult = try await flowCoordinator.runStream(
                         provider: effectiveRuntimeProvider,

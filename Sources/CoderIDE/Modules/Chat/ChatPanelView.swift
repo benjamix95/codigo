@@ -27,6 +27,7 @@ struct ChatPanelView: View {
     /// Loading state only for the currently displayed thread (avoids showing loading for other threads).
      var isLoadingForCurrentConversation: Bool {
         chatStore.isTaskActive(for: conversationId)
+            || pipelineIntegrationService.isRunning(for: conversationId)
             || (planFlowPhase == .building && activeBuildPlanConversationId == conversationId)
     }
 
@@ -246,7 +247,9 @@ struct ChatPanelView: View {
     }
      var composerRuntimeStartDate: Date? {
         guard isLoadingForCurrentConversation else { return nil }
-        return chatStore.taskStartDate(for: conversationId) ?? composerTaskStartDate
+        return pipelineIntegrationService.snapshot(for: conversationId)?.jobStartTime
+            ?? chatStore.taskStartDate(for: conversationId)
+            ?? composerTaskStartDate
     }
      var composerFrozenTimerText: String? { composerFrozenTimerState?.text }
      var composerFrozenTimerDismissible: Bool { composerFrozenTimerState?.dismissible == true }

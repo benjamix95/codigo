@@ -91,6 +91,85 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         }
     }
 
+    func testHandleTaskCompletedDoesNotPersistImplicitSingleTaskAsTodo() {
+        let suiteName = "PipelineIntegrationServiceTests.single-task.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+
+        let conversationId = chatStore.conversations[0].id
+        chatStore.addMessage(
+            ChatMessage(role: .assistant, content: "", isStreaming: true),
+            to: conversationId
+        )
+
+        let context = WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")])
+        service.executeJob(
+            makeJob(id: "job-single"),
+            tasks: [TaskNode(taskId: "task-single", title: "Correggi il timer chat")],
+            workerAdapter: AgentWorkerAdapter(
+                provider: DelayedMockPipelineProvider(
+                    id: "provider-single",
+                    text: "ok",
+                    delayNanoseconds: 500_000_000
+                ),
+                context: context,
+                jobId: "job-single"
+            ),
+            conversationId: conversationId,
+            assistantMessageId: UUID()
+        )
+
+        service.handleEvent(
+            .jobStarted(
+                JobStartedPayload(
+                    jobId: "job-single",
+                    mode: .fast,
+                    taskCount: 1
+                )
+            ),
+            for: conversationId
+        )
+        service.handleEvent(
+            .taskCompleted(
+                TaskCompletedPayload(
+                    jobId: "job-single",
+                    taskId: "task-single",
+                    title: "Correggi il timer chat",
+                    agentName: "Coder",
+                    role: .coder,
+                    durationMs: 42
+                )
+            ),
+            for: conversationId
+        )
+
+        XCTAssertFalse(
+            todoStore.todos.contains {
+                $0.source == .agent && !$0.isPlanCanonical
+            }
+        )
+
+        XCTAssertTrue(service.cancelCurrentJob(for: conversationId))
+    }
+
     func testExecuteJobTracksIndependentPipelineStatePerConversation() async throws {
         let suiteName = "PipelineIntegrationServiceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

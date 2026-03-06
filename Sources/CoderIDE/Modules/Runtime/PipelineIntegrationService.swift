@@ -12,6 +12,7 @@ struct PipelineCompletionContext {
     let totalTasks: Int
     let durationMs: Int
     let success: Bool
+    let wasCancelled: Bool
 }
 
 // MARK: - PipelineIntegrationService
@@ -158,7 +159,8 @@ final class PipelineIntegrationService: ObservableObject {
             completedTasks: runtime.completedTasks,
             totalTasks: runtime.totalTasks,
             durationMs: durationMs,
-            success: !runtime.wasCancelled && runtime.lastError == nil
+            success: !runtime.wasCancelled && runtime.lastError == nil,
+            wasCancelled: runtime.wasCancelled
         )
 
         chatStore?.setLastAssistantStreaming(false, in: conversationId)

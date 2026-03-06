@@ -60,24 +60,28 @@ public enum PipelineJobFactory {
     /// Timeout 2 h per task lunghi (code review, analisi pipeline, refactoring, ecc.).
     public static func fromChatMessage(
         prompt: String,
+        displayRequest: String? = nil,
         workspace: String,
         providerId: String,
         mode: PipelineMode = .fast,
         jobTimeoutMs: Int = 7_200_000
     ) -> (job: PipelineJob, tasks: [TaskNode]) {
         let jobId = "chat_\(UUID().uuidString.prefix(8))"
+        let requestPreview = normalizedChatRequestPreview(
+            displayRequest ?? prompt
+        )
 
         let job = PipelineJob(
             jobId: jobId,
             workspace: workspace,
-            request: String(prompt.prefix(200)),
+            request: requestPreview,
             mode: mode,
             selectedProviderProfile: providerId,
             jobTimeoutMs: jobTimeoutMs,
             maxConcurrentWorkers: 1
         )
 
-        let truncatedTitle = String(prompt.prefix(80))
+        let truncatedTitle = String(requestPreview.prefix(80))
         var node = TaskNode(
             taskId: "task_chat_0",
             title: truncatedTitle.isEmpty ? "Chat task" : truncatedTitle,
@@ -187,6 +191,14 @@ public enum PipelineJobFactory {
         if lower.contains("fix") || lower.contains("bug") { return .bugfix }
         if lower.contains("refactor") || lower.contains("clean") { return .refactor }
         return .feature
+    }
+
+    private static func normalizedChatRequestPreview(_ raw: String) -> String {
+        let collapsed = raw
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else { return "Chat task" }
+        return String(collapsed.prefix(200))
     }
 }
 

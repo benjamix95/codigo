@@ -244,7 +244,8 @@ extension ChatPanelView {
     @MainActor
     internal func snapshotSubagentCardsAndEndTask(
         conversationId targetConversationId: UUID?,
-        outcome: ToolTraceTurnOutcome? = nil
+        outcome: ToolTraceTurnOutcome? = nil,
+        shouldEndTask: Bool = true
     ) {
         // Flush any pending streamed content so the assistant message is up-to-date
         // before we attach subagent cards or end the task.
@@ -265,7 +266,9 @@ extension ChatPanelView {
             chatStore.saveSubagentCardsToLastAssistant(cards, in: targetConversationId)
         }
         notifyTaskCompletionIfNeeded(conversationId: targetConversationId, outcome: outcome)
-        chatStore.endTask(conversationId: targetConversationId)
+        if shouldEndTask {
+            chatStore.endTask(conversationId: targetConversationId)
+        }
         // Force immediate persistence so the final state (cards + content)
         // survives an app crash right after task completion.
         chatStore.saveConversationsImmediately()
