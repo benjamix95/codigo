@@ -25,7 +25,11 @@ let package = Package(
                 "Modules/Settings/CodexCustomModel/image"
             ],
             resources: [
-                .process("Resources")
+                .process("Resources/AppLogo.png"),
+                .process("Resources/Assets.xcassets"),
+                .process("Resources/Fonts"),
+                .process("Resources/browser-bridge.js"),
+                .copy("Resources/monaco")
             ],
             linkerSettings: [
                 .unsafeFlags([

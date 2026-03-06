@@ -43,6 +43,52 @@ extension CodigoApp {
                 }
             }
         }
+
+        CommandMenu("Editor") {
+            Button("Quick Open File") {
+                NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
+            }
+            .keyboardShortcut("p", modifiers: [.command])
+
+            Button("Toggle Split Editor") {
+                NotificationCenter.default.post(name: .editorToggleSplit, object: nil)
+            }
+            .keyboardShortcut("\\", modifiers: [.command])
+
+            Divider()
+
+            Button("Find in File") {
+                NotificationCenter.default.post(name: .editorFind, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.command])
+
+            Button("Replace in File") {
+                NotificationCenter.default.post(name: .editorReplace, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.command, .option])
+
+            Button("Go to Line") {
+                NotificationCenter.default.post(name: .editorGoToLine, object: nil)
+            }
+            .keyboardShortcut("g", modifiers: [.control])
+
+            Button("Show Problems") {
+                NotificationCenter.default.post(name: .editorShowProblems, object: nil)
+            }
+            .keyboardShortcut("m", modifiers: [.command, .shift])
+
+            Button("Show Outline") {
+                NotificationCenter.default.post(name: .editorShowOutline, object: nil)
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+
+            Divider()
+
+            Button("Format Document") {
+                NotificationCenter.default.post(name: .editorFormatDocument, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.shift, .option])
+        }
     }
 
     @MainActor

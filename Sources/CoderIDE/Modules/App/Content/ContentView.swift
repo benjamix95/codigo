@@ -16,6 +16,13 @@ struct ContentView: View {
     @EnvironmentObject var gitPanelStore: GitPanelStore
     @EnvironmentObject var planHistoryStore: PlanHistoryStore
     @EnvironmentObject var appUpdateCenter: AppUpdateCenter
+    @StateObject var editorSplitStore = EditorSplitStore()
+    @StateObject var editorPanelsStore = EditorPanelsStore()
+    @StateObject var editorQuickOpenStore = EditorQuickOpenStore()
+    @StateObject var editorDiagnosticsStore = EditorDiagnosticsStore()
+    @StateObject var editorSymbolsStore = EditorSymbolsStore()
+    @StateObject var editorCommandDispatchStore = EditorCommandDispatchStore()
+    @StateObject var editorNavigationDispatchStore = EditorNavigationDispatchStore()
     @StateObject var debugStore = DebugStore()
     @StateObject var terminalSessionStore = TerminalSessionStore()
     @StateObject var browserTabManager = BrowserTabManager()

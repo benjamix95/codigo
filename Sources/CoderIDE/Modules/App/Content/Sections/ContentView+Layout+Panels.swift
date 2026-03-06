@@ -80,6 +80,39 @@ extension ContentView {
             .help("Toggle git panel")
 
             Button {
+                NotificationCenter.default.post(name: .editorQuickOpen, object: nil)
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .help("Quick open")
+
+            Button {
+                NotificationCenter.default.post(name: .editorToggleSplit, object: nil)
+            } label: {
+                Image(systemName: "rectangle.split.2x1")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .help("Toggle split editor")
+
+            Button {
+                NotificationCenter.default.post(name: .editorShowProblems, object: nil)
+            } label: {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+            .help("Show problems")
+
+            Button {
                 withAnimation(.snappy(duration: 0.2)) {
                     chatPanelPosition = chatPanelPosition == "left" ? "right" : "left"
                 }

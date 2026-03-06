@@ -42,6 +42,7 @@ extension EditorPlaceholderView {
             }
 
             Button {
+                editorSplitStore.handleClosedFile(path)
                 openFilesStore.closeFile(path)
             } label: {
                 Image(systemName: "xmark")
@@ -67,7 +68,15 @@ extension EditorPlaceholderView {
         .contentShape(Rectangle())
         .onTapGesture { openFilesStore.openFile(path) }
         .contextMenu {
-            Button("Close") { openFilesStore.closeFile(path) }
+            Button("Open in Split") {
+                openFilesStore.prepareFile(path)
+                editorSplitStore.open(path: path, in: .secondary, primaryPath: openFilesStore.openFilePath)
+            }
+            Divider()
+            Button("Close") {
+                editorSplitStore.handleClosedFile(path)
+                openFilesStore.closeFile(path)
+            }
             Button("Close Others") { openFilesStore.closeOthers(keeping: path) }
             Button("Close All") { openFilesStore.closeAllFiles() }
             Divider()

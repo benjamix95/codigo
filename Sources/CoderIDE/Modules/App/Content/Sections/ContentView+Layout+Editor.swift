@@ -125,6 +125,13 @@ extension ContentView {
 
             EditorPlaceholderView(folderPaths: ctx.folderPaths)
                 .environmentObject(openFilesStore)
+                .environmentObject(editorSplitStore)
+                .environmentObject(editorPanelsStore)
+                .environmentObject(editorQuickOpenStore)
+                .environmentObject(editorDiagnosticsStore)
+                .environmentObject(editorSymbolsStore)
+                .environmentObject(editorCommandDispatchStore)
+                .environmentObject(editorNavigationDispatchStore)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if showTerminal {

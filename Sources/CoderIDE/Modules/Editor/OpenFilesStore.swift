@@ -22,9 +22,7 @@ final class OpenFilesStore: ObservableObject {
 
     func openFile(_ path: String?) {
         guard let path, !path.isEmpty else { return }
-        if !openPaths.contains(path) {
-            openPaths.append(path)
-        }
+        trackOpenPath(path)
         openFilePath = path
         if viewModeByPath[path] == nil {
             viewModeByPath[path] = .plain
@@ -103,6 +101,15 @@ final class OpenFilesStore: ObservableObject {
         guard let path, !path.isEmpty else { return }
         guard fileContents[path] == nil else { return }
         reload(path: path)
+    }
+
+    func prepareFile(_ path: String?) {
+        guard let path, !path.isEmpty else { return }
+        trackOpenPath(path)
+        if viewModeByPath[path] == nil {
+            viewModeByPath[path] = .plain
+        }
+        ensureLoaded(path)
     }
 
     func content(for path: String) -> String {
@@ -260,5 +267,11 @@ final class OpenFilesStore: ObservableObject {
         diskSnapshot[path] = content
         loadErrors[path] = nil
         return content
+    }
+
+    private func trackOpenPath(_ path: String) {
+        if !openPaths.contains(path) {
+            openPaths.append(path)
+        }
     }
 }
