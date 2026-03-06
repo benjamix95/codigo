@@ -45,6 +45,9 @@ extension ChatPanelView {
         let questionToolEpochBaseline = phase3StartContext.questionEpochBaseline
         guard shouldStartPhase3 else {
             // Conversation changed before Phase 3.
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
             return
         }
 

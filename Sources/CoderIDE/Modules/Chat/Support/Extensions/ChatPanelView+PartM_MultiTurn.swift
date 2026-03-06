@@ -86,6 +86,9 @@ extension ChatPanelView {
         }
         guard shouldStartPhase1 else {
             // Conversation changed before Phase 1 could start.
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
             return
         }
 
@@ -191,6 +194,9 @@ extension ChatPanelView {
         let questionToolEpochBaseline = phase2StartContext.questionEpochBaseline
         guard shouldStartPhase2 else {
             // Conversation changed before Phase 2.
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
             return
         }
 

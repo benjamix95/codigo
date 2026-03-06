@@ -158,7 +158,15 @@ extension ChatPanelView {
 
     @MainActor
     internal func stopTaskForPolicyViolation(conversationId: UUID?) {
-        let didCancelTask = cancelRunTask(for: conversationId)
+        let didCancelPipeline = pipelineIntegrationService.cancelCurrentJob(for: conversationId)
+        var didCancelTask = didCancelPipeline || cancelRunTask(for: conversationId)
+        if !didCancelTask, let target = conversationId,
+           activeBuildPlanConversationId == target,
+           let agentId = activeBuildAgentConversationId {
+            didCancelTask =
+                pipelineIntegrationService.cancelCurrentJob(for: agentId)
+                || cancelRunTask(for: agentId)
+        }
         if !didCancelTask {
             let scope = executionScopeForActiveTask()
             executionController.terminate(scope: scope)

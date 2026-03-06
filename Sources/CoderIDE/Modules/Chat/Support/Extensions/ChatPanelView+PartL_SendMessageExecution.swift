@@ -38,7 +38,10 @@ extension ChatPanelView {
                         guard shouldMutatePlanState(
                             targetConversationId: targetConversationId,
                             currentConversationId: self.conversationId
-                        ) else { return }
+                        ) else {
+                            cleanupPlanFlowAfterConversationSwitch(targetConversationId: targetConversationId)
+                            return
+                        }
                         let isPausedForClarification: Bool = {
                             if case .awaitingClarification = planningState { return true }
                             return false
@@ -86,11 +89,10 @@ extension ChatPanelView {
                             assistantMessageId: assistantMessageId,
                             onCompletion: { ctx in
                                 Task { @MainActor in
-                                    let pipelineOutcome: ToolTraceTurnOutcome = {
-                                        if ctx.success { return .success }
-                                        if ctx.wasCancelled { return .aborted }
-                                        return .failed
-                                    }()
+                                    let pipelineOutcome = toolTraceTurnOutcome(
+                                        pipelineSuccess: ctx.success,
+                                        pipelineWasCancelled: ctx.wasCancelled
+                                    )
                                     self.finalizeToolTraceTurn(
                                         conversationId: targetConversationId,
                                         outcome: pipelineOutcome
@@ -205,7 +207,10 @@ extension ChatPanelView {
                     guard shouldMutatePlanState(
                         targetConversationId: targetConversationId,
                         currentConversationId: self.conversationId
-                    ) else { return }
+                    ) else {
+                        cleanupPlanFlowAfterConversationSwitch(targetConversationId: targetConversationId)
+                        return
+                    }
                     planFlowPhase = .idle
                     planningState = .idle
                     clearPlanStreamingState()

@@ -83,6 +83,36 @@ func shouldMutatePlanState(
     targetConversationId == currentConversationId
 }
 
+func shouldResetPlanFlowAfterConversationSwitch(
+    targetConversationId: UUID,
+    currentConversationId: UUID?,
+    phase: PlanFlowPhase
+) -> Bool {
+    guard targetConversationId != currentConversationId else { return false }
+    switch phase {
+    case .analyzing, .questioning, .generating:
+        return true
+    case .idle, .proposalReady, .readyToBuild, .building:
+        return false
+    }
+}
+
+extension ChatPanelView {
+    @MainActor
+    internal func cleanupPlanFlowAfterConversationSwitch(targetConversationId: UUID) {
+        guard shouldResetPlanFlowAfterConversationSwitch(
+            targetConversationId: targetConversationId,
+            currentConversationId: conversationId,
+            phase: planFlowPhase
+        ) else {
+            return
+        }
+        planFlowPhase = .idle
+        planningState = .idle
+        clearPlanStreamingState()
+    }
+}
+
 private enum PlanQuestionToolEpochStore {
     static let lock = NSLock()
     static nonisolated(unsafe) var byConversation: [UUID: Int] = [:]

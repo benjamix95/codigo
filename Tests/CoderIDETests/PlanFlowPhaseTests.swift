@@ -145,4 +145,38 @@ final class PlanFlowPhaseTests: XCTestCase {
             )
         )
     }
+
+    func testConversationSwitchResetsOnlyActivePlanPhases() {
+        let targetConversationId = UUID()
+        let otherConversationId = UUID()
+
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterConversationSwitch(
+                targetConversationId: targetConversationId,
+                currentConversationId: otherConversationId,
+                phase: .analyzing
+            )
+        )
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterConversationSwitch(
+                targetConversationId: targetConversationId,
+                currentConversationId: otherConversationId,
+                phase: .questioning
+            )
+        )
+        XCTAssertTrue(
+            shouldResetPlanFlowAfterConversationSwitch(
+                targetConversationId: targetConversationId,
+                currentConversationId: otherConversationId,
+                phase: .generating
+            )
+        )
+        XCTAssertFalse(
+            shouldResetPlanFlowAfterConversationSwitch(
+                targetConversationId: targetConversationId,
+                currentConversationId: otherConversationId,
+                phase: .proposalReady
+            )
+        )
+    }
 }

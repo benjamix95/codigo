@@ -245,6 +245,9 @@ extension ChatPanelView {
         }
         guard shouldProceedPhase3 else {
             // Conversation changed before Phase 3.
+            await MainActor.run {
+                cleanupPlanFlowAfterConversationSwitch(targetConversationId: conversationId)
+            }
             return
         }
 
