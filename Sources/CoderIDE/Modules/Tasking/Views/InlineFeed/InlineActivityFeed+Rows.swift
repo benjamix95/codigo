@@ -43,14 +43,14 @@ extension InlineActivityFeedView {
             }
         }
         .background(
-            Rectangle()
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isExpanded
                       ? DesignSystem.Colors.backgroundSecondary
                       : DesignSystem.Colors.backgroundSecondary.opacity(0.4))
         )
         .overlay(alignment: .leading) {
             if isRunning {
-                Rectangle()
+                RoundedRectangle(cornerRadius: 8)
                     .fill(phaseColor)
                     .frame(width: 2)
             }
@@ -59,7 +59,7 @@ extension InlineActivityFeedView {
             if isRunning, !isExpanded {
                 ActivityShimmerTrail()
                     .allowsHitTesting(false)
-                    .clipShape(Rectangle())
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
         .frame(maxWidth: 760)
