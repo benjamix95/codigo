@@ -70,7 +70,9 @@ enum SwarmLiveReducer {
             }
         }
 
-        card.currentDetail = bestDetail(for: activity) ?? card.currentDetail
+        if let detail = bestDetail(for: activity, displayName: card.displayName) {
+            card.currentDetail = detail
+        }
         if !isDuplicate {
             if activity.isRunning {
                 card.activeOpsCount += 1
@@ -226,10 +228,12 @@ enum SwarmLiveReducer {
         return "Completed • " + compact.joined(separator: " → ")
     }
 
-    private static func bestDetail(for activity: TaskActivity) -> String? {
+    private static func bestDetail(
+        for activity: TaskActivity,
+        displayName: String
+    ) -> String? {
         let candidates = [
             activity.detail,
-            activity.payload["task_summary"],
             activity.payload["detail"],
             activity.payload["summary"],
             activity.payload["query"],
@@ -241,8 +245,12 @@ enum SwarmLiveReducer {
             activity.payload["uri"],
         ]
         for candidate in candidates {
-            let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !text.isEmpty { return text }
+            if let text = SwarmLivePresentation.normalizedSubtitleText(
+                candidate,
+                excluding: displayName
+            ) {
+                return text
+            }
         }
         return nil
     }

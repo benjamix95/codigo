@@ -24,33 +24,23 @@ enum SubagentChatCardHelpers {
     static func runningSubtitle(
         detail: String,
         liveText: String,
+        title: String? = nil,
         fallback: String = "Working..."
     ) -> String {
-        if let liveLine = latestMeaningfulLiveLine(from: liveText) {
+        if let liveLine = SwarmLivePresentation.latestMeaningfulLiveLine(
+            from: liveText,
+            excluding: title
+        ) {
             return liveLine
         }
 
-        let trimmedDetail = detail.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedDetail.isEmpty {
-            return trimmedDetail
+        if let detailLine = SwarmLivePresentation.normalizedSubtitleText(
+            detail,
+            excluding: title
+        ) {
+            return detailLine
         }
 
         return fallback
-    }
-
-    private static func latestMeaningfulLiveLine(from text: String) -> String? {
-        let lines = text
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        for line in lines.reversed() {
-            let lower = line.lowercased()
-            if lower == "started" || lower == "completed" || lower == "failed" {
-                continue
-            }
-            return String(line.prefix(120))
-        }
-        return nil
     }
 }

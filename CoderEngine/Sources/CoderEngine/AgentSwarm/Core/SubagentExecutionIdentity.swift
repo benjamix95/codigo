@@ -17,6 +17,12 @@ public struct SubagentExecutionIdentity: Sendable, Equatable {
 }
 
 public enum SubagentExecutionIdentityBuilder {
+    private static let fillerWords: Set<String> = [
+        "a", "an", "and", "are", "as", "at", "be", "by", "da", "dei", "del", "della", "dello",
+        "di", "e", "ed", "for", "from", "gli", "i", "il", "in", "into", "la", "le", "lo", "lato", "of",
+        "on", "or", "per", "su", "that", "the", "this", "to", "with",
+    ]
+
     public static func make(
         role: SubagentRole,
         task: String,
@@ -38,22 +44,32 @@ public enum SubagentExecutionIdentityBuilder {
     }
 
     public static func baseName(role: SubagentRole, task: String) -> String {
-        let label = deriveTaskLabel(from: task)
-        let safeLabel = label.isEmpty ? role.displayName : label
-        return "\(safeLabel)-\(role.rawValue)"
+        let label = deriveTaskLabel(from: task, role: role)
+        guard !label.isEmpty else { return role.displayName }
+        return "\(role.displayName)-\(label)"
     }
 
-    public static func deriveTaskLabel(from task: String) -> String {
+    public static func deriveTaskLabel(
+        from task: String,
+        role: SubagentRole? = nil
+    ) -> String {
         let cleaned = task
             .replacingOccurrences(of: #"`([^`]*)`"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: #"\[[^\]]+\]\([^)]+\)"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"[>*_#\-\+\[\]\(\)\{\}:]"#, with: " ", options: .regularExpression)
+
+        let roleSpecificNoise = leadingNoiseWords(for: role)
         let words = cleaned
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .prefix(6)
+            .filter { word in
+                let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return false }
+                let lower = trimmed.lowercased()
+                return !fillerWords.contains(lower) && !roleSpecificNoise.contains(lower)
+            }
+            .prefix(8)
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-        return String(words.joined().prefix(30))
+        return String(words.joined().prefix(48))
     }
 
     public static func taskSummary(from task: String, maxLength: Int = 120) -> String {
@@ -62,5 +78,26 @@ public enum SubagentExecutionIdentityBuilder {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !compact.isEmpty else { return "" }
         return String(compact.prefix(maxLength))
+    }
+
+    private static func leadingNoiseWords(for role: SubagentRole?) -> Set<String> {
+        switch role {
+        case .explorer:
+            return ["analyze", "analyse", "check", "esplora", "explore", "inspect", "investigate", "research", "review", "rivedi", "study", "verify", "verifica"]
+        case .reviewer:
+            return ["audit", "check", "inspect", "review", "rivedi", "scan", "verify", "verifica"]
+        case .debugger:
+            return ["debug", "diagnose", "fix", "indaga", "investigate", "repair", "resolve", "risolvi"]
+        case .coder:
+            return ["build", "code", "create", "implement", "write"]
+        case .testWriter:
+            return ["add", "create", "test", "tests", "verify", "write"]
+        case .docWriter:
+            return ["document", "docs", "write"]
+        case .securityAuditor:
+            return ["analyze", "audit", "review", "scan", "security", "verify"]
+        case .none:
+            return []
+        }
     }
 }

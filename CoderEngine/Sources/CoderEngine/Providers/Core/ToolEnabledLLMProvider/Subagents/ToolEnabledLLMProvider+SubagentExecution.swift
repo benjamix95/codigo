@@ -115,7 +115,7 @@ extension ToolEnabledLLMProvider {
 
         events.append(.raw(type: "agent", payload: [
             "title": identity.agentName,
-            "detail": identity.taskSummary.isEmpty ? "started" : identity.taskSummary,
+            "detail": "launching \(role.displayName.lowercased())",
             "swarm_id": subagentId,
             "group_id": "swarm-\(subagentId)",
             "tool_call_id": toolCallId,

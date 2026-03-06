@@ -227,6 +227,7 @@ extension SubagentChatCardView {
         let liveDriven = SubagentChatCardHelpers.runningSubtitle(
             detail: card.currentDetail,
             liveText: card.liveText,
+            title: title,
             fallback: ""
         )
         if !liveDriven.isEmpty {
@@ -240,6 +241,8 @@ extension SubagentChatCardView {
             card.currentDetail,
             card.recentEvents.last?.detail,
             card.recentEvents.last?.payload["detail"],
+            card.recentEvents.last?.title,
+            card.currentStepTitle,
             card.recentEvents.last?.payload["query"],
             card.recentEvents.last?.payload["path"],
             card.recentEvents.last?.payload["command"],
@@ -247,12 +250,12 @@ extension SubagentChatCardView {
             card.recentEvents.last?.payload["mcp_tool"],
         ]
         for candidate in candidates {
-            let text = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            let lower = text.lowercased()
-            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" { continue }
-            if text == title { continue }
-            return String(text.prefix(120))
+            if let text = SwarmLivePresentation.normalizedSubtitleText(
+                candidate,
+                excluding: title
+            ) {
+                return text
+            }
         }
         return nil
     }

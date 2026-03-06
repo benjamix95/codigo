@@ -12,7 +12,6 @@ struct CoderIDETools {
         + ideIntegrationTools
         + planIntegrationTools
         + skillTools
-        + subagentTools
         + debugTools
         + codeReviewTools
 

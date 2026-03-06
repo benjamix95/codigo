@@ -85,7 +85,7 @@ extension CodexCLIProvider {
                     "status": status.isEmpty ? "started" : status,
                     "title": identity.agentName,
                     "agent_name": identity.agentName,
-                    "detail": identity.taskSummary.isEmpty ? task : identity.taskSummary,
+                    "detail": "launching \(role.displayName.lowercased())",
                 ]))
             }
             return events

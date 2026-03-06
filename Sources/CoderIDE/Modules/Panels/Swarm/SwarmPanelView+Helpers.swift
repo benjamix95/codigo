@@ -51,10 +51,18 @@ extension SwarmPanelView {
 
     func liveSubtitle(for card: SwarmLiveCardState) -> String? {
         let last = card.recentEvents.last
+        if let liveLine = SwarmLivePresentation.latestMeaningfulLiveLine(
+            from: card.liveText,
+            excluding: card.displayName
+        ) {
+            return liveLine
+        }
         let candidates: [String?] = [
             card.currentDetail,
             last?.detail,
             last?.payload["detail"],
+            last?.title,
+            card.currentStepTitle,
             last?.payload["query"],
             last?.payload["path"],
             last?.payload["command"],
@@ -62,13 +70,12 @@ extension SwarmPanelView {
             last?.payload["mcp_tool"],
         ]
         for candidate in candidates {
-            let text = (candidate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            let lower = text.lowercased()
-            if lower == "started" || lower == "running" || lower == "in_progress" || lower == "pending" {
-                continue
+            if let text = SwarmLivePresentation.normalizedSubtitleText(
+                candidate,
+                excluding: card.displayName
+            ) {
+                return text
             }
-            return String(text.prefix(120))
         }
         return nil
     }

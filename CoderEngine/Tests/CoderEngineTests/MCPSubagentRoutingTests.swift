@@ -9,9 +9,18 @@ final class MCPSubagentRoutingTests: XCTestCase {
             task: "Investigate the auth token refresh flow and session invalidation"
         )
 
-        XCTAssertEqual(identity.agentName, "InvestigateTheAuthTokenRefresh-explorer")
+        XCTAssertEqual(identity.agentName, "Explorer-AuthTokenRefreshFlowSessionInvalidation")
         XCTAssertEqual(identity.swarmId, identity.agentName)
         XCTAssertTrue(identity.taskSummary.contains("auth token refresh flow"))
+    }
+
+    func testExecutionIdentityStripsItalianFillerWordsFromExplorerName() {
+        let identity = SubagentExecutionIdentityBuilder.make(
+            role: .explorer,
+            task: "Rivedi la pipeline del debug mode lato UI orchestrazione e intent dispatch"
+        )
+
+        XCTAssertEqual(identity.agentName, "Explorer-PipelineDebugModeUIOrchestrazioneIntentDispatch")
     }
 
     func testPromptBuilderProducesNonEmptyForAllRoles() {

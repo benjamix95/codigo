@@ -97,6 +97,10 @@ extension ProviderToolEventMapper {
             mapped["output"] = String(output.prefix(6_000))
         }
 
+        if let role = SubagentRole.fromToolName(normalizedMCPTool) {
+            mapped["detail"] = "launching \(role.displayName.lowercased())"
+        }
+
         if let structuredOutput {
             if let path = firstString(in: structuredOutput, keys: ["path", "file", "file_path", "relative_path", "target_path"]), !path.isEmpty {
                 mapped["path"] = mapped["path"] ?? path

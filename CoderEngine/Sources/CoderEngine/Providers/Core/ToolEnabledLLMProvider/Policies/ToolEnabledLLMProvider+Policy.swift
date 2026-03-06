@@ -255,13 +255,12 @@ extension ToolEnabledLLMProvider {
 
         \(subagentProviderFactory != nil ? """
         ### Subagent Tools — MANDATORY PARALLEL EXECUTION (you MUST use these)
-        These tools are available both as native tools and as MCP tools (prefixed with `coderide_`).
-        Call them by whichever name is in your tool schema — e.g. `subagent_explorer` or `coderide_subagent_explorer`.
-        - **subagent_explorer** / **coderide_subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
-        - **subagent_coder** / **coderide_subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
-        - **subagent_reviewer** / **coderide_subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.
-        - **subagent_debugger** / **coderide_subagent_debugger** — Spawn a debugger subagent. Investigates and fixes bugs. Args: `task`.
-        - **subagent_testWriter** / **coderide_subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
+        Use the native `subagent_*` tools for delegation. Do not route subagents through MCP wrappers.
+        - **subagent_explorer** — Spawn a read-only exploration subagent. Searches, reads, analyzes code — CANNOT edit. Runs on Codex/Claude/Gemini/OpenAI/etc. Call 2–3 explorers in the SAME round for parallel investigation. Args: `task`.
+        - **subagent_coder** — Spawn a coding subagent with full tool access (edit, bash, etc.). Each coder works on a different file/module in parallel. Args: `task`.
+        - **subagent_reviewer** — Spawn a code review subagent. Reviews quality, bugs, style. Args: `task`.
+        - **subagent_debugger** — Spawn a debugger subagent. Investigates and fixes bugs. Args: `task`.
+        - **subagent_testWriter** — Spawn a test-writing subagent. Args: `task`.
         - **subagent_docWriter** — Spawn a documentation subagent. Args: `task`.
         - **subagent_securityAuditor** — Spawn a security audit subagent. Args: `task`.
 

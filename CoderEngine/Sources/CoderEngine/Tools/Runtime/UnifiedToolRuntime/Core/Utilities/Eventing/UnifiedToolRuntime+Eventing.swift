@@ -15,7 +15,7 @@ extension UnifiedToolRuntime {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let identity = SubagentExecutionIdentityBuilder.make(role: role, task: task)
             payload["title"] = identity.agentName
-            payload["detail"] = identity.taskSummary.isEmpty ? "started" : identity.taskSummary
+            payload["detail"] = "launching \(role.displayName.lowercased())"
             payload["agent_name"] = identity.agentName
             payload["task_summary"] = identity.taskSummary
             payload["subagent_id"] = identity.swarmId

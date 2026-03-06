@@ -302,4 +302,26 @@ final class SwarmLiveReducerTests: XCTestCase {
         let cards = SwarmLiveReducer.reduce(activities: [eventA, eventB], limitRecentEvents: 80)
         XCTAssertEqual(cards["planner"]?.recentEvents.count, 2)
     }
+
+    func testTaskSummaryDoesNotLeakIntoCurrentDetail() {
+        let started = TaskActivity(
+            type: "agent",
+            title: "Explorer-AuthFlow",
+            detail: "launching explorer",
+            payload: [
+                "swarm_id": "Explorer-AuthFlow",
+                "group_id": "swarm-Explorer-AuthFlow",
+                "agent_name": "Explorer-AuthFlow",
+                "task_summary": "Rivedi la pipeline del debug mode lato UI",
+                "status": "started",
+            ],
+            timestamp: Date(timeIntervalSince1970: 500),
+            phase: .planning,
+            isRunning: true,
+            groupId: "swarm-Explorer-AuthFlow"
+        )
+
+        let cards = SwarmLiveReducer.reduce(activities: [started], limitRecentEvents: 80)
+        XCTAssertEqual(cards["Explorer-AuthFlow"]?.currentDetail, "launching explorer")
+    }
 }
