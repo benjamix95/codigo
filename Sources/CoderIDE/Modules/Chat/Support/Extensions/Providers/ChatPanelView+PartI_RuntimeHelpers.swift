@@ -30,6 +30,13 @@ extension ChatPanelView {
         cfg.model = codexModelOverride.isEmpty ? nil : codexModelOverride
         cfg.modelReasoningEffort = codexReasoningEffort.isEmpty ? nil : codexReasoningEffort
         CodexConfigLoader.save(cfg)
+        let presetEnabled = UserDefaults.standard.bool(
+            forKey: CodexCustomModelProfileSync.settingsKey
+        )
+        CodexCustomModelProfileSync.syncManagedBlock(
+            at: CodexConfigLoader.configPath,
+            enabled: presetEnabled
+        )
     }
 
     internal func syncSwarmProvider() {

@@ -74,6 +74,13 @@ extension ChatPanelView {
                             context: ctx,
                             jobId: job.jobId
                         )
+                        let runtimeProviderId = effectiveRuntimeProvider.id
+                        pipelineIntegrationService.onRawStreamEvent = { type, payload, _, convId in
+                            self.handleRawStreamEvent(
+                                type: type, payload: payload,
+                                providerId: runtimeProviderId, conversationId: convId
+                            )
+                        }
                         pipelineIntegrationService.executeJob(
                             job,
                             tasks: tasks,

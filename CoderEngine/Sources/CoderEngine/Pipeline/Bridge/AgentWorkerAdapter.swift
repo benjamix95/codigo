@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - AgentWorkerAdapterConfig
 
@@ -44,6 +45,10 @@ public protocol AgentWorkerDelegate: AnyObject, Sendable {
 /// - Emettere eventi di streaming via delegate
 /// - Gestire timeout e cancellation
 public actor AgentWorkerAdapter {
+
+    private static let logger = Logger(
+        subsystem: "com.codigo.engine", category: "AgentWorkerAdapter"
+    )
 
     private let provider: any LLMProvider
     private let context: WorkspaceContext
@@ -110,11 +115,17 @@ public actor AgentWorkerAdapter {
                     agentName: agentName, jobId: jobId
                 )
 
+                // #region agent log
+                Self.debugLog("H4", "provider.send() CALLING", ["taskId": taskId, "role": role.rawValue, "providerId": provider.id, "promptLen": prompt.count, "delegateNil": delegate == nil])
+                // #endregion
                 let stream = try await provider.send(
                     prompt: prompt,
                     context: context,
                     attachments: nil
                 )
+                // #region agent log
+                Self.debugLog("H4", "provider.send() RETURNED stream", ["taskId": taskId])
+                // #endregion
 
                 let fullText = try await Self.consumeStream(
                     stream: stream,
@@ -150,12 +161,19 @@ public actor AgentWorkerAdapter {
                 )
             } catch {
                 let durationMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+                let readable = Self.readableErrorMessage(error)
+                Self.logger.error(
+                    "Pipeline task \(taskId) failed after \(durationMs)ms — \(String(describing: error))"
+                )
+                // #region agent log
+                Self.debugLog("H4H5", "task FAILED in catch", ["taskId": taskId, "error": String(describing: error), "readable": readable, "durationMs": durationMs, "errorType": String(describing: type(of: error))])
+                // #endregion
                 return WorkerTaskResult(
                     taskId: taskId,
                     agentName: agentName,
                     agentRole: role,
                     success: false,
-                    error: Self.readableErrorMessage(error),
+                    error: readable,
                     durationMs: durationMs,
                     providerId: provider.id
                 )
@@ -445,3 +463,26 @@ extension AgentWorkerError: LocalizedError {
         }
     }
 }
+
+// #region agent log
+extension AgentWorkerAdapter {
+    static func debugLog(_ hypothesis: String, _ message: String, _ data: [String: Any] = [:]) {
+        let path = NSHomeDirectory() + "/codigo/.cursor/debug-7f5345.log"
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        var payload: [String: Any] = [
+            "sessionId": "7f5345", "hypothesisId": hypothesis,
+            "location": "AgentWorkerAdapter", "message": message,
+            "timestamp": ts
+        ]
+        if !data.isEmpty { payload["data"] = data }
+        if let json = try? JSONSerialization.data(withJSONObject: payload),
+           let line = String(data: json, encoding: .utf8) {
+            let handle = FileHandle(forWritingAtPath: path)
+                ?? { FileManager.default.createFile(atPath: path, contents: nil); return FileHandle(forWritingAtPath: path)! }()
+            handle.seekToEndOfFile()
+            handle.write((line + "\n").data(using: .utf8)!)
+            handle.closeFile()
+        }
+    }
+}
+// #endregion

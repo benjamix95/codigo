@@ -119,10 +119,25 @@ enum CodexCustomModelProfileSync {
         while filtered.last?.trimmingCharacters(in: .whitespaces).isEmpty == true {
             filtered.removeLast()
         }
-        if !filtered.isEmpty {
-            filtered.append("")
+        let blockLines = managedBlockLines(enabled: enabled)
+        let firstSectionIndex = filtered.firstIndex(where: {
+            let t = $0.trimmingCharacters(in: .whitespaces)
+            return t.hasPrefix("[") && t.hasSuffix("]")
+        }) ?? filtered.count
+
+        var insertAt = firstSectionIndex
+        if insertAt > 0, !filtered[insertAt - 1].trimmingCharacters(in: .whitespaces).isEmpty {
+            filtered.insert("", at: insertAt)
+            insertAt += 1
         }
-        filtered.append(contentsOf: managedBlockLines(enabled: enabled))
+        filtered.insert(contentsOf: blockLines, at: insertAt)
+        if insertAt + blockLines.count < filtered.count {
+            let nextLine = filtered[insertAt + blockLines.count]
+            if !nextLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                filtered.insert("", at: insertAt + blockLines.count)
+            }
+        }
+
         return filtered.joined(separator: "\n") + "\n"
     }
 

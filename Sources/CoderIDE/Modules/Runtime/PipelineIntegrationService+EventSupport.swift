@@ -8,6 +8,11 @@ extension PipelineIntegrationService {
     func handleRawEvent(_ p: RawEventPayload, for conversationId: UUID) {
         let rawType = p.rawType
 
+        let providerId = runtime(for: conversationId)?.currentJobId ?? "pipeline"
+        if let callback = onRawStreamEvent {
+            callback(rawType, p.payload, providerId, conversationId)
+        }
+
         if rawType == "todo_write" || p.payload.keys.contains(where: {
             $0.hasPrefix("todo_")
         }) {
@@ -21,6 +26,27 @@ extension PipelineIntegrationService {
                 p.payload["status"] ?? "Working...",
                 for: conversationId
             )
+        } else {
+            forwardRawEventToTaskActivity(p, for: conversationId)
+        }
+    }
+
+    private func forwardRawEventToTaskActivity(
+        _ p: RawEventPayload,
+        for conversationId: UUID
+    ) {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "pipeline",
+            type: p.rawType,
+            payload: p.payload
+        )
+        taskActivityStore?.addEnvelope(envelope)
+        for event in envelope.events {
+            if case .taskActivity(let activity) = event {
+                taskActivityStore?.addActivity(
+                    scopedTaskActivity(activity, conversationId: conversationId)
+                )
+            }
         }
     }
 

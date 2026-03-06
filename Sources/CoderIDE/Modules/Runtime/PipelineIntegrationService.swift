@@ -41,6 +41,11 @@ final class PipelineIntegrationService: ObservableObject {
     var pendingDebugEventsByConversation: [UUID: [NormalizedEvent]] = [:]
     private let facadeConfig: PipelineFacadeConfig
 
+    var onRawStreamEvent: ((_ type: String, _ payload: [String: String], _ providerId: String, _ conversationId: UUID?) -> Void)?
+    // #region agent log
+    static var _eventCounter = 0
+    // #endregion
+
     // MARK: - Init
 
     init(facadeConfig: PipelineFacadeConfig = PipelineFacadeConfig()) {
@@ -74,7 +79,15 @@ final class PipelineIntegrationService: ObservableObject {
         planConversationId: UUID? = nil,
         onCompletion: ((PipelineCompletionContext) -> Void)? = nil
     ) {
-        guard !isRunning(for: conversationId) else { return }
+        // #region agent log
+        Self.debugLog("H1", "PipelineIntegrationService.executeJob", ["isRunning": isRunning(for: conversationId), "conversationId": conversationId.uuidString, "jobId": job.jobId, "taskCount": tasks.count])
+        // #endregion
+        guard !isRunning(for: conversationId) else {
+            // #region agent log
+            Self.debugLog("H1", "executeJob BLOCKED by isRunning", ["conversationId": conversationId.uuidString])
+            // #endregion
+            return
+        }
 
         executionController?.clearSwarmStopRequested()
 
@@ -202,4 +215,25 @@ final class PipelineIntegrationService: ObservableObject {
             _ = DebugProjectionEventConsumer.apply(event, to: debugStore)
         }
     }
+
+    // #region agent log
+    private static let debugLogPath = NSHomeDirectory() + "/codigo/.cursor/debug-7f5345.log"
+    static func debugLog(_ hypothesis: String, _ message: String, _ data: [String: Any] = [:]) {
+        let ts = Int(Date().timeIntervalSince1970 * 1000)
+        var payload: [String: Any] = [
+            "sessionId": "7f5345", "hypothesisId": hypothesis,
+            "location": "PipelineIntegrationService", "message": message,
+            "timestamp": ts
+        ]
+        if !data.isEmpty { payload["data"] = data }
+        if let json = try? JSONSerialization.data(withJSONObject: payload),
+           let line = String(data: json, encoding: .utf8) {
+            let handle = FileHandle(forWritingAtPath: debugLogPath)
+                ?? { FileManager.default.createFile(atPath: debugLogPath, contents: nil); return FileHandle(forWritingAtPath: debugLogPath)! }()
+            handle.seekToEndOfFile()
+            handle.write((line + "\n").data(using: .utf8)!)
+            handle.closeFile()
+        }
+    }
+    // #endregion
 }

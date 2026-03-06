@@ -29,18 +29,21 @@ struct CoderIDEMCPServerApp {
             webSearchApiKeys: nil
         )
 
+        let userSandboxMode = CodexConfigLoader.load().sandboxMode ?? "workspace-write"
+
         let context = ToolExecutionContext(
             workspaceContext: WorkspaceContext(
                 workspacePath: workspaceURL,
                 excludedPaths: []
             ),
             policy: ToolRuntimePolicy(
-                sandboxMode: "workspace-write",
+                sandboxMode: userSandboxMode,
                 askForApproval: "never",
                 timeoutMs: 120_000,
                 maxBashOutputBytes: 256_000,
                 maxReadBytesPerFile: 512_000,
-                enableMCP: false  // Don't recurse into MCP from this server
+                allowDangerousShellPatterns: userSandboxMode == "danger-full-access",
+                enableMCP: false
             ),
             executionScope: .agent
         )

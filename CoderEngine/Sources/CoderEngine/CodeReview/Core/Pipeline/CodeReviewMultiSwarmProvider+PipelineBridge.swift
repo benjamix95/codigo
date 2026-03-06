@@ -80,7 +80,7 @@ extension CodeReviewMultiSwarmProvider {
             type: scopeType, files: filesToReview, ref: againstRef
         ))
 
-        let analysisText = try await Self.runAnalysisPhase(
+        _ = try await Self.runAnalysisPhase(
             cleanPrompt: cleanPrompt,
             againstRef: againstRef,
             filesToReview, config.maxWorkers,

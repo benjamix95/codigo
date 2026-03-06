@@ -147,7 +147,6 @@ public actor OrchestratorMainLoop {
     public func run() async {
         isRunning = true
 
-        // Avanza attraverso gli stati iniziali prima di entrare nel loop
         await advanceToExecution()
 
         while isRunning {
@@ -162,7 +161,7 @@ public actor OrchestratorMainLoop {
     }
 
     /// Avanza la state machine attraverso gli stati pre-esecuzione:
-    /// intake → planning → contextReady → scheduled → executing.
+    /// intake -> planning -> contextReady -> scheduled -> executing.
     private func advanceToExecution() async {
         let targets: [JobState] = [
             .planning, .contextReady, .scheduled, .executing
@@ -178,7 +177,7 @@ public actor OrchestratorMainLoop {
     }
 
     /// Avanza la state machine attraverso gli stati post-esecuzione:
-    /// executing → reviewing → validating → applying → verifying → finalized.
+    /// executing -> reviewing -> validating -> applying -> verifying -> finalized.
     private func advanceToFinalized() async {
         let targets: [JobState] = [
             .reviewing, .validating, .applying, .verifying, .finalized

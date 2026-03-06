@@ -8,7 +8,7 @@ extension PlanPanelView {
             return false
         }
         let sourceConversation = chatStore.conversation(for: entry.conversationId)
-        return CoderIDE.isPlanHistoryEntryCompatibleWithCurrentThread(
+        return isPlanHistoryEntryCompatibleWithCurrentThread(
             entryConversationId: entry.conversationId,
             currentConversationId: currentConversationId,
             entryThreadRootConversationId: sourceConversation?.threadRootConversationId,
