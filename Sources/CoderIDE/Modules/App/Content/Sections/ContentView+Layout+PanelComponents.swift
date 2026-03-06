@@ -40,11 +40,11 @@ extension ContentView {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(isActive ? tint : Color.secondary)
+                .foregroundStyle(isActive ? .white : Color.secondary)
                 .frame(width: 30, height: 30)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isActive ? tint.opacity(0.14) : Color.clear)
+                        .fill(isActive ? tint.opacity(0.9) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
