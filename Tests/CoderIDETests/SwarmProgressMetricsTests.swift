@@ -23,6 +23,7 @@ final class SwarmProgressMetricsTests: XCTestCase {
     func testMetricsFallbackToPipelineSnapshotWhenNamedStepsAreNotAvailableYet() {
         let snapshot = PipelineConversationSnapshot(
             currentJobId: "job-1",
+            providerId: "provider-1",
             assistantMessageId: UUID(),
             planConversationId: nil,
             jobState: .executing,
@@ -50,6 +51,7 @@ final class SwarmProgressMetricsTests: XCTestCase {
     func testInternalSingleTaskPhaseHidesStepCount() {
         let snapshot = PipelineConversationSnapshot(
             currentJobId: "chat-1",
+            providerId: "provider-chat",
             assistantMessageId: UUID(),
             planConversationId: nil,
             jobState: .executing,

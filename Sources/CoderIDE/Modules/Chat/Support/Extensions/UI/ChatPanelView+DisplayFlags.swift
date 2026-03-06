@@ -9,7 +9,11 @@ extension ChatPanelView {
         let hasSwarmSteps = !swarmProgressStore.steps(for: conversationId).isEmpty
         let hasLiveSwarmCards = !taskActivityStore.swarmCardStates(for: conversationId).isEmpty
         let hasPipelineProgress = pipelineIntegrationService.isRunning(for: conversationId)
-        return !(hasSwarmSteps || hasLiveSwarmCards || hasPipelineProgress)
+        return shouldShowLiveTodoCardInChat(
+            hasSwarmSteps: hasSwarmSteps,
+            hasLiveSwarmCards: hasLiveSwarmCards,
+            hasPipelineProgress: hasPipelineProgress
+        )
     }
 
     var shouldRoutePlanStreamingToPanel: Bool {

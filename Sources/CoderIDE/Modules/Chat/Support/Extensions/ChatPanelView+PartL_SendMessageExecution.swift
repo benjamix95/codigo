@@ -77,16 +77,11 @@ extension ChatPanelView {
                             jobId: job.jobId
                         )
                         let runtimeProviderId = effectiveRuntimeProvider.id
-                        pipelineIntegrationService.onRawStreamEvent = { type, payload, _, convId in
-                            self.handleRawStreamEvent(
-                                type: type, payload: payload,
-                                providerId: runtimeProviderId, conversationId: convId
-                            )
-                        }
                         pipelineIntegrationService.executeJob(
                             job,
                             tasks: tasks,
                             workerAdapter: adapter,
+                            providerId: runtimeProviderId,
                             conversationId: targetConversationId,
                             assistantMessageId: assistantMessageId,
                             onCompletion: { ctx in
@@ -106,6 +101,15 @@ extension ChatPanelView {
                                         shouldEndTask: false
                                     )
                                 }
+                            },
+                            rawEventHandler: { type, payload, providerId, convId in
+                                self.handleRawStreamEvent(
+                                    type: type,
+                                    payload: payload,
+                                    providerId: providerId,
+                                    conversationId: convId,
+                                    shouldApplyPipelineArtifacts: false
+                                )
                             }
                         )
                     }

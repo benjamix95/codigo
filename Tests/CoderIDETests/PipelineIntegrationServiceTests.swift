@@ -64,6 +64,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
                     context: context,
                     jobId: "job-\(role.rawValue)"
                 ),
+                providerId: "provider-\(role.rawValue)",
                 conversationId: agentConversationId,
                 assistantMessageId: UUID(),
                 planConversationId: planConversationId
@@ -133,6 +134,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
                 context: context,
                 jobId: "job-single"
             ),
+            providerId: "provider-single",
             conversationId: conversationId,
             assistantMessageId: UUID()
         )
@@ -228,6 +230,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
                 context: context,
                 jobId: "job-1"
             ),
+            providerId: "provider-1",
             conversationId: firstConversationId,
             assistantMessageId: UUID()
         )
@@ -244,6 +247,7 @@ final class PipelineIntegrationServiceTests: XCTestCase {
                 context: context,
                 jobId: "job-2"
             ),
+            providerId: "provider-2",
             conversationId: secondConversationId,
             assistantMessageId: UUID()
         )

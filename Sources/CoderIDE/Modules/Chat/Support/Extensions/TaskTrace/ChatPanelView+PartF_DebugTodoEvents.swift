@@ -203,22 +203,27 @@ extension ChatPanelView {
     }
 
     internal func ensureAutoTodoStartedBeforeOperationalActivity(
-        activity _: TaskActivity,
-        providerId _: String,
-        conversationId _: UUID?
+        activity: TaskActivity,
+        providerId: String,
+        conversationId: UUID?
     ) {
-        // Disabled: auto-TODO created placeholder items with generic titles
-        // before the LLM had analyzed the task. Only explicit todo_write
-        // events from the LLM should create TODOs.
+        startAutoTodoIfNeeded(
+            activity: activity,
+            providerId: providerId,
+            conversationId: conversationId
+        )
     }
 
     internal func updateAutoTodoProgressAfterOperationalActivity(
-        activity _: TaskActivity,
-        providerId _: String,
-        conversationId _: UUID?
+        activity: TaskActivity,
+        providerId: String,
+        conversationId: UUID?
     ) {
-        // Disabled: auto-TODO progress updates are no longer needed
-        // since auto-TODO creation is disabled.
+        refreshAutoTodoIfNeeded(
+            activity: activity,
+            providerId: providerId,
+            conversationId: conversationId
+        )
     }
 
 }
