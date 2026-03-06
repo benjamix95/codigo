@@ -8,16 +8,7 @@ extension ToolEnabledLLMProvider {
             return try await base.send(prompt: prompt, context: context, imageURLs: imageURLs)
         }
 
-        // Keep native MCP tool registry aligned with current server/config state.
-        // Registering is idempotent when the discovered tool set did not change.
-        if policy.enableMCP {
-            let discovered = await runtime.mcpSessions.discoverAllTools(
-                idleTTLSeconds: policy.mcpSessionIdleTTLSeconds
-            )
-            _ = MCPNativeToolRegistry.shared.register(tools: discovered)
-        } else if MCPNativeToolRegistry.shared.hasTools() {
-            MCPNativeToolRegistry.shared.clear()
-        }
+        await warmMCPNativeRegistryIfNeeded()
 
         let initialPrompt = """
         \(SystemPrompts.taskCompletionStrict)
