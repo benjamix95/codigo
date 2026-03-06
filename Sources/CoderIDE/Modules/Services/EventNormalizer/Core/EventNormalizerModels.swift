@@ -62,6 +62,15 @@ struct DebugSessionToolPayload {
     let status: String?
 }
 
+struct DebugNativeSessionToolPayload {
+    let action: String
+    let detail: String?
+    let state: NativeDebugSessionState
+    let breakpoints: [DebugBreakpoint]
+    let arguments: [String]
+    let watchExpressions: [String]
+}
+
 struct DebugQueryToolPayload {
     let format: String
     let output: String?
@@ -126,6 +135,7 @@ enum NormalizedEvent {
     case debugInstrument(DebugInstrumentToolPayload)
     case debugClean(DebugCleanToolPayload)
     case debugSession(DebugSessionToolPayload)
+    case debugNativeSession(DebugNativeSessionToolPayload)
     case debugQuery(DebugQueryToolPayload)
     /// LLM requests to auto-activate plan mode panel
     case activatePlanMode(reason: String?)

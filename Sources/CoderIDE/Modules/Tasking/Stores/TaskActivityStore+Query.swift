@@ -110,7 +110,8 @@ extension TaskActivityStore {
                 "plan_history_read", "plan_diff", "plan_request_user_input",
                 "activate_plan_mode", "activate_debug_mode",
                 "debug_phase_update", "debug_user_request", "debug_resolved",
-                "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+                "debug_log", "debug_query", "debug_session", "debug_native_session",
+                 "debug_hypothesize", "debug_mark", "debug_clean",
                  "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
                  "semantic_search", "read_lints", "debug_context",
                  "file_change", "edit":

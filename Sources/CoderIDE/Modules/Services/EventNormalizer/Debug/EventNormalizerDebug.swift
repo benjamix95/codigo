@@ -242,7 +242,7 @@ extension EventNormalizer {
         ]
     }
 
-    private static func debugGroupingId(payload: [String: String], defaultValue: String? = nil) -> String? {
+    static func debugGroupingId(payload: [String: String], defaultValue: String? = nil) -> String? {
         if let candidate = (payload["group_id"] ?? payload["groupId"] ?? payload["tool_call_id"] ?? payload["toolCallId"])?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !candidate.isEmpty {

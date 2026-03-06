@@ -10,6 +10,17 @@ struct DebugPanelView: View {
     let onStop: () -> Void
     let onProceed: () -> Void
     let onFixed: () -> Void
+    let onNativeStart: () -> Void
+    let onNativeStop: () -> Void
+    let onNativeRefresh: () -> Void
+    let onNativeSync: () -> Void
+    let onNativeApplyWatches: () -> Void
+    let onNativeStepIn: () -> Void
+    let onNativeStepOver: () -> Void
+    let onNativeStepOut: () -> Void
+    let onNativeAddBreakpoint: () -> Void
+    let onNativeToggleBreakpoint: (UUID) -> Void
+    let onNativeRemoveBreakpoint: (UUID) -> Void
 
     @State var userInput = ""
     @State var expandedLogId: UUID?

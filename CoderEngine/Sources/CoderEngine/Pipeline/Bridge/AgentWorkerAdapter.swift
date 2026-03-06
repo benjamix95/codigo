@@ -49,18 +49,21 @@ public actor AgentWorkerAdapter {
     private let context: WorkspaceContext
     private let jobId: String
     private let config: AgentWorkerAdapterConfig
+    private let directTaskExecutor: (any PipelineDirectTaskExecutor)?
     public weak var delegate: AgentWorkerDelegate?
 
     public init(
         provider: any LLMProvider,
         context: WorkspaceContext,
         jobId: String,
-        config: AgentWorkerAdapterConfig = AgentWorkerAdapterConfig()
+        config: AgentWorkerAdapterConfig = AgentWorkerAdapterConfig(),
+        directTaskExecutor: (any PipelineDirectTaskExecutor)? = nil
     ) {
         self.provider = provider
         self.context = context
         self.jobId = jobId
         self.config = config
+        self.directTaskExecutor = directTaskExecutor
     }
 
     public func setDelegate(_ newDelegate: AgentWorkerDelegate?) {
@@ -81,12 +84,27 @@ public actor AgentWorkerAdapter {
         let jobId = self.jobId
         let config = self.config
         let delegate = self.delegate
+        let directTaskExecutor = self.directTaskExecutor
         let taskId = task.taskId
-        let title = task.title
 
         return {
             let startedAt = Date()
             do {
+                if let directTaskExecutor,
+                   let directResult = await Self.executeDirectTaskIfNeeded(
+                    executor: directTaskExecutor,
+                    task: task,
+                    agentName: agentName,
+                    role: role,
+                    provider: provider,
+                    context: context,
+                    jobId: jobId,
+                    delegate: delegate
+                   )
+                {
+                    return directResult
+                }
+
                 let prompt = Self.buildPrompt(
                     task: task, role: role,
                     agentName: agentName, jobId: jobId
@@ -207,6 +225,7 @@ public actor AgentWorkerAdapter {
             ? ""
             : "\n\nFile scope: \(task.fileScope.joined(separator: ", "))"
 
+        let debugInstructions = debugWorkflowInstructions(for: task, role: role)
         let markerInstructions = markerUsageInstructions(for: role)
         let workflowInstructions = planWorkflowInstructions(for: role, task: task)
 
@@ -222,6 +241,8 @@ public actor AgentWorkerAdapter {
         \(roleInstructions)
 
         \(workflowInstructions)
+
+        \(debugInstructions)
 
         \(markerInstructions)
 
@@ -301,6 +322,73 @@ public actor AgentWorkerAdapter {
         Current task: "\(task.title)"
         Stay focused on this specific task only. Do not attempt to complete other tasks.
         """
+    }
+
+    private static func debugWorkflowInstructions(
+        for task: TaskNode,
+        role: AgentRole
+    ) -> String {
+        guard let debugStage = task.debugStage else { return "" }
+
+        var lines: [String] = [
+            "## Debug Pipeline Stage",
+            "This task belongs to the debug pipeline.",
+            "Stage: \(debugStage.rawValue)",
+            "Execution style: \(task.executionStyle.rawValue)",
+        ]
+
+        if let phase = task.metadata["debug_phase"], !phase.isEmpty {
+            lines.append("Target phase: \(phase)")
+        }
+        if let errorSummary = task.metadata["error_summary"], !errorSummary.isEmpty {
+            lines.append("Error summary: \(errorSummary)")
+        }
+        if let backendPolicy = task.metadata["backend_policy"], !backendPolicy.isEmpty {
+            lines.append("Backend policy: \(backendPolicy)")
+        }
+        if let tool = task.metadata["mcp_tool"] ?? task.metadata["debug_tool"], !tool.isEmpty {
+            lines.append("Preferred tool for this stage: \(tool)")
+        }
+        if let targetPath = task.metadata["target_path"], !targetPath.isEmpty {
+            lines.append("Target path: \(targetPath)")
+        }
+
+        switch debugStage {
+        case .activateMode:
+            lines.append("Activate debug mode and establish the debug session context.")
+        case .gatherContext:
+            lines.append("Collect the minimum context needed to understand the failure.")
+        case .analyzeIssue:
+            lines.append("Form hypotheses and identify the likeliest root cause.")
+        case .requestReproduction:
+            lines.append("Ask the user only for the reproduction details needed to continue.")
+        case .reproduce:
+            lines.append("Reproduce the issue and capture concrete evidence.")
+        case .instrument:
+            lines.append("Add temporary instrumentation or markers only when they help prove a hypothesis.")
+        case .fix:
+            lines.append("Apply the smallest safe fix that addresses the validated cause.")
+        case .reviewFix:
+            lines.append("Review the proposed fix critically and call out any blocking findings.")
+        case .verify:
+            lines.append("Run verification steps or tests and state clearly whether the fix holds.")
+        case .clean:
+            lines.append("Remove temporary debug markers and instrumentation after verification.")
+        case .resolve:
+            lines.append("Resolve the debug session with a concise summary of the outcome.")
+        case .nativeStart, .nativeRefresh, .nativeSyncBreakpoints, .nativeSyncWatches,
+             .nativeStepIn, .nativeStepOver, .nativeStepOut, .nativeStop:
+            lines.append("Coordinate the native debugging stage and emit state updates for the IDE.")
+        }
+
+        if role == .reviewer {
+            lines.append("If you find blocking issues, say so explicitly in the summary.")
+        }
+        if role == .testWriter {
+            lines.append("If verification fails, include that tests fail or reproduction still occurs.")
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     private static func actionType(for role: AgentRole) -> ActionType {

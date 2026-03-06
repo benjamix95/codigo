@@ -28,6 +28,14 @@ extension ChatPanelView {
         }()
 
         for event in envelope.events {
+            if DebugProjectionEventConsumer.handles(event) {
+                routeDebugEvent(
+                    event,
+                    payload: envelope.payload,
+                    eventConversationId: conversationId
+                )
+                continue
+            }
             switch event {
             case .taskActivity(let activity):
                 let scopedActivity = activityWithConversationContext(
@@ -124,70 +132,8 @@ extension ChatPanelView {
                     request,
                     fallbackConversationId: planFallbackConversationId
                 )
-            case .debugPhaseUpdate(let phase, let detail):
-                routeDebugEvent(
-                    .debugPhaseUpdate(phase: phase, detail: detail),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugUserRequest(let kind, let prompt):
-                routeDebugEvent(
-                    .debugUserRequest(kind: kind, prompt: prompt),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugResolved(let summary):
-                routeDebugEvent(
-                    .debugResolved(summary: summary),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugLog(let payload):
-                routeDebugEvent(
-                    .debugLog(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugHypothesize(let payload):
-                routeDebugEvent(
-                    .debugHypothesize(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugMark(let payload):
-                routeDebugEvent(
-                    .debugMark(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugInstrument(let payload):
-                routeDebugEvent(
-                    .debugInstrument(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugClean(let payload):
-                routeDebugEvent(
-                    .debugClean(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugSession(let payload):
-                routeDebugEvent(
-                    .debugSession(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
-            case .debugQuery(let payload):
-                routeDebugEvent(
-                    .debugQuery(payload),
-                    payload: envelope.payload,
-                    eventConversationId: conversationId
-                )
             case .activatePlanMode(let reason):
                 handleAutoActivatePlanMode(reason: reason)
-            case .activateDebugMode(let reason):
-                handleAutoActivateDebugMode(reason: reason)
             case .mermaidRender(let code, let title):
                 let titlePrefix = title.map { "**\($0)**\n\n" } ?? ""
                 let mermaidMarkdown = "\(titlePrefix)```mermaid\n\(code)\n```"
@@ -210,6 +156,8 @@ extension ChatPanelView {
                         persistImmediately: true
                     )
                 }
+            default:
+                break
             }
         }
     }

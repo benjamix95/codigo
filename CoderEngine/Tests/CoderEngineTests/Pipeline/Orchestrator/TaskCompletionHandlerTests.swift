@@ -52,6 +52,19 @@ final class TaskCompletionHandlerTests: XCTestCase {
         XCTAssertEqual(action, .scheduleNextAgent(taskId: "T1", role: .reviewer))
     }
 
+    func testDirectExecutionExplorerSuccessCompletesTask() {
+        let result = makeResult(role: .explorer)
+        let task = TaskNode(
+            taskId: "T1",
+            title: "Gather debug context",
+            executionStyle: .singleAgent,
+            preferredAgentRole: .explorer,
+            debugStage: .gatherContext
+        )
+        let action = handler.handleSuccess(result: result, task: task)
+        XCTAssertEqual(action, .transitionToValidation(taskId: "T1"))
+    }
+
     func testReviewerSuccessNoFindingsSchedulesTestWriter() {
         let result = makeResult(role: .reviewer)
         let task = makeTask()
@@ -59,6 +72,23 @@ final class TaskCompletionHandlerTests: XCTestCase {
             result: result, task: task, hasCriticalFindings: false
         )
         XCTAssertEqual(action, .scheduleNextAgent(taskId: "T1", role: .testWriter))
+    }
+
+    func testDirectExecutionReviewerSuccessCompletesTask() {
+        let result = makeResult(role: .reviewer)
+        let task = TaskNode(
+            taskId: "T1",
+            title: "Review fix",
+            executionStyle: .singleAgent,
+            preferredAgentRole: .reviewer,
+            debugStage: .reviewFix
+        )
+        let action = handler.handleSuccess(
+            result: result,
+            task: task,
+            hasCriticalFindings: false
+        )
+        XCTAssertEqual(action, .transitionToValidation(taskId: "T1"))
     }
 
     func testReviewerWithCriticalFindingsSchedulesFix() {

@@ -1,59 +1,16 @@
 import Foundation
 
 extension UnifiedToolRuntime {
-    static let ideStateMCPTools: Set<String> = [
-        "todo_write", "todo_read",
-        "plan_step_update", "plan_step",
-        "plan_create", "plan_read", "plan_step_upsert", "plan_step_batch_update",
-        "plan_step_reorder", "plan_step_dependency_set", "plan_set_walkthrough",
-        "plan_history_read", "plan_diff", "plan_request_user_input",
-        "debug_set_phase", "debug_request_user", "debug_resolve",
-        "policy_ack", "mermaid_render",
-        "activate_plan_mode", "activate_debug_mode",
-        "show_task_panel", "show_swarm_panel",
-    ]
+    static let ideStateMCPTools: Set<String> = IDEStateSyntheticEventFactory.supportedTools
 
-    static let failureMCPStatuses: Set<String> = [
-        "failed", "error", "cancelled", "canceled", "aborted",
-        "timeout", "timed_out",
-    ]
+    static let failureMCPStatuses: Set<String> = IDEStateSyntheticEventFactory.failureStatuses
 
     static func isFailureMCPToolStatus(_ normalizedStatus: String) -> Bool {
-        failureMCPStatuses.contains(normalizedStatus)
+        IDEStateSyntheticEventFactory.isFailureStatus(normalizedStatus)
     }
 
     static func normalizeIDEStateMCPTool(_ rawTool: String) -> String {
-        var normalized = rawTool
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: "-", with: "_")
-            .replacingOccurrences(of: " ", with: "_")
-
-        if normalized.hasPrefix("functions.") {
-            normalized = String(normalized.dropFirst("functions.".count))
-        }
-        if normalized.hasPrefix("function.") {
-            normalized = String(normalized.dropFirst("function.".count))
-        }
-        if normalized.hasPrefix("mcp__"),
-           let range = normalized.range(of: "__", options: .backwards) {
-            let candidate = String(normalized[range.upperBound...])
-            if !candidate.isEmpty {
-                normalized = candidate
-            }
-        }
-        if let suffix = normalized.split(whereSeparator: { separator in
-            separator == "." || separator == "/" || separator == ":" || separator == "\\"
-        }).last {
-            normalized = String(suffix)
-        }
-        while normalized.contains("__") {
-            normalized = normalized.replacingOccurrences(of: "__", with: "_")
-        }
-        if normalized.hasPrefix("coderide_") {
-            normalized = String(normalized.dropFirst("coderide_".count))
-        }
-        return normalized
+        IDEStateSyntheticEventFactory.normalizeTool(rawTool)
     }
 
     static func mergedMCPCallArguments(from args: [String: String]) -> [String: Any] {

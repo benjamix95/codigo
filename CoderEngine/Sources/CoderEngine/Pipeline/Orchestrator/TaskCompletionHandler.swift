@@ -59,49 +59,57 @@ public struct TaskCompletionHandler: Sendable {
         testsPass: Bool = true,
         shouldInvokeDocWriter: Bool = false
     ) -> CompletionAction {
+        let baseAction: CompletionAction
         switch result.agentRole {
         case .explorer:
-            return .scheduleNextAgent(taskId: task.taskId, role: .coder)
+            baseAction = .scheduleNextAgent(taskId: task.taskId, role: .coder)
 
         case .coder, .debugger:
-            return .scheduleNextAgent(taskId: task.taskId, role: .reviewer)
+            baseAction = .scheduleNextAgent(taskId: task.taskId, role: .reviewer)
 
         case .reviewer:
             if hasCriticalFindings {
-                return .scheduleFixRound(
+                baseAction = .scheduleFixRound(
                     taskId: task.taskId,
                     reason: "Critical findings detected in review"
                 )
+            } else {
+                baseAction = .scheduleNextAgent(taskId: task.taskId, role: .testWriter)
             }
-            return .scheduleNextAgent(taskId: task.taskId, role: .testWriter)
 
         case .testWriter:
             if !testsPass {
-                return .scheduleFixRound(
+                baseAction = .scheduleFixRound(
                     taskId: task.taskId,
                     reason: "Tests failed"
                 )
+            } else if shouldInvokeDocWriter {
+                baseAction = .scheduleNextAgent(taskId: task.taskId, role: .docWriter)
+            } else {
+                baseAction = .transitionToValidation(taskId: task.taskId)
             }
-            if shouldInvokeDocWriter {
-                return .scheduleNextAgent(taskId: task.taskId, role: .docWriter)
-            }
-            return .transitionToValidation(taskId: task.taskId)
 
         case .docWriter:
-            return .transitionToValidation(taskId: task.taskId)
+            baseAction = .transitionToValidation(taskId: task.taskId)
 
         case .securityAuditor:
             if hasCriticalFindings {
-                return .blockTask(
+                baseAction = .blockTask(
                     taskId: task.taskId,
                     reason: "Security vulnerabilities detected"
                 )
+            } else {
+                baseAction = .continueNormally
             }
-            return .continueNormally
 
         case .planner:
-            return .continueNormally
+            baseAction = .continueNormally
         }
+
+        return adaptSuccessActionForExecutionStyle(
+            baseAction,
+            task: task
+        )
     }
 
     // MARK: - Handle Failure
@@ -192,6 +200,25 @@ public struct TaskCompletionHandler: Sendable {
     }
 
     // MARK: - Private
+
+    private func adaptSuccessActionForExecutionStyle(
+        _ action: CompletionAction,
+        task: TaskNode
+    ) -> CompletionAction {
+        guard task.executionStyle.isDirectExecution else {
+            return action
+        }
+
+        switch action {
+        case .scheduleNextAgent:
+            return .transitionToValidation(taskId: task.taskId)
+        case .continueNormally:
+            return .transitionToValidation(taskId: task.taskId)
+        case .scheduleFixRound, .transitionToValidation, .blockTask,
+             .retryTask, .failTask, .abortJob:
+            return action
+        }
+    }
 
     /// Jitter deterministico basato su seed e attempt (§5.11).
     private func deterministicJitter(seed: UInt64, attempt: Int) -> Int {

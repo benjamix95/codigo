@@ -77,9 +77,7 @@ extension ChatPanelView {
                 }
             },
             onSubmitQuestion: { question in
-                let debugPrompt = "[DEBUG] \(question)"
-                inputText = debugPrompt
-                sendMessage()
+                executeDebugPipelineIntent(.startSession(summary: question))
             },
             onStop: {
                 lastTaskEndedByManualStop = true
@@ -87,20 +85,45 @@ extension ChatPanelView {
                 debugStore.resetSession()
             },
             onProceed: {
-                debugStore.confirmReproduced()
-                // Tell the agent to proceed with investigation.
-                inputText = "[DEBUG] Bug reproduced. Proceed with investigation."
-                sendMessage()
+                executeDebugPipelineIntent(.continueInvestigation)
             },
             onFixed: {
-                let filesToClean = debugStore.beginMarkFixed(summary: debugStore.resolutionSummary)
-                if filesToClean.isEmpty {
-                    inputText = "[DEBUG] Run debug_clean now and confirm cleanup succeeded, then resolve the session."
-                } else {
-                    let fileList = filesToClean.joined(separator: ", ")
-                    inputText = "[DEBUG] Run debug_clean for these files: \(fileList). After success, resolve the session."
-                }
-                sendMessage()
+                let summary = debugStore.resolutionSummary
+                _ = debugStore.beginMarkFixed(summary: summary)
+                executeDebugPipelineIntent(.resolveAfterFix(summary: summary))
+            },
+            onNativeStart: {
+                executeDebugNativePipelineIntent(.start)
+            },
+            onNativeStop: {
+                executeDebugNativePipelineIntent(.stop)
+            },
+            onNativeRefresh: {
+                executeDebugNativePipelineIntent(.refresh)
+            },
+            onNativeSync: {
+                executeDebugNativePipelineIntent(.syncCurrentConfiguration)
+            },
+            onNativeApplyWatches: {
+                executeDebugNativePipelineIntent(.syncWatchExpressions(debugStore.parsedNativeWatchExpressions))
+            },
+            onNativeStepIn: {
+                executeDebugNativePipelineIntent(.stepIn)
+            },
+            onNativeStepOver: {
+                executeDebugNativePipelineIntent(.stepOver)
+            },
+            onNativeStepOut: {
+                executeDebugNativePipelineIntent(.stepOut)
+            },
+            onNativeAddBreakpoint: {
+                executeDebugNativeAddBreakpointIntent()
+            },
+            onNativeToggleBreakpoint: { breakpointId in
+                executeDebugNativeToggleBreakpointIntent(breakpointId)
+            },
+            onNativeRemoveBreakpoint: { breakpointId in
+                executeDebugNativeRemoveBreakpointIntent(breakpointId)
             }
         )
         .frame(width: CGFloat(debugPanelWidthStorage))

@@ -172,4 +172,55 @@ final class CodeReviewPanelValidationTests: XCTestCase {
 
         XCTAssertTrue(reviewCardBelongsToConversation(card, conversationId: conversationId))
     }
+
+    func testShouldDisplayCodeReviewMetricsWhenConversationStillHasReviewArtifacts() {
+        XCTAssertTrue(
+            shouldDisplayCodeReviewMetrics(
+                coderMode: .agent,
+                hasReviewArtifacts: true
+            )
+        )
+    }
+
+    func testShouldDisplayCodeReviewMetricsStaysHiddenWithoutModeOrArtifacts() {
+        XCTAssertFalse(
+            shouldDisplayCodeReviewMetrics(
+                coderMode: .agent,
+                hasReviewArtifacts: false
+            )
+        )
+    }
+
+    func testShouldUseCodeReviewRuntimeProviderHonorsExplicitOverride() {
+        XCTAssertTrue(
+            shouldUseCodeReviewRuntimeProvider(
+                coderMode: .agent,
+                preferredOverride: true
+            )
+        )
+        XCTAssertFalse(
+            shouldUseCodeReviewRuntimeProvider(
+                coderMode: .codeReviewMultiSwarm,
+                preferredOverride: false
+            )
+        )
+    }
+
+    func testHasCodeReviewArtifactsAcceptsRoundOnlyHistory() {
+        let activities = [
+            TaskActivity(
+                type: "review-fix-round",
+                title: "round-1",
+                payload: ["round": "1", "maxRounds": "3"]
+            )
+        ]
+
+        XCTAssertTrue(
+            hasCodeReviewArtifacts(
+                cards: [],
+                workerActivities: [],
+                activities: activities
+            )
+        )
+    }
 }

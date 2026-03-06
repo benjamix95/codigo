@@ -32,7 +32,8 @@ enum EventNormalizer {
         case "debug_phase_update": kind = .debugPhaseUpdate
         case "debug_user_request": kind = .debugUserRequest
         case "debug_resolved": kind = .debugResolved
-        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+        case "debug_log", "debug_query", "debug_session", "debug_native_session",
+             "debug_hypothesize", "debug_mark", "debug_clean",
              "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check":
             kind = .debugToolUpdate
         case "debug_panel", "debug_panel_update":
@@ -119,6 +120,10 @@ enum EventNormalizer {
 
         if type == "debug_session" {
             return normalizeDebugSession(payload: payload, timestamp: timestamp)
+        }
+
+        if type == "debug_native_session" {
+            return normalizeDebugNativeSession(payload: payload, timestamp: timestamp)
         }
 
         if type == "debug_query" {

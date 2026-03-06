@@ -22,278 +22,29 @@ extension CodexCLIProvider {
             arguments: arguments,
             normalizedTool: normalizedTool
         )
-        let normalizedStatus = (metadata["status"] ?? payload["status"] ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let isFailureStatus = isFailureMCPToolStatus(normalizedStatus)
         func wrapped(_ type: String, _ payload: [String: String]) -> (type: String, payload: [String: String]) {
             (type, mergeSyntheticPayload(payload, metadata: metadata))
         }
-        func failedToolCallEvent(for toolName: String) -> [(type: String, payload: [String: String])] {
-            let detail = (
-                payload["stderr"]
-                ?? payload["error"]
-                ?? payload["output"]
-                ?? payload["detail"]
-                ?? "MCP tool call failed"
-            )
-            return [wrapped("tool_validation_error", [
-                "title": "\(toolName) failed",
-                "detail": detail,
-                "status": "failed",
-                "error_code": "mcp_tool_call_failed",
-                "tool": toolName,
-            ])]
+        let detail = (
+            payload["stderr"]
+            ?? payload["error"]
+            ?? payload["output"]
+            ?? payload["detail"]
+        )
+        let status = metadata["status"] ?? payload["status"]
+
+        let sharedEvents = IDEStateSyntheticEventFactory.events(
+            rawTool: rawTool,
+            arguments: arguments,
+            metadata: metadata,
+            status: status,
+            failureDetail: detail
+        )
+        if !sharedEvents.isEmpty || IDEStateSyntheticEventFactory.knowsTool(rawTool) {
+            return sharedEvents.map { ($0.type, $0.payload) }
         }
 
         switch normalizedTool {
-        case "plan_create":
-            var planPayload: [String: String] = [:]
-            if let goal = firstString(in: arguments, keys: ["goal"]) { planPayload["goal"] = goal }
-            if let chosenPath = firstString(in: arguments, keys: ["chosen_path", "chosenPath"]) { planPayload["chosen_path"] = chosenPath }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if let stepsJson = jsonStringArgument(in: arguments, keys: ["steps"]) {
-                planPayload["steps"] = stepsJson
-            }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_create") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_create", planPayload)]
-
-        case "plan_read":
-            var planPayload: [String: String] = [:]
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if let includeHistory = firstString(in: arguments, keys: ["include_history", "includeHistory"]) { planPayload["include_history"] = includeHistory }
-            if let historyLimit = firstString(in: arguments, keys: ["history_limit", "historyLimit"]) { planPayload["history_limit"] = historyLimit }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_read") }
-            return [wrapped("plan_read", planPayload)]
-
-        case "plan_step_upsert":
-            var planPayload: [String: String] = [:]
-            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) { planPayload["step_id"] = stepId }
-            if let status = firstString(in: arguments, keys: ["status"]) { planPayload["status"] = status }
-            if let title = firstString(in: arguments, keys: ["title"]) { planPayload["title"] = title }
-            if let description = firstString(in: arguments, keys: ["description"]) { planPayload["description"] = description }
-            if let targetFile = firstString(in: arguments, keys: ["target_file", "targetFile"]) { planPayload["target_file"] = targetFile }
-            if let notes = firstString(in: arguments, keys: ["notes"]) { planPayload["notes"] = notes }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if let linkedFiles = jsonStringArgument(in: arguments, keys: ["linked_files", "linkedFiles"]) {
-                planPayload["linked_files"] = linkedFiles
-            }
-            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on", "dependsOn"]) {
-                planPayload["depends_on"] = dependsOn
-            }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_step_upsert") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_step_upsert", planPayload)]
-
-        case "plan_step_batch_update":
-            var planPayload: [String: String] = [:]
-            if let updates = jsonStringArgument(in: arguments, keys: ["updates"]) {
-                planPayload["updates"] = updates
-            }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_step_batch_update") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_step_batch_update", planPayload)]
-
-        case "plan_step_reorder":
-            var planPayload: [String: String] = [:]
-            if let ordered = jsonStringArgument(in: arguments, keys: ["ordered_step_ids", "orderedStepIds"]) {
-                planPayload["ordered_step_ids"] = ordered
-            }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_step_reorder") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_step_reorder", planPayload)]
-
-        case "plan_step_dependency_set":
-            var planPayload: [String: String] = [:]
-            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) { planPayload["step_id"] = stepId }
-            if let dependsOn = jsonStringArgument(in: arguments, keys: ["depends_on", "dependsOn"]) {
-                planPayload["depends_on"] = dependsOn
-            }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_step_dependency_set") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_step_dependency_set", planPayload)]
-
-        case "plan_set_walkthrough":
-            var planPayload: [String: String] = [:]
-            if let markdown = firstString(in: arguments, keys: ["markdown"]) { planPayload["markdown"] = markdown }
-            if let summary = firstString(in: arguments, keys: ["summary"]) { planPayload["summary"] = summary }
-            if let outcome = firstString(in: arguments, keys: ["outcome"]) { planPayload["outcome"] = outcome }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_set_walkthrough") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_set_walkthrough", planPayload)]
-
-        case "plan_history_read":
-            var planPayload: [String: String] = [:]
-            if let limit = firstString(in: arguments, keys: ["limit"]) { planPayload["limit"] = limit }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_history_read") }
-            return [wrapped("plan_history_read", planPayload)]
-
-        case "plan_diff":
-            var planPayload: [String: String] = [:]
-            if let fromSnapshotId = firstString(in: arguments, keys: ["from_snapshot_id", "fromSnapshotId"]) { planPayload["from_snapshot_id"] = fromSnapshotId }
-            if let toSnapshotId = firstString(in: arguments, keys: ["to_snapshot_id", "toSnapshotId"]) { planPayload["to_snapshot_id"] = toSnapshotId }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) { planPayload["conversation_id"] = conversationId }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_diff") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_diff", planPayload)]
-
-        case "plan_request_user_input":
-            var planPayload: [String: String] = [:]
-            if let questions = jsonStringArgument(in: arguments, keys: ["questions"]) {
-                planPayload["questions"] = questions
-            }
-            if let title = firstString(in: arguments, keys: ["title"]) { planPayload["title"] = title }
-            if let phase = firstString(in: arguments, keys: ["phase"]) { planPayload["phase"] = phase }
-            if let round = firstString(in: arguments, keys: ["round"]) { planPayload["round"] = round }
-            if let context = firstString(in: arguments, keys: ["context"]) { planPayload["context"] = context }
-            if let conversationId = firstString(in: arguments, keys: ["conversation_id", "conversationId"]) {
-                planPayload["conversation_id"] = conversationId
-            }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_request_user_input") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_request_user_input", planPayload)]
-
-        case "todo_write":
-            var todoPayload: [String: String] = [:]
-            if arguments.keys.contains("todos") {
-                let parsedTodos = parseTodoArrayArgument(arguments["todos"])
-                if let parsedTodos {
-                    if parsedTodos.isEmpty {
-                        todoPayload["todos_json"] = "[]"
-                        todoPayload["title"] = "__CODERIDE_CLEAR_TODOS__"
-                        todoPayload["clear_todos"] = "true"
-                        if isFailureStatus { return failedToolCallEvent(for: "todo_write") }
-                        return [wrapped("todo_write", todoPayload)]
-                    }
-                    if let reEncoded = try? JSONSerialization.data(withJSONObject: parsedTodos),
-                       let reString = String(data: reEncoded, encoding: .utf8) {
-                        todoPayload["todos_json"] = reString
-                    }
-                    todoPayload["title"] = "Todo updated"
-                } else {
-                    return [wrapped("tool_validation_error", [
-                        "title": "Invalid todo payload",
-                        "detail": "'todos' must be a valid JSON array",
-                        "status": "failed",
-                        "error_code": "invalid_todos_payload",
-                        "tool": normalizedTool,
-                    ])]
-                }
-            } else {
-                // Single-item shorthand
-                if let t = firstString(in: arguments, keys: ["title", "content"]) { todoPayload["title"] = t }
-                if let s = firstString(in: arguments, keys: ["status"]) { todoPayload["status"] = s }
-                if let p = firstString(in: arguments, keys: ["priority"]) { todoPayload["priority"] = p }
-                if let n = firstString(in: arguments, keys: ["notes"]) { todoPayload["notes"] = n }
-                if let activeForm = firstString(in: arguments, keys: ["activeForm", "active_form"]) {
-                    todoPayload["activeForm"] = activeForm
-                }
-                if let files = jsonStringArgument(in: arguments, keys: ["linkedFiles", "linked_files", "files"]) {
-                    todoPayload["files"] = files
-                }
-                // Fallback from outer payload only for shorthand mode.
-                if todoPayload["title"] == nil, let t = payload["title"] { todoPayload["title"] = t }
-                if todoPayload["status"] == nil, let s = payload["status"] { todoPayload["status"] = s }
-            }
-            if todoPayload.isEmpty { return [] }
-            if isFailureStatus { return failedToolCallEvent(for: "todo_write") }
-            return [wrapped("todo_write", todoPayload)]
-
-        case "todo_read":
-            if isFailureStatus { return failedToolCallEvent(for: "todo_read") }
-            return [wrapped("todo_read", [:])]
-
-        case "plan_step_update", "plan_step":
-            var planPayload: [String: String] = [:]
-            if let stepId = firstString(in: arguments, keys: ["step_id", "stepId"]) {
-                planPayload["step_id"] = stepId
-            }
-            if let status = firstString(in: arguments, keys: ["status"]) {
-                planPayload["status"] = status
-            }
-            if let title = firstString(in: arguments, keys: ["title"]) {
-                planPayload["title"] = title
-            }
-            if isFailureStatus { return failedToolCallEvent(for: "plan_step_update") }
-            guard !planPayload.isEmpty else { return [] }
-            return [wrapped("plan_step_update", planPayload)]
-
-        case "mermaid_render":
-            var p: [String: String] = [:]
-            if let c = firstString(in: arguments, keys: ["code"]) { p["code"] = c }
-            if let t = firstString(in: arguments, keys: ["title"]) { p["title"] = t }
-            if isFailureStatus { return failedToolCallEvent(for: "mermaid_render") }
-            return p["code"] != nil ? [wrapped("mermaid_render", p)] : []
-
-        case "debug_panel", "debug_panel_update":
-            return [wrapped(
-                "tool_validation_error",
-                [
-                    "title": "Legacy debug_panel is not supported",
-                    "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
-                    "status": "failed",
-                    "error_code": "legacy_debug_panel_removed",
-                    "tool": normalizedTool,
-                ]
-            )]
-
-        case "debug_set_phase":
-            var p: [String: String] = [:]
-            if let ph = firstString(in: arguments, keys: ["phase"]) { p["phase"] = ph }
-            if let d = firstString(in: arguments, keys: ["detail"]) { p["detail"] = d }
-            if isFailureStatus { return failedToolCallEvent(for: "debug_set_phase") }
-            return p["phase"] != nil ? [wrapped("debug_phase_update", p)] : []
-
-        case "debug_request_user":
-            var p: [String: String] = [:]
-            if let kind = firstString(in: arguments, keys: ["kind"]) { p["kind"] = kind }
-            if let prompt = firstString(in: arguments, keys: ["prompt"]) { p["prompt"] = prompt }
-            if isFailureStatus { return failedToolCallEvent(for: "debug_request_user") }
-            return (p["kind"] != nil && p["prompt"] != nil) ? [wrapped("debug_user_request", p)] : []
-
-        case "debug_resolve":
-            if isFailureStatus { return failedToolCallEvent(for: "debug_resolve") }
-            if let summary = firstString(in: arguments, keys: ["summary", "detail", "message"]) {
-                return [wrapped("debug_resolved", ["summary": summary])]
-            }
-            return []
-
-        case "policy_ack":
-            if isFailureStatus { return failedToolCallEvent(for: "policy_ack") }
-            if let h = firstString(in: arguments, keys: ["hash"]) { return [wrapped("policy_ack", ["hash": h])] }
-            return []
-
-        case "activate_plan_mode":
-            if isFailureStatus { return failedToolCallEvent(for: "activate_plan_mode") }
-            if let reason = firstString(in: arguments, keys: ["reason"]) {
-                return [wrapped("activate_plan_mode", ["reason": reason])]
-            }
-            return [wrapped("activate_plan_mode", [:])]
-
-        case "activate_debug_mode":
-            if isFailureStatus { return failedToolCallEvent(for: "activate_debug_mode") }
-            if let reason = firstString(in: arguments, keys: ["reason"]) {
-                return [wrapped("activate_debug_mode", ["reason": reason])]
-            }
-            return [wrapped("activate_debug_mode", [:])]
-
-        case "show_task_panel":
-            if isFailureStatus { return failedToolCallEvent(for: "show_task_panel") }
-            return [wrapped("coderide_show_task_panel", [:])]
-
-        case "show_swarm_panel":
-            if isFailureStatus { return failedToolCallEvent(for: "show_swarm_panel") }
-            if let swarmId = firstString(in: arguments, keys: ["swarm_id"]) {
-                return [wrapped("coderide_show_swarm_panel", ["swarm_id": swarmId])]
-            }
-            return [wrapped("coderide_show_swarm_panel", [:])]
-
         case let t where t.hasPrefix("subagent_"):
             let task = firstString(in: arguments, keys: ["task"]) ?? ""
             guard let role = SubagentRole.fromToolName(t) else { return [] }

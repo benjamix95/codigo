@@ -56,6 +56,25 @@ extension WorkspaceStore {
         return didChange
     }
 
+    func normalizedWorkspace(_ workspace: Workspace) -> Workspace {
+        var normalizedWorkspace = workspace
+        normalizedWorkspace.folderPaths = normalizedWorkspacePaths(workspace.folderPaths)
+        normalizedWorkspace.excludedPaths = normalizedWorkspacePaths(workspace.excludedPaths)
+        return normalizedWorkspace
+    }
+
+    func normalizedWorkspacePathsCSV(_ rawValue: String) -> [String] {
+        normalizedWorkspacePaths(
+            rawValue
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        )
+    }
+
+    func normalizedWorkspacePaths(_ rawPaths: [String]) -> [String] {
+        normalizedUniqueWorkspacePaths(rawPaths)
+    }
+
     private func normalizedUniqueWorkspacePaths(_ rawPaths: [String]) -> [String] {
         var seen = Set<String>()
         var normalized: [String] = []

@@ -23,30 +23,8 @@ extension ChatPanelView {
 
     @MainActor
     internal func applyDebugEventToActiveStore(_ event: NormalizedEvent) {
-        switch event {
-        case .debugPhaseUpdate(let phase, let detail):
-            handleDebugPhaseUpdate(phase: phase, detail: detail)
-        case .debugUserRequest(let kind, let prompt):
-            handleDebugUserRequest(kind: kind, prompt: prompt)
-        case .debugResolved(let summary):
-            handleDebugResolved(summary: summary)
-        case .debugLog(let payload):
-            handleDebugLogPayload(payload)
-        case .debugHypothesize(let payload):
-            handleDebugHypothesizePayload(payload)
-        case .debugMark(let payload):
-            handleDebugMarkPayload(payload)
-        case .debugInstrument(let payload):
-            handleDebugInstrumentPayload(payload)
-        case .debugClean(let payload):
-            handleDebugCleanPayload(payload)
-        case .debugSession(let payload):
-            handleDebugSessionPayload(payload)
-        case .debugQuery(let payload):
-            handleDebugQueryPayload(payload)
-        default:
-            break
-        }
+        let effects = DebugProjectionEventConsumer.apply(event, to: debugStore)
+        applyDebugProjectionEffects(effects)
     }
 
     @MainActor
@@ -94,5 +72,17 @@ extension ChatPanelView {
             return true
         }
         return eventConversationId == selectedConversationId
+    }
+
+    @MainActor
+    internal func applyDebugProjectionEffects(_ effects: DebugProjectionUIEffects) {
+        guard effects.shouldEnableDebugMode || effects.shouldRevealDebugPanel else { return }
+        debugToggleEnabled = true
+        if effects.shouldRevealDebugPanel {
+            showDebugPanel = true
+        }
+        if effects.shouldEnableDebugMode && coderMode != .debug {
+            selectMode(.debug)
+        }
     }
 }

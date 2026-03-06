@@ -83,6 +83,7 @@ extension TaskActivityStore {
         "semantic_search",
         "read_lints",
         "debug_context",
+        "debug_native_session",
         "skill_invocation",
     ]
 

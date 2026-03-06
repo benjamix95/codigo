@@ -104,107 +104,12 @@ final class DebugFlowToolE2ETests: XCTestCase {
         taskStore.addEnvelope(envelope)
 
         for event in envelope.events {
-            switch event {
-            case .taskActivity(let activity):
+            if case .taskActivity(let activity) = event {
                 taskStore.addActivity(activity)
-            case .debugPhaseUpdate(let phase, _):
-                debugStore.setPhase(phase)
-            case .debugUserRequest(let kind, _):
-                if kind == "reproduce" {
-                    debugStore.setPhase(.reproducing)
-                }
-            case .debugResolved(let summary):
-                debugStore.resolveSession(summary: summary)
-            case .debugLog(let logPayload):
-                debugStore.addLog(
-                    severity: logPayload.severity,
-                    source: logPayload.source,
-                    message: logPayload.message,
-                    detail: logPayload.detail,
-                    category: logPayload.category
-                )
-                if logPayload.category == "runtime" || logPayload.category == "instrumentation" {
-                    debugStore.addRuntimeLog(
-                        location: logPayload.source,
-                        message: logPayload.message,
-                        data: logPayload.data,
-                        hypothesisId: logPayload.hypothesisId
-                    )
-                }
-            case .debugHypothesize(let hypothesisPayload):
-                switch hypothesisPayload.action {
-                case "update":
-                    if let id = hypothesisPayload.hypothesisId,
-                       let status = hypothesisPayload.status
-                    {
-                        _ = debugStore.updateHypothesis(id: id, status: status, evidence: hypothesisPayload.evidence)
-                    }
-                default:
-                    let title = hypothesisPayload.title ?? ""
-                    let description = hypothesisPayload.description ?? ""
-                    _ = debugStore.addHypothesis(
-                        id: hypothesisPayload.hypothesisId,
-                        title: title,
-                        description: description,
-                        status: hypothesisPayload.status ?? .proposed,
-                        evidence: hypothesisPayload.evidence
-                    )
-                }
-            case .debugMark(let markerPayload):
-                debugStore.addDebugMarker(DebugMarker(
-                    filePath: markerPayload.filePath,
-                    lineNumber: markerPayload.lineNumber,
-                    markerComment: markerPayload.comment
-                ))
-            case .debugInstrument(let instrumentPayload):
-                let type: InstrumentationPoint.InstrumentationType
-                switch instrumentPayload.type {
-                case "assert": type = .assertion
-                case "timing": type = .timing
-                case "variable": type = .variable
-                default: type = .logging
-                }
-                debugStore.addInstrumentation(
-                    filePath: instrumentPayload.filePath,
-                    lineNumber: instrumentPayload.lineNumber,
-                    type: type,
-                    code: instrumentPayload.label ?? instrumentPayload.expression ?? "instrumentation",
-                    hypothesisId: instrumentPayload.hypothesisId
-                )
-            case .debugClean(let cleanPayload):
-                let status = (cleanPayload.status ?? "completed").lowercased()
-                let success = status != "failed" && status != "error"
-                debugStore.applyDebugCleanResult(success: success, detail: cleanPayload.detail)
-            case .debugSession(let sessionPayload):
-                switch sessionPayload.action {
-                case "start":
-                    if debugStore.phase == .idle || debugStore.phase == .resolved {
-                        debugStore.startDebugSession(errorContext: sessionPayload.detail ?? "")
-                    }
-                case "clear":
-                    debugStore.resetSession()
-                case "end", "stop":
-                    if debugStore.phase != .resolved {
-                        debugStore.setPhase(.verifying)
-                    }
-                default:
-                    break
-                }
-            case .debugQuery(let queryPayload):
-                let detail = queryPayload.detail ?? "Debug query \(queryPayload.format)"
-                debugStore.addLog(
-                    severity: .info,
-                    source: "debug_query",
-                    message: detail,
-                    detail: queryPayload.output,
-                    category: "debug"
-                )
-            case .activatePlanMode, .activateDebugMode,
-                 .instantGrep, .todoWrite, .todoRead, .planStepUpdate, .mermaidRender,
-                 .planCreate, .planRead, .planStepUpsert, .planStepBatchUpdate, .planStepReorder,
-                 .planStepDependencySet, .planSetWalkthrough, .planHistoryRead, .planDiff,
-                 .planRequestUserInput:
-                break
+                continue
+            }
+            if DebugProjectionEventConsumer.handles(event) {
+                _ = DebugProjectionEventConsumer.apply(event, to: debugStore)
             }
         }
     }

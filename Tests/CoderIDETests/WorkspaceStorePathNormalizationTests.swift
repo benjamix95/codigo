@@ -123,6 +123,81 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
         XCTAssertEqual(persistedWorkspace.excludedPaths, [canonicalPath("\(base)/.build")])
     }
 
+    func testCreateNormalizesRootPathBeforePersistingInMemory() {
+        let base = "/tmp/ws-\(UUID().uuidString)/project"
+        let store = WorkspaceStore()
+
+        store.create(name: "WS", rootPath: "\(base)/Sources/..//")
+
+        XCTAssertEqual(store.workspaces.last?.folderPaths, [canonicalPath(base)])
+        XCTAssertEqual(store.activeWorkspacePaths.map(\.path), [canonicalPath(base)])
+    }
+
+    func testUpdateNormalizesFolderAndExcludedPaths() {
+        let workspaceId = UUID()
+        let base = "/tmp/ws-\(UUID().uuidString)/project"
+        let store = WorkspaceStore()
+        store.workspaces = [Workspace(id: workspaceId, name: "WS", folderPaths: [], excludedPaths: [])]
+
+        store.update(
+            Workspace(
+                id: workspaceId,
+                name: "WS",
+                folderPaths: ["\(base)/", "\(base)/Sources/.."],
+                excludedPaths: ["\(base)/.build/", "\(base)/.build/../.build"]
+            )
+        )
+
+        XCTAssertEqual(store.workspaces.first?.folderPaths, [canonicalPath(base)])
+        XCTAssertEqual(store.workspaces.first?.excludedPaths, [canonicalPath("\(base)/.build")])
+    }
+
+    func testEffectiveExcludedPathsNormalizesAndDeduplicatesWorkspaceAndGlobalValues() {
+        let workspaceId = UUID()
+        let base = "/tmp/ws-\(UUID().uuidString)/project"
+        let defaults = UserDefaults.standard
+        defaults.set("\(base)/.build/,\(base)/.build/../.build", forKey: "codebase_index_excluded_paths")
+
+        let store = WorkspaceStore()
+        store.workspaces = [
+            Workspace(
+                id: workspaceId,
+                name: "WS",
+                folderPaths: [canonicalPath(base)],
+                excludedPaths: [canonicalPath("\(base)/.build")]
+            )
+        ]
+        store.activeWorkspaceId = workspaceId
+
+        XCTAssertEqual(store.debugEffectiveExcludedPaths(), [canonicalPath("\(base)/.build")])
+    }
+
+    func testEffectiveExcludedPathsPreservesWorkspacePathsContainingComma() {
+        let workspaceId = UUID()
+        let base = "/tmp/ws-\(UUID().uuidString)/project,with-comma"
+        let defaults = UserDefaults.standard
+        defaults.set("/tmp/global-\(UUID().uuidString)/cache", forKey: "codebase_index_excluded_paths")
+
+        let store = WorkspaceStore()
+        store.workspaces = [
+            Workspace(
+                id: workspaceId,
+                name: "WS",
+                folderPaths: [canonicalPath(base)],
+                excludedPaths: [canonicalPath("\(base)/.build")]
+            )
+        ]
+        store.activeWorkspaceId = workspaceId
+
+        XCTAssertEqual(
+            store.debugEffectiveExcludedPaths(),
+            [
+                canonicalPath("\(base)/.build"),
+                canonicalPath(defaults.string(forKey: "codebase_index_excluded_paths") ?? "")
+            ]
+        )
+    }
+
     private func canonicalPath(_ rawPath: String) -> String {
         URL(fileURLWithPath: rawPath)
             .standardizedFileURL
@@ -134,5 +209,6 @@ final class WorkspaceStorePathNormalizationTests: XCTestCase {
         defaults.removeObject(forKey: "CoderIDE.workspaces")
         defaults.removeObject(forKey: "CoderIDE.activeWorkspaceId")
         defaults.removeObject(forKey: "codebase_index_enabled")
+        defaults.removeObject(forKey: "codebase_index_excluded_paths")
     }
 }

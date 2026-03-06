@@ -41,6 +41,8 @@ extension EventNormalizer {
             return "Debug query"
         case "debug_session":
             return "Debug session"
+        case "debug_native_session":
+            return "Native debug session"
         case "debug_hypothesize":
             return "Debug hypothesis"
         case "debug_mark":

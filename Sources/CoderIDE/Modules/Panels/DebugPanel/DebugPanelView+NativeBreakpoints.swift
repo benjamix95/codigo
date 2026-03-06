@@ -58,7 +58,7 @@ extension DebugPanelView {
                     .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
 
                 Button("Add") {
-                    debugStore.addBreakpointFromNativeInputs()
+                    onNativeAddBreakpoint()
                 }
                 .buttonStyle(.borderless)
                 .font(.system(size: 10, weight: .semibold))
@@ -73,7 +73,7 @@ extension DebugPanelView {
     private func nativeBreakpointRow(_ breakpoint: DebugBreakpoint) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Button {
-                debugStore.toggleBreakpoint(id: breakpoint.id)
+                onNativeToggleBreakpoint(breakpoint.id)
             } label: {
                 Image(systemName: breakpoint.isActive ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11))
@@ -101,7 +101,7 @@ extension DebugPanelView {
             Spacer()
 
             Button(role: .destructive) {
-                debugStore.removeBreakpoint(id: breakpoint.id)
+                onNativeRemoveBreakpoint(breakpoint.id)
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 10, weight: .semibold))

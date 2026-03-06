@@ -23,7 +23,8 @@ extension ChatPanelView {
         } else if let resolved = resolveRuntimeProvider(
             selectedProvider: selectedProvider,
             shouldRunPlanInline: false,
-            forcePlanInline: false
+            forcePlanInline: false,
+            preferCodeReviewRuntimeProvider: false
         ) {
             providerToUse = resolved
         } else {

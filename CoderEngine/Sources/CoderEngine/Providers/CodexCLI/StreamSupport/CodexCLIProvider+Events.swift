@@ -23,6 +23,9 @@ extension CodexCLIProvider {
         if normalizedTool == "todo_write" {
             return false
         }
+        if IDEStateSyntheticEventFactory.knowsTool(normalizedTool) {
+            return true
+        }
         if normalizedTool.hasPrefix("plan_") {
             return true
         }

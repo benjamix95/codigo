@@ -2,9 +2,6 @@ import Foundation
 
 extension CodeReviewPanelView {
     func metrics() -> CodeReviewMetrics {
-        guard coderMode == .codeReviewMultiSwarm else {
-            return CodeReviewMetrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
-        }
         let activities = scopedTaskActivitiesForConversation(
             taskActivityStore.activities,
             conversationId: conversationId
@@ -20,6 +17,17 @@ extension CodeReviewPanelView {
         let workerActivities = sortedReviewWorkerPlanActivitiesForDisplay(
             selectReviewWorkerActivities(from: activities)
         )
+        let hasReviewArtifacts = hasCodeReviewArtifacts(
+            cards: cards,
+            workerActivities: workerActivities,
+            activities: activities
+        )
+        guard shouldDisplayCodeReviewMetrics(
+            coderMode: coderMode,
+            hasReviewArtifacts: hasReviewArtifacts
+        ) else {
+            return CodeReviewMetrics(cards: [], activeCount: 0, workers: [], roundInfo: nil)
+        }
 
         let workers: [ReviewWorkerRow] = workerActivities.compactMap { a in
             guard let wid = a.payload["worker_id"],
@@ -42,7 +50,7 @@ extension CodeReviewPanelView {
             )
         }
 
-        let round: (String, String)? = if coderMode == .codeReviewMultiSwarm {
+        let round: (String, String)? = if hasReviewArtifacts {
             activities.reversed().compactMap { a -> (String, String)? in
                 guard a.type == "review-fix-round",
                       let r = a.payload["round"],

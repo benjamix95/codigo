@@ -130,4 +130,24 @@ final class PipelineEnumsTests: XCTestCase {
             XCTAssertEqual(mode, decoded)
         }
     }
+
+    // MARK: - PipelineJobKind
+
+    func testPipelineJobKind_roundTrip() throws {
+        for kind in PipelineJobKind.allCases {
+            let data = try JSONEncoder().encode(kind)
+            let decoded = try JSONDecoder().decode(PipelineJobKind.self, from: data)
+            XCTAssertEqual(kind, decoded)
+        }
+    }
+
+    // MARK: - TaskExecutionStyle
+
+    func testTaskExecutionStyle_roundTrip() throws {
+        for style in TaskExecutionStyle.allCases {
+            let data = try JSONEncoder().encode(style)
+            let decoded = try JSONDecoder().decode(TaskExecutionStyle.self, from: data)
+            XCTAssertEqual(style, decoded)
+        }
+    }
 }

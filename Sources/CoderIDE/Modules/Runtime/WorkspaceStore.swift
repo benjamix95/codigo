@@ -62,16 +62,11 @@ final class WorkspaceStore: ObservableObject {
 
     private var globalExcludedPaths: [String] {
         let raw = UserDefaults.standard.string(forKey: codebaseIndexExcludedPathsKey) ?? ""
-        return raw
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        return normalizedWorkspacePathsCSV(raw)
     }
 
     private var effectiveExcludedPaths: [String] {
-        var seen = Set<String>()
-        let combined = activeExcludedPaths + globalExcludedPaths
-        return combined.filter { seen.insert($0).inserted }
+        normalizedWorkspacePaths(activeExcludedPaths + globalExcludedPaths)
     }
 
     private var isRespectGitignoreEnabled: Bool {
@@ -213,7 +208,7 @@ final class WorkspaceStore: ObservableObject {
 
     /// Create a workspace with a single root folder (convenience)
     func create(name: String, rootPath: String) {
-        let ws = Workspace(name: name, rootPath: rootPath)
+        let ws = normalizedWorkspace(Workspace(name: name, rootPath: rootPath))
         workspaces.append(ws)
         if activeWorkspaceId == nil {
             activeWorkspaceId = ws.id
@@ -239,7 +234,7 @@ final class WorkspaceStore: ObservableObject {
 
     func update(_ workspace: Workspace) {
         guard let idx = workspaces.firstIndex(where: { $0.id == workspace.id }) else { return }
-        workspaces[idx] = workspace
+        workspaces[idx] = normalizedWorkspace(workspace)
         save()
         if workspace.id == activeWorkspaceId { indexActiveWorkspace() }
     }
@@ -275,6 +270,10 @@ final class WorkspaceStore: ObservableObject {
             hasProgressPollingTask: progressPollingTask != nil,
             indexingEpoch: indexingEpoch
         )
+    }
+
+    func debugEffectiveExcludedPaths() -> [String] {
+        effectiveExcludedPaths
     }
     #endif
 

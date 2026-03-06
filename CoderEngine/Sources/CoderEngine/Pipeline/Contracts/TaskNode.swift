@@ -34,8 +34,12 @@ public struct TaskNode: Codable, Sendable, Equatable, Identifiable {
     public var priority: Int
     public var risk: RiskLevel
     public var taskType: TaskType
+    public var executionStyle: TaskExecutionStyle
+    public var preferredAgentRole: AgentRole?
+    public var debugStage: DebugStageKind?
     public var fileScope: [String]
     public var symbolScope: [String]
+    public var metadata: [String: String]
     public var status: TaskStatus
     public var attempts: Int
     public var maxAttempts: Int
@@ -52,8 +56,12 @@ public struct TaskNode: Codable, Sendable, Equatable, Identifiable {
         priority: Int = 50,
         risk: RiskLevel = .medium,
         taskType: TaskType = .feature,
+        executionStyle: TaskExecutionStyle = .multiAgentFlow,
+        preferredAgentRole: AgentRole? = nil,
+        debugStage: DebugStageKind? = nil,
         fileScope: [String] = [],
         symbolScope: [String] = [],
+        metadata: [String: String] = [:],
         status: TaskStatus = .pending,
         attempts: Int = 0,
         maxAttempts: Int = 3,
@@ -69,8 +77,12 @@ public struct TaskNode: Codable, Sendable, Equatable, Identifiable {
         self.priority = priority
         self.risk = risk
         self.taskType = taskType
+        self.executionStyle = executionStyle
+        self.preferredAgentRole = preferredAgentRole
+        self.debugStage = debugStage
         self.fileScope = fileScope
         self.symbolScope = symbolScope
+        self.metadata = metadata
         self.status = status
         self.attempts = attempts
         self.maxAttempts = maxAttempts
@@ -88,8 +100,12 @@ public struct TaskNode: Codable, Sendable, Equatable, Identifiable {
         case priority
         case risk
         case taskType = "task_type"
+        case executionStyle = "execution_style"
+        case preferredAgentRole = "preferred_agent_role"
+        case debugStage = "debug_stage"
         case fileScope = "file_scope"
         case symbolScope = "symbol_scope"
+        case metadata
         case status
         case attempts
         case maxAttempts = "max_attempts"
@@ -124,6 +140,12 @@ extension TaskNode: PipelineValidatable {
         try PipelineValidationHelpers.requireRange(
             timeoutMs, range: 1_000...600_000, field: "timeout_ms", contract: c
         )
+        if executionStyle == .singleAgent && preferredAgentRole == nil {
+            throw PipelineValidationError.missingRequiredField(
+                field: "preferred_agent_role",
+                contract: c
+            )
+        }
         if attempts < 0 || attempts > maxAttempts {
             throw PipelineValidationError.valueOutOfRange(
                 field: "attempts", contract: c,

@@ -11,9 +11,11 @@ final class PipelineJobTests: XCTestCase {
             workspace: "/tmp/repo",
             request: "Add feature X"
         )
+        XCTAssertEqual(job.jobKind, .standard)
         XCTAssertEqual(job.mode, .strict)
         XCTAssertEqual(job.state, .intake)
         XCTAssertEqual(job.policyVersion, "v2.4")
+        XCTAssertNil(job.debugSession)
         XCTAssertEqual(job.jobTimeoutMs, 1_800_000)
         XCTAssertEqual(job.maxConcurrentWorkers, 4)
         XCTAssertEqual(job.errorBudget.maxFailedTasksPercent, 30)
@@ -28,8 +30,17 @@ final class PipelineJobTests: XCTestCase {
             jobId: "job_rt",
             workspace: "/abs/path",
             request: "Test request",
+            jobKind: .debug,
             mode: .fast,
             state: .planning,
+            debugSession: DebugPipelineSessionContext(
+                backendPolicy: .appleHybrid,
+                errorSummary: "Crash on launch",
+                targetPath: "/tmp/Codigo.app",
+                arguments: ["--uitest"],
+                workspaceHints: ["Sources/CoderIDE/Modules/Debug"],
+                metadata: ["origin": "tests"]
+            ),
             jobTimeoutMs: 600_000,
             maxConcurrentWorkers: 2,
             errorBudget: ErrorBudget(maxFailedTasksPercent: 50, maxConsecutiveFailures: 10),
@@ -44,8 +55,10 @@ final class PipelineJobTests: XCTestCase {
         let decoded = try decoder.decode(PipelineJob.self, from: data)
 
         XCTAssertEqual(job.jobId, decoded.jobId)
+        XCTAssertEqual(job.jobKind, decoded.jobKind)
         XCTAssertEqual(job.mode, decoded.mode)
         XCTAssertEqual(job.state, decoded.state)
+        XCTAssertEqual(job.debugSession, decoded.debugSession)
         XCTAssertEqual(job.jobTimeoutMs, decoded.jobTimeoutMs)
         XCTAssertEqual(job.maxConcurrentWorkers, decoded.maxConcurrentWorkers)
         XCTAssertEqual(job.rollbackStrategy, decoded.rollbackStrategy)
@@ -63,6 +76,7 @@ final class PipelineJobTests: XCTestCase {
         let json = String(data: data, encoding: .utf8)!
 
         XCTAssertTrue(json.contains("\"job_id\""))
+        XCTAssertTrue(json.contains("\"job_kind\""))
         XCTAssertTrue(json.contains("\"job_timeout_ms\""))
         XCTAssertTrue(json.contains("\"max_concurrent_workers\""))
         XCTAssertTrue(json.contains("\"error_budget\""))
@@ -106,6 +120,26 @@ final class PipelineJobTests: XCTestCase {
         let job = PipelineJob(
             jobId: "j1", workspace: "/w", request: "r",
             jobTimeoutMs: 0
+        )
+        XCTAssertThrowsError(try job.validate())
+    }
+
+    func testPipelineJob_debugRequiresSession() {
+        let job = PipelineJob(
+            jobId: "debug_job",
+            workspace: "/w",
+            request: "debug request",
+            jobKind: .debug
+        )
+        XCTAssertThrowsError(try job.validate())
+    }
+
+    func testPipelineJob_standardRejectsDebugSession() {
+        let job = PipelineJob(
+            jobId: "standard_job",
+            workspace: "/w",
+            request: "request",
+            debugSession: DebugPipelineSessionContext(errorSummary: "should not be here")
         )
         XCTAssertThrowsError(try job.validate())
     }

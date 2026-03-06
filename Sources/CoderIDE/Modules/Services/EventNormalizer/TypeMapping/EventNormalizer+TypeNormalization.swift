@@ -11,7 +11,8 @@ extension EventNormalizer {
         let normalizedCanonicalType = remapLegacyDebugTool(normalizedToolIdentifier(normalized))
         if [
             "semantic_search", "read_lints", "debug_context",
-            "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+            "debug_log", "debug_query", "debug_session", "debug_native_session",
+            "debug_hypothesize", "debug_mark", "debug_clean",
             "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
             "debug_phase_update", "debug_user_request", "debug_resolved",
         ].contains(normalizedCanonicalType) {
@@ -25,7 +26,8 @@ extension EventNormalizer {
             let remappedTool = remapLegacyDebugTool(rawToolName)
             if [
                 "semantic_search", "read_lints", "debug_context",
-                "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark", "debug_clean",
+                "debug_log", "debug_query", "debug_session", "debug_native_session",
+                "debug_hypothesize", "debug_mark", "debug_clean",
                 "debug_trace_analyze", "debug_instrument", "debug_timeline", "debug_snapshot", "debug_test_check",
                 "debug_phase_update", "debug_user_request", "debug_resolved",
             ].contains(remappedTool) {
@@ -99,7 +101,8 @@ extension EventNormalizer {
             return .executing
         case "semantic_search":
             return .searching
-        case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_hypothesize",
+        case "read_lints", "debug_context", "debug_log", "debug_query", "debug_session", "debug_native_session",
+             "debug_hypothesize",
              "debug_trace_analyze", "debug_timeline", "debug_snapshot", "debug_test_check",
              "debug_phase_update", "debug_user_request", "debug_resolved":
             return .executing
@@ -154,7 +157,7 @@ extension EventNormalizer {
             return true
         case "web_search_completed", "web_search_failed", "web_fetch_completed", "web_fetch_failed", "read_batch_completed", "process_paused":
             return false
-        case "debug_log", "debug_query", "debug_session", "debug_hypothesize", "debug_mark",
+        case "debug_log", "debug_query", "debug_session", "debug_native_session", "debug_hypothesize", "debug_mark",
              "debug_clean", "debug_trace_analyze", "debug_instrument", "debug_timeline",
              "debug_snapshot", "debug_test_check":
             return status == "started" || status == "running" || status == "in_progress"

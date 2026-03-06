@@ -10,6 +10,10 @@ final class TaskNodeTests: XCTestCase {
         XCTAssertEqual(node.priority, 50)
         XCTAssertEqual(node.risk, .medium)
         XCTAssertEqual(node.taskType, .feature)
+        XCTAssertEqual(node.executionStyle, .multiAgentFlow)
+        XCTAssertNil(node.preferredAgentRole)
+        XCTAssertNil(node.debugStage)
+        XCTAssertTrue(node.metadata.isEmpty)
         XCTAssertEqual(node.status, .pending)
         XCTAssertEqual(node.attempts, 0)
         XCTAssertEqual(node.maxAttempts, 3)
@@ -35,8 +39,12 @@ final class TaskNodeTests: XCTestCase {
             priority: 70,
             risk: .high,
             taskType: .refactor,
+            executionStyle: .singleAgent,
+            preferredAgentRole: .debugger,
+            debugStage: .fix,
             fileScope: ["Sources/A.swift", "Sources/B.swift"],
             symbolScope: ["ParserLock", "LockManager"],
+            metadata: ["origin": "tests"],
             maxAttempts: 5,
             timeoutMs: 180_000
         )
@@ -53,22 +61,37 @@ final class TaskNodeTests: XCTestCase {
         XCTAssertEqual(node.priority, decoded.priority)
         XCTAssertEqual(node.risk, decoded.risk)
         XCTAssertEqual(node.taskType, decoded.taskType)
+        XCTAssertEqual(node.executionStyle, decoded.executionStyle)
+        XCTAssertEqual(node.preferredAgentRole, decoded.preferredAgentRole)
+        XCTAssertEqual(node.debugStage, decoded.debugStage)
         XCTAssertEqual(node.fileScope, decoded.fileScope)
         XCTAssertEqual(node.symbolScope, decoded.symbolScope)
+        XCTAssertEqual(node.metadata, decoded.metadata)
     }
 
     // MARK: - JSON key format
 
     func testTaskNode_jsonKeys() throws {
-        let node = TaskNode(taskId: "T1", title: "t")
+        let node = TaskNode(
+            taskId: "T1",
+            title: "t",
+            executionStyle: .singleAgent,
+            preferredAgentRole: .debugger,
+            debugStage: .fix,
+            metadata: ["origin": "tests"]
+        )
         let data = try JSONEncoder().encode(node)
         let json = String(data: data, encoding: .utf8)!
 
         XCTAssertTrue(json.contains("\"task_id\""))
         XCTAssertTrue(json.contains("\"depends_on\""))
         XCTAssertTrue(json.contains("\"task_type\""))
+        XCTAssertTrue(json.contains("\"execution_style\""))
+        XCTAssertTrue(json.contains("\"preferred_agent_role\""))
+        XCTAssertTrue(json.contains("\"debug_stage\""))
         XCTAssertTrue(json.contains("\"file_scope\""))
         XCTAssertTrue(json.contains("\"symbol_scope\""))
+        XCTAssertTrue(json.contains("\"metadata\""))
         XCTAssertTrue(json.contains("\"max_attempts\""))
         XCTAssertTrue(json.contains("\"timeout_ms\""))
     }
@@ -118,6 +141,15 @@ final class TaskNodeTests: XCTestCase {
 
     func testTaskNode_timeoutTooLow_fails() {
         let node = TaskNode(taskId: "T1", title: "Task", timeoutMs: 100)
+        XCTAssertThrowsError(try node.validate())
+    }
+
+    func testTaskNode_singleAgentRequiresPreferredRole() {
+        let node = TaskNode(
+            taskId: "T1",
+            title: "Debug stage",
+            executionStyle: .singleAgent
+        )
         XCTAssertThrowsError(try node.validate())
     }
 

@@ -134,6 +134,7 @@ extension ChatPanelView {
             draftSaveTask = nil
             persistThreadUIState(for: oldId)
             persistDebugState(for: oldId)
+            pipelineIntegrationService.unregisterDebugStore(for: oldId)
             // Save draft text for the previous conversation.
             if let oldId {
                 let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -157,6 +158,9 @@ extension ChatPanelView {
             planHistoryStore.setSelectedEntry(id: nil)
             restoreDebugState(for: newId)
             applyPendingDebugEvents(for: newId)
+            if let newId {
+                pipelineIntegrationService.registerDebugStore(debugStore, for: newId)
+            }
             // Clear per-turn activity data so the swarm panel doesn't show
             // activities from the previous conversation when reopened.
             taskActivityStore.clearSwarmCards(for: oldId)
@@ -180,6 +184,9 @@ extension ChatPanelView {
             restorePlanStateIfNeeded(for: selectedConversationId)
             restoreThreadUIState(for: selectedConversationId)
             wireTodoPlanBidirectionalSync()
+            if let selectedConversationId {
+                pipelineIntegrationService.registerDebugStore(debugStore, for: selectedConversationId)
+            }
             requestInitialComposerFocusIfNeeded()
         }
     }

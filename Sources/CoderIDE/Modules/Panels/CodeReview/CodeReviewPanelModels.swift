@@ -22,3 +22,17 @@ struct CodeReviewMetrics {
     let workers: [ReviewWorkerRow]
     let roundInfo: (round: String, maxRounds: String)?
 }
+
+func shouldDisplayCodeReviewMetrics(coderMode: CoderMode, hasReviewArtifacts: Bool) -> Bool {
+    coderMode == .codeReviewMultiSwarm || hasReviewArtifacts
+}
+
+func hasCodeReviewArtifacts(
+    cards: [SwarmLiveCardState],
+    workerActivities: [TaskActivity],
+    activities: [TaskActivity]
+) -> Bool {
+    !cards.isEmpty
+        || !workerActivities.isEmpty
+        || activities.contains(where: { $0.type == "review-fix-round" })
+}

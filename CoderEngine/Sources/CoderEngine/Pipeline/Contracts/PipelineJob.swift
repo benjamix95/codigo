@@ -86,12 +86,14 @@ public struct PipelineJob: Codable, Sendable, Equatable {
     public var jobId: String
     public var workspace: String
     public var request: String
+    public var jobKind: PipelineJobKind
     public var mode: PipelineMode
     public var createdAt: Date
     public var state: JobState
     public var policyVersion: String
     public var selectedProviderProfile: String
     public var planSnapshotId: String?
+    public var debugSession: DebugPipelineSessionContext?
     public var jobTimeoutMs: Int
     public var maxConcurrentWorkers: Int
     public var errorBudget: ErrorBudget
@@ -102,12 +104,14 @@ public struct PipelineJob: Codable, Sendable, Equatable {
         jobId: String,
         workspace: String,
         request: String,
+        jobKind: PipelineJobKind = .standard,
         mode: PipelineMode = .strict,
         createdAt: Date = Date(),
         state: JobState = .intake,
         policyVersion: String = "v2.4",
         selectedProviderProfile: String = "default",
         planSnapshotId: String? = nil,
+        debugSession: DebugPipelineSessionContext? = nil,
         jobTimeoutMs: Int = 1_800_000,
         maxConcurrentWorkers: Int = 4,
         errorBudget: ErrorBudget = ErrorBudget(),
@@ -117,12 +121,14 @@ public struct PipelineJob: Codable, Sendable, Equatable {
         self.jobId = jobId
         self.workspace = workspace
         self.request = request
+        self.jobKind = jobKind
         self.mode = mode
         self.createdAt = createdAt
         self.state = state
         self.policyVersion = policyVersion
         self.selectedProviderProfile = selectedProviderProfile
         self.planSnapshotId = planSnapshotId
+        self.debugSession = debugSession
         self.jobTimeoutMs = jobTimeoutMs
         self.maxConcurrentWorkers = maxConcurrentWorkers
         self.errorBudget = errorBudget
@@ -134,12 +140,14 @@ public struct PipelineJob: Codable, Sendable, Equatable {
         case jobId = "job_id"
         case workspace
         case request
+        case jobKind = "job_kind"
         case mode
         case createdAt = "created_at"
         case state
         case policyVersion = "policy_version"
         case selectedProviderProfile = "selected_provider_profile"
         case planSnapshotId = "plan_snapshot_id"
+        case debugSession = "debug_session"
         case jobTimeoutMs = "job_timeout_ms"
         case maxConcurrentWorkers = "max_concurrent_workers"
         case errorBudget = "error_budget"
@@ -162,6 +170,24 @@ extension PipelineJob: PipelineValidatable {
             jobTimeoutMs, range: 1...7_200_000,
             field: "job_timeout_ms", contract: c
         )
+        switch jobKind {
+        case .standard:
+            if debugSession != nil {
+                throw PipelineValidationError.constraintViolation(
+                    field: "debug_session",
+                    contract: c,
+                    reason: "must be nil unless job_kind is debug"
+                )
+            }
+        case .debug:
+            guard let debugSession else {
+                throw PipelineValidationError.missingRequiredField(
+                    field: "debug_session",
+                    contract: c
+                )
+            }
+            try debugSession.validate()
+        }
         try errorBudget.validate()
     }
 }

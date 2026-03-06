@@ -3,18 +3,29 @@ import CoderEngine
 import SwiftUI
 import UniformTypeIdentifiers
 
+func shouldUseCodeReviewRuntimeProvider(
+    coderMode: CoderMode,
+    preferredOverride: Bool? = nil
+) -> Bool {
+    preferredOverride ?? (coderMode == .codeReviewMultiSwarm)
+}
+
 extension ChatPanelView {
     internal func resolveRuntimeProvider(
         selectedProvider: any LLMProvider,
         shouldRunPlanInline: Bool,
-        forcePlanInline: Bool
+        forcePlanInline: Bool,
+        preferCodeReviewRuntimeProvider: Bool? = nil
     ) -> (any LLMProvider)? {
         // Plan/Swarm use real selected providers, without virtual providers.
         if forcePlanInline || shouldRunPlanInline || coderMode == .plan {
             return selectedProvider
         }
         // Code Review Multi-Swarm: build dedicated multi-swarm provider
-        if coderMode == .codeReviewMultiSwarm {
+        if shouldUseCodeReviewRuntimeProvider(
+            coderMode: coderMode,
+            preferredOverride: preferCodeReviewRuntimeProvider
+        ) {
             let cfg = providerFactoryConfig()
             if let multiSwarm = ProviderFactory.codeReviewMultiSwarmProvider(
                 config: cfg,

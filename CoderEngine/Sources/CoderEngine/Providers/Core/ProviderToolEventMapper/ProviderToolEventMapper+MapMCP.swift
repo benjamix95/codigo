@@ -7,34 +7,33 @@ extension ProviderToolEventMapper {
         let mcpTool = firstString(in: payload, keys: ["mcp_tool", "tool_name"]) ?? ""
         let normalizedMCP = normalizeToolIdentifier(mcpTool)
 
-        if normalizedMCP == "debug_panel" {
-            return (
-                "tool_validation_error",
-                [
-                    "title": "Legacy debug_panel is not supported",
-                    "detail": "Use debug_set_phase, debug_request_user, debug_resolve",
-                    "status": "failed",
-                    "error_code": "legacy_debug_panel_removed",
-                    "tool": normalizedMCP,
-                ]
+        if IDEStateSyntheticEventFactory.knowsTool(normalizedMCP) {
+            var metadata: [String: String] = [:]
+            for key in ["id", "group_id", "tool_call_id", "mcp_tool", "mcp_server", "status", "conversation_id"] {
+                if let value = firstString(in: payload, keys: [key]), !value.isEmpty {
+                    metadata[key] = value
+                }
+            }
+            metadata["tool"] = normalizedMCP
+            var arguments = payload
+            if let rawArguments = firstString(in: payload, keys: ["arguments", "args"]),
+               let decodedArguments = decodeJSONObjectString(rawArguments) {
+                for (key, value) in decodedArguments {
+                    arguments[key] = value
+                }
+            }
+            let detail = firstString(in: payload, keys: ["detail", "error", "stderr", "output"])
+            let events = IDEStateSyntheticEventFactory.events(
+                rawTool: normalizedMCP,
+                arguments: arguments,
+                metadata: metadata,
+                status: metadata["status"],
+                failureDetail: detail
             )
-        }
-
-        if normalizedMCP == "todo_write" || normalizedMCP == "todo_read" {
-            return mapTodo(tool: normalizedMCP, payload: payload)
+            return events.first.map { ($0.type, $0.payload) }
         }
         if isDebugTool(normalizedMCP) {
             return mapDebug(tool: normalizedMCP, payload: payload)
-        }
-        if normalizedMCP == "plan_step_update" || normalizedMCP == "plan_step" {
-            var mapped: [String: String] = [:]
-            if let stepId = firstString(in: payload, keys: ["step_id", "stepId"]) { mapped["step_id"] = stepId }
-            if let status = firstString(in: payload, keys: ["status"]) { mapped["status"] = status }
-            if let title = firstString(in: payload, keys: ["title"]) { mapped["title"] = title }
-            return ("plan_step_update", mapped)
-        }
-        if isIDEStateTool(normalizedMCP) {
-            return mapIDEState(tool: normalizedMCP, payload: payload)
         }
         return nil
     }

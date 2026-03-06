@@ -102,6 +102,89 @@ final class PipelineIntegrationServiceTests: XCTestCase {
         XCTAssertFalse(chatStore.isTaskActive(for: secondConversationId))
     }
 
+    func testHandleRawDebugNativeSessionProjectsStateIntoDebugStore() throws {
+        let suiteName = "PipelineIntegrationServiceTests.native.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let chatStore = ChatStore(userDefaults: defaults)
+        let todoStore = TodoStore(
+            storageKey: "CoderIDE.todos.tests.\(UUID().uuidString)",
+            userDefaults: defaults
+        )
+        let taskActivityStore = TaskActivityStore()
+        let swarmProgressStore = SwarmProgressStore()
+        let executionController = ExecutionController()
+        let service = PipelineIntegrationService()
+        let debugStore = DebugStore()
+        let conversationId = chatStore.conversations[0].id
+
+        service.configure(
+            chatStore: chatStore,
+            taskActivityStore: taskActivityStore,
+            swarmProgressStore: swarmProgressStore,
+            todoStore: todoStore,
+            executionController: executionController
+        )
+        service.registerDebugStore(debugStore, for: conversationId)
+
+        let breakpoint = DebugNativeBreakpointSpec(
+            id: UUID().uuidString,
+            filePath: "Sources/App.swift",
+            line: 42,
+            condition: nil,
+            isActive: true
+        )
+        let payload: [String: String] = [
+            "action": "native_start",
+            "status": "paused",
+            "adapter": "lldb-dap",
+            "target_path": "/tmp/Codigo.app",
+            "breakpoints_count": "1",
+            "arguments_json": try encodeJSON(["--flag", "value"]),
+            "watch_expressions_json": try encodeJSON(["counter", "state"]),
+            "native_breakpoints_json": try encodeJSON([breakpoint]),
+            "call_stack_json": try encodeJSON([NativeCallStackFrame(
+                function: "main",
+                filePath: "Sources/App.swift",
+                line: 42
+            )]),
+            "watch_variables_json": try encodeJSON([NativeWatchVariable(
+                expression: "counter",
+                value: "1"
+            )]),
+            "last_command": "process launch --stop-at-entry",
+            "detail": "Native debug session started.",
+            "group_id": "task-native",
+        ]
+
+        service.handleRawEvent(
+            RawEventPayload(
+                jobId: "job-native",
+                taskId: "task-native",
+                rawType: "debug_native_session",
+                payload: payload
+            ),
+            for: conversationId
+        )
+
+        XCTAssertEqual(debugStore.nativeSession.status, .paused)
+        XCTAssertEqual(debugStore.nativeSession.adapter, "lldb-dap")
+        XCTAssertEqual(debugStore.nativeTargetPathInput, "/tmp/Codigo.app")
+        XCTAssertEqual(debugStore.nativeArgumentsInput, "--flag, value")
+        XCTAssertEqual(debugStore.nativeWatchExpressionsInput, "counter, state")
+        XCTAssertEqual(debugStore.breakpoints.count, 1)
+        XCTAssertEqual(debugStore.breakpoints.first?.filePath, "Sources/App.swift")
+
+        taskActivityStore.flushPending()
+        XCTAssertTrue(
+            taskActivityStore.concreteRecentActivities(limit: 20).contains {
+                $0.type == "debug_native_session"
+            }
+        )
+    }
+
     private func makeJob(id: String) -> PipelineJob {
         PipelineJob(
             jobId: id,
@@ -109,6 +192,11 @@ final class PipelineIntegrationServiceTests: XCTestCase {
             request: "Test request for \(id)",
             maxConcurrentWorkers: 1
         )
+    }
+
+    private func encodeJSON<T: Encodable>(_ value: T) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        return String(decoding: data, as: UTF8.self)
     }
 }
 

@@ -48,7 +48,7 @@ extension DebugPanelView {
                     .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
 
                 Button("Apply") {
-                    debugStore.applyNativeWatchExpressions()
+                    onNativeApplyWatches()
                 }
                 .buttonStyle(.borderless)
                 .font(.system(size: 10, weight: .semibold))
@@ -62,16 +62,16 @@ extension DebugPanelView {
     var nativeDebugControls: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Button("Start") { debugStore.startNativeDebugSession() }
-                Button("Stop") { debugStore.stopNativeDebugSession() }
-                Button("Refresh") { debugStore.refreshNativeDebugSession() }
-                Button("Sync") { debugStore.syncNativeConfiguration(force: true) }
+                Button("Start") { onNativeStart() }
+                Button("Stop") { onNativeStop() }
+                Button("Refresh") { onNativeRefresh() }
+                Button("Sync") { onNativeSync() }
             }
 
             HStack(spacing: 6) {
-                Button("Step In") { debugStore.nativeStepIn() }
-                Button("Step Over") { debugStore.nativeStepOver() }
-                Button("Step Out") { debugStore.nativeStepOut() }
+                Button("Step In") { onNativeStepIn() }
+                Button("Step Over") { onNativeStepOver() }
+                Button("Step Out") { onNativeStepOut() }
 
                 Spacer()
 

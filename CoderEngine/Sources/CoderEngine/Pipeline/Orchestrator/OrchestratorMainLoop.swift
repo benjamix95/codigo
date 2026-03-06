@@ -43,6 +43,7 @@ public actor OrchestratorMainLoop {
     public let nameAssigner: AgentNameAssigner
     public let eventBus: EventBus
     public let completionHandler: TaskCompletionHandler
+    public let roleStrategy: TaskRoleSelectionStrategy
     public let config: OrchestratorConfig
     public let workerAdapter: AgentWorkerAdapter?
 
@@ -62,6 +63,7 @@ public actor OrchestratorMainLoop {
         nameAssigner: AgentNameAssigner,
         eventBus: EventBus,
         completionHandler: TaskCompletionHandler = TaskCompletionHandler(),
+        roleStrategy: TaskRoleSelectionStrategy = TaskRoleSelectionStrategy(),
         config: OrchestratorConfig = OrchestratorConfig(),
         workerAdapter: AgentWorkerAdapter? = nil
     ) {
@@ -74,6 +76,7 @@ public actor OrchestratorMainLoop {
         self.nameAssigner = nameAssigner
         self.eventBus = eventBus
         self.completionHandler = completionHandler
+        self.roleStrategy = roleStrategy
         self.config = config
         self.workerAdapter = workerAdapter
     }
@@ -129,10 +132,10 @@ public actor OrchestratorMainLoop {
         if allDone {
             let failedCount = await scheduler.countByStatus(.failed)
             if failedCount == 0 {
-                try? await stateMachine.transition(to: .finalized, reason: "All tasks completed")
+                _ = try? await stateMachine.transition(to: .finalized, reason: "All tasks completed")
             } else {
-                try? await stateMachine.transition(to: .failed, reason: "\(failedCount) tasks failed")
-                try? await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
+                _ = try? await stateMachine.transition(to: .failed, reason: "\(failedCount) tasks failed")
+                _ = try? await stateMachine.transition(to: .aborted, reason: "Job failed with errors")
             }
             return false
         }
@@ -177,7 +180,7 @@ public actor OrchestratorMainLoop {
                 break
             }
 
-            let role = nextAgentRole(for: task)
+            let role = nextAgentRole(for: task, job: job)
 
             let hasCapacity = await swarmBudget.hasCapacity(
                 task: task,
@@ -421,11 +424,11 @@ public actor OrchestratorMainLoop {
     }
 
     /// Determina il prossimo ruolo agente per un task (basato sul flusso §5.5).
-    private func nextAgentRole(for task: TaskNode) -> AgentRole {
-        if !task.contextEnriched {
-            return .explorer
-        }
-        return .coder
+    private func nextAgentRole(
+        for task: TaskNode,
+        job: PipelineJob
+    ) -> AgentRole {
+        roleStrategy.nextRole(for: task, job: job)
     }
 
     /// Stub di fallback usato nei test quando nessun adapter e' iniettato.

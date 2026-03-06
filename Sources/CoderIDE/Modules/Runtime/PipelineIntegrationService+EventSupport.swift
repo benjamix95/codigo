@@ -12,6 +12,8 @@ extension PipelineIntegrationService {
             $0.hasPrefix("todo_")
         }) {
             handleRawTodoWrite(p, for: conversationId)
+        } else if isDebugRawEvent(p) {
+            handleRawDebugEvent(p, for: conversationId)
         } else if rawType == "plan_step" {
             handleRawPlanStep(p, for: conversationId)
         } else if rawType == "show_task_panel" {
@@ -80,6 +82,64 @@ extension PipelineIntegrationService {
 
         let canonicalTodos = todoStore.canonicalTodos(for: planId)
         chatStore?.syncPlanStepsFromCanonicalTodos(canonicalTodos, in: planId)
+    }
+
+    private func isDebugRawEvent(_ p: RawEventPayload) -> Bool {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "pipeline",
+            type: p.rawType,
+            payload: p.payload
+        )
+        return envelope.events.contains(where: { DebugProjectionEventConsumer.handles($0) })
+    }
+
+    private func handleRawDebugEvent(_ p: RawEventPayload, for conversationId: UUID) {
+        let envelope = EventNormalizer.normalizeEnvelope(
+            sourceProvider: "pipeline",
+            type: p.rawType,
+            payload: p.payload
+        )
+        taskActivityStore?.addEnvelope(envelope)
+
+        for event in envelope.events {
+            switch event {
+            case .taskActivity(let activity):
+                taskActivityStore?.addActivity(
+                    scopedTaskActivity(activity, conversationId: conversationId)
+                )
+            default:
+                guard DebugProjectionEventConsumer.handles(event) else { continue }
+                applyOrBufferDebugEvent(event, for: conversationId)
+            }
+        }
+    }
+
+    private func applyOrBufferDebugEvent(_ event: NormalizedEvent, for conversationId: UUID) {
+        if let binding = debugStoresByConversation[conversationId],
+           let store = binding.store {
+            _ = DebugProjectionEventConsumer.apply(event, to: store)
+            return
+        }
+        pendingDebugEventsByConversation[conversationId, default: []].append(event)
+    }
+
+    private func scopedTaskActivity(
+        _ activity: TaskActivity,
+        conversationId: UUID
+    ) -> TaskActivity {
+        var payload = activity.payload
+        payload["conversation_id"] = conversationId.uuidString
+        return TaskActivity(
+            id: activity.id,
+            type: activity.type,
+            title: activity.title,
+            detail: activity.detail,
+            payload: payload,
+            timestamp: activity.timestamp,
+            phase: activity.phase,
+            isRunning: activity.isRunning,
+            groupId: activity.groupId
+        )
     }
 
     // MARK: - Plan Build Finalization
