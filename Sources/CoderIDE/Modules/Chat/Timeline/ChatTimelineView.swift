@@ -12,6 +12,7 @@ struct ChatTimelineView: View {
     let conversationId: UUID
     let shouldShowTodo: Bool
     let onFileClicked: (String) -> Void
+    let onReviewChanges: () -> Void
     let onRestoreCheckpoint: (() -> Void)?
     let onReply: (() -> Void)?
     let onDelete: (() -> Void)?
@@ -49,6 +50,7 @@ struct ChatTimelineView: View {
                 conversationId: conversationId,
                 shouldShowTodo: shouldShowTodo,
                 onFileClicked: onFileClicked,
+                onReviewChanges: onReviewChanges,
                 onReply: onReply,
                 onDelete: onDelete,
                 showTopDivider: showTopDivider

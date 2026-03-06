@@ -167,6 +167,10 @@ extension ChatPanelView {
                             && !todoStore.displayTodosForChat(for: conversationId).isEmpty
                             && message.id == latestAssistantMessageId,
                         onFileClicked: { openFilesStore.openFile($0) },
+                        onReviewChanges: {
+                            gitPanelStore.isOpen = true
+                            gitPanelStore.refresh(workingDirectory: effectiveContext.primaryPath)
+                        },
                         onRestoreCheckpoint: restoreAction,
                         onReply: replyAction,
                         onDelete: deleteAction,

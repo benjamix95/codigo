@@ -13,6 +13,7 @@ struct ChatTurnView: View {
     let conversationId: UUID
     let shouldShowTodo: Bool
     let onFileClicked: (String) -> Void
+    let onReviewChanges: () -> Void
     let onReply: (() -> Void)?
     let onDelete: (() -> Void)?
     let showTopDivider: Bool
@@ -20,6 +21,12 @@ struct ChatTurnView: View {
     @State private var didCopyMessage = false
 
     private var blocks: [PersistedChatTimelineBlock] { message.resolvedTimelineBlocks }
+    private var visibleBlocks: [PersistedChatTimelineBlock] {
+        blocks.filter { block in
+            guard shouldShowTodo else { return true }
+            return block.kind != .files && block.kind != .toolTrace
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -30,7 +37,7 @@ struct ChatTurnView: View {
                     .padding(.bottom, 20)
             }
             header
-            if let primary = blocks.first(where: { $0.kind == .primaryText }) {
+            if let primary = visibleBlocks.first(where: { $0.kind == .primaryText }) {
                 PrimaryTextBlockView(
                     text: primary.text,
                     context: context,
@@ -42,10 +49,11 @@ struct ChatTurnView: View {
                 TodoCenterCardView(
                     store: todoStore,
                     conversationId: conversationId,
-                    onOpenFile: onFileClicked
+                    traceEvents: traceEvents,
+                    onReviewChanges: onReviewChanges
                 )
             }
-            ForEach(blocks.filter { $0.kind != .primaryText }) { block in
+            ForEach(visibleBlocks.filter { $0.kind != .primaryText }) { block in
                 ArtifactCardView(
                     block: block,
                     accentColor: modeColor,
@@ -53,7 +61,7 @@ struct ChatTurnView: View {
                     onFileClicked: onFileClicked
                 )
             }
-            if !traceEvents.isEmpty {
+            if !traceEvents.isEmpty && !shouldShowTodo {
                 TraceSummaryCardView(
                     traceEvents: traceEvents,
                     context: context,
