@@ -20,7 +20,15 @@ final class WindowSidebarToggleController {
 
     private weak var window: NSWindow?
     private let button = NSButton()
+    private let sidebarlessToolbarDelegate = SidebarlessToolbarDelegate()
     private var observers: [NSObjectProtocol] = []
+    private lazy var sidebarlessToolbar: NSToolbar = {
+        let toolbar = NSToolbar(identifier: "CodigoSidebarlessWindowToolbar")
+        toolbar.delegate = sidebarlessToolbarDelegate
+        toolbar.displayMode = .iconOnly
+        toolbar.showsBaselineSeparator = false
+        return toolbar
+    }()
 
     private init(window: NSWindow) {
         self.window = window
@@ -100,7 +108,7 @@ final class WindowSidebarToggleController {
             button.removeFromSuperview()
             titlebarView.addSubview(button)
         }
-        stripAutomaticSidebarToolbarItems(from: window)
+        installSidebarlessToolbarIfNeeded(on: window)
     }
 
     private func updateLayout() {
@@ -115,23 +123,35 @@ final class WindowSidebarToggleController {
         let x = zoomButton.frame.maxX + 12
         let y = round(zoomButton.frame.midY - (buttonSize.height / 2))
         button.frame = NSRect(origin: NSPoint(x: x, y: y), size: buttonSize)
-        stripAutomaticSidebarToolbarItems(from: window)
+        installSidebarlessToolbarIfNeeded(on: window)
     }
 
-    private func stripAutomaticSidebarToolbarItems(from window: NSWindow) {
-        guard let toolbar = window.toolbar else { return }
-
+    private func installSidebarlessToolbarIfNeeded(on window: NSWindow) {
         let removableIdentifiers: Set<NSToolbarItem.Identifier> = [
             .toggleSidebar,
             .sidebarTrackingSeparator,
         ]
 
-        let indices = toolbar.items.enumerated()
-            .filter { removableIdentifiers.contains($0.element.itemIdentifier) }
-            .map(\.offset)
+        let currentIdentifiers = Set(window.toolbar?.items.map(\.itemIdentifier) ?? [])
+        guard currentIdentifiers.isEmpty == false else { return }
+        guard currentIdentifiers.intersection(removableIdentifiers).isEmpty == false else { return }
 
-        for index in indices.reversed() {
-            toolbar.removeItem(at: index)
+        if window.toolbar !== sidebarlessToolbar {
+            window.toolbar = sidebarlessToolbar
         }
+    }
+}
+
+private final class SidebarlessToolbarDelegate: NSObject, NSToolbarDelegate {
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        []
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        []
+    }
+
+    func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        []
     }
 }
