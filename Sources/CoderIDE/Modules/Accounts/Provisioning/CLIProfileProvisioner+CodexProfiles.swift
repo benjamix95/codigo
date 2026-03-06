@@ -16,35 +16,24 @@ extension CLIProfileProvisioner {
             return
         }
 
-        var configLines = [
-            "# CoderIDE Codex Profile — auto-generated",
-            "sandbox_mode = \"danger-full-access\"",
-            "fast_mode = true",
-            "",
-            "[sandbox_workspace_write]",
-            "network_access = true",
-        ]
-
-        if let mcpPath = mcpServerBinaryPath() {
-            configLines.append("")
-            configLines.append(contentsOf: coderideMCPSectionLines(binaryPath: mcpPath))
-        }
-
-        configLines.append("")
-        configLines.append(contentsOf: codexExperimentalFeaturesLines())
-
-        let content = configLines.joined(separator: "\n") + "\n"
+        let content = codexProfileConfigContent(binaryPath: preferredCodexProfileMCPBinaryPath())
         try? content.write(to: configURL, atomically: true, encoding: .utf8)
     }
 
     static func repairCodexConfigTomlIfNeeded(at configURL: URL) {
         guard let existing = try? String(contentsOf: configURL, encoding: .utf8) else { return }
+        let binaryPath = preferredCodexProfileMCPBinaryPath()
+        let template = codexProfileConfigContent(binaryPath: binaryPath)
+
+        if isLegacyManagedCodexProfileConfig(existing) {
+            guard existing != template else { return }
+            try? template.write(to: configURL, atomically: true, encoding: .utf8)
+            return
+        }
 
         var lines = existing.components(separatedBy: .newlines)
         lines = upsertRootTomlAssignment(in: lines, key: "fast_mode", value: "true")
-        if let mcpPath = mcpServerBinaryPath() {
-            lines = upsertCoderideMCPSection(in: lines, binaryPath: mcpPath)
-        }
+        lines = upsertCoderideMCPSection(in: lines, binaryPath: binaryPath, includeEnabled: false)
         lines = upsertExperimentalFeaturesSection(in: lines)
         let normalizedExisting = existing.hasSuffix("\n") ? existing : existing + "\n"
         let normalizedUpdated = lines.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n"
@@ -52,9 +41,9 @@ extension CLIProfileProvisioner {
         try? normalizedUpdated.write(to: configURL, atomically: true, encoding: .utf8)
     }
 
-    static func upsertCoderideMCPSection(in lines: [String], binaryPath: String) -> [String] {
+    static func upsertCoderideMCPSection(in lines: [String], binaryPath: String, includeEnabled: Bool) -> [String] {
         let sectionHeader = "[mcp_servers.coderide]"
-        let replacement = coderideMCPSectionLines(binaryPath: binaryPath)
+        let replacement = coderideMCPSectionLines(binaryPath: binaryPath, includeEnabled: includeEnabled)
         var output = lines
 
         if let start = output.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == sectionHeader }) {
@@ -69,6 +58,9 @@ extension CLIProfileProvisioner {
             var section = Array(output[start..<end])
             section = upsertTomlAssignment(in: section, key: "command", value: "\"\(binaryPath)\"")
             section = upsertTomlAssignment(in: section, key: "args", value: "[ \"--workspace\", \".\" ]")
+            if includeEnabled {
+                section = upsertTomlAssignment(in: section, key: "enabled", value: "false")
+            }
             output.replaceSubrange(start..<end, with: section)
             return output
         }
@@ -123,12 +115,16 @@ extension CLIProfileProvisioner {
         return output
     }
 
-    static func coderideMCPSectionLines(binaryPath: String) -> [String] {
-        [
+    static func coderideMCPSectionLines(binaryPath: String, includeEnabled: Bool) -> [String] {
+        var lines = [
             "[mcp_servers.coderide]",
             "command = \"\(binaryPath)\"",
             "args = [ \"--workspace\", \".\" ]",
         ]
+        if includeEnabled {
+            lines.append("enabled = false")
+        }
+        return lines
     }
 
     static func codexExperimentalFeaturesLines() -> [String] {
