@@ -25,7 +25,11 @@ extension CoderIDEMCPServerApp {
     /// and returns a confirmation. The actual state update happens when the host
     /// process (CoderIDE) sees the MCP tool call event in the Codex CLI stream
     /// and routes it through EventNormalizer → TodoStore / ChatStore.
-    static func handleIDEStateTool(name: String, args: [String: String]) -> CallTool.Result {
+    static func handleIDEStateTool(
+        name: String,
+        args: [String: String],
+        richArgs: [String: Any] = [:]
+    ) -> CallTool.Result {
         if let planResult = handlePlanIDEStateTool(name: name, args: args) {
             return planResult
         }
@@ -47,26 +51,20 @@ extension CoderIDEMCPServerApp {
                 "cancelled", "canceled", "aborted", "skipped",
             ]
 
-            if !todosRaw.isEmpty {
-                // Validate JSON structure
-                guard let data = todosRaw.data(using: .utf8),
-                      let parsed = try? JSONSerialization.jsonObject(with: data) else {
+            if richArgs["todos"] != nil || !todosRaw.isEmpty {
+                guard let parsedTodos = IDEStateTodoArgumentParser.parse(richArgs["todos"] ?? todosRaw) else {
                     return CallTool.Result(
-                        content: [.text("Error: 'todos' is not valid JSON. Expected a JSON array of objects, e.g. [{\"content\":\"Task\",\"status\":\"pending\"}]")],
+                        content: [.text("Error: 'todos' must be a valid todo collection. Use a JSON array, a single JSON object, or a checklist string.")],
                         isError: true
                     )
                 }
-                guard let array = parsed as? [[String: Any]], !array.isEmpty else {
-                    if parsed is [Any] {
-                        // Empty array — treated as an explicit clear request by IDE event handlers.
-                        return CallTool.Result(content: [.text("OK — empty todo list received, clear request acknowledged")], isError: nil)
-                    }
+                guard !parsedTodos.isEmpty else {
                     return CallTool.Result(
-                        content: [.text("Error: 'todos' must be a JSON array of objects, not \(type(of: parsed))")],
-                        isError: true
+                        content: [.text("OK — empty todo list received, clear request acknowledged")],
+                        isError: nil
                     )
                 }
-                for (i, item) in array.enumerated() {
+                for (i, item) in parsedTodos.enumerated() {
                     let content = (item["content"] as? String ?? item["title"] as? String)?
                         .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     if content.isEmpty {

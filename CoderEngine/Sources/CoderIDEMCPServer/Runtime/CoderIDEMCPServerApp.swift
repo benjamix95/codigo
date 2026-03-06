@@ -91,7 +91,10 @@ struct CoderIDEMCPServerApp {
                 )
             }
             if Self.ideStateTools.contains(toolName) {
-                return handleIDEStateTool(name: toolName, args: stringArgs)
+                let richAnyArgs = richArgs.reduce(into: [String: Any]()) { partial, entry in
+                    partial[entry.key] = sendableToAny(entry.value)
+                }
+                return handleIDEStateTool(name: toolName, args: stringArgs, richArgs: richAnyArgs)
             }
 
             let call = ToolCall(

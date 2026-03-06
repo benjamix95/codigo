@@ -149,17 +149,7 @@ extension CodexCLIProvider {
     }
 
     private static func parseTodoArrayArgument(_ raw: Any?) -> [[String: Any]]? {
-        if let array = raw as? [[String: Any]] {
-            return array
-        }
-        if let rawString = raw as? String {
-            let trimmed = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else {
-                return []
-            }
-            return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        }
-        return nil
+        IDEStateTodoArgumentParser.parse(raw)
     }
 
     private static func jsonStringArgument(

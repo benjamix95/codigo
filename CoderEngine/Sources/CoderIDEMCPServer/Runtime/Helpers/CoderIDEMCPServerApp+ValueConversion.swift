@@ -51,4 +51,19 @@ extension CoderIDEMCPServerApp {
             return valueToString(value)
         }
     }
+
+    static func sendableToAny(_ value: any Sendable) -> Any {
+        switch value {
+        case let array as [any Sendable]:
+            return array.map { sendableToAny($0) }
+        case let dictionary as [String: any Sendable]:
+            var mapped: [String: Any] = [:]
+            for (key, item) in dictionary {
+                mapped[key] = sendableToAny(item)
+            }
+            return mapped
+        default:
+            return value
+        }
+    }
 }

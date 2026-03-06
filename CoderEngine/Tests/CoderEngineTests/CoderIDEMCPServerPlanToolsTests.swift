@@ -183,6 +183,34 @@ final class CoderIDEMCPServerPlanToolsTests: XCTestCase {
         XCTAssertTrue(extractText(from: result).contains("todo list updated"))
     }
 
+    func testTodoWriteAcceptsSingleJSONObjectStringForTodos() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "todo_write",
+            args: [
+                "todos": #"{"content":"Aggiorna parser eventi","status":"in_progress"}"#
+            ]
+        )
+
+        XCTAssertNil(result.isError)
+        XCTAssertTrue(extractText(from: result).contains("todo list updated"))
+    }
+
+    func testTodoWriteAcceptsChecklistStringForTodos() {
+        let result = CoderIDEMCPServerApp.handleIDEStateTool(
+            name: "todo_write",
+            args: [
+                "todos": """
+                - [ ] Analizzare i log
+                - [~] Correggere il parser
+                - [x] Verificare i test
+                """
+            ]
+        )
+
+        XCTAssertNil(result.isError)
+        XCTAssertTrue(extractText(from: result).contains("todo list updated"))
+    }
+
     func testPlanStepUpsertAcceptsCamelCaseAliases() throws {
         let conversationId = UUID().uuidString.lowercased()
         let upsert = CoderIDEMCPServerApp.handleIDEStateTool(

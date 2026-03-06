@@ -230,7 +230,7 @@ extension ToolEnabledLLMProvider {
         - **list_processes** — List running processes. Args: `filter`.
 
         ### IDE State Tools (LiveCard / panel control)
-        - **todo_write** — Create or update a todo item in the LiveCard. Args: `title`, `status` (pending/in_progress/done/blocked), `priority` (low/medium/high), `notes` (optional), `activeForm` (optional present-tense label), `linkedFiles` (optional file paths).
+        - **todo_write** — Create or update todo items in the LiveCard. Prefer single-item shorthand with `title`, `status` (pending/in_progress/done/blocked), optional `priority`, `notes`, `activeForm`, `linkedFiles`. For batch initialization, use `todos` as a JSON array or checklist text.
         - **todo_read** — Read the current todo list. No required args.
         - **plan_step_update** — Update a plan step status. Args: `step_id`, `status` (pending/running/done/failed), `title` (optional).
         - **plan_create** — Create/replace a plan snapshot. Args: `goal`, `steps` (JSON array), `chosen_path` (optional), `conversation_id` (optional).

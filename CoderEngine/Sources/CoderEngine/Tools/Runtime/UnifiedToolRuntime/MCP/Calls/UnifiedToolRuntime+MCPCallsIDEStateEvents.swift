@@ -12,7 +12,7 @@ extension UnifiedToolRuntime {
             in: call.args,
             keys: ["mcp_tool", "tool", "name"]
         ) ?? ""
-        let arguments = mergedMCPCallArguments(from: call.args)
+        let arguments = mergedMCPCallArguments(from: call)
         let metadata = syntheticMCPMetadata(
             call: call,
             completedPayload: completedPayload,

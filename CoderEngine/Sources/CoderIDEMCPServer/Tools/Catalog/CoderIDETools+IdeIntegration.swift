@@ -7,7 +7,8 @@ extension CoderIDETools {
         Tool(
             name: "coderide_todo_write",
             description: """
-                Update the IDE todo list. Pass a JSON array of todo items via the 'todos' parameter. \
+                Update the IDE todo list. Prefer single-item shorthand via 'title' + 'status'. \
+                For batch initialization, pass 'todos' as a JSON array string or structured array. \
                 Each item must have 'content' (string) and 'status' (pending|in_progress|done|blocked). \
                 Optional fields: 'activeForm' (present-tense label shown during execution), \
                 'priority' (low|medium|high), 'linkedFiles' (array of file paths related to the task). \
@@ -18,7 +19,7 @@ extension CoderIDETools {
                 "properties": .object([
                     "todos": .object([
                         "type": "string",
-                        "description": "JSON array of todo items, e.g. [{\"content\":\"Fix bug\",\"status\":\"pending\",\"activeForm\":\"Fixing bug\"}]",
+                        "description": "Batch mode: JSON array string of todo items. If native structured args are available, an array is also accepted.",
                     ]),
                     // Single-item shorthand
                     "title": .object(["type": "string", "description": "Single todo title (shorthand — use 'todos' for batch updates)"]),

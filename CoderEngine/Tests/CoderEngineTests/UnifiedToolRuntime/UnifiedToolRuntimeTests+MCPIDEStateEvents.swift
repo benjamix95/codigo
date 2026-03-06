@@ -197,6 +197,123 @@ extension UnifiedToolRuntimeTests {
         XCTAssertEqual(todoPayload?["todos_json"], "[]")
     }
 
+    func testSyntheticIDEStateEventsFromMCPTodoWriteAcceptsSingleJSONObjectString() {
+        let call = ToolCall(
+            id: "tc-todo-object-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+                "todos": #"{"content":"Fix parser","status":"in_progress","activeForm":"Fixing parser"}"#,
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+        let todoPayload = rawEvents["todo_write"]
+
+        XCTAssertEqual(todoPayload?["title"], "Todo updated")
+        XCTAssertEqual(
+            todoPayload?["todos_json"],
+            #"[{"activeForm":"Fixing parser","content":"Fix parser","status":"in_progress"}]"#
+        )
+    }
+
+    func testSyntheticIDEStateEventsFromMCPTodoWriteAcceptsChecklistString() {
+        let call = ToolCall(
+            id: "tc-todo-checklist-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+                "todos": """
+                - [ ] Inspect parser
+                - [~] Apply fix
+                - [x] Verify tests
+                """,
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+        let todoPayload = rawEvents["todo_write"]
+
+        XCTAssertNotNil(todoPayload)
+        if let todosJson = todoPayload?["todos_json"],
+           let data = todosJson.data(using: .utf8),
+           let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            XCTAssertEqual(array.count, 3)
+            XCTAssertEqual(array[0]["content"] as? String, "Inspect parser")
+            XCTAssertEqual(array[0]["status"] as? String, "pending")
+            XCTAssertEqual(array[1]["status"] as? String, "in_progress")
+            XCTAssertEqual(array[2]["status"] as? String, "done")
+        } else {
+            XCTFail("todos_json should be valid JSON array")
+        }
+    }
+
+    func testSyntheticIDEStateEventsFromMCPTodoWriteUsesRichArgsTodosArray() {
+        let call = ToolCall(
+            id: "tc-todo-rich-array-1",
+            name: "mcp_call",
+            args: [
+                "tool": "coderide_todo_write",
+            ],
+            sourceProvider: "test",
+            swarmId: nil,
+            scope: .agent,
+            richArgs: [
+                "tool": "coderide_todo_write",
+                "todos": [
+                    [
+                        "content": "Investigate",
+                        "status": "pending",
+                    ],
+                    [
+                        "content": "Implement",
+                        "status": "in_progress",
+                    ],
+                ],
+            ]
+        )
+        let completedPayload: [String: String] = [
+            "status": "completed",
+            "is_mcp": "true",
+            "mcp_tool": "coderide_todo_write",
+        ]
+
+        let events = UnifiedToolRuntime.syntheticIDEStateEventsFromMCP(
+            call: call,
+            completedPayload: completedPayload
+        )
+        let rawEvents = rawEventsByType(events)
+
+        XCTAssertEqual(
+            rawEvents["todo_write"]?["todos_json"],
+            #"[{"content":"Investigate","status":"pending"},{"content":"Implement","status":"in_progress"}]"#
+        )
+    }
+
     func testSyntheticIDEStateEventsFromMCPPlanReorderSupportsCamelCaseAliases() {
         let call = ToolCall(
             id: "tc-plan-reorder-1",

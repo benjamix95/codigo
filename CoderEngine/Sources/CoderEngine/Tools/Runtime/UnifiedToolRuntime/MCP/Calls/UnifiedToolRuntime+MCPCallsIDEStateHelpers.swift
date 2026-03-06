@@ -13,16 +13,31 @@ extension UnifiedToolRuntime {
         IDEStateSyntheticEventFactory.normalizeTool(rawTool)
     }
 
-    static func mergedMCPCallArguments(from args: [String: String]) -> [String: Any] {
+    static func mergedMCPCallArguments(from call: ToolCall) -> [String: Any] {
         var merged: [String: Any] = [:]
-        if let rawArgs = args["args"],
-           let decoded = decodeJSONObjectString(rawArgs) {
-            for (key, value) in decoded {
+        if let richArgs = call.richArgs {
+            let richAny = anyDictionary(from: richArgs)
+            if let explicitArgs = richAny["args"] as? [String: Any] {
+                for (key, value) in explicitArgs {
+                    merged[key] = value
+                }
+            }
+            for (key, value) in richAny where !Self.mcpWrapperKeys.contains(key) {
                 merged[key] = value
             }
         }
-        for (key, value) in args where !Self.mcpWrapperKeys.contains(key) {
-            merged[key] = value
+        if let rawArgs = call.args["args"],
+           let decoded = decodeJSONObjectString(rawArgs) {
+            for (key, value) in decoded {
+                if merged[key] == nil {
+                    merged[key] = value
+                }
+            }
+        }
+        for (key, value) in call.args where !Self.mcpWrapperKeys.contains(key) {
+            if merged[key] == nil {
+                merged[key] = value
+            }
         }
         return merged
     }
@@ -78,18 +93,26 @@ extension UnifiedToolRuntime {
     }
 
     static func parseTodoArrayArgument(_ raw: Any?) -> [[String: Any]]? {
-        if let array = raw as? [[String: Any]] {
-            return array
+        IDEStateTodoArgumentParser.parse(raw)
+    }
+
+    private static func anyDictionary(from dictionary: [String: any Sendable]) -> [String: Any] {
+        var converted: [String: Any] = [:]
+        for (key, value) in dictionary {
+            converted[key] = anyValue(from: value)
         }
-        if let rawString = raw as? String {
-            let trimmed = rawString.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty,
-                  let data = trimmed.data(using: .utf8) else {
-                return []
-            }
-            return try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        return converted
+    }
+
+    private static func anyValue(from value: any Sendable) -> Any {
+        switch value {
+        case let dictionary as [String: any Sendable]:
+            return anyDictionary(from: dictionary)
+        case let array as [any Sendable]:
+            return array.map { anyValue(from: $0) }
+        default:
+            return value
         }
-        return nil
     }
 
     static func mapPlanLifecycleMCPEvent(

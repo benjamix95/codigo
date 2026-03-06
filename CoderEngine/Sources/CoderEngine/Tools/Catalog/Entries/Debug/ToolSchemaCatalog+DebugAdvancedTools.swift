@@ -70,7 +70,7 @@ extension ToolSchemaCatalog {
                 "notes": ["type": "string", "description": "Optional note"],
                 "activeForm": ["type": "string", "description": "Optional present-tense activity label"],
                 "linkedFiles": ["type": "string", "description": "Optional JSON array of related file paths"],
-                "todos": ["type": "string", "description": "Optional JSON array of todo items for batch updates"]
+                "todos": ["type": "string", "description": "Optional batch todo collection. Accepts a JSON array string; richer runtimes may also pass a structured array or checklist text."]
             ],
             required: []
         ),
