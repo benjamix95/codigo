@@ -55,27 +55,10 @@ extension EditorPlaceholderView {
                     handlers: monacoHandlers(for: pane)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .topLeading) {
-                    paneBadge(for: pane)
-                        .padding(10)
-                }
             }
         } else {
             emptySplitPane(pane: pane)
         }
-    }
-
-    private func paneBadge(for pane: EditorPaneID) -> some View {
-        let isActive = editorSplitStore.activePane == pane
-        return Text(pane == .primary ? "PRIMARY" : "SECONDARY")
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(isActive ? Color.accentColor : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                (isActive ? Color.accentColor.opacity(0.12) : DesignSystem.Colors.backgroundSecondary),
-                in: Capsule()
-            )
     }
 
     private func emptySplitPane(pane: EditorPaneID) -> some View {
