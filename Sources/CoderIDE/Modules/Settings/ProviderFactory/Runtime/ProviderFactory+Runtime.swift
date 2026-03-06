@@ -19,6 +19,7 @@ extension ProviderFactory {
         return UnifiedToolRuntime(
             executionController: executionController,
             executionScope: executionScope,
+            mcpSessions: MCPRuntimeService.sharedSessionManager,
             index: codebaseIndex,
             workspacePaths: workspacePaths,
             webSearchProvider: webSearchProvider,

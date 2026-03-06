@@ -1,14 +1,12 @@
 import CoderEngine
 
 enum MCPServerControlService {
+    static var sessionManager: MCPSessionManager {
+        MCPRuntimeService.sharedSessionManager
+    }
+
     static func restart(serverId: String) async throws {
-        let manager = MCPSessionManager()
-        do {
-            try await manager.restartServer(serverId: serverId)
-        } catch {
-            await manager.shutdownAll()
-            throw error
-        }
-        await manager.shutdownAll()
+        try await sessionManager.restartServer(serverId: serverId)
+        _ = try await sessionManager.listTools(serverId: serverId, idleTTLSeconds: 0)
     }
 }

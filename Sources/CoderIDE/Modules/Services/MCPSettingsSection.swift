@@ -167,6 +167,12 @@ struct MCPSettingsSection: View {
         Task {
             do {
                 try await MCPServerControlService.restart(serverId: serverId)
+                await MainActor.run {
+                    loadAll()
+                }
+                await MainActor.run {
+                    CodexMCPHealthStore.shared.refresh()
+                }
             } catch {
                 await MainActor.run {
                     restartErrors[serverId] = error.localizedDescription
