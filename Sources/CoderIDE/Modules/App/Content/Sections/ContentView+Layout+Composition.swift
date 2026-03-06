@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 import CoderEngine
 
 extension ContentView {
+    private var workbenchTopInteractiveInset: CGFloat { 28 }
+
     var activeContextSyncFingerprint: String {
         guard let context = projectContextStore.activeContext else { return "none" }
         let folders = context.folderPaths.joined(separator: "|")
@@ -172,7 +174,12 @@ extension ContentView {
     @ViewBuilder
     private var configuredDetailContent: some View {
         GeometryReader { geo in
-            configuredModeContent(detailWidth: geo.size.width)
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: workbenchTopInteractiveInset)
+                    .allowsHitTesting(false)
+                configuredModeContent(detailWidth: geo.size.width)
+            }
         }
         .frame(minWidth: 720)
         .background(DesignSystem.Colors.backgroundDeep)
