@@ -19,9 +19,6 @@ extension ChatPanelView {
                         .opacity(0.3)
                 }
                 VStack(spacing: 6) {
-                    Text("codigo")
-                        .font(.system(size: 20, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary.opacity(0.45))
                     Text("Ask anything, build anything")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(.tertiary)
