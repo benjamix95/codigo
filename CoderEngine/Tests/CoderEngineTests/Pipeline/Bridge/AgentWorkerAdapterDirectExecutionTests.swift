@@ -32,6 +32,36 @@ final class AgentWorkerAdapterDirectExecutionTests: XCTestCase {
         XCTAssertEqual(provider.sendCallCount, 0)
         XCTAssertEqual(executionCount, 1)
     }
+
+    func testPipelineFullPromptMetadataOverridesTaskTitle() async {
+        let provider = CountingLLMProvider()
+        let adapter = AgentWorkerAdapter(
+            provider: provider,
+            context: WorkspaceContext(workspacePaths: [URL(fileURLWithPath: "/tmp")]),
+            jobId: "job-chat"
+        )
+        let fullPrompt = """
+        Richiesta reale utente:
+        analizza il bug della pipeline e proponi la fix completa.
+        """
+        let task = TaskNode(
+            taskId: "task-chat",
+            title: "Prompt troncato",
+            metadata: ["pipeline_full_prompt": fullPrompt]
+        )
+
+        let work = await adapter.makeWorkClosure(
+            task: task,
+            agentName: "chat-coder",
+            role: .coder
+        )
+        _ = await work()
+
+        XCTAssertEqual(provider.sendCallCount, 1)
+        XCTAssertEqual(provider.sentPrompts.count, 1)
+        XCTAssertTrue(provider.sentPrompts[0].contains(fullPrompt))
+        XCTAssertFalse(provider.sentPrompts[0].contains("## Task\nPrompt troncato"))
+    }
 }
 
 private final class CountingLLMProvider: LLMProvider, @unchecked Sendable {
@@ -39,6 +69,7 @@ private final class CountingLLMProvider: LLMProvider, @unchecked Sendable {
     let displayName = "Counting"
     let attachmentCapabilities: ProviderAttachmentCapabilities = .none
     private(set) var sendCallCount = 0
+    private(set) var sentPrompts: [String] = []
 
     func isAuthenticated() -> Bool { true }
 
@@ -48,6 +79,7 @@ private final class CountingLLMProvider: LLMProvider, @unchecked Sendable {
         imageURLs: [URL]?
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         sendCallCount += 1
+        sentPrompts.append(prompt)
         return AsyncThrowingStream { continuation in
             continuation.yield(.started)
             continuation.yield(.textDelta(prompt))

@@ -253,6 +253,7 @@ extension ChatPanelView {
 
         executeSendMessageTurn(
             targetConversationId: targetConversationId,
+            assistantMessageId: standardAssistantMessageId,
             effectiveRuntimeProvider: effectiveRuntimeProvider,
             prompt: prompt,
             shouldRunPlanInline: shouldRunPlanInline,

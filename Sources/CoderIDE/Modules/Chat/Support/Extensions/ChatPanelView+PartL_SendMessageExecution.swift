@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 extension ChatPanelView {
     internal func executeSendMessageTurn(
         targetConversationId: UUID,
+        assistantMessageId: UUID,
         effectiveRuntimeProvider: any LLMProvider,
         prompt: String,
         shouldRunPlanInline: Bool,
@@ -63,7 +64,6 @@ extension ChatPanelView {
                     }
                 } else if coderMode == .agent {
                     await MainActor.run {
-                        let assistantMsgId = UUID()
                         let (job, tasks) = PipelineJobFactory.fromChatMessage(
                             prompt: prompt,
                             workspace: ctx.workspacePath.path,
@@ -79,7 +79,7 @@ extension ChatPanelView {
                             tasks: tasks,
                             workerAdapter: adapter,
                             conversationId: targetConversationId,
-                            assistantMessageId: assistantMsgId
+                            assistantMessageId: assistantMessageId
                         )
                     }
                 } else {

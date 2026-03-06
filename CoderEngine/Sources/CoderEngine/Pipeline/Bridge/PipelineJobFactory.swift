@@ -83,6 +83,9 @@ public enum PipelineJobFactory {
             priority: 50,
             risk: .low,
             taskType: .feature,
+            metadata: [
+                "pipeline_full_prompt": prompt
+            ],
             status: .pending,
             timeoutMs: min(jobTimeoutMs, 300_000)
         )

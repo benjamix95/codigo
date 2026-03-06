@@ -221,6 +221,7 @@ public actor AgentWorkerAdapter {
         jobId: String
     ) -> String {
         let roleInstructions = roleSpecificInstructions(for: role)
+        let taskInstruction = taskInstruction(for: task)
         let fileContext = task.fileScope.isEmpty
             ? ""
             : "\n\nFile scope: \(task.fileScope.joined(separator: ", "))"
@@ -234,7 +235,7 @@ public actor AgentWorkerAdapter {
         Job: \(jobId) | Task: \(task.taskId)
 
         ## Task
-        \(task.title)
+        \(taskInstruction)
         \(fileContext)
 
         ## Role Instructions
@@ -250,6 +251,15 @@ public actor AgentWorkerAdapter {
         When you complete this task, include a brief summary of what was done.
         If tests fail or you find critical issues, mention them explicitly.
         """
+    }
+
+    private static func taskInstruction(for task: TaskNode) -> String {
+        if let fullPrompt = task.metadata["pipeline_full_prompt"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !fullPrompt.isEmpty {
+            return fullPrompt
+        }
+        return task.title
     }
 
     private static func roleSpecificInstructions(
