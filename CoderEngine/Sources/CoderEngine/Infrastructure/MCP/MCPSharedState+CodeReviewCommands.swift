@@ -20,6 +20,10 @@ public struct MCPSharedCodeReviewCommand: Codable, Sendable {
 }
 
 extension MCPSharedState {
+    public enum CodeReviewStartEnqueueError: Error, Sendable, Equatable {
+        case sessionAlreadyQueued
+    }
+
     private static let staleCodeReviewCommandTimeout: TimeInterval = 120
 
     public static var codeReviewCommandsFilePath: URL {
@@ -50,6 +54,61 @@ extension MCPSharedState {
             _writeCodeReviewCommandsUnsafe(commands)
             return command
         }
+    }
+
+    public static func enqueueUniqueCodeReviewStartCommand(
+        sessionId: String,
+        conversationId: UUID?,
+        payload: [String: String]
+    ) throws -> MCPSharedCodeReviewCommand {
+        let normalizedSessionId = sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedSessionId.isEmpty else {
+            return enqueueCodeReviewCommand(
+                action: "start",
+                sessionId: sessionId,
+                conversationId: conversationId,
+                payload: payload
+            )
+        }
+
+        var command: MCPSharedCodeReviewCommand?
+        var enqueueError: CodeReviewStartEnqueueError?
+
+        withCodeReviewFileLock {
+            var commands = _readCodeReviewCommandsUnsafe()
+            let hasQueuedStart = commands.contains { command in
+                guard command.action == "start" else { return false }
+                guard command.sessionId == normalizedSessionId else { return false }
+                guard command.status == .pending || command.status == .processing else {
+                    return false
+                }
+                return true
+            }
+            guard !hasQueuedStart else {
+                enqueueError = .sessionAlreadyQueued
+                return
+            }
+
+            let normalizedPayload = payload.filter { !$0.key.isEmpty }
+            command = MCPSharedCodeReviewCommand(
+                id: UUID().uuidString.lowercased(),
+                action: "start",
+                sessionId: normalizedSessionId,
+                conversationId: conversationId?.uuidString.lowercased(),
+                payload: normalizedPayload,
+                createdAt: Date(),
+                updatedAt: Date(),
+                status: .pending,
+                resultMessage: nil
+            )
+            commands.append(command!)
+            _writeCodeReviewCommandsUnsafe(commands)
+        }
+
+        if let enqueueError {
+            throw enqueueError
+        }
+        return command!
     }
 
     public static func readPendingCodeReviewCommands() -> [MCPSharedCodeReviewCommand] {

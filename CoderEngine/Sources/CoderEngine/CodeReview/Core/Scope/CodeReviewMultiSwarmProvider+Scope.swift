@@ -91,12 +91,22 @@ extension CodeReviewMultiSwarmProvider {
         return true
     }
 
+    static func normalizedAgainstRefRevision(_ ref: String) -> String {
+        let trimmed = ref.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.contains("..") else { return trimmed }
+        return "\(trimmed)...HEAD"
+    }
+
     /// Get files changed since a commit ref using git diff.
     /// Returns `(files, error)` — error is non-nil if git failed.
     static func gitDiffFiles(ref: String, workspacePath: URL, excludedPaths: [String] = []) -> (files: [String], error: String?) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["diff", "--name-only", "--diff-filter=ACMR", ref, "--"]
+        process.arguments = [
+            "diff", "--name-only", "--diff-filter=ACMR",
+            normalizedAgainstRefRevision(ref),
+            "--"
+        ]
         process.currentDirectoryURL = workspacePath
         let pipe = Pipe()
         let errPipe = Pipe()

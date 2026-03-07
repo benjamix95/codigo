@@ -70,7 +70,8 @@ extension CodigoApp {
                 maxWorkers: Int(command.payload["max_workers"] ?? "") ?? snapshot.config.maxWorkers,
                 maxRounds: Int(command.payload["max_rounds"] ?? "") ?? snapshot.config.maxRounds,
                 analysisBackend: command.payload["analysis_backend"] ?? snapshot.config.analysisBackend,
-                executionBackend: command.payload["execution_backend"] ?? snapshot.config.executionBackend
+                executionBackend: command.payload["execution_backend"] ?? snapshot.config.executionBackend,
+                analysisOnly: parseBoolValue(command.payload["analysis_only"]) ?? snapshot.config.analysisOnly
             )
             let cfg = providerFactoryConfig()
             guard ProviderFactory.codeReviewMultiSwarmProvider(
@@ -139,7 +140,8 @@ extension CodigoApp {
             maxWorkers: Int(command.payload["max_workers"] ?? "") ?? cfg.codeReviewPartitions,
             maxRounds: Int(command.payload["max_rounds"] ?? "") ?? cfg.codeReviewMaxRounds,
             analysisBackend: command.payload["analysis_backend"] ?? cfg.codeReviewAnalysisBackend,
-            executionBackend: command.payload["execution_backend"] ?? cfg.codeReviewExecutionBackend
+            executionBackend: command.payload["execution_backend"] ?? cfg.codeReviewExecutionBackend,
+            analysisOnly: parseBoolValue(command.payload["analysis_only"]) ?? codeReviewAnalysisOnly
         )
         let sessionState = CodeReviewSessionState(
             sessionId: sessionId,

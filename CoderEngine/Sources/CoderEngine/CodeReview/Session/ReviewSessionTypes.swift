@@ -62,24 +62,47 @@ public struct SessionConfig: Sendable, Codable {
     public let maxRounds: Int
     public let analysisBackend: String
     public let executionBackend: String
+    public let analysisOnly: Bool
 
     public static let `default` = SessionConfig(
         maxWorkers: 6,
         maxRounds: 3,
         analysisBackend: "codex",
-        executionBackend: "codex"
+        executionBackend: "codex",
+        analysisOnly: false
     )
 
     public init(
         maxWorkers: Int = 6,
         maxRounds: Int = 3,
         analysisBackend: String = "codex",
-        executionBackend: String = "codex"
+        executionBackend: String = "codex",
+        analysisOnly: Bool = false
     ) {
         self.maxWorkers = max(1, min(12, maxWorkers))
         self.maxRounds = max(1, min(10, maxRounds))
         self.analysisBackend = analysisBackend
         self.executionBackend = executionBackend
+        self.analysisOnly = analysisOnly
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case maxWorkers
+        case maxRounds
+        case analysisBackend
+        case executionBackend
+        case analysisOnly
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            maxWorkers: try container.decodeIfPresent(Int.self, forKey: .maxWorkers) ?? 6,
+            maxRounds: try container.decodeIfPresent(Int.self, forKey: .maxRounds) ?? 3,
+            analysisBackend: try container.decodeIfPresent(String.self, forKey: .analysisBackend) ?? "codex",
+            executionBackend: try container.decodeIfPresent(String.self, forKey: .executionBackend) ?? "codex",
+            analysisOnly: try container.decodeIfPresent(Bool.self, forKey: .analysisOnly) ?? false
+        )
     }
 }
 

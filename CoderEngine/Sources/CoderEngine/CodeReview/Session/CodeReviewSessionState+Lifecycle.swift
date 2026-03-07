@@ -28,6 +28,8 @@ extension CodeReviewSessionState {
         phase = .completed
         stage = .completed
         completedAt = Date()
+        activeWorkerCount = 0
+        currentJobId = nil
         events.append(CodeReviewSessionEvent(
             type: .sessionCompleted,
             detail: "Review completed with \(findings.count) findings"
@@ -40,6 +42,8 @@ extension CodeReviewSessionState {
         stage = .failed
         lastError = error
         completedAt = Date()
+        activeWorkerCount = 0
+        currentJobId = nil
         events.append(.error(error))
         notifyChange()
     }

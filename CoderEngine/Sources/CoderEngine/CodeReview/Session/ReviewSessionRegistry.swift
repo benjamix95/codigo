@@ -22,6 +22,13 @@ public actor ReviewSessionRegistry {
 
     public func unregister(sessionId: String) {
         statesBySessionId.removeValue(forKey: sessionId)
+        snapshotsBySessionId.removeValue(forKey: sessionId)
+        for key in sessionIdsByConversation.keys {
+            sessionIdsByConversation[key]?.removeAll { $0 == sessionId }
+            if sessionIdsByConversation[key]?.isEmpty == true {
+                sessionIdsByConversation.removeValue(forKey: key)
+            }
+        }
     }
 
     public func state(sessionId: String) -> CodeReviewSessionState? {
@@ -127,11 +134,11 @@ public actor ReviewSessionRegistry {
         _ lhs: CodeReviewSessionSnapshot,
         _ rhs: CodeReviewSessionSnapshot
     ) -> Bool {
-        if lhs.mutationSequence != rhs.mutationSequence {
-            return lhs.mutationSequence > rhs.mutationSequence
-        }
         if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
             return lhs.lastUpdatedAt > rhs.lastUpdatedAt
+        }
+        if lhs.mutationSequence != rhs.mutationSequence {
+            return lhs.mutationSequence > rhs.mutationSequence
         }
         return lhs.sessionId > rhs.sessionId
     }

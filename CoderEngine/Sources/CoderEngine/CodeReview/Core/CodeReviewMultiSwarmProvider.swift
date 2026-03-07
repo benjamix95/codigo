@@ -55,7 +55,8 @@ public final class CodeReviewMultiSwarmProvider: LLMProvider, @unchecked Sendabl
         self.sessionState = sessionState ?? CodeReviewSessionState(
             config: SessionConfig(
                 maxWorkers: config.maxWorkers,
-                maxRounds: config.maxReviewRounds
+                maxRounds: config.maxReviewRounds,
+                analysisOnly: config.enabledPhases == .analysisOnly
             )
         )
     }

@@ -45,6 +45,27 @@ final class MCPSharedCodeReviewCommandsTests: XCTestCase {
         XCTAssertTrue(MCPSharedState.readPendingCodeReviewCommands().isEmpty)
     }
 
+    func testEnqueueUniqueStartRejectsDuplicatePendingSessionId() throws {
+        _ = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+            sessionId: "session-1",
+            conversationId: nil,
+            payload: ["scope": "uncommitted"]
+        )
+
+        XCTAssertThrowsError(
+            try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+                sessionId: "session-1",
+                conversationId: nil,
+                payload: ["scope": "staged"]
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? MCPSharedState.CodeReviewStartEnqueueError,
+                .sessionAlreadyQueued
+            )
+        }
+    }
+
     func testClaimPendingCommandsReclaimsStaleProcessingCommands() throws {
         try FileManager.default.createDirectory(
             at: MCPSharedState.codeReviewDirectoryPath,

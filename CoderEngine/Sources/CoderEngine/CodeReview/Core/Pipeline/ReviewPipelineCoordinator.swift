@@ -58,12 +58,6 @@ public actor ReviewPipelineCoordinator {
             workspacePath: workspacePath,
             continuation: continuation
         )
-        guard !filesToReview.isEmpty else {
-            continuation.yield(.completed)
-            continuation.finish()
-            return
-        }
-
         let scopeType: ReviewSessionScope.ScopeType = {
             if againstRef != nil { return .againstRef }
             return resolvedScope == .staged ? .staged : .uncommitted
@@ -73,6 +67,12 @@ public actor ReviewPipelineCoordinator {
             files: filesToReview,
             ref: againstRef
         ), workspacePath: workspacePath.path)
+        guard !filesToReview.isEmpty else {
+            await sessionState.complete()
+            continuation.yield(.completed)
+            continuation.finish()
+            return
+        }
         await sessionState.markAnalysisStarted()
 
         let analysisText = try await CodeReviewMultiSwarmProvider.runAnalysisPhase(

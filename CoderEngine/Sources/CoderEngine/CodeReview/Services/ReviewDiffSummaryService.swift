@@ -83,9 +83,6 @@ public enum ReviewDiffSummaryService {
         return text
             .split(separator: "\n")
             .compactMap(parseNumstatLine(_:))
-            .filter { summary in
-                targetFiles.contains { $0 == summary.filePath }
-            }
     }
 
     private static func diffArguments(
@@ -100,7 +97,7 @@ public enum ReviewDiffSummaryService {
             args.append("--cached")
         case .againstRef:
             if let ref = scope.ref, !ref.isEmpty {
-                args.append(ref)
+                args.append(CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision(ref))
             }
         case .uncommitted:
             break

@@ -2,6 +2,12 @@ import CoderEngine
 import Foundation
 
 extension ProviderFactory {
+    static func codeReviewEnabledPhases(
+        sessionConfig: SessionConfig
+    ) -> ReviewEnabledPhase {
+        sessionConfig.analysisOnly ? .analysisOnly : .analysisAndExecution
+    }
+
     static func codeReviewMultiSwarmProvider(
         config: ProviderFactoryConfig,
         executionController: ExecutionController?,
@@ -15,7 +21,8 @@ extension ProviderFactory {
             maxWorkers: config.codeReviewPartitions,
             maxRounds: config.codeReviewMaxRounds,
             analysisBackend: config.codeReviewAnalysisBackend,
-            executionBackend: config.codeReviewExecutionBackend
+            executionBackend: config.codeReviewExecutionBackend,
+            analysisOnly: config.codeReviewAnalysisOnly
         )
         let bootSessionConfig = initialSessionConfig ?? fallbackSessionConfig
         guard let initialResources = makeCodeReviewRuntimeResources(
@@ -92,7 +99,7 @@ extension ProviderFactory {
 
         let reviewConfig = MultiSwarmReviewConfig(
             maxWorkers: effectiveConfig.codeReviewPartitions,
-            enabledPhases: effectiveConfig.codeReviewAnalysisOnly ? .analysisOnly : .analysisAndExecution,
+            enabledPhases: codeReviewEnabledPhases(sessionConfig: sessionConfig),
             maxReviewRounds: effectiveConfig.codeReviewMaxRounds,
             analysisBackend: resolvedAnalysisId,
             executionBackend: resolvedExecutionId

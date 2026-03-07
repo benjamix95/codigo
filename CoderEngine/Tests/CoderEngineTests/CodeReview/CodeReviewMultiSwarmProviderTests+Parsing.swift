@@ -97,4 +97,18 @@ extension CodeReviewMultiSwarmProviderTests {
         XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("ref:path"))
         XCTAssertFalse(CodeReviewMultiSwarmProvider.isValidAgainstRefFormat("ref@{0}"))
     }
+
+    func testNormalizedAgainstRefRevisionExpandsSingleRefToMergeBaseRange() {
+        XCTAssertEqual(
+            CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision("main"),
+            "main...HEAD"
+        )
+    }
+
+    func testNormalizedAgainstRefRevisionPreservesExplicitRange() {
+        XCTAssertEqual(
+            CodeReviewMultiSwarmProvider.normalizedAgainstRefRevision("main..feature"),
+            "main..feature"
+        )
+    }
 }

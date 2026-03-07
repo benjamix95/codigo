@@ -79,25 +79,25 @@ extension CoderIDEMCPServerApp {
         if MCPSharedState.readCodeReviewSnapshot(sessionId: sessionId) != nil {
             return reviewError("Error: session_id '\(sessionId)' already exists")
         }
-        if MCPSharedState.hasQueuedCodeReviewStart(
-            sessionId: sessionId,
-            conversationId: resolveReviewConversationId(args)
-        ) {
-            return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
-        }
+        let conversationId = resolveReviewConversationId(args)
         var commandPayload = args
         commandPayload["scope"] = effectiveScope
         commandPayload["session_id"] = sessionId
         if commandPayload["conversation_id"] == nil,
-           let conversationId = resolveReviewConversationId(args) {
+           let conversationId {
             commandPayload["conversation_id"] = conversationId.uuidString.lowercased()
         }
-        _ = MCPSharedState.enqueueCodeReviewCommand(
-            action: "start",
-            sessionId: sessionId,
-            conversationId: resolveReviewConversationId(args),
-            payload: commandPayload
-        )
+        do {
+            _ = try MCPSharedState.enqueueUniqueCodeReviewStartCommand(
+                sessionId: sessionId,
+                conversationId: conversationId,
+                payload: commandPayload
+            )
+        } catch MCPSharedState.CodeReviewStartEnqueueError.sessionAlreadyQueued {
+            return reviewError("Error: session_id '\(sessionId)' already has a queued start command")
+        } catch {
+            return reviewError("Error: failed to queue code review start command")
+        }
         return reviewOK("OK — code review start queued (session_id=\(sessionId), scope=\(effectiveScope))")
     }
 

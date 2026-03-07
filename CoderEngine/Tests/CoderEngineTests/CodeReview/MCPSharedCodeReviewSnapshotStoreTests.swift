@@ -46,6 +46,32 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(latest, "session-new")
     }
 
+    func testLatestSessionIdPrefersTimestampAcrossSessionsOverMutationSequence() {
+        let conversationId = UUID()
+        let older = makeSnapshot(
+            sessionId: "session-old",
+            conversationId: conversationId,
+            mutationSequence: 42,
+            lastUpdatedAt: Date(timeIntervalSinceNow: -60)
+        )
+        let newer = makeSnapshot(
+            sessionId: "session-new",
+            conversationId: conversationId,
+            mutationSequence: 1,
+            lastUpdatedAt: Date()
+        )
+        MCPSharedState.writeCodeReviewSnapshot(older)
+        MCPSharedState.writeCodeReviewSnapshot(newer)
+
+        let latest = MCPSharedState.latestCodeReviewSessionId(
+            conversationId: newer.conversationId
+        )
+        let index = MCPSharedState.readCodeReviewIndex()
+
+        XCTAssertEqual(latest, "session-new")
+        XCTAssertEqual(index.latestSessionId, "session-new")
+    }
+
 
     func testWriteSnapshotIgnoresInvalidSessionId() {
         let snapshot = makeSnapshot(sessionId: "../escape", lastUpdatedAt: Date())
@@ -98,12 +124,13 @@ final class MCPSharedCodeReviewSnapshotStoreTests: XCTestCase {
     private func makeSnapshot(
         sessionId: String,
         conversationId: UUID = UUID(),
+        mutationSequence: UInt64 = 3,
         lastUpdatedAt: Date
     ) -> CodeReviewSessionSnapshot {
         return CodeReviewSessionSnapshot(
             sessionId: sessionId,
             conversationId: conversationId,
-            mutationSequence: 3,
+            mutationSequence: mutationSequence,
             phase: .fixing,
             stage: .fixing,
             findings: [

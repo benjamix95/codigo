@@ -64,7 +64,8 @@ extension ChatPanelView {
                     maxWorkers: cfg.codeReviewPartitions,
                     maxRounds: cfg.codeReviewMaxRounds,
                     analysisBackend: cfg.codeReviewAnalysisBackend,
-                    executionBackend: cfg.codeReviewExecutionBackend
+                    executionBackend: cfg.codeReviewExecutionBackend,
+                    analysisOnly: cfg.codeReviewAnalysisOnly
                 )
             let sessionState = CodeReviewSessionState(
                 conversationId: reviewConversationId,

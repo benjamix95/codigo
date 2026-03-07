@@ -153,8 +153,7 @@ extension CoderIDEMCPServerApp {
         let snapshots = MCPSharedState.readCodeReviewSnapshots(
             conversationId: conversationId
         ).filter { snapshot in
-            (!activeOnly || snapshot.isActive)
-                && (conversationId != nil || snapshot.conversationId == nil)
+            !activeOnly || snapshot.isActive
         }
         return snapshots
     }
