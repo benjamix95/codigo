@@ -175,10 +175,20 @@ extension LLDBDAPDebugAdapterSupport {
 
         // Breakpoint log message: richiede un breakpoint command
         if let logMessage = modifier.logMessage, !logMessage.isEmpty {
-            let escaped = logMessage.replacingOccurrences(of: "\"", with: "\\\"")
+            let escaped = escapeForLLDBPythonSingleQuotedString(logMessage)
             commands.append("breakpoint command add -o \"script print('\(escaped)')\"")
         }
 
         return commands
+    }
+
+    private static func escapeForLLDBPythonSingleQuotedString(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "'", with: "\\'")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+            .replacingOccurrences(of: "\t", with: "\\t")
+            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }
