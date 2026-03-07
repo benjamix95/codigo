@@ -5,6 +5,7 @@ import SwiftUI
 /// All messages stay within the panel; nothing goes to the main chat.
 struct ReviewPanelChatTab: View {
     @ObservedObject var store: CodeReviewPanelStore
+    let todoStore: TodoStore
     let onOpenFile: (String) -> Void
     let onOpenFileAtLocation: (String, Int?) -> Void
     @State private var inputText: String = ""
@@ -82,7 +83,10 @@ struct ReviewPanelChatTab: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(spacing: 6) {
+                LazyVStack(spacing: 8) {
+                    if !todoItems.isEmpty {
+                        ReviewPanelTodoCardView(items: todoItems)
+                    }
                     ForEach(store.chatMessages) { msg in
                         ReviewPanelChatBubble(
                             message: msg,
@@ -120,5 +124,9 @@ struct ReviewPanelChatTab: View {
                 proxy.scrollTo(lastId, anchor: .bottom)
             }
         }
+    }
+
+    private var todoItems: [TodoItem] {
+        todoStore.displayTodosForChat(for: store.conversationId)
     }
 }

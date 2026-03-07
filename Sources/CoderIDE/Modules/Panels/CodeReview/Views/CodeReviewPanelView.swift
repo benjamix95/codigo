@@ -5,6 +5,7 @@ import SwiftUI
 /// Receives a `CodeReviewPanelStore` and two closures. No `@Binding`, no `onDispatchAction`.
 struct CodeReviewPanelView: View {
     @ObservedObject var store: CodeReviewPanelStore
+    let todoStore: TodoStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
     let onOpenFileAtLocation: (String, Int?) -> Void
@@ -63,6 +64,7 @@ struct CodeReviewPanelView: View {
         case .chat:
             ReviewPanelChatTab(
                 store: store,
+                todoStore: todoStore,
                 onOpenFile: onOpenFile,
                 onOpenFileAtLocation: onOpenFileAtLocation
             )
@@ -174,6 +176,7 @@ struct CodeReviewPanelView: View {
 /// Use this from the call site where environment objects are available.
 struct ReviewPanelHost: View {
     @StateObject private var store: CodeReviewPanelStore
+    let todoStore: TodoStore
     let onClose: () -> Void
     let onOpenFile: (String) -> Void
     let onOpenFileAtLocation: (String, Int?) -> Void
@@ -184,6 +187,7 @@ struct ReviewPanelHost: View {
         executionController: ExecutionController?,
         workspaceStore: WorkspaceStore,
         openFilesStore: OpenFilesStore,
+        todoStore: TodoStore,
         conversationId: UUID?,
         providerFactoryConfigBuilder: @escaping () -> ProviderFactoryConfig,
         onClose: @escaping () -> Void,
@@ -199,6 +203,7 @@ struct ReviewPanelHost: View {
             conversationId: conversationId,
             providerFactoryConfigBuilder: providerFactoryConfigBuilder
         ))
+        self.todoStore = todoStore
         self.onClose = onClose
         self.onOpenFile = onOpenFile
         self.onOpenFileAtLocation = onOpenFileAtLocation
@@ -207,6 +212,7 @@ struct ReviewPanelHost: View {
     var body: some View {
         CodeReviewPanelView(
             store: store,
+            todoStore: todoStore,
             onClose: onClose,
             onOpenFile: onOpenFile,
             onOpenFileAtLocation: onOpenFileAtLocation

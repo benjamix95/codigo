@@ -43,7 +43,7 @@ extension CodeReviewPanelStore {
         guard let provider = ProviderFactory.codeReviewMultiSwarmProvider(
             config: config,
             executionController: executionController,
-            agentProviderId: providerRegistry.selectedProviderId,
+            agentProviderId: effectivePanelProviderId,
             codebaseIndex: workspaceStore.codebaseIndex,
             workspacePaths: workspaceStore.activeWorkspacePaths,
             sessionState: sessionState,

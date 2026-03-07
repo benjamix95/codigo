@@ -31,7 +31,7 @@ extension CodeReviewPanelStore {
         setChatProcessing(true, startedAt: startedAt)
 
         // Resolve provider - use the currently selected provider
-        guard let provider = providerRegistry.selectedProvider else {
+        guard let provider = effectivePanelProvider else {
             finalizeChatMessage(
                 id: assistantId,
                 content: "No provider available. Please configure a provider.",

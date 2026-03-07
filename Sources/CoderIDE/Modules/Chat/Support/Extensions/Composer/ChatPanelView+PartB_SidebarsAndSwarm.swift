@@ -165,6 +165,7 @@ extension ChatPanelView {
             executionController: executionController,
             workspaceStore: workspaceStore,
             openFilesStore: openFilesStore,
+            todoStore: todoStore,
             conversationId: conversationId,
             providerFactoryConfigBuilder: { [self] in providerFactoryConfig() },
             onClose: { showCodeReviewPanel = false },

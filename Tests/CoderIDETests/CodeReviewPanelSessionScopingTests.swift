@@ -160,6 +160,25 @@ final class CodeReviewPanelSessionScopingTests: XCTestCase {
         XCTAssertEqual(updated.findings.first(where: { $0.id == "f-2" })?.status, .open)
     }
 
+    func testPanelModeSelectionAllowsMultiSelectAndSecondTapTurnsModeOff() {
+        let store = makePanelStore(
+            taskActivityStore: TaskActivityStore(),
+            conversationId: nil
+        )
+
+        store.toggleModeSelection(.securityAudit)
+        store.toggleModeSelection(.bugFinder)
+
+        XCTAssertTrue(store.hasSelectedMode(.standard))
+        XCTAssertTrue(store.hasSelectedMode(.securityAudit))
+        XCTAssertTrue(store.hasSelectedMode(.bugFinder))
+
+        store.toggleModeSelection(.securityAudit)
+
+        XCTAssertFalse(store.hasSelectedMode(.securityAudit))
+        XCTAssertTrue(store.hasSelectedMode(.bugFinder))
+    }
+
     private func makePanelStore(
         taskActivityStore: TaskActivityStore,
         conversationId: UUID?

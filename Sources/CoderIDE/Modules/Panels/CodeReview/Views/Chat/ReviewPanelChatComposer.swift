@@ -25,6 +25,8 @@ struct ReviewPanelChatComposer: View {
                     sendButton
                 }
             }
+
+            providerPickerRow
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -157,6 +159,13 @@ struct ReviewPanelChatComposer: View {
                     .disabled(store.isChatProcessing)
                 }
             }
+        }
+    }
+
+    private var providerPickerRow: some View {
+        HStack(spacing: 8) {
+            ReviewPanelChatProviderPicker(store: store)
+            Spacer(minLength: 0)
         }
     }
 
