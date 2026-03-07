@@ -5,6 +5,7 @@ import SwiftUI
 /// All messages stay within the panel; nothing goes to the main chat.
 struct ReviewPanelChatTab: View {
     @ObservedObject var store: CodeReviewPanelStore
+    let onOpenFile: (String) -> Void
     @State private var inputText: String = ""
 
     var body: some View {
@@ -84,7 +85,8 @@ struct ReviewPanelChatTab: View {
                     ForEach(store.chatMessages) { msg in
                         ReviewPanelChatBubble(
                             message: msg,
-                            accent: store.accent
+                            accent: store.accent,
+                            onOpenFile: onOpenFile
                         )
                         .id(msg.id)
                     }

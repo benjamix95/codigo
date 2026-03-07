@@ -5,6 +5,7 @@ import SwiftUI
 struct ReviewPanelChatBubble: View {
     let message: ReviewPanelMessage
     let accent: Color
+    let onOpenFile: ((String) -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -44,6 +45,7 @@ struct ReviewPanelChatBubble: View {
             Text(message.timestamp, style: .time)
                 .font(.system(size: 8))
                 .foregroundStyle(.quaternary)
+            actionBar(alignment: .trailing)
         }
     }
 
@@ -99,6 +101,7 @@ struct ReviewPanelChatBubble: View {
             Text(message.timestamp, style: .time)
                 .font(.system(size: 8))
                 .foregroundStyle(.quaternary)
+            actionBar(alignment: .leading)
         }
     }
 
@@ -117,6 +120,7 @@ struct ReviewPanelChatBubble: View {
                 .foregroundStyle(systemBubbleForeground)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            actionBar(alignment: .leading)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -202,5 +206,62 @@ struct ReviewPanelChatBubble: View {
         case .statusNote, .plain, .commandInvocation, .reviewRun:
             return .secondary
         }
+    }
+
+    private var fileTargets: [ReviewPanelChatMessageFileTarget] {
+        ReviewPanelChatMessageContext.fileTargets(from: message.content)
+    }
+
+    private var hasActions: Bool {
+        !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func actionBar(alignment: HorizontalAlignment) -> some View {
+        let targets = fileTargets
+        return VStack(alignment: alignment, spacing: 4) {
+            if hasActions {
+                HStack(spacing: 6) {
+                    Button {
+                        ReviewPanelChatMessageContext.copyToPasteboard(message.content)
+                    } label: {
+                        actionChip("Copy", systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(targets) { target in
+                        Button {
+                            onOpenFile?(target.path)
+                        } label: {
+                            actionChip(target.displayLabel, systemName: "arrow.up.forward.app")
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(onOpenFile == nil)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    private func actionChip(_ text: String, systemName: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemName)
+                .font(.system(size: 7, weight: .semibold))
+            Text(text)
+                .font(.system(size: 8.5, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.18), lineWidth: 0.5)
+        )
     }
 }

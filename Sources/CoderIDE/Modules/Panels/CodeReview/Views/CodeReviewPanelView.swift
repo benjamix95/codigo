@@ -60,7 +60,7 @@ struct CodeReviewPanelView: View {
         case .timeline:
             ReviewPanelTimelineTab(store: store)
         case .chat:
-            ReviewPanelChatTab(store: store)
+            ReviewPanelChatTab(store: store, onOpenFile: onOpenFile)
         case .settings:
             ReviewPanelSettingsTab(store: store)
         }
