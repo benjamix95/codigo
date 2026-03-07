@@ -33,7 +33,13 @@ struct SidebarView: View {
 
     let checkpointGitStore = ConversationCheckpointGitStore()
 
+    var sidebarBackgroundColor: Color {
+        DesignSystem.Colors.chatPanelSolidBackground
+    }
+
     var body: some View {
         sidebarContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(sidebarBackgroundColor)
     }
 }

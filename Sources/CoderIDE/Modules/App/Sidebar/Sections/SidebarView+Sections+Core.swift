@@ -119,6 +119,7 @@ extension SidebarView {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
         }
+        .background(sidebarBackgroundColor)
         .safeAreaInset(edge: .bottom) { footer }
         .fileImporter(isPresented: $isSelectingAddFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleAddFolderSelection)
         .sheet(item: $contextToRename) { context in
