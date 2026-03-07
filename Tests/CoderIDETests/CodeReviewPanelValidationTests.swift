@@ -85,6 +85,35 @@ final class CodeReviewPanelValidationTests: XCTestCase {
         XCTAssertEqual(command.displayCommand, "deep-review")
     }
 
+    @MainActor
+    func testCombinedPromptIncludesSelectedModeSections() {
+        let prompt = ReviewPanelCoordinator.combinedPrompt(
+            scope: .uncommitted,
+            currentBranch: "main",
+            selectedModes: [.standard, .securityAudit, .bugFinder],
+            customInstructions: "Check API edges"
+        )
+
+        XCTAssertTrue(prompt.contains("[REVIEW_SCOPE:uncommitted]"))
+        XCTAssertTrue(prompt.contains("Standard focus:"))
+        XCTAssertTrue(prompt.contains("Security focus:"))
+        XCTAssertTrue(prompt.contains("Bug focus:"))
+        XCTAssertTrue(prompt.contains("Check API edges"))
+    }
+
+    @MainActor
+    func testCombinedPromptUsesBranchPromptWhenScopeIsBranch() {
+        let prompt = ReviewPanelCoordinator.combinedPrompt(
+            scope: .branch("feature/refactor"),
+            currentBranch: "main",
+            selectedModes: [.securityAudit],
+            customInstructions: ""
+        )
+
+        XCTAssertTrue(prompt.contains("[AGAINST:main..feature/refactor]"))
+        XCTAssertTrue(prompt.contains("Security focus:"))
+    }
+
     // MARK: - Review worker activity selection
 
     func testLatestReviewWorkerPlanBatch_returnsMostRecentContiguousBatch() {

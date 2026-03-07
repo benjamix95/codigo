@@ -21,11 +21,21 @@ struct ReviewPanelScopeCard: View {
                 scopeButton("Uncommitted", target: .uncommitted)
                 scopeButton("Staged", target: .staged)
                 scopeButton("Ref", target: .againstRef(store.againstCommitRef))
+                scopeButton("Commits", target: .commits(currentCommitScope))
+                scopeButton("Branch", target: .branch(store.selectedBranch?.name ?? ""))
             }
 
             // Against ref input (only when ref scope is selected)
             if case .againstRef = store.scopeTarget {
                 againstRefInput
+            }
+
+            if case .commits = store.scopeTarget {
+                ReviewPanelCommitPicker(store: store, showsReviewButton: false)
+            }
+
+            if case .branch = store.scopeTarget {
+                ReviewPanelBranchSelector(store: store, showsReviewButton: false)
             }
 
             // Branch/Commit info
@@ -88,8 +98,23 @@ struct ReviewPanelScopeCard: View {
         let isSelected = scopeMatches(target)
         return Button {
             store.scopeTarget = target
-            store.selectedBranch = nil
-            store.selectedCommits.removeAll()
+            switch target {
+            case .commits:
+                store.selectedBranch = nil
+                if store.selectedCommits.isEmpty {
+                    store.scopeTarget = .commits([])
+                }
+            case .branch:
+                store.selectedCommits.removeAll()
+                if let branch = store.selectedBranch?.name {
+                    store.scopeTarget = .branch(branch)
+                } else {
+                    store.scopeTarget = .branch("")
+                }
+            default:
+                store.selectedBranch = nil
+                store.selectedCommits.removeAll()
+            }
         } label: {
             Text(label)
                 .font(.system(size: 9.5, weight: isSelected ? .semibold : .regular))
@@ -109,6 +134,8 @@ struct ReviewPanelScopeCard: View {
         case (.uncommitted, .uncommitted): return true
         case (.staged, .staged): return true
         case (.againstRef, .againstRef): return true
+        case (.commits, .commits): return true
+        case (.branch, .branch): return true
         default: return false
         }
     }
@@ -160,7 +187,7 @@ struct ReviewPanelScopeCard: View {
             Task {
                 await store.startReview(
                     scope: store.scopeTarget,
-                    mode: store.activeMode
+                    modes: store.selectedModes
                 )
             }
         } label: {
@@ -186,8 +213,14 @@ struct ReviewPanelScopeCard: View {
         switch store.scopeTarget {
         case .uncommitted, .staged: return true
         case .againstRef(let ref): return !ref.isEmpty
-        case .branch(let name): return !name.isEmpty
+        case .branch(let name): return !name.isEmpty && store.selectedBranch != nil
         case .commits(let shas): return !shas.isEmpty
         }
+    }
+
+    private var currentCommitScope: [String] {
+        store.gitCommitLog
+            .filter { store.selectedCommits.contains($0.sha) }
+            .map(\.sha)
     }
 }

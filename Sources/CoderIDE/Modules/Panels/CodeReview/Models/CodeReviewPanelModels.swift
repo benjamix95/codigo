@@ -28,7 +28,6 @@ enum CodeReviewPanelMode: String, CaseIterable, Identifiable {
     case standard = "Standard"
     case securityAudit = "Security Audit"
     case bugFinder = "Bug Finder"
-    case branchReview = "Branch Review"
 
     var id: String { rawValue }
 
@@ -37,7 +36,6 @@ enum CodeReviewPanelMode: String, CaseIterable, Identifiable {
         case .standard: return "magnifyingglass"
         case .securityAudit: return "lock.shield"
         case .bugFinder: return "ladybug"
-        case .branchReview: return "arrow.triangle.branch"
         }
     }
 
@@ -48,7 +46,6 @@ enum CodeReviewPanelMode: String, CaseIterable, Identifiable {
         case .standard: return DesignSystem.Colors.reviewColor
         case .securityAudit: return DesignSystem.Colors.error
         case .bugFinder: return DesignSystem.Colors.warning
-        case .branchReview: return DesignSystem.Colors.info
         }
     }
 }

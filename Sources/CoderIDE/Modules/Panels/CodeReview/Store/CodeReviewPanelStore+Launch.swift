@@ -8,7 +8,7 @@ extension CodeReviewPanelStore {
     /// Start an independent code review. Replicates the bootstrap deferred command pattern.
     func startReview(
         scope: ReviewScopeTarget,
-        mode: CodeReviewPanelMode,
+        modes: Set<CodeReviewPanelMode>,
         promptOverride: String? = nil,
         invocationLabel: String? = nil
     ) async {
@@ -55,10 +55,10 @@ extension CodeReviewPanelStore {
             return
         }
 
-        let prompt = promptOverride ?? buildPrompt(scope: scope, mode: mode)
+        let prompt = promptOverride ?? buildPrompt(scope: scope, modes: modes)
         let context = buildWorkspaceContext()
         let outputMessageId = beginPanelActionOutput(
-            title: invocationLabel ?? reviewInvocationLabel(scope: scope, mode: mode),
+            title: invocationLabel ?? reviewInvocationLabel(scope: scope, modes: modes),
             detail: prompt,
             selectChatTab: true
         )
@@ -133,13 +133,13 @@ extension CodeReviewPanelStore {
             scope = .uncommitted
         }
 
-        await startReview(scope: scope, mode: activeMode)
+        await startReview(scope: scope, modes: selectedModes)
     }
 
     func runQuickCommand(_ command: ReviewPanelSlashCommand) async {
         await startReview(
             scope: scopeTarget,
-            mode: activeMode,
+            modes: selectedModes,
             promptOverride: command.prompt,
             invocationLabel: command.displayCommand
         )
@@ -245,34 +245,24 @@ extension CodeReviewPanelStore {
 
     private func buildPrompt(
         scope: ReviewScopeTarget,
-        mode: CodeReviewPanelMode
+        modes: Set<CodeReviewPanelMode>
     ) -> String {
-        switch mode {
-        case .standard:
-            if case .commits(let commits) = scope, !commits.isEmpty {
-                return ReviewPanelCoordinator.commitRangePrompt(commits: commits)
-            }
-            return ReviewPanelCoordinator.standardPrompt(
-                scope: scope,
-                customInstructions: settings.customInstructions
-            )
-        case .securityAudit:
-            return ReviewPanelCoordinator.securityAuditPrompt(scope: scope)
-        case .bugFinder:
-            return ReviewPanelCoordinator.bugFinderPrompt(scope: scope)
-        case .branchReview:
-            if case .branch(let name) = scope {
-                return ReviewPanelCoordinator.branchReviewPrompt(
-                    branch: name, currentBranch: currentGitBranch
-                )
-            }
-            return ReviewPanelCoordinator.standardPrompt(scope: scope)
-        }
+        ReviewPanelCoordinator.combinedPrompt(
+            scope: scope,
+            currentBranch: currentGitBranch,
+            selectedModes: modes,
+            customInstructions: settings.customInstructions
+        )
     }
 
     private func generateSessionId() -> String {
-        let prefix = activeMode == .standard ? "panel" : activeMode.rawValue
-            .lowercased().replacingOccurrences(of: " ", with: "-")
+        let prefix: String = if selectedModes == [.standard] {
+            "panel"
+        } else {
+            primarySelectedMode.rawValue
+                .lowercased()
+                .replacingOccurrences(of: " ", with: "-")
+        }
         return "\(prefix)-\(UUID().uuidString.lowercased().prefix(12))"
     }
 
@@ -286,8 +276,12 @@ extension CodeReviewPanelStore {
 
     private func reviewInvocationLabel(
         scope: ReviewScopeTarget,
-        mode: CodeReviewPanelMode
+        modes: Set<CodeReviewPanelMode>
     ) -> String {
-        "Run \(mode.displayName) on \(scope.displayDescription)"
+        let label = CodeReviewPanelMode.allCases
+            .filter { modes.contains($0) }
+            .map(\.displayName)
+            .joined(separator: " + ")
+        return "Run \(label) on \(scope.displayDescription)"
     }
 }

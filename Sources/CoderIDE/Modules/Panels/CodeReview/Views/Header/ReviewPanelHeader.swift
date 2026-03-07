@@ -15,9 +15,8 @@ struct ReviewPanelHeader: View {
             Text("Code Review")
                 .font(.system(size: 13, weight: .semibold))
 
-            // Mode badge
-            if store.activeMode != .standard {
-                modeBadge(store.activeMode)
+            if !store.orderedSelectedModes.isEmpty {
+                modeBadges
             }
 
             // Round info
@@ -91,17 +90,21 @@ struct ReviewPanelHeader: View {
 
     // MARK: - Mode Badge
 
-    private func modeBadge(_ mode: CodeReviewPanelMode) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: mode.icon)
-                .font(.system(size: 8))
-            Text(mode.displayName)
-                .font(.system(size: 9, weight: .semibold))
+    private var modeBadges: some View {
+        HStack(spacing: 4) {
+            ForEach(store.orderedSelectedModes) { mode in
+                HStack(spacing: 3) {
+                    Image(systemName: mode.icon)
+                        .font(.system(size: 8))
+                    Text(mode.displayName)
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundStyle(mode.accentColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(mode.accentColor.opacity(0.12), in: Capsule())
+            }
         }
-        .foregroundStyle(mode.accentColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(mode.accentColor.opacity(0.12), in: Capsule())
     }
 
     // MARK: - Timer Format

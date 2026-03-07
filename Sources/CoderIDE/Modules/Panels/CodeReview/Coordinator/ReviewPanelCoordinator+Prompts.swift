@@ -3,6 +3,72 @@ import Foundation
 // MARK: - Prompt Builders for Pipeline Modes
 
 extension ReviewPanelCoordinator {
+    static func combinedPrompt(
+        scope: ReviewScopeTarget,
+        currentBranch: String,
+        selectedModes: Set<CodeReviewPanelMode>,
+        customInstructions: String = ""
+    ) -> String {
+        let normalizedModes = selectedModes.isEmpty ? Set([.standard]) : selectedModes
+        let scopeHeader: String = {
+            switch scope {
+            case .branch(let name):
+                return branchReviewPrompt(branch: name, currentBranch: currentBranch)
+            case .commits(let commits) where !commits.isEmpty:
+                return commitRangePrompt(commits: commits)
+            default:
+                return """
+                \(scope.scopeTag)
+                Run a code review over the selected scope.
+                """
+            }
+        }()
+
+        var sections: [String] = [scopeHeader]
+        if normalizedModes.contains(.standard) {
+            sections.append(standardFocusSection)
+        }
+        if normalizedModes.contains(.securityAudit) {
+            sections.append(securityFocusSection)
+        }
+        if normalizedModes.contains(.bugFinder) {
+            sections.append(bugFocusSection)
+        }
+        if !customInstructions.isEmpty {
+            sections.append("Additional instructions:\n\(customInstructions)")
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static let standardFocusSection = """
+    Standard focus:
+    - P0 (Critical): Security vulnerabilities, data loss risks, crash bugs
+    - P1 (High): Logic errors, performance regressions, API misuse
+    - P2 (Medium): Code quality, maintainability, potential bugs
+    - P3 (Low): Style, documentation, minor improvements
+
+    For each finding, provide severity, file, line range, description, and a suggested fix.
+    """
+
+    private static let securityFocusSection = """
+    Security focus:
+    1. Injection vulnerabilities: SQL injection, XSS, command injection, path traversal
+    2. Authentication and authorization: bypasses, missing checks, privilege escalation
+    3. Secrets and credentials: hardcoded keys, tokens, passwords
+    4. Unsafe deserialization and validation issues
+    5. File and network handling: unsafe file ops, SSRF, unvalidated URLs
+    6. Data exposure in logs and error surfaces
+    """
+
+    private static let bugFocusSection = """
+    Bug focus:
+    1. Nil or null dereference and force unwraps
+    2. Race conditions and invalid state transitions
+    3. Logic errors, off-by-one, wrong comparisons
+    4. Memory issues and unbounded growth
+    5. Error handling gaps and swallowed failures
+    6. Edge cases and API misuse
+    """
 
     // MARK: - Standard
 

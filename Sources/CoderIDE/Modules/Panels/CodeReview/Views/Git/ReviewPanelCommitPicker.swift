@@ -4,6 +4,7 @@ import SwiftUI
 /// Multi-select commit picker for reviewing specific commits.
 struct ReviewPanelCommitPicker: View {
     @ObservedObject var store: CodeReviewPanelStore
+    let showsReviewButton: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -22,7 +23,7 @@ struct ReviewPanelCommitPicker: View {
                 commitList
             }
 
-            if !store.selectedCommits.isEmpty {
+            if showsReviewButton && !store.selectedCommits.isEmpty {
                 reviewButton
             }
         }
@@ -149,11 +150,14 @@ struct ReviewPanelCommitPicker: View {
     // MARK: - Review Button
 
     private var reviewButton: some View {
-        Button {
-            Task {
-                await store.startReview(scope: store.scopeTarget, mode: store.activeMode)
-            }
-        } label: {
+                Button {
+                    Task {
+                        await store.startReview(
+                            scope: store.scopeTarget,
+                            modes: store.selectedModes
+                        )
+                    }
+                } label: {
             HStack(spacing: 4) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 9))

@@ -56,7 +56,7 @@ final class CodeReviewPanelStore: ObservableObject {
     @Published var selectedCommits: Set<String> = []
     @Published var scopeTarget: ReviewScopeTarget = .uncommitted
     @Published var againstCommitRef: String = ""
-    @Published var activeMode: CodeReviewPanelMode = .standard
+    @Published var selectedModes: Set<CodeReviewPanelMode> = [.standard]
 
     // MARK: - Settings
 
@@ -255,6 +255,28 @@ final class CodeReviewPanelStore: ObservableObject {
 
     static func chatSessionKey(conversationId: UUID?) -> String {
         conversationId?.uuidString.lowercased() ?? "workspace-review-panel"
+    }
+
+    var orderedSelectedModes: [CodeReviewPanelMode] {
+        CodeReviewPanelMode.allCases.filter { selectedModes.contains($0) }
+    }
+
+    var primarySelectedMode: CodeReviewPanelMode {
+        orderedSelectedModes.first ?? .standard
+    }
+
+    func hasSelectedMode(_ mode: CodeReviewPanelMode) -> Bool {
+        selectedModes.contains(mode)
+    }
+
+    func toggleModeSelection(_ mode: CodeReviewPanelMode) {
+        if selectedModes.contains(mode) {
+            if selectedModes.count > 1 {
+                selectedModes.remove(mode)
+            }
+        } else {
+            selectedModes.insert(mode)
+        }
     }
 
     var chatSessionKey: String {

@@ -46,7 +46,7 @@ struct ReviewPanelCommandsTab: View {
             HStack(spacing: 4) {
                 ForEach(CodeReviewPanelMode.allCases) { mode in
                     Button {
-                        store.activeMode = mode
+                        store.toggleModeSelection(mode)
                     } label: {
                         HStack(spacing: 3) {
                             Image(systemName: mode.icon)
@@ -55,7 +55,7 @@ struct ReviewPanelCommandsTab: View {
                                 .font(.system(size: 9, weight: .medium))
                         }
                         .foregroundStyle(
-                            store.activeMode == mode
+                            store.hasSelectedMode(mode)
                                 ? mode.accentColor : .secondary
                         )
                         .padding(.horizontal, 8)
@@ -63,14 +63,14 @@ struct ReviewPanelCommandsTab: View {
                         .background(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(
-                                    store.activeMode == mode
+                                    store.hasSelectedMode(mode)
                                         ? mode.accentColor.opacity(0.14) : Color.primary.opacity(0.04)
                                 )
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .strokeBorder(
-                                    store.activeMode == mode
+                                    store.hasSelectedMode(mode)
                                         ? mode.accentColor.opacity(0.3)
                                         : DesignSystem.Colors.border.opacity(0.2),
                                     lineWidth: 0.5

@@ -4,6 +4,7 @@ import SwiftUI
 /// Branch picker for reviewing against a specific branch.
 struct ReviewPanelBranchSelector: View {
     @ObservedObject var store: CodeReviewPanelStore
+    let showsReviewButton: Bool
     @State private var showRemote = false
     @State private var searchText = ""
 
@@ -32,7 +33,7 @@ struct ReviewPanelBranchSelector: View {
                 branchList
             }
 
-            if store.selectedBranch != nil {
+            if showsReviewButton && store.selectedBranch != nil {
                 reviewButton
             }
         }
@@ -133,11 +134,14 @@ struct ReviewPanelBranchSelector: View {
     // MARK: - Review Button
 
     private var reviewButton: some View {
-        Button {
-            Task {
-                await store.startReview(scope: store.scopeTarget, mode: .branchReview)
-            }
-        } label: {
+                Button {
+                    Task {
+                        await store.startReview(
+                            scope: store.scopeTarget,
+                            modes: store.selectedModes
+                        )
+                    }
+                } label: {
             HStack(spacing: 4) {
                 Image(systemName: "play.fill")
                     .font(.system(size: 9))
