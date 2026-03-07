@@ -84,6 +84,19 @@ extension ChatPanelView {
         return raw.isEmpty || raw == "New conversation" ? "New thread" : raw
     }
 
+    private var chatHeaderLeadingReservedWidth: CGFloat {
+        coderMode == .codeReviewMultiSwarm ? 170 : 124
+    }
+
+    private var chatHeaderLeadingMaxWidth: CGFloat {
+        let availableWidth = ((chatHeaderWidth - chatHeaderLeadingReservedWidth) / 2) - 28
+        return max(0, min(320, availableWidth))
+    }
+
+    private var shouldHideChatHeaderInfoBar: Bool {
+        chatHeaderLeadingMaxWidth < 92
+    }
+
     @ViewBuilder
     private var chatTitlebarProjectButton: some View {
         let path = effectiveContext.primaryPath ?? ""
@@ -133,6 +146,9 @@ extension ChatPanelView {
     @ViewBuilder
     internal var headerLeadingBar: some View {
         chatHeaderInfoBar
+            .frame(width: chatHeaderLeadingMaxWidth, alignment: .leading)
+            .opacity(shouldHideChatHeaderInfoBar ? 0 : 1)
+            .allowsHitTesting(!shouldHideChatHeaderInfoBar)
     }
 
     internal var rewindButton: some View {

@@ -2,45 +2,57 @@ import SwiftUI
 
 extension ContentView {
     @ViewBuilder
-    func ideUnifiedWorkspace(ctx: EffectiveContext, sidePanelWidth: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            ActivityBarView(
-                selectedItem: $activeActivityItem,
-                showSettings: $showSettings,
-                workspaceTitle: ctx.displayLabel
-            )
-            .frame(width: 84)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 10)
+    func ideUnifiedWorkspace(
+        ctx: EffectiveContext,
+        sidePanelWidth: CGFloat,
+        showsSidebar: Bool
+    ) -> some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(height: workbenchTopInteractiveInset)
+                .allowsHitTesting(false)
 
-            if let item = activeActivityItem, item != .settings {
+            HStack(spacing: 0) {
+                if showsSidebar {
+                    ActivityBarView(
+                        selectedItem: $activeActivityItem,
+                        showSettings: $showSettings,
+                        workspaceTitle: ctx.displayLabel
+                    )
+                    .frame(width: 84)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 10)
+                }
+
+                if showsSidebar, let item = activeActivityItem, item != .settings {
+                    Divider()
+                        .overlay(DesignSystem.Colors.borderSubtle.opacity(0.8))
+                        .padding(.vertical, 12)
+
+                    SidePanelView(
+                        activeItem: item,
+                        context: projectContextStore.context(id: ctx.contextId)
+                    )
+                    .environmentObject(openFilesStore)
+                    .environmentObject(projectContextStore)
+                    .environmentObject(gitPanelStore)
+                    .frame(width: sidePanelWidth)
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+
+                    sidePanelResizeHandle
+                        .padding(.vertical, 12)
+                }
+
                 Divider()
-                    .overlay(DesignSystem.Colors.borderSubtle.opacity(0.8))
+                    .overlay(DesignSystem.Colors.borderSubtle.opacity(0.75))
                     .padding(.vertical, 12)
 
-                SidePanelView(
-                    activeItem: item,
-                    context: projectContextStore.context(id: ctx.contextId)
-                )
-                .environmentObject(openFilesStore)
-                .environmentObject(projectContextStore)
-                .environmentObject(gitPanelStore)
-                .frame(width: sidePanelWidth)
-                .transition(.move(edge: .leading).combined(with: .opacity))
-
-                sidePanelResizeHandle
-                    .padding(.vertical, 12)
+                editorArea
+                    .layoutPriority(1)
             }
-
-            Divider()
-                .overlay(DesignSystem.Colors.borderSubtle.opacity(0.75))
-                .padding(.vertical, 12)
-
-            editorArea
-                .layoutPriority(1)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
         .frame(maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
