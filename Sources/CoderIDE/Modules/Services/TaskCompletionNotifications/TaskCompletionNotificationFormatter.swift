@@ -6,17 +6,20 @@ struct TaskCompletionNotificationFormatter {
     let titleMaxChars: Int
     let bodyMaxChars: Int
     let fallbackTitle: String
+    let fallbackBody: String
     let ellipsis: String
 
     init(
         titleMaxChars: Int = 120,
         bodyMaxChars: Int = 240,
         fallbackTitle: String = "Task completato",
+        fallbackBody: String = "Apri CoderIDE per vedere i dettagli.",
         ellipsis: String = "…"
     ) {
         self.titleMaxChars = titleMaxChars
         self.bodyMaxChars = bodyMaxChars
         self.fallbackTitle = fallbackTitle
+        self.fallbackBody = fallbackBody
         self.ellipsis = ellipsis
     }
 
@@ -28,17 +31,13 @@ struct TaskCompletionNotificationFormatter {
     }
 
     @MainActor
-    func makeTitle(question: String?) -> String {
-        guard let question = sanitizedNonEmptyText(question) else {
-            return fallbackTitle
-        }
-        return truncate(question, maxChars: titleMaxChars)
+    func makeTitle(question _: String?) -> String {
+        truncate(fallbackTitle, maxChars: titleMaxChars)
     }
 
     @MainActor
-    func makeBody(answer: String) -> String {
-        let sanitized = sanitize(answer)
-        return truncate(sanitized, maxChars: bodyMaxChars)
+    func makeBody(answer _: String) -> String {
+        truncate(fallbackBody, maxChars: bodyMaxChars)
     }
 
     @MainActor
