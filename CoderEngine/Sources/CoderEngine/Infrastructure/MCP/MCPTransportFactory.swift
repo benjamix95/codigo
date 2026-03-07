@@ -79,7 +79,7 @@ public enum MCPTransportFactory {
             func flushSuppressedIfNeeded() {
                 guard suppressedInWindow > 0 else { return }
                 Self.logger.error(
-                    "MCP stderr[\(serverLabel, privacy: .public)] suppressed \(suppressedInWindow, privacy: .public) noisy line(s) in last second"
+                    "MCP stderr[\(serverLabel, privacy: .private)] suppressed \(suppressedInWindow, privacy: .public) noisy line(s) in last second"
                 )
                 suppressedInWindow = 0
             }
@@ -97,7 +97,7 @@ public enum MCPTransportFactory {
                     chunk = try fileHandle.read(upToCount: 4096) ?? Data()
                 } catch {
                     let message = "MCP stderr read failure server=\(serverLabel) error=\(error.localizedDescription)"
-                    Self.logger.error("\(message, privacy: .public)")
+                    Self.logger.error("\(message, privacy: .private)")
                     break
                 }
                 if chunk.isEmpty { break }
@@ -109,12 +109,13 @@ public enum MCPTransportFactory {
                 while let newlineRange = rollingBuffer.firstRange(of: Data([0x0A])) {
                     let lineData = rollingBuffer.subdata(in: 0..<newlineRange.lowerBound)
                     rollingBuffer.removeSubrange(0...newlineRange.lowerBound)
-                    let line = Self.sanitizedLine(from: lineData)
-                    if !line.isEmpty {
+                    if Self.hasNonWhitespaceContent(lineData) {
                         let now = Date()
                         rotateWindowIfNeeded(now: now)
                         if loggedInWindow < maxLinesPerSecond {
-                            Self.logger.error("MCP stderr[\(serverLabel, privacy: .public)] \(line, privacy: .public)")
+                            Self.logger.error(
+                                "MCP stderr[\(serverLabel, privacy: .private)] produced output line"
+                            )
                             loggedInWindow += 1
                         } else {
                             suppressedInWindow += 1
@@ -124,9 +125,10 @@ public enum MCPTransportFactory {
             }
 
             if !rollingBuffer.isEmpty {
-                let line = Self.sanitizedLine(from: rollingBuffer)
-                if !line.isEmpty {
-                    Self.logger.error("MCP stderr[\(serverLabel, privacy: .public)] \(line, privacy: .public)")
+                if Self.hasNonWhitespaceContent(rollingBuffer) {
+                    Self.logger.error(
+                        "MCP stderr[\(serverLabel, privacy: .private)] produced output line"
+                    )
                 }
             }
             flushSuppressedIfNeeded()
@@ -134,12 +136,13 @@ public enum MCPTransportFactory {
         }
     }
 
-    private static func sanitizedLine(from data: Data) -> String {
+    private static func hasNonWhitespaceContent(_ data: Data) -> Bool {
         let raw = String(data: data, encoding: .utf8) ?? ""
         let filteredScalars = raw.unicodeScalars.filter { scalar in
             scalar.value == 0x09 || scalar.value >= 0x20
         }
-        return String(String.UnicodeScalarView(filteredScalars))
+        return !String(String.UnicodeScalarView(filteredScalars))
             .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 }
