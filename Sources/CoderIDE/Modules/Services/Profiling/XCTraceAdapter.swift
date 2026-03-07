@@ -74,9 +74,27 @@ actor XCTraceAdapter {
         let duration = Date().timeIntervalSince(startTime)
 
         if let process = activeProcess, process.isRunning {
-            process.interrupt()
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                process.terminationHandler = { _ in continuation.resume() }
+                let lock = NSLock()
+                var didResume = false
+
+                func resumeOnce() {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    guard !didResume else { return }
+                    didResume = true
+                    continuation.resume()
+                }
+
+                process.terminationHandler = { _ in
+                    resumeOnce()
+                }
+
+                process.interrupt()
+
+                if !process.isRunning {
+                    resumeOnce()
+                }
             }
         }
 
@@ -110,14 +128,32 @@ actor XCTraceAdapter {
         process.standardOutput = Pipe()
         process.standardError = Pipe()
 
-        do {
-            try process.run()
-        } catch {
-            return false
-        }
-
         return await withCheckedContinuation { continuation in
-            process.terminationHandler = { p in continuation.resume(returning: p.terminationStatus == 0) }
+            let lock = NSLock()
+            var didResume = false
+
+            func resumeOnce(_ value: Bool) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: value)
+            }
+
+            process.terminationHandler = { p in
+                resumeOnce(p.terminationStatus == 0)
+            }
+
+            do {
+                try process.run()
+            } catch {
+                resumeOnce(false)
+                return
+            }
+
+            if !process.isRunning {
+                resumeOnce(process.terminationStatus == 0)
+            }
         }
     }
 
@@ -141,14 +177,36 @@ actor XCTraceAdapter {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
-        let exitStatus: Int32
-        do {
-            try process.run()
-            exitStatus = await withCheckedContinuation { continuation in
-                process.terminationHandler = { p in continuation.resume(returning: p.terminationStatus) }
+        let exitStatus: Int32 = await withCheckedContinuation { continuation in
+            let lock = NSLock()
+            var didResume = false
+
+            func resumeOnce(_ value: Int32) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: value)
             }
-        } catch {
-            return TraceStats(error: error.localizedDescription)
+
+            process.terminationHandler = { p in
+                resumeOnce(p.terminationStatus)
+            }
+
+            do {
+                try process.run()
+            } catch {
+                resumeOnce(-1)
+                return
+            }
+
+            if !process.isRunning {
+                resumeOnce(process.terminationStatus)
+            }
+        }
+
+        guard exitStatus >= 0 else {
+            return TraceStats(error: "Failed to run xctrace export")
         }
 
         guard exitStatus == 0 else {
