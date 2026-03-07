@@ -58,7 +58,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.primary.opacity(0.035))
+                .fill(Color.black.opacity(0.22))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -72,7 +72,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
         case .prose:
             Text(section.lines.joined(separator: "\n"))
                 .font(.system(size: 10))
-                .foregroundStyle(.primary.opacity(0.88))
+                .foregroundStyle(.white.opacity(0.92))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .metadata:
@@ -80,7 +80,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
                 ForEach(section.lines, id: \.self) { line in
                     Text(line)
                         .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.80))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -95,7 +95,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
                             .padding(.top, 4)
                         Text(line)
                             .font(.system(size: 9.5))
-                            .foregroundStyle(.primary.opacity(0.88))
+                            .foregroundStyle(.white.opacity(0.90))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -107,7 +107,7 @@ private struct ReviewPanelChatStructuredSectionView: View {
                     ForEach(section.lines, id: \.self) { line in
                         Text(line)
                             .font(.system(size: 9.5, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.78))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

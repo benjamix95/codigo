@@ -45,6 +45,10 @@ extension CodeReviewPanelStore {
         return providerOption(for: effectivePanelProviderId)
     }
 
+    var panelRunBackendId: String? {
+        effectivePanelProviderId
+    }
+
     var panelProviderOptions: [ReviewPanelProviderOption] {
         providerRegistry.providers
             .filter { ProviderSupport.isAgentCompatibleProvider(id: $0.id) }

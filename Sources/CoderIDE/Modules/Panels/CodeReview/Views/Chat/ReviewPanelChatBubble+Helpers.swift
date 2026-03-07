@@ -34,11 +34,11 @@ extension ReviewPanelChatBubble {
     var systemBubbleFill: Color {
         switch message.kind {
         case .summary:
-            return accent.opacity(0.08)
+            return Color.black.opacity(0.20)
         case .findingMutation:
-            return DesignSystem.Colors.info.opacity(0.08)
+            return Color.black.opacity(0.18)
         case .statusNote, .plain, .commandInvocation, .reviewRun:
-            return Color(nsColor: .controlBackgroundColor).opacity(0.35)
+            return Color.black.opacity(0.24)
         }
     }
 
@@ -67,11 +67,11 @@ extension ReviewPanelChatBubble {
     var systemBubbleForeground: Color {
         switch message.kind {
         case .summary:
-            return accent.opacity(0.9)
+            return accent.opacity(0.96)
         case .findingMutation:
             return DesignSystem.Colors.info
         case .statusNote, .plain, .commandInvocation, .reviewRun:
-            return .secondary
+            return .white.opacity(0.88)
         }
     }
 
@@ -87,12 +87,12 @@ extension ReviewPanelChatBubble {
         } else {
             Text(message.content)
                 .font(.system(size: 10.5))
-                .foregroundStyle(.primary.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.92))
                 .textSelection(.enabled)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
-                    Color(nsColor: .controlBackgroundColor).opacity(0.5),
+                    Color.black.opacity(0.28),
                     in: RoundedRectangle(
                         cornerRadius: 10,
                         style: .continuous
@@ -101,7 +101,7 @@ extension ReviewPanelChatBubble {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(
-                            DesignSystem.Colors.border.opacity(0.2),
+                            DesignSystem.Colors.border.opacity(0.28),
                             lineWidth: 0.5
                         )
                 )
@@ -193,7 +193,7 @@ extension ReviewPanelChatBubble {
         .padding(.vertical, 3)
         .background(
             Capsule()
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+                .fill(Color.black.opacity(0.22))
         )
         .overlay(
             Capsule()

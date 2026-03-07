@@ -9,26 +9,22 @@ struct ReviewPanelChatThreadSwitcher: View {
             showPopover.toggle()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 9, weight: .semibold))
-                if let active = activeThread {
-                    Text(active.title)
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .lineLimit(1)
-                    Text(active.subtitle)
-                        .font(.system(size: 8.5))
-                        .foregroundStyle(active.isProcessing ? store.accent : .secondary)
-                        .lineLimit(1)
-                } else {
-                    Text("Chats")
-                        .font(.system(size: 9.5, weight: .semibold))
-                }
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("History")
+                    .font(.system(size: 9.5, weight: .semibold))
                 if visibleThreadsCount > 0 {
                     Text("\(visibleThreadsCount)")
                         .font(.system(size: 8, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(store.accent.opacity(0.14), in: Capsule())
+                }
+                if let active = activeThread {
+                    Text(active.title)
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundStyle(active.isProcessing ? store.accent.opacity(0.9) : .secondary)
+                        .lineLimit(1)
                 }
             }
             .foregroundStyle(store.accent)
