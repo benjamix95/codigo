@@ -89,7 +89,7 @@ enum SubagentPipelineLogger {
     )
 
     static func log(_ message: String) {
-        logger.debug("\(message, privacy: .public)")
+        logger.debug("\(message, privacy: .private)")
     }
 }
 
