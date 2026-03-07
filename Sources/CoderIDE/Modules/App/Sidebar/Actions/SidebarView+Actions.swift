@@ -3,6 +3,15 @@ import SwiftUI
 import AppKit
 import CoderEngine
 
+func shouldReselectAfterArchivingThread(
+    wasSelected: Bool,
+    archived: Bool,
+    showArchived: Bool,
+    isFavorite: Bool
+) -> Bool {
+    wasSelected && archived && !showArchived && !isFavorite
+}
+
 extension SidebarView {
     func requestConversationDeletionInterrupt(_ conversationId: UUID) {
         NotificationCenter.default.post(
@@ -30,6 +39,14 @@ extension SidebarView {
         }
         projectContextStore.clearLastActiveConversation(conversationId: conversation.id)
         todoStore.clearTodos(forConversationId: conversation.id)
+    }
+
+    func prepareConversationForArchive(_ conversation: Conversation) {
+        guard chatStore.isTaskActive(for: conversation.id)
+                || pipelineIntegrationService.isRunning(for: conversation.id)
+        else { return }
+        requestConversationDeletionInterrupt(conversation.id)
+        _ = pipelineIntegrationService.discardConversationRuntime(for: conversation.id)
     }
 
     func deleteAllVisibleThreads() {
@@ -65,6 +82,19 @@ extension SidebarView {
             fallbackContextId: deletedConversation.contextId,
             fallbackFolderPath: deletedConversation.contextFolderPath,
             autoCreatedConversationId: autoCreatedConversationId
+        )
+    }
+
+    func nextConversationSelectionAfterArchive(
+        archivedConversation: Conversation
+    ) -> UUID? {
+        if let replacement = visibleThreads.first(where: { $0.id != archivedConversation.id }) {
+            return replacement.id
+        }
+        return resolveAndApplySidebarThreadDeletionFallback(
+            fallbackContextId: archivedConversation.contextId,
+            fallbackFolderPath: archivedConversation.contextFolderPath,
+            autoCreatedConversationId: nil
         )
     }
 

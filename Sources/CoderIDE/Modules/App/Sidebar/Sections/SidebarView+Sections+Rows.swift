@@ -202,7 +202,19 @@ extension SidebarView {
                 .help("Move to folder...")
             }
             Button {
-                chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
+                let nextArchived = !conv.isArchived
+                prepareConversationForArchive(conv)
+                chatStore.setArchived(conversationId: conv.id, archived: nextArchived)
+                if shouldReselectAfterArchivingThread(
+                    wasSelected: selectedConversationId == conv.id,
+                    archived: nextArchived,
+                    showArchived: showArchived,
+                    isFavorite: conv.isFavorite
+                ) {
+                    selectedConversationId = nextConversationSelectionAfterArchive(
+                        archivedConversation: conv
+                    )
+                }
             } label: {
                 Image(systemName: conv.isArchived ? "archivebox.fill" : "archivebox")
                     .font(.system(size: 10, weight: .semibold))
@@ -253,7 +265,19 @@ extension SidebarView {
                 Label(conv.isPinned ? "Unpin thread" : "Pin thread", systemImage: conv.isPinned ? "pin.fill" : "pin")
             }
             Button {
-                chatStore.setArchived(conversationId: conv.id, archived: !conv.isArchived)
+                let nextArchived = !conv.isArchived
+                prepareConversationForArchive(conv)
+                chatStore.setArchived(conversationId: conv.id, archived: nextArchived)
+                if shouldReselectAfterArchivingThread(
+                    wasSelected: selectedConversationId == conv.id,
+                    archived: nextArchived,
+                    showArchived: showArchived,
+                    isFavorite: conv.isFavorite
+                ) {
+                    selectedConversationId = nextConversationSelectionAfterArchive(
+                        archivedConversation: conv
+                    )
+                }
             } label: {
                 Label(conv.isArchived ? "Restore thread" : "Archive thread", systemImage: conv.isArchived ? "archivebox.fill" : "archivebox")
             }

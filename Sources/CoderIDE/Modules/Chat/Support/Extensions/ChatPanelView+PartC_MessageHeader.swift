@@ -56,6 +56,54 @@ extension ChatPanelView {
         return true
     }
 
+    /// Lightweight thread context shown inside the chat header,
+    /// below the draggable titlebar band.
+    internal var chatHeaderInfoBar: some View {
+        HStack(spacing: 6) {
+            Text(chatTitlebarDisplayTitle)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            chatTitlebarProjectButton
+
+            Spacer()
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 14)
+        .contentShape(Rectangle())
+    }
+
+    private var chatTitlebarDisplayTitle: String {
+        guard let id = conversationId,
+              let conversation = chatStore.conversation(for: id) else {
+            return "New thread"
+        }
+        let raw = conversation.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw.isEmpty || raw == "New conversation" ? "New thread" : raw
+    }
+
+    @ViewBuilder
+    private var chatTitlebarProjectButton: some View {
+        let path = effectiveContext.primaryPath ?? ""
+        let name = effectiveContext.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !path.isEmpty, !name.isEmpty {
+            Button {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 9))
+                    Text(name)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Open \(path) in Finder")
+        }
+    }
 
     internal var chatHeader: some View {
         modeTabBar
@@ -84,7 +132,7 @@ extension ChatPanelView {
 
     @ViewBuilder
     internal var headerLeadingBar: some View {
-        EmptyView()
+        chatHeaderInfoBar
     }
 
     internal var rewindButton: some View {
