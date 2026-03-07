@@ -119,7 +119,8 @@ extension CodigoApp {
         _ command: MCPSharedCodeReviewCommand
     ) async -> (success: Bool, message: String) {
         let conversationId = command.conversationId.flatMap { UUID(uuidString: $0) }
-        let sessionId = command.sessionId ?? UUID().uuidString.lowercased()
+        let sessionId = MCPSharedState.sanitizedCodeReviewSessionId(command.sessionId)
+            ?? UUID().uuidString.lowercased()
         let cfg = providerFactoryConfig()
         guard !workspaceStore.activeWorkspacePaths.isEmpty else {
             return (false, "No active workspace is available for code review")

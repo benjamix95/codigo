@@ -37,7 +37,7 @@ extension MCPSharedState {
             let command = MCPSharedCodeReviewCommand(
                 id: UUID().uuidString.lowercased(),
                 action: action,
-                sessionId: sessionId?.trimmingCharacters(in: .whitespacesAndNewlines),
+                sessionId: sanitizedCodeReviewSessionId(sessionId),
                 conversationId: conversationId?.uuidString.lowercased(),
                 payload: normalizedPayload,
                 createdAt: Date(),

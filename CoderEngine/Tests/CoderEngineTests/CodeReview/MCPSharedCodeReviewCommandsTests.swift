@@ -12,6 +12,18 @@ final class MCPSharedCodeReviewCommandsTests: XCTestCase {
         super.tearDown()
     }
 
+
+    func testEnqueueCommandDropsInvalidSessionId() {
+        let command = MCPSharedState.enqueueCodeReviewCommand(
+            action: "start",
+            sessionId: "../escape",
+            conversationId: nil,
+            payload: ["scope": "uncommitted"]
+        )
+
+        XCTAssertNil(command.sessionId)
+    }
+
     func testClaimPendingCommandsPromotesThemToProcessing() throws {
         _ = MCPSharedState.enqueueCodeReviewCommand(
             action: "start",
