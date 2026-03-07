@@ -65,7 +65,8 @@ extension CodeReviewAuditService {
     static func commandOutput(
         executable: String,
         arguments: [String],
-        currentDirectoryURL: URL
+        currentDirectoryURL: URL,
+        timeoutSeconds: TimeInterval = 8
     ) -> (status: Int32, output: String)? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -77,15 +78,41 @@ extension CodeReviewAuditService {
         process.standardOutput = stdout
         process.standardError = stderr
 
+        let stdoutBuffer = StreamCaptureState()
+        let stderrBuffer = StreamCaptureState()
+        stdout.fileHandleForReading.readabilityHandler = { handle in
+            stdoutBuffer.append(handle.availableData)
+        }
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            stderrBuffer.append(handle.availableData)
+        }
+
         do {
             try process.run()
         } catch {
+            stdout.fileHandleForReading.readabilityHandler = nil
+            stderr.fileHandleForReading.readabilityHandler = nil
             return nil
         }
 
+        let timeoutItem = DispatchWorkItem {
+            guard process.isRunning else { return }
+            process.terminate()
+        }
+        DispatchQueue.global().asyncAfter(
+            deadline: .now() + max(1, timeoutSeconds),
+            execute: timeoutItem
+        )
+
         process.waitUntilExit()
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-            + stderr.fileHandleForReading.readDataToEndOfFile()
+        timeoutItem.cancel()
+
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
+        stdoutBuffer.append(stdout.fileHandleForReading.readDataToEndOfFile())
+        stderrBuffer.append(stderr.fileHandleForReading.readDataToEndOfFile())
+
+        let data = stdoutBuffer.data + stderrBuffer.data
         let output = String(data: data, encoding: .utf8) ?? ""
         return (status: process.terminationStatus, output: output)
     }
@@ -129,5 +156,17 @@ extension CodeReviewAuditService {
             counts[trimmed, default: 0] += 1
         }
         return counts
+    }
+}
+
+private final class StreamCaptureState: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var data = Data()
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        data.append(chunk)
+        lock.unlock()
     }
 }

@@ -1,13 +1,13 @@
 import Foundation
 
-enum ReviewPanelChatStructuredSectionStyle: Equatable {
+enum ReviewPanelChatStructuredSectionStyle: Equatable, Codable {
     case prose
     case metadata
     case findings
     case log
 }
 
-struct ReviewPanelChatStructuredSection: Identifiable, Equatable {
+struct ReviewPanelChatStructuredSection: Identifiable, Equatable, Codable {
     let id: String
     let title: String
     let lines: [String]

@@ -35,13 +35,17 @@ struct ReviewPanelChatBubble: View {
             )
             Text(message.content)
                 .font(.system(size: 10.5))
-                .foregroundStyle(.white)
+                .foregroundStyle(.white.opacity(0.96))
                 .textSelection(.enabled)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
-                    accent,
+                    userBubbleFill,
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(userBubbleBorder, lineWidth: 0.6)
                 )
 
             Text(message.timestamp, style: .time)

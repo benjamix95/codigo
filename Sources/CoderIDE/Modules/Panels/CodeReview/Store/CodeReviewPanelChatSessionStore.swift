@@ -3,8 +3,13 @@ import Foundation
 @MainActor
 final class ReviewPanelChatSessionStore: ObservableObject {
     static let shared = ReviewPanelChatSessionStore()
+    private static let storageKey = "CoderIDE.reviewPanelChatSessions.v1"
 
     @Published private(set) var conversationsByKey: [String: ReviewPanelChatConversationState] = [:]
+
+    init() {
+        load()
+    }
 
     func conversation(for key: String) -> ReviewPanelChatConversationState {
         conversationsByKey[key] ?? .empty
@@ -34,6 +39,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         conversation.threads.insert(thread, at: 0)
         conversation.activeThreadId = id
         conversationsByKey[key] = conversation
+        save()
         return id
     }
 
@@ -88,6 +94,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         guard conversation.threads.contains(where: { $0.id == threadId && !$0.archived }) else { return }
         conversation.activeThreadId = threadId
         conversationsByKey[key] = conversation
+        save()
     }
 
     func archiveThread(_ threadId: String, for key: String) {
@@ -103,6 +110,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
             thread.archived = false
             thread.updatedAt = Date()
         }
+        save()
     }
 
     func deleteThread(_ threadId: String, for key: String) {
@@ -115,14 +123,17 @@ final class ReviewPanelChatSessionStore: ObservableObject {
                 ?? conversation.threads.first?.id
         }
         conversationsByKey[key] = conversation
+        save()
     }
 
     func clearState(for key: String) {
         conversationsByKey[key] = .empty
+        save()
     }
 
     func clearAll() {
         conversationsByKey.removeAll()
+        save()
     }
 
     private func ensureActiveThread(for key: String) -> String {
@@ -144,6 +155,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         mutate(&conversation.threads[index])
         conversation.threads.sort { $0.updatedAt > $1.updatedAt }
         conversationsByKey[key] = conversation
+        save()
     }
 
     private func normalizeActiveThread(for key: String) {
@@ -156,6 +168,7 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         }
         conversation.activeThreadId = conversation.threads.first(where: { !$0.archived })?.id
         conversationsByKey[key] = conversation
+        save()
     }
 
     private static func derivedTitle(from content: String) -> String? {
@@ -163,9 +176,28 @@ final class ReviewPanelChatSessionStore: ObservableObject {
         guard !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(36))
     }
+
+    private func load() {
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else {
+            conversationsByKey = [:]
+            return
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        conversationsByKey =
+            (try? decoder.decode([String: ReviewPanelChatConversationState].self, from: data))
+            ?? [:]
+    }
+
+    private func save() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(conversationsByKey) else { return }
+        UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
 }
 
-struct ReviewPanelChatConversationState: Equatable {
+struct ReviewPanelChatConversationState: Equatable, Codable {
     var threads: [ReviewPanelChatThreadState]
     var activeThreadId: String?
 
@@ -175,7 +207,7 @@ struct ReviewPanelChatConversationState: Equatable {
     )
 }
 
-struct ReviewPanelChatThreadState: Identifiable, Equatable {
+struct ReviewPanelChatThreadState: Identifiable, Equatable, Codable {
     let id: String
     var title: String
     var messages: [ReviewPanelMessage]
@@ -226,7 +258,7 @@ struct ReviewPanelChatThreadState: Identifiable, Equatable {
     }
 }
 
-struct ReviewPanelChatSessionState: Equatable {
+struct ReviewPanelChatSessionState: Equatable, Codable {
     var messages: [ReviewPanelMessage]
     var isProcessing: Bool
     var startedAt: Date?

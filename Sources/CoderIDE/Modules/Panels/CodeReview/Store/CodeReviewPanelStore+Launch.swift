@@ -64,6 +64,11 @@ extension CodeReviewPanelStore {
             detail: prompt,
             selectChatTab: true
         )
+        appendReviewRunSectionLine(
+            id: outputMessageId,
+            sectionTitle: "Activity",
+            line: "Preparing review pipeline..."
+        )
 
         panelSessionId = sessionId
         taskActivityStore.setSelectedCodeReviewSessionId(sessionId, for: conversationId)

@@ -128,6 +128,18 @@ extension CodeReviewPanelStore {
 
     func streamPanelActionOutput(id: UUID, event: StreamEvent) {
         switch event {
+        case .started:
+            appendReviewRunSectionLine(
+                id: id,
+                sectionTitle: "Activity",
+                line: "Review stream started"
+            )
+        case .completed:
+            appendReviewRunSectionLine(
+                id: id,
+                sectionTitle: "Activity",
+                line: "Review stream completed"
+            )
         case .textDelta(let delta):
             let current = chatMessages.first(where: { $0.id == id })?.content ?? ""
             updateChatMessage(id: id, content: current + delta)
@@ -135,8 +147,12 @@ extension CodeReviewPanelStore {
             updateChatMessage(id: id, content: replacement)
         case .raw(let type, let payload):
             handleRawReviewRunEvent(id: id, type: type, payload: payload)
-        default:
-            break
+        case .error(let message):
+            appendReviewRunSectionLine(
+                id: id,
+                sectionTitle: "Activity",
+                line: "Error: \(message)"
+            )
         }
     }
 
@@ -289,10 +305,11 @@ extension CodeReviewPanelStore {
         type: String,
         payload: [String: String]
     ) {
+        let enrichedPayload = enrichedReviewRawPayload(type: type, payload: payload)
         let envelope = EventNormalizer.normalizeEnvelope(
             sourceProvider: effectivePanelProviderId ?? "review-panel",
             type: type,
-            payload: payload
+            payload: enrichedPayload
         )
         taskActivityStore.addEnvelope(envelope)
         for event in envelope.events {
@@ -302,6 +319,41 @@ extension CodeReviewPanelStore {
                 )
             }
         }
+    }
+
+    private func enrichedReviewRawPayload(
+        type: String,
+        payload: [String: String]
+    ) -> [String: String] {
+        var enriched = payload
+        switch type {
+        case "review-worker-plan":
+            if let workerId = firstNonEmpty([payload["worker_id"], payload["id"]]) {
+                enriched["swarm_id"] = workerId
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(workerId)"
+                enriched["agent_name"] = payload["agent_name"] ?? workerId
+                enriched["title"] = payload["title"] ?? payload["description"] ?? workerId
+                if enriched["detail"] == nil {
+                    enriched["detail"] = "planned"
+                }
+            }
+        case "review-audit-tool":
+            if let tool = firstNonEmpty([payload["tool"]]) {
+                let swarmId = "audit-\(tool)"
+                enriched["swarm_id"] = swarmId
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
+                enriched["agent_name"] = payload["agent_name"] ?? tool
+                enriched["title"] = payload["title"] ?? tool
+            }
+        case "agent":
+            if let swarmId = firstNonEmpty([payload["swarm_id"], payload["swarmId"]]) {
+                enriched["group_id"] = payload["group_id"] ?? "swarm-\(swarmId)"
+                enriched["agent_name"] = payload["agent_name"] ?? payload["title"] ?? swarmId
+            }
+        default:
+            break
+        }
+        return enriched
     }
 
     private func syncTodoIfNeeded(
@@ -346,7 +398,7 @@ extension CodeReviewPanelStore {
         )
     }
 
-    private func appendReviewRunSectionLine(
+    func appendReviewRunSectionLine(
         id: UUID,
         sectionTitle: String,
         line: String
@@ -421,7 +473,17 @@ extension CodeReviewPanelStore {
             let detail = payload["detail"] ?? payload["title"] ?? "Tool error"
             return ("Activity", "Error: \(detail)")
         default:
-            return nil
+            if let detail = firstNonEmpty([
+                payload["detail"],
+                payload["title"],
+                payload["summary"],
+                payload["status"],
+                payload["tool"],
+                payload["type"],
+            ]) {
+                return ("Activity", "\(type): \(detail)")
+            }
+            return ("Activity", type)
         }
         return nil
     }

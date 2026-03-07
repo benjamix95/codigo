@@ -42,6 +42,42 @@ extension ReviewPanelChatBubble {
         }
     }
 
+    var userBubbleFill: AnyShapeStyle {
+        switch message.kind {
+        case .commandInvocation:
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.44),
+                        accent.opacity(0.28),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        default:
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        accent.opacity(0.82),
+                        accent.opacity(0.64),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+        }
+    }
+
+    var userBubbleBorder: Color {
+        switch message.kind {
+        case .commandInvocation:
+            return accent.opacity(0.34)
+        default:
+            return accent.opacity(0.18)
+        }
+    }
+
     var systemBubbleAccent: Color {
         switch message.kind {
         case .summary:
