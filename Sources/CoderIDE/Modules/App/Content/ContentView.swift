@@ -54,6 +54,8 @@ struct ContentView: View {
 
     var body: some View {
         configuredContent
+            .navigationTitle("")
+            .toolbar(removing: .sidebarToggle)
             .onReceive(NotificationCenter.default.publisher(for: .windowSidebarChromeToggleRequested)) { _ in
                 handleWindowSidebarChromeToggle()
             }
