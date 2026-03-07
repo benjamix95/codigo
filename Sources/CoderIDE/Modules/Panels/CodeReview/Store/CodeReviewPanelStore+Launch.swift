@@ -160,6 +160,7 @@ extension CodeReviewPanelStore {
                 )
                 appendPanelSystemMessage(
                     "Fix applied to finding \(findingId).",
+                    kind: .findingMutation,
                     selectChatTab: false
                 )
             }
@@ -172,6 +173,7 @@ extension CodeReviewPanelStore {
         }
         appendPanelSystemMessage(
             "Fix applied to finding \(findingId).",
+            kind: .findingMutation,
             selectChatTab: false
         )
     }
@@ -192,6 +194,7 @@ extension CodeReviewPanelStore {
             )
             appendPanelSystemMessage(
                 "Finding \(findingId) dismissed (\(reason)).",
+                kind: .findingMutation,
                 selectChatTab: false
             )
             return
@@ -205,6 +208,7 @@ extension CodeReviewPanelStore {
         }
         appendPanelSystemMessage(
             "Finding \(findingId) dismissed (\(reason)).",
+            kind: .findingMutation,
             selectChatTab: false
         )
     }
@@ -253,7 +257,7 @@ extension CodeReviewPanelStore {
 
     func publishSummaryToChat(sessionId: String) {
         let summary = exportSummary(sessionId: sessionId)
-        appendPanelSystemMessage(summary, selectChatTab: true)
+        appendPanelSystemMessage(summary, kind: .summary, selectChatTab: true)
     }
 
     // MARK: - Private Helpers

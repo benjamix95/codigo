@@ -11,13 +11,18 @@ extension CodeReviewPanelStore {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isChatProcessing else { return }
 
-        appendChatMessage(ReviewPanelMessage(role: .user, content: trimmed))
+        appendChatMessage(ReviewPanelMessage(
+            role: .user,
+            kind: .plain,
+            content: trimmed
+        ))
 
         // Create streaming assistant message
         let assistantId = UUID()
         appendChatMessage(ReviewPanelMessage(
             id: assistantId,
             role: .assistant,
+            kind: .plain,
             content: "",
             isStreaming: true
         ))
@@ -103,11 +108,16 @@ extension CodeReviewPanelStore {
             selectTab(.chat)
         }
         let commandText = detail.map { "\(title)\n\n\($0)" } ?? title
-        appendChatMessage(ReviewPanelMessage(role: .user, content: commandText))
+        appendChatMessage(ReviewPanelMessage(
+            role: .user,
+            kind: .commandInvocation,
+            content: commandText
+        ))
         let assistantId = UUID()
         appendChatMessage(ReviewPanelMessage(
             id: assistantId,
             role: .assistant,
+            kind: .reviewRun,
             content: "",
             isStreaming: true
         ))
@@ -148,11 +158,19 @@ extension CodeReviewPanelStore {
         persistChatState()
     }
 
-    func appendPanelSystemMessage(_ text: String, selectChatTab: Bool = false) {
+    func appendPanelSystemMessage(
+        _ text: String,
+        kind: ReviewPanelMessageKind = .statusNote,
+        selectChatTab: Bool = false
+    ) {
         if selectChatTab {
             selectTab(.chat)
         }
-        appendChatMessage(ReviewPanelMessage(role: .system, content: text))
+        appendChatMessage(ReviewPanelMessage(
+            role: .system,
+            kind: kind,
+            content: text
+        ))
     }
 
     // MARK: - Private

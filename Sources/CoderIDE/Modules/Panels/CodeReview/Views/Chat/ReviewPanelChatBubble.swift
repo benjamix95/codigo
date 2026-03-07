@@ -24,6 +24,12 @@ struct ReviewPanelChatBubble: View {
 
     private var userBubble: some View {
         VStack(alignment: .trailing, spacing: 2) {
+            bubbleHeader(
+                title: message.kind.title,
+                icon: message.kind.icon,
+                color: accent.opacity(0.85),
+                isTrailing: true
+            )
             Text(message.content)
                 .font(.system(size: 10.5))
                 .foregroundStyle(.white)
@@ -45,17 +51,13 @@ struct ReviewPanelChatBubble: View {
 
     private var assistantBubble: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 4) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 8))
-                    .foregroundStyle(accent)
-
-                if message.isStreaming {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .scaleEffect(0.6)
-                }
-            }
+            bubbleHeader(
+                title: message.kind.title,
+                icon: message.kind.icon,
+                color: accent,
+                isTrailing: false,
+                showsProgress: message.isStreaming
+            )
 
             if message.content.isEmpty && message.isStreaming {
                 HStack(spacing: 3) {
@@ -103,15 +105,102 @@ struct ReviewPanelChatBubble: View {
     // MARK: - System Bubble
 
     private var systemBubble: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 8))
-                .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 4) {
+            bubbleHeader(
+                title: message.kind.title,
+                icon: message.kind.icon,
+                color: systemBubbleAccent,
+                isTrailing: false
+            )
             Text(message.content)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.tertiary)
+                .font(systemBubbleFont)
+                .foregroundStyle(systemBubbleForeground)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(systemBubbleFill)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(systemBubbleAccent.opacity(0.2), lineWidth: 0.5)
+        )
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+    }
+
+    private func bubbleHeader(
+        title: String,
+        icon: String,
+        color: Color,
+        isTrailing: Bool,
+        showsProgress: Bool = false
+    ) -> some View {
+        HStack(spacing: 4) {
+            if isTrailing {
+                Spacer(minLength: 0)
+            }
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(color)
+            Text(title.uppercased())
+                .font(.system(size: 7.5, weight: .bold))
+                .foregroundStyle(color.opacity(0.85))
+                .tracking(0.6)
+            if showsProgress {
+                ProgressView()
+                    .controlSize(.mini)
+                    .scaleEffect(0.6)
+            }
+            if !isTrailing {
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var systemBubbleFill: Color {
+        switch message.kind {
+        case .summary:
+            return accent.opacity(0.08)
+        case .findingMutation:
+            return DesignSystem.Colors.info.opacity(0.08)
+        case .statusNote, .plain, .commandInvocation, .reviewRun:
+            return Color(nsColor: .controlBackgroundColor).opacity(0.35)
+        }
+    }
+
+    private var systemBubbleAccent: Color {
+        switch message.kind {
+        case .summary:
+            return accent
+        case .findingMutation:
+            return DesignSystem.Colors.info
+        case .statusNote, .plain, .commandInvocation, .reviewRun:
+            return .secondary
+        }
+    }
+
+    private var systemBubbleFont: Font {
+        switch message.kind {
+        case .summary:
+            return .system(size: 9.5, weight: .medium, design: .monospaced)
+        case .findingMutation:
+            return .system(size: 9.5, weight: .medium)
+        case .statusNote, .plain, .commandInvocation, .reviewRun:
+            return .system(size: 9.5)
+        }
+    }
+
+    private var systemBubbleForeground: Color {
+        switch message.kind {
+        case .summary:
+            return accent.opacity(0.9)
+        case .findingMutation:
+            return DesignSystem.Colors.info
+        case .statusNote, .plain, .commandInvocation, .reviewRun:
+            return .secondary
+        }
     }
 }

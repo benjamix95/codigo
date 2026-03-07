@@ -5,6 +5,7 @@ import Foundation
 struct ReviewPanelMessage: Identifiable, Equatable {
     let id: UUID
     let role: ReviewPanelMessageRole
+    let kind: ReviewPanelMessageKind
     var content: String
     let timestamp: Date
     var isStreaming: Bool
@@ -12,12 +13,14 @@ struct ReviewPanelMessage: Identifiable, Equatable {
     init(
         id: UUID = UUID(),
         role: ReviewPanelMessageRole,
+        kind: ReviewPanelMessageKind = .plain,
         content: String,
         timestamp: Date = Date(),
         isStreaming: Bool = false
     ) {
         self.id = id
         self.role = role
+        self.kind = kind
         self.content = content
         self.timestamp = timestamp
         self.isStreaming = isStreaming
@@ -30,6 +33,37 @@ enum ReviewPanelMessageRole: String, Equatable {
     case user
     case assistant
     case system
+}
+
+enum ReviewPanelMessageKind: String, Equatable {
+    case plain
+    case commandInvocation
+    case reviewRun
+    case findingMutation
+    case summary
+    case statusNote
+
+    var title: String {
+        switch self {
+        case .plain: return "Message"
+        case .commandInvocation: return "Command"
+        case .reviewRun: return "Review Run"
+        case .findingMutation: return "Finding Update"
+        case .summary: return "Summary"
+        case .statusNote: return "Status"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .plain: return "bubble.left"
+        case .commandInvocation: return "terminal"
+        case .reviewRun: return "waveform.path.ecg"
+        case .findingMutation: return "wrench.and.screwdriver"
+        case .summary: return "doc.text"
+        case .statusNote: return "info.circle"
+        }
+    }
 }
 
 // MARK: - Preset Chips
