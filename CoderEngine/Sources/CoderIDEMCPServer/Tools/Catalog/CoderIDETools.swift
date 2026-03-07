@@ -15,6 +15,14 @@ struct CoderIDETools {
         + debugTools
         + codeReviewTools
 
+    private static let allowedRuntimeToolNames: Set<String> = Set(
+        all.map { runtimeToolName(from: $0.name) }
+    )
+
+    static func isAllowedRuntimeToolName(_ runtimeToolName: String) -> Bool {
+        allowedRuntimeToolNames.contains(runtimeToolName)
+    }
+
     /// Map MCP tool name → UnifiedToolRuntime tool name.
     /// Supports both plain names (`coderide_read`) and namespaced references
     /// (`coderide/coderide_read`) emitted by some MCP clients.
