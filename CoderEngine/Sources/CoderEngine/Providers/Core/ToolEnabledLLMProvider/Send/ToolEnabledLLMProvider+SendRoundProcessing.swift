@@ -114,10 +114,9 @@ extension ToolEnabledLLMProvider {
                 let name = inferredToolName(from: payload)
                 if name.isEmpty { continue }
 
-                let exemptFromRoundBudget = UnifiedToolRuntime.readOnlyFileToolsExemptFromRoundBudget.contains(name)
                 let exemptFromRepetitionLimit = UnifiedToolRuntime.readOnlyFileToolsExemptFromRepetitionLimit.contains(name)
 
-                if !exemptFromRoundBudget, toolCallsThisRound >= policy.maxToolCallsPerRound {
+                if toolCallsThisRound >= policy.maxToolCallsPerRound {
                     if !didEmitToolBudgetExceededThisRound {
                         didEmitToolBudgetExceededThisRound = true
                         continuation.yield(.raw(type: "tool_execution_error", payload: [
@@ -232,9 +231,7 @@ extension ToolEnabledLLMProvider {
                         "status": "queued"
                     ]))
                 } else {
-                    if !exemptFromRoundBudget {
-                        toolCallsThisRound += 1
-                    }
+                    toolCallsThisRound += 1
                     let produced = await events(for: effectiveMarker, context: context)
                     for e in produced {
                         if Self.streamEventIndicatesCodeMutation(e, originatingToolName: name) {
